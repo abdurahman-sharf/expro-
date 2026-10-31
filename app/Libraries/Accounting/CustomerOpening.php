@@ -62,10 +62,6 @@ final class CustomerOpening
      * Gives a customer who has none an opening balance, dated up to today: what is owed on a day to
      * come would be in the balance of the customer and in none of the buckets of their aging.
      *
-     * @param self::OWES_US|self::WE_OWE $side
-     *
-     * @return int The opening balance.
-     *
      * @throws AccountingException|BranchException|PostingException
      */
     public function create(int $customerId, string $side, string $amount, string $date, string $note = '', ?int $employeeId = null, ?int $branchId = null): int
@@ -91,10 +87,6 @@ final class CustomerOpening
     /**
      * Changes the opening balance that stands: its journal is reversed, with a reason, and a new
      * revision is posted in its place. The revision that was reversed stays.
-     *
-     * @param self::OWES_US|self::WE_OWE $side
-     *
-     * @return int The new revision.
      *
      * @throws AccountingException|BranchException|PostingException
      */

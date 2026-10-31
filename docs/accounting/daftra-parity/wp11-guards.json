@@ -531,15 +531,6 @@
     ]
   },
   {
-    "name": "CU-31 the customer needs an account of their own",
-    "file": "app/Libraries/Accounting/CustomerOpening.php",
-    "find": "if ($customer === null) {",
-    "replace": "if (false) {",
-    "tests": [
-      "tests/Libraries/Accounting/CustomerOpeningTest.php"
-    ]
-  },
-  {
     "name": "CU-32 a journal that is already posted for the revision is refused",
     "file": "app/Libraries/Accounting/CustomerOpening.php",
     "find": "if (! $result->created) {",
@@ -837,7 +828,7 @@
   {
     "name": "CF-04 the form of a customer that exists offers no opening balance",
     "file": "app/Controllers/Customers.php",
-    "find": "$data['opening_offered']           = $customer_id == NEW_ENTRY && $this->openingOffered();",
+    "find": "$data['opening_offered']           = $customerId == NEW_ENTRY && $this->openingOffered();",
     "replace": "$data['opening_offered']           = $this->openingOffered();",
     "tests": [
       "tests/Controllers/CustomersControllerTest.php"

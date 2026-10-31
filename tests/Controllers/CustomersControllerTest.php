@@ -457,6 +457,7 @@ class CustomersControllerTest extends CIUnitTestCase
 
         $this->assertTrue($off['success']);
         $this->assertNull($this->openingOf($off['id']));
+        $this->assertStringNotContainsString(substr(lang('Customers.opening_not_entered', ['x']), 0, 20), $off['message'], 'Nothing was attempted where the field is not offered');
 
         $this->setConfigValue('accounting_customer_opening', '1');
         $this->withSession(['person_id' => $this->employeeWithGrants(['customers']), 'menu_group' => 'office']);
@@ -465,6 +466,7 @@ class CustomersControllerTest extends CIUnitTestCase
 
         $this->assertTrue($denied['success']);
         $this->assertNull($this->openingOf($denied['id']));
+        $this->assertStringNotContainsString(substr(lang('Customers.opening_not_entered', ['x']), 0, 20), $denied['message'], 'Nothing was attempted where the field is not offered');
         $this->assertSame(0, $this->countRows('customer_openings'));
     }
 

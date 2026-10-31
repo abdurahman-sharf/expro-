@@ -971,4 +971,16 @@ class CustomerOpeningTest extends CIUnitTestCase
             $this->assertRefusedWith(AccountingError::ReasonRequired, fn () => $this->openings->cancel($first, $reason, $this->clerk));
         }
     }
+
+    public function testReviseAndCancel_RefuseAnOpeningMarkedReversedEvenWhenItsJournalStillStands(): void
+    {
+        $first = $this->owe();
+        $this->accountingDb()->table('customer_openings')->where('opening_id', $first)->update(['status' => 'reversed']);
+        $counts = [$this->countRows('customer_openings'), $this->countJournals()];
+
+        $this->assertRefusedWith(AccountingError::CustomerOpeningReversed, fn () => $this->openings->cancel($first, 'Again', $this->clerk));
+        $this->assertRefusedWith(AccountingError::CustomerOpeningReversed, fn () => $this->openings->revise($first, CustomerOpening::OWES_US, '5.00', date('Y-m-d'), '', 'Again', $this->clerk));
+        $this->assertSame('posted', $this->journalOf(1)->status);
+        $this->assertSame($counts, [$this->countRows('customer_openings'), $this->countJournals()]);
+    }
 }

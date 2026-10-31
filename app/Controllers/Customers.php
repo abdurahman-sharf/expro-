@@ -153,18 +153,18 @@ class Customers extends Persons
      * Loads the customer edit form
      * @return string
      */
-    public function getView(int $customer_id = NEW_ENTRY): string
+    public function getView(int $customerId = NEW_ENTRY): string
     {
         // Set default values
-        if ($customer_id == null) $customer_id = NEW_ENTRY;
+        if ($customerId == null) $customerId = NEW_ENTRY;
 
-        $info = $this->customer->get_info($customer_id);
+        $info = $this->customer->get_info($customerId);
         foreach (get_object_vars($info) as $property => $value) {
             $info->$property = $value;
         }
         $data['person_info'] = $info;
 
-        $data['automaticAccountNumber'] = $customer_id == NEW_ENTRY ? (new DocumentNumbering())->peek(DocumentType::Customer) : null;
+        $data['automaticAccountNumber'] = $customerId == NEW_ENTRY ? (new DocumentNumbering())->peek(DocumentType::Customer) : null;
 
         if (empty($info->person_id) || empty($info->date) || empty($info->employee_id)) {
             $data['person_info']->date = date('Y-m-d H:i:s');
@@ -190,11 +190,11 @@ class Customers extends Persons
         $data['selected_package'] = $info->package_id;
 
         $data['use_destination_based_tax'] = $this->config['use_destination_based_tax'];
-        $data['opening_offered']           = $customer_id == NEW_ENTRY && $this->openingOffered();
+        $data['opening_offered']           = $customerId == NEW_ENTRY && $this->openingOffered();
         $data['opening_today']             = date('Y-m-d');
 
         // Retrieve the total amount the customer spent so far together with min, max and average values
-        $stats = $this->customer->get_stats($customer_id);
+        $stats = $this->customer->get_stats($customerId);
         if (!empty($stats)) {
             foreach (get_object_vars($stats) as $property => $value) {
                 $info->$property = $value;
@@ -252,7 +252,7 @@ class Customers extends Persons
      * Inserts/updates a customer
      * @return ResponseInterface
      */
-    public function postSave(int $customer_id = NEW_ENTRY): ResponseInterface
+    public function postSave(int $customerId = NEW_ENTRY): ResponseInterface
     {
         $firstName = $this->request->getPost('first_name');
         $lastName = $this->request->getPost('last_name');
@@ -293,11 +293,11 @@ class Customers extends Persons
             'sales_tax_code_id' => $this->request->getPost('sales_tax_code_id') == '' ? null : $this->request->getPost('sales_tax_code_id', FILTER_SANITIZE_NUMBER_INT)
         ];
 
-        if ($customerData['account_number'] !== null && $this->customer->refusesAccountNumber($customerData['account_number'], (string) $customer_id)) {
+        if ($customerData['account_number'] !== null && $this->customer->refusesAccountNumber($customerData['account_number'], (string) $customerId)) {
             return $this->response->setJSON(['success' => false, 'message' => lang('Customers.account_number_duplicate'), 'id' => NEW_ENTRY]);
         }
 
-        if ($this->customer->save_customer($personData, $customerData, $customer_id)) {
+        if ($this->customer->save_customer($personData, $customerData, $customerId)) {
             // Save customer to Mailchimp selected list    // TODO: addOrUpdateMember should be refactored. Potentially pass an array or object instead of 6 parameters.
             $mailchimpStatus = $this->request->getPost('mailchimp_status');
             $this->mailchimp_lib->addOrUpdateMember(
@@ -310,7 +310,7 @@ class Customers extends Persons
             );
 
             // New customer
-            if ($customer_id == NEW_ENTRY) {
+            if ($customerId == NEW_ENTRY) {
                 $notEntered = $this->enterOpening((int) $customerData['person_id']);
 
                 return $this->response->setJSON([
@@ -322,7 +322,7 @@ class Customers extends Persons
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => lang('Customers.successful_updating') . ' ' . $firstName . ' ' . $lastName,
-                    'id'      => $customer_id
+                    'id'      => $customerId
                 ]);
             }
         } else { // Failure
