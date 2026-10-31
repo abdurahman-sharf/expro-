@@ -882,5 +882,140 @@
   "tests": [
    "tests/Database/YearEndClosingsMigrationTest.php"
   ]
+ },
+ {
+  "name": "K01 reading the closing of a branch and year reads only an active closing",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "->where('fiscal_year_id', $fiscalYearId)\n            ->where('status', 'active')\n            ->get()",
+  "replace": "->where('fiscal_year_id', $fiscalYearId)\n            ->get()",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K02 the closing of a branch and year is that of the branch",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "->where('branch_id', $branchId)\n            ->where('fiscal_year_id', $fiscalYearId)",
+  "replace": "->where('fiscal_year_id', $fiscalYearId)",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K03 the closing of a branch and year is that of the year",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "->where('branch_id', $branchId)\n            ->where('fiscal_year_id', $fiscalYearId)",
+  "replace": "->where('branch_id', $branchId)",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K04 a year is held only by an active closing",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "->where('status', 'active')\n            ->countAllResults() > 0",
+  "replace": "->countAllResults() > 0",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K05 a year is held only by a closing of that year",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "->where('fiscal_year_id', $fiscalYearId)\n            ->where('status', 'active')\n            ->countAllResults()",
+  "replace": "->where('status', 'active')\n            ->countAllResults()",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K06 a date is covered from the first day of the year closed out",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "->where('c.period_from <=', $date)",
+  "replace": "->where('c.period_from <', $date)",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K07 a date is covered through the last day of the year closed out",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "->where('c.period_to >=', $date)",
+  "replace": "->where('c.period_to >', $date)",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K08 a date is covered only by a closing of the branch",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "->where('c.branch_id', $branchId)\n            ->where('c.status', 'active')\n            ->where('c.period_from <=', $date)",
+  "replace": "->where('c.status', 'active')\n            ->where('c.period_from <=', $date)",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K09 a date is covered only by an active closing",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "->where('c.status', 'active')\n            ->where('c.period_from <=', $date)",
+  "replace": "->where('c.period_from <=', $date)",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K10 a closing is not left open by a closing of periods that reaches its last day",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "$builder->where('c.period_to >', $cutoff);",
+  "replace": "$builder->where('c.period_to >=', $cutoff);",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K11 a branch is left open only by its own closings",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "if ($branchId !== null) {\n            $builder->where('c.branch_id', $branchId);\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K12 a branch is judged by the later of the two closings of periods",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "max($companyCutoff ?? '', $branchCutoff ?? '')",
+  "replace": "($branchCutoff ?? '')",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K13 only an active closing is left open",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "->where('c.company_id', CompanyContext::id())\n            ->where('c.status', 'active');",
+  "replace": "->where('c.company_id', CompanyContext::id());",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K14 a date inside a year closed out is refused",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "if ($closing !== null) {\n            throw new AccountingException(AccountingError::YearEndClosedOut",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::YearEndClosedOut",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
+ },
+ {
+  "name": "K15 the refusal names the year closed out",
+  "file": "app/Libraries/Accounting/ClosedOutYears.php",
+  "find": "['name' => $closing->year_name, 'date' => $closing->period_to]",
+  "replace": "['name' => '', 'date' => $closing->period_to]",
+  "tests": [
+   "tests/Libraries/Accounting/ClosedOutYearsTest.php"
+  ]
  }
 ]
