@@ -10,6 +10,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Test\TestResponse;
 use Config\Database;
+use Config\OSPOS;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\TaxFixtureTrait;
 
@@ -410,16 +411,22 @@ class ConfigTest extends CIUnitTestCase
         $this->assertFalse((new SalesTaxSettings())->requireTaxOne());
     }
 
-    public function testGetIndex_OffersTheTwoTaxSettingsAndALinkToTheTaxList(): void
+    public function testTaxConfigView_OffersTheTwoTaxSettingsAndALinkToTheTaxListAndShowsWhatIsSaved(): void
     {
-        $this->resetSession();
+        $data = ['tax_code_options' => [], 'tax_category_options' => [], 'tax_jurisdiction_options' => [], 'controller_name' => 'config'];
 
-        $view = $this->get('/config');
+        $off = view('configs/tax_config', $data + ['config' => [...config(OSPOS::class)->settings, 'tax_included' => '0', 'require_tax_1' => '0']]);
 
-        $view->assertStatus(200);
-        $view->assertSee('name="require_tax_1"', 'html');
-        $view->assertSee(lang('Config.tax_included_desc'));
-        $view->assertSee('tax_definitions');
+        $this->assertStringContainsString('name="require_tax_1"', $off);
+        $this->assertStringContainsString(lang('Config.tax_included_desc'), $off);
+        $this->assertStringContainsString(lang('Config.require_tax_1_desc'), $off);
+        $this->assertMatchesRegularExpression('/id="tax_list"[^>]*href="[^"]*tax_definitions"/', $off);
+        $this->assertDoesNotMatchRegularExpression('/name="require_tax_1"[^>]*checked/', $off);
+
+        $on = view('configs/tax_config', $data + ['config' => [...config(OSPOS::class)->settings, 'tax_included' => '1', 'require_tax_1' => '1']]);
+
+        $this->assertMatchesRegularExpression('/name="require_tax_1"[^>]*checked/', $on);
+        $this->assertMatchesRegularExpression('/name="tax_included"[^>]*checked/', $on);
     }
 
     /**

@@ -5849,4 +5849,71 @@ class SalePostingTest extends CIUnitTestCase
             $this->exactLines($this->standing($saleId, 'revenue')[0]['id']),
         );
     }
+
+    public function testSaveValue_PostsManyLinesWithTaxesOfBothModesAsOneBalancedInvoiceWhoseTotalIsTheRoundedSumOfTheLines(): void
+    {
+        $router = $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE]);
+        $taxes  = new TaxDefinitions();
+        $kinds  = [
+            $this->item('0', false) => [['name' => 'VAT', 'percent' => '15'], ['name' => 'Service', 'percent' => '5']],
+            $this->item('0', false) => [['name' => 'Levy', 'percent' => '10']],
+            $this->item('0', false) => [['name' => 'Service', 'percent' => '5']],
+        ];
+
+        $taxes->save(['tax_name' => 'VAT', 'tax_mode' => TaxDefinitions::INCLUDED], null, $router);
+        $taxes->save(['tax_name' => 'Levy', 'tax_mode' => TaxDefinitions::INCLUDED], null, $router);
+        $taxes->save(['tax_name' => 'Service', 'tax_mode' => TaxDefinitions::EXCLUDED], null, $router);
+
+        foreach ($kinds as $itemId => $rows) {
+            model(Item_taxes::class)->save_value($rows, $itemId);
+        }
+
+        $this->setConfigValue('tax_decimals', '4');
+
+        try {
+            $items  = [];
+            $cart   = [];
+            $prices = [['19.99', '3'], ['33.33', '2'], ['7.77', '7'], ['101.01', '1'], ['0.99', '13'], ['250.50', '2'], ['12.34', '5'], ['0.37', '29']];
+            $ids    = array_keys($kinds);
+
+            foreach ($prices as $line => [$price, $quantity]) {
+                $itemId       = $ids[$line % 3];
+                $items[]      = $this->line($itemId, $line, $quantity, $price);
+                $cart[$line]  = ['item_id' => $itemId, 'line' => $line, 'quantity' => $quantity, 'price' => $price, 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null];
+            }
+
+            $before  = bcscale();
+            bcscale(max(2, totals_decimals() + tax_decimals()));
+            $details = (new Tax_lib())->get_taxes($cart, NEW_ENTRY, $this->customerId, 'sale_invoice');
+            bcscale($before);
+
+            $saleId = $this->save($items, $details[1]);
+        } finally {
+            $this->setConfigValue('tax_decimals', '2');
+            $this->accountingDb()->table('tax_definitions')->truncate();
+        }
+
+        $this->assertGreaterThan(0, $saleId);
+
+        $gross = '0';
+        $added = '0';
+        $all   = '0';
+
+        foreach ($prices as [$price, $quantity]) {
+            $gross = bcadd($gross, bcmul($price, $quantity, 4), 4);
+        }
+
+        foreach ($details[1] as $tax) {
+            $stored = bcadd($this->accountingDb()->table('sales_items_taxes')->select('item_tax_amount')->where(['sale_id' => $saleId, 'item_id' => $tax['item_id'], 'line' => $tax['line'], 'name' => $tax['name']])->get()->getRow()->item_tax_amount, '0', 4);
+            $all   = bcadd($all, $stored, 4);
+            $added = (string) $tax['tax_type'] === '1' ? bcadd($added, $stored, 4) : $added;
+        }
+
+        $lines = $this->exactLines($this->standing($saleId, 'revenue')[0]['id']);
+        $total = bcadd(bcadd(bcadd($gross, $added, 4), '0.005', 3), '0', 2);
+
+        $this->assertSame($this->customerAccount() . ':' . bcadd($total, '0', 4) . ':0.0000', $lines[0], 'the customer owes the rounded sum of the lines and the tax added to them');
+        $this->assertSame($this->accountId('tax_output') . ':0.0000:' . $all, $lines[2], 'the tax is posted as it was worked out, inside the price or not');
+        $this->assertSame($this->accountId('sales_revenue') . ':0.0000:' . bcsub($total, $all, 4), $lines[1], 'and the revenue is what is left of the total (E14)');
+    }
 }

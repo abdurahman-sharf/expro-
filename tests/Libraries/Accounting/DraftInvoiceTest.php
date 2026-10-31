@@ -410,14 +410,14 @@ class DraftInvoiceTest extends CIUnitTestCase
         $item  = $this->item('0', false);
         $draft = $this->draftInvoice([$this->line($item, 0, '1', '100')]);
 
-        $this->accountingDb()->table('items_taxes')->insert([['item_id' => $item, 'name' => 'VAT', 'percent' => '15'], ['item_id' => $item, 'name' => 'Service', 'percent' => '5']]);
+        $this->accountingDb()->table('items_taxes')->insertBatch([['item_id' => $item, 'name' => 'VAT', 'percent' => '15'], ['item_id' => $item, 'name' => 'Service', 'percent' => '5']]);
         $this->accountingDb()->table('tax_definitions')->insert(['tax_name' => 'VAT', 'tax_included' => 1]);
 
         try {
             $issue   = $this->drafts->forIssue($draft);
             $figures = $this->drafts->figures($issue);
 
-            $this->assertSame(['0', '1'], array_map(static fn (array $tax): string => (string) $tax['tax_type'], $issue->taxes[1]));
+            $this->assertEquals(['VAT' => '0', 'Service' => '1'], array_column(array_map(static fn (array $tax): array => ['name' => $tax['name'], 'type' => (string) $tax['tax_type']], $issue->taxes[1]), 'type', 'name'));
             $this->assertSame('100.0000', $figures['gross']);
             $this->assertSame('104.3500', $figures['total'], 'the price and the tax added to it, the tax inside the price is already in it');
             $this->assertSame('17.3935', $figures['tax']);
