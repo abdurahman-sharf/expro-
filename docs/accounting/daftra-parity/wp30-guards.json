@@ -890,18 +890,7 @@
     ]
   },
   {
-    "name": "G83 a list of purchases with another employee purchase is not deleted",
-    "file": "app/Models/Receiving.php",
-    "find": "foreach ($receiving_ids as $receiving_id) {\n            if ($this->outsideRecordScope((int) $receiving_id, $employee_id)) {\n                return false;",
-    "replace": "foreach ([] as $receiving_id) {\n            if ($this->outsideRecordScope((int) $receiving_id, $employee_id)) {\n                return false;",
-    "tests": [
-      "--filter",
-      "OwnRecords|AnotherEmployee|SeesEverything|SeesTheirOwn|OutsideRecordScope",
-      "tests/Models/ReceivingTest.php"
-    ]
-  },
-  {
-    "name": "G84 another employee purchase is not deleted",
+    "name": "G83 another employee purchase is not deleted",
     "file": "app/Models/Receiving.php",
     "find": "if ($this->outsideRecordScope($receiving_id, $employee_id)) {\n            return false;\n        }",
     "replace": "",
@@ -912,7 +901,7 @@
     ]
   },
   {
-    "name": "G85 a return of another employee purchase is not saved",
+    "name": "G84 a return of another employee purchase is not saved",
     "file": "app/Models/Receiving.php",
     "find": "if ($returnOfReceivingId !== null && $this->outsideRecordScope($returnOfReceivingId, $employeeId)) {",
     "replace": "if (false) {",
@@ -923,7 +912,7 @@
     ]
   },
   {
-    "name": "G86 a purchase that does not exist reads as another employee purchase to an own records employee",
+    "name": "G85 a purchase that does not exist reads as another employee purchase to an own records employee",
     "file": "app/Models/Receiving.php",
     "find": "return ! $scope->allows($viewer, $row?->employee_id);",
     "replace": "return $row !== null && ! $scope->allows($viewer, $row->employee_id);",
@@ -934,7 +923,7 @@
     ]
   },
   {
-    "name": "G87 the purchase scope reads the session employee when no viewer is given",
+    "name": "G86 the purchase scope reads the session employee when no viewer is given",
     "file": "app/Models/Receiving.php",
     "find": "return ($this->recordScope ??= new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());",
     "replace": "return ($this->recordScope ??= new RecordScope($this->db))->limit($viewerId);",
@@ -945,7 +934,7 @@
     ]
   },
   {
-    "name": "G88 the expenses list is cut to an own records employee",
+    "name": "G87 the expenses list is cut to an own records employee",
     "file": "app/Models/Expense.php",
     "find": "$builder->where('expenses.deleted', $filters['is_deleted']);\n\n        if ($cut !== null) {\n            $builder->where('expenses.employee_id', $cut);\n        }",
     "replace": "$builder->where('expenses.deleted', $filters['is_deleted']);",
@@ -956,7 +945,7 @@
     ]
   },
   {
-    "name": "G89 an expense opened by id is cut to an own records employee",
+    "name": "G88 an expense opened by id is cut to an own records employee",
     "file": "app/Models/Expense.php",
     "find": "$builder->where('expense_id', $expense_id);\n\n        if ($cut !== null) {\n            $builder->where('expenses.employee_id', $cut);\n        }\n\n        if ($accountingOn) {",
     "replace": "$builder->where('expense_id', $expense_id);\n\n        if ($accountingOn) {",
@@ -967,7 +956,7 @@
     ]
   },
   {
-    "name": "G90 the expenses payment summary is cut to an own records employee",
+    "name": "G89 the expenses payment summary is cut to an own records employee",
     "file": "app/Models/Expense.php",
     "find": "$builder->where('deleted', $filters['is_deleted']);\n\n        if ($cut !== null) {\n            $builder->where('expenses.employee_id', $cut);\n        }",
     "replace": "$builder->where('deleted', $filters['is_deleted']);",
@@ -978,7 +967,7 @@
     ]
   },
   {
-    "name": "G91 several expenses opened by id are cut to an own records employee",
+    "name": "G90 several expenses opened by id are cut to an own records employee",
     "file": "app/Models/Expense.php",
     "find": "$builder->whereIn('expenses.expense_id', $expense_ids);\n\n        if ($cut !== null) {\n            $builder->where('expenses.employee_id', $cut);\n        }",
     "replace": "$builder->whereIn('expenses.expense_id', $expense_ids);",
@@ -989,7 +978,7 @@
     ]
   },
   {
-    "name": "G92 the payment row of an expense is cut to an own records employee",
+    "name": "G91 the payment row of an expense is cut to an own records employee",
     "file": "app/Models/Expense.php",
     "find": "$builder->where('expense_id', $expense_id);\n\n        if ($cut !== null) {\n            $builder->where('expenses.employee_id', $cut);\n        }\n\n        return $builder->get();",
     "replace": "$builder->where('expense_id', $expense_id);\n\n        return $builder->get();",
@@ -1000,7 +989,7 @@
     ]
   },
   {
-    "name": "G93 another employee expense is not changed",
+    "name": "G92 another employee expense is not changed",
     "file": "app/Models/Expense.php",
     "find": "if ($expenseId !== NEW_ENTRY && $this->outsideRecordScope($expenseId, $actorId)) {",
     "replace": "if (false) {",
@@ -1011,7 +1000,7 @@
     ]
   },
   {
-    "name": "G94 a list of expenses with another employee expense is not deleted",
+    "name": "G93 a list of expenses with another employee expense is not deleted",
     "file": "app/Models/Expense.php",
     "find": "foreach ($expenseIds as $expenseId) {\n            if ($this->outsideRecordScope((int) $expenseId, $actorId)) {",
     "replace": "foreach ([] as $expenseId) {\n            if ($this->outsideRecordScope((int) $expenseId, $actorId)) {",
@@ -1022,7 +1011,7 @@
     ]
   },
   {
-    "name": "G95 an expense that does not exist reads as another employee expense to an own records employee",
+    "name": "G94 an expense that does not exist reads as another employee expense to an own records employee",
     "file": "app/Models/Expense.php",
     "find": "return ! $scope->allows($viewer, $row?->employee_id);",
     "replace": "return $row !== null && ! $scope->allows($viewer, $row->employee_id);",
@@ -1033,7 +1022,7 @@
     ]
   },
   {
-    "name": "G96 the expense scope reads the session employee when no viewer is given",
+    "name": "G95 the expense scope reads the session employee when no viewer is given",
     "file": "app/Models/Expense.php",
     "find": "return ($this->recordScope ??= new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());",
     "replace": "return ($this->recordScope ??= new RecordScope($this->db))->limit($viewerId);",
@@ -1044,7 +1033,7 @@
     ]
   },
   {
-    "name": "G97 a sale by id is out of reach of an own records employee at the screens",
+    "name": "G96 a sale by id is out of reach of an own records employee at the screens",
     "file": "app/Controllers/Sales.php",
     "find": "if ($this->sale->outsideRecordScope($saleId, $personId)) {\n                return true;\n            }",
     "replace": "",
@@ -1055,7 +1044,7 @@
     ]
   },
   {
-    "name": "G98 an own records employee is told the plain refusal",
+    "name": "G97 an own records employee is told the plain refusal",
     "file": "app/Controllers/Sales.php",
     "find": "return (new RecordScope())->ownOnly((int)$this->session->get('person_id')) ? lang('Sales.not_authorized') : lang('Sales.branch_not_allowed');",
     "replace": "return lang('Sales.branch_not_allowed');",
@@ -1066,7 +1055,7 @@
     ]
   },
   {
-    "name": "G99 a row of a sale that does not exist is not found",
+    "name": "G98 a row of a sale that does not exist is not found",
     "file": "app/Controllers/Sales.php",
     "find": "if ($saleInfo === null) {\n            return $this->response->setStatusCode(404)",
     "replace": "if (false) {\n            return $this->response->setStatusCode(404)",
@@ -1077,7 +1066,7 @@
     ]
   },
   {
-    "name": "G100 the drafts and quotes list is cut to the employee",
+    "name": "G99 the drafts and quotes list is cut to the employee",
     "file": "app/Controllers/Sales.php",
     "find": "'drafts'       => $lists->drafts($branchIds, $personId),\n            'quotes'       => $lists->quotes($branchIds, $only, $personId),",
     "replace": "'drafts'       => $lists->drafts($branchIds),\n            'quotes'       => $lists->quotes($branchIds, $only),",
@@ -1088,7 +1077,7 @@
     ]
   },
   {
-    "name": "G101 a purchase by id is out of reach of an own records employee at the screens",
+    "name": "G100 a purchase by id is out of reach of an own records employee at the screens",
     "file": "app/Controllers/Receivings.php",
     "find": "if ($this->receiving->outsideRecordScope($receivingId, $personId)) {\n                return true;\n            }",
     "replace": "",
@@ -1099,7 +1088,7 @@
     ]
   },
   {
-    "name": "G102 a purchase is out of the view of an own records employee at the receipt",
+    "name": "G101 a purchase is out of the view of an own records employee at the receipt",
     "file": "app/Controllers/Receivings.php",
     "find": "if ($this->receiving->outsideRecordScope($receivingId, $personId)) {\n            return true;\n        }\n\n        foreach ($this->receiving->getBranchIds",
     "replace": "foreach ($this->receiving->getBranchIds",
@@ -1110,7 +1099,7 @@
     ]
   },
   {
-    "name": "G103 an own records employee is told the plain refusal for a purchase",
+    "name": "G102 an own records employee is told the plain refusal for a purchase",
     "file": "app/Controllers/Receivings.php",
     "find": "return (new RecordScope())->ownOnly((int) $this->session->get('person_id')) ? lang('Roles.record_unavailable') : lang('Receivings.branch_not_allowed');",
     "replace": "return lang('Receivings.branch_not_allowed');",
@@ -1121,7 +1110,7 @@
     ]
   },
   {
-    "name": "G104 the form of another employee expense is not found",
+    "name": "G103 the form of another employee expense is not found",
     "file": "app/Controllers/Expenses.php",
     "find": "if ($expenseId !== NEW_ENTRY && $this->expense->outsideRecordScope($expenseId)) {",
     "replace": "if (false) {",
@@ -1132,7 +1121,7 @@
     ]
   },
   {
-    "name": "G105 the row of another employee expense is not found",
+    "name": "G104 the row of another employee expense is not found",
     "file": "app/Controllers/Expenses.php",
     "find": "if ($this->expense->outsideRecordScope($row_id)) {",
     "replace": "if (false) {",
@@ -1143,7 +1132,7 @@
     ]
   },
   {
-    "name": "G106 the supplier payments are cut to an own records employee",
+    "name": "G105 the supplier payments are cut to an own records employee",
     "file": "app/Libraries/Accounting/SupplierPaymentList.php",
     "find": "if ($mine !== null) {\n            $where[]    = 'd.employee_id = ?';",
     "replace": "if (false) {\n            $where[]    = 'd.employee_id = ?';",
@@ -1154,7 +1143,7 @@
     ]
   },
   {
-    "name": "G107 the debit notes are cut to an own records employee",
+    "name": "G106 the debit notes are cut to an own records employee",
     "file": "app/Libraries/Accounting/DebitNoteList.php",
     "find": "if ($mine !== null) {\n            $where[]    = 'r.employee_id = ?';",
     "replace": "if (false) {\n            $where[]    = 'r.employee_id = ?';",
@@ -1165,7 +1154,7 @@
     ]
   },
   {
-    "name": "G108 the customer payments are cut to an own records employee",
+    "name": "G107 the customer payments are cut to an own records employee",
     "file": "app/Libraries/Accounting/CustomerDocuments.php",
     "find": "if ($mine !== null) {\n            $where[]    = 'p.employee_id = ?';",
     "replace": "if (false) {\n            $where[]    = 'p.employee_id = ?';",
@@ -1176,7 +1165,7 @@
     ]
   },
   {
-    "name": "G109 the collectors are cut to an own records employee",
+    "name": "G108 the collectors are cut to an own records employee",
     "file": "app/Libraries/Accounting/CustomerDocuments.php",
     "find": "$scope   .= $mine === null ? '' : ' AND p.employee_id = ' . $mine;",
     "replace": "",
@@ -1187,7 +1176,7 @@
     ]
   },
   {
-    "name": "G110 the credit notes are cut to an own records employee",
+    "name": "G109 the credit notes are cut to an own records employee",
     "file": "app/Libraries/Accounting/CustomerDocuments.php",
     "find": "if ($mine !== null) {\n            $where[]    = 's.employee_id = ?';",
     "replace": "if (false) {\n            $where[]    = 's.employee_id = ?';",
@@ -1198,7 +1187,7 @@
     ]
   },
   {
-    "name": "G111 the drafts and quotes lists are cut to an own records employee",
+    "name": "G110 the drafts and quotes lists are cut to an own records employee",
     "file": "app/Libraries/Accounting/SaleDocumentList.php",
     "find": "$scope .= $mine === null ? '' : ' AND s.employee_id = ' . $mine;",
     "replace": "",
@@ -1209,7 +1198,7 @@
     ]
   },
   {
-    "name": "G112 another employee supplier advance is not cancelled",
+    "name": "G111 another employee supplier advance is not cancelled",
     "file": "app/Libraries/Accounting/SupplierAdvances.php",
     "find": "if ($row === null || ! (new RecordScope($this->db))->allows($employeeId, $row->created_by)) {",
     "replace": "if ($row === null) {",
@@ -1220,7 +1209,7 @@
     ]
   },
   {
-    "name": "G113 another employee supplier opening balance is not cancelled",
+    "name": "G112 another employee supplier opening balance is not cancelled",
     "file": "app/Libraries/Accounting/SupplierAdvances.php",
     "find": "if ($opening === null || ! (new RecordScope($this->db))->allows($employeeId, $opening->employee_id)) {",
     "replace": "if ($opening === null) {",
@@ -1231,7 +1220,7 @@
     ]
   },
   {
-    "name": "G114 the cancellation form of another employee supplier document is not offered",
+    "name": "G113 the cancellation form of another employee supplier document is not offered",
     "file": "app/Libraries/Accounting/SupplierAdvances.php",
     "find": "return $row === null || ! (new RecordScope($this->db))->allows($viewerId ?? RecordScope::sessionEmployee(), $row->maker) ? null : (int) $row->branch_id;",
     "replace": "return $row === null ? null : (int) $row->branch_id;",
@@ -1242,7 +1231,7 @@
     ]
   },
   {
-    "name": "G115 another employee customer advance is not cancelled",
+    "name": "G114 another employee customer advance is not cancelled",
     "file": "app/Libraries/Accounting/CustomerAdvances.php",
     "find": "if ($row === null || ! (new RecordScope($this->db))->allows($employeeId, $row->created_by)) {",
     "replace": "if ($row === null) {",
@@ -1253,7 +1242,7 @@
     ]
   },
   {
-    "name": "G116 the cancellation form of another employee customer advance is not offered",
+    "name": "G115 the cancellation form of another employee customer advance is not offered",
     "file": "app/Libraries/Accounting/CustomerAdvances.php",
     "find": "return $row === null || ! (new RecordScope($this->db))->allows($viewerId ?? RecordScope::sessionEmployee(), $row->created_by) ? null : (int) $row->branch_id;",
     "replace": "return $row === null ? null : (int) $row->branch_id;",
@@ -1264,7 +1253,7 @@
     ]
   },
   {
-    "name": "G117 another employee refund is not cancelled",
+    "name": "G116 another employee refund is not cancelled",
     "file": "app/Libraries/Accounting/CreditRefunds.php",
     "find": "if ($row === null || ! (new RecordScope($this->db))->allows($employeeId, $row->created_by)) {",
     "replace": "if ($row === null) {",
@@ -1275,7 +1264,7 @@
     ]
   },
   {
-    "name": "G118 the cancellation form of another employee refund is not offered",
+    "name": "G117 the cancellation form of another employee refund is not offered",
     "file": "app/Libraries/Accounting/CreditRefunds.php",
     "find": "return $row === null || ! (new RecordScope($this->db))->allows($viewerId ?? RecordScope::sessionEmployee(), $row->created_by) ? null : (int) $row->branch_id;",
     "replace": "return $row === null ? null : (int) $row->branch_id;",
@@ -1286,7 +1275,7 @@
     ]
   },
   {
-    "name": "G119 another employee quote is not moved or converted",
+    "name": "G118 another employee quote is not moved or converted",
     "file": "app/Libraries/Accounting/QuoteLifecycle.php",
     "find": "if ($quote === null || ! $this->isLive($quote) || ! (new RecordScope($this->db))->allows($employeeId, $quote->employee_id)) {",
     "replace": "if ($quote === null || ! $this->isLive($quote)) {",
@@ -1297,7 +1286,7 @@
     ]
   },
   {
-    "name": "G120 a roles scope lets the employees who hold a role use the treasury",
+    "name": "G119 a roles scope lets the employees who hold a role use the treasury",
     "file": "app/Libraries/Accounting/TreasuryScopes.php",
     "find": "self::ROLES    => $this->holdsARole($scope['members'], $employeeId),",
     "replace": "self::ROLES    => false,",
@@ -1308,7 +1297,7 @@
     ]
   },
   {
-    "name": "G121 an inactive role gives nobody the treasury",
+    "name": "G120 an inactive role gives nobody the treasury",
     "file": "app/Libraries/Accounting/TreasuryScopes.php",
     "find": "->join('roles r', 'r.role_id = er.role_id AND r.active = 1')\n            ->join('employees e'",
     "replace": "->join('roles r', 'r.role_id = er.role_id')\n            ->join('employees e'",
@@ -1319,7 +1308,7 @@
     ]
   },
   {
-    "name": "G122 a deleted employee does not hold the role of a scope",
+    "name": "G121 a deleted employee does not hold the role of a scope",
     "file": "app/Libraries/Accounting/TreasuryScopes.php",
     "find": "->join('employees e', 'e.person_id = er.person_id AND e.deleted = 0')\n            ->where('er.person_id', $employeeId)",
     "replace": "->join('employees e', 'e.person_id = er.person_id')\n            ->where('er.person_id', $employeeId)",
@@ -1330,7 +1319,7 @@
     ]
   },
   {
-    "name": "G123 a roles scope names roles that exist",
+    "name": "G122 a roles scope names roles that exist",
     "file": "app/Libraries/Accounting/TreasuryScopes.php",
     "find": "return RoleTables::exist($this->db, 'roles') && $this->db->table('roles')->whereIn('role_id', $ids)->countAllResults() === count($ids);",
     "replace": "return true;",
@@ -1341,7 +1330,7 @@
     ]
   },
   {
-    "name": "G124 the roles scope is among the scopes that can be chosen",
+    "name": "G123 the roles scope is among the scopes that can be chosen",
     "file": "app/Libraries/Accounting/TreasuryScopes.php",
     "find": "public const MODES       = [self::ALL, self::STAFF, self::ROLES, self::BRANCHES];",
     "replace": "public const MODES       = [self::ALL, self::STAFF, self::BRANCHES];",
@@ -1352,7 +1341,7 @@
     ]
   },
   {
-    "name": "G125 only a manager of roles changes the roles of an employee",
+    "name": "G124 only a manager of roles changes the roles of an employee",
     "file": "app/Controllers/Employees.php",
     "find": "|| ! $this->employee->has_grant(AccountingGuard::ROLES_MANAGE, $actorId)\n            || filter_var(getenv('DISALLOW_GRANT_CHANGE')",
     "replace": "|| false\n            || filter_var(getenv('DISALLOW_GRANT_CHANGE')",
@@ -1363,7 +1352,7 @@
     ]
   },
   {
-    "name": "G126 the roles are not changed while grants may not be changed",
+    "name": "G125 the roles are not changed while grants may not be changed",
     "file": "app/Controllers/Employees.php",
     "find": "|| filter_var(getenv('DISALLOW_GRANT_CHANGE'), FILTER_VALIDATE_BOOLEAN)) {\n            return null;\n        }\n\n        $roleIds",
     "replace": "|| false) {\n            return null;\n        }\n\n        $roleIds",
@@ -1374,7 +1363,7 @@
     ]
   },
   {
-    "name": "G127 the form shows only the direct grants of an employee as ticked modules",
+    "name": "G126 the form shows only the direct grants of an employee as ticked modules",
     "file": "app/Controllers/Employees.php",
     "find": "$module->grant = $this->employee->hasDirectGrant($module->module_id, $person_info->person_id);",
     "replace": "$module->grant = $this->employee->has_grant($module->module_id, $person_info->person_id);",
@@ -1385,7 +1374,7 @@
     ]
   },
   {
-    "name": "G128 the form shows only the direct grants of an employee as ticked permissions",
+    "name": "G127 the form shows only the direct grants of an employee as ticked permissions",
     "file": "app/Controllers/Employees.php",
     "find": "$permission->grant = $this->employee->hasDirectGrant($permission->permission_id, $person_info->person_id);",
     "replace": "$permission->grant = $this->employee->has_grant($permission->permission_id, $person_info->person_id);",
@@ -1396,7 +1385,7 @@
     ]
   },
   {
-    "name": "G129 the change of grants is judged on the direct grants",
+    "name": "G128 the change of grants is judged on the direct grants",
     "file": "app/Controllers/Employees.php",
     "find": "array_column($this->employee->getDirectGrants($employeeId), 'permission_id'),",
     "replace": "array_column($this->employee->get_employee_grants($employeeId), 'permission_id'),",
@@ -1407,7 +1396,7 @@
     ]
   },
   {
-    "name": "G130 the default location is saved after the employee",
+    "name": "G129 the default location is saved after the employee",
     "file": "app/Controllers/Employees.php",
     "find": "if ($this->request->getPost('default_location_present') !== null) {",
     "replace": "if (false) {",
@@ -1418,7 +1407,7 @@
     ]
   },
   {
-    "name": "G131 the roles of the employee are saved after the employee",
+    "name": "G130 the roles of the employee are saved after the employee",
     "file": "app/Controllers/Employees.php",
     "find": "if ($requestedRoles !== null) {\n            $this->roles->assign",
     "replace": "if (false) {\n            $this->roles->assign",
@@ -1429,7 +1418,7 @@
     ]
   },
   {
-    "name": "G132 the role form is only for a manager of roles",
+    "name": "G131 the role form is only for a manager of roles",
     "file": "app/Controllers/Roles.php",
     "find": "if (! $this->canManage()) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $role = $roleId",
     "replace": "if (false) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $role = $roleId",
@@ -1440,7 +1429,7 @@
     ]
   },
   {
-    "name": "G133 the actions of a role are for a manager of roles",
+    "name": "G132 the actions of a role are for a manager of roles",
     "file": "app/Controllers/Roles.php",
     "find": "if (! $this->canManage()) {\n            return '';\n        }",
     "replace": "",
@@ -1451,7 +1440,7 @@
     ]
   },
   {
-    "name": "G134 a role that employees hold has no delete action",
+    "name": "G133 a role that employees hold has no delete action",
     "file": "app/Controllers/Roles.php",
     "find": "if ((int) $role->employee_count === 0) {",
     "replace": "if (true) {",
@@ -1462,7 +1451,7 @@
     ]
   },
   {
-    "name": "G135 the migration grants the permission to manage roles to nobody",
+    "name": "G134 the migration grants the permission to manage roles to nobody",
     "file": "app/Database/Migrations/20271800000001_RolesPermissions.php",
     "find": "['permission_id' => self::PERMISSION, 'module_id' => self::MODULE_ID],",
     "replace": "['permission_id' => self::PERMISSION, 'module_id' => 'employees'],",

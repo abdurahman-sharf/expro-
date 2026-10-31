@@ -1008,7 +1008,7 @@ class EmployeesControllerTest extends CIUnitTestCase
 
     public function testGetView_KeepsWhatARoleGivesOffTheDirectGrantsOfTheFormAndNamesTheRole(): void
     {
-        $role     = $this->createRole(['items'], 'all', true, 'Stockists ' . uniqid());
+        $role     = $this->createRole(['items', 'sales_delete'], 'all', true, 'Stockists ' . uniqid());
         $employee = $this->employeeWithRoles([$role], ['employees']);
 
         $this->loginAsAdmin();
@@ -1016,7 +1016,8 @@ class EmployeesControllerTest extends CIUnitTestCase
         $html = $this->get('/employees/view/' . $employee)->getBody();
 
         $this->assertStringContainsString('checked', $this->checkboxTag($html, 'grant_employees'), 'A direct grant stays ticked');
-        $this->assertStringNotContainsString('checked', $this->checkboxTag($html, 'grant_items'), 'A grant that a role gives is not copied into the form');
+        $this->assertStringNotContainsString('checked', $this->checkboxTag($html, 'grant_items'), 'A module that a role gives is not copied into the form');
+        $this->assertStringNotContainsString('checked', $this->checkboxTag($html, 'grant_sales_delete'), 'A permission that a role gives is not copied into the form');
         $this->assertStringContainsString(esc(lang('Roles.via_role', [(new RoleService())->find($role)->name])), $html);
     }
 

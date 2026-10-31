@@ -1259,7 +1259,7 @@ class ReceivingTest extends CIUnitTestCase
 
     private function ownRecordsBuyer(): int
     {
-        return $this->employeeWithRoles([$this->createRole([], 'own')]);
+        return $this->employeeWithRoles([$this->createRole([], 'own')], [BranchGuard::ALL_BRANCHES]);
     }
 
     private function purchaseBy(int $employeeId, string $total = '50.00'): int

@@ -1430,12 +1430,6 @@ class Receiving extends Model
     {
         $this->accountingFailure = null;
 
-        foreach ($receiving_ids as $receiving_id) {
-            if ($this->outsideRecordScope((int) $receiving_id, $employee_id)) {
-                return false;
-            }
-        }
-
         $suppliers = [];
 
         foreach ($receiving_ids as $receiving_id) {

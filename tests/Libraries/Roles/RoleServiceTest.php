@@ -514,6 +514,7 @@ final class RoleServiceTest extends CIUnitTestCase
         $this->roles->setRecordScope($employee, 'all', $manager);
 
         $this->assertSame('all', $this->roles->recordScopeOf($employee));
+        $this->assertSame(0, $this->roleDb()->table('employee_record_scopes')->where('person_id', $employee)->countAllResults(), 'No row means all');
         $this->assertCount(2, $this->auditOf('employee', $employee, 'employee_record_scope_changed'));
     }
 
