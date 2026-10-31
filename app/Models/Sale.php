@@ -2293,10 +2293,10 @@ class Sale extends Model
     public function get_all_suspended(?int $customer_id = null): array
     {
         if ($customer_id == NEW_ENTRY) {
-            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN quote_number WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_id as suspended_sale_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
+            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN IF(quote_status = " . QuoteStatus::Draft->value . " AND (quote_number IS NULL OR quote_number = ''), CONCAT('" . DraftInvoice::PREFIX . "', sale_id), quote_number) WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_id as suspended_sale_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
                 . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED);
         } else {
-            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN quote_number WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
+            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN IF(quote_status = " . QuoteStatus::Draft->value . " AND (quote_number IS NULL OR quote_number = ''), CONCAT('" . DraftInvoice::PREFIX . "', sale_id), quote_number) WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
                 . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED . ' AND customer_id = ' . $customer_id);
         }
 

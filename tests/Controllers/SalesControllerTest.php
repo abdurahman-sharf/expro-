@@ -4846,4 +4846,23 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countJournals());
         $this->assertSame((string) QuoteStatus::Open->value, $this->statusOfTheQuote($far));
     }
+
+    public function testGetSuspended_NamesADraftQuoteByItsTemporaryNumberAndLeavesTheOtherDocumentsAsTheyWere(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items  = $this->taxedLines();
+        $draft  = $this->quote(QuoteStatus::Draft, $items);
+        $open   = $this->quote(null, $items);
+        $number = $this->draftInvoice($items);
+
+        Database::connect()->table('sales')->where('sale_id', $open)->update(['quote_number' => 'Q26-0099']);
+
+        $rows = array_column($this->sales->get_all_suspended(), 'doc_id', 'sale_id');
+
+        $this->assertSame('draft-' . $draft, $rows[$draft]);
+        $this->assertSame('Q26-0099', $rows[$open]);
+        $this->assertSame((string) $number, (string) $rows[$number], 'a suspended invoice shows its id in the list of the register as it always did');
+        $this->get('/sales/suspended')->assertSee('draft-' . $draft);
+    }
 }
