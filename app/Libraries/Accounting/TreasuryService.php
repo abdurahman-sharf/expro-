@@ -631,7 +631,7 @@ final class TreasuryService
         $statuses = [JournalStatus::Posted->value, JournalStatus::Reversed->value];
 
         $result = $this->db->query(
-            "SELECT j.journal_id, j.number, j.journal_date, j.source_type, j.source_id, j.reverses_journal_id,
+            "SELECT l.line_id, j.journal_id, j.number, j.journal_date, j.source_type, j.source_id, j.reverses_journal_id,
                     COALESCE(NULLIF(l.description, ''), j.description) AS description, l.debit, l.credit
              FROM {$lines} l
              JOIN {$journals} j ON j.journal_id = l.journal_id

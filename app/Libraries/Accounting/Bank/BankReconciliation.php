@@ -104,6 +104,16 @@ final class BankReconciliation
     }
 
     /**
+     * @return array{line: object, lines: list<object>}
+     *
+     * @throws AccountingException
+     */
+    public function linesToMatch(int $treasuryId, int $statementLineId, ?int $employeeId): array
+    {
+        return $this->suggestions->forLine($treasuryId, $statementLineId, $employeeId);
+    }
+
+    /**
      * @param list<int> $journalLineIds
      *
      * @throws AccountingException

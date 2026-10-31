@@ -2,6 +2,7 @@
 /**
  * @var string $table_headers
  * @var bool $can_manage
+ * @var bool $can_reconcile
  * @var bool $scope_notice
  * @var array $config
  */
@@ -56,6 +57,9 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 <div id="title_bar" class="print_hide btn-toolbar">
     <p class="mb-0 me-auto text-body-secondary"><?= lang('Accounting_treasuries.note') ?></p>
     <a class="btn btn-outline-secondary btn-sm" href="accounting_treasuries/transfers"><span class="bi bi-arrow-left-right" aria-hidden="true">&nbsp;</span><?= lang('Accounting_treasuries.transfers') ?></a>
+    <?php if ($can_reconcile): ?>
+        <a class="btn btn-outline-secondary btn-sm" id="bank_reconciliation_link" href="accounting_treasuries/bank"><span class="bi bi-bank" aria-hidden="true">&nbsp;</span><?= lang('Accounting_treasuries.bank_reconciliation') ?></a>
+    <?php endif; ?>
     <?php if ($can_manage): ?>
         <a class="btn btn-outline-secondary btn-sm" href="accounting_treasuries/defaults"><span class="bi bi-person-gear" aria-hidden="true">&nbsp;</span><?= lang('Accounting_treasuries.defaults') ?></a>
         <button class="btn btn-primary btn-sm modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_treasuries/view" title="<?= lang('Accounting_treasuries.new') ?>">

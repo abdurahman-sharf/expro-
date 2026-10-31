@@ -6,8 +6,11 @@
  * @var array<string, array{mode: string, members: list<int>}> $scopes
  * @var list<object>                                           $staff
  * @var list<object>                                           $scope_branches
+ * @var list<array{code: string, country: string, en: string, ar: string}> $directory
+ * @var string                                                 $selected_bank
  */
 
+use App\Libraries\Accounting\Bank\BankText;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 
@@ -43,6 +46,19 @@ $isBank = ! $isNew && $treasury->kind === TreasuryService::BANK;
             </div>
 
             <div class="field bank-field"<?= $isBank ? '' : ' hidden' ?>>
+                <?= form_label(lang('Accounting_treasuries.bank_directory'), 'bank_code', ['class' => 'form-label']) ?>
+                <div class="field-control">
+                    <input type="search" id="bank_search" class="form-control form-control-sm mb-1" autocomplete="off" placeholder="<?= esc(lang('Accounting_treasuries.bank_search'), 'attr') ?>" aria-label="<?= esc(lang('Accounting_treasuries.bank_search'), 'attr') ?>">
+                    <select name="bank_code" id="bank_code" class="form-select form-select-sm">
+                        <option value=""><?= lang('Accounting_treasuries.bank_other') ?></option>
+                        <?php foreach ($directory as $bank): ?>
+                            <option value="<?= esc($bank['code'], 'attr') ?>" data-search="<?= esc(BankText::normalised($bank['code'] . ' ' . $bank['en'] . ' ' . $bank['ar']), 'attr') ?>" data-country="<?= esc($bank['country'], 'attr') ?>"<?= $selected_bank === $bank['code'] ? ' selected' : '' ?>><?= esc($bank['en'] . ' - ' . $bank['ar']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+
+            <div class="field bank-field bank-name-field"<?= $isBank && $selected_bank === '' || ! $isBank ? '' : ' hidden' ?>>
                 <?= form_label(lang('Accounting_treasuries.bank_name'), 'bank_name', ['class' => 'form-label text-danger required']) ?>
                 <div class="field-control">
                     <input type="text" name="bank_name" id="bank_name" class="form-control form-control-sm" maxlength="120" value="<?= esc($isNew ? '' : (string) ($treasury->bank_name ?? ''), 'attr') ?>">
@@ -135,8 +151,37 @@ $isBank = ! $isNew && $treasury->kind === TreasuryService::BANK;
             return $('#kind').val() === 'bank';
         };
 
+        const syncBankName = function() {
+            $('.bank-name-field').prop('hidden', !isBank() || $('#bank_code').val() !== '');
+        };
+
         $('#kind').on('change', function() {
             $('.bank-field').prop('hidden', !isBank());
+            syncBankName();
+        });
+
+        $('#bank_code').on('change', syncBankName);
+
+        const allBanks = $('#bank_code option[value!=""]').map(function() {
+            return {value: this.value, text: $(this).text(), search: $(this).data('search')};
+        }).get();
+
+        $('#bank_search').on('input', function() {
+            const words = $.trim($(this).val()).toLowerCase().split(/\s+/).filter(Boolean);
+            const select = $('#bank_code');
+            const current = select.val();
+
+            select.find('option[value!=""]').remove();
+
+            allBanks.forEach(function(bank) {
+                const matches = words.every(function(word) {
+                    return bank.search.indexOf(word) !== -1 || bank.text.toLowerCase().indexOf(word) !== -1;
+                });
+
+                if (matches || bank.value === current) {
+                    select.append($('<option>').val(bank.value).text(bank.text).data('search', bank.search).prop('selected', bank.value === current));
+                }
+            });
         });
 
         $('.scope-mode').on('change', function() {
@@ -170,7 +215,7 @@ $isBank = ! $isNew && $treasury->kind === TreasuryService::BANK;
 
             rules: {
                 name: 'required',
-                bank_name: {required: isBank},
+                bank_name: {required: function() { return isBank() && $('#bank_code').val() === ''; }},
                 account_number: {required: isBank},
                 deposit_scope: {scopeMembers: true},
                 withdraw_scope: {scopeMembers: true}

@@ -98,6 +98,28 @@ final class BankBook
     }
 
     /**
+     * The lines of the books that no match holds yet, of the direction given, which a person can
+     * choose from to match a statement line, by date: the debits for a deposit and the credits for a
+     * withdrawal, with a journal and its reversal left out when they cancel.
+     *
+     * @return list<object>
+     */
+    public function unmatchedOfDirection(int $accountId, bool $deposit, int $limit = 300): array
+    {
+        $sql = "SELECT l.line_id, l.journal_id, j.series, j.number, j.journal_date, j.status, j.source_type, j.source_id, j.reverses_journal_id,
+                       COALESCE(NULLIF(l.description, ''), j.description) AS description, (l.debit - l.credit) AS amount
+                FROM {$this->table('accounting_journal_lines')} l
+                JOIN {$this->table('accounting_journals')} j ON j.journal_id = l.journal_id
+                LEFT JOIN {$this->table('bank_match_lines')} ml ON ml.journal_line_id = l.line_id
+                WHERE ml.journal_line_id IS NULL AND l.account_id = :account: AND j.status IN (:posted:, :reversed:)
+                  AND " . ($deposit ? 'l.debit > l.credit' : 'l.credit > l.debit') . '
+                  AND NOT ' . $this->cancelledPair() . '
+                ORDER BY j.journal_date DESC, l.line_id DESC LIMIT ' . max(1, $limit);
+
+        return $this->db->query($sql, $this->binds($accountId, null))->getResult();
+    }
+
+    /**
      * The lines the screen offers to match with a statement line of an amount: open on the date given
      * by the books, of the same amount, in a posted or reversed journal.
      *

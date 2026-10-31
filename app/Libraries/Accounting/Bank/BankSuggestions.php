@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting\Bank;
 
+use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Organization\BranchGuard;
@@ -98,6 +99,42 @@ final class BankSuggestions
         }
 
         return $suggestions;
+    }
+
+    /**
+     * What a person chooses from to match one statement line: the lines of the books that no match
+     * holds, of the direction of the line, those of the amount of the line and within the window first,
+     * then by how near their date is.
+     *
+     * @return array{line: object, lines: list<object>}
+     *
+     * @throws AccountingException
+     */
+    public function forLine(int $treasuryId, int $statementLineId, ?int $employeeId, ?int $windowDays = null, int $limit = 300): array
+    {
+        $this->access->bankAccount($treasuryId, $employeeId);
+
+        $line = $this->db->table('bank_statement_lines')->where(['company_id' => CompanyContext::id(), 'treasury_id' => $treasuryId, 'line_id' => $statementLineId])->get()->getRow();
+
+        if ($line === null) {
+            throw new AccountingException(AccountingError::BankLineNotFound, "Statement line {$statementLineId} does not exist.", ['line' => $statementLineId]);
+        }
+
+        $accountId = $this->access->treasuries()->accountOf($treasuryId);
+        $window    = $windowDays ?? $this->settings->windowDays();
+        $date      = new DateTimeImmutable((string) $line->line_date);
+        $lines     = $accountId === null ? [] : $this->book->unmatchedOfDirection($accountId, bccomp((string) $line->amount, '0', 4) > 0, $limit);
+
+        foreach ($lines as $candidate) {
+            $candidate->days  = abs((int) $date->diff(new DateTimeImmutable((string) $candidate->journal_date))->format('%a'));
+            $candidate->exact = bccomp((string) $candidate->amount, (string) $line->amount, 4) === 0;
+            $candidate->near  = $candidate->exact && $candidate->days <= $window;
+            $candidate->hint  = $this->hint($line, $candidate);
+        }
+
+        usort($lines, static fn (object $first, object $second): int => [(int) $second->near, $first->days, $first->line_id] <=> [(int) $first->near, $second->days, $second->line_id]);
+
+        return ['line' => $line, 'lines' => $lines];
     }
 
     private function hint(object $line, object $candidate): string
