@@ -235,7 +235,8 @@ class RoutingResolverTest extends CIUnitTestCase
      * row without looking at its type. The files below are the ones that read it today, each for a
      * reason that is not choosing an account for a journal line: seeding, the screen, the
      * readiness check, the entity main account, the opening balance exclusions, the chart and the
-     * inventory valuation report, which names the main stock account to tie its total to.
+     * inventory valuation report, which names the main stock account to tie its total to, and the
+     * tax report, which names the accounts the two kinds of tax are routed to.
      */
     public function testNoPostingCodeReadsTheRoutingTableExceptThroughTheResolver(): void
     {
@@ -249,6 +250,7 @@ class RoutingResolverTest extends CIUnitTestCase
             'Libraries/Accounting/OpeningBalanceService.php',
             'Libraries/Accounting/RoutingResolver.php',
             'Libraries/Accounting/RoutingService.php',
+            'Libraries/Accounting/TaxReport.php',
         ];
         $found = [];
         $root  = realpath(__DIR__ . '/../../../app');

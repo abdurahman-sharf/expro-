@@ -39,6 +39,8 @@ if ($vendorHome !== $root) {
 
 require $root . '/vendor/codeigniter4/framework/system/Test/bootstrap.php';
 
+date_default_timezone_set('America/New_York');
+
 // A checkout whose vendor directory is another checkout's gets that checkout's classes from Composer, so
 // the worker puts the application of the checkout it runs in first and races the code under test.
 spl_autoload_register(static function (string $class): void {
