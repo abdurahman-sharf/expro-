@@ -202,12 +202,12 @@ trait SaleAccountingFixtureTrait
      * @param list<array<string, mixed>>           $payments
      * @param array{type: int, value: string}|null $invoiceDiscount
      */
-    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null, ReturnDocument $returnDocument = ReturnDocument::CreditNote, ?string $invoiceDate = null, int|string|null $paymentTerms = null): int
+    protected function save(array $items, array $taxes = [], array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?int $origin = null, int $status = COMPLETED, int $saleId = NEW_ENTRY, ?array $invoiceDiscount = null, ReturnDocument $returnDocument = ReturnDocument::CreditNote, ?string $invoiceDate = null, int|string|null $paymentTerms = null, ?string $returnOverrideReason = null): int
     {
         $saleStatus = $status;
         $salesTaxes = [[], $taxes];
         $customer   = $customerId === -1 ? $this->customerId : ($customerId ?? NEW_ENTRY);
-        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms);
+        $result     = $this->sales->save_value($saleId, $saleStatus, $items, $customer, $this->employeeId, 'test', null, null, null, $type, $payments, null, $salesTaxes, $delivered, $origin, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $returnOverrideReason);
 
         if ($result > 0) {
             $this->saleIds[] = $result;
@@ -329,6 +329,14 @@ trait SaleAccountingFixtureTrait
         $service = $this->item('0', false);
 
         return $this->save([$this->line($service, 0, '1', $total, '0', '0', PERCENT, $this->branchLocation($branchId))], [], $payments, SALE_TYPE_INVOICE, $customerId ?? -1);
+    }
+
+    /**
+     * Lets the seller of the test let a return of stock through with no sale to take it back from.
+     */
+    protected function grantReturnOverride(): void
+    {
+        $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => 'sales_return_override', 'person_id' => $this->employeeId, 'menu_group' => 'home']);
     }
 
     /**

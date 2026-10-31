@@ -9,6 +9,7 @@ use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\ReturnOverride;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingResolver;
 use App\Libraries\Accounting\RoutingType;
@@ -80,7 +81,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
      * @param list<SaleLine>    $lines
      * @param list<SalePayment> $payments
      */
-    private function sale(array $lines, array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?SaleDocument $origin = null): SaleDocument
+    private function sale(array $lines, array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?SaleDocument $origin = null, bool $override = false, bool $refundInvoice = false): SaleDocument
     {
         return new SaleDocument(
             saleId: 7,
@@ -94,6 +95,8 @@ class SalePostingBuilderTest extends CIUnitTestCase
             lines: $lines,
             payments: $payments,
             origin: $origin,
+            returnOverride: $override,
+            refundInvoice: $refundInvoice,
         );
     }
 
@@ -646,17 +649,95 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $this->assertSame(9, $failure->context['item_id']);
     }
 
-    public function testCost_RefusesAReturnOfASaleThatWasNotDeliveredOrIsNotComplete(): void
+    public function testCost_RefusesAReturnOfASaleThatIsNotCompleteAndARefundInvoiceOfOneThatWasNotDelivered(): void
     {
         $undelivered = $this->sale([$this->line('5', '100', cost: '60')], delivered: false);
         $cancelled   = new SaleDocument(8, '2026-10-20', SALE_TYPE_INVOICE, CANCELED, $this->customerId, 1, true, null, [$this->line('5', '100', cost: '60')], []);
         $aReturn     = $this->sale([$this->line('-5', '100', cost: '60')], type: SALE_TYPE_RETURN);
 
-        foreach ([[$undelivered, PostingError::ReturnOfUndelivered], [$cancelled, PostingError::ReturnOriginInvalid], [$aReturn, PostingError::ReturnOriginInvalid]] as [$origin, $error]) {
+        $failure = $this->failureOf(fn () => $this->builder->cost($this->sale([$this->line('-1', '100')], type: SALE_TYPE_RETURN, origin: $undelivered, refundInvoice: true), 1));
+
+        $this->assertSame(PostingError::ReturnOfUndelivered, $failure->error);
+
+        foreach ([$cancelled, $aReturn] as $origin) {
             $failure = $this->failureOf(fn () => $this->builder->cost($this->sale([$this->line('-1', '100')], type: SALE_TYPE_RETURN, origin: $origin), 1));
 
-            $this->assertSame($error, $failure->error);
+            $this->assertSame(PostingError::ReturnOriginInvalid, $failure->error);
         }
+    }
+
+    public function testCostPlan_PostsNoCostAndMovesNoStockForACreditNoteOnASaleThatWasNotDelivered(): void
+    {
+        $undelivered = $this->sale([$this->line('5', '100', cost: '60')], delivered: false);
+
+        $plan = $this->builder->costPlan($this->sale([$this->line('-2', '100', cost: '60')], type: SALE_TYPE_RETURN, origin: $undelivered), 1);
+
+        $this->assertNull($plan->journal);
+        $this->assertSame([], $plan->movements);
+    }
+
+    public function testCostPlan_StillPostsTheCostOfACreditNoteOnASaleThatWasDeliveredAtTheCostItWasSoldAt(): void
+    {
+        $delivered = $this->sale([$this->line('5', '100', cost: '60')]);
+
+        $plan = $this->builder->costPlan($this->sale([$this->line('-2', '100', cost: '99')], type: SALE_TYPE_RETURN, origin: $delivered), 1);
+
+        $this->assertSame([$this->locationAccount() . ':120.00:0.00', $this->accountId('cogs') . ':0.00:120.00'], $this->shape($plan->journal));
+    }
+
+    public function testCostPlan_TakesOutOnlyTheUnitsThatWereNotReturnedBeforeTheDelivery(): void
+    {
+        $sale = $this->sale([$this->line('5', '100', cost: '60')]);
+
+        $plan = $this->builder->costPlan($sale->withReturnedUnits([1 => '2.000']), 1);
+
+        $this->assertSame([$this->accountId('cogs') . ':180.00:0.00', $this->locationAccount() . ':0.00:180.00'], $this->shape($plan->journal));
+        $this->assertSame(['-3.000'], array_map(static fn ($movement): string => $movement->quantity, $plan->movements));
+        $this->assertSame(['-180.0000'], array_map(static fn ($movement): string => $movement->value, $plan->movements));
+    }
+
+    public function testCostPlan_SharesTheUnitsThatCameBackOverTheLinesOfTheItemInOrder(): void
+    {
+        $sale = $this->sale([$this->line('2', '100', cost: '60'), $this->line('4', '100', cost: '50')]);
+
+        $plan = $this->builder->costPlan($sale->withReturnedUnits([1 => '3.000']), 1);
+
+        $this->assertSame(['-3.000'], array_map(static fn ($movement): string => $movement->quantity, $plan->movements));
+        $this->assertSame([$this->accountId('cogs') . ':150.00:0.00', $this->locationAccount() . ':0.00:150.00'], $this->shape($plan->journal));
+    }
+
+    public function testCostPlan_PostsNothingWhenEverythingCameBackBeforeTheDelivery(): void
+    {
+        $plan = $this->builder->costPlan($this->sale([$this->line('5', '100', cost: '60')])->withReturnedUnits([1 => '5.000']), 1);
+
+        $this->assertNull($plan->journal);
+        $this->assertSame([], $plan->movements);
+    }
+
+    public function testCostPlan_CostsAReturnLetThroughWithNoSaleAtTheCostItsLinesCarry(): void
+    {
+        $plan = $this->builder->costPlan($this->sale([$this->line('-3', '100', cost: '66')], type: SALE_TYPE_RETURN, override: true), 1);
+
+        $this->assertSame([$this->locationAccount() . ':198.00:0.00', $this->accountId('cogs') . ':0.00:198.00'], $this->shape($plan->journal));
+        $this->assertSame(['3'], array_map(static fn ($movement): string => $movement->quantity, $plan->movements));
+    }
+
+    public function testCostPlan_RefusesAReturnWithNoSaleThatNoManagerLetThrough(): void
+    {
+        $failure = $this->failureOf(fn () => $this->builder->costPlan($this->sale([$this->line('-3', '100', cost: '66')], type: SALE_TYPE_RETURN), 1));
+
+        $this->assertSame(PostingError::ReturnOriginRequired, $failure->error);
+    }
+
+    public function testInvoice_MarksTheJournalOfAReturnThatWasLetThroughWithNoSaleAndOnlyThat(): void
+    {
+        $overridden = $this->builder->invoice($this->sale([$this->line('-1', '100')], type: SALE_TYPE_RETURN, override: true), 1);
+        $plain      = $this->builder->invoice($this->sale([$this->line('-1', '100')], type: SALE_TYPE_RETURN), 1);
+        $cost       = $this->builder->cost($this->sale([$this->line('-1', '100', cost: '60')], type: SALE_TYPE_RETURN, override: true), 1);
+
+        $this->assertSame('Return #7 ' . ReturnOverride::MARKER, $overridden->description);
+        $this->assertSame('Return #7', $plain->description);
+        $this->assertSame('Cost of return #7 ' . ReturnOverride::MARKER, $cost->description);
     }
 
     public function testCost_NeedsNoOriginForAReturnOfServices(): void

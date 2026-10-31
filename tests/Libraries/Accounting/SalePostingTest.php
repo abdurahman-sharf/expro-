@@ -14,6 +14,7 @@ use App\Libraries\Accounting\PairBalance;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\ReturnDocument;
+use App\Libraries\Accounting\ReturnOverride;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\SalePosting;
@@ -1753,13 +1754,290 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertEqualsWithDelta($stock, $this->stock($other), 0.0001);
     }
 
-    public function testSaveValue_RefusesAReturnOfASaleThatWasNeverDelivered(): void
+    public function testSaveValue_AcceptsACreditNoteOnASaleThatWasNeverDeliveredAndMovesNoStockAndPostsNoCost(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+        $stock   = $this->stock($item);
+
+        $note = $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $this->assertGreaterThan(0, $note);
+        $this->assertEqualsWithDelta($stock, $this->stock($item), 0.0001);
+        $this->assertCount(1, $this->standing($note, 'revenue'));
+        $this->assertSame([], $this->standing($note, 'cogs'));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_stock_entries')->where(['source_type' => 'sale', 'source_id' => $note])->countAllResults());
+        $this->assertSame(0, $this->accountingDb()->table('inventory')->where('trans_comment', 'POS ' . $note)->countAllResults());
+        $this->assertSame('0.00', $this->balance($this->stockAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('cogs')));
+        $this->assertSame('400.00', $this->balance($this->customerAccount()));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_RefusesACreditNoteOnASaleThatWasNeverDeliveredThatTakesBackMoreThanWasInvoiced(): void
     {
         $item    = $this->item('60.00');
         $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [], SALE_TYPE_INVOICE, -1, false);
 
-        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice));
-        $this->assertSame(PostingError::ReturnOfUndelivered, $this->failure()->error);
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '-3', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice));
+
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-3', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice));
+        $this->assertSame(PostingError::SaleReturnExceedsOrigin, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testConfirmDelivery_TakesOutOnlyTheUnitsThatWereNotReturnedAndPostsTheirCost(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+        $note    = $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice);
+        $stock   = $this->stock($item);
+
+        $this->assertSame($invoice, $this->sales->confirm_delivery($invoice, $this->employeeId));
+
+        $cost = $this->standing($invoice, 'cogs');
+
+        $this->assertCount(1, $cost);
+        $this->assertSame([$this->accountId('cogs') . ':240.00:0.00', $this->stockAccount() . ':0.00:240.00'], $cost[0]['lines']);
+        $this->assertEqualsWithDelta($stock - 4, $this->stock($item), 0.0001);
+        $this->assertSame([], $this->standing($note, 'cogs'));
+        $this->assertSame('240.00', $this->balance($this->accountId('cogs')));
+        $this->assertSame('-240.00', $this->balance($this->stockAccount()));
+        $this->assertSame('-4.000', bcadd((string) $this->accountingDb()->table('accounting_stock_entries')->selectSum('quantity', 'quantity')->where(['source_type' => 'sale', 'source_id' => $invoice])->get()->getRow()->quantity, '0', 3));
+        $this->assertTies();
+    }
+
+    public function testConfirmDelivery_TakesNothingOutAndPostsNoCostWhenEverythingWasReturnedBeforeIt(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+
+        $this->save([$this->line($item, 0, '-5', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $stock = $this->stock($item);
+
+        $this->assertSame($invoice, $this->sales->confirm_delivery($invoice, $this->employeeId));
+        $this->assertSame('1', (string) $this->saleRow($invoice)->delivered);
+        $this->assertSame([], $this->standing($invoice, 'cogs'));
+        $this->assertEqualsWithDelta($stock, $this->stock($item), 0.0001);
+        $this->assertSame('0.00', $this->balance($this->accountId('cogs')));
+        $this->assertSame('0.00', $this->balance($this->stockAccount()));
+        $this->assertTies();
+    }
+
+    public function testConfirmDelivery_SharesWhatCameBackOverTheLinesOfTheItemInOrder(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '2', '100', '60.00'), $this->line($item, 1, '4', '100', '60.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+
+        $this->save([$this->line($item, 0, '-3', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $stock = $this->stock($item);
+
+        $this->assertSame($invoice, $this->sales->confirm_delivery($invoice, $this->employeeId));
+        $this->assertEqualsWithDelta($stock - 3, $this->stock($item), 0.0001);
+        $this->assertSame('180.00', $this->balance($this->accountId('cogs')));
+    }
+
+    public function testSaveValue_PostsTheCostOfACreditNoteAtTheOriginalCostOnceTheSaleWasDelivered(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [], SALE_TYPE_INVOICE, -1, false);
+
+        $this->sales->confirm_delivery($invoice, $this->employeeId);
+
+        $stock = $this->stock($item);
+        $note  = $this->save([$this->line($item, 0, '-2', '100', '99.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $this->assertSame([$this->stockAccount() . ':120.00:0.00', $this->accountId('cogs') . ':0.00:120.00'], $this->standing($note, 'cogs')[0]['lines']);
+        $this->assertEqualsWithDelta($stock + 2, $this->stock($item), 0.0001);
+    }
+
+    public function testSaveValue_AcceptsAReturnOfStockWithNoSaleForAnEmployeeHoldingTheOverridePermission(): void
+    {
+        $this->grantReturnOverride();
+
+        $item  = $this->item('66.00');
+        $stock = $this->stock($item);
+
+        $returnId = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [$this->payment(lang('Sales.cash'), '-200.00')], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'lost the receipt');
+
+        $this->assertGreaterThan(0, $returnId);
+        $this->assertEqualsWithDelta($stock + 2, $this->stock($item), 0.0001);
+        $this->assertSame([$this->stockAccount() . ':132.00:0.00', $this->accountId('cogs') . ':0.00:132.00'], $this->standing($returnId, 'cogs')[0]['lines']);
+        $this->assertSame('-132.00', $this->balance($this->accountId('cogs')));
+        $this->assertSame('132.00', $this->balance($this->stockAccount()));
+    }
+
+    public function testSaveValue_RecordsTheOverrideItsAuditEntryAndTheMarkOnBothJournals(): void
+    {
+        $this->grantReturnOverride();
+
+        $item     = $this->item('66.00');
+        $returnId = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'lost the receipt');
+
+        $row = $this->accountingDb()->table('sale_return_overrides')->where('sale_id', $returnId)->get()->getRow();
+
+        $this->assertSame(['lost the receipt', (string) $this->employeeId, '1'], [$row->reason, (string) $row->employee_id, (string) $row->branch_id]);
+
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $returnId, 'action' => 'return_override'])->get()->getResult();
+
+        $this->assertCount(1, $audit);
+        $this->assertSame((string) $this->employeeId, (string) $audit[0]->employee_id);
+        $this->assertSame('lost the receipt', json_decode((string) $audit[0]->details, true)['reason']);
+
+        $descriptions = array_column($this->accountingDb()->table('accounting_journals')->select('description')->where(['source_type' => 'sale', 'source_id' => $returnId])->orderBy('journal_id')->get()->getResultArray(), 'description');
+
+        $this->assertSame(['Return #' . $returnId . ' ' . ReturnOverride::MARKER, 'Cost of return #' . $returnId . ' ' . ReturnOverride::MARKER], $descriptions);
+    }
+
+    public function testSaveValue_CostsAReturnLetThroughAtTheCurrentCostAndNotAtTheCostTheItemWasSoldAt(): void
+    {
+        $this->grantReturnOverride();
+
+        $item = $this->item('60.00');
+        $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '500.00')]);
+        $this->accountingDb()->table('items')->where('item_id', $item)->update(['cost_price' => '80.00']);
+
+        $returnId = $this->save([$this->line($item, 0, '-1', '100', '80.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'not from us');
+
+        $this->assertSame([$this->stockAccount() . ':80.00:0.00', $this->accountId('cogs') . ':0.00:80.00'], $this->standing($returnId, 'cogs')[0]['lines']);
+    }
+
+    public function testSaveValue_RefusesTheOverrideOfAnEmployeeWithoutThePermissionAndLeavesNothingOfTheReturn(): void
+    {
+        $item     = $this->item('66.00');
+        $stock    = $this->stock($item);
+        $sales    = $this->countSales();
+        $journals = $this->countJournals();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'lost the receipt'));
+        $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertSame(0, $this->countRows('sale_return_overrides'));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'return_override')->countAllResults());
+        $this->assertEqualsWithDelta($stock, $this->stock($item), 0.0001);
+    }
+
+    public function testSaveValue_RequiresAReasonOfOneToTwoHundredAndFiftyFiveCharactersForTheOverride(): void
+    {
+        $this->grantReturnOverride();
+
+        $item = $this->item('66.00');
+
+        foreach (['', '   ', str_repeat('x', 256)] as $reason) {
+            $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-1', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, $reason));
+            $this->assertSame(AccountingError::ReasonRequired, $this->failure()->error);
+        }
+
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '-1', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, str_repeat('x', 255)));
+        $this->assertSame(1, $this->countRows('sale_return_overrides'));
+    }
+
+    public function testSaveValue_KeepsRefusingAReturnOfStockWithNoSaleWhenNoOverrideIsAskedForEvenForAnEmployeeWhoHoldsThePermission(): void
+    {
+        $this->grantReturnOverride();
+
+        $item = $this->item('66.00');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-1', '100', '66.00')], [], [], SALE_TYPE_RETURN));
+        $this->assertSame(PostingError::ReturnOriginRequired, $this->failure()->error);
+        $this->assertSame(0, $this->countRows('sale_return_overrides'));
+    }
+
+    public function testSaveValue_IgnoresAnOverrideOnAReturnThatNamesItsSaleAndKeepsTheReturnLimit(): void
+    {
+        $this->grantReturnOverride();
+
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '2', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '200.00')]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-3', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'too many'));
+        $this->assertSame(PostingError::SaleReturnExceedsOrigin, $this->failure()->error);
+
+        $returnId = $this->save([$this->line($item, 0, '-2', '100', '99.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'two back');
+
+        $this->assertGreaterThan(0, $returnId);
+        $this->assertSame(0, $this->countRows('sale_return_overrides'));
+        $this->assertSame([$this->stockAccount() . ':120.00:0.00', $this->accountId('cogs') . ':0.00:120.00'], $this->standing($returnId, 'cogs')[0]['lines']);
+    }
+
+    public function testSaveValue_AsksNothingOfTheOverrideForAReturnOfServicesAndAddsNoMarkToIt(): void
+    {
+        $this->grantReturnOverride();
+
+        $service  = $this->item('0', false);
+        $returnId = $this->save([$this->line($service, 0, '-1', '100')], [], [$this->payment(lang('Sales.cash'), '-100.00')], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'not needed');
+
+        $this->assertGreaterThan(0, $returnId);
+        $this->assertSame(0, $this->countRows('sale_return_overrides'));
+        $this->assertSame('Return #' . $returnId, $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'sale', 'source_id' => $returnId, 'entry_type' => 'revenue'])->get()->getRow()->description);
+    }
+
+    public function testSaveValue_LeavesAReturnWithItsSaleUnmarkedAndFreeOfAnyOverride(): void
+    {
+        $item     = $this->item('60.00');
+        $invoice  = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '500.00')]);
+        $returnId = $this->save([$this->line($item, 0, '-1', '100', '99.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $this->assertSame(0, $this->countRows('sale_return_overrides'));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'return_override')->countAllResults());
+        $this->assertSame(['Return #' . $returnId, 'Cost of return #' . $returnId], array_column($this->accountingDb()->table('accounting_journals')->select('description')->where(['source_type' => 'sale', 'source_id' => $returnId])->orderBy('journal_id')->get()->getResultArray(), 'description'));
+        $this->assertSame([$this->stockAccount() . ':60.00:0.00', $this->accountId('cogs') . ':0.00:60.00'], $this->standing($returnId, 'cogs')[0]['lines']);
+    }
+
+    public function testSaveValue_AcceptsAReturnOfStockWithNoSaleWhileAccountingIsOffWithoutAnyRecordOfAnOverride(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $item  = $this->item('66.00');
+        $stock = $this->stock($item);
+
+        $returnId = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'ignored while accounting is off');
+
+        $this->assertGreaterThan(0, $returnId);
+        $this->assertEqualsWithDelta($stock + 2, $this->stock($item), 0.0001);
+        $this->assertSame(0, $this->countRows('sale_return_overrides'));
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_RefusesAnOverriddenReturnInAClosedPeriodAndLeavesNoRecordOfTheOverride(): void
+    {
+        $this->grantReturnOverride();
+        $this->closeThrough(date('Y-m-d'));
+
+        $item   = $this->item('66.00');
+        $stock  = $this->stock($item);
+        $sales  = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'lost the receipt'));
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countRows('sale_return_overrides'));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'return_override')->countAllResults());
+        $this->assertEqualsWithDelta($stock, $this->stock($item), 0.0001);
+    }
+
+    public function testSaveValue_RecordsTheBranchOfAnOverriddenReturn(): void
+    {
+        $this->grantReturnOverride();
+
+        $branch   = $this->createBranch('B2');
+        $location = $this->branchLocation($branch);
+        $item     = $this->item('66.00');
+
+        try {
+            $returnId = $this->save([$this->line($item, 0, '-1', '100', '66.00', '0', PERCENT, $location)], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'branch return');
+
+            $this->assertSame($branch, (int) $this->accountingDb()->table('sale_return_overrides')->where('sale_id', $returnId)->get()->getRow()->branch_id);
+            $this->assertSame($branch, (int) $this->accountingDb()->table('accounting_audit_log')->where(['action' => 'return_override', 'entity_id' => $returnId])->get()->getRow()->branch_id);
+        } finally {
+            $this->accountingDb()->table('item_quantities')->where('location_id', $location)->delete();
+            $this->accountingDb()->table('inventory')->where('trans_location', $location)->delete();
+        }
     }
 
     public function testSaveValue_ReturnsOfServicesNeedNoSaleToComeFrom(): void
@@ -3631,7 +3909,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSameAsFixture($case['expected'], $actual, 'application');
     }
 
-    public function testSaveValue_RefusesACreditNoteOnAnInvoiceThatWasNeverDeliveredWhereTheReferenceSystemAcceptsIt(): void
+    public function testSaveValue_AcceptsACreditNoteOnAnInvoiceThatWasNeverDeliveredAndPostsNeitherTheCostReturnNorTheStockTheReferenceSystemPosts(): void
     {
         $case    = $this->referenceCase('T-30', 'undelivered_credit_note', 'credit-note-on-an-undelivered-invoice', 'deliberate_difference');
         $invoice = $this->invoiceOfCase($case['inputs']['invoice'] + ['tax_decimals' => '2']);
@@ -3645,29 +3923,45 @@ class SalePostingTest extends CIUnitTestCase
             'stock_change'    => (string) (int) round($this->stock($item) - $before['stock']),
         ];
 
-        $this->assertSameAsFixture(['accepted' => $case['expected']['accepted'], 'journals_posted' => $case['expected']['journals_posted'], 'stock_change' => $case['expected']['stock_change']], $actual, 'refusal');
-        $this->assertSame(ACCOUNTING_FAILED, $return['sale']);
-        $this->assertSame($case['expected']['detail']['error'], $this->failure()->error->value);
+        $this->assertSameAsFixture(['accepted' => $case['expected']['accepted'], 'journals_posted' => $case['expected']['journals_posted'], 'stock_change' => $case['expected']['stock_change']], $actual, 'credit note on an undelivered invoice');
+        $this->assertRolesAgree($case['expected']['journals']['credit_note'], $this->roleLinesOfSale($return['sale'], 'revenue'), ['sales_returns', 'tax_output', 'customer'], 'revenue return of the credit note');
+        $this->assertSame([], $this->standing($return['sale'], 'cogs'));
     }
 
-    public function testConfirmDelivery_LeavesTheSameCostAndStockAsTheReferenceSystemAfterTheDeliveryAndTheCreditNoteBothHappened(): void
+    public function testConfirmDelivery_LeavesTheSameNetCostAndStockAsTheReferenceSystemWhenTheCreditNoteComesBeforeTheDelivery(): void
     {
         $case    = $this->referenceCase('T-30', 'undelivered_credit_note', 'delivery-and-credit-note-leave-the-same-books', 'exact');
         $invoice = $this->invoiceOfCase($case['inputs']['invoice'] + ['tax_decimals' => '2']);
         $item    = $invoice['made'][0]['item'];
         $note    = $case['inputs']['credit_note'];
+        $return  = $this->ringUp([['item' => $item, 'quantity' => $note['quantity'], 'price' => $note['price'], 'discount' => $note['discount']]], null, $invoice['sale']);
+
+        $this->assertGreaterThan(0, $return['sale']);
+        $this->assertSame($invoice['sale'], $this->sales->confirm_delivery($invoice['sale'], $this->employeeId));
+        $this->assertSameAsFixture($case['expected'], [
+            'net_cost_after_both'  => $this->balance($this->accountId('cogs')),
+            'net_stock_after_both' => (string) (int) round($this->stock($item)),
+        ], 'books');
+    }
+
+    public function testConfirmDelivery_PostsTheCostOfOnlyTheUnitsThatStayedSoldWhereTheReferenceSystemPostsTheWholeInvoice(): void
+    {
+        $case     = $this->referenceCase('T-30', 'undelivered_credit_note', 'delivery-takes-out-only-what-was-not-returned', 'deliberate_difference');
+        $invoice  = $this->invoiceOfCase($case['inputs']['invoice'] + ['tax_decimals' => '2']);
+        $item     = $invoice['made'][0]['item'];
+        $note     = $case['inputs']['credit_note'];
+        $this->ringUp([['item' => $item, 'quantity' => $note['quantity'], 'price' => $note['price'], 'discount' => $note['discount']]], null, $invoice['sale']);
+
+        $stock = $this->stock($item);
 
         $this->assertSame($invoice['sale'], $this->sales->confirm_delivery($invoice['sale'], $this->employeeId));
 
         $delivery = array_values(array_filter($this->roleLinesOfSale($invoice['sale'], 'cogs'), static fn (array $line): bool => $line['role'] === 'cogs'))[0]['debit'];
-        $return   = $this->ringUp([['item' => $item, 'quantity' => $note['quantity'], 'price' => $note['price'], 'discount' => $note['discount']]], null, $invoice['sale']);
 
-        $this->assertGreaterThan(0, $return['sale']);
         $this->assertSameAsFixture($case['expected'], [
-            'delivery_cost'        => bcadd($delivery, '0', 2),
-            'net_cost_after_both'  => $this->balance($this->accountId('cogs')),
-            'net_stock_after_both' => (string) (int) round($this->stock($item)),
-        ], 'books');
+            'delivery_cost'         => bcadd($delivery, '0', 2),
+            'delivery_stock_change' => (string) (int) round($this->stock($item) - $stock),
+        ], 'delivery');
     }
 
     /**

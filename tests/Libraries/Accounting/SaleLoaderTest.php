@@ -2,6 +2,8 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\ReturnDocument;
+use App\Libraries\Accounting\ReturnOverride;
 use App\Libraries\Accounting\SaleLoader;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -76,5 +78,34 @@ class SaleLoaderTest extends CIUnitTestCase
 
         $this->assertSame('-6.7500', bcadd($document->lines[0]->invoiceDiscountShare, '0', 4));
         $this->assertSame('27.0000', bcadd($document->origin->lines[0]->invoiceDiscountShare, '0', 4));
+    }
+
+    public function testLoad_ReadsWhetherAReturnWithNoSaleWasLetThroughAndWhetherItIsARefundInvoice(): void
+    {
+        $this->grantReturnOverride();
+
+        $item = $this->item('66.00');
+        $let  = $this->save([$this->line($item, 0, '-1', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, null, null, 'lost the receipt');
+        $plain = $this->save([$this->line($this->item('0', false), 0, '-1', '100')], [], [], SALE_TYPE_RETURN);
+        $refund = $this->save([$this->line($this->item('0', false), 0, '-1', '100')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice);
+
+        $loader = new SaleLoader();
+
+        $this->assertSame([true, false], [$loader->load($let)->returnOverride, $loader->load($let)->refundInvoice]);
+        $this->assertSame([false, false], [$loader->load($plain)->returnOverride, $loader->load($plain)->refundInvoice]);
+        $this->assertSame([false, true], [$loader->load($refund)->returnOverride, $loader->load($refund)->refundInvoice]);
+        $this->assertTrue((new ReturnOverride())->exists($let));
+    }
+
+    public function testLoad_NeverCountsASaleThatNamesItsOriginAsLetThroughEvenIfARowSaysSo(): void
+    {
+        $item    = $this->item('60.00');
+        $invoice = $this->save([$this->line($item, 0, '5', '100', '60.00')], [], [$this->payment(lang('Sales.cash'), '500.00')]);
+        $return  = $this->save([$this->line($item, 0, '-1', '100', '60.00')], [], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $this->accountingDb()->table('sale_return_overrides')->insert(['sale_id' => $return, 'branch_id' => 1, 'employee_id' => $this->employeeId, 'reason' => 'forged']);
+
+        $this->assertFalse((new SaleLoader())->load($return)->returnOverride);
+        $this->assertFalse((new SaleLoader())->load($invoice)->returnOverride);
     }
 }

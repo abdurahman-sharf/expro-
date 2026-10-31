@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Barcode_lib;
 use App\Libraries\Email_lib;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\CustomerLedger;
@@ -569,13 +570,14 @@ class Sales extends Secure_Controller
         }
 
         $saleId  = (int) $number;
-        $problem = $this->returnOriginProblem($saleId);
+        $problem = $this->returnOriginProblem($saleId, $this->sale_lib->getReturnDocument());
 
         if ($problem !== null) {
             return $this->reload(['error' => $problem]);
         }
 
         $this->sale_lib->set_return_origin($saleId);
+        $this->sale_lib->clearReturnOverride();
 
         $customerId = $this->sale->getSummary($saleId)->customer_id;
 
@@ -584,6 +586,45 @@ class Sales extends Secure_Controller
         }
 
         return $this->reload();
+    }
+
+    /**
+     * Lets a manager take a return of stock with no sale to take it back from, with the reason why.
+     * An empty reason takes the permission back out of the register. Used in app/Views/sales/register.php
+     *
+     * @return ResponseInterface|string
+     * @noinspection PhpUnused
+     */
+    public function postSetReturnOverride(): ResponseInterface|string
+    {
+        $reason = trim((string) $this->request->getPost('return_override_reason'));
+
+        if ($reason === '') {
+            $this->sale_lib->clearReturnOverride();
+
+            return $this->reload();
+        }
+
+        if (! $this->mayOverrideReturn()) {
+            return $this->reload(['error' => lang('Sales.not_authorized')]);
+        }
+
+        if ($this->sale_lib->get_return_origin() !== null) {
+            return $this->reload(['error' => lang('Sales.return_override_has_origin')]);
+        }
+
+        if (mb_strlen($reason) > 255) {
+            return $this->reload(['error' => lang('Accounting.error_reason_required')]);
+        }
+
+        $this->sale_lib->setReturnOverride($reason);
+
+        return $this->reload();
+    }
+
+    private function mayOverrideReturn(): bool
+    {
+        return $this->employee->has_grant(AccountingGuard::RETURN_OVERRIDE, (int) $this->employee->get_logged_in_employee_info()->person_id);
     }
 
     /**
@@ -1294,7 +1335,7 @@ class Sales extends Secure_Controller
                 $saleType = SALE_TYPE_POS;
             }
 
-            $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount, $this->sale_lib->getReturnDocument());
+            $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount, $this->sale_lib->getReturnDocument(), returnOverrideReason: $this->sale_lib->getReturnOverride());
 
             $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
@@ -1742,7 +1783,7 @@ class Sales extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
         }
 
-        $problem = $this->returnOriginProblem($saleId);
+        $problem = $this->returnOriginProblem($saleId, $document);
 
         if ($problem === null && (int) $this->sale->getSummary($saleId)->sale_type !== SALE_TYPE_INVOICE) {
             $problem = lang('Sales.credit_note_invoice_only');
@@ -1912,7 +1953,7 @@ class Sales extends Secure_Controller
         ));
     }
 
-    private function returnOriginProblem(int $saleId): ?string
+    private function returnOriginProblem(int $saleId, ReturnDocument $document): ?string
     {
         $origin = $this->sale->getSummary($saleId);
 
@@ -1920,7 +1961,7 @@ class Sales extends Secure_Controller
             return lang('Sales.return_origin_invalid');
         }
 
-        if ((int) $origin->delivered !== 1) {
+        if ((int) $origin->delivered !== 1 && $document === ReturnDocument::RefundInvoice) {
             return lang('Sales.return_origin_undelivered');
         }
 
@@ -2123,6 +2164,8 @@ class Sales extends Secure_Controller
         $data['today'] = date('Y-m-d');
         $data['return_origin'] = $this->sale_lib->get_return_origin();
         $data['return_document'] = $this->sale_lib->getReturnDocument()->value;
+        $data['can_override_return'] = $this->mayOverrideReturn();
+        $data['return_override'] = $this->sale_lib->getReturnOverride();
 
         $data['pos_mode'] = $data['mode'] == 'sale' || $data['mode'] == 'return';
 
@@ -2288,7 +2331,7 @@ class Sales extends Secure_Controller
             }
 
             if ((int) $saleInfo['sale_type'] === SALE_TYPE_INVOICE && $posted && (int) ($saleInfo['delivered'] ?? 1) !== 1) {
-                $data['credit_note_help'] = lang('Sales.credit_note_after_delivery');
+                $data['credit_note_help'] = lang('Sales.credit_note_undelivered_help');
             }
 
             foreach ($data['payments'] as $payment) {

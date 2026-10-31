@@ -120,10 +120,8 @@ final class SalePostingBuilder
 
             $units = SaleAmounts::absolute($line->quantity);
 
-            if (! $sale->isReturn() && isset($back[$line->itemId])) {
-                $taken               = bccomp($back[$line->itemId], $units, 3) < 0 ? $back[$line->itemId] : $units;
-                $units               = bcsub($units, $taken, 3);
-                $back[$line->itemId] = bcsub($back[$line->itemId], $taken, 3);
+            if (! $sale->isReturn()) {
+                [$units, $back] = UndeliveredReturns::remaining($line->itemId, $line->quantity, $back);
 
                 if (bccomp($units, '0', 3) === 0) {
                     continue;
