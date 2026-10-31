@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use DateTimeImmutable;
@@ -40,12 +41,9 @@ final class LegacyPurchaseDiscount
      */
     public function findings(): array
     {
-        $rows = $this->db->table('receivings_items l')
+        $rows = $this->severalUnits(FIXED)
             ->select('l.receiving_id, l.line, l.item_id, l.quantity_purchased * l.receiving_quantity AS units, l.discount, r.receiving_time', false)
             ->join('receivings r', 'r.receiving_id = l.receiving_id')
-            ->where('l.discount_type', FIXED)
-            ->where('l.discount >', 0)
-            ->where('ABS(l.quantity_purchased * l.receiving_quantity) <> 1', null, false)
             ->orderBy('l.receiving_id', 'ASC')
             ->orderBy('l.line', 'ASC')
             ->get()
@@ -74,6 +72,22 @@ final class LegacyPurchaseDiscount
         }
 
         return $findings;
+    }
+
+    /**
+     * The lines the migration marked: how many, and the discount they carry as an amount for the
+     * whole line, to set against what the scan counted before the migration ran.
+     *
+     * @return array{lines: int, discount: numeric-string}
+     */
+    public function marked(): array
+    {
+        $row = $this->severalUnits(FIXED_LINE)
+            ->select('COUNT(*) AS line_count, COALESCE(SUM(l.discount), 0) AS discount_total', false)
+            ->get()
+            ->getRow();
+
+        return ['lines' => (int) $row->line_count, 'discount' => bcadd((string) $row->discount_total, '0', 2)];
     }
 
     /**
@@ -188,6 +202,14 @@ final class LegacyPurchaseDiscount
     public function clearResolution(): void
     {
         $this->db->table('app_config')->where('key', self::RESOLUTION_KEY)->delete();
+    }
+
+    private function severalUnits(int $discountType): BaseBuilder
+    {
+        return $this->db->table('receivings_items l')
+            ->where('l.discount_type', $discountType)
+            ->where('l.discount >', 0)
+            ->where('ABS(l.quantity_purchased * l.receiving_quantity) <> 1', null, false);
     }
 
     /**
