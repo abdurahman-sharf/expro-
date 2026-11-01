@@ -24,11 +24,182 @@
 
 ## 2. الأدلة
 
-@@EVIDENCE@@
+**ما شُغّل** (من `/home/user/wt/WP28`، قاعدة `ospos_test_wp28`، كل مرة بمعالج واحد، **لم تُشغَّل المجموعة الكاملة**):
+
+| التشغيل | الملفات | النتيجة |
+|---|---|---|
+| ملفات الحزمة الجديدة والمتغيرة | `CurrenciesTest` و`CurrencyRatesTest` و`SalePostingBuilderTest` و`ReceivingPostingBuilderTest` (بعد آخر إضافة) | **OK: 238 اختبارًا** |
+| الاختبارات المضافة في آخر جولة بالتصفية | `ReceivingPostingTest` و`PostingServiceTest` و`TreasuryTransfersTest` و`SalePostingTest` | **OK: 6 اختبارات** |
+| الجولة الأولى بعد المنطق | `CreditSettlementTest` و`CustomerBalanceReportTest` و`SupplierBalanceReportTest` و`AccountingCurrenciesControllerTest` و`MultiCurrencyMigrationTest` و`PostingServiceTest` | **OK: 231 اختبارًا** |
+| مكتبات المحاسبة (12 ملفًا أولها) | `CurrenciesTest` إلى `CrossBranchPaymentsTest` | 787 اختبارًا: **فشل واحد** (ترتيب أسطر قيد خسارة الصرف في اختبار جديد لي) فصُحِّح |
+| مكتبات المحاسبة والترحيل والجاهزية والبنك واللغات | `TreasuryTransfersTest` إلى `AccountingCurrenciesControllerTest` (31 ملفًا و`Readiness` و`Bank` و7 ملفات ترحيل و`ParityFixtureTest` و`LanguageFilesTest`) | 4,411 اختبارًا: **5 أخطاء** كلها قوائم قائمة تحتاج الحسابين الجديدين والتوجيه والصلاحية (القسم أدناه) فصُحِّحت وأُعيد تشغيلها |
+| `SalePostingTest` و`ReceivingPostingTest` | الكبيران | **OK: 721 اختبارًا** (6,073 تأكيدًا) |
+| دفعة ثانية أوسع (47 ملف مكتبات ومنها الخمسة المصحَّحة + 10 متحكمات + `RolesPermissionsMigrationTest` + `Libraries/Roles`) | سجلات ومخزون وإشعارات وشيكات وتقارير وكشوف | 2,166 اختبارًا: **فشل واحد** (قائمة أكواد في `AccountingStatementsControllerTest`) فصُحِّح وأُعيد: **OK: 67 اختبارًا** |
+| المتحكمات والنماذج | الخزائن والذمم والإعدادات والتوجيه والقيود والموظفين والأدوار والمبيعات والمشتريات + `SaleTest` و`ReceivingTest` و`Sale_libTest` و`Sale_libPaymentTest` | 1,436 اختبارًا: كل شيء ناجح **عدا `ReceivingTest` (75 خطأ)** لأن `$refresh = true` يرجع الترحيلات و`QuoteLifecycle::down()` يرفض ما دام في القاعدة عروض بقيت من ملفات سبقته في **التشغيل نفسه**؛ أُعيد ومعه ملف يزرع القاعدة نظيفة: **OK: 94 اختبارًا** (انظر الملاحظات) |
+
+**التصحيحات التي طلبها الخط الأساسي القائم** (قوائم مكتوبة باليد لا خلل في المنطق): `DefaultChartTest` (الحسابان `4209` و`5410`)، `StatementFiguresTest` و`AccountingStatementsControllerTest` (القائمتان تعرضان `4209` و`5410`)، `RoutingServiceTest` (`fx.gain` و`fx.loss`)، `SensitivePermissionsTest` (`acc_currencies_manage`)، `YearEndClosingTest` (استعمل الرمز `5410` لحساب «إيجار» فصار محجوزًا فأخذ `5411`).
+
+**الاختبارات المضافة:** 6 ملفات جديدة (`CurrenciesTest` 24، `CurrencyRatesTest` 16، `MoneyTest` 6، `ForeignConversionTest` 10، `AccountingCurrenciesControllerTest` 23، `MultiCurrencyMigrationTest` 14) و**129 اختبارًا مضافًا** إلى ملفات قائمة (`PostingServiceTest` 17 و`JournalServiceTest` 1 و`SalePostingBuilderTest` 23 و`SalePostingTest` 26 و`ReceivingPostingBuilderTest` 17 و`ReceivingPostingTest` 18 و`TreasuryServiceTest` 9 و`TreasuryTransfersTest` 11 و`ExpensePostingTest` 1 و`RevenueVouchersTest` 1 و`CreditSettlementTest` 3 و`CustomerBalanceReportTest` 1 و`SupplierBalanceReportTest` 1). **ملف اختبار واحد لكل صنف**؛ التسمية `test{الدالة}_{السلوك}`.
+
+**ما تغطيه الاختبارات** (بحسب تعريف الإنجاز): الحالة العادية والحدّية (المنازل 0 و2 و3 بين `Money` والمُنشئ والخزينة، والتقريب نصف بعيدًا عن الصفر، والتقريب التراكمي للدفعات الجزئية، وأصغر سعر وأدقه)؛ **الأثر المحاسبي** (قيد البيع والشراء والمرتجع والدفعة وفرق الصرف سطرًا سطرًا، والمخزون `StockLedger::reconcile`، ورصيد الخزينة = حسابها، وتطابق دفتر العميل والمورد والأعمار)؛ **الصلاحيات** (`acc_currencies_manage` حساسة ومرفوضة لغير حامليها، ونطاق الشركة، والقارئ بلا زر)؛ **العكس والتعديل** (فرق الصرف يُعكس مع دفعته وبإلغاء المستند، لا عكس يدوي، ولا تعديل لعملة المستند المرحَّل وسعره)؛ **الفروع** (دفعة بعملة أجنبية إلى خزينة فرع آخر مرفوضة، وتحويل بين فرعين بعملة أجنبية مرفوض، ومستند أجنبي في فرع مخزونه)؛ **الفترات المقفلة** (بيع أجنبي في فترة مقفلة يُرفض ولا يُحفظ شيء)؛ **بيانات قديمة** (قيد بالأساسية لم يتغير بايت: أعمدة جديدة `NULL`، واختبار فاتورة دفترة 268.33 يخرج بالأرقام نفسها، ومرحلة `down()` ترفض ما دام صف يحمل عملة، والترحيلات آمنة عند التشغيل ثانية)؛ **المحاسبة مطفأة** (عملة أجنبية تُرفض باسم `ForeignCurrencyUnsupported` ولا يتغير سلوك OSPOS).
 
 ## 3. الحراس
 
-@@GUARDS@@
+كل حارس أُضيف في هذه الحزمة له **طفرة** في `docs/accounting/daftra-parity/wp28-guards.json` (`find` يقع **مرة واحدة** في الملف، و`replace` يعطّل الحارس)، ويُثبت `tools/dev/guard_mutations.py` أن الاختبارات **تفشل** حين يُعطَّل. الأمر:
+
+```
+MYSQL_DB_NAME=ospos_test_wp28 python3 tools/dev/guard_mutations.py docs/accounting/daftra-parity/wp28-guards.json [بادئات الأسماء]
+```
+
+| المجموعة | عدد الحراس |
+|---|---|
+| `Currencies` (العملات) | 18 |
+| `CurrencyRates` (الأسعار) | 17 |
+| `PostingService` (قيد بعملة) | 12 |
+| `ForeignConversion` (التحويل) | 3 |
+| `JournalService` (العكس) | 3 |
+| `SalePostingBuilder` (بناء قيود البيع) | 10 |
+| `SalePosting` (ترحيل البيع) | 7 |
+| `Sale` و`Sale_lib` (اختيار العملة) | 5 |
+| `Receiving` (نموذج الشراء) | 5 |
+| `ReceivingPostingBuilder` (بناء قيود الشراء) | 11 |
+| `ReceivingPosting` (ترحيل الشراء) | 5 |
+| `TreasuryService` و`TreasuryTransfers` (الخزينة والتحويل) | 11 |
+| المصروف وسند القبض | 2 |
+| الدفاتر وتقارير الأرصدة | 4 |
+| شاشة العملات (`AccountingCurrencies`) | 5 |
+| ترحيل `DocumentCurrencyColumns` | 1 |
+| **المجموع** | **119** |
+
+**نتيجة التشغيل:** **119 من 119 مكتشفة (`DETECTED`)، صفر `UNDETECTED`، صفر `INVALID`.**
+
+- **التشغيل الأول** (117 طفرة يومئذٍ): قُطع بعد 104 طفرة بمقاطعة (`KeyboardInterrupt`) لا أعرف مصدرها، والأداة تعيد الملف المعدَّل دائمًا فبقيت الشجرة نظيفة (تحقّقتُ بـ`git status`)، فكانت **92 مكتشفة و12 غير مكتشفة**. غير المكتشفة قادت إلى اختبارات جديدة: نطاق الشركة لتعديل العملة وتفعيلها وتعديل السعر وحذفه (`C04` و`C06` و`R05` و`R06`)؛ قيد بالأساسية ومعه سطر بعملة أخرى وسعر غير واحد (`P05`)؛ **التقريب التراكمي لدفعات جزئية** عند العميل والمورد، وبعد دفعة عند الشراء (`S03` و`B09` و`B07`: دفعتان من 0.10 على 0.20 تُسوّيان 0.75 لا 0.76)؛ إجمالي شراء بالين بلا كسور (`B10`)؛ دفعة مورد في يوم بلا سعر (`Q05`)؛ نسيان العملة بعد حفظ واحد في الشراء (`N05`).
+- **الحارس `S06` كان فرعًا ميتًا** (`$account === null` بعد التوجيه: مفتاحا `fx.gain` و`fx.loss` يقبلان النوع «تلقائي» وحده فيرمي المُحلِّل قبل أن يعيد `null`). **استُبدلت طفرته** بالحارس الحقيقي (تغليف رفض التوجيه باسم `FxAccountsMissing`)، وأُضيفت الطفرتان المناظرتان للشراء (`B11`) والتحويل (`T11`) مع اختبارَيهما. **الفرع الميت نفسه بقي حماية دفاعية ولا يُدَّعى حارسًا** (القسم 5).
+- **التشغيل الثاني** (27 طفرة: الـ12 + `B11` و`T11` + 13 لم تبلغها المقاطعة): **27 من 27 مكتشفة**.
+- الطفرتان `K03` و`K04` (تقارير أرصدة العميل والمورد تحسب فرق الصرف مدفوعات) أُضيفتا مع اختباريهما بعد الإصلاح.
+
+الحراس بأسمائها:
+
+- `C01` create asks the permission to manage currencies (`Currencies.php`)
+- `C02` create asks for the whole company (`Currencies.php`)
+- `C03` update asks the permission (`Currencies.php`)
+- `C04` update asks for the whole company (`Currencies.php`)
+- `C05` switching on or off asks the permission (`Currencies.php`)
+- `C06` switching on or off asks for the whole company (`Currencies.php`)
+- `C07` the code of a currency is three capital letters (`Currencies.php`)
+- `C08` a code is taken once (`Currencies.php`)
+- `C09` decimals are zero, two or three (`Currencies.php`)
+- `C10` decimals are fixed once the currency was used (`Currencies.php`)
+- `C11` the base currency is never switched off (`Currencies.php`)
+- `C12` a switched-off currency is not offered on a document (`Currencies.php`)
+- `C13` the base currency is not a foreign currency (`Currencies.php`)
+- `C14` a rate typed by hand asks the permission to manage currencies (`Currencies.php`)
+- `C15` a document needs a rate on or before its date (`Currencies.php`)
+- `C16` a currency of three decimals is refused on a document (`Currencies.php`)
+- `C17` the row of the base currency is put back switched on (`Currencies.php`)
+- `C18` a currency created is written to the audit log (`Currencies.php`)
+- `R01` adding a rate asks the permission (`CurrencyRates.php`)
+- `R02` changing a rate asks the permission (`CurrencyRates.php`)
+- `R03` deleting a rate asks the permission (`CurrencyRates.php`)
+- `R04` adding a rate asks for the whole company (`CurrencyRates.php`)
+- `R05` changing a rate asks for the whole company (`CurrencyRates.php`)
+- `R06` deleting a rate asks for the whole company (`CurrencyRates.php`)
+- `R07` the base currency has no rate (`CurrencyRates.php`)
+- `R08` a rate is above zero (`CurrencyRates.php`)
+- `R09` a rate has at most eight decimals and is a number (`CurrencyRates.php`)
+- `R10` one rate for a currency and a day (`CurrencyRates.php`)
+- `R11` a document takes the latest rate on or before its date (`CurrencyRates.php`)
+- `R12` the base currency is worth one (`CurrencyRates.php`)
+- `R13` a rate added is written to the audit log (`CurrencyRates.php`)
+- `R14` a rate changed is written to the audit log with what it was (`CurrencyRates.php`)
+- `R15` a rate deleted is written to the audit log (`CurrencyRates.php`)
+- `R16` a change that changes nothing writes nothing (`CurrencyRates.php`)
+- `R17` a rate of a day cannot move onto a day that has one (`CurrencyRates.php`)
+- `P01` a line of a foreign journal carries a foreign amount (`PostingService.php`)
+- `P02` a foreign journal balances in its own currency (`PostingService.php`)
+- `P03` a base amount is what the foreign amount comes to at the rate (`PostingService.php`)
+- `P04` a journal in the base has the rate one (without foreign lines) (`PostingService.php`)
+- `P05` a journal in the base has the rate one (with a line in another currency) (`PostingService.php`)
+- `P06` a currency the books do not use is refused (`PostingService.php`)
+- `P07` the reversal of a journal may use a currency switched off since (`PostingService.php`)
+- `P08` a foreign amount and its currency go together (`PostingService.php`)
+- `P09` a foreign amount is above zero (`PostingService.php`)
+- `P10` a line of a foreign journal is in the currency of the journal (`PostingService.php`)
+- `P11` a line of a base journal carries no foreign amount in the base (`PostingService.php`)
+- `P12` a treasury that holds a currency takes only amounts in it (`PostingService.php`)
+- `F01` a difference that is more than rounding is refused (`ForeignConversion.php`)
+- `F02` the line that balances never comes to nothing (`ForeignConversion.php`)
+- `F03` the line that balances is one of the lines (`ForeignConversion.php`)
+- `J01` the reversal mirrors the foreign amount and the currency of every line (`JournalService.php`)
+- `J02` a journal in a foreign currency and an exchange difference are not taken back by hand (`JournalService.php`)
+- `J03` the books reverse an exchange difference with its payment (`JournalService.php`)
+- `S01` the rounding of cash is refused on a foreign sale (`SalePostingBuilder.php`)
+- `S02` a payment of a foreign sale has a rate (`SalePostingBuilder.php`)
+- `S03` the earlier payments count in what a payment settles (`SalePostingBuilder.php`)
+- `S04` only a completed payment books anything (`SalePostingBuilder.php`)
+- `S05` a loss is posted when the customer's balance falls by more than the money received (`SalePostingBuilder.php`)
+- `S06` a routing of the exchange difference that has no usable account is refused with a name (`SalePostingBuilder.php`)
+- `S07` a payment of a foreign sale is converted at its own rate (`SalePostingBuilder.php`)
+- `S08` the invoice of a foreign sale is converted line by line (`SalePostingBuilder.php`)
+- `S09` the total of a foreign document is kept in the decimals of its currency (`InvoiceRounding.php`)
+- `S10` the discount of a foreign line is rounded to the decimals of its currency (`SaleAmounts.php`)
+- `L01` a payment of a foreign sale takes the rate of its day, or is refused (`SalePosting.php`)
+- `L02` a foreign payment does not go into a treasury of another branch (`SalePosting.php`)
+- `L03` removing a payment takes back its exchange difference (`SalePosting.php`)
+- `L04` cancelling a sale takes back the exchange differences of its payments (`SalePosting.php`)
+- `L05` an exchange difference that an earlier payment changed is posted again (`SalePosting.php`)
+- `L06` the currency and the rate of a posted sale do not change (`SalePosting.php`)
+- `L07` a change of the rate alone is a change (`DocumentCurrency.php`)
+- `M01` a return takes the currency and the rate of its sale (`Sale.php`)
+- `M02` a return is in the currency of its sale (`Sale.php`)
+- `M03` a foreign currency needs the books on (`Sale.php`)
+- `M04` the currency chosen is for one save only (`Sale.php`)
+- `M05` an issued draft keeps its currency (`Sale.php`)
+- `N01` a purchase return takes the currency and the rate of its purchase (`Receiving.php`)
+- `N02` a purchase return is in the currency of its purchase (`Receiving.php`)
+- `N03` a purchase in a foreign currency needs the books on and is never a transfer (`Receiving.php`)
+- `N04` the cost of an item is averaged in the base (`Receiving.php`)
+- `N05` the currency chosen is for one save only (`Receiving.php`)
+- `B01` a transfer of stock is never in a foreign currency (`ReceivingPostingBuilder.php`)
+- `B02` the stock of a foreign purchase is worth what its line is worth in the base (`ReceivingPostingBuilder.php`)
+- `B03` the movements of a location add up to its line (`ReceivingPostingBuilder.php`)
+- `B04` the payment made at once is converted at the rate of the purchase (`ReceivingPostingBuilder.php`)
+- `B05` a payment to the supplier is converted at its own rate (`ReceivingPostingBuilder.php`)
+- `B06` a gain is posted when the supplier's balance falls by more than the money paid (`ReceivingPostingBuilder.php`)
+- `B07` what was paid at once counts among the payments of the purchase (`ReceivingPostingBuilder.php`)
+- `B08` a payment of a foreign purchase has a rate (`ReceivingPostingBuilder.php`)
+- `B09` the earlier payments count in what a payment to the supplier settles (`ReceivingPostingBuilder.php`)
+- `B10` the total of a foreign purchase is kept in the decimals of its currency (`ReceivingAmounts.php`)
+- `B11` a routing of the exchange difference that has no usable account is refused with a name (`ReceivingPostingBuilder.php`)
+- `Q01` a foreign payment does not come out of a treasury of another branch (`ReceivingPosting.php`)
+- `Q02` removing a payment takes back its exchange difference (`ReceivingPosting.php`)
+- `Q03` deleting a purchase takes back the exchange differences of its payments (`ReceivingPosting.php`)
+- `Q04` the currency and the rate of a posted purchase do not change (`ReceivingPosting.php`)
+- `Q05` a payment of a foreign purchase takes the rate of its day, or is refused (`ReceivingPosting.php`)
+- `T01` the currency of a used treasury and of the main treasury is fixed (`TreasuryService.php`)
+- `T02` the main treasury is in the base currency (`TreasuryService.php`)
+- `T03` a treasury holds a currency that exists and is switched on (`TreasuryService.php`)
+- `T04` the foreign balance counts a credit against the treasury (`TreasuryService.php`)
+- `T05` a transfer between currencies needs the amount that arrives (`TreasuryTransfers.php`)
+- `T06` two treasuries of the base take the same amount out and in (`TreasuryTransfers.php`)
+- `T07` two treasuries of one foreign currency take the same amount out and in (`TreasuryTransfers.php`)
+- `T08` a transfer between branches is never in a foreign currency (`TreasuryTransfers.php`)
+- `T09` an exchange gain is posted when more arrives than leaves (`TreasuryTransfers.php`)
+- `T10` a transfer needs the rate of its day (`TreasuryTransfers.php`)
+- `T11` a routing of the exchange difference that has no usable account is refused with a name (`TreasuryTransfers.php`)
+- `E01` an expense in a foreign currency is refused with a name (`ExpensePosting.php`)
+- `E02` a receipt voucher in a foreign currency is refused with a name (`RevenueVouchers.php`)
+- `K01` the customer ledger counts the exchange difference in what was paid (`CustomerLedger.php`)
+- `K02` the supplier ledger counts the exchange difference in what was paid (`SupplierLedger.php`)
+- `K03` the customer balance report counts the exchange difference under payments (`CustomerBalanceReport.php`)
+- `K04` the supplier balance report counts the exchange difference under payments (`SupplierBalanceReport.php`)
+- `U01` the form of a currency is for who manages currencies (`AccountingCurrencies.php`)
+- `U02` the form of a rate is for who manages currencies (`AccountingCurrencies.php`)
+- `U03` the base currency has no screen of rates (`AccountingCurrencies.php`)
+- `U04` a rate is changed only through its own currency (`AccountingCurrencies.php`)
+- `U05` a reader is offered no edit (`AccountingCurrencies.php`)
+- `D01` the columns are not dropped while a row carries a currency (`20272300000001_DocumentCurrencyColumns.php`)
+
 
 ## 4. ما افترضتُه
 
@@ -54,6 +225,7 @@
 | **قرار المالك على الحسابين** | `4209` و`5410` (القسم 6) |
 | **التقرير والإيصال** | العرض بمنازل العملة في سجل البيع (الاختيار والأسعار) وقائمة الدفعات وشاشة القيد؛ **إيصال البيع والفاتورة المطبوعة ما زالا يطبعان بمنازل الأساسية** (`to_currency`). بند `WP28-RECEIPT-DISPLAY` |
 | **ربط الأرصدة الدائنة بالمستند الأجنبي** (`G-138`، `WP28-CREDIT-CURRENCY`) | تطبيق الرصيد الدائن يعمل **بالأساسية** على الفاتورة الأجنبية (بلا فرق صرف ولا إعادة حساب للمنظور الأجنبي)؛ تسوية بالعملة نفسها وبين عملتين وبين الفروع لم تُبنَ |
+| **فرع دفاعي ميت** (`$account === null`) | في `SalePostingBuilder::fxAccount` و`ReceivingPostingBuilder::fxAccount` و`TreasuryTransfers::exchangeAccount`: المُحلِّل يعيد `null` للنوع «ملغى» وحده، ومفتاحا `fx.gain` و`fx.loss` يقبلان «تلقائي» وحده (`RoutingKey::allowedTypes`)، فلا يبلغه شيء اليوم. تُرك حماية دفاعية إن فُتح «ملغى» لهما يومًا (يخرج رفضًا باسم لا خطأ نوع)، **ولا يُدَّعى حارسًا**: حارسها الفعلي تغليف رفض المُحلِّل (`S06` و`B11` و`T11`) |
 | **المتصفح** | لم يُجرَ تمرير في المتصفح (شاشة العملات والأسعار ونموذج الخزينة والتحويل واختيار العملة في السجل): الاختبارات من الخادم |
 
 ## 6. بنود تنتظر قرار المالك وملاحظات دفترة
@@ -72,7 +244,8 @@
 4. **الأسعار:** لا مستند بعملة أجنبية قبل **تفعيل العملة وإدخال سعر قبل تاريخ المستند**؛ وإلا يُرفض بـ`RateMissing`.
 5. **عملة الخزينة تُحدَّد قبل أول حركة** (وتثبت بعدها)، ولا يُرحَّل رصيد افتتاحي إلى خزينة بعملة أجنبية (يُرفض `TreasuryCurrency`).
 6. **أمر `accounting:readiness`:** يُشغَّل بعد الترحيل، وتُراجَع قائمة الترحيلات المعلَّقة (الثاني `heavy`).
-7. **لم تُشغَّل المجموعة الكاملة** (ساعة، وأربعة معالجات يتشاركها وكلاء)؛ شُغّلت الملفات المسمّاة في القسم 2.
+7. **اختبار `ReceivingTest` يعتمد على قاعدة نظيفة** (علّة قائمة قبل هذه الحزمة لا بسببها): `$refresh = true` يرجع الترحيلات و`QuoteLifecycle::down()` يرفض ما دام في القاعدة عروض أسعار بقيت من ملف سبقه في التشغيل نفسه، فيفشل بـ75 خطأً إن شُغِّل بعد `SalesControllerTest` مثلًا؛ يمرّ منفردًا بعد ملف يزرع القاعدة (`CurrencyRatesTest` مثلًا). **لم أصلحه** (خارج النطاق).
+8. **لم تُشغَّل المجموعة الكاملة** (ساعة، وأربعة معالجات يتشاركها وكلاء)؛ شُغّلت الملفات المسمّاة في القسم 2.
 
 ## 8. تحديثات الوثائق المشتركة للمُدمِج
 
