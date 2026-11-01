@@ -42,14 +42,17 @@ final class SalePostingBuilder
         }
 
         $receivable = $this->receivableAccount($sale);
-        $revenue    = $this->required($sale->isReturn() ? RoutingKey::SalesReturns : RoutingKey::SalesRevenue);
         $discount   = $this->discountLine($figures['discount']);
         $taxAccount = bccomp($figures['tax'], '0', SaleAmounts::SCALE) > 0 ? $this->required(RoutingKey::TaxOutput) : null;
 
         $goods = $discount === null ? $figures['revenue'] : bcadd($figures['revenue'], $figures['discount'], SaleAmounts::SCALE);
 
         $customerSide = [$receivable, $figures['total']];
-        $incomeSide   = [[$revenue, $goods]];
+        $incomeSide   = [];
+
+        if (bccomp($goods, '0', SaleAmounts::SCALE) !== 0) {
+            $incomeSide[] = [$this->required($sale->isReturn() ? RoutingKey::SalesReturns : RoutingKey::SalesRevenue), $goods];
+        }
 
         if ($taxAccount !== null) {
             $incomeSide[] = [$taxAccount, $figures['tax']];

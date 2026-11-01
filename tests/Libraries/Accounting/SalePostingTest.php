@@ -5719,6 +5719,49 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame([$this->accountId('cogs') . ':400.00:0.00', $this->stockAccount() . ':0.00:400.00'], $this->standing($saleId, 'cogs')[0]['lines'], 'the cost of the goods does not depend on the charges');
     }
 
+    public function testSaveValue_SavesAnInvoiceOfFreeGoodsWithShippingAndTiesTheCustomerPosition(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $free   = $this->line($this->item('4.00'), 0, '1', '0', '4.00');
+        $saleId = $this->save([$free], [], headerCharges: new HeaderCharges(shipping: '20'));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame([$this->customerAccount() . ':20.00:0.00', $this->accountId('sales_shipping') . ':0.00:20.00'], $this->standing($saleId, 'revenue')[0]['lines']);
+        $this->assertSame('20.00', $this->balance($this->customerAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('sales_revenue')));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_SavesAnInvoiceOfFreeGoodsWithTaxedShippingWhoseRoundingFallsOnTheShipping(): void
+    {
+        $this->turnOnHeaderCharges('4.5');
+
+        $free   = $this->line($this->item('4.00'), 0, '1', '0', '4.00');
+        $saleId = $this->save([$free], [], headerCharges: new HeaderCharges(shipping: '10.01', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '4.5'));
+
+        $this->assertGreaterThan(0, $saleId);
+        $shipping = $this->accountingDb()->table('accounting_journal_lines')->where('account_id', $this->accountId('sales_shipping'))->get()->getRow();
+
+        $this->assertSame('10.46', $this->balance($this->customerAccount()));
+        $this->assertSame('10.0095', bcadd($shipping->credit, '0', 4), 'the shipping carries the rounding of the cent because there are no goods');
+        $this->assertSame('0.4505', bcadd($this->accountingDb()->table('accounting_journal_lines')->where('account_id', $this->accountId('tax_output'))->get()->getRow()->credit, '0', 4));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_SavesACreditNoteOfFreeGoodsWithShippingAndTiesTheCustomerPosition(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle    = $this->referenceInvoice();
+        $original = $this->save($cycle['items'], $cycle['taxes']);
+        $return   = $this->save([$this->line($cycle['cream'], 0, '-1', '0')], [], [], SALE_TYPE_RETURN, origin: $original, headerCharges: new HeaderCharges(shipping: '20'));
+
+        $this->assertGreaterThan(0, $return);
+        $this->assertSame([$this->accountId('sales_shipping') . ':20.00:0.00', $this->customerAccount() . ':0.00:20.00'], $this->standing($return, 'revenue')[0]['lines']);
+        $this->assertTies();
+    }
+
     public function testSaveValue_PostsTheTaxOnShippingWithTheOutputTaxWhenItIsOnTopOfTheAmount(): void
     {
         $this->turnOnHeaderCharges();
