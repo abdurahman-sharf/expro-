@@ -39,9 +39,9 @@ final class ProfitReport
         $all     = [];
 
         foreach ($groups as $key => $members) {
-            $rows = array_map(fn (ProfitRow $row): array => $this->row($row), $members);
-            $all  = [...$all, ...$rows];
-            $sums = $this->addUp($rows, ['quantity', ...self::FIGURES]);
+            $rows  = array_map(fn (ProfitRow $row): array => $this->row($row), $members);
+            $all   = [...$all, ...$rows];
+            $sums  = $this->addUp($rows, ['quantity', ...self::FIGURES]);
             $label = $this->label($group, $key, $members);
 
             if ($details) {

@@ -3,8 +3,10 @@
 namespace App\Libraries\Accounting\OperationalReports;
 
 use App\Libraries\Accounting\AccountType;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\InvoiceFigures;
 use App\Libraries\Accounting\JournalEntryType;
+use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\RoutingKey;
@@ -15,8 +17,6 @@ use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\Accounting\StandingJournals;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
-use App\Libraries\Accounting\EntityAccountService;
-use App\Libraries\Accounting\PostingException;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -233,17 +233,17 @@ final class ReportDocuments
             return [];
         }
 
-        $ids      = array_map(static fn (object $row): int => (int) $row->sale_id, $rows);
-        $sales    = (new SaleReader($this->db))->documents($ids);
-        $paid     = $this->paid($ids);
-        $applied  = $this->applied($ids, 'invoice_sale_id');
-        $returns  = $this->returns($ids);
-        $names    = $this->names(array_values(array_filter(array_merge(array_map(static fn (object $row): ?int => $row->customer_id === null ? null : (int) $row->customer_id, $rows), array_map(static fn (object $row): ?int => $row->employee_id === null ? null : (int) $row->employee_id, $rows)))));
-        $numbering = new DocumentNumbering($this->db);
+        $ids           = array_map(static fn (object $row): int => (int) $row->sale_id, $rows);
+        $sales         = (new SaleReader($this->db))->documents($ids);
+        $paid          = $this->paid($ids);
+        $applied       = $this->applied($ids, 'invoice_sale_id');
+        $returns       = $this->returns($ids);
+        $names         = $this->names(array_values(array_filter(array_merge(array_map(static fn (object $row): ?int => $row->customer_id === null ? null : (int) $row->customer_id, $rows), array_map(static fn (object $row): ?int => $row->employee_id === null ? null : (int) $row->employee_id, $rows)))));
+        $numbering     = new DocumentNumbering($this->db);
         $creditNumbers = $numbering->numbers(DocumentType::CreditNote, 'sales', $ids);
         $refundNumbers = $numbering->numbers(DocumentType::RefundInvoice, 'sales', $ids);
-        $decimals = totals_decimals();
-        $documents = [];
+        $decimals      = totals_decimals();
+        $documents     = [];
 
         foreach ($rows as $row) {
             $saleId = (int) $row->sale_id;
@@ -255,16 +255,16 @@ final class ReportDocuments
 
             $isReturn = (int) $row->sale_type === SALE_TYPE_RETURN;
             $kind     = match (true) {
-                ! $isReturn                                                 => DocumentKind::Invoice,
+                ! $isReturn                                                    => DocumentKind::Invoice,
                 $row->return_document === ReturnDocument::RefundInvoice->value => DocumentKind::RefundInvoice,
-                default                                                     => DocumentKind::CreditNote,
+                default                                                        => DocumentKind::CreditNote,
             };
-            $sign     = $kind->sign();
-            $figures  = SaleAmounts::figures($sale, $decimals);
-            $totals   = SaleAmounts::totals($sale, $decimals);
-            $total    = Amounts::signed($figures['total'], $sign);
-            $date     = (string) $row->doc_date;
-            $number   = match ($kind) {
+            $sign    = $kind->sign();
+            $figures = SaleAmounts::figures($sale, $decimals);
+            $totals  = SaleAmounts::totals($sale, $decimals);
+            $total   = Amounts::signed($figures['total'], $sign);
+            $date    = (string) $row->doc_date;
+            $number  = match ($kind) {
                 DocumentKind::Invoice       => trim((string) $row->invoice_number) !== '' ? (string) $row->invoice_number : 'POS ' . $saleId,
                 DocumentKind::CreditNote    => $creditNumbers[$saleId] ?? 'POS ' . $saleId,
                 DocumentKind::RefundInvoice => $refundNumbers[$saleId] ?? 'POS ' . $saleId,

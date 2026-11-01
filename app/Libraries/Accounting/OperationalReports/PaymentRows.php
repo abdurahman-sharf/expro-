@@ -77,13 +77,13 @@ final class PaymentRows
             [$counter, $counter, $counter, SalePostingBuilder::SOURCE_PAYMENT, ...$standingBindings, ...$bindings],
         )->getResult();
 
-        $names    = $this->names($rows);
-        $money    = $this->moneyNames($rows);
-        $saleIds  = array_values(array_unique(array_map(static fn (object $row): int => (int) $row->sale_id, $rows)));
+        $names     = $this->names($rows);
+        $money     = $this->moneyNames($rows);
+        $saleIds   = array_values(array_unique(array_map(static fn (object $row): int => (int) $row->sale_id, $rows)));
         $numbering = new DocumentNumbering($this->db);
-        $credits  = $numbering->numbers(DocumentType::CreditNote, 'sales', $saleIds);
-        $refunds  = $numbering->numbers(DocumentType::RefundInvoice, 'sales', $saleIds);
-        $payments = [];
+        $credits   = $numbering->numbers(DocumentType::CreditNote, 'sales', $saleIds);
+        $refunds   = $numbering->numbers(DocumentType::RefundInvoice, 'sales', $saleIds);
+        $payments  = [];
 
         foreach ($rows as $row) {
             $amount = bcadd((string) $row->amount, '0', SaleAmounts::SCALE);
@@ -114,9 +114,9 @@ final class PaymentRows
                 customerId: $row->customer_id === null ? null : (int) $row->customer_id,
                 customerName: $row->customer_id === null ? '' : ($names[(int) $row->customer_id] ?? ''),
                 invoiceNumber: match (true) {
-                    (int) $row->sale_type !== SALE_TYPE_RETURN                              => trim((string) $row->invoice_number) !== '' ? (string) $row->invoice_number : 'POS ' . $saleId,
-                    $row->return_document === ReturnDocument::RefundInvoice->value          => $refunds[$saleId] ?? 'POS ' . $saleId,
-                    default                                                                 => $credits[$saleId] ?? 'POS ' . $saleId,
+                    (int) $row->sale_type !== SALE_TYPE_RETURN                     => trim((string) $row->invoice_number) !== '' ? (string) $row->invoice_number : 'POS ' . $saleId,
+                    $row->return_document === ReturnDocument::RefundInvoice->value => $refunds[$saleId] ?? 'POS ' . $saleId,
+                    default                                                        => $credits[$saleId] ?? 'POS ' . $saleId,
                 },
                 userId: $row->user_id === null ? null : (int) $row->user_id,
                 userName: $row->user_id === null ? '' : ($names[(int) $row->user_id] ?? ''),

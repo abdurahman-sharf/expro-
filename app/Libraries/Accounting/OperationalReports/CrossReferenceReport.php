@@ -20,8 +20,7 @@ final class CrossReferenceReport
 {
     use BuildsBlocks;
 
-    public const ORDERS = ['date_desc', 'date_asc', 'customer', 'total_desc', 'total_asc', 'net_desc', 'net_asc'];
-
+    public const ORDERS   = ['date_desc', 'date_asc', 'customer', 'total_desc', 'total_asc', 'net_desc', 'net_asc'];
     private const FIGURES = ['total', 'returns', 'net'];
 
     private BaseConnection $db;
@@ -42,8 +41,8 @@ final class CrossReferenceReport
             $this->documents->read($scope, $from, $to, [DocumentKind::Invoice], $customerId),
             static fn (ReportDocument $document): bool => $states === [] || in_array($document->paymentState()?->value ?? PaymentState::Unpaid->value, $states, true),
         ));
-        $returns  = $this->documents->returnsOf($scope, array_map(static fn (ReportDocument $document): int => $document->id, $invoices));
-        $entries  = [];
+        $returns = $this->documents->returnsOf($scope, array_map(static fn (ReportDocument $document): int => $document->id, $invoices));
+        $entries = [];
 
         foreach ($invoices as $invoice) {
             $listed = array_values(array_filter($returns[$invoice->id] ?? [], static fn (ReportDocument $return): bool => $kind === null || $return->kind === $kind));
@@ -142,7 +141,7 @@ final class CrossReferenceReport
             }
 
             $position[$invoice->customerId] ??= $ledger->position($invoice->customerId);
-            $figures                         = $position[$invoice->customerId]->invoice($invoice->id);
+            $figures = $position[$invoice->customerId]->invoice($invoice->id);
 
             $reported = Amounts::add($reported, $invoice->returnedAll());
             $held     = Amounts::add($held, $figures === null ? Amounts::ZERO : $figures->returned);

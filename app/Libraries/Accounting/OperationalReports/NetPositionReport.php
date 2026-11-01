@@ -3,7 +3,6 @@
 namespace App\Libraries\Accounting\OperationalReports;
 
 use App\Libraries\Accounting\CustomerLedger;
-use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\PaymentState;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReturnState;
@@ -24,8 +23,7 @@ final class NetPositionReport
 {
     use BuildsBlocks;
 
-    public const STATES = ['unpaid', 'partial', 'paid', 'excess', 'returned', 'partial_return'];
-
+    public const STATES   = ['unpaid', 'partial', 'paid', 'excess', 'returned', 'partial_return'];
     private const FIGURES = ['total', 'paid', 'returns', 'net'];
 
     private BaseConnection $db;
@@ -46,11 +44,11 @@ final class NetPositionReport
             $this->documents->read($scope, $from, $to, [DocumentKind::Invoice], $customerId),
             static fn (ReportDocument $document): bool => self::admits($states, $document),
         ));
-        $orphans  = $hideCredits || $states !== [] ? [] : $this->documents->orphanReturns($scope, $from, $to, $customerId);
-        $returns  = $details ? $this->documents->returnsOf($scope, array_map(static fn (ReportDocument $document): int => $document->id, $invoices)) : [];
-        $nested   = $details ? $this->nested($invoices) : [];
-        $blocks   = [];
-        $rows     = [];
+        $orphans = $hideCredits || $states !== [] ? [] : $this->documents->orphanReturns($scope, $from, $to, $customerId);
+        $returns = $details ? $this->documents->returnsOf($scope, array_map(static fn (ReportDocument $document): int => $document->id, $invoices)) : [];
+        $nested  = $details ? $this->nested($invoices) : [];
+        $blocks  = [];
+        $rows    = [];
 
         foreach ($invoices as $invoice) {
             $row    = $this->invoiceRow($invoice);
@@ -103,7 +101,7 @@ final class NetPositionReport
      */
     public function ties(array $invoices): array
     {
-        $ledger   = new CustomerLedger($this->db);
+        $ledger      = new CustomerLedger($this->db);
         $perCustomer = [];
 
         foreach ($invoices as $invoice) {
@@ -112,8 +110,8 @@ final class NetPositionReport
             }
         }
 
-        $reportedNet = '0';
-        $ledgerNet   = '0';
+        $reportedNet  = '0';
+        $ledgerNet    = '0';
         $reportedPaid = '0';
         $ledgerPaid   = '0';
 

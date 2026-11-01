@@ -18,9 +18,9 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingNetPosition extends AccountingOperationalReport
 {
-    private const PERMISSION      = 'reports_sales';
-    private const NET_CARRIED     = ['view', 'preset', 'mode', 'from', 'to', 'date', 'hide_credit_notes', 'status', 'customer', 'show'];
-    private const CROSS_CARRIED   = ['group', 'view', 'order', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'type', 'status', 'show'];
+    private const PERMISSION    = 'reports_sales';
+    private const NET_CARRIED   = ['view', 'preset', 'mode', 'from', 'to', 'date', 'hide_credit_notes', 'status', 'customer', 'show'];
+    private const CROSS_CARRIED = ['group', 'view', 'order', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'type', 'status', 'show'];
 
     private NetPositionReport $net;
     private CrossReferenceReport $cross;
@@ -33,7 +33,7 @@ class AccountingNetPosition extends AccountingOperationalReport
         $this->cross = new CrossReferenceReport();
     }
 
-    public function getIndex(): string|ResponseInterface
+    public function getIndex(): ResponseInterface|string
     {
         $this->allow(self::PERMISSION);
 
@@ -61,8 +61,8 @@ class AccountingNetPosition extends AccountingOperationalReport
                 ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
                 ['type' => 'check', 'name' => 'hide_credit_notes', 'labelKey' => 'Accounting_operational_reports.credit_notes', 'checkLabelKey' => 'Accounting_operational_reports.hide_credit_notes', 'value' => $this->flag('hide_credit_notes')],
             ],
-            'csvUrl'        => base_url('accounting_reports/net_position/csv') . ($query === [] ? '' : '?' . http_build_query($query)),
-            'siblings'      => [['label' => lang('Accounting_operational_reports.cross_title'), 'url' => base_url('accounting_reports/invoice_returns')]],
+            'csvUrl'   => base_url('accounting_reports/net_position/csv') . ($query === [] ? '' : '?' . http_build_query($query)),
+            'siblings' => [['label' => lang('Accounting_operational_reports.cross_title'), 'url' => base_url('accounting_reports/invoice_returns')]],
         ]);
     }
 
@@ -79,7 +79,7 @@ class AccountingNetPosition extends AccountingOperationalReport
         return $this->csvResponse('net_position', $this->netTable($this->requestedScope(), $dates), 'Accounting_operational_reports.net_title');
     }
 
-    public function getCross(): string|ResponseInterface
+    public function getCross(): ResponseInterface|string
     {
         $this->allow(self::PERMISSION);
 
@@ -108,8 +108,8 @@ class AccountingNetPosition extends AccountingOperationalReport
                 ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
                 ['type' => 'select', 'name' => 'order', 'labelKey' => 'Accounting_operational_reports.order', 'options' => $this->orderChoices(), 'value' => $this->choice('order', CrossReferenceReport::ORDERS, 'date_desc')],
             ],
-            'csvUrl'        => base_url('accounting_reports/invoice_returns/csv') . ($query === [] ? '' : '?' . http_build_query($query)),
-            'siblings'      => [['label' => lang('Accounting_operational_reports.net_title'), 'url' => base_url('accounting_reports/net_position')]],
+            'csvUrl'   => base_url('accounting_reports/invoice_returns/csv') . ($query === [] ? '' : '?' . http_build_query($query)),
+            'siblings' => [['label' => lang('Accounting_operational_reports.net_title'), 'url' => base_url('accounting_reports/net_position')]],
         ]);
     }
 

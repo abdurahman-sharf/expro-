@@ -21,9 +21,9 @@ use Config\Database;
  */
 class AccountingPaymentReports extends AccountingOperationalReport
 {
-    private const PERMISSION        = 'reports_payments';
-    private const PAYMENT_CARRIED   = ['group', 'view', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'user', 'collector', 'method', 'treasury', 'show'];
-    private const ADVANCE_CARRIED   = ['preset', 'mode', 'from', 'to', 'date', 'customer', 'user', 'method', 'state', 'show'];
+    private const PERMISSION      = 'reports_payments';
+    private const PAYMENT_CARRIED = ['group', 'view', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'user', 'collector', 'method', 'treasury', 'show'];
+    private const ADVANCE_CARRIED = ['preset', 'mode', 'from', 'to', 'date', 'customer', 'user', 'method', 'state', 'show'];
 
     private PaymentsReport $payments;
     private AdvancePaymentsReport $advances;
@@ -36,7 +36,7 @@ class AccountingPaymentReports extends AccountingOperationalReport
         $this->advances = new AdvancePaymentsReport();
     }
 
-    public function getIndex(): string|ResponseInterface
+    public function getIndex(): ResponseInterface|string
     {
         $this->allow(self::PERMISSION);
 
@@ -67,8 +67,8 @@ class AccountingPaymentReports extends AccountingOperationalReport
                 ['type' => 'select', 'name' => 'method', 'labelKey' => 'Accounting_operational_reports.method', 'options' => $this->methodChoices(), 'value' => $this->query('method')],
                 ['type' => 'select', 'name' => 'treasury', 'labelKey' => 'Accounting_operational_reports.treasury', 'options' => $this->moneyChoices(), 'value' => $this->query('treasury')],
             ],
-            'csvUrl'        => base_url('accounting_reports/payments/csv') . ($query === [] ? '' : '?' . http_build_query($query)),
-            'siblings'      => [['label' => lang('Accounting_operational_reports.advances_title'), 'url' => base_url('accounting_reports/advance_payments')]],
+            'csvUrl'   => base_url('accounting_reports/payments/csv') . ($query === [] ? '' : '?' . http_build_query($query)),
+            'siblings' => [['label' => lang('Accounting_operational_reports.advances_title'), 'url' => base_url('accounting_reports/advance_payments')]],
         ]);
     }
 
@@ -86,7 +86,7 @@ class AccountingPaymentReports extends AccountingOperationalReport
         return $this->csvResponse('payments_' . $group->value, $this->paymentsTable($this->requestedScope(), $group, $dates), 'Accounting_operational_reports.payments_title');
     }
 
-    public function getAdvances(): string|ResponseInterface
+    public function getAdvances(): ResponseInterface|string
     {
         $this->allow(self::PERMISSION);
 
@@ -115,8 +115,8 @@ class AccountingPaymentReports extends AccountingOperationalReport
                 ['type' => 'select', 'name' => 'method', 'labelKey' => 'Accounting_operational_reports.method', 'options' => $this->methodChoices(), 'value' => $this->query('method')],
                 ['type' => 'select', 'name' => 'state', 'labelKey' => 'Accounting_operational_reports.advance_state', 'options' => ['' => lang('Accounting_operational_reports.state_any'), 'open' => lang('Accounting_operational_reports.state_open'), 'spent' => lang('Accounting_operational_reports.state_spent')], 'value' => $this->choice('state', AdvancePaymentsReport::STATES, '')],
             ],
-            'csvUrl'        => base_url('accounting_reports/advance_payments/csv') . ($query === [] ? '' : '?' . http_build_query($query)),
-            'siblings'      => [['label' => lang('Accounting_operational_reports.payments_title'), 'url' => base_url('accounting_reports/payments')]],
+            'csvUrl'   => base_url('accounting_reports/advance_payments/csv') . ($query === [] ? '' : '?' . http_build_query($query)),
+            'siblings' => [['label' => lang('Accounting_operational_reports.payments_title'), 'url' => base_url('accounting_reports/payments')]],
         ]);
     }
 

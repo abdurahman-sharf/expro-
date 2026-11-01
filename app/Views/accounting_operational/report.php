@@ -1,25 +1,25 @@
 <?php
 /**
- * @var string                                                            $titleKey
- * @var string                                                            $route
- * @var ReportTable|null                                                  $table
- * @var DateFilter                                                        $dates
- * @var ReportScope                                                       $scope
- * @var list<object>                                                      $branches
- * @var string|null                                                       $scopeLabel
- * @var string|null                                                       $error
- * @var list<array<string, mixed>>                                        $fields
- * @var array<string, string>                                             $groups
- * @var string                                                            $group
- * @var string                                                            $groupLabelKey
- * @var bool                                                              $details
- * @var bool                                                              $offersView
- * @var string                                                            $csvUrl
- * @var list<array{label: string, url: string}>                           $siblings
- * @var Closure                                                           $amount
- * @var Closure                                                           $quantity
- * @var Closure                                                           $percent
- * @var Closure                                                           $date
+ * @var string                                  $titleKey
+ * @var string                                  $route
+ * @var ReportTable|null                        $table
+ * @var DateFilter                              $dates
+ * @var ReportScope                             $scope
+ * @var list<object>                            $branches
+ * @var string|null                             $scopeLabel
+ * @var string|null                             $error
+ * @var list<array<string, mixed>>              $fields
+ * @var array<string, string>                   $groups
+ * @var string                                  $group
+ * @var string                                  $groupLabelKey
+ * @var bool                                    $details
+ * @var bool                                    $offersView
+ * @var string                                  $csvUrl
+ * @var list<array{label: string, url: string}> $siblings
+ * @var Closure                                 $amount
+ * @var Closure                                 $quantity
+ * @var Closure                                 $percent
+ * @var Closure                                 $date
  */
 
 use App\Libraries\Accounting\OperationalReports\ColumnKind;

@@ -64,27 +64,27 @@ final class ItemSalesReport
 
                 $line   = ReportLine::of($saleLine, $document->kind->sign(), $decimals);
                 $rows[] = [
-                    'document'     => $document,
-                    'item_id'      => (string) $saleLine->itemId,
-                    'item'         => $item['name'],
-                    'item_number'  => $item['number'],
-                    'category'     => $item['category'] === '' ? lang('Accounting_operational_reports.undefined') : $item['category'],
-                    'date'         => $document->date,
-                    'user'         => $document->employeeName !== '' ? $document->employeeName : $this->nobody(),
-                    'number'       => $document->number,
-                    'customer'     => $document->customerName !== '' ? $document->customerName : $this->walkIn(),
-                    'unit_price'   => $line->unitPrice,
-                    'quantity'     => $line->quantity,
-                    'discount'     => $line->discount,
-                    'tax'          => $line->tax,
-                    'total'        => $line->total,
-                    'price_x_qty'  => bcmul($line->unitPrice, $line->quantity, 8),
+                    'document'    => $document,
+                    'item_id'     => (string) $saleLine->itemId,
+                    'item'        => $item['name'],
+                    'item_number' => $item['number'],
+                    'category'    => $item['category'] === '' ? lang('Accounting_operational_reports.undefined') : $item['category'],
+                    'date'        => $document->date,
+                    'user'        => $document->employeeName !== '' ? $document->employeeName : $this->nobody(),
+                    'number'      => $document->number,
+                    'customer'    => $document->customerName !== '' ? $document->customerName : $this->walkIn(),
+                    'unit_price'  => $line->unitPrice,
+                    'quantity'    => $line->quantity,
+                    'discount'    => $line->discount,
+                    'tax'         => $line->tax,
+                    'total'       => $line->total,
+                    'price_x_qty' => bcmul($line->unitPrice, $line->quantity, 8),
                 ];
             }
         }
 
-        $groups = $this->grouped($rows, $group, $from, $to);
-        $blocks = [];
+        $groups  = $this->grouped($rows, $group, $from, $to);
+        $blocks  = [];
         $summary = [];
 
         foreach ($groups as $key => $members) {

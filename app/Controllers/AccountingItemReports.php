@@ -29,7 +29,7 @@ class AccountingItemReports extends AccountingOperationalReport
         $this->report = new ItemSalesReport();
     }
 
-    public function getIndex(): string|ResponseInterface
+    public function getIndex(): ResponseInterface|string
     {
         $group = ItemGroup::tryFrom($this->query('group')) ?? ItemGroup::Item;
 
@@ -62,8 +62,8 @@ class AccountingItemReports extends AccountingOperationalReport
                 ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
                 ['type' => 'select', 'name' => 'user', 'labelKey' => 'Accounting_operational_reports.user', 'options' => $this->employeeChoices(), 'value' => $this->query('user')],
             ],
-            'csvUrl'        => base_url('accounting_reports/item_sales/csv') . $this->queryString($scope),
-            'siblings'      => [],
+            'csvUrl'   => base_url('accounting_reports/item_sales/csv') . $this->queryString($scope),
+            'siblings' => [],
         ]);
     }
 

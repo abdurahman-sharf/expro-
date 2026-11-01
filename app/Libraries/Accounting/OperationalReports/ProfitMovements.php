@@ -83,7 +83,7 @@ final class ProfitMovements
         $where    = 'j.journal_date <= ?';
 
         if ($from !== null) {
-            $where     .= ' AND j.journal_date >= ?';
+            $where .= ' AND j.journal_date >= ?';
             $bindings[] = $from;
         }
 

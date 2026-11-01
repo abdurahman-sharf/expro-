@@ -63,16 +63,16 @@ final class AdvancePaymentsReport
 
             $stored = Amounts::add($stored, (string) $advance->amount);
             $rows[] = [
-                'number'     => $numbers[(int) $advance->advance_id] ?? (string) $advance->advance_id,
-                'date'       => (string) $advance->advance_date,
-                'customer'   => $names[$customer] ?? '',
-                'user'       => $advance->created_by === null ? $this->nobody() : ($names[(int) $advance->created_by] ?? $this->nobody()),
-                'method'     => $type === null ? (string) $advance->payment_type : lang($type->languageKey()),
-                'branch'     => (string) $advance->branch_code,
-                'amount'     => $amount,
-                'applied'    => $applied,
-                'refunded'   => $refunded,
-                'unsettled'  => $left,
+                'number'    => $numbers[(int) $advance->advance_id] ?? (string) $advance->advance_id,
+                'date'      => (string) $advance->advance_date,
+                'customer'  => $names[$customer] ?? '',
+                'user'      => $advance->created_by === null ? $this->nobody() : ($names[(int) $advance->created_by] ?? $this->nobody()),
+                'method'    => $type === null ? (string) $advance->payment_type : lang($type->languageKey()),
+                'branch'    => (string) $advance->branch_code,
+                'amount'    => $amount,
+                'applied'   => $applied,
+                'refunded'  => $refunded,
+                'unsettled' => $left,
             ];
         }
 

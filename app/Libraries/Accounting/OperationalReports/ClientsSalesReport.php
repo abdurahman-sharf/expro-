@@ -18,7 +18,7 @@ final class ClientsSalesReport
 {
     use BuildsBlocks;
 
-    public const ORDERS  = ['date_desc', 'date_asc', 'number_desc', 'number_asc'];
+    public const ORDERS   = ['date_desc', 'date_asc', 'number_desc', 'number_asc'];
     private const FIGURES = ['shipping', 'adjustment', 'value', 'discount', 'tax', 'total'];
 
     private ReportDocuments $documents;

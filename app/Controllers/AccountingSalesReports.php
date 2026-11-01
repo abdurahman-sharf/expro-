@@ -34,7 +34,7 @@ class AccountingSalesReports extends AccountingOperationalReport
         $this->clients = new ClientsSalesReport();
     }
 
-    public function getRevenue(): string|ResponseInterface
+    public function getRevenue(): ResponseInterface|string
     {
         $group = RevenueGroup::tryFrom($this->query('group')) ?? RevenueGroup::Day;
 
@@ -64,8 +64,8 @@ class AccountingSalesReports extends AccountingOperationalReport
                 ['type' => 'select', 'name' => 'user', 'labelKey' => 'Accounting_operational_reports.user', 'options' => $this->employeeChoices(), 'value' => $this->query('user')],
                 ['type' => 'check', 'name' => 'not_taxed', 'labelKey' => 'Accounting_operational_reports.show_not_taxed', 'value' => $this->flag('not_taxed')],
             ],
-            'csvUrl'        => base_url('accounting_reports/revenue/csv') . $this->queryString(self::REVENUE_CARRIED, $scope),
-            'siblings'      => $this->siblings('revenue'),
+            'csvUrl'   => base_url('accounting_reports/revenue/csv') . $this->queryString(self::REVENUE_CARRIED, $scope),
+            'siblings' => $this->siblings('revenue'),
         ]);
     }
 
@@ -84,7 +84,7 @@ class AccountingSalesReports extends AccountingOperationalReport
         return $this->csvResponse('revenue_' . $group->value, $this->revenueTable($this->requestedScope(), $group, $dates), 'Accounting_operational_reports.revenue_title');
     }
 
-    public function getClients(): string|ResponseInterface
+    public function getClients(): ResponseInterface|string
     {
         $this->allow('reports_customers');
 
@@ -111,8 +111,8 @@ class AccountingSalesReports extends AccountingOperationalReport
                 ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
                 ['type' => 'select', 'name' => 'order', 'labelKey' => 'Accounting_operational_reports.order', 'options' => $this->orderChoices(), 'value' => $this->choice('order', ClientsSalesReport::ORDERS, 'date_desc')],
             ],
-            'csvUrl'        => base_url('accounting_reports/clients_sales/csv') . $this->queryString(self::CLIENTS_CARRIED, $scope),
-            'siblings'      => $this->siblings('clients_sales'),
+            'csvUrl'   => base_url('accounting_reports/clients_sales/csv') . $this->queryString(self::CLIENTS_CARRIED, $scope),
+            'siblings' => $this->siblings('clients_sales'),
         ]);
     }
 

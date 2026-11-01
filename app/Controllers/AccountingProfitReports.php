@@ -19,8 +19,8 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingProfitReports extends AccountingOperationalReport
 {
-    private const MOVEMENT_GROUPS = [ItemGroup::Day, ItemGroup::Week, ItemGroup::Month, ItemGroup::Year, ItemGroup::Customer, ItemGroup::User, ItemGroup::Item, ItemGroup::Category];
-    private const ITEM_GROUPS     = [ItemGroup::Item, ItemGroup::Category, ItemGroup::Customer, ItemGroup::User];
+    private const MOVEMENT_GROUPS  = [ItemGroup::Day, ItemGroup::Week, ItemGroup::Month, ItemGroup::Year, ItemGroup::Customer, ItemGroup::User, ItemGroup::Item, ItemGroup::Category];
+    private const ITEM_GROUPS      = [ItemGroup::Item, ItemGroup::Category, ItemGroup::Customer, ItemGroup::User];
     private const MOVEMENT_CARRIED = ['group', 'view', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'user', 'item', 'category', 'show'];
     private const ITEM_CARRIED     = ['group', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'user', 'item', 'category', 'show'];
 
@@ -35,7 +35,7 @@ class AccountingProfitReports extends AccountingOperationalReport
         $this->items     = new ItemProfitReport();
     }
 
-    public function getIndex(): string|ResponseInterface
+    public function getIndex(): ResponseInterface|string
     {
         $group = $this->group(self::MOVEMENT_GROUPS, ItemGroup::Day);
 
@@ -63,7 +63,7 @@ class AccountingProfitReports extends AccountingOperationalReport
         return $this->csvResponse('profit_' . $group->value, $this->movementTable($this->requestedScope(), $group, $dates->from, $dates->to), 'Accounting_operational_reports.profit_title');
     }
 
-    public function getItems(): string|ResponseInterface
+    public function getItems(): ResponseInterface|string
     {
         $group = $this->group(self::ITEM_GROUPS, ItemGroup::Item);
 
@@ -137,8 +137,8 @@ class AccountingProfitReports extends AccountingOperationalReport
                 ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
                 ['type' => 'select', 'name' => 'user', 'labelKey' => 'Accounting_operational_reports.user', 'options' => $this->employeeChoices(), 'value' => $this->query('user')],
             ],
-            'csvUrl'        => base_url($csvRoute) . ($query === [] ? '' : '?' . http_build_query($query)),
-            'siblings'      => [['label' => lang($siblingKey), 'url' => base_url('accounting_reports/' . $siblingRoute)]],
+            'csvUrl'   => base_url($csvRoute) . ($query === [] ? '' : '?' . http_build_query($query)),
+            'siblings' => [['label' => lang($siblingKey), 'url' => base_url('accounting_reports/' . $siblingRoute)]],
         ]);
     }
 
