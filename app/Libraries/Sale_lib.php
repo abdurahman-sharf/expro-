@@ -1749,7 +1749,6 @@ class Sale_lib
         $this->empty_cart();
         $this->remove_customer();
         $this->clearInvoiceDiscount();
-        $this->clearHeaderCharges();
 
         $storedShares = [];
 

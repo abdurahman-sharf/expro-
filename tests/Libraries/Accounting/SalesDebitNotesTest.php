@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CreditSettlement;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\JournalService;
@@ -377,6 +378,28 @@ class SalesDebitNotesTest extends CIUnitTestCase
         $this->assertSame('100.00', $this->balance($this->customerAccount()));
     }
 
+    public function testReverse_AsksForTheReasonBeforeAnythingElseEvenOfANoteThatIsAlreadyTakenBack(): void
+    {
+        $id = $this->raise();
+
+        $this->notes->reverse($id, 'once', $this->clerk);
+
+        foreach (['', '  ', str_repeat('r', 256)] as $reason) {
+            $this->assertRefusedWith(AccountingError::ReasonRequired, fn () => $this->notes->reverse($id, $reason, $this->clerk));
+        }
+    }
+
+    public function testReverse_RefusesANoteMarkedTakenBackWithoutTouchingItsJournal(): void
+    {
+        $id = $this->raise();
+
+        $this->accountingDb()->table('sales_debit_notes')->where('debit_note_id', $id)->update(['status' => 'reversed']);
+
+        $this->assertRefusedWith(AccountingError::DebitNoteReversed, fn () => $this->notes->reverse($id, 'already marked', $this->clerk));
+        $this->assertSame('100.00', $this->balance($this->customerAccount()), 'the journal of the note still stands');
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where(['source_type' => SalesDebitNotes::SOURCE, 'source_id' => $id])->countAllResults());
+    }
+
     public function testReverse_RefusesANoteThatIsAlreadyTakenBackOrDoesNotExist(): void
     {
         $id = $this->raise();
@@ -494,6 +517,34 @@ class SalesDebitNotesTest extends CIUnitTestCase
         $this->assertSame('40.00', bcadd($this->position()->invoices[0]->open(), '0', 2));
         $this->assertGreaterThan(0, $invoice);
         $this->assertTies();
+    }
+
+    public function testCreate_SpendsTheCreditTheCustomerAlreadyHoldsOnTheNewNoteAtOnce(): void
+    {
+        $credit = $this->creditOf('60');
+        $note   = $this->raise(['amount' => '100']);
+
+        $this->assertSame(['opening_credit:' . $credit . '->note' . $note . ':60.00'], $this->spent());
+        $this->assertSame('40.00', bcadd($this->position()->invoices[0]->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_KeepsTheNoteOfWhatIsLeftOfAnApplicationWhenTheCreditShrinks(): void
+    {
+        $credit = $this->creditOf('60');
+        $note   = $this->raise(['amount' => '100']);
+
+        $this->assertSame(['opening_credit:' . $credit . '->note' . $note . ':60.00'], $this->spent());
+
+        $journal = $this->accountingDb()->table('accounting_journals')->where(['source_type' => CustomerOpening::SOURCE, 'source_id' => $this->customerId, 'status' => 'posted'])->get()->getRow();
+
+        $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journal->journal_id)->update(['debit' => '0.0000']);
+        $this->accountingDb()->query('UPDATE ' . $this->accountingDb()->prefixTable('accounting_journal_lines') . " SET credit = '40.0000' WHERE journal_id = ? AND credit > 0", [$journal->journal_id]);
+        $this->accountingDb()->query('UPDATE ' . $this->accountingDb()->prefixTable('accounting_journal_lines') . " SET debit = '40.0000' WHERE journal_id = ? AND credit = 0", [$journal->journal_id]);
+
+        (new CreditSettlement())->settle($this->customerId, $this->clerk);
+
+        $this->assertSame(['opening_credit:' . $credit . '->note' . $note . ':40.00'], $this->spent());
     }
 
     public function testSettle_SpendsTheCreditOnTheOlderInvoiceBeforeTheNewerNote(): void

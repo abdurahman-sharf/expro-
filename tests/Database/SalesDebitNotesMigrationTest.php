@@ -76,15 +76,20 @@ class SalesDebitNotesMigrationTest extends CIUnitTestCase
         $customerId = $this->insertCustomer();
         $note       = $this->noteFor($customerId);
 
-        $this->applicationOf(null, null, $note, $customerId);
-        $this->assertSame(1, $this->countRows('customer_credit_applications'));
+        $this->accountingDb()->table('customer_openings')->insert(['company_id' => 1, 'branch_id' => 1, 'customer_id' => $customerId, 'revision' => 1, 'side' => 'owes_us', 'amount' => '5.0000', 'opening_date' => date('Y-m-d')]);
 
-        foreach ([[null, null, null], [5, null, $note], [null, 7, $note], [5, 7, $note]] as [$invoice, $opening, $debitNote]) {
+        $opening = (int) $this->accountingDb()->insertID();
+
+        $this->applicationOf(null, null, $note, $customerId);
+        $this->applicationOf(null, $opening, null, $customerId);
+        $this->assertSame(2, $this->countRows('customer_credit_applications'), 'one target is accepted, a note or an opening');
+
+        foreach ([[null, null, null], [null, $opening, $note]] as [$invoice, $openingTarget, $debitNote]) {
             try {
-                $this->applicationOf($invoice, $opening, $debitNote, $customerId);
-                $this->fail('An application with ' . json_encode([$invoice, $opening, $debitNote]) . ' should be refused.');
+                $this->applicationOf($invoice, $openingTarget, $debitNote, $customerId);
+                $this->fail('An application with ' . json_encode([$invoice, $openingTarget, $debitNote]) . ' should be refused.');
             } catch (DatabaseException) {
-                $this->assertSame(1, $this->countRows('customer_credit_applications'));
+                $this->assertSame(2, $this->countRows('customer_credit_applications'));
             }
         }
     }

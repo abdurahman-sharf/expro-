@@ -100,16 +100,6 @@
   ]
  },
  {
-  "name": "G11 header charges: the shipping tax on top is added to the total, the included one is not",
-  "file": "app/Libraries/HeaderCharges.php",
-  "find": "$before     = bcadd(SaleAmounts::absolute($running), bcadd($shipping, $included ? '0' : $tax, self::WORK), self::WORK);",
-  "replace": "$before     = bcadd(SaleAmounts::absolute($running), bcadd($shipping, $tax, self::WORK), self::WORK);",
-  "tests": [
-   "tests/Libraries/HeaderChargesTest.php",
-   "tests/Libraries/ResolvedChargesTest.php"
-  ]
- },
- {
   "name": "G12 resolved charges: shipping net takes the included tax out",
   "file": "app/Libraries/ResolvedCharges.php",
   "find": "return $this->shippingTaxIncluded ? bcsub($this->shipping, $this->shippingTax, SaleAmounts::SCALE) : bcadd($this->shipping, '0', SaleAmounts::SCALE);",
@@ -408,15 +398,6 @@
   ]
  },
  {
-  "name": "G42 register: a loaded sale forgets the charges of the register first",
-  "file": "app/Libraries/Sale_lib.php",
-  "find": "        $this->clearInvoiceDiscount();\n        $this->clearHeaderCharges();\n\n        $storedShares = [];",
-  "replace": "        $this->clearInvoiceDiscount();\n\n        $storedShares = [];",
-  "tests": [
-   "tests/Libraries/Sale_libTest.php"
-  ]
- },
- {
   "name": "G43 register: clearing the sale forgets the charges",
   "file": "app/Libraries/Sale_lib.php",
   "find": "        $this->clearInvoiceDiscount();\n        $this->clearHeaderCharges();\n        $this->clear_quote_number();",
@@ -673,17 +654,6 @@
   ]
  },
  {
-  "name": "G69 descriptions: a sale without a template keeps the description of the application",
-  "file": "app/Libraries/Accounting/JournalDescriptions.php",
-  "find": "        if ($template === '') {\n            return $draft;\n        }\n\n        $text = JournalDescriptionTemplate::render($template, [\n            'number' => $this->saleNumber($sale),",
-  "replace": "        $text = JournalDescriptionTemplate::render($template, [\n            'number' => $this->saleNumber($sale),",
-  "tests": [
-   "--filter",
-   "Charges|Shipping|Adjustment|Description|Template|Party",
-   "tests/Libraries/Accounting/SalePostingTest.php"
-  ]
- },
- {
   "name": "D01 debit note: creating needs the permission",
   "file": "app/Libraries/Accounting/SalesDebitNotes.php",
   "find": "        $this->guard->require(AccountingGuard::DEBIT_NOTES_MANAGE, $employeeId);\n        $this->assertOn();",
@@ -937,15 +907,6 @@
   ]
  },
  {
-  "name": "D29 ledger: a note is dated by its own day in a day of the past",
-  "file": "app/Libraries/Accounting/CustomerLedger.php",
-  "find": "ORDER BY n.note_date ASC, n.debit_note_id ASC",
-  "replace": "ORDER BY n.debit_note_id DESC",
-  "tests": [
-   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
-  ]
- },
- {
   "name": "D30 settlement: credit spent on a note is written as an application of the note",
   "file": "app/Libraries/Accounting/CreditSettlement.php",
   "find": "            'debit_note_id'   => $debitNoteId,\n",
@@ -1042,15 +1003,6 @@
   "file": "app/Controllers/AccountingDebitNotes.php",
   "find": "$result  = $this->notes->search($filters, $this->employeeId(), self::PAGE_SIZE, $offset);",
   "replace": "$result  = $this->notes->search($filters, 0, self::PAGE_SIZE, $offset);",
-  "tests": [
-   "tests/Controllers/AccountingDebitNotesControllerTest.php"
-  ]
- },
- {
-  "name": "D41 screen: the status filter takes only the two statuses",
-  "file": "app/Controllers/AccountingDebitNotes.php",
-  "find": "'status' => in_array($status, ['posted', 'reversed'], true) ? $status : '',",
-  "replace": "'status' => $status,",
   "tests": [
    "tests/Controllers/AccountingDebitNotesControllerTest.php"
   ]

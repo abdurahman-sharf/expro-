@@ -74,6 +74,7 @@ class JournalDescriptionTemplateTest extends CIUnitTestCase
     {
         $this->assertSame('Sale 1 2 for Omar Khaled', JournalDescriptionTemplate::render('Sale {number} for {party}', ['number' => "1\n2", 'party' => '<b>Omar</b>   Khaled']));
         $this->assertSame('x alert(1)', JournalDescriptionTemplate::render('x {party}', ['party' => '<script>alert(1)</script>']));
+        $this->assertSame('Sale 1 2 for Omar', JournalDescriptionTemplate::render('Sale {number} for {party}', ['number' => "1\x072", 'party' => "Omar\x00"]), 'a bell and a null are not text');
     }
 
     public function testRender_LeavesAMissingValueEmptyAndTidiesTheSpaces(): void
@@ -91,5 +92,7 @@ class JournalDescriptionTemplateTest extends CIUnitTestCase
     public function testRender_DoesNotExpandAPlaceholderTypedInsideAValue(): void
     {
         $this->assertSame('Omar {number}', JournalDescriptionTemplate::render('{party}', ['party' => 'Omar {number}', 'number' => '99']));
+        $this->assertSame('A {party}', JournalDescriptionTemplate::render('{number}', ['number' => 'A {party}', 'party' => 'Omar']));
+        $this->assertSame('A {date} 2026-01-01', JournalDescriptionTemplate::render('{party} {date}', ['party' => 'A {date}', 'date' => '2026-01-01']));
     }
 }

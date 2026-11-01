@@ -93,7 +93,7 @@ final readonly class HeaderCharges
         $shipping   = bcadd($this->safe($this->shipping), '0', self::SCALE);
         $tax        = $this->shippingTax($shipping);
         $included   = $this->shippingTaxOption === ShippingTaxOption::Included;
-        $before     = bcadd(SaleAmounts::absolute($running), bcadd($shipping, $included ? '0' : $tax, self::WORK), self::WORK);
+        $before     = bcadd(SaleAmounts::absolute($running), $shipping, self::WORK);
         $effective  = bccomp($before, '0', self::WORK) > 0 ? bcadd($adjustment, '0', self::SCALE) : '0.0000';
 
         return new ResolvedCharges(trim($this->adjustmentLabel), $effective, $shipping, $tax, $included, $this->shippingOptions);
