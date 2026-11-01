@@ -124,6 +124,10 @@ trait BankFixtureTrait
      */
     protected function whileAnotherRequestCommits(array $statements, callable $action, ?int $treasuryId = null, int $holdMilliseconds = 1200): void
     {
+        if (! function_exists('proc_open')) {
+            $this->markTestSkipped('A second process cannot be started here.');
+        }
+
         $db  = $this->accountingDb();
         $job = json_encode([
             'hostname'   => $db->hostname,

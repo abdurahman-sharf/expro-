@@ -706,8 +706,8 @@
   {
     "name": "G10 the lines to match are of the direction of the statement line",
     "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
-    "find": "bccomp((string) $line->amount, '0', 4) > 0, $limit)",
-    "replace": "true, $limit)",
+    "find": "bccomp((string) $line->amount, '0', 4) > 0, (string) $line->amount, (string) $line->line_date, $limit + 1)",
+    "replace": "true, (string) $line->amount, (string) $line->line_date, $limit + 1)",
     "tests": [
       "--filter",
       "testLinesToMatch_",
@@ -1410,8 +1410,8 @@
   {
     "name": "Q10 line ends are made alike before the checksum",
     "file": "app/Libraries/Accounting/Bank/StatementParser.php",
-    "find": "return rtrim((string) preg_replace('/\\R/u', \"\\n\", $content));\n    }\n\n    private static function withoutByteOrderMark",
-    "replace": "return rtrim($content);\n    }\n\n    private static function withoutByteOrderMark",
+    "find": "$lines = explode(\"\\n\", (string) preg_replace('/\\R/u', \"\\n\", $content));",
+    "replace": "$lines = explode(\"\\n\", $content);",
     "tests": [
       "--filter",
       "testParse_GivesTheSameChecksum|testParse_TakesAByteOrderMark",
@@ -1827,8 +1827,8 @@
   {
     "name": "X06 a date typed in the address is a date",
     "file": "app/Controllers/AccountingBankReconciliation.php",
-    "find": "return preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $value) === 1 ? $value : null;",
-    "replace": "return $value === '' ? null : $value;",
+    "find": "return $date !== false && $date->format('Y-m-d') === $value ? $value : null;",
+    "replace": "return $date !== false ? $value : null;",
     "tests": [
       "--filter",
       "testGetReport_TakesTheDateOfToday|testGetLines_IgnoresADateThatIsNotADate",
@@ -1938,7 +1938,7 @@
   {
     "name": "Y06 the link to the reconciliation is for who may reconcile",
     "file": "app/Views/accounting_treasuries/manage.php",
-    "find": "    <?php if ($can_reconcile): ?>",
+    "find": "    <?php if ($canReconcile): ?>",
     "replace": "    <?php if (true): ?>",
     "tests": [
       "--filter",
@@ -1949,7 +1949,7 @@
   {
     "name": "Y07 the name of a bank outside the directory stays visible",
     "file": "app/Views/accounting_treasuries/form.php",
-    "find": "<?= $isBank && $selected_bank === '' || ! $isBank ? '' : ' hidden' ?>",
+    "find": "<?= $isBank && $selectedBank === '' || ! $isBank ? '' : ' hidden' ?>",
     "replace": "<?= ' hidden' ?>",
     "tests": [
       "--filter",
@@ -2004,7 +2004,7 @@
   {
     "name": "V05 a bank account without its details is flagged on the list",
     "file": "app/Views/accounting_bank/index.php",
-    "find": "<?php if ($account['lacks_details']): ?>",
+    "find": "<?php if ($account['lacksDetails']): ?>",
     "replace": "<?php if (false): ?>",
     "tests": [
       "--filter",
@@ -2015,7 +2015,7 @@
   {
     "name": "V06 a bank account without its details is flagged on its page",
     "file": "app/Views/accounting_bank/account.php",
-    "find": "<?php if ($lacks_details): ?>",
+    "find": "<?php if ($lacksDetails): ?>",
     "replace": "<?php if (false): ?>",
     "tests": [
       "--filter",
@@ -2144,6 +2144,292 @@
       "--filter",
       "testUp_CreatesTheTablesTheBankCode",
       "tests/Database/BankReconciliationMigrationTest.php"
+    ]
+  },
+  {
+    "name": "U01 nothing is read before the treasury lock, so a request that waited sees what the holder committed",
+    "file": "app/Libraries/Accounting/Bank/BankAccess.php",
+    "find": "        if ($lock) {\n            $table = $this->db->prefixTable('treasuries');",
+    "replace": "        $this->requirePermission($employeeId);\n\n        if ($lock) {\n            $table = $this->db->prefixTable('treasuries');",
+    "tests": [
+      "--filter",
+      "WhileItWaitedForTheBankAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U02 unmatch looks at the account before it waits for the lock",
+    "file": "app/Libraries/Accounting/Bank/BankMatches.php",
+    "find": "        $this->access->bankAccount($treasuryId, $employeeId);\n\n        $this->transactional(function () use ($treasuryId, $matchId, $employeeId): void {",
+    "replace": "        $this->transactional(function () use ($treasuryId, $matchId, $employeeId): void {",
+    "tests": [
+      "--filter",
+      "testUnmatch_IsRefusedToWhoMayNotSeeTheAccountWithoutWaitingForTheLock",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U03 the last cells of the last row of a tab file are kept",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "return rtrim(implode(\"\\n\", $lines), ' ');",
+    "replace": "return rtrim(implode(\"\\n\", $lines));",
+    "tests": [
+      "--filter",
+      "testParse_TakesATabFileWhoseLastRowEndsInEmptyCells",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "U04 the empty lines at the end of a file are taken off before the checksum",
+    "file": "app/Libraries/Accounting/Bank/StatementParser.php",
+    "find": "while ($lines !== [] && trim((string) end($lines)) === '') {",
+    "replace": "while (false) {",
+    "tests": [
+      "--filter",
+      "testParse_GivesTheSameChecksum|testParse_TakesATabFileWhoseLastRowEndsInEmptyCells",
+      "tests/Libraries/Accounting/Bank/StatementParserTest.php"
+    ]
+  },
+  {
+    "name": "U05 an unchecked box to skip the first row is sent as no",
+    "file": "app/Views/accounting_bank/import.php",
+    "find": "                    <input type=\"hidden\" name=\"skip_first_row\" value=\"0\">\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testPostImport_ReadsTheFirstRowWhenTheBoxToSkipItIsUncheckedInTheForm",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "U06 a bank account with imported statements is in use",
+    "file": "app/Libraries/Accounting/TreasuryService.php",
+    "find": "'revenues', 'bank_statements', 'bank_reconciliations']",
+    "replace": "'revenues', 'bank_reconciliations']",
+    "tests": [
+      "--filter",
+      "testDelete_RejectsABankAccountThatHasAnImportedStatement",
+      "tests/Libraries/Accounting/TreasuryServiceTest.php"
+    ]
+  },
+  {
+    "name": "U07 a bank account with a closing is in use",
+    "file": "app/Libraries/Accounting/TreasuryService.php",
+    "find": "'revenues', 'bank_statements', 'bank_reconciliations']",
+    "replace": "'revenues', 'bank_statements']",
+    "tests": [
+      "--filter",
+      "testDelete_RejectsABankAccountThatHasAnImportedStatement",
+      "tests/Libraries/Accounting/TreasuryServiceTest.php"
+    ]
+  },
+  {
+    "name": "U08 a closing date with no earlier closing has its own refusal",
+    "file": "app/Libraries/Accounting/Bank/BankReconciliations.php",
+    "find": "                throw $previous === null\n                    ? new AccountingException(AccountingError::BankReconciliationDateOutside, \"{$through} cannot be closed.\", ['date' => $through])\n                    : new AccountingException(AccountingError::BankReconciliationDateInvalid, \"{$through} cannot be closed.\", ['date' => $through, 'until' => $previous]);",
+    "replace": "                throw new AccountingException(AccountingError::BankReconciliationDateInvalid, \"{$through} cannot be closed.\", ['date' => $through, 'until' => $previous ?? '']);",
+    "tests": [
+      "--filter",
+      "testClose_RejectsADateThatIsNotAfterThePreviousClosing",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U09 the choose-list keeps the lines of the amount and the nearest dates",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "ORDER BY ((l.debit - l.credit) = :amount:) DESC, ABS(DATEDIFF(j.journal_date, :near:)) ASC, l.line_id DESC",
+    "replace": "ORDER BY j.journal_date DESC, l.line_id DESC",
+    "tests": [
+      "--filter",
+      "testForLine_KeepsTheLinesOfTheAmount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U10 the choose-list reads one line more than it shows to know there are more",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "(string) $line->line_date, $limit + 1);",
+    "replace": "(string) $line->line_date, $limit);",
+    "tests": [
+      "--filter",
+      "testForLine_KeepsTheLinesOfTheAmount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U11 the choose-list says there are more",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "$more      = count($lines) > $limit;",
+    "replace": "$more      = false;",
+    "tests": [
+      "--filter",
+      "testForLine_KeepsTheLinesOfTheAmount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U12 the choose-list shows no more than its limit",
+    "file": "app/Libraries/Accounting/Bank/BankSuggestions.php",
+    "find": "$lines     = array_slice($lines, 0, $limit);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testForLine_KeepsTheLinesOfTheAmount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U13 the match screen tells that the list is cut",
+    "file": "app/Views/accounting_bank/match.php",
+    "find": "    <?php if ($more): ?>",
+    "replace": "    <?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "testGetMatch_SaysSoWhenMoreLinesOfTheBooksAreOpenThanItLists",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "U14 the bank picker searches the directory with the term typed",
+    "file": "app/Controllers/AccountingTreasuries.php",
+    "find": "BankDirectory::search((string) $this->request->getGet('term'))",
+    "replace": "BankDirectory::search()",
+    "tests": [
+      "--filter",
+      "testGetBanks_",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "U15 the bank picker is for who manages treasuries",
+    "file": "app/Controllers/AccountingTreasuries.php",
+    "find": "    public function getBanks(): ResponseInterface\n    {\n        $this->requireManage();\n\n",
+    "replace": "    public function getBanks(): ResponseInterface\n    {\n",
+    "tests": [
+      "--filter",
+      "testGetBanks_IsNotFoundToWhoCannotManageTreasuries",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "U16 the form asks the server for the banks",
+    "file": "app/Views/accounting_treasuries/form.php",
+    "find": "accounting_treasuries/banks",
+    "replace": "accounting_treasuries/bank_list",
+    "tests": [
+      "--filter",
+      "testGetView_SearchesTheBankDirectoryOnTheServer",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "U17 the route of the bank picker exists",
+    "file": "app/Config/Routes.php",
+    "find": "    $routes->get('banks', 'AccountingTreasuries::getBanks');\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetBanks_",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "U18 the match screen is given whether the list is cut",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "            'more'         => $result['more'],\n",
+    "replace": "            'more'         => false,\n",
+    "tests": [
+      "--filter",
+      "testGetMatch_SaysSoWhenMoreLinesOfTheBooksAreOpenThanItLists",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "U19 a draft journal is not in the book balance",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "WHERE j.status IN (:posted:, :reversed:) AND l.account_id = :account:\" . ($asOf",
+    "replace": "WHERE l.account_id = :account:\" . ($asOf",
+    "tests": [
+      "--filter",
+      "testReport_LeavesADraftJournal",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U20 a draft journal is not an open line of the books",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "WHERE l.account_id = :account: AND j.status IN (:posted:, :reversed:) AND j.journal_date <= :asof:",
+    "replace": "WHERE l.account_id = :account: AND j.journal_date <= :asof:",
+    "tests": [
+      "--filter",
+      "testReport_LeavesADraftJournal",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U21 a draft journal is not a candidate of a suggestion",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "j.status IN (:posted:, :reversed:)\n                  AND (l.debit - l.credit) = :amount:",
+    "replace": "1 = 1\n                  AND (l.debit - l.credit) = :amount:",
+    "tests": [
+      "--filter",
+      "testReport_LeavesADraftJournal",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U22 a draft journal is not in the choose-list",
+    "file": "app/Libraries/Accounting/Bank/BankBook.php",
+    "find": "j.status IN (:posted:, :reversed:)\n                  AND \" . ($deposit",
+    "replace": "1 = 1\n                  AND \" . ($deposit",
+    "tests": [
+      "--filter",
+      "testReport_LeavesADraftJournal",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U23 the checksum of a file is unique per bank account, not over all of them",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "->where(['treasury_id' => $treasuryId, 'checksum' => $parsed->checksum])",
+    "replace": "->where(['checksum' => $parsed->checksum])",
+    "tests": [
+      "--filter",
+      "testImport_KeepsTheChecksumAndTheKnownLinesPerBankAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U24 a line is known when its own bank account holds it, not any",
+    "file": "app/Libraries/Accounting/Bank/BankStatements.php",
+    "find": "->where('treasury_id', $treasuryId)->whereIn('dedupe_key', $chunk)",
+    "replace": "->whereIn('dedupe_key', $chunk)",
+    "tests": [
+      "--filter",
+      "testImport_KeepsTheChecksumAndTheKnownLinesPerBankAccount",
+      "tests/Libraries/Accounting/Bank/BankReconciliationTest.php"
+    ]
+  },
+  {
+    "name": "U25 the permission to reconcile has a label in Arabic",
+    "file": "app/Language/ar-EG/Accounting_treasuries.php",
+    "find": "'bank_reconcile' =>",
+    "replace": "'bank_reconcile_unused' =>",
+    "tests": [
+      "--filter",
+      "testTreasuriesFile_LabelsThePermissionToReconcileBankAccounts",
+      "tests/LanguageFilesTest.php"
+    ]
+  },
+  {
+    "name": "U26 a date typed in the address that is not on the calendar is not a date",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "$date !== false && $date->format('Y-m-d') === $value ? $value : null;",
+    "replace": "$date !== false && preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $value) === 1 ? $value : null;",
+    "tests": [
+      "--filter",
+      "testGetReport_TakesTheDateOfToday|testGetLines_IgnoresADateThatIsNotADate",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
     ]
   }
 ]
