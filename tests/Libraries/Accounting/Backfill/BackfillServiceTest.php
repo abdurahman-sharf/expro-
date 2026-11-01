@@ -323,13 +323,12 @@ final class BackfillServiceTest extends CIUnitTestCase
 
     public function testCancel_EndsAnApprovalThatCannotGoOnAndKeepsWhatWasPosted(): void
     {
+        $this->legacyExpense('0.01', '0', '2019-03-14');
+
         $first  = $this->legacyExpense('100', '0', '2026-03-12');
         $second = $this->legacyExpense('200', '0', '2026-03-13');
         $third  = $this->legacyExpense('300', '0', '2026-03-14');
-
-        $this->legacyExpense('0.01', '0', '2019-03-14');
-
-        $batch = $this->previewed(['chunk_size' => 1, 'from' => '2019-01-01', 'to' => '2026-12-31']);
+        $batch  = $this->previewed(['chunk_size' => 1, 'from' => '2019-01-01', 'to' => '2026-12-31']);
 
         $this->assertSame([3, 1], [$batch->readyCount, $batch->refusedCount]);
 

@@ -475,7 +475,7 @@
  {
   "name": "G51 the cursor of a preview is kept with the chunk",
   "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
-  "find": "                $this->batches->update($batch->id, ['cursor_family' => $family->value, 'cursor_id' => $last]);\n            });",
+  "find": "                $this->batches->update($batch->id, ['cursor_family' => $family->value, 'cursor_id' => $last] + $this->columnsOf($this->batches->figures($batch->id)));\n            });",
   "replace": "            });",
   "tests": [
    "--filter",
@@ -638,13 +638,13 @@
   ]
  },
  {
-  "name": "G72 the row of a document is locked before it is read for approval",
+  "name": "G72 the rows of every document of a chunk are locked before any is read for approval",
   "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
-  "find": "        $adapter->lock($document->id);\n",
+  "find": "                foreach ($documents as $document) {\n                    $this->adapter($document->family)->lock($document->id);\n                }\n\n",
   "replace": "",
   "tests": [
    "--filter",
-   "Approve_WaitsForAChangeToTheDocument",
+   "Approve_WaitsForAChangeToTheDocument|ReadsEveryDocumentOfAChunk",
    "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
   ]
  },
@@ -770,13 +770,13 @@
   ]
  },
  {
-  "name": "G91 a batch whose approval has begun is not cancelled",
+  "name": "G91 cancelling an approval that began keeps the documents it posted",
   "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
-  "find": "if ($batch->status === BackfillStatus::Approving) {\n                    throw new AccountingException(AccountingError::BackfillApproving",
-  "replace": "if (false) {\n                    throw new AccountingException(AccountingError::BackfillApproving",
+  "find": "$posted    = $batch->status === BackfillStatus::Approving ? $batch->cursorId : 0;",
+  "replace": "$posted    = 0;",
   "tests": [
    "--filter",
-   "Cancel_RefusesABatchWhoseApprovalHasBegun",
+   "Cancel_EndsAnApprovalThatCannotGoOn",
    "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
   ]
  },
@@ -794,11 +794,11 @@
  {
   "name": "G93 cancelling removes the record of the documents",
   "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
-  "find": "$documents = $this->batches->removeItems($batchId);",
+  "find": "$documents = $this->batches->removeItems($batchId, $posted);",
   "replace": "$documents = 0;",
   "tests": [
    "--filter",
-   "Cancel_RemovesThePreviews",
+   "Cancel_RemovesThePreviews|Cancel_EndsAnApprovalThatCannotGoOn",
    "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
   ]
  },
@@ -893,7 +893,7 @@
  {
   "name": "G102 the blockers name a branch without opening balances",
   "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
-  "find": "if ((new BackfillGate($this->db))->openingOf((int) $branch->branch_id) === null) {",
+  "find": "if ($gate->openingOf((int) $branch->branch_id) === null) {",
   "replace": "if (false) {",
   "tests": [
    "--filter",
@@ -1080,8 +1080,8 @@
  {
   "name": "G126 every journal of a plan is checked as a posted one is",
   "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
-  "find": "                $this->posting->validate($step->draft);",
-  "replace": "",
+  "find": "            $this->posting->validate($step->draft);\n        }\n\n        return new BackfillPlan($steps,",
+  "replace": "        }\n\n        return new BackfillPlan($steps,",
   "tests": [
    "--filter",
    "Plan_RefusesADateOutsideEveryFiscalYearAndAClosedPeriod",
@@ -1487,8 +1487,8 @@
  {
   "name": "G191 the list shows no batch to someone without the permission",
   "file": "app/Controllers/AccountingBackfill.php",
-  "find": "'batches'     => $canRun ? $this->backfill->batches($this->employeeId()) : [],",
-  "replace": "'batches'     => $this->backfill->batches($this->employeeId()),",
+  "find": "'batches'    => $canRun ? $this->backfill->batches($this->employeeId()) : [],",
+  "replace": "'batches'    => $this->backfill->batches($this->employeeId()),",
   "tests": [
    "--filter",
    "GetIndex_ShowsTheNote",
@@ -1542,7 +1542,7 @@
  {
   "name": "G196 the cancel form opens for a batch that is open",
   "file": "app/Controllers/AccountingBackfill.php",
-  "find": "if (! in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview], true)) {",
+  "find": "if (! in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview, BackfillStatus::Approving], true)) {",
   "replace": "if (false) {",
   "tests": [
    "--filter",
@@ -1869,6 +1869,501 @@
    "--filter",
    "CoversEveryPermissionOfTheGuard|NamesTheFourPermissions",
    "tests/Libraries/Accounting/SensitivePermissionsTest.php"
+  ]
+ },
+ {
+  "name": "G260 the cancel form opens for a batch that is being approved",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "[BackfillStatus::Collecting, BackfillStatus::Preview, BackfillStatus::Approving], true)) {",
+  "replace": "[BackfillStatus::Collecting, BackfillStatus::Preview], true)) {",
+  "tests": [
+   "--filter",
+   "GetCancelForm_SaysWhatIsLeft",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G261 the approve form opens for a batch that is being approved",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "if (! in_array($batch->status, [BackfillStatus::Preview, BackfillStatus::Approving], true) || $batch->fingerprint === null) {",
+  "replace": "if (! in_array($batch->status, [BackfillStatus::Preview], true) || $batch->fingerprint === null) {",
+  "tests": [
+   "--filter",
+   "GetApproveForm_OpensForABatchThatIsBeingApproved",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G262 the screen offers to resume an approval that is half done",
+  "file": "app/Views/accounting_periods/backfill_view.php",
+  "find": "$approvable = in_array($batch->status, [BackfillStatus::Preview, BackfillStatus::Approving], true) && ",
+  "replace": "$approvable = $batch->status === BackfillStatus::Preview && ",
+  "tests": [
+   "--filter",
+   "GetView_OffersToResumeAndToEndAnApprovalThatIsHalfDone",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G263 the screen offers to end an approval that is half done",
+  "file": "app/Views/accounting_periods/backfill_view.php",
+  "find": "$cancelable = in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview, BackfillStatus::Approving], true);",
+  "replace": "$cancelable = in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview], true);",
+  "tests": [
+   "--filter",
+   "GetView_OffersToResumeAndToEndAnApprovalThatIsHalfDone",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G264 the screen says how many documents an approval posted before it stopped",
+  "file": "app/Views/accounting_periods/backfill_view.php",
+  "find": "<?php if ($batch->approvedCount > 0 && in_array($batch->status, [BackfillStatus::Approving, BackfillStatus::Cancelled], true)): ?>",
+  "replace": "<?php if (false): ?>",
+  "tests": [
+   "--filter",
+   "GetView_OffersToResumeAndToEndAnApprovalThatIsHalfDone|PostCancel_EndsAnApprovalThatIsHalfDone",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G265 the cancel form counts the documents that are left to remove",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "'documents' => $repo->figures($batch->id)['ready'] - ($approving ? $batch->approvedCount : 0),",
+  "replace": "'documents' => $batch->readyCount,",
+  "tests": [
+   "--filter",
+   "GetCancelForm_SaysWhatIsLeft",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G266 the cancel form counts the previews that are left to remove",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "'journals'  => $repo->previewCount($batch->id),",
+  "replace": "'journals'  => $batch->journalCount,",
+  "tests": [
+   "--filter",
+   "GetCancelForm_SaysWhatIsLeft",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G267 the cancel form of an approval that began says the posted journals stay",
+  "file": "app/Views/accounting_periods/backfill_cancel_form.php",
+  "find": "lang($approving ? 'Accounting_backfill.cancel_warning_approving' : 'Accounting_backfill.cancel_warning')",
+  "replace": "lang('Accounting_backfill.cancel_warning')",
+  "tests": [
+   "--filter",
+   "GetCancelForm_SaysWhatIsLeft",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G268 a page number is capped",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "min(max(1, (int) $asked), self::PAGE_MAX)",
+  "replace": "max(1, (int) $asked)",
+  "tests": [
+   "--filter",
+   "GetView_TakesAPage",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G269 a page beyond the last is the last",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "return $page <= $last ? [$page, $rows] : [$last, $fetch(($last - 1) * self::PAGE_SIZE)];",
+  "replace": "return [$page, $rows];",
+  "tests": [
+   "--filter",
+   "GetView_TakesAPage",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G270 the page of the other list is kept when one list changes page",
+  "file": "app/Views/accounting_periods/backfill_view.php",
+  "find": "$pager($items['total'], $documentsPage, $pageSize, 'documents_page', $viewUrl, $pageQuery)",
+  "replace": "$pager($items['total'], $documentsPage, $pageSize, 'documents_page', $viewUrl, $outcome === null ? [] : ['outcome' => $outcome])",
+  "tests": [
+   "--filter",
+   "GetView_KeepsThePageOfTheOtherList",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G271 the filter of the documents is kept when the journals change page",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "'journals_page' => $journalsPage] + ($outcome === null ? [] : ['outcome' => $outcome]),",
+  "replace": "'journals_page' => $journalsPage],",
+  "tests": [
+   "--filter",
+   "GetView_KeepsTheFilterOfTheDocuments",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G272 a branch left empty is the whole company",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "if ($value === null || $value === '') {\n            return null;\n        }\n\n        return is_int($value)",
+  "replace": "if ($value === null) {\n            return null;\n        }\n\n        return is_int($value)",
+  "tests": [
+   "--filter",
+   "Create_RejectsABranchThatIsNotTheNumber",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G273 a value that is not the number of a branch is no branch",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "(int) $value : 0);",
+  "replace": "(int) $value : 1);",
+  "tests": [
+   "--filter",
+   "Create_RejectsABranchThatIsNotTheNumber",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G274 a branch given as text must be digits only",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "is_string($value) && ctype_digit($value) ? (int) $value : 0",
+  "replace": "is_numeric($value) ? (int) $value : 0",
+  "tests": [
+   "--filter",
+   "Create_RejectsABranchThatIsNotTheNumber",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G275 the counts of a batch are kept with each chunk of its preview",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "'cursor_id' => $last] + $this->columnsOf($this->batches->figures($batch->id)));",
+  "replace": "'cursor_id' => $last]);",
+  "tests": [
+   "--filter",
+   "Preview_ShowsWhatItHoldsSoFar",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G277 a cash-up that counted what was expected is stamped",
+  "file": "app/Libraries/Accounting/Backfill/CashupBackfill.php",
+  "find": "if ($draft === null && $stamp !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "StampsACashupThatCountedExactly",
+   "tests/Libraries/Accounting/Backfill/CashupBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G278 a cash-up that was stamped already is not stamped again for nothing",
+  "file": "app/Libraries/Accounting/Backfill/CashupBackfill.php",
+  "find": "if ($draft === null && $stamp !== []) {",
+  "replace": "if ($draft === null) {",
+  "tests": [
+   "--filter",
+   "RefusesACashupThatCountedExactlyWhatWasExpectedAndWasStampedAlready",
+   "tests/Libraries/Accounting/Backfill/CashupBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G279 every journal of a plan is held to the start date and the opening balances",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": "            if ($early !== null) {\n                return BackfillPlan::refused($early, $source, $step->draft->sourceType . ' ' . $step->draft->date);\n            }\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "PaymentDatedBefore|PaidAtOnce",
+   "tests/Libraries/Accounting/Backfill"
+  ]
+ },
+ {
+  "name": "G280 the refusal of a journal says which journal and which day",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": "$step->draft->sourceType . ' ' . $step->draft->date)",
+  "replace": "$step->draft->sourceType)",
+  "tests": [
+   "--filter",
+   "PaymentDatedBefore",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G281 a document that moves no stock is not asked about the opening stock",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": "        if ($locations === []) {\n            return false;\n        }\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "SaleOfServicesAlone",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G282 only the opening stock of the locations a document moves counts",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": "AND j.source_id IN (' . implode(',', $locations) . ') AND j.status = ?",
+  "replace": "AND j.status = ?",
+  "tests": [
+   "--filter",
+   "IgnoresTheOpeningStockOfAnotherLocation",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G283 an opening stock that was taken back does not count",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": "AND j.status = ? AND j.posted_at > d.' . $savedColumn . ' LIMIT 1',\n            [$documentId, OpeningStock::SOURCE, JournalStatus::Posted->value],",
+  "replace": "AND j.posted_at > d.' . $savedColumn . ' LIMIT 1',\n            [$documentId, OpeningStock::SOURCE],",
+  "tests": [
+   "--filter",
+   "IgnoresTheOpeningStockOfAnotherLocationAndOneThatWasTakenBack",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G284 only an opening stock posted after the document was saved counts",
+  "file": "app/Libraries/Accounting/Backfill/BackfillAdapter.php",
+  "find": "j.posted_at > d.",
+  "replace": "j.posted_at < d.",
+  "tests": [
+   "--filter",
+   "PostsASaleSavedAfterTheOpeningStock|RefusesASaleOfGoodsWhoseOpeningStock",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G285 a sale of goods is asked about the opening stock of its location",
+  "file": "app/Libraries/Accounting/Backfill/SaleBackfill.php",
+  "find": "if ($this->stockOpenedAfter('sales', 'sale_id', 'sale_time', $sale->saleId, $cost->movements)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RefusesASaleOfGoodsWhoseOpeningStock",
+   "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G286 a purchase of goods is asked about the opening stock of its location",
+  "file": "app/Libraries/Accounting/Backfill/PurchaseBackfill.php",
+  "find": "if ($this->stockOpenedAfter('receivings', 'receiving_id', 'receiving_time', $purchase->receivingId, $plan->movements)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RefusesAPurchaseOfGoodsWhoseOpeningStock",
+   "tests/Libraries/Accounting/Backfill/PurchaseBackfillTest.php"
+  ]
+ },
+ {
+  "name": "G287 the adapters of a chunk are made before its transaction reads anything",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "            foreach ($documents as $document) {\n                $this->adapter($document->family);\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "ResumedByAnotherProcessReadsEveryDocument",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G288 every document of a chunk is locked before the first is approved",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "                foreach ($documents as $document) {\n                    $this->adapter($document->family)->lock($document->id);\n                }\n\n                foreach ($items as $index => $item) {\n                    $this->approveItem($batch, $item, $documents[$index], $employeeId);\n                }\n",
+  "replace": "                foreach ($items as $index => $item) {\n                    $this->adapter($documents[$index]->family)->lock($documents[$index]->id);\n                    $this->approveItem($batch, $item, $documents[$index], $employeeId);\n                }\n",
+  "tests": [
+   "--filter",
+   "ReadsEveryDocumentOfAChunkOnlyAfterHoldingTheLocksOfThemAll",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G289 the opening balances asked of a batch are those of the branches it writes in",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "$scope = $batchId === null ? $this->branches->allowedBranchIds($employeeId) : $this->batches->readyBranches($batchId);",
+  "replace": "$scope = $this->branches->allowedBranchIds($employeeId);",
+  "tests": [
+   "--filter",
+   "ApprovalBlockers_AskFor",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G290 a scope with no branch names no branch",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        if ($scope === []) {\n            return [];\n        }\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "ApprovalBlockers_AskFor",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G291 a scope of every branch is not narrowed",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "        if ($scope !== null) {\n            $builder->whereIn('branch_id', $scope);",
+  "replace": "        if (true) {\n            $builder->whereIn('branch_id', $scope);",
+  "tests": [
+   "--filter",
+   "ApprovalBlockers_AskFor",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G292 the list names the branches of the employee",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "$this->backfill->approvalBlockers($this->employeeId()) : []",
+  "replace": "$this->backfill->approvalBlockers() : []",
+  "tests": [
+   "--filter",
+   "GetIndex_AndGetView_NameOnlyTheBranches",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G293 the page of a batch names the branches the batch writes in",
+  "file": "app/Controllers/AccountingBackfill.php",
+  "find": "$this->backfill->approvalBlockers($this->employeeId(), $batch->id)",
+  "replace": "$this->backfill->approvalBlockers($this->employeeId())",
+  "tests": [
+   "--filter",
+   "GetIndex_AndGetView_NameOnlyTheBranches",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G294 a name of the most characters is accepted",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "mb_strlen($name) > self::NAME_MAX",
+  "replace": "mb_strlen($name) >= self::NAME_MAX",
+  "tests": [
+   "--filter",
+   "Create_AcceptsANameOfTheMostCharacters",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G295 a chunk of the most documents is accepted",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "$size < 1 || $size > self::CHUNK_MAX",
+  "replace": "$size < 1 || $size >= self::CHUNK_MAX",
+  "tests": [
+   "--filter",
+   "Create_AcceptsANameOfTheMostCharacters",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G296 a chunk of one document is accepted",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "$size < 1 || $size > self::CHUNK_MAX",
+  "replace": "$size < 2 || $size > self::CHUNK_MAX",
+  "tests": [
+   "--filter",
+   "Create_AcceptsANameOfTheMostCharacters",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G297 the audit of a cancelled approval says how many documents were posted",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "'approved'  => $batch->status === BackfillStatus::Approving ? $batch->approvedCount : 0,",
+  "replace": "'approved'  => 0,",
+  "tests": [
+   "--filter",
+   "Cancel_EndsAnApprovalThatCannotGoOn",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G298 cancelling removes the refused documents of an approval that began too",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "->groupStart()->where('outcome <>', 'ready')->orWhere('item_id >', $keepThroughItemId)->groupEnd()",
+  "replace": "->where('item_id >', $keepThroughItemId)",
+  "tests": [
+   "--filter",
+   "Cancel_EndsAnApprovalThatCannotGoOn",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G299 cancelling keeps the last document an approval posted",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "->orWhere('item_id >', $keepThroughItemId)",
+  "replace": "->orWhere('item_id >=', $keepThroughItemId)",
+  "tests": [
+   "--filter",
+   "Cancel_EndsAnApprovalThatCannotGoOn",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G300 the previews that are left count previews only",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "->where('backfill_batch_id', $batchId)->where('status', JournalStatus::Preview->value)->countAllResults();",
+  "replace": "->where('backfill_batch_id', $batchId)->countAllResults();",
+  "tests": [
+   "--filter",
+   "GetCancelForm_SaysWhatIsLeft",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G301 the kinds of documents are a group with a label of its own",
+  "file": "app/Views/accounting_periods/backfill_new_form.php",
+  "find": "role=\"group\" aria-labelledby=\"families_label\"",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "GetNewForm_GroupsTheKinds",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G302 the form of the preview is not inside a paragraph",
+  "file": "app/Views/accounting_periods/backfill_view.php",
+  "find": "<div class=\"print_hide mb-3\">",
+  "replace": "<p class=\"print_hide\">",
+  "tests": [
+   "--filter",
+   "GetView_KeepsTheFormOfThePreviewOutOfAParagraph",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G303 the kinds of documents have a name of their own",
+  "file": "app/Language/en/Accounting_backfill.php",
+  "find": "'families'                      => 'Kinds of documents',",
+  "replace": "'families'                      => 'Documents',",
+  "tests": [
+   "--filter",
+   "GetNewForm_GroupsTheKinds",
+   "tests/Controllers/AccountingBackfillControllerTest.php"
+  ]
+ },
+ {
+  "name": "G304 a batch list is empty for an employee who works in no branch",
+  "file": "app/Libraries/Accounting/Backfill/BackfillBatches.php",
+  "find": "        if ($branchIds === []) {\n            return [];\n        }\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Batches_ListsNothingForAnEmployeeWhoWorksInNoBranch",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
+  ]
+ },
+ {
+  "name": "G305 a cancelled approval ends the batch",
+  "file": "app/Libraries/Accounting/Backfill/BackfillService.php",
+  "find": "'status'        => BackfillStatus::Cancelled->value,",
+  "replace": "'status'        => BackfillStatus::Approving->value,",
+  "tests": [
+   "--filter",
+   "Cancel_EndsAnApprovalThatCannotGoOn",
+   "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
   ]
  }
 ]

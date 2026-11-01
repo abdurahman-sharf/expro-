@@ -499,7 +499,7 @@ final class BackfillService
                 'fingerprint'   => $fingerprint,
                 'cursor_family' => null,
                 'cursor_id'     => 0,
-            ] + $this->columnsOf($figures));
+            ]);
 
             $this->audit->write('backfill_batch', $batch->id, 'backfill_previewed', $employeeId, $this->originOf($employeeId), [
                 'documents'   => $figures['documents'],
@@ -801,7 +801,8 @@ final class BackfillService
     }
 
     /**
-     * @throws BranchException
+     * The branch a batch is for, none for the whole company. Whatever is not the number of a branch comes out as
+     * 0, which no branch has, and the check of the scope refuses it.
      */
     private function branchOf(mixed $value): ?int
     {
@@ -809,13 +810,7 @@ final class BackfillService
             return null;
         }
 
-        $branchId = is_int($value) ? $value : (is_string($value) && ctype_digit($value) ? (int) $value : 0);
-
-        if ($branchId < 1) {
-            throw new BranchException(BranchError::NotFound, 'The branch of a batch is the number of a branch of the company.');
-        }
-
-        return $branchId;
+        return is_int($value) ? $value : (is_string($value) && ctype_digit($value) ? (int) $value : 0);
     }
 
     /**
