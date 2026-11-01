@@ -21,6 +21,8 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Pricing\SalesControlSettings;
+use App\Models\Price_list;
 use PHPUnit\Framework\Attributes\DataProvider;
 use App\Models\Employee;
 use CodeIgniter\Test\TestResponse;
@@ -62,6 +64,8 @@ class SalesControllerTest extends CIUnitTestCase
 
     private static bool $doneBootstrap = false;
 
+    private ?int $salesFloor = null;
+
     protected function setUp(): void
     {
         if (self::$doneBootstrap === false) {
@@ -76,6 +80,7 @@ class SalesControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->trackSalesSince();
         $this->stopSelling();
 
         $db = Database::connect();
@@ -84,6 +89,7 @@ class SalesControllerTest extends CIUnitTestCase
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
 
         $this->setConfigValue('accounting_customer_opening', '0');
+        $this->resetSalesControls();
 
         parent::tearDown();
     }
@@ -5367,5 +5373,748 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame('Q26-0099', $rows[$open]);
         $this->assertSame((string) $number, (string) $rows[$number], 'a suspended invoice shows its id in the list of the register as it always did');
         $this->get('/sales/suspended')->assertSee('draft-' . $draft);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // WP36: price lists, the minimum price, the highest discount, the excluded categories and the credit limit
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * A supervisor of the first branch with a cart of one service line at the register, with the
+     * permissions given. Returns the item and the employee.
+     *
+     * @param list<string> $grants
+     *
+     * @return array{item: int, employee: int}
+     */
+    protected function registerWithPriceControls(array $grants = [], string $price = '100.00', string $mode = 'sale_invoice', ?string $minimum = null, string $discount = '0'): array
+    {
+        $this->startSelling();
+
+        $this->salesFloor = (int) $this->accountingDb()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+
+        $item     = $this->item('0', false);
+        $employee = $this->createBranchLimitedSupervisor(1, $grants);
+
+        $this->grantStockLocationIn(1, $employee);
+
+        if ($minimum !== null) {
+            $this->accountingDb()->table('items')->where('item_id', $item)->update(['minimum_price' => $minimum]);
+        }
+
+        $this->loginAs($employee);
+        $this->seedCartLine(1, $price, $item);
+        $this->withSession(array_merge($this->session, [
+            'sale_id'        => NEW_ENTRY,
+            'sales_customer' => $this->customerId,
+            'sales_mode'     => $mode,
+            'sales_payments' => [],
+            'sales_cart'     => [1 => [...$this->session['sales_cart'][1], 'discount' => $discount, 'discount_type' => PERCENT]],
+        ]));
+
+        return ['item' => $item, 'employee' => $employee];
+    }
+
+    /**
+     * The sales the register saved since a test of the controls began, so that they are taken away with it.
+     */
+    protected function trackSalesSince(): void
+    {
+        if ($this->salesFloor === null || ! $this->sellingStarted) {
+            return;
+        }
+
+        foreach ($this->accountingDb()->table('sales')->select('sale_id')->where('sale_id >', $this->salesFloor)->get()->getResult() as $row) {
+            $this->saleIds[] = (int) $row->sale_id;
+        }
+
+        $this->salesFloor = null;
+    }
+
+    protected function turnOnPriceControls(bool $minimum = false, ?string $shopCeiling = null, bool $ceiling = false): void
+    {
+        $this->setConfigValue(SalesControlSettings::MINIMUM_PRICE, $minimum ? '1' : '0');
+        $this->setConfigValue(SalesControlSettings::MAX_DISCOUNT_ON, $ceiling || $shopCeiling !== null ? '1' : '0');
+        $this->setConfigValue(SalesControlSettings::MAX_DISCOUNT, $shopCeiling ?? '');
+    }
+
+    protected function resetSalesControls(): void
+    {
+        $db = $this->accountingDb();
+
+        foreach ([SalesControlSettings::PRICE_LISTS, SalesControlSettings::CHANGE_LIST, SalesControlSettings::MINIMUM_PRICE, SalesControlSettings::MAX_DISCOUNT_ON, SalesControlSettings::CREDIT_LIMIT, SalesControlSettings::CREDIT_PERIOD] as $key) {
+            $this->setConfigValue($key, '0');
+        }
+
+        $this->setConfigValue(SalesControlSettings::DEFAULT_LIST, '');
+        $this->setConfigValue(SalesControlSettings::MAX_DISCOUNT, '');
+        $this->setConfigValue(SalesControlSettings::EXEMPT_CATEGORIES, '[]');
+
+        $db->table('items')->update(['minimum_price' => 0, 'max_discount_percent' => null]);
+        $db->table('customers')->update(['price_list_id' => null, 'credit_limit' => 0, 'credit_period_days' => 0]);
+        $db->table('sales')->update(['price_list_id' => null]);
+        $db->table('price_list_items')->where('price_list_id >', 0)->delete();
+        $db->table('price_lists')->where('price_list_id >', 0)->delete();
+        $db->table('accounting_audit_log')->whereIn('action', ['price_override', 'price_refused', 'credit_limit_override', 'credit_limit_refused'])->delete();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function lastAudit(string $action): array
+    {
+        $row = $this->accountingDb()->table('accounting_audit_log')->where('action', $action)->orderBy('audit_id', 'DESC')->get()->getRowArray();
+
+        $this->assertNotNull($row, "no audit entry {$action}");
+
+        return $row;
+    }
+
+    protected function auditEntries(string $action): int
+    {
+        return $this->accountingDb()->table('accounting_audit_log')->where('action', $action)->countAllResults();
+    }
+
+    protected function pricedList(string $name, string $price, int $item): int
+    {
+        $lists  = model(Price_list::class);
+        $listId = $lists->saveList($name, true, null, null);
+
+        $lists->saveItemPrices($item, [$listId => $price], null);
+
+        return $listId;
+    }
+
+    protected function carryTheRegister(): void
+    {
+        $session = Services::session();
+
+        $this->withSession(array_merge($this->session, array_filter([
+            'sales_cart'       => $session->get('sales_cart'),
+            'sales_customer'   => $session->get('sales_customer'),
+            'sales_price_list' => $session->get('sales_price_list'),
+            'sales_mode'       => $session->get('sales_mode'),
+            'sales_payments'   => $session->get('sales_payments'),
+            'sale_id'          => $session->get('sale_id'),
+        ], static fn (mixed $value): bool => $value !== null)));
+    }
+
+    public function testPostComplete_RefusesALineUnderTheMinimumPriceNamesItAndSavesNothing(): void
+    {
+        $this->registerWithPriceControls(price: '80.00', minimum: '90');
+        $this->turnOnPriceControls(true);
+
+        $sales = $this->countSales();
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '90.00', '80.00']));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+    }
+
+    public function testPostComplete_WritesTheRefusalOfAPriceInTheAuditLogAfterTheSaleWasTakenBack(): void
+    {
+        $setup = $this->registerWithPriceControls(price: '80.00', minimum: '90');
+        $this->turnOnPriceControls(true);
+
+        $this->post('/sales/complete');
+
+        $entry = $this->lastAudit('price_refused');
+
+        $this->assertSame('sale', $entry['entity_type']);
+        $this->assertNull($entry['entity_id']);
+        $this->assertSame($setup['employee'], (int) $entry['employee_id']);
+        $this->assertSame($setup['item'], (int) json_decode($entry['details'], true)['lines'][0]['item_id']);
+        $this->assertSame(0, $this->auditEntries('price_override'));
+    }
+
+    public function testPostComplete_SellsAtExactlyTheMinimumPrice(): void
+    {
+        $this->registerWithPriceControls(price: '90.00', minimum: '90');
+        $this->turnOnPriceControls(true);
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
+        $this->assertSame(0, $this->auditEntries('price_refused'));
+        $this->assertSame(0, $this->auditEntries('price_override'));
+    }
+
+    public function testPostComplete_LetsAnEmployeeWhoMayOverridePricesSellUnderTheMinimumAndWritesItInTheAuditLog(): void
+    {
+        $setup = $this->registerWithPriceControls([AccountingGuard::PRICE_OVERRIDE], '80.00', minimum: '90');
+        $this->turnOnPriceControls(true);
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
+
+        $saleId = (int) $this->accountingDb()->table('sales')->selectMax('sale_id')->get()->getRow()->sale_id;
+        $entry  = $this->lastAudit('price_override');
+
+        $this->assertSame($saleId, (int) $entry['entity_id']);
+        $this->assertSame($setup['employee'], (int) $entry['employee_id']);
+        $this->assertSame('below_minimum', json_decode($entry['details'], true)['lines'][0]['rule']);
+        $this->assertSame(0, $this->auditEntries('price_refused'));
+        $this->assertSame('-80.00', $this->balance($this->accountId('sales_revenue')), 'the sale is posted at the price it was sold at');
+    }
+
+    public function testPostComplete_DoesNotLetTheRightToChangePricesSellUnderTheMinimum(): void
+    {
+        $this->registerWithPriceControls(['sales_change_price', AccountingGuard::CREDIT_OVERRIDE], '80.00', minimum: '90');
+        $this->turnOnPriceControls(true);
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete')->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '90.00', '80.00']));
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testPostComplete_SellsUnderTheMinimumWhileTheControlIsOff(): void
+    {
+        $this->registerWithPriceControls(price: '1.00', minimum: '90', discount: '50');
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
+        $this->assertSame(0, $this->auditEntries('price_refused') + $this->auditEntries('price_override'));
+    }
+
+    public function testPostComplete_RefusesMoreDiscountThanTheShopAllows(): void
+    {
+        $this->registerWithPriceControls(discount: '20');
+        $this->turnOnPriceControls(shopCeiling: '10');
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete')->assertSee(lang('Accounting.error_discount_above_ceiling', [1, '10.00', 'Test Item', '20.00']));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(1, $this->auditEntries('price_refused'));
+    }
+
+    public function testPostComplete_SellsAtExactlyTheHighestDiscountOfTheShop(): void
+    {
+        $this->registerWithPriceControls(discount: '10');
+        $this->turnOnPriceControls(shopCeiling: '10');
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
+    }
+
+    public function testPostComplete_LetsTheOverrideSellOverTheHighestDiscountAndWritesIt(): void
+    {
+        $this->registerWithPriceControls([AccountingGuard::PRICE_OVERRIDE], discount: '20');
+        $this->turnOnPriceControls(shopCeiling: '10');
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
+        $this->assertSame('above_ceiling', json_decode($this->lastAudit('price_override')['details'], true)['lines'][0]['rule']);
+    }
+
+    public function testPostComplete_SellsAnItemOfAnExcludedCategoryAtAnyDiscount(): void
+    {
+        $setup = $this->registerWithPriceControls(discount: '60');
+
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['category' => 'Services']);
+        $this->setConfigValue(SalesControlSettings::EXEMPT_CATEGORIES, json_encode(['Services']));
+        $this->turnOnPriceControls(shopCeiling: '10');
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
+        $this->assertSame(0, $this->auditEntries('price_refused'));
+    }
+
+    public function testPostComplete_RefusesMoreDiscountThanTheItemAllowsEvenInAnExcludedCategory(): void
+    {
+        $setup = $this->registerWithPriceControls(discount: '25');
+
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['category' => 'Services', 'max_discount_percent' => '20']);
+        $this->setConfigValue(SalesControlSettings::EXEMPT_CATEGORIES, json_encode(['Services']));
+        $this->turnOnPriceControls(shopCeiling: '50');
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete')->assertSee(lang('Accounting.error_discount_above_ceiling', [1, '20.00', 'Test Item', '25.00']));
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testPostComplete_HoldsAReceiptSaleToTheMinimumPriceToo(): void
+    {
+        $this->registerWithPriceControls(price: '80.00', mode: 'sale', minimum: '90');
+        $this->turnOnPriceControls(true);
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '80.00']);
+        $this->carryTheRegister();
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete')->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '90.00', '80.00']));
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testPostSuspend_NeverRefusesALineUnderTheMinimumPrice(): void
+    {
+        $this->registerWithPriceControls(price: '80.00', minimum: '90');
+        $this->turnOnPriceControls(true);
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/suspend');
+
+        $this->assertSame($sales + 1, $this->countSales(), 'a suspended sale is a draft: it is held to the controls when it is issued, not when it is kept');
+        $this->assertSame(0, $this->auditEntries('price_refused'));
+    }
+
+    public function testPostAdd_RefusesAnItemWhosePriceIsUnderItsMinimumAndAddsNothing(): void
+    {
+        $setup = $this->registerWithPriceControls(minimum: '90');
+
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '80']);
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+        $this->turnOnPriceControls(true);
+
+        $response = $this->post('/sales/add', ['item' => (string) $setup['item']]);
+
+        $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '90.00', '80.00']));
+        $this->assertEmpty(Services::session()->get('sales_cart'));
+    }
+
+    public function testPostAdd_AddsAnItemUnderItsMinimumForAnEmployeeWhoMayOverridePrices(): void
+    {
+        $setup = $this->registerWithPriceControls([AccountingGuard::PRICE_OVERRIDE], minimum: '90');
+
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '80']);
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+        $this->turnOnPriceControls(true);
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+
+        $cart = Services::session()->get('sales_cart');
+
+        $this->assertCount(1, $cart);
+        $this->assertSame('80.00', (string) array_values($cart)[0]['price']);
+    }
+
+    public function testPostAdd_AddsAnItemThatSellsAtOrOverItsMinimum(): void
+    {
+        $setup = $this->registerWithPriceControls(minimum: '90');
+
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '90']);
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+        $this->turnOnPriceControls(true);
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+
+        $this->assertCount(1, Services::session()->get('sales_cart'));
+    }
+
+    public function testPostAdd_DoesNotHoldAQuoteToTheMinimumPrice(): void
+    {
+        $setup = $this->registerWithPriceControls(mode: 'sale_quote', minimum: '90');
+
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '80']);
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+        $this->turnOnPriceControls(true);
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+
+        $this->assertCount(1, Services::session()->get('sales_cart'));
+    }
+
+    public function testPostEditItem_RefusesAPriceUnderTheMinimumAndKeepsTheLineAsItWas(): void
+    {
+        $this->registerWithPriceControls(['sales_change_price'], '100.00', minimum: '90');
+        $this->turnOnPriceControls(true);
+
+        $response = $this->post('/sales/editItem/1', ['price' => '85', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
+
+        $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '90.00', '85.00']));
+        $this->assertSame('100.00', (string) Services::session()->get('sales_cart')[1]['price']);
+    }
+
+    public function testPostEditItem_RefusesADiscountAboveTheHighestDiscountAndKeepsTheLineAsItWas(): void
+    {
+        $this->registerWithPriceControls(['sales_change_price'], '100.00');
+        $this->turnOnPriceControls(shopCeiling: '10');
+
+        $response = $this->post('/sales/editItem/1', ['price' => '100', 'quantity' => '1', 'discount' => '15', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
+
+        $response->assertSee(lang('Accounting.error_discount_above_ceiling', [1, '10.00', 'Test Item', '15.00']));
+        $this->assertSame('0', (string) Services::session()->get('sales_cart')[1]['discount']);
+    }
+
+    public function testPostEditItem_AcceptsTheChangeOfAnEmployeeWhoMayOverridePrices(): void
+    {
+        $this->registerWithPriceControls(['sales_change_price', AccountingGuard::PRICE_OVERRIDE], '100.00', minimum: '90');
+        $this->turnOnPriceControls(true);
+
+        $this->post('/sales/editItem/1', ['price' => '85', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
+
+        $this->assertSame('85.00', (string) Services::session()->get('sales_cart')[1]['price']);
+    }
+
+    public function testPostEditItem_AcceptsAPriceThatKeepsTheLineAtTheMinimum(): void
+    {
+        $this->registerWithPriceControls(['sales_change_price'], '100.00', minimum: '90');
+        $this->turnOnPriceControls(true);
+
+        $this->post('/sales/editItem/1', ['price' => '90', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
+
+        $this->assertSame('90.00', (string) Services::session()->get('sales_cart')[1]['price']);
+    }
+
+    public function testPostAdd_PricesTheLineFromThePriceListOfTheCustomer(): void
+    {
+        $setup  = $this->registerWithPriceControls();
+        $listId = $this->pricedList('Wholesale', '90', $setup['item']);
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['price_list_id' => $listId]);
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+
+        $line = array_values(Services::session()->get('sales_cart'))[0];
+
+        $this->assertSame('90.00', (string) $line['price']);
+        $this->assertSame('list', $line['price_source']);
+    }
+
+    public function testPostAdd_PricesTheLineFromTheItemWhenTheListHasNoPriceForIt(): void
+    {
+        $setup = $this->registerWithPriceControls();
+        $other = $this->item('0', false);
+        $list  = $this->pricedList('Wholesale', '90', $other);
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['price_list_id' => $list]);
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '120']);
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+
+        $line = array_values(Services::session()->get('sales_cart'))[0];
+
+        $this->assertSame('120.00', (string) $line['price']);
+        $this->assertSame('default', $line['price_source']);
+    }
+
+    public function testPostAdd_IgnoresThePriceListsWhileTheyAreOff(): void
+    {
+        $setup  = $this->registerWithPriceControls();
+        $listId = $this->pricedList('Wholesale', '90', $setup['item']);
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['price_list_id' => $listId]);
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '120']);
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+
+        $this->assertSame('120.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
+    }
+
+    public function testPostAdd_IgnoresAListThatIsNotActive(): void
+    {
+        $setup  = $this->registerWithPriceControls();
+        $listId = $this->pricedList('Wholesale', '90', $setup['item']);
+
+        model(Price_list::class)->setStatus($listId, false, null);
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['price_list_id' => $listId]);
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '120']);
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+
+        $this->assertSame('120.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
+    }
+
+    public function testPostSelectCustomer_PricesTheLinesAgainFromTheListOfTheCustomerExceptThoseWhosePriceWasTyped(): void
+    {
+        $setup  = $this->registerWithPriceControls(['sales_change_price']);
+        $second = $this->item('0', false);
+        $list   = $this->pricedList('Wholesale', '90', $setup['item']);
+
+        model(Price_list::class)->saveItemPrices($second, [$list => '40'], null);
+        $this->accountingDb()->table('items')->where('item_id', $second)->update(['unit_price' => '70']);
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['price_list_id' => $list]);
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->withSession(array_merge($this->session, ['sales_cart' => [], 'sales_customer' => null]));
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+        $this->carryTheRegister();
+        $this->post('/sales/add', ['item' => (string) $second]);
+        $this->carryTheRegister();
+        $this->post('/sales/editItem/' . array_key_last(Services::session()->get('sales_cart')), ['price' => '65', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
+        $this->carryTheRegister();
+
+        $prices = array_map(static fn (array $line): string => (string) $line['price'], Services::session()->get('sales_cart'));
+
+        $this->assertNotContains('90.00', $prices, 'no customer yet, so the list does not apply');
+
+        $this->withSession(array_merge($this->session, ['sales_cart' => Services::session()->get('sales_cart')]));
+        $this->post('/sales/selectCustomer', ['customer' => (string) $this->customerId]);
+
+        $byItem = [];
+
+        foreach (Services::session()->get('sales_cart') as $line) {
+            $byItem[(int) $line['item_id']] = (string) $line['price'];
+        }
+
+        $this->assertSame('90.00', $byItem[$setup['item']], 'priced again from the list');
+        $this->assertSame('65.00', $byItem[$second], 'a price that was typed stays');
+    }
+
+    public function testGetRemoveCustomer_PricesTheLinesBackToTheItemPrice(): void
+    {
+        $setup = $this->registerWithPriceControls();
+        $list  = $this->pricedList('Wholesale', '90', $setup['item']);
+
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '120']);
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['price_list_id' => $list]);
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+        $this->carryTheRegister();
+
+        $this->assertSame('90.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
+
+        $this->get('/sales/removeCustomer');
+
+        $this->assertSame('120.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
+    }
+
+    public function testPostSetPriceList_ChangesTheListOfTheSaleAndPricesTheLinesAgain(): void
+    {
+        $setup  = $this->registerWithPriceControls(['sales_change_price']);
+        $retail = $this->pricedList('Retail', '95', $setup['item']);
+
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '120']);
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->setConfigValue(SalesControlSettings::CHANGE_LIST, '1');
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+        $this->carryTheRegister();
+        $this->post('/sales/setPriceList', ['price_list_id' => (string) $retail]);
+
+        $this->assertSame('95.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
+        $this->assertSame($retail, (int) Services::session()->get('sales_price_list'));
+
+        $this->carryTheRegister();
+        $this->post('/sales/setPriceList', ['price_list_id' => '0']);
+
+        $this->assertSame('120.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
+        $this->assertNull(Services::session()->get('sales_price_list'));
+    }
+
+    public function testPostSetPriceList_RefusesWhileTheSettingIsOffAndSetsNothing(): void
+    {
+        $setup  = $this->registerWithPriceControls(['sales_change_price']);
+        $retail = $this->pricedList('Retail', '95', $setup['item']);
+
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $this->post('/sales/setPriceList', ['price_list_id' => (string) $retail])->assertSee(lang('Sales.not_authorized'));
+        $this->assertNull(Services::session()->get('sales_price_list'));
+    }
+
+    public function testPostSetPriceList_RefusesAnEmployeeWhoMayNotChangePricesAndSetsNothing(): void
+    {
+        $setup  = $this->registerWithPriceControls();
+        $retail = $this->pricedList('Retail', '95', $setup['item']);
+
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->setConfigValue(SalesControlSettings::CHANGE_LIST, '1');
+
+        $this->post('/sales/setPriceList', ['price_list_id' => (string) $retail])->assertSee(lang('Sales.not_authorized'));
+        $this->assertNull(Services::session()->get('sales_price_list'));
+    }
+
+    public function testPostSetPriceList_RefusesAListThatIsNotActive(): void
+    {
+        $setup  = $this->registerWithPriceControls(['sales_change_price']);
+        $retail = $this->pricedList('Retail', '95', $setup['item']);
+
+        model(Price_list::class)->setStatus($retail, false, null);
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->setConfigValue(SalesControlSettings::CHANGE_LIST, '1');
+
+        $this->post('/sales/setPriceList', ['price_list_id' => (string) $retail])->assertSee(lang('Sales.price_list_inactive'));
+        $this->assertNull(Services::session()->get('sales_price_list'));
+    }
+
+    public function testGetIndex_OffersTheChoiceOfAListOnlyWhenTheSettingAndThePermissionAllowIt(): void
+    {
+        $this->registerWithPriceControls(['sales_change_price']);
+
+        $this->get('/sales')->assertDontSee('id="price_list_form"');
+
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->setConfigValue(SalesControlSettings::CHANGE_LIST, '1');
+        $this->carryTheRegister();
+
+        $this->get('/sales')->assertSee('id="price_list_form"');
+
+        $this->registerWithPriceControls();
+
+        $this->get('/sales')->assertDontSee('id="price_list_form"');
+    }
+
+    public function testPostComplete_SavesThePriceListOnTheSaleAndNeverMovesItsPriceWhenTheListChangesLater(): void
+    {
+        $setup  = $this->registerWithPriceControls();
+        $listId = $this->pricedList('Wholesale', '90', $setup['item']);
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['price_list_id' => $listId]);
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+        $this->carryTheRegister();
+        $this->post('/sales/complete');
+
+        $sale = $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+        $line = $this->accountingDb()->table('sales_items')->where('sale_id', $sale->sale_id)->get()->getRow();
+
+        $this->assertSame($listId, (int) $sale->price_list_id);
+        $this->assertSame('90.00', $line->item_unit_price);
+
+        $journals = $this->journals((int) $sale->sale_id);
+        $balance  = $this->balance($this->customerAccount());
+
+        model(Price_list::class)->saveItemPrices($setup['item'], [$listId => '50'], null);
+        model(Price_list::class)->setStatus($listId, false, null);
+
+        $this->assertSame('90.00', $this->accountingDb()->table('sales_items')->where('sale_id', $sale->sale_id)->get()->getRow()->item_unit_price);
+        $this->assertSame($journals, $this->journals((int) $sale->sale_id));
+        $this->assertSame($balance, $this->balance($this->customerAccount()));
+        $this->assertSame($listId, (int) $this->accountingDb()->table('sales')->where('sale_id', $sale->sale_id)->get()->getRow()->price_list_id);
+    }
+
+    public function testPostComplete_SavesNoPriceListOnASaleThatWasPricedFromNone(): void
+    {
+        $this->registerWithPriceControls();
+
+        $this->post('/sales/complete');
+
+        $this->assertNull($this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow()->price_list_id);
+    }
+
+    public function testPostComplete_RefusesAnInvoiceThatTakesTheCustomerOverTheCreditLimitAndSavesNothing(): void
+    {
+        $setup = $this->registerWithPriceControls(price: '100.00');
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['credit_limit' => '50']);
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $sales = $this->countSales();
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee(lang('Accounting.error_credit_limit_exceeded', ['Omar Khaled', '50.00', '100.00']));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+
+        $entry = $this->lastAudit('credit_limit_refused');
+
+        $this->assertSame($this->customerId, (int) $entry['entity_id']);
+        $this->assertSame($setup['employee'], (int) $entry['employee_id']);
+        $this->assertSame(0, $this->auditEntries('credit_limit_override'));
+    }
+
+    public function testPostComplete_IssuesAnInvoiceThatKeepsTheCustomerWithinTheCreditLimit(): void
+    {
+        $this->registerWithPriceControls(price: '100.00');
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['credit_limit' => '100']);
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
+        $this->assertSame('100.00', $this->balance($this->customerAccount()));
+        $this->assertSame(0, $this->auditEntries('credit_limit_refused'));
+    }
+
+    public function testPostComplete_LetsAnEmployeeWhoMayOverrideTheCreditLimitIssueOverItAndWritesIt(): void
+    {
+        $setup = $this->registerWithPriceControls([AccountingGuard::CREDIT_OVERRIDE], '100.00');
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['credit_limit' => '50']);
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $this->post('/sales/complete');
+
+        $saleId = (int) $this->accountingDb()->table('sales')->selectMax('sale_id')->get()->getRow()->sale_id;
+        $entry  = $this->lastAudit('credit_limit_override');
+
+        $this->assertSame('100.00', $this->balance($this->customerAccount()));
+        $this->assertSame($saleId, (int) $entry['entity_id']);
+        $this->assertSame($setup['employee'], (int) $entry['employee_id']);
+        $this->assertSame(0, $this->auditEntries('credit_limit_refused'));
+    }
+
+    public function testPostComplete_DoesNotHoldASaleThatIsPaidAtTheRegisterToTheCreditLimit(): void
+    {
+        $this->registerWithPriceControls(price: '100.00', mode: 'sale');
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['credit_limit' => '10']);
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '100.00']);
+        $this->carryTheRegister();
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
+        $this->assertSame(0, $this->auditEntries('credit_limit_refused'));
+    }
+
+    public function testPostSuspend_NeverRefusesADraftBecauseOfTheCreditLimit(): void
+    {
+        $this->registerWithPriceControls(price: '100.00');
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['credit_limit' => '10']);
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/suspend');
+
+        $this->assertSame($sales + 1, $this->countSales());
+        $this->assertSame(0, $this->auditEntries('credit_limit_refused'));
+    }
+
+    public function testPostComplete_LeavesACustomerWithoutALimitAlone(): void
+    {
+        $this->registerWithPriceControls(price: '100000.00');
+
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $sales = $this->countSales();
+
+        $this->post('/sales/complete');
+
+        $this->assertSame($sales + 1, $this->countSales());
     }
 }
