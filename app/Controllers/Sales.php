@@ -461,13 +461,11 @@ class Sales extends Secure_Controller
 
         $listId = (int) $this->request->getPost('price_list_id');
 
-        if ($listId === 0) {
-            $this->sale_lib->clearPriceListChoice();
-        } elseif ($this->priceList->isActive($listId)) {
-            $this->sale_lib->setPriceListChoice($listId);
-        } else {
+        if ($listId !== 0 && !$this->priceList->isActive($listId)) {
             return $this->reload(['error' => lang('Sales.price_list_inactive')]);
         }
+
+        $this->sale_lib->setPriceListChoice($listId);
 
         $this->sale_lib->repriceFromList();
         $this->sale_lib->empty_payments();

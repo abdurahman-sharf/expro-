@@ -1096,7 +1096,8 @@ class Sale_lib
     }
 
     /**
-     * The price list picked on this sale when the setting lets a sale change its list.
+     * The price list picked on this sale when the setting lets a sale change its list: 0 when the
+     * sale was picked to be priced from no list at all, null when nothing was picked.
      */
     public function getPriceListChoice(): ?int
     {

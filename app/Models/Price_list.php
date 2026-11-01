@@ -278,8 +278,9 @@ class Price_list extends Model
 
     /**
      * The list that prices a sale: the one chosen on the sale when the setting lets a sale change
-     * its list, else the one the customer is assigned, else the default list of the shop. A list
-     * that is not active prices nothing, and with the price lists off no list prices anything.
+     * its list, else the one the customer is assigned, else the default list of the shop. A choice
+     * of 0 is the choice of no list at all, whatever list the customer has. A list that is not
+     * active prices nothing, and with the price lists off no list prices anything.
      */
     public function effectiveListId(?int $customerId, ?int $chosen = null): ?int
     {
@@ -292,6 +293,10 @@ class Price_list extends Model
         $candidates = [];
 
         if ($chosen !== null && $settings->changePriceListOnInvoice()) {
+            if ($chosen === 0) {
+                return null;
+            }
+
             $candidates[] = $chosen;
         }
 

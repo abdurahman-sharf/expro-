@@ -882,8 +882,8 @@
   {
     "name": "G108 a list that is not active is not chosen for a sale",
     "file": "app/Controllers/Sales.php",
-    "find": "} elseif ($this->priceList->isActive($listId)) {",
-    "replace": "} elseif (true) {",
+    "find": "if ($listId !== 0 && !$this->priceList->isActive($listId)) {",
+    "replace": "if (false) {",
     "tests": [
       "--filter",
       "PostSetPriceList_RefusesAListThatIsNotActive",
@@ -1209,6 +1209,171 @@
       "--filter",
       "PostSaveControls",
       "tests/Controllers/AccountingSetupControllerTest.php"
+    ]
+  },
+  {
+    "name": "G155 the controls form sends an empty category so that the last excluded category can be cleared",
+    "file": "app/Views/accounting_settings/manage.php",
+    "find": "                        <input type=\"hidden\" name=\"exempt_categories[]\" value=\"\">\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "SendsAnEmptyCategoryBeforeTheChoice|ClearsTheExcludedCategories",
+      "tests/Controllers/AccountingSetupControllerTest.php"
+    ]
+  },
+  {
+    "name": "G156 the price list and the credit terms of the customer form are refused before the customer is saved",
+    "file": "app/Controllers/Customers.php",
+    "find": "        if ($pricingRefusal !== null) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "SavesNoNewCustomer|ChangesNothingOfACustomerThatExists",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G157 the credit terms of the customer form are checked before the customer is saved",
+    "file": "app/Controllers/Customers.php",
+    "find": "            (new CreditLimit())->checkTerms($given['limit'], $given['days']);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "SavesNoNewCustomerAndEntersNoOpeningBalance|ChangesNothingOfACustomerThatExists",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G158 the price list of the customer form is checked before the customer is saved",
+    "file": "app/Controllers/Customers.php",
+    "find": "            $this->priceList->checkAssignable($customerId, $given['list']);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "SavesNoNewCustomerWhenTheListTheFormNamesIsNotActive",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G159 a customer keeps the list it has even when the list is not active",
+    "file": "app/Models/Price_list.php",
+    "find": " || $priceListId === $this->assignedTo($customerId)) {\n            return;",
+    "replace": ") {\n            return;",
+    "tests": [
+      "--filter",
+      "CheckAssignable|AssignTo",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G160 a new item has no highest discount of its own",
+    "file": "app/Models/Item.php",
+    "find": "        $empty->max_discount_percent = null;\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "GivesAnItemThatDoesNotExist",
+      "tests/Models/ItemTest.php"
+    ]
+  },
+  {
+    "name": "G161 a new item form leaves the highest discount empty",
+    "file": "app/Models/Item.php",
+    "find": "        $empty->max_discount_percent = null;\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "LeavesTheHighestDiscountOfANewItemEmpty",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G162 the form shows the price of a list with the decimals it has",
+    "file": "app/Controllers/Items.php",
+    "find": "to_currency_exact($prices[(int) $list->price_list_id])",
+    "replace": "to_currency_no_money($prices[(int) $list->price_list_id])",
+    "tests": [
+      "--filter",
+      "KeepsAListPriceAndAMinimumPriceOfThreeDecimals",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G163 the form shows the minimum price with the decimals it has",
+    "file": "app/Views/items/form.php",
+    "find": "to_currency_exact((string) ($item_info->minimum_price ?? 0))",
+    "replace": "to_currency_no_money((string) ($item_info->minimum_price ?? 0))",
+    "tests": [
+      "--filter",
+      "KeepsAListPriceAndAMinimumPriceOfThreeDecimals",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G164 a change of the minimum price or of the highest discount of an item is written in the audit log",
+    "file": "app/Controllers/Items.php",
+    "find": "            (new AuditLog())->write('item', $itemId, 'item_price_bounds_changed', $employeeId, JournalOrigin::User, $changes);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "WritesDownWhoChangedTheMinimumPrice",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G165 a bound of an item that did not change writes nothing in the audit log",
+    "file": "app/Controllers/Items.php",
+    "find": "            if ($value !== $before[$field]) {",
+    "replace": "            if (true) {",
+    "tests": [
+      "--filter",
+      "WritesNothingDownWhenTheMinimumPrice",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G166 a sale that chose no list is priced from no list even when the customer has one",
+    "file": "app/Models/Price_list.php",
+    "find": "            if ($chosen === 0) {\n                return null;\n            }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "PricesFromNoListWhenTheSaleChoseNone",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G167 the register can choose no list for a sale",
+    "file": "app/Controllers/Sales.php",
+    "find": "if ($listId !== 0 && !$this->priceList->isActive($listId)) {",
+    "replace": "if (!$this->priceList->isActive($listId)) {",
+    "tests": [
+      "--filter",
+      "testPostSetPriceList",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G168 the components of a kit are never priced from a list",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "} elseif ($price_mode == PRICE_MODE_STANDARD && !$this->is_return_mode()) {",
+    "replace": "} elseif (!$this->is_return_mode()) {",
+    "tests": [
+      "--filter",
+      "PricesTheComponentsOfAKitFromTheirItems",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G169 a line taken from a saved sale keeps its price when the list is chosen again",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "$priceSource = 'override';",
+    "replace": "$priceSource = 'default';",
+    "tests": [
+      "--filter",
+      "KeepsThePriceOfALineTakenFromASavedDraft",
+      "tests/Controllers/SalesControllerTest.php"
     ]
   }
 ]

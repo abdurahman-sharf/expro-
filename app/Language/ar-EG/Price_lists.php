@@ -13,7 +13,6 @@ return [
     'new'                    => 'قائمة أسعار جديدة',
     'price_placeholder'      => 'استخدم السعر الافتراضي',
     'prices_on_item_form'    => 'يُدخل سعر كل صنف في القائمة من نموذج الصنف.',
-    'section_title'          => 'قوائم الأسعار',
     'status'                 => 'الحالة',
     'successful_activated'   => 'تم تفعيل قائمة الأسعار.',
     'successful_adding'      => 'تم حفظ قائمة الأسعار.',

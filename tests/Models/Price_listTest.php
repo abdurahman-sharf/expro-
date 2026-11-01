@@ -423,6 +423,25 @@ class Price_listTest extends CIUnitTestCase
         $this->assertSame($own, $this->lists->effectiveListId($customerId, $chosen), 'a list that is not active is not chosen');
     }
 
+    public function testEffectiveListId_PricesFromNoListWhenTheSaleChoseNoneEvenForACustomerWithAListAndADefaultList(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $own        = $this->list('Own');
+        $default    = $this->list('Default');
+        $customerId = $this->insertCustomer();
+
+        $this->lists->assignTo($customerId, $own, $this->employeeId);
+        $this->setConfigValue(SalesControlSettings::DEFAULT_LIST, (string) $default);
+
+        $this->assertSame($own, $this->lists->effectiveListId($customerId, 0), 'a sale may not change its list while the setting is off');
+
+        $this->setConfigValue(SalesControlSettings::CHANGE_LIST, '1');
+
+        $this->assertNull($this->lists->effectiveListId($customerId, 0));
+        $this->assertSame($own, $this->lists->effectiveListId($customerId, null), 'nothing chosen is not the choice of none');
+    }
+
     public function testAssignTo_AssignsAListWritesItAndTakesItAwayWithNoListOrZero(): void
     {
         $listId     = $this->list();

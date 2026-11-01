@@ -13,7 +13,6 @@ return [
     'new'                    => 'New price list',
     'price_placeholder'      => 'use default price',
     'prices_on_item_form'    => 'The price of each item in the list is entered on the form of the item.',
-    'section_title'          => 'Price lists',
     'status'                 => 'Status',
     'successful_activated'   => 'The price list was activated.',
     'successful_adding'      => 'The price list was saved.',
