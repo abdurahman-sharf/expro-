@@ -25,11 +25,12 @@ final class AgedLedger
     /**
      * The customers, or the suppliers, who owe or are owed something on the day, or one of them.
      *
-     * @param string $kind EntityAccountService::CUSTOMER or EntityAccountService::SUPPLIER.
+     * @param string         $kind      EntityAccountService::CUSTOMER or EntityAccountService::SUPPLIER.
+     * @param list<int>|null $branchIds The branches whose journals count, null for every branch.
      *
      * @return list<AgedLedgerRow>
      */
-    public function build(string $kind, string $asOf, int $period = AgingBuckets::DEFAULT_PERIOD, ?int $partyId = null): array
+    public function build(string $kind, string $asOf, int $period = AgingBuckets::DEFAULT_PERIOD, ?int $partyId = null, ?array $branchIds = null): array
     {
         $period   = max(1, min($period, AgingBuckets::MAX_PERIOD));
         $owed     = $kind === EntityAccountService::CUSTOMER ? 'l.debit' : 'l.credit';
@@ -39,6 +40,11 @@ final class AgedLedger
         $journals = $this->db->prefixTable('accounting_journals');
         $bindings = [JournalStatus::Posted->value, JournalStatus::Reversed->value, $asOf, $kind];
         $only     = '';
+        $inBranch = '';
+
+        if ($branchIds !== null) {
+            $inBranch = ' AND j.branch_id IN (' . ($branchIds === [] ? 'NULL' : implode(', ', array_map('intval', $branchIds))) . ')';
+        }
 
         if ($partyId !== null) {
             $only       = ' AND a.entity_id = ?';
@@ -49,7 +55,7 @@ final class AgedLedger
             "SELECT a.entity_id AS party_id, a.name AS party_name, a.account_id, j.journal_date, j.journal_id, {$owed} AS owed, {$settled} AS settled
              FROM {$accounts} a
              JOIN {$lines} l ON l.account_id = a.account_id
-             JOIN {$journals} j ON j.journal_id = l.journal_id AND j.status IN (?, ?) AND j.journal_date <= ?
+             JOIN {$journals} j ON j.journal_id = l.journal_id AND j.status IN (?, ?) AND j.journal_date <= ?{$inBranch}
              WHERE a.entity_type = ?{$only}
              ORDER BY a.name ASC, a.account_id ASC, j.journal_date ASC, j.journal_id ASC, l.line_no ASC",
             $bindings,

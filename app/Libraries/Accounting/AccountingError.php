@@ -347,4 +347,5 @@ enum AccountingError: string
     case BankReconciliationNotLatest      = 'bank_reconciliation_not_latest';
     case BankReconciliationReopened       = 'bank_reconciliation_reopened';
     case BankDirectoryCodeInvalid         = 'bank_directory_code_invalid';
+    case ReportTooLarge                   = 'report_too_large';
 }

@@ -27,8 +27,13 @@ final class SupplierBalanceReport
         $this->db = $db ?? Database::connect();
     }
 
-    public function build(ReportPeriod $period, bool $hideEmpty = true): BalanceTable
+    /**
+     * @param list<int>|null $branchIds The branches whose journals count, null for every branch.
+     */
+    public function build(ReportPeriod $period, bool $hideEmpty = true, ?array $branchIds = null): BalanceTable
     {
+        $inBranch = $branchIds === null ? '' : ' AND j.branch_id IN (' . ($branchIds === [] ? 'NULL' : implode(', ', array_map('intval', $branchIds))) . ')';
+
         $from       = $period->from ?? self::PERIOD_START;
         $accounts   = $this->db->prefixTable('accounting_accounts');
         $lines      = $this->db->prefixTable('accounting_journal_lines');
@@ -54,7 +59,7 @@ final class SupplierBalanceReport
                         END AS kind
                  FROM {$accounts} a
                  JOIN {$lines} l ON l.account_id = a.account_id
-                 JOIN {$journals} j ON j.journal_id = l.journal_id AND j.status IN (?, ?) AND j.journal_date <= ?
+                 JOIN {$journals} j ON j.journal_id = l.journal_id AND j.status IN (?, ?) AND j.journal_date <= ?{$inBranch}
                  LEFT JOIN {$journals} o ON o.journal_id = j.reverses_journal_id
                  LEFT JOIN {$receivings} r ON IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? AND r.receiving_id = IF(j.reverses_journal_id IS NULL, j.source_id, o.source_id)
                  WHERE a.entity_type = ?
