@@ -70,13 +70,13 @@ class StockRequests extends StockDocumentController
 
         return view('stock_requests/view', [
             'stock_request' => $request,
-            'lines'       => $this->requests->lines($requestId),
-            'number'      => $this->requests->numberOf($requestId),
-            'enabled'     => $this->stockSettings()->requestsEnabled(),
-            'can_manage'  => $this->can(StockPermissions::REQUESTS_MANAGE),
-            'can_approve' => $this->can(StockPermissions::REQUESTS_APPROVE),
-            'active'      => 'requests',
-            'requestsOn'  => true,
+            'lines'         => $this->requests->lines($requestId),
+            'number'        => $this->requests->numberOf($requestId),
+            'enabled'       => $this->stockSettings()->requestsEnabled(),
+            'can_manage'    => $this->can(StockPermissions::REQUESTS_MANAGE),
+            'can_approve'   => $this->can(StockPermissions::REQUESTS_APPROVE),
+            'active'        => 'requests',
+            'requestsOn'    => true,
         ]);
     }
 

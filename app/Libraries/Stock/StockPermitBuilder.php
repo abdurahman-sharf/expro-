@@ -3,7 +3,9 @@
 namespace App\Libraries\Stock;
 
 use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
+use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingDocument;
@@ -16,8 +18,6 @@ use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\StockMovement;
 use App\Libraries\Accounting\StockPostingPlan;
-use App\Libraries\Accounting\JournalEntryType;
-use App\Libraries\Accounting\JournalOrigin;
 
 /**
  * The journals and the stock movements a stock permit needs, as a plan. It writes nothing. An add

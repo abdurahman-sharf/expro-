@@ -1,11 +1,11 @@
 <?php
 /**
- * @var object                              $permit
- * @var list<object>                        $lines
- * @var list<object>                        $journals
- * @var string                              $number
- * @var App\Libraries\Stock\StockPermitType $type
- * @var bool                                $can_manage
+ * @var object          $permit
+ * @var list<object>    $lines
+ * @var list<object>    $journals
+ * @var string          $number
+ * @var StockPermitType $type
+ * @var bool            $can_manage
  */
 use App\Libraries\Stock\StockPermitType;
 

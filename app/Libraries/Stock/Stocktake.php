@@ -324,8 +324,8 @@ final class Stocktake
         $this->transactional(function () use ($stocktakeId, $reason, $employeeId, $items): void {
             $this->shelves->lockItems($items);
 
-            $table      = $this->db->prefixTable('stocktakes');
-            $stocktake  = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE stocktake_id = ? AND company_id = ? FOR UPDATE", [$stocktakeId, CompanyContext::id()]);
+            $table     = $this->db->prefixTable('stocktakes');
+            $stocktake = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE stocktake_id = ? AND company_id = ? FOR UPDATE", [$stocktakeId, CompanyContext::id()]);
 
             if ($stocktake === null) {
                 throw new AccountingException(AccountingError::StocktakeNotFound, "Stocktake {$stocktakeId} does not exist.", ['stocktake_id' => $stocktakeId]);
@@ -689,8 +689,6 @@ final class Stocktake
     }
 
     /**
-     * @param mixed $itemIds
-     *
      * @return list<int>
      *
      * @throws AccountingException

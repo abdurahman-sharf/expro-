@@ -4,7 +4,9 @@ namespace Tests\Libraries\Stock;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\InterBranchPosition;
+use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\StockLedger;
@@ -15,6 +17,7 @@ use App\Libraries\Stock\StockPermissions;
 use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockPermitSources;
 use App\Libraries\Stock\StockPermitType;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -1047,5 +1050,156 @@ class StockPermitTest extends CIUnitTestCase
 
         $this->assertSame([], $this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['stock_adjustment', 'stock_transfer', 'stock_transfer_receipt'])->get()->getResult());
         $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'purchase')->countAllResults());
+    }
+
+    public function testCreate_TransferBetweenBranchesPostsTheFiguresOfTheLegacyTransferThroughARequisitionReceiving(): void
+    {
+        $this->switchOnTransferPermit();
+
+        $other  = $this->createBranch('B3', 'Third branch');
+        $store  = $this->locationOfBranch($other, 'Branch warehouse');
+        $this->allowLocation($store, $this->keeperId);
+        $itemId = $this->stocked('10', '50');
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => '60.00']);
+
+        $permitId    = $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '4']], ['to_location_id' => $store]), $this->keeperId);
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '4', '0', '0', '0', PERCENT, $store), $this->purchaseLine($itemId, 1, '-4', '0', '0', '0', PERCENT, self::LOCATION_ID)], null, null);
+
+        $this->assertGreaterThan(0, $receivingId);
+
+        $legacy = [$this->standingPurchase($receivingId, 'stock_transfer')[0]['lines'], $this->standingPurchase($receivingId, 'stock_transfer_receipt')[0]['lines']];
+        $permit = [$this->linesOfJournal((int) $this->journalsOfSource(StockPermitSources::TRANSFER, $permitId)[0]->journal_id), $this->linesOfJournal((int) $this->journalsOfSource(StockPermitSources::TRANSFER_RECEIPT, $permitId)[0]->journal_id)];
+
+        $this->assertSame($legacy, $permit, 'the permit posts what the transfer through a receiving posts, at what the units are worth where they leave (50.00) and not what the item carries (60.00)');
+        $this->assertSame([], $this->journalsOfSource('stock_transfer', $permitId), 'a permit never writes under the source of the receiving transfer');
+        $this->assertBooksTie();
+    }
+
+    public function testCreate_ATransferBetweenTwoBranchesTakesThePeriodLocksInTheOrderOfTheBranchIdsWhicheverWayTheStockGoes(): void
+    {
+        $this->switchOnTransferPermit();
+
+        $other  = $this->createBranch();
+        $store  = $this->locationOfBranch($other, 'Branch store');
+        $this->allowLocation($store, $this->keeperId);
+        $itemId = $this->stocked('10', '50');
+
+        $this->assertGreaterThan(0, $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '4']], ['to_location_id' => $store]), $this->keeperId));
+
+        $back = fn (): int => $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '1']], ['location_id' => $store, 'to_location_id' => self::LOCATION_ID]), $this->keeperId);
+
+        $this->assertSame([1, $other], $this->periodLocksTakenBy($back), 'the lower branch first when the stock comes back too');
+        $this->assertSame([1, $other], $this->periodLocksTakenBy(fn (): int => $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '1']], ['to_location_id' => $store]), $this->keeperId)));
+    }
+
+    /**
+     * @return list<string> The queries the action runs, in order.
+     */
+    private function queriesOf(callable $action): array
+    {
+        $queries  = [];
+        $listener = static function ($query) use (&$queries): void {
+            $queries[] = (string) $query->getQuery();
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $queries;
+    }
+
+    /**
+     * @param list<string> $queries
+     * @param list<string> $needles Every one of them must be in the query.
+     */
+    private function firstQuery(array $queries, array $needles): ?int
+    {
+        foreach ($queries as $index => $sql) {
+            $all = true;
+
+            foreach ($needles as $needle) {
+                $all = $all && str_contains($sql, $needle);
+            }
+
+            if ($all) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    public function testCreate_TakesTheLockOfTheItemsBeforeItReadsWhatTheBooksSayAboutThem(): void
+    {
+        $itemId  = $this->stocked('10', '50');
+        $queries = $this->queriesOf(fn () => $this->issue($itemId, '2'));
+
+        $lock  = $this->firstQuery($queries, ['ospos_items WHERE item_id IN', 'FOR UPDATE']);
+        $books = $this->firstQuery($queries, ['accounting_stock_entries', 'SELECT']);
+
+        $this->assertNotNull($lock, 'the items are locked');
+        $this->assertLessThan($books, $lock);
+    }
+
+    public function testCancel_TakesTheLockOfTheItemsBeforeItReadsThePermit(): void
+    {
+        $itemId   = $this->stocked('10', '50');
+        $permitId = $this->add($itemId, '5', '50');
+        $queries  = $this->queriesOf(fn () => $this->permits->cancel($permitId, 'x', $this->keeperId));
+
+        $lock = $this->firstQuery($queries, ['ospos_items WHERE item_id IN', 'FOR UPDATE']);
+        $row  = $this->firstQuery($queries, ['ospos_stock_permits WHERE permit_id']);
+
+        $this->assertNotNull($lock);
+        $this->assertLessThan($row, $lock);
+    }
+
+    public function testUpdate_TakesTheLockOfTheItemsOfThePermitAndOfTheNewLinesBeforeItReadsThePermit(): void
+    {
+        $first    = $this->stocked('10', '50');
+        $second   = $this->stocked('10', '50');
+        $permitId = $this->add($first, '5', '50');
+        $queries  = $this->queriesOf(fn () => $this->permits->update($permitId, ['lines' => [['item_id' => $second, 'quantity' => '4', 'unit_cost' => '50']]], $this->keeperId));
+
+        $lock = $this->firstQuery($queries, ['ospos_items WHERE item_id IN (' . min($first, $second) . ',' . max($first, $second) . ')', 'ORDER BY item_id FOR UPDATE']);
+        $row  = $this->firstQuery($queries, ['ospos_stock_permits WHERE permit_id']);
+
+        $this->assertNotNull($lock, 'both items, in the order of their ids');
+        $this->assertLessThan($row, $lock);
+    }
+
+    public function testCreate_TheJournalsOfAPermitCannotBeReversedByHandAndAreLeftToItsCancellation(): void
+    {
+        $this->switchOnTransferPermit();
+
+        $other    = $this->createBranch();
+        $store    = $this->locationOfBranch($other, 'Branch store');
+        $this->allowLocation($store, $this->keeperId);
+        $second   = $this->openLocation();
+        $itemId   = $this->stocked('20', '50');
+        $reverser = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_DRAFT, AccountingGuard::JOURNALS_POST, AccountingGuard::JOURNALS_REVERSE, AccountingGuard::JOURNALS_ALL]);
+        $service  = new JournalService();
+
+        $permit = $this->add($itemId, '2', '10');
+        $same   = $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '1']], ['to_location_id' => $second]), $this->keeperId);
+        $across = $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '1']], ['to_location_id' => $store]), $this->keeperId);
+
+        $cases = [
+            [AccountingError::DocumentJournalLocked, (int) $this->journalsOfSource(StockPermitSources::PERMIT, $permit)[0]->journal_id],
+            [AccountingError::TransferJournalLocked, (int) $this->journalsOfSource(StockPermitSources::TRANSFER, $same)[0]->journal_id],
+            [AccountingError::TransferJournalLocked, (int) $this->journalsOfSource(StockPermitSources::TRANSFER, $across)[0]->journal_id],
+            [AccountingError::TransferJournalLocked, (int) $this->journalsOfSource(StockPermitSources::TRANSFER_RECEIPT, $across)[0]->journal_id],
+        ];
+
+        foreach ($cases as [$error, $journalId]) {
+            $this->refusedWith($error, fn () => $service->reverse($journalId, date('Y-m-d'), 'By hand', $reverser));
+        }
+
+        $this->assertSame(['posted'], array_unique(array_map(static fn (array $case): string => (string) (new JournalService())->find($case[1])->status, $cases)));
     }
 }

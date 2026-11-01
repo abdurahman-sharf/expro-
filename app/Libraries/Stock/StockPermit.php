@@ -15,8 +15,8 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\LockedRead;
 use App\Libraries\Accounting\PeriodGuard;
-use App\Libraries\Accounting\PostingFailureLog;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\PostingFailureLog;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\ReceivingPostingBuilder;
 use App\Libraries\Accounting\RoutingKey;
@@ -117,7 +117,7 @@ final class StockPermit
     {
         $this->guard->require(StockPermissions::PERMITS_MANAGE, $employeeId);
 
-        $data           = $this->checked($input, $employeeId);
+        $data            = $this->checked($input, $employeeId);
         $ownsTransaction = $this->db->transDepth === 0;
 
         try {
@@ -326,7 +326,7 @@ final class StockPermit
     {
         $total = $this->searched($filters, $employeeId)->countAllResults();
         $rows  = $this->searched($filters, $employeeId)
-            ->select("p.*, b.code AS branch_code, tb.code AS to_branch_code, l.location_name, tl.location_name AS to_location_name, d.number AS document_number", false)
+            ->select('p.*, b.code AS branch_code, tb.code AS to_branch_code, l.location_name, tl.location_name AS to_location_name, d.number AS document_number', false)
             ->orderBy('p.permit_date', 'DESC')
             ->orderBy('p.permit_id', 'DESC')
             ->limit(max(1, $limit), max(0, $offset))
@@ -514,8 +514,6 @@ final class StockPermit
     }
 
     /**
-     * @param mixed $lines
-     *
      * @return list<array{item_id: int, quantity: string, unit_cost: string}>
      *
      * @throws AccountingException

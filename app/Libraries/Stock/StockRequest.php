@@ -348,8 +348,6 @@ final class StockRequest
     }
 
     /**
-     * @param mixed $lines
-     *
      * @return list<array{item_id: int, quantity: string}>
      *
      * @throws AccountingException

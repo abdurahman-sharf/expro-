@@ -1,12 +1,12 @@
 <?php
 /**
- * @var object|null                  $permit    The permit being corrected, or null for a new one
- * @var list<object>                 $lines
- * @var App\Libraries\Stock\StockPermitType $type
- * @var array<int, string>           $locations
- * @var list<object>                 $accounts
- * @var string|null                  $number
- * @var string                       $today
+ * @var object|null        $permit    The permit being corrected, or null for a new one
+ * @var list<object>       $lines
+ * @var StockPermitType    $type
+ * @var array<int, string> $locations
+ * @var list<object>       $accounts
+ * @var string|null        $number
+ * @var string             $today
  */
 use App\Libraries\Stock\StockPermitType;
 
@@ -72,7 +72,7 @@ $party    = $type === StockPermitType::Add ? 'supplier' : ($type === StockPermit
 
             <?php if ($party !== null): ?>
                 <?php $partyName = $editing ? (string) ($party === 'supplier' ? $permit->supplier_name : $permit->customer_name) : ''; ?>
-                <?php $partyId = $editing ? (int) ($party === 'supplier' ? $permit->supplier_id : $permit->customer_id) : 0; ?>
+                <?php $partyId   = $editing ? (int) ($party === 'supplier' ? $permit->supplier_id : $permit->customer_id) : 0; ?>
                 <div class="field">
                     <?= form_label(lang('Stock_documents.' . $party), 'party_name', ['class' => 'form-label']) ?>
                     <div class="field-control">

@@ -31,22 +31,22 @@ class StockPermits extends StockDocumentController
 
     public function getIndex(): string
     {
-        $filters = $this->filters();
-        $result  = $this->permits->search($filters, $this->employeeId(), self::PAGE_SIZE, $this->offset());
+        $filters  = $this->filters();
+        $result   = $this->permits->search($filters, $this->employeeId(), self::PAGE_SIZE, $this->offset());
         $settings = $this->stockSettings()->all();
 
         return view('stock_permits/manage', [
-            'rows'        => $result['rows'],
-            'total'       => $result['total'],
-            'offset'      => $this->offset(),
-            'page_size'   => self::PAGE_SIZE,
-            'filters'     => $filters,
-            'can_manage'  => $this->can(StockPermissions::PERMITS_MANAGE),
+            'rows'         => $result['rows'],
+            'total'        => $result['total'],
+            'offset'       => $this->offset(),
+            'page_size'    => self::PAGE_SIZE,
+            'filters'      => $filters,
+            'can_manage'   => $this->can(StockPermissions::PERMITS_MANAGE),
             'can_settings' => $this->can(AccountingGuard::SETTINGS_MANAGE),
-            'settings'    => $settings,
-            'scopeNotice' => $this->scopeNoticeNeeded(),
-            'active'      => 'permits',
-            'requestsOn'  => $settings['requests'],
+            'settings'     => $settings,
+            'scopeNotice'  => $this->scopeNoticeNeeded(),
+            'active'       => 'permits',
+            'requestsOn'   => $settings['requests'],
         ]);
     }
 

@@ -1,15 +1,15 @@
 <?php
 /**
- * @var list<object>                                                                        $rows
- * @var int                                                                                 $total
- * @var int                                                                                 $offset
- * @var int                                                                                 $page_size
- * @var array{status: string, location_id: int, search: string, from: string, to: string}   $filters
- * @var array<int, string>                                                                  $locations
- * @var bool                                                                                $can_manage
- * @var bool                                                                                $scopeNotice
- * @var string                                                                              $active
- * @var bool                                                                                $requestsOn
+ * @var list<object>                                                                      $rows
+ * @var int                                                                               $total
+ * @var int                                                                               $offset
+ * @var int                                                                               $page_size
+ * @var array{status: string, location_id: int, search: string, from: string, to: string} $filters
+ * @var array<int, string>                                                                $locations
+ * @var bool                                                                              $can_manage
+ * @var bool                                                                              $scopeNotice
+ * @var string                                                                            $active
+ * @var bool                                                                              $requestsOn
  */
 $query = static fn (array $extra): string => http_build_query(array_filter([...$filters, ...$extra], static fn ($value): bool => $value !== '' && $value !== 0));
 ?>

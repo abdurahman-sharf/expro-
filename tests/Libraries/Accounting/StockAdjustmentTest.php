@@ -347,4 +347,30 @@ class StockAdjustmentTest extends CIUnitTestCase
         ], 'journals of the count');
         $this->assertStockTies();
     }
+
+    public function testValued_GivesTheMovementOfAChangeAtWhatAUnitIsWorthWhereItHappensWithTheSignOfTheChange(): void
+    {
+        $itemId = $this->tenAtFifty('60.00');
+
+        $lost   = $this->adjustment->valued($itemId, self::LOCATION_ID, '-3', '60.00');
+        $gained = $this->adjustment->valued($itemId, self::LOCATION_ID, '2', '60.00');
+
+        $this->assertSame([$itemId, self::LOCATION_ID, '-3.000', '-150.0000'], [$lost->itemId, $lost->locationId, $lost->quantity, $lost->value], 'at the average of the movements (50.00), not at the cost the item carries');
+        $this->assertSame(['2.000', '100.0000'], [$gained->quantity, $gained->value]);
+    }
+
+    public function testValued_UsesTheCostTheItemCarriesWhenTheMovementsDoNotAccountForTheShelvesAndCountsWhatIsPending(): void
+    {
+        $itemId = $this->item('40.00');
+
+        $this->accountingDb()->table('item_quantities')->replace(['item_id' => $itemId, 'location_id' => self::LOCATION_ID, 'quantity' => '10']);
+
+        $this->assertSame('-80.0000', $this->adjustment->valued($itemId, self::LOCATION_ID, '-2', '40.00')->value);
+
+        $bought = $this->tenAtFifty();
+
+        $this->assertTrue(model(Item_quantity::class)->changeQuantity($bought, self::LOCATION_ID, 4.0));
+        $this->assertSame('200.0000', $this->adjustment->valued($bought, self::LOCATION_ID, '4', '10.00', '4')->value, 'four units on the shelves that are the change itself are not stock the movements miss: the average of 50.00 holds');
+        $this->assertSame('10.0000', $this->adjustment->valued($bought, self::LOCATION_ID, '1', '10.00')->value, 'four units the movements do not have make the cost of the item what a unit is worth');
+    }
 }

@@ -9,14 +9,13 @@ namespace App\Libraries\Stock;
  */
 final class StockPermissions
 {
-    public const MODULE           = 'stock_documents';
-    public const PERMITS_MANAGE   = 'stk_permits_manage';
-    public const STOCKTAKE_MANAGE = 'stk_stocktake_manage';
+    public const MODULE            = 'stock_documents';
+    public const PERMITS_MANAGE    = 'stk_permits_manage';
+    public const STOCKTAKE_MANAGE  = 'stk_stocktake_manage';
     public const STOCKTAKE_APPROVE = 'stk_stocktake_approve';
-    public const REQUESTS_MANAGE  = 'stk_requests_manage';
-    public const REQUESTS_APPROVE = 'stk_requests_approve';
-
-    public const ALL = [
+    public const REQUESTS_MANAGE   = 'stk_requests_manage';
+    public const REQUESTS_APPROVE  = 'stk_requests_approve';
+    public const ALL               = [
         self::PERMITS_MANAGE,
         self::STOCKTAKE_MANAGE,
         self::STOCKTAKE_APPROVE,
