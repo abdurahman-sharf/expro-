@@ -4,6 +4,7 @@ namespace Tests\Controllers;
 
 use App\Controllers\Items;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Pricing\SalesControlSettings;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -13,6 +14,7 @@ use App\Models\Item;
 use App\Models\Item_quantity;
 use App\Models\Inventory;
 use App\Models\Item_taxes;
+use App\Models\Price_list;
 use App\Models\Attribute;
 use App\Models\Stock_location;
 use App\Models\Supplier;
@@ -2362,5 +2364,261 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $this->assertSame(1, (int) $journal->branch_id);
         $this->assertStockTies();
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // WP36: the minimum price, the highest discount and the price of the item in each price list
+    // ---------------------------------------------------------------------------------------
+
+    private function resetItemControls(): void
+    {
+        $db = $this->accountingDb();
+
+        foreach ([SalesControlSettings::PRICE_LISTS, SalesControlSettings::MINIMUM_PRICE, SalesControlSettings::MAX_DISCOUNT_ON] as $key) {
+            $this->setConfigValue($key, '0');
+        }
+
+        $db->table('price_list_items')->where('price_list_id >', 0)->delete();
+        $db->table('price_lists')->where('price_list_id >', 0)->delete();
+        $db->table('accounting_audit_log')->where('entity_type', 'price_list')->delete();
+    }
+
+    private function employeeOfItemsAnd(string ...$extra): int
+    {
+        $personId = $this->createItemsEmployee();
+
+        foreach ($extra as $permission) {
+            $this->accountingDb()->table('grants')->insert(['person_id' => $personId, 'permission_id' => $permission, 'menu_group' => 'home']);
+        }
+
+        return $personId;
+    }
+
+    public function testGetView_OffersNoMinimumPriceNoHighestDiscountAndNoListPriceWhileTheControlsAreOff(): void
+    {
+        $this->loginAsItemsEmployee($this->employeeOfItemsAnd('price_lists'));
+
+        $page = $this->get('/items/view');
+
+        $page->assertDontSee('name="minimum_price"');
+        $page->assertDontSee('name="max_discount_percent"');
+        $page->assertDontSee('price_list_prices[');
+        $page->assertDontSee('id="item_margin"');
+    }
+
+    public function testGetView_OffersTheMinimumPriceTheMarginAndTheHighestDiscountWhenTheirControlsAreOn(): void
+    {
+        $this->setConfigValue(SalesControlSettings::MINIMUM_PRICE, '1');
+        $this->setConfigValue(SalesControlSettings::MAX_DISCOUNT_ON, '1');
+
+        $itemId = $this->createTestItem();
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['unit_price' => '10', 'cost_price' => '8', 'minimum_price' => '9', 'max_discount_percent' => '12.5']);
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $page = $this->get('/items/view/' . $itemId);
+
+        $page->assertSee('name="minimum_price"');
+        $page->assertSee('name="max_discount_percent"');
+        $page->assertSee('value="9.00"');
+        $page->assertSee('20.00%');
+
+        $this->resetItemControls();
+    }
+
+    public function testGetView_OffersAPriceForEachListOnlyToAnEmployeeWhoHoldsThePriceListsModule(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $lists   = model(Price_list::class);
+        $listId  = $lists->saveList('Wholesale', true, null, null);
+        $retired = $lists->saveList('Retired', false, null, null);
+        $itemId  = $this->createTestItem();
+
+        $lists->saveItemPrices($itemId, [$listId => '7.5'], null);
+
+        $this->loginAsItemsEmployee($this->employeeOfItemsAnd('price_lists'));
+
+        $page = $this->get('/items/view/' . $itemId);
+
+        $page->assertSee('name="price_list_prices[' . $listId . ']"');
+        $page->assertSee('name="price_list_prices[' . $retired . ']"');
+        $page->assertSee('value="7.50"');
+        $page->assertSee(lang('Price_lists.price_placeholder'));
+
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $this->get('/items/view/' . $itemId)->assertDontSee('price_list_prices[');
+
+        $this->resetItemControls();
+    }
+
+    public function testPostSave_SavesTheMinimumPriceAndTheHighestDiscountOfAnItemWhenTheirControlsAreOn(): void
+    {
+        $this->setConfigValue(SalesControlSettings::MINIMUM_PRICE, '1');
+        $this->setConfigValue(SalesControlSettings::MAX_DISCOUNT_ON, '1');
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData = $this->baseItemPostData() + ['tax_names' => ['VAT']];
+        $result   = json_decode($this->post('/items/save', $postData + ['minimum_price' => '9.5', 'max_discount_percent' => '15'])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+
+        $row = $this->itemRow((int) $result['id']);
+
+        $this->assertSame('9.5000', $row->minimum_price);
+        $this->assertSame('15.00', $row->max_discount_percent);
+
+        $result = json_decode($this->post('/items/save/' . $result['id'], $postData + ['minimum_price' => '', 'max_discount_percent' => ''])->getJSON(), true);
+        $row    = $this->itemRow((int) $result['id']);
+
+        $this->assertSame('0.0000', $row->minimum_price, 'an empty minimum is no minimum');
+        $this->assertNull($row->max_discount_percent, 'an empty highest discount follows the shop');
+
+        $this->resetItemControls();
+    }
+
+    public function testPostSave_IgnoresTheMinimumPriceAndTheHighestDiscountWhileTheirControlsAreOff(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData = $this->baseItemPostData() + ['tax_names' => ['VAT']];
+        $result   = json_decode($this->post('/items/save', $postData + ['minimum_price' => '9.5', 'max_discount_percent' => '15'])->getJSON(), true);
+        $row      = $this->itemRow((int) $result['id']);
+
+        $this->assertSame('0.0000', $row->minimum_price);
+        $this->assertNull($row->max_discount_percent);
+    }
+
+    /**
+     * @return array<string, array{0: array<string, string>}>
+     */
+    public static function invalidPricingProvider(): array
+    {
+        return [
+            'a negative minimum'             => [['minimum_price' => '-1']],
+            'a minimum that is no number'    => [['minimum_price' => 'cheap']],
+            'a highest discount over 100'    => [['max_discount_percent' => '100.5']],
+            'a negative highest discount'    => [['max_discount_percent' => '-5']],
+            'a highest discount no number'   => [['max_discount_percent' => 'lots']],
+        ];
+    }
+
+    #[DataProvider('invalidPricingProvider')]
+    public function testPostSave_RefusesAMinimumPriceOrAHighestDiscountThatIsNotANumberInRangeAndSavesNothing(array $invalid): void
+    {
+        $this->setConfigValue(SalesControlSettings::MINIMUM_PRICE, '1');
+        $this->setConfigValue(SalesControlSettings::MAX_DISCOUNT_ON, '1');
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $items  = $this->accountingDb()->table('items')->countAllResults();
+        $result = json_decode($this->post('/items/save', $this->baseItemPostData() + ['tax_names' => ['VAT']] + $invalid)->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang(isset($invalid['minimum_price']) ? 'Items.minimum_price_invalid' : 'Items.max_discount_invalid'), $result['message']);
+        $this->assertSame($items, $this->accountingDb()->table('items')->countAllResults());
+
+        $this->resetItemControls();
+    }
+
+    public function testPostSave_PutsThePricesOfTheFormInTheListsWritesThemAndTakesOutTheEmptyOnes(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $lists     = model(Price_list::class);
+        $wholesale = $lists->saveList('Wholesale', true, null, null);
+        $retail    = $lists->saveList('Retail', true, null, null);
+        $employee  = $this->employeeOfItemsAnd('price_lists');
+
+        $this->loginAsItemsEmployee($employee);
+
+        $postData = $this->baseItemPostData() + ['tax_names' => ['VAT']];
+        $result   = json_decode($this->post('/items/save', $postData + ['price_list_prices' => [(string) $wholesale => '8.25', (string) $retail => '9']])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+
+        $itemId = (int) $result['id'];
+
+        $this->assertSame([$wholesale => '8.25', $retail => '9.00'], $lists->pricesOfItem($itemId));
+
+        $this->post('/items/save/' . $itemId, $postData + ['price_list_prices' => [(string) $wholesale => '', (string) $retail => '9.5']]);
+
+        $this->assertSame([$retail => '9.50'], $lists->pricesOfItem($itemId));
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where('action', 'price_list_prices_changed')->orderBy('audit_id', 'DESC')->get()->getRow();
+
+        $this->assertSame($employee, (int) $entry->employee_id);
+        $this->assertSame($itemId, (int) json_decode($entry->details, true)['item_id']);
+
+        $this->resetItemControls();
+    }
+
+    public function testPostSave_IgnoresThePricesOfTheListsFromAnEmployeeWithoutThePriceListsModule(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $lists  = model(Price_list::class);
+        $listId = $lists->saveList('Wholesale', true, null, null);
+
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData = $this->baseItemPostData() + ['tax_names' => ['VAT']];
+        $result   = json_decode($this->post('/items/save', $postData + ['price_list_prices' => [(string) $listId => '1']])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([], $lists->pricesOfItem((int) $result['id']));
+
+        $this->resetItemControls();
+    }
+
+    public function testPostSave_IgnoresThePricesOfTheListsWhileThePriceListsAreOff(): void
+    {
+        $lists  = model(Price_list::class);
+        $listId = $lists->saveList('Wholesale', true, null, null);
+
+        $this->loginAsItemsEmployee($this->employeeOfItemsAnd('price_lists'));
+
+        $postData = $this->baseItemPostData() + ['tax_names' => ['VAT']];
+        $result   = json_decode($this->post('/items/save', $postData + ['price_list_prices' => [(string) $listId => '1']])->getJSON(), true);
+
+        $this->assertSame([], $lists->pricesOfItem((int) $result['id']));
+
+        $this->resetItemControls();
+    }
+
+    public function testPostSave_RefusesAPriceOfAListThatIsNotANumberAndSavesNeitherTheItemNorTheOtherPrices(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $lists     = model(Price_list::class);
+        $wholesale = $lists->saveList('Wholesale', true, null, null);
+        $retail    = $lists->saveList('Retail', true, null, null);
+
+        $this->loginAsItemsEmployee($this->employeeOfItemsAnd('price_lists'));
+
+        $items  = $this->accountingDb()->table('items')->countAllResults();
+        $result = json_decode($this->post('/items/save', $this->baseItemPostData() + ['tax_names' => ['VAT'], 'price_list_prices' => [(string) $wholesale => '5', (string) $retail => 'cheap']])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Items.price_list_price_invalid'), $result['message']);
+        $this->assertSame($items, $this->accountingDb()->table('items')->countAllResults());
+        $this->assertSame(0, $this->accountingDb()->table('price_list_items')->countAllResults());
+
+        $this->resetItemControls();
+    }
+
+    public function testPostSave_RollsTheItemBackWhenAListThatTheFormNamesIsGone(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $this->loginAsItemsEmployee($this->employeeOfItemsAnd('price_lists'));
+
+        $items  = $this->accountingDb()->table('items')->countAllResults();
+        $result = json_decode($this->post('/items/save', $this->baseItemPostData() + ['tax_names' => ['VAT'], 'price_list_prices' => ['987654' => '5']])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame($items, $this->accountingDb()->table('items')->countAllResults(), 'the item is not saved without the prices that came with it');
+
+        $this->resetItemControls();
     }
 }
