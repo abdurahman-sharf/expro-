@@ -12,8 +12,10 @@ use App\Libraries\Stock\StockPermitSources;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use Config\Database;
 use Config\Filters;
+use Config\Services;
 use ReflectionClass;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -287,7 +289,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
         try {
             $html = view('stock_permits/cancel_form', ['permit_id' => 5, 'number' => 'X']);
         } finally {
-            \Config\Services::resetSingle('filters');
+            Services::resetSingle('filters');
         }
 
         $this->assertStringContainsString('name="' . csrf_token() . '"', $html);
@@ -494,6 +496,8 @@ class StockPermitsControllerTest extends CIUnitTestCase
 
         $this->assertArrayHasKey('csrf', $globals['before']);
         $this->assertSame(0, preg_match('#^(' . $globals['before']['csrf']['except'] . ')#', 'stock_documents/permits/save'));
-        $this->assertSame(404, $this->get('/stock_documents/permits/save')->response()->getStatusCode(), 'a change cannot be made with a GET');
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/stock_documents/permits/save');
     }
 }
