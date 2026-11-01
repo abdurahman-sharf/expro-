@@ -110,6 +110,7 @@ class Sale extends Model
         $sale_total = $config['tax_included']
             ? "ROUND(SUM($sale_price), $decimals) + $cash_adjustment"
             : "ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment";
+        $sale_total = $this->withHeaderCharges($sale_total, $decimals);
 
         $sql = 'sales.sale_id AS sale_id,
                 MAX(DATE(sales.sale_time)) AS sale_date,
@@ -1634,6 +1635,20 @@ class Sale extends Model
             'value'  => InvoiceDiscount::normalise((string) $plan->value),
             'amount' => $plan->amount,
         ], $branchId);
+    }
+
+    /**
+     * The SQL of a sale total with what the header of the sale adds to it: the adjustment, the shipping and
+     * the tax on the shipping when it is on top of the amount, in the direction of the document, and the
+     * whole rounded once as the journal rounds it. A sale without charges gives the total it always gave.
+     */
+    private function withHeaderCharges(string $total, int $decimals): string
+    {
+        $added = 'IFNULL(MAX(sales.adjustment_amount), 0) + IFNULL(MAX(sales.shipping_amount), 0)'
+            . " + CASE WHEN MAX(sales.shipping_tax_option) = '" . ShippingTaxOption::Added->value . "' THEN IFNULL(MAX(sales.shipping_tax_amount), 0) ELSE 0 END";
+        $sign = 'CASE WHEN MAX(sales.sale_type) = ' . SALE_TYPE_RETURN . ' THEN -1 ELSE 1 END';
+
+        return "CASE WHEN MAX(sales.adjustment_amount) IS NULL AND MAX(sales.shipping_amount) IS NULL THEN ($total) ELSE ROUND(($total) + ($sign) * ($added), $decimals) END";
     }
 
     /**

@@ -1215,6 +1215,48 @@ class SaleTest extends CIUnitTestCase
         $this->assertSame('100.00', bcadd((string) model(Sale::class)->get_info($saleId)->getRow()->amount_due, '0', 2));
     }
 
+    /**
+     * @param array<string, mixed> $charges
+     */
+    private function amountDueWithCharges(array $charges, int $type = SALE_TYPE_POS, string $quantity = '2'): string
+    {
+        $this->dropReportTables();
+
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->saveSaleWithDiscount($itemId, $quantity, '50', null, [], $type);
+
+        Database::connect()->table('sales')->where('sale_id', $saleId)->update($charges);
+
+        $info = model(Sale::class)->get_info($saleId)->getRow();
+
+        return bcadd((string) $info->amount_due, '0', 2);
+    }
+
+    public function testGetInfo_GivesTheAmountDueWithTheShippingTheTaxOnItAndTheAdjustmentOfTheHeader(): void
+    {
+        $this->assertSame('113.00', $this->amountDueWithCharges(['adjustment_label' => 'Fee', 'adjustment_amount' => '-10.0000', 'shipping_amount' => '20.0000', 'shipping_tax_option' => 'added', 'shipping_tax_amount' => '3.0000']));
+    }
+
+    public function testGetInfo_LeavesTheTaxOnShippingInsideTheAmountWhenTheTaxIsIncluded(): void
+    {
+        $this->assertSame('120.00', $this->amountDueWithCharges(['shipping_amount' => '20.0000', 'shipping_tax_option' => 'included', 'shipping_tax_amount' => '2.6087']));
+    }
+
+    public function testGetInfo_RoundsTheTotalWithTheChargesToTheCentOnce(): void
+    {
+        $this->assertSame('135.83', $this->amountDueWithCharges(['shipping_amount' => '33.3300', 'shipping_tax_option' => 'added', 'shipping_tax_amount' => '2.4998']));
+    }
+
+    public function testGetInfo_GivesTheChargesOfACreditNoteInTheDirectionOfTheCredit(): void
+    {
+        $this->assertSame('-120.00', $this->amountDueWithCharges(['shipping_amount' => '20.0000'], SALE_TYPE_RETURN, '-2'));
+    }
+
+    public function testGetInfo_GivesTheAmountDueOfASaleWhoseChargesAreEmptyAsItAlwaysDid(): void
+    {
+        $this->assertSame('100.00', $this->amountDueWithCharges(['adjustment_amount' => null, 'shipping_amount' => null, 'shipping_tax_option' => null, 'shipping_tax_amount' => null]));
+    }
+
     public function testCreateTempTable_GivesTheLinesOfASaleTheirSubtotalTaxAndTotalAfterTheDiscountOnTheWholeOfTheSale(): void
     {
         $this->dropReportTables();

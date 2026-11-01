@@ -275,6 +275,11 @@ class Sale_lib
         return $this->getHeaderCharges()->resolve($running);
     }
 
+    private function chargesSign(string $running): string
+    {
+        return bccomp($running, '0') < 0 ? '-1' : '1';
+    }
+
     /**
      * Why the charges typed cannot be added to what the lines come to now, or null when they can.
      *
@@ -1102,7 +1107,7 @@ class Sale_lib
         $totals['items_total'] = $total;
 
         $charges = $this->resolvedCharges($total);
-        $sign = bccomp($total, '0') < 0 ? '-1' : '1';
+        $sign = $this->chargesSign($total);
         $total = bcadd($total, bcmul($sign, $charges->addedToTotal(), HeaderCharges::SCALE));
 
         $totals['shipping'] = bcmul($sign, $charges->shipping, HeaderCharges::SCALE);
@@ -2170,6 +2175,8 @@ class Sale_lib
                 $total = bcadd($total, $tax['sale_tax_amount']);
             }
         }
+
+        $total = bcadd($total, bcmul($this->chargesSign($total), $this->resolvedCharges($total)->addedToTotal(), HeaderCharges::SCALE));
 
         if ($include_cash_rounding && $cash_mode) {
             $total = $this->check_for_cash_rounding($total);

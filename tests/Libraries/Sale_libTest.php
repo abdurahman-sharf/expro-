@@ -45,7 +45,7 @@ class Sale_libTest extends CIUnitTestCase
         bcscale(4);
 
         $ospos           = new OSPOS();
-        $ospos->settings = ['cash_rounding_code' => '', 'cash_decimals' => 2, 'currency_decimals' => 2, 'tax_decimals' => 2, 'quantity_decimals' => 2, 'tax_included' => '0'];
+        $ospos->settings = ['cash_rounding_code' => '', 'cash_decimals' => 2, 'currency_decimals' => 2, 'tax_decimals' => 2, 'quantity_decimals' => 2, 'tax_included' => '0', 'use_destination_based_tax' => '0'];
         Factories::injectMock('config', OSPOS::class, $ospos);
 
         foreach ([Attribute::class, Customer::class, Dinner_table::class, Item::class, Item_kit_items::class, Item_quantity::class, Item_taxes::class, Sale::class, Stock_location::class] as $model) {
@@ -871,6 +871,61 @@ class Sale_libTest extends CIUnitTestCase
         $this->saleLib->setHeaderCharges(new HeaderCharges('Fee', '10', '5'));
 
         $this->assertSame('0.0000', $this->fourDecimals($this->saleLib->get_totals([])['total']));
+    }
+
+    public function testGetTotal_CountsTheChargesSoItIsTheTotalTheRegisterShows(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Rounding', '-10', '100', ShippingTaxOption::Added, '15'));
+
+        $this->assertSame('460.0000', $this->fourDecimals($this->saleLib->get_total()));
+        $this->assertSame($this->fourDecimals($this->saleLib->get_totals([])['total']), $this->fourDecimals($this->saleLib->get_total()));
+    }
+
+    public function testGetTotal_CountsTheChargesInTheDirectionOfAReturn(): void
+    {
+        $cart = $this->referenceCart();
+        $cart[1]['quantity'] = '-2';
+        $cart[2]['quantity'] = '-1';
+
+        $this->saleLib->set_cart($cart);
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Goodwill', '-5', '20'));
+
+        $this->assertSame('-370.0000', $this->fourDecimals($this->saleLib->get_total()));
+    }
+
+    public function testGetTotal_IsTheTotalOfTheLinesWhenThereAreNoCharges(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+
+        $this->assertSame('355.0000', $this->fourDecimals($this->saleLib->get_total()));
+    }
+
+    public function testGetTotal_RoundsTheTotalWithTheChargesAndNotTheLinesAloneWhenCashIsRounded(): void
+    {
+        config(OSPOS::class)->settings['cash_rounding_code'] = PHP_ROUND_HALF_UP;
+        config(OSPOS::class)->settings['cash_decimals']      = 0;
+
+        $saleLib = new Sale_lib();
+        $saleLib->set_cart($this->referenceCart());
+        $saleLib->setHeaderCharges(new HeaderCharges(shipping: '0.60'));
+        session()->set('cash_mode', CASH_MODE_TRUE);
+
+        $this->assertSame('356', (string) $saleLib->get_total());
+        $this->assertSame('355.6000', $this->fourDecimals($saleLib->get_total(false)));
+    }
+
+    public function testGetAmountDue_IsWhatTheChargesLeaveOnceThePaymentsAreTaken(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Rounding', '-30', '0'));
+
+        $this->assertSame('325.0000', $this->fourDecimals($this->saleLib->get_amount_due()));
+
+        $this->saleLib->addPayment(lang('Sales.cash'), '300');
+
+        $this->assertSame('25.0000', $this->fourDecimals($this->saleLib->get_amount_due()));
+        $this->assertSame('25.0000', $this->fourDecimals($this->saleLib->get_totals([])['amount_due']));
     }
 
     public function testSetHeaderCharges_KeepsWhatWasTypedAndForgetsItWhenEmptied(): void
