@@ -13,6 +13,8 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
+use DOMDocument;
+use DOMXPath;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\BankFixtureTrait;
@@ -401,6 +403,42 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_bank.import_note', [StatementParser::MAX_BYTES / 1048576, StatementParser::MAX_ROWS]));
     }
 
+    public function testPostImport_ReadsTheFirstRowWhenTheBoxToSkipItIsUncheckedInTheForm(): void
+    {
+        $this->actAsReconciler();
+
+        $document = new DOMDocument();
+
+        libxml_use_internal_errors(true);
+        $document->loadHTML($this->get($this->accountUrl('/import'))->getBody());
+        libxml_clear_errors();
+
+        $submitted = [];
+
+        foreach ((new DOMXPath($document))->query('//form[@id="bank_import_form"]//input[@name] | //form[@id="bank_import_form"]//select[@name]') as $element) {
+            $type = strtolower($element->getAttribute('type'));
+
+            if (in_array($type, ['file', 'checkbox', 'radio', 'submit'], true)) {
+                continue;
+            }
+
+            $value = $element->getAttribute('value');
+
+            if ($element->nodeName === 'select') {
+                $selected = (new DOMXPath($document))->query('.//option[@selected]', $element)->item(0) ?? (new DOMXPath($document))->query('.//option', $element)->item(0);
+                $value    = $selected->getAttribute('value');
+            }
+
+            $submitted[$element->getAttribute('name')] = $value;
+        }
+
+        $result = $this->json($this->accountUrl('/import'), $submitted + ['statement_text' => "2026-03-01,Deposit,10.00,,A\n"]);
+
+        $this->assertTrue($result['success'], $result['message'] ?? '');
+        $this->assertSame(1, $result['imported']);
+        $this->assertSame('Deposit', $this->accountingDb()->table('bank_statement_lines')->get()->getRow()->description);
+    }
+
     public function testGetSample_GivesTheFiveColumnsOfTheSampleFileAndItImportsWithTheStandardMapping(): void
     {
         $this->actAsReconciler();
@@ -765,6 +803,14 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
         $this->get($this->accountUrl('/report'))->assertSee('value="' . date('Y-m-d') . '"');
         $this->get($this->accountUrl('/report?as_of=tomorrow'))->assertSee('value="' . date('Y-m-d') . '"');
         $this->get($this->accountUrl('/report?as_of=2026-3-1'))->assertSee('value="' . date('Y-m-d') . '"');
+
+        foreach (['2026-02-31', '2026-13-45', '0000-00-00'] as $impossible) {
+            $response = $this->get($this->accountUrl('/report?as_of=' . $impossible . '&statement_balance=100'));
+
+            $response->assertStatus(200);
+            $response->assertSee('value="' . date('Y-m-d') . '"');
+        }
+
         $this->get($this->accountUrl('/report?as_of=2026-03-01'))->assertSee('value="2026-03-01"');
     }
 
@@ -774,6 +820,12 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
         $this->actAsReconciler();
 
         $response = $this->get($this->accountUrl('/lines?from=last-week&to=next-week'));
+
+        $response->assertSee('Third');
+        $response->assertSee('First');
+        $response->assertSee('value=""');
+
+        $response = $this->get($this->accountUrl('/lines?from=2026-02-31&to=2026-13-45'));
 
         $response->assertSee('Third');
         $response->assertSee('First');

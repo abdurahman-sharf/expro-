@@ -258,9 +258,24 @@ class StatementParserTest extends CIUnitTestCase
 
         $this->assertSame($plain, $this->parser->parse("\xEF\xBB\xBF" . str_replace("\n", "\r\n", $text) . "\r\n\r\n", StatementMapping::standard())->checksum);
         $this->assertSame($plain, $this->parser->parse(str_replace("\n", "\r", $text), StatementMapping::standard())->checksum);
+        $this->assertSame($plain, $this->parser->parse($text . " \n\t\n  ", StatementMapping::standard())->checksum);
         $this->assertSame(hash('sha256', rtrim($text)), $plain);
         $this->assertNotSame($plain, $this->parser->parse(str_replace('One', 'Two', $text), StatementMapping::standard())->checksum);
         $this->assertNotSame($plain, $this->parser->parse(str_replace('1.00', '1.01', $text), StatementMapping::standard())->checksum);
+    }
+
+    public function testParse_TakesATabFileWhoseLastRowEndsInEmptyCells(): void
+    {
+        $tab = StatementMapping::standard(StatementMapping::TAB);
+
+        foreach (["Date\tDescription\tDeposit\tWithdrawal\tReference\n2026-03-01\tTransfer\t1500.00\t\t", "Date\tDescription\tDeposit\tWithdrawal\tReference\n2026-03-01\tTransfer\t1500.00\t\t\n \t\n"] as $text) {
+            $parsed = $this->parser->parse($text, $tab);
+
+            $this->assertSame([], $parsed->errors);
+            $this->assertSame(['1500.0000', 'Transfer'], [$parsed->rows[0]->amount, $parsed->rows[0]->description]);
+        }
+
+        $this->assertSame([], $this->parser->parse("Date\tDescription\tDeposit\tWithdrawal\n2026-03-01\tFee\t\t12.50", new StatementMapping(StatementMapping::TAB, true, 1, 2, 3, 4, null))->errors);
     }
 
     public function testParse_GivesALineTheSameKeyWhateverTheCaseTheSpacesAndTheDiacriticsOfItsText(): void

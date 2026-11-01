@@ -18,6 +18,7 @@ use App\Libraries\Accounting\Bank\StatementRowError;
 use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
+use DateTimeImmutable;
 
 /**
  * The statements of the bank accounts and their reconciliation with the books: the bank accounts the
@@ -385,8 +386,9 @@ class AccountingBankReconciliation extends AccountingController
     private function dateParameter(string $name): ?string
     {
         $value = trim((string) $this->request->getGet($name));
+        $date  = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
 
-        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $value : null;
+        return $date !== false && $date->format('Y-m-d') === $value ? $value : null;
     }
 
     private function bankName(object $treasury): string

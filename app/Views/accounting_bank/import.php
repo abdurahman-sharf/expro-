@@ -91,6 +91,7 @@ $field = static function (string $name, string $label, int $default, bool $requi
             </div>
             <div class="col-sm-6 col-md-4 d-flex align-items-end">
                 <div class="form-check">
+                    <input type="hidden" name="skip_first_row" value="0">
                     <input class="form-check-input" type="checkbox" name="skip_first_row" id="skip_first_row" value="1" checked>
                     <label class="form-check-label" for="skip_first_row"><?= lang('Accounting_bank.skip_first_row') ?></label>
                 </div>

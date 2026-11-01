@@ -12,7 +12,8 @@ use DateTimeImmutable;
  * holds more rows than the limit; every other fault is a fault of one row, named by its number, the
  * reason and the text that was read, and a file with one such row is not imported at all. The checksum
  * is that of the text with the line ends made alike and the empty lines at the end taken off, so the
- * same statement saved by another program has the same checksum. Nothing here touches the database.
+ * same statement saved by another program has the same checksum; the cells at the end of the last row
+ * are kept, as a tab, being white space, is also a separator. Nothing here touches the database.
  */
 final class StatementParser
 {
@@ -85,7 +86,13 @@ final class StatementParser
             throw new AccountingException(AccountingError::BankStatementEncodingInvalid, 'The file is not UTF-8 text.');
         }
 
-        return rtrim((string) preg_replace('/\R/u', "\n", $content));
+        $lines = explode("\n", (string) preg_replace('/\R/u', "\n", $content));
+
+        while ($lines !== [] && trim((string) end($lines)) === '') {
+            array_pop($lines);
+        }
+
+        return rtrim(implode("\n", $lines), ' ');
     }
 
     private static function withoutByteOrderMark(string $content): string

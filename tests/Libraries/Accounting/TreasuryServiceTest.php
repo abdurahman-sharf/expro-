@@ -593,6 +593,32 @@ class TreasuryServiceTest extends CIUnitTestCase
         }
     }
 
+    public function testDelete_RejectsABankAccountThatHasAnImportedStatementOrAClosingAndNoJournalLine(): void
+    {
+        $manager   = $this->manager();
+        $db        = $this->accountingDb();
+        $imported  = $this->treasuries->create(['name' => 'Statement bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '5500000021'], $manager);
+        $reopened  = $this->treasuries->create(['name' => 'Reopened bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '5500000022'], $manager);
+        $unused    = $this->treasuries->create(['name' => 'Unused bank', 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => '5500000023'], $manager);
+
+        $db->table('bank_statements')->insert(['company_id' => 1, 'branch_id' => 1, 'treasury_id' => $imported, 'checksum' => str_repeat('a', 64), 'delimiter_name' => 'comma', 'row_count' => 1, 'line_count' => 1, 'date_from' => '2026-10-20', 'date_to' => '2026-10-20']);
+        $db->table('bank_reconciliations')->insert(['company_id' => 1, 'branch_id' => 1, 'treasury_id' => $reopened, 'closed_through' => '2026-10-20', 'statement_balance' => '0', 'book_balance' => '0', 'status' => 'reopened']);
+
+        try {
+            foreach ([$imported, $reopened] as $treasury) {
+                $this->assertSame(AccountingError::TreasuryInUse, $this->refusal(fn () => $this->treasuries->delete($treasury, $manager))->error, 'treasury ' . $treasury);
+                $this->assertNotNull($this->treasuries->find($treasury));
+            }
+
+            $this->treasuries->delete($unused, $manager);
+
+            $this->assertNull($this->treasuries->find($unused));
+        } finally {
+            $db->table('bank_reconciliations')->emptyTable();
+            $db->table('bank_statements')->emptyTable();
+        }
+    }
+
     public function testDelete_RejectsATreasuryAChequeABookOfChequesOrAReceiptVoucherNamed(): void
     {
         $manager = $this->manager();

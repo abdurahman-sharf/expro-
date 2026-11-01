@@ -694,7 +694,7 @@ final class TreasuryService
 
     private function isUsed(int $treasuryId): bool
     {
-        foreach (['sales_payments', 'receivings_payments', 'receivings', 'expenses', 'cash_up', 'cheques', 'cheque_books', 'revenues'] as $table) {
+        foreach (['sales_payments', 'receivings_payments', 'receivings', 'expenses', 'cash_up', 'cheques', 'cheque_books', 'revenues', 'bank_statements', 'bank_reconciliations'] as $table) {
             if ($this->db->table($table)->where('treasury_id', $treasuryId)->countAllResults() > 0) {
                 return true;
             }
