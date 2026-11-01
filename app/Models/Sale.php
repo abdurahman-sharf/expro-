@@ -39,6 +39,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\PriceControls;
 use App\Libraries\Roles\RecordScope;
+use App\Libraries\SalesOrders\SalesOrders;
 use App\Libraries\ShippingTaxOption;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
@@ -1039,6 +1040,7 @@ class Sale extends Model
         ?string $returnOverrideReason = null,
         ?HeaderCharges $headerCharges = null,
         ?int $priceListId = null,
+        ?int $orderSourceId = null,
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         if ($saleId !== NEW_ENTRY && $this->outsideRecordScope($saleId, $employeeId)) {
             return NEW_ENTRY;
@@ -1051,8 +1053,8 @@ class Sale extends Model
         try {
             return (new CustomerLock($this->db))->run(
                 $customerId,
-                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges, $priceListId): int {
-                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges, $priceListId);
+                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges, $priceListId, $orderSourceId): int {
+                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges, $priceListId, $orderSourceId);
                 },
             );
         } catch (AccountingException $busy) {
@@ -1092,6 +1094,7 @@ class Sale extends Model
         ?string $returnOverrideReason,
         ?HeaderCharges $headerCharges,
         ?int $priceListId,
+        ?int $orderSourceId,
     ): int {
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
@@ -1412,6 +1415,24 @@ class Sale extends Model
             $this->accountingFailure = $failure;
 
             return ACCOUNTING_FAILED;
+        }
+
+        if ($saleType === SALE_TYPE_INVOICE) {
+            $orders         = new SalesOrders($this->db);
+            $orderOfInvoice = $orderSourceId ?? $orders->orderOfSale($saleId);
+
+            if ($orderOfInvoice !== null) {
+                try {
+                    $saleStatus == COMPLETED
+                        ? $orders->recordInvoice($saleId, $orderOfInvoice, $items, $customerId, $employeeId, (int) $salesData['branch_id'])
+                        : $orders->link($saleId, $orderOfInvoice);
+                } catch (AccountingException|BranchException $refusal) {
+                    $this->db->transRollback();
+                    $this->accountingFailure = $refusal;
+
+                    return ACCOUNTING_FAILED;
+                }
+            }
         }
 
         if ($quoteStatusChange !== null) {

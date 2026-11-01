@@ -137,6 +137,40 @@ enum AccountingError: string
     case QuoteNotFound         = 'quote_not_found';
     case QuoteStatusNotAllowed = 'quote_status_not_allowed';
 
+    case SalesOrderModuleOff        = 'sales_order_module_off';
+    case SalesOrderNotFound         = 'sales_order_not_found';
+    case SalesOrderNoLines          = 'sales_order_no_lines';
+    case SalesOrderLineInvalid      = 'sales_order_line_invalid';
+    case SalesOrderCustomerInvalid  = 'sales_order_customer_invalid';
+    case SalesOrderDateInvalid      = 'sales_order_date_invalid';
+    case SalesOrderLocationInvalid  = 'sales_order_location_invalid';
+    case SalesOrderStatusNotAllowed = 'sales_order_status_not_allowed';
+    case SalesOrderLocked           = 'sales_order_locked';
+    case SalesOrderNotConvertible   = 'sales_order_not_convertible';
+    case SalesOrderQuantityExceeded = 'sales_order_quantity_exceeded';
+    case SalesOrderCustomerMismatch = 'sales_order_customer_mismatch';
+
+    case RecurringNotFound           = 'recurring_not_found';
+    case RecurringNameInvalid        = 'recurring_name_invalid';
+    case RecurringPeriodInvalid      = 'recurring_period_invalid';
+    case RecurringFrequencyInvalid   = 'recurring_frequency_invalid';
+    case RecurringIssueBeforeInvalid = 'recurring_issue_before_invalid';
+    case RecurringMaxRepeatInvalid   = 'recurring_max_repeat_invalid';
+    case RecurringDateInvalid        = 'recurring_date_invalid';
+    case RecurringStartInPast        = 'recurring_start_in_past';
+    case RecurringEndBeforeStart     = 'recurring_end_before_start';
+    case RecurringRemindersInvalid   = 'recurring_reminders_invalid';
+    case RecurringNoLines            = 'recurring_no_lines';
+    case RecurringLineInvalid        = 'recurring_line_invalid';
+    case RecurringCustomerInvalid    = 'recurring_customer_invalid';
+    case RecurringLocationInvalid    = 'recurring_location_invalid';
+    case RecurringExpenseInvalid     = 'recurring_expense_invalid';
+    case RecurringStatusNotAllowed   = 'recurring_status_not_allowed';
+    case RecurringTermsLocked        = 'recurring_terms_locked';
+    case RecurringRunNotFound        = 'recurring_run_not_found';
+    case RecurringRunNotRetryable    = 'recurring_run_not_retryable';
+    case RecurringBusy               = 'recurring_busy';
+
     case InvoiceDateInvalid     = 'invoice_date_invalid';
     case InvoiceDateBeforeStart = 'invoice_date_before_start';
     case PaymentTermsInvalid    = 'payment_terms_invalid';

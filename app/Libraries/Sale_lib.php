@@ -679,6 +679,49 @@ class Sale_lib
     }
 
     /**
+     * The sales order the invoice being made in the register was converted from, or null when it was not.
+     */
+    public function getOrderSource(): ?int
+    {
+        $orderId = $this->session->get('sales_order_source');
+
+        return $orderId === null ? null : (int) $orderId;
+    }
+
+    public function setOrderSource(?int $orderId): void
+    {
+        $orderId === null ? $this->session->remove('sales_order_source') : $this->session->set('sales_order_source', $orderId);
+    }
+
+    public function clearOrderSource(): void
+    {
+        $this->session->remove('sales_order_source');
+    }
+
+    /**
+     * Fills the register with a new invoice for the customer of a sales order, with the quantity each line
+     * of the order has left to invoice at the price the order gave it, and remembers the order. Nothing is
+     * saved: the quantity is taken from the order when the invoice is.
+     */
+    public function prepareInvoiceFromOrder(int $orderId, int $customerId, array $lines): void
+    {
+        $this->clear_all();
+
+        foreach ($lines as $line) {
+            $itemId   = (string) $line->item_id;
+            $discount = (string) $line->discount;
+
+            $this->add_item($itemId, (int) $line->item_location, (string) $line->remaining, $discount, (int) $line->discount_type, PRICE_MODE_STANDARD, null, null, (string) $line->unit_price, (string) $line->description);
+        }
+
+        $this->set_customer($customerId);
+        $this->set_mode('sale_invoice');
+        $this->set_sale_type(SALE_TYPE_INVOICE);
+        $this->session->set('sale_id', NEW_ENTRY);
+        $this->setOrderSource($orderId);
+    }
+
+    /**
      * Fills the register with a new invoice that has the lines, the customer, the comment and the
      * discount of a quote, and remembers the quote. Nothing is saved: the quote is converted when
      * the invoice is.
@@ -1989,6 +2032,7 @@ class Sale_lib
         $this->clearReturnOverride();
         $this->clearReturnDocument();
         $this->clearQuoteSource();
+        $this->clearOrderSource();
         $this->clearInvoiceDiscount();
         $this->clearHeaderCharges();
         $this->clearPriceListChoice();
