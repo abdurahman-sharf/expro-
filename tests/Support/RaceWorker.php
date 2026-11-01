@@ -127,6 +127,25 @@ $result = match ($method) {
 
         return model(App\Models\Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[5] > 0 ? (int) $args[5] : NEW_ENTRY, (int) $args[6], 'race', null, null, null, SALE_TYPE_RETURN, $payments, null, $taxes, true, (int) $args[0]) > 0;
     })($args),
+    'orderInvoice' => (static function (array $args): bool {
+        $status = COMPLETED;
+        $items  = [[
+            'item_id'       => (int) $args[2],
+            'line'          => 0,
+            'description'   => 'Race',
+            'serialnumber'  => '',
+            'quantity'      => (string) $args[1],
+            'discount'      => '0',
+            'discount_type' => 0,
+            'cost_price'    => '0',
+            'price'         => '50.00',
+            'item_location' => 1,
+            'print_option'  => 0,
+        ]];
+        $taxes = [[], []];
+
+        return model(App\Models\Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[3], (int) $args[4], 'race', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes, true, orderSourceId: (int) $args[0]) > 0;
+    })($args),
     'openingStock' => (static function (array $args): bool {
         $results = (new OpeningStock())->post(array_map('intval', explode(',', (string) $args[0])), null);
 

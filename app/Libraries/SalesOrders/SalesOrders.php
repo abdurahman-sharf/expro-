@@ -224,9 +224,10 @@ final class SalesOrders
      */
     public function find(int $orderId, ?int $viewerId): ?object
     {
+        $reach   = $this->reach($viewerId);
         $builder = $this->selected();
 
-        $this->limitTo($builder, $viewerId);
+        $this->limitTo($builder, $reach, $viewerId);
 
         $order = $builder->where('o.order_id', $orderId)->get()->getRow();
 
@@ -576,13 +577,14 @@ final class SalesOrders
      */
     private function searched(array $filters, ?int $viewerId, string $derived): BaseBuilder
     {
+        $reach   = $this->reach($viewerId);
         $builder = $this->db->table('sales_orders o')
             ->join('branches b', 'b.branch_id = o.branch_id')
             ->join('people p', 'p.person_id = o.customer_id', 'left')
             ->join('document_numbers d', "d.doc_type = '" . DocumentType::SalesOrder->value . "' AND d.source_table = 'sales_orders' AND d.source_id = o.order_id", 'left')
             ->where('o.company_id', CompanyContext::id());
 
-        $this->limitTo($builder, $viewerId);
+        $this->limitTo($builder, $reach, $viewerId);
 
         $status = (string) ($filters['status'] ?? '');
 
@@ -615,17 +617,28 @@ final class SalesOrders
     }
 
     /**
-     * Keeps the orders of the branches the viewer works in, and of the viewer alone when they may not see every order.
+     * What the viewer reaches, worked out before a query is built: the builder of this connection forgets the
+     * aliases of a query that is half built when another query is made.
+     *
+     * @return array{branches: list<int>|null, all: bool}
      */
-    private function limitTo(BaseBuilder $builder, ?int $viewerId): void
+    private function reach(?int $viewerId): array
     {
-        $branchIds = $this->branches->allowedBranchIds($viewerId);
+        return ['branches' => $this->branches->allowedBranchIds($viewerId), 'all' => $this->mayViewAll($viewerId)];
+    }
 
-        if ($branchIds !== null) {
-            $branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('o.branch_id', $branchIds);
+    /**
+     * Keeps the orders of the branches the viewer works in, and of the viewer alone when they may not see every order.
+     *
+     * @param array{branches: list<int>|null, all: bool} $reach
+     */
+    private function limitTo(BaseBuilder $builder, array $reach, ?int $viewerId): void
+    {
+        if ($reach['branches'] !== null) {
+            $reach['branches'] === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('o.branch_id', $reach['branches']);
         }
 
-        if (! $this->mayViewAll($viewerId)) {
+        if (! $reach['all']) {
             $builder->where('o.created_by', $viewerId);
         }
     }
@@ -648,7 +661,7 @@ final class SalesOrders
     {
         $order = LockedRead::row($this->db, 'SELECT order_id, branch_id, customer_id, status, created_by FROM ' . $this->db->prefixTable('sales_orders') . ' WHERE order_id = ? FOR UPDATE', [$orderId]);
 
-        if ($order === null || ! $this->mayViewAll($employeeId) && (int) $order->created_by !== $employeeId) {
+        if ($order === null || (! $this->mayViewAll($employeeId) && (int) $order->created_by !== $employeeId)) {
             throw new AccountingException(AccountingError::SalesOrderNotFound, 'There is no such sales order.', ['name' => (string) $orderId]);
         }
 
