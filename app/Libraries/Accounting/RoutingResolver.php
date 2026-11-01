@@ -16,45 +16,84 @@ final class RoutingResolver
 {
     private BaseConnection $db;
     private EntityAccountService $entities;
+    private ItemRoutingAccounts $items;
 
     public function __construct(?BaseConnection $db = null)
     {
         $this->db       = $db ?? Database::connect();
         $this->entities = new EntityAccountService($this->db);
+        $this->items    = new ItemRoutingAccounts($this->db);
     }
 
     /**
      * The account for the line, or null when the row is cancelled and the line must not be
      * written. For the rows of customers, suppliers, stock locations and treasuries the entity
-     * says which sub-account.
+     * says which sub-account, and for a row that takes the accounts of products the item says
+     * which account, falling back to the account of the row when it has none of its own.
      *
      * @throws PostingException
      */
-    public function accountFor(RoutingKey $key, ?int $entityId = null): ?int
+    public function accountFor(RoutingKey $key, ?int $entityId = null, ?int $itemId = null): ?int
     {
-        $route = $this->db->table('accounting_routing r')
-            ->select('r.routing_type, r.account_id, a.is_group, a.active')
-            ->join('accounting_accounts a', 'a.account_id = r.account_id', 'left')
-            ->where('r.company_id', CompanyContext::id())
-            ->where('r.routing_key', $key->value)
-            ->get()
-            ->getRow();
-
-        $type = ($route === null ? null : RoutingType::tryFrom((string) $route->routing_type)) ?? $key->defaultType();
-
-        if (! $key->applies($type) || ! in_array($type, $key->allowedTypes(), true)) {
-            throw new PostingException(
-                PostingError::RoutingTypeUnsupported,
-                "The routing of {$key->value} is set to {$type->value}, which posting does not apply.",
-                ['routing_key' => $key->value, 'routing_type' => $type->value],
-            );
-        }
+        $route = $this->route($key->value);
+        $type  = $this->appliedType($key, $route);
 
         return match ($type) {
-            RoutingType::Cancelled => null,
-            RoutingType::Auto      => $key->isEntity() ? $this->entityAccount($key, $entityId) : $this->mappedAccount($key->value, $route),
-            default                => throw new PostingException(PostingError::RoutingTypeUnsupported, "The routing type {$type->value} has no rule.", ['routing_key' => $key->value, 'routing_type' => $type->value]),
+            RoutingType::Cancelled     => null,
+            RoutingType::Auto          => $key->isEntity() ? $this->entityAccount($key, $entityId) : $this->mappedAccount($key->value, $route),
+            RoutingType::PerItem       => $this->perItemAccount($key, $route, $itemId),
+            RoutingType::MainPerEntity => $this->mainPerEntityAccount($key, $route, $entityId),
         };
+    }
+
+    /**
+     * The type the row is set to, which is the default of the row until somebody saves another.
+     */
+    public function typeOf(RoutingKey $key): RoutingType
+    {
+        return $this->effectiveType($key, $this->route($key->value));
+    }
+
+    /**
+     * The account of every item for a row that takes the accounts of products, and whether the item
+     * named it itself or fell back to the account of the row. An account an item names that cannot
+     * take entries any more stops the posting: the line would otherwise land somewhere nobody chose.
+     *
+     * @param list<int> $itemIds
+     *
+     * @return array<int, ItemRoutedAccount> By item.
+     *
+     * @throws PostingException
+     */
+    public function itemAccountsFor(RoutingKey $key, array $itemIds): array
+    {
+        $route = $this->route($key->value);
+
+        if ($this->appliedType($key, $route) !== RoutingType::PerItem) {
+            throw new PostingException(PostingError::RoutingTypeUnsupported, "The routing of {$key->value} is not set to the accounts of products.", ['routing_key' => $key->value, 'routing_type' => $this->effectiveType($key, $route)->value]);
+        }
+
+        $own      = $this->items->forItems($key, array_values(array_unique($itemIds)));
+        $fallback = null;
+        $accounts = [];
+
+        foreach ($itemIds as $itemId) {
+            if (isset($accounts[$itemId])) {
+                continue;
+            }
+
+            if (isset($own[$itemId])) {
+                $accounts[$itemId] = new ItemRoutedAccount($this->usableItemAccount($key, $itemId, $own[$itemId]), true);
+
+                continue;
+            }
+
+            $fallback ??= $this->mappedAccount($key->value, $route);
+
+            $accounts[$itemId] = new ItemRoutedAccount($fallback, false);
+        }
+
+        return $accounts;
     }
 
     /**
@@ -120,6 +159,88 @@ final class RoutingResolver
         }
 
         return (int) $route->account_id;
+    }
+
+    private function route(string $routingKey): ?object
+    {
+        return $this->db->table('accounting_routing r')
+            ->select('r.routing_type, r.account_id, a.is_group, a.active')
+            ->join('accounting_accounts a', 'a.account_id = r.account_id', 'left')
+            ->where('r.company_id', CompanyContext::id())
+            ->where('r.routing_key', $routingKey)
+            ->get()
+            ->getRow();
+    }
+
+    private function effectiveType(RoutingKey $key, ?object $route): RoutingType
+    {
+        return ($route === null ? null : RoutingType::tryFrom((string) $route->routing_type)) ?? $key->defaultType();
+    }
+
+    /**
+     * @throws PostingException
+     */
+    private function appliedType(RoutingKey $key, ?object $route): RoutingType
+    {
+        $type = $this->effectiveType($key, $route);
+
+        if (! $key->applies($type) || ! in_array($type, $key->allowedTypes(), true)) {
+            throw new PostingException(
+                PostingError::RoutingTypeUnsupported,
+                "The routing of {$key->value} is set to {$type->value}, which posting does not apply.",
+                ['routing_key' => $key->value, 'routing_type' => $type->value],
+            );
+        }
+
+        return $type;
+    }
+
+    /**
+     * @throws PostingException
+     */
+    private function perItemAccount(RoutingKey $key, ?object $route, ?int $itemId): int
+    {
+        if ($itemId === null) {
+            return $this->mappedAccount($key->value, $route);
+        }
+
+        $own = $this->items->forItems($key, [$itemId])[$itemId] ?? null;
+
+        return $own === null ? $this->mappedAccount($key->value, $route) : $this->usableItemAccount($key, $itemId, $own);
+    }
+
+    /**
+     * @throws PostingException
+     */
+    private function usableItemAccount(RoutingKey $key, int $itemId, object $account): int
+    {
+        $problem = $this->items->refusal($key, $account);
+
+        if ($problem !== null) {
+            throw new PostingException(
+                PostingError::ItemAccountUnusable,
+                "The account the item names for {$key->value} cannot take entries.",
+                ['routing_key' => $key->value, 'item_id' => $itemId, 'account_id' => (int) $account->account_id, 'problem' => $problem->value],
+            );
+        }
+
+        return (int) $account->account_id;
+    }
+
+    /**
+     * The sub-account of the entity of the document, and for a document that has none the account
+     * of the row when it takes entries. A document that has an entity never lands on the account
+     * of the row: its balance would leave the entity.
+     *
+     * @throws PostingException
+     */
+    private function mainPerEntityAccount(RoutingKey $key, ?object $route, ?int $entityId): int
+    {
+        if ($entityId === null && $route !== null && $route->account_id !== null && (int) $route->is_group === 0 && (int) $route->active === 1) {
+            return (int) $route->account_id;
+        }
+
+        return $this->entityAccount($key, $entityId);
     }
 
     /**

@@ -52,4 +52,5 @@ enum PostingError: string
     case RevenueTaxInvalid             = 'revenue_tax_invalid';
     case PreviewMissing                = 'preview_missing';
     case PreviewHoldsSource            = 'preview_holds_source';
+    case ItemAccountUnusable           = 'item_account_unusable';
 }

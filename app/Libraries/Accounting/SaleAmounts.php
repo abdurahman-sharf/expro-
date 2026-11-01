@@ -103,6 +103,20 @@ final class SaleAmounts
     }
 
     /**
+     * The part of the goods of an invoice that one line carries: what it sells for less the share it
+     * took of the discount on the whole invoice and the tax that was inside its price, and less its own
+     * discount unless that discount has an account of its own.
+     *
+     * @return numeric-string
+     */
+    public static function lineGoods(SaleLine $line, int $decimals, bool $discountHasAccount): string
+    {
+        $goods = bcsub(bcsub(self::lineGross($line), self::absolute($line->invoiceDiscountShare), self::WORK_SCALE), self::absolute($line->includedTax), self::WORK_SCALE);
+
+        return $discountHasAccount ? $goods : bcsub($goods, self::lineDiscount($line, $decimals), self::WORK_SCALE);
+    }
+
+    /**
      * What the line sells for before its discount.
      *
      * @return numeric-string

@@ -395,7 +395,7 @@ final class RoutingService
         $type   = $routingKey === null ? RoutingType::Auto : $this->currentType($routingKey, $route);
         $entity = $routingKey?->isEntity() ?? $entityAccount;
 
-        if (! ($routingKey === null ? $type->isImplemented() : $routingKey->applies($type))) {
+        if ($routingKey !== null && ! $routingKey->applies($type)) {
             $status = RoutingItem::UNSUPPORTED;
         } elseif ($type === RoutingType::Cancelled) {
             $status = RoutingItem::COMPLETE;
@@ -435,11 +435,13 @@ final class RoutingService
     }
 
     /**
+     * What is wrong with an account chosen for a row, or null when the row may take it.
+     *
      * @param array<int, object> $accounts
      * @param list<AccountType>  $allowedTypes
      * @param list<string>       $acceptedSystemKeys
      */
-    private function problem(?int $accountId, array $accounts, bool $required, array $allowedTypes, array $acceptedSystemKeys, bool $needsGroup): ?AccountingError
+    public static function accountProblem(?int $accountId, array $accounts, bool $required, array $allowedTypes, array $acceptedSystemKeys, bool $needsGroup): ?AccountingError
     {
         if ($accountId === null) {
             return $required ? AccountingError::RoutingAccountRequired : null;
@@ -456,6 +458,16 @@ final class RoutingService
             $account->system_key !== null && ! in_array($account->system_key, $acceptedSystemKeys, true) => AccountingError::RoutingAccountReserved,
             default                                                                                      => null,
         };
+    }
+
+    /**
+     * @param array<int, object> $accounts
+     * @param list<AccountType>  $allowedTypes
+     * @param list<string>       $acceptedSystemKeys
+     */
+    private function problem(?int $accountId, array $accounts, bool $required, array $allowedTypes, array $acceptedSystemKeys, bool $needsGroup): ?AccountingError
+    {
+        return self::accountProblem($accountId, $accounts, $required, $allowedTypes, $acceptedSystemKeys, $needsGroup);
     }
 
     private function accountId(mixed $value): ?int
