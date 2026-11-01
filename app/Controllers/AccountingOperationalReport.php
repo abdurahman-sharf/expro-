@@ -212,7 +212,7 @@ abstract class AccountingOperationalReport extends AccountingController
 
         foreach ($table->blocks as $block) {
             if ($block->heading !== []) {
-                $this->csvRow($handle, [str_replace('|', ' - ', (string) $block->heading['label'])]);
+                $this->csvRow($handle, [($block->heading['labelKind'] ?? 'text') === 'range' ? str_replace('|', ' - ', (string) $block->heading['label']) : (string) $block->heading['label']]);
             }
 
             foreach ($block->rows as $row) {
