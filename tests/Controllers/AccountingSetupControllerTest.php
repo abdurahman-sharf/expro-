@@ -8,6 +8,7 @@ use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\RoutingKey;
+use App\Libraries\Pricing\SalesControlSettings;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use ReflectionClassConstant;
@@ -595,5 +596,156 @@ class AccountingSetupControllerTest extends CIUnitTestCase
     private function usernameOf(int $personId): string
     {
         return $this->accountingDb()->table('employees')->where('person_id', $personId)->get()->getRow()->username;
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // WP36: the settings of the price lists and of the controls on prices and on credit
+    // ---------------------------------------------------------------------------------------
+
+    private function resetSalesControlSettings(): void
+    {
+        $this->accountingDb()->table('app_config')->whereIn('key', [
+            SalesControlSettings::PRICE_LISTS, SalesControlSettings::DEFAULT_LIST, SalesControlSettings::CHANGE_LIST, SalesControlSettings::MINIMUM_PRICE, SalesControlSettings::MAX_DISCOUNT_ON,
+            SalesControlSettings::MAX_DISCOUNT, SalesControlSettings::EXEMPT_CATEGORIES, SalesControlSettings::CREDIT_LIMIT, SalesControlSettings::CREDIT_PERIOD,
+        ])->delete();
+        $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'settings', 'action' => 'settings_updated'])->delete();
+        $this->accountingDb()->table('price_lists')->where('price_list_id >', 0)->delete();
+    }
+
+    public function testGetIndex_ShowsTheControlsOfPricesAndCreditSwitchedOffToWhoeverOpensTheScreen(): void
+    {
+        $this->resetSalesControlSettings();
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $page = $this->get('/accounting_settings');
+
+        $page->assertSee('id="controls_form"');
+        $page->assertSee(lang('Accounting_settings.control_credit_limit'));
+
+        foreach (['price_lists', 'change_list', 'minimum_price', 'max_discount_enabled', 'credit_limit', 'credit_period'] as $name) {
+            $this->assertDoesNotMatchRegularExpression('/<input[^>]*id="control_' . $name . '"[^>]*checked/', $page->getBody(), $name);
+        }
+    }
+
+    public function testGetIndex_ListsTheSensitivePermissionsToOverridePricesAndCreditAmongTheHolders(): void
+    {
+        $holder = $this->employeeWithGrants([AccountingGuard::PRICE_OVERRIDE, AccountingGuard::CREDIT_OVERRIDE]);
+
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $page = $this->get('/accounting_settings');
+
+        $page->assertSee(lang('Sales.price_override'));
+        $page->assertSee(lang('Sales.credit_override'));
+        $page->assertSee($this->usernameOf($holder));
+    }
+
+    public function testPostSaveControls_TurnsTheControlsOnStoresTheirValuesAndWritesWhatChanged(): void
+    {
+        $this->resetSalesControlSettings();
+
+        $manager = $this->manager();
+
+        $this->accountingDb()->table('price_lists')->insert(['name' => 'Wholesale']);
+        $listId = (int) $this->accountingDb()->insertID();
+
+        $result = $this->jsonOf($this->post('/accounting_settings/save_controls', [
+            'price_lists'          => '1',
+            'change_list'          => '1',
+            'minimum_price'        => '1',
+            'max_discount_enabled' => '1',
+            'credit_limit'         => '1',
+            'credit_period'        => '0',
+            'default_list'         => (string) $listId,
+            'max_discount'         => '15',
+            'exempt_categories'    => ['Services', 'Gifts'],
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_settings.controls_saved'), $result['message']);
+
+        $settings = (new SalesControlSettings())->all();
+
+        $this->assertSame([true, true, true, true, true, false], [$settings['price_lists'], $settings['change_list'], $settings['minimum_price'], $settings['max_discount_enabled'], $settings['credit_limit'], $settings['credit_period']]);
+        $this->assertSame([$listId, '15.00', ['Gifts', 'Services']], [$settings['default_list'], $settings['max_discount'], $settings['exempt_categories']]);
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'settings', 'action' => 'settings_updated'])->get()->getRow();
+
+        $this->assertSame($manager, (int) $entry->employee_id);
+        $this->assertSame(true, json_decode($entry->details, true)['after']['credit_limit']);
+
+        $this->resetSalesControlSettings();
+    }
+
+    public function testPostSaveControls_ChangesOnlyWhatTheFormSent(): void
+    {
+        $this->resetSalesControlSettings();
+        $this->manager();
+
+        $this->post('/accounting_settings/save_controls', ['minimum_price' => '1', 'max_discount' => '5']);
+        $this->post('/accounting_settings/save_controls', ['credit_limit' => '1']);
+
+        $settings = new SalesControlSettings();
+
+        $this->assertTrue($settings->minimumPriceEnabled());
+        $this->assertSame('5.00', $settings->maxDiscountPercent());
+        $this->assertTrue($settings->creditLimitEnabled());
+
+        $this->resetSalesControlSettings();
+    }
+
+    public function testPostSaveControls_RefusesSomeoneWhoMayNotChangeTheSettingsAndChangesNothing(): void
+    {
+        $this->resetSalesControlSettings();
+        $this->actAs($this->employeeWithGrants(['accounting_settings', AccountingGuard::PRICE_OVERRIDE]));
+
+        $result = $this->jsonOf($this->post('/accounting_settings/save_controls', ['credit_limit' => '1', 'minimum_price' => '1']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $result['message']);
+        $this->assertFalse((new SalesControlSettings())->creditLimitEnabled());
+        $this->assertFalse((new SalesControlSettings())->minimumPriceEnabled());
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'settings', 'action' => 'settings_updated'])->countAllResults());
+    }
+
+    public function testPostSaveControls_RedirectsAUserWithoutTheModuleGrant(): void
+    {
+        $this->actAs($this->employeeWithGrants([AccountingGuard::SETTINGS_MANAGE]));
+
+        $this->post('/accounting_settings/save_controls', ['credit_limit' => '1'])->assertRedirect();
+        $this->assertFalse((new SalesControlSettings())->creditLimitEnabled());
+    }
+
+    public function testPostSaveControls_SaysWhyAValueWasRefusedAndChangesNothing(): void
+    {
+        $this->resetSalesControlSettings();
+        $this->manager();
+
+        $percent = $this->jsonOf($this->post('/accounting_settings/save_controls', ['minimum_price' => '1', 'max_discount' => '120']));
+        $list    = $this->jsonOf($this->post('/accounting_settings/save_controls', ['minimum_price' => '1', 'default_list' => '987654']));
+        $array   = $this->jsonOf($this->post('/accounting_settings/save_controls', ['max_discount' => ['5']]));
+
+        foreach ([$percent, $list, $array] as $result) {
+            $this->assertFalse($result['success']);
+            $this->assertSame(lang('Accounting.error_control_setting_invalid'), $result['message']);
+        }
+
+        $this->assertFalse((new SalesControlSettings())->minimumPriceEnabled());
+    }
+
+    public function testPostSaveControls_ClearsTheExcludedCategoriesWhenTheFormSendsNone(): void
+    {
+        $this->resetSalesControlSettings();
+        $this->manager();
+
+        $this->post('/accounting_settings/save_controls', ['exempt_categories' => ['Services']]);
+
+        $this->assertSame(['Services'], (new SalesControlSettings())->discountExemptCategories());
+
+        $this->post('/accounting_settings/save_controls', ['exempt_categories' => 'x']);
+
+        $this->assertSame([], (new SalesControlSettings())->discountExemptCategories());
+
+        $this->resetSalesControlSettings();
     }
 }

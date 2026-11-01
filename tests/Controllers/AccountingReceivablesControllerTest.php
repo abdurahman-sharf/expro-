@@ -15,6 +15,7 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Pricing\SalesControlSettings;
 use CodeIgniter\Database\Query;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -2269,5 +2270,69 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->expectException(PageNotFoundException::class);
 
         $this->post('/accounting_receivables/advance/' . $this->customerId, ['amount' => '10', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash']);
+    }
+
+    public function testGetCustomer_ShowsNoCreditLimitAndNoCreditPeriodInTheHeadWhileTheirControlsAreOff(): void
+    {
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['credit_limit' => '500', 'credit_period_days' => 30]);
+        $this->invoiceOf('40.00');
+        $this->viewer();
+
+        $page = $this->get('/accounting_receivables/customer/' . $this->customerId);
+
+        $page->assertDontSee('id="statement_credit_limit"');
+        $page->assertDontSee('id="statement_credit_period"');
+
+        $this->accountingDb()->table('customers')->update(['credit_limit' => 0, 'credit_period_days' => 0]);
+    }
+
+    public function testGetCustomer_ShowsTheCreditLimitAndTheCreditPeriodInTheHeadOfTheStatementWhenTheirControlsAreOn(): void
+    {
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['credit_limit' => '500', 'credit_period_days' => 30]);
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_PERIOD, '1');
+        $this->invoiceOf('40.00');
+        $this->viewer();
+
+        $page = $this->get('/accounting_receivables/customer/' . $this->customerId);
+
+        $page->assertSee(lang('Accounting_receivables.credit_limit'));
+        $page->assertSee(lang('Accounting_receivables.credit_period'));
+        $page->assertSee('500.00', '#statement_credit_limit');
+        $page->assertSee(lang('Accounting_receivables.credit_days', [30]), '#statement_credit_period');
+
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '0');
+        $this->setConfigValue(SalesControlSettings::CREDIT_PERIOD, '0');
+        $this->accountingDb()->table('customers')->update(['credit_limit' => 0, 'credit_period_days' => 0]);
+    }
+
+    public function testGetCustomer_SaysThereIsNoLimitForACustomerWhoHasNoneWhileTheControlIsOn(): void
+    {
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_PERIOD, '1');
+        $this->invoiceOf('40.00');
+        $this->viewer();
+
+        $page = $this->get('/accounting_receivables/customer/' . $this->customerId);
+
+        $page->assertSee(lang('Accounting_receivables.credit_none'), '#statement_credit_limit');
+        $page->assertSee(lang('Accounting_receivables.credit_none'), '#statement_credit_period');
+
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '0');
+        $this->setConfigValue(SalesControlSettings::CREDIT_PERIOD, '0');
+    }
+
+    public function testGetCustomer_ShowsOnlyTheLimitWhenOnlyTheLimitControlIsOn(): void
+    {
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+        $this->invoiceOf('40.00');
+        $this->viewer();
+
+        $page = $this->get('/accounting_receivables/customer/' . $this->customerId);
+
+        $page->assertSee('id="statement_credit_limit"');
+        $page->assertDontSee('id="statement_credit_period"');
+
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '0');
     }
 }
