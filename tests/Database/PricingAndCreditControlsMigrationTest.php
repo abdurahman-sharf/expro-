@@ -100,7 +100,7 @@ final class PricingAndCreditControlsMigrationTest extends CIUnitTestCase
         return ! $this->hasTable('price_lists') && ! $this->hasTable('price_list_items');
     }
 
-    public function testUpAddsColumnsThatChangeNothingForACustomerASaleAndAnItemThatExist(): void
+    public function testUp_AddsColumnsThatChangeNothingForACustomerASaleAndAnItemThatExist(): void
     {
         $this->assertSame(['type' => 'int unsigned', 'nullable' => 'YES', 'default' => null], $this->column('customers', 'price_list_id'));
         $this->assertSame(['type' => 'decimal(15,4)', 'nullable' => 'NO', 'default' => '0.0000'], $this->column('customers', 'credit_limit'));
@@ -112,7 +112,7 @@ final class PricingAndCreditControlsMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->hasForeignKey('sales', 'sales_fk_price_list'));
     }
 
-    public function testUpLeavesACustomerThatExistsWithNoListNoLimitAndNoDays(): void
+    public function testUp_LeavesACustomerThatExistsWithNoListNoLimitAndNoDays(): void
     {
         $migration = new PricingAndCreditControls();
 
@@ -131,7 +131,7 @@ final class PricingAndCreditControlsMigrationTest extends CIUnitTestCase
         $this->assertSame($before, array_diff_key($after, array_flip(['price_list_id', 'credit_limit', 'credit_period_days'])));
     }
 
-    public function testUpCreatesTheListsAndTheirPricesWithAPriceThatIsNotNegativeAndAUniqueName(): void
+    public function testUp_CreatesTheListsAndTheirPricesWithAPriceThatIsNotNegativeAndAUniqueName(): void
     {
         $db = $this->accountingDb();
 
@@ -166,7 +166,7 @@ final class PricingAndCreditControlsMigrationTest extends CIUnitTestCase
         $this->assertTrue($threw, 'a price is not negative');
     }
 
-    public function testUpRegistersTheScreenAndTheTwoOverridePermissionsAndGrantsThemToNobody(): void
+    public function testUp_RegistersTheScreenAndTheTwoOverridePermissionsAndGrantsThemToNobody(): void
     {
         $db = $this->accountingDb();
 
@@ -176,7 +176,7 @@ final class PricingAndCreditControlsMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $db->table('grants')->whereIn('permission_id', ['price_lists', 'sales_price_override', 'sales_credit_override'])->countAllResults());
     }
 
-    public function testUpIsSafeToRunAgainAndKeepsWhatWasGranted(): void
+    public function testUp_IsSafeToRunAgainAndKeepsWhatWasGranted(): void
     {
         $employeeId = $this->createEmployee(grants: [['permission_id' => 'sales_credit_override', 'menu_group' => 'home']]);
 
@@ -190,7 +190,7 @@ final class PricingAndCreditControlsMigrationTest extends CIUnitTestCase
         $this->assertSame(1, $db->table('grants')->where(['permission_id' => 'sales_credit_override', 'person_id' => $employeeId])->countAllResults());
     }
 
-    public function testUpFinishesWhatWasStoppedHalfWay(): void
+    public function testUp_FinishesWhatWasStoppedHalfWay(): void
     {
         $customers = $this->accountingDb()->prefixTable('customers');
 
@@ -203,7 +203,7 @@ final class PricingAndCreditControlsMigrationTest extends CIUnitTestCase
         $this->assertNotNull($this->column('customers', 'credit_period_days'));
     }
 
-    public function testDownRemovesEverythingWhenNothingWasEntered(): void
+    public function testDown_RemovesEverythingWhenNothingWasEntered(): void
     {
         (new PricingAndCreditControls())->down();
 
@@ -216,7 +216,7 @@ final class PricingAndCreditControlsMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->hasNoneOfIt());
     }
 
-    public function testDownRefusesWhileAListExists(): void
+    public function testDown_RefusesWhileAListExists(): void
     {
         $this->accountingDb()->table('price_lists')->insert(['name' => 'Retail']);
 
@@ -229,7 +229,7 @@ final class PricingAndCreditControlsMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testDownRefusesWhileACustomerHoldsACreditLimit(): void
+    public function testDown_RefusesWhileACustomerHoldsACreditLimit(): void
     {
         $this->accountingDb()->table('customers')->where('person_id', $this->insertCustomer())->update(['credit_limit' => '500']);
 
@@ -242,7 +242,7 @@ final class PricingAndCreditControlsMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testDownRefusesWhileAnItemHoldsAMinimumPriceOrAHighestDiscount(): void
+    public function testDown_RefusesWhileAnItemHoldsAMinimumPriceOrAHighestDiscount(): void
     {
         $this->accountingDb()->table('items')->where('item_id', $this->createTestItem())->update(['max_discount_percent' => '10']);
 
