@@ -725,6 +725,24 @@ class TaxReportTest extends CIUnitTestCase
         $this->assertTrue($report->ties());
     }
 
+    public function testBuild_KeepsTheTaxOfASalesDebitNoteWhoseRowIsGoneInThePartOfInvoicesAndLeavesItsBaseOut(): void
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $clerk = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+        $id    = (new SalesDebitNotes())->create(['customer_id' => $this->customerId, 'date' => date('Y-m-d'), 'amount' => '1000', 'tax_percent' => '15'], $clerk);
+
+        $this->accountingDb()->query('SET FOREIGN_KEY_CHECKS = 0');
+        $this->accountingDb()->table('sales_debit_notes')->where('debit_note_id', $id)->delete();
+        $this->accountingDb()->query('SET FOREIGN_KEY_CHECKS = 1');
+
+        $report = $this->report();
+
+        $this->assertSame(['base' => '0.0000', 'tax' => '150.0000', 'documents' => 1], $this->figures($report, TaxSection::SalesInvoices));
+        $this->assertSame(1, $report->unmatchedDocuments);
+        $this->assertTrue($report->ties());
+    }
+
     public function testBuild_NetsAPurchaseDeletedInTheApplicationToNothingAndStillTies(): void
     {
         $receivingId = $this->buyTaxed('1', '100', '15');

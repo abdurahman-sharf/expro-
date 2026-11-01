@@ -396,7 +396,7 @@ final class SalePostingBuilder
     /**
      * @param array{int, string}       $customer
      * @param list<array{int, string}> $income
-     * @param array{int, string}|null  $against A negative adjustment, which takes from the income.
+     * @param array{int, string}|null  $against  A negative adjustment, which takes from the income.
      *
      * @return list<JournalLineDraft>
      */
@@ -422,7 +422,7 @@ final class SalePostingBuilder
     /**
      * @param array{int, string}       $customer
      * @param list<array{int, string}> $income
-     * @param array{int, string}|null  $against A negative adjustment, which takes from the income.
+     * @param array{int, string}|null  $against  A negative adjustment, which takes from the income.
      *
      * @return list<JournalLineDraft>
      */
