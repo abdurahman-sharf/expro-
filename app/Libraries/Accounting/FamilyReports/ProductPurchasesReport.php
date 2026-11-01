@@ -45,8 +45,8 @@ final class ProductPurchasesReport implements FamilyReport
 
         $sets = [];
 
-        if ($unit !== null) {
-            foreach ($unit->buckets($period->from ?? ($entries === [] ? $period->to : $entries[0][0]->date), $period->to) as $start) {
+        if ($unit !== null && $entries !== []) {
+            foreach ($unit->buckets($period->from ?? $entries[0][0]->date, $period->to) as $start) {
                 $sets[$start] = ['label' => $unit->label($start), 'entries' => []];
             }
         }

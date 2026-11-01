@@ -33,8 +33,8 @@ final class SupplierPaymentsReport implements FamilyReport
 
         $sets = [];
 
-        if ($unit !== null) {
-            foreach ($unit->buckets($period->from ?? ($rows === [] ? $period->to : $rows[0]->doc_date), $period->to) as $start) {
+        if ($unit !== null && $rows !== []) {
+            foreach ($unit->buckets($period->from ?? $rows[0]->doc_date, $period->to) as $start) {
                 $sets[$start] = ['label' => $unit->label($start), 'rows' => []];
             }
         }

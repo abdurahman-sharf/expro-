@@ -64,7 +64,7 @@ return [
     'col_out_quantity' => 'المنصرف (الكمية)',
     'col_out_total' => 'إجمالي المنصرف',
     'col_out_value' => 'المنصرف (القيمة)',
-    'col_paid' => 'المدفوع',
+    'col_paid' => 'المدفوع والرصيد المطبَّق',
     'col_payments' => 'المدفوعات',
     'col_phone' => 'الهاتف',
     'col_purchases' => 'المشتريات',

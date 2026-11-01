@@ -160,8 +160,8 @@ final class PurchasesReport implements FamilyReport
     {
         $sets = [];
 
-        if ($unit !== null) {
-            $first = $from ?? ($documents === [] ? $to : $documents[0]->date);
+        if ($unit !== null && $documents !== []) {
+            $first = $from ?? $documents[0]->date;
 
             foreach ($unit->buckets($first, $to) as $start) {
                 $sets[$start] = ['label' => $unit->label($start), 'tax_number' => '', 'documents' => []];

@@ -64,7 +64,7 @@ return [
     'col_out_quantity' => 'Out (quantity)',
     'col_out_total' => 'Total out',
     'col_out_value' => 'Out (value)',
-    'col_paid' => 'Paid',
+    'col_paid' => 'Paid and credit applied',
     'col_payments' => 'Payments',
     'col_phone' => 'Phone',
     'col_purchases' => 'Purchases',
