@@ -2434,7 +2434,7 @@ class ItemsControllerTest extends CIUnitTestCase
             $page->assertSee(lang('Items.accounting_accounts_title'));
             $page->assertSee('name="item_accounts[sales.revenue]"');
             $page->assertSee('name="item_accounts[sales.returns]"');
-            $page->assertSee('<option value="' . $account . '" selected>4101 - Item revenue</option>', false);
+            $this->assertStringContainsString('<option value="' . $account . '" selected>4101 - Item revenue</option>', $page->getBody());
             $page->assertSee(lang('Items.accounting_account_default'));
             $this->assertSame(1, substr_count($page->getBody(), lang('Items.accounting_account_not_used')));
             $this->assertStringNotContainsString('value="' . $this->accountId('cogs') . '"', $page->getBody());
@@ -2454,7 +2454,7 @@ class ItemsControllerTest extends CIUnitTestCase
             $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
             $this->loginAsItemsEmployee($this->employeeOfItemsAnd('acc_routing_manage'));
 
-            $this->get('/items/view/' . $itemId)->assertSee('<option value="' . $account . '" selected>4101 - Item revenue</option>', false);
+            $this->assertStringContainsString('<option value="' . $account . '" selected>4101 - Item revenue</option>', $this->get('/items/view/' . $itemId)->getBody());
         } finally {
             $this->accountingOffForItems();
         }
