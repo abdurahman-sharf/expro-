@@ -65,6 +65,8 @@ return [
     'migrate_desc'                 => 'Обновите базу данных OSPOS.',
     'office'                       => 'Офис',
     'office_desc'                  => 'Список модулей офисного меню.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Закупки',

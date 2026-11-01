@@ -11,6 +11,9 @@
  * @var bool $expense_account_required
  * @var bool $revenue_account_required
  * @var bool $customer_opening
+ * @var array{price_lists: bool, default_list: ?int, change_list: bool, minimum_price: bool, max_discount_enabled: bool, max_discount: ?string, exempt_categories: list<string>, credit_limit: bool, credit_period: bool} $controls
+ * @var array<int, string> $control_lists
+ * @var list<string> $control_categories
  * @var bool $locked
  * @var int $next_number
  * @var bool $can_manage
@@ -46,6 +49,11 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         $('#settings_form').on('submit', function(event) {
             event.preventDefault();
             send('accounting_settings/save', $(this).serialize(), true);
+        });
+
+        $('#controls_form').on('submit', function(event) {
+            event.preventDefault();
+            send('accounting_settings/save_controls', $(this).serialize(), true);
         });
 
         $('#first_year_form').on('submit', function(event) {
@@ -175,6 +183,72 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 <div class="field">
                     <span class="form-label"><?= lang('Accounting_settings.next_number') ?></span>
                     <div class="field-control"><span class="form-control-plaintext"><bdi dir="ltr"><?= sprintf('%06d', $next_number) ?></bdi></span></div>
+                </div>
+            </div>
+
+            <?php if ($can_manage): ?>
+                <button type="submit" class="btn btn-primary btn-sm"><?= lang('Common.submit') ?></button>
+            <?php else: ?>
+                <p class="form-text mb-0" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= lang('Accounting_periods.permission_note') ?></p>
+            <?php endif; ?>
+        </form>
+    </section>
+
+    <section class="acc-setup-card" aria-labelledby="controls_title">
+        <h2 id="controls_title" class="acc-setup-title"><?= lang('Accounting_settings.controls_title') ?></h2>
+        <p class="text-body-secondary small"><?= lang('Accounting_settings.controls_desc') ?></p>
+
+        <form id="controls_form" class="app-form" novalidate>
+            <div class="form-grid">
+                <?php
+                $switches = [
+                    'price_lists'          => ['price_lists', $controls['price_lists']],
+                    'change_list'          => ['change_list', $controls['change_list']],
+                    'minimum_price'        => ['minimum_price', $controls['minimum_price']],
+                    'max_discount_enabled' => ['max_discount', $controls['max_discount_enabled']],
+                    'credit_limit'         => ['credit_limit', $controls['credit_limit']],
+                    'credit_period'        => ['credit_period', $controls['credit_period']],
+                ];
+                ?>
+                <?php foreach ($switches as $name => [$key, $on]): ?>
+                    <div class="field span-all">
+                        <div class="form-check form-switch">
+                            <input type="hidden" name="<?= $name ?>" value="0">
+                            <input type="checkbox" class="form-check-input" role="switch" name="<?= $name ?>" id="control_<?= $name ?>" value="1"<?= $on ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
+                            <label class="form-check-label" for="control_<?= $name ?>"><?= lang('Accounting_settings.control_' . $key) ?></label>
+                        </div>
+                        <p class="form-text"><?= lang('Accounting_settings.control_' . $key . '_desc') ?></p>
+                    </div>
+                <?php endforeach; ?>
+
+                <div class="field">
+                    <?= form_label(lang('Accounting_settings.control_default_list'), 'control_default_list', ['class' => 'form-label']) ?>
+                    <div class="field-control">
+                        <?= form_dropdown('default_list', [0 => lang('Accounting_settings.control_default_list_none')] + $control_lists, (string) ($controls['default_list'] ?? 0), ['class' => 'form-select form-select-sm', 'id' => 'control_default_list'] + ($can_manage ? [] : ['disabled' => 'disabled'])) ?>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <?= form_label(lang('Accounting_settings.control_max_discount_percent'), 'control_max_discount', ['class' => 'form-label']) ?>
+                    <div class="field-control">
+                        <div class="input-group input-group-sm">
+                            <input type="text" name="max_discount" id="control_max_discount" class="form-control form-control-sm" inputmode="decimal" dir="ltr" value="<?= esc((string) ($controls['max_discount'] ?? ''), 'attr') ?>"<?= $can_manage ? '' : ' disabled' ?>>
+                            <span class="input-group-text"><b>%</b></span>
+                        </div>
+                        <p class="form-text mb-0"><?= lang('Accounting_settings.control_max_discount_percent_desc') ?></p>
+                    </div>
+                </div>
+
+                <div class="field span-all">
+                    <?= form_label(lang('Accounting_settings.control_exempt_categories'), 'control_exempt_categories', ['class' => 'form-label']) ?>
+                    <div class="field-control">
+                        <select name="exempt_categories[]" id="control_exempt_categories" class="form-select form-select-sm" multiple size="5"<?= $can_manage ? '' : ' disabled' ?>>
+                            <?php foreach (array_unique([...$control_categories, ...$controls['exempt_categories']]) as $category): ?>
+                                <option value="<?= esc($category, 'attr') ?>"<?= in_array($category, $controls['exempt_categories'], true) ? ' selected' : '' ?>><?= esc($category) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="form-text mb-0"><?= lang('Accounting_settings.control_exempt_categories_desc') ?></p>
+                    </div>
                 </div>
             </div>
 

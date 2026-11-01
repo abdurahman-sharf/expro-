@@ -65,6 +65,8 @@ return [
     'migrate_desc'                 => 'Uppdatera OSPOS-databasen.',
     'office'                       => 'Kontor',
     'office_desc'                  => 'Lista kontors menyn moduler.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Inkomster',

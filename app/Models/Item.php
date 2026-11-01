@@ -78,8 +78,38 @@ class Item extends Model
         'purchase_tax_1_name',
         'purchase_tax_1_percent',
         'purchase_tax_2_name',
-        'purchase_tax_2_percent'
+        'purchase_tax_2_percent',
+        'minimum_price',
+        'max_discount_percent'
     ];
+
+    /**
+     * What one unit sells for once the discount of the line is taken off: a percent of the price,
+     * or an amount per unit, as the register takes it.
+     *
+     * @return numeric-string
+     */
+    public static function priceAfterDiscount(string $price, string $discount, int $discountType): string
+    {
+        $taken = $discountType === PERCENT ? bcdiv(bcmul($price, $discount, 8), '100', 8) : $discount;
+
+        return bcsub($price, $taken, 4);
+    }
+
+    /**
+     * The share of the price that is profit, in percent with two decimals, or null when the item has
+     * no price to take it from.
+     *
+     * @return numeric-string|null
+     */
+    public static function marginPercent(string $price, string $cost): ?string
+    {
+        if (bccomp($price, '0', 4) <= 0) {
+            return null;
+        }
+
+        return bcdiv(bcmul(bcsub($price, $cost, 6), '100', 6), $price, 2);
+    }
 
     /**
      * Determines if a given item_id is an item

@@ -9,6 +9,8 @@ use App\Libraries\Accounting\FiscalYearService;
 use App\Libraries\Accounting\ReadinessCode;
 use App\Libraries\Accounting\ReadinessIssue;
 use App\Libraries\Accounting\SensitivePermissions;
+use App\Libraries\Pricing\SalesControlSettings;
+use App\Models\Price_list;
 use CodeIgniter\HTTP\ResponseInterface;
 
 class AccountingSetup extends AccountingController
@@ -34,6 +36,7 @@ class AccountingSetup extends AccountingController
 
     private AccountingSettings $settings;
     private FiscalYearService $years;
+    private SalesControlSettings $controls;
 
     public function __construct()
     {
@@ -41,6 +44,7 @@ class AccountingSetup extends AccountingController
 
         $this->settings = new AccountingSettings(null, null, $this->branchGuard());
         $this->years    = new FiscalYearService(null, null, $this->branchGuard());
+        $this->controls = new SalesControlSettings();
     }
 
     public function getIndex(): string
@@ -60,6 +64,9 @@ class AccountingSetup extends AccountingController
             'revenue_account_required' => $this->settings->revenueAccountRequired(),
             'lineDescriptionRequired'  => $this->settings->lineDescriptionRequired(),
             'customer_opening'         => $this->settings->customerOpeningEnabled(),
+            'controls'                 => $this->controls->all(),
+            'control_lists'            => array_column(array_map(static fn (object $list): array => ['id' => (int) $list->price_list_id, 'name' => $list->name], model(Price_list::class)->allLists()), 'name', 'id'),
+            'control_categories'       => $this->controls->itemCategories(),
             'locked'                   => $this->settings->isLocked(),
             'next_number'              => $this->settings->lastManualNumber() + 1,
             'can_manage'               => $this->canManageSettings(),
@@ -100,6 +107,35 @@ class AccountingSetup extends AccountingController
             $this->settings->update($input, $this->employeeId());
 
             return ['success' => true, 'message' => lang('Accounting_settings.saved'), 'id' => 1];
+        });
+    }
+
+    public function postSaveControls(): ResponseInterface
+    {
+        return $this->attempt(function (): array {
+            $input = [];
+
+            foreach (['price_lists', 'change_list', 'minimum_price', 'max_discount_enabled', 'credit_limit', 'credit_period'] as $flag) {
+                if ($this->request->getPost($flag) !== null) {
+                    $input[$flag] = $this->request->getPost($flag) === '1';
+                }
+            }
+
+            foreach (['default_list', 'max_discount'] as $field) {
+                if ($this->request->getPost($field) !== null) {
+                    $input[$field] = is_array($this->request->getPost($field)) ? 'not a value' : (string) $this->request->getPost($field);
+                }
+            }
+
+            if ($this->request->getPost('exempt_categories') !== null) {
+                $categories = $this->request->getPost('exempt_categories');
+
+                $input['exempt_categories'] = is_array($categories) ? array_values($categories) : [];
+            }
+
+            $this->controls->update($input, $this->employeeId());
+
+            return ['success' => true, 'message' => lang('Accounting_settings.controls_saved'), 'id' => 1];
         });
     }
 

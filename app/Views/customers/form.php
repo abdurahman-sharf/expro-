@@ -11,7 +11,19 @@
  * @var array $config
  * @var bool $opening_offered
  * @var string $opening_today
+ * @var array<int, string>|null $price_list_options
+ * @var int $price_list_selected
+ * @var bool $can_assign_price_list
+ * @var bool $credit_limit_shown
+ * @var bool $credit_period_shown
+ * @var bool $credit_editable
+ * @var string $credit_limit
+ * @var int $credit_days
  */
+
+$price_list_options  ??= null;
+$credit_limit_shown  ??= false;
+$credit_period_shown ??= false;
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
@@ -158,6 +170,42 @@
                         </div>
                     </div>
                 </div>
+
+                <?php if ($price_list_options !== null || $credit_limit_shown || $credit_period_shown): ?>
+                    <div class="form-section" id="customer_pricing_section">
+                        <h3 class="form-section-title"><?= lang('Customers.pricing_and_credit') ?></h3>
+                        <div class="form-grid">
+                            <?php if ($price_list_options !== null): ?>
+                                <div class="field">
+                                    <?= form_label(lang('Customers.price_list'), 'price_list_id', ['class' => 'form-label']) ?>
+                                    <div class="field-control">
+                                        <?= form_dropdown('price_list_id', $price_list_options, (string) $price_list_selected, ['class' => 'form-select form-select-sm', 'id' => 'price_list_id'] + ($can_assign_price_list ? [] : ['disabled' => 'disabled'])) ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($credit_limit_shown): ?>
+                                <div class="field">
+                                    <?= form_label(lang('Customers.credit_limit'), 'credit_limit', ['class' => 'form-label']) ?>
+                                    <div class="field-control">
+                                        <?= form_input(['name' => 'credit_limit', 'id' => 'credit_limit', 'class' => 'form-control form-control-sm', 'inputmode' => 'decimal', 'dir' => 'ltr', 'value' => to_currency_no_money($credit_limit)] + ($credit_editable ? [] : ['disabled' => 'disabled'])) ?>
+                                        <p class="form-text mb-0"><?= lang($credit_editable ? 'Customers.credit_limit_help' : 'Customers.credit_terms_locked') ?></p>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if ($credit_period_shown): ?>
+                                <div class="field">
+                                    <?= form_label(lang('Customers.credit_period_days'), 'credit_period_days', ['class' => 'form-label']) ?>
+                                    <div class="field-control">
+                                        <?= form_input(['name' => 'credit_period_days', 'id' => 'credit_period_days', 'class' => 'form-control form-control-sm', 'inputmode' => 'numeric', 'dir' => 'ltr', 'value' => (string) $credit_days] + ($credit_editable ? [] : ['disabled' => 'disabled'])) ?>
+                                        <p class="form-text mb-0"><?= lang('Customers.credit_period_help') ?></p>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
 
                 <?php if (! empty($opening_offered)): ?>
                     <div class="form-section" id="customer_opening_section">

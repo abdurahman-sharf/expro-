@@ -16,6 +16,7 @@
  * @var list<object>     $refunds
  * @var bool             $can_manage
  * @var bool             $can_refund
+ * @var array{limit: string|null, days: int|null} $credit_terms
  * @var Closure          $amount
  * @var Closure          $date
  */
@@ -103,6 +104,14 @@ $sourceLink = static fn (string $type, int $sourceId): string => match ($type) {
         </dd>
         <dt class="col-sm-3"><?= lang('Accounting_receivables.overdue') ?></dt>
         <dd class="col-sm-9" id="statement_overdue"><?= $amount($position->overdue($today)) ?></dd>
+        <?php if ($credit_terms['limit'] !== null): ?>
+            <dt class="col-sm-3"><?= lang('Accounting_receivables.credit_limit') ?></dt>
+            <dd class="col-sm-9" id="statement_credit_limit"><?= bccomp($credit_terms['limit'], '0', 4) > 0 ? $amount($credit_terms['limit']) : esc(lang('Accounting_receivables.credit_none')) ?></dd>
+        <?php endif; ?>
+        <?php if ($credit_terms['days'] !== null): ?>
+            <dt class="col-sm-3"><?= lang('Accounting_receivables.credit_period') ?></dt>
+            <dd class="col-sm-9" id="statement_credit_period"><?= $credit_terms['days'] > 0 ? esc(lang('Accounting_receivables.credit_days', [$credit_terms['days']])) : esc(lang('Accounting_receivables.credit_none')) ?></dd>
+        <?php endif; ?>
     </dl>
 
     <form id="statement_day" class="print_hide mb-3 d-flex flex-wrap align-items-end gap-2" method="get" role="search">

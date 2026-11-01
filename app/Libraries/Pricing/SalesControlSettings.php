@@ -23,6 +23,7 @@ final class SalesControlSettings
     public const DEFAULT_LIST      = 'sales_default_price_list';
     public const CHANGE_LIST       = 'sales_change_price_list';
     public const MINIMUM_PRICE     = 'sales_minimum_price_enabled';
+    public const MAX_DISCOUNT_ON   = 'sales_max_discount_enabled';
     public const MAX_DISCOUNT      = 'sales_max_discount_percent';
     public const EXEMPT_CATEGORIES = 'sales_discount_exempt_categories';
     public const CREDIT_LIMIT      = 'accounting_credit_limit_enabled';
@@ -64,6 +65,11 @@ final class SalesControlSettings
         return $this->config->get_value(self::MINIMUM_PRICE, '0') === '1';
     }
 
+    public function maxDiscountEnabled(): bool
+    {
+        return $this->config->get_value(self::MAX_DISCOUNT_ON, '0') === '1';
+    }
+
     /**
      * The highest discount any line may carry, in percent, or null when there is none.
      */
@@ -95,24 +101,25 @@ final class SalesControlSettings
     }
 
     /**
-     * @return array{price_lists: bool, default_list: ?int, change_list: bool, minimum_price: bool, max_discount: ?string, exempt_categories: list<string>, credit_limit: bool, credit_period: bool}
+     * @return array{price_lists: bool, default_list: ?int, change_list: bool, minimum_price: bool, max_discount_enabled: bool, max_discount: ?string, exempt_categories: list<string>, credit_limit: bool, credit_period: bool}
      */
     public function all(): array
     {
         return [
-            'price_lists'       => $this->priceListsEnabled(),
-            'default_list'      => $this->defaultPriceListId(),
-            'change_list'       => $this->changePriceListOnInvoice(),
-            'minimum_price'     => $this->minimumPriceEnabled(),
-            'max_discount'      => $this->maxDiscountPercent(),
-            'exempt_categories' => $this->discountExemptCategories(),
-            'credit_limit'      => $this->creditLimitEnabled(),
-            'credit_period'     => $this->creditPeriodEnabled(),
+            'price_lists'          => $this->priceListsEnabled(),
+            'default_list'         => $this->defaultPriceListId(),
+            'change_list'          => $this->changePriceListOnInvoice(),
+            'minimum_price'        => $this->minimumPriceEnabled(),
+            'max_discount_enabled' => $this->maxDiscountEnabled(),
+            'max_discount'         => $this->maxDiscountPercent(),
+            'exempt_categories'    => $this->discountExemptCategories(),
+            'credit_limit'         => $this->creditLimitEnabled(),
+            'credit_period'        => $this->creditPeriodEnabled(),
         ];
     }
 
     /**
-     * @param array{price_lists?: bool, default_list?: int|string|null, change_list?: bool, minimum_price?: bool, max_discount?: string|null, exempt_categories?: list<string>, credit_limit?: bool, credit_period?: bool} $input What is left out stays as it is.
+     * @param array{price_lists?: bool, default_list?: int|string|null, change_list?: bool, minimum_price?: bool, max_discount_enabled?: bool, max_discount?: string|null, exempt_categories?: list<string>, credit_limit?: bool, credit_period?: bool} $input What is left out stays as it is.
      *
      * @throws AccountingException
      */
@@ -123,7 +130,7 @@ final class SalesControlSettings
         $before = $this->all();
         $after  = $before;
 
-        foreach (['price_lists', 'change_list', 'minimum_price', 'credit_limit', 'credit_period'] as $flag) {
+        foreach (['price_lists', 'change_list', 'minimum_price', 'max_discount_enabled', 'credit_limit', 'credit_period'] as $flag) {
             if (array_key_exists($flag, $input)) {
                 $after[$flag] = (bool) $input[$flag];
             }
@@ -147,7 +154,7 @@ final class SalesControlSettings
             return;
         }
 
-        $keys   = ['price_lists' => self::PRICE_LISTS, 'default_list' => self::DEFAULT_LIST, 'change_list' => self::CHANGE_LIST, 'minimum_price' => self::MINIMUM_PRICE, 'max_discount' => self::MAX_DISCOUNT, 'exempt_categories' => self::EXEMPT_CATEGORIES, 'credit_limit' => self::CREDIT_LIMIT, 'credit_period' => self::CREDIT_PERIOD];
+        $keys   = ['price_lists' => self::PRICE_LISTS, 'default_list' => self::DEFAULT_LIST, 'change_list' => self::CHANGE_LIST, 'minimum_price' => self::MINIMUM_PRICE, 'max_discount_enabled' => self::MAX_DISCOUNT_ON, 'max_discount' => self::MAX_DISCOUNT, 'exempt_categories' => self::EXEMPT_CATEGORIES, 'credit_limit' => self::CREDIT_LIMIT, 'credit_period' => self::CREDIT_PERIOD];
         $values = [];
 
         foreach ($changes as $name => $value) {
@@ -160,6 +167,18 @@ final class SalesControlSettings
 
         $this->config->batch_save($values);
         $this->audit->write('settings', null, 'settings_updated', $employeeId, JournalOrigin::User, ['before' => array_intersect_key($before, $changes), 'after' => $changes]);
+    }
+
+    /**
+     * The categories the items of the shop are in, to choose the excluded ones from.
+     *
+     * @return list<string>
+     */
+    public function itemCategories(): array
+    {
+        $rows = $this->db->table('items')->distinct()->select('category')->where('deleted', 0)->where('category !=', '')->orderBy('category', 'ASC')->get()->getResultArray();
+
+        return array_column($rows, 'category');
     }
 
     public static function isPercent(string $value): bool

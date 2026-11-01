@@ -65,6 +65,8 @@ return [
     'migrate_desc'                 => 'Update the OSPOS Database.',
     'office'                       => 'Office',
     'office_desc'                  => 'List home menu modules.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Receivings',

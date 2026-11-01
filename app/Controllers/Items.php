@@ -10,12 +10,14 @@ use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Barcode_lib;
 use App\Libraries\Item_lib;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Pricing\SalesControlSettings;
 use App\Models\Attribute;
 use App\Models\Inventory;
 use App\Models\Item;
 use App\Models\Item_kit;
 use App\Models\Item_quantity;
 use App\Models\Item_taxes;
+use App\Models\Price_list;
 use App\Models\Stock_location;
 use App\Models\Supplier;
 use App\Models\Tax_category;
@@ -44,6 +46,7 @@ class Items extends Secure_Controller
     private Item_kit $item_kit;
     private Item_quantity $item_quantity;
     private Item_taxes $item_taxes;
+    private Price_list $priceList;
     private Stock_location $stock_location;
     private Supplier $supplier;
     private Tax_category $tax_category;
@@ -70,6 +73,7 @@ class Items extends Secure_Controller
         $this->item_kit = model(Item_kit::class);
         $this->item_quantity = model(Item_quantity::class);
         $this->item_taxes = model(Item_taxes::class);
+        $this->priceList = model(Price_list::class);
         $this->stock_location = model(Stock_location::class);
         $this->supplier = model(Supplier::class);
         $this->tax_category = model(Tax_category::class);
@@ -496,7 +500,85 @@ class Items extends Secure_Controller
             $data['selected_low_sell_item'] = '';
         }
 
-        return view('items/form', $data);
+        return view('items/form', $data + $this->pricingFormData($item_id));
+    }
+
+    /**
+     * What the form of an item shows of the pricing controls: the minimum price and the highest
+     * discount when those controls are on, and a price for each price list for an employee who may
+     * enter them.
+     *
+     * @return array{minimum_price_enabled: bool, max_discount_enabled: bool, price_list_rows: list<array{id: int, name: string, active: bool, price: string}>}
+     */
+    private function pricingFormData(int $itemId): array
+    {
+        $settings = new SalesControlSettings();
+        $rows     = [];
+
+        if ($settings->priceListsEnabled() && $this->mayEnterListPrices()) {
+            $prices = $itemId === NEW_ENTRY ? [] : $this->priceList->pricesOfItem($itemId);
+
+            foreach ($this->priceList->allLists() as $list) {
+                $rows[] = ['id' => (int) $list->price_list_id, 'name' => $list->name, 'active' => (int) $list->status === 1, 'price' => isset($prices[(int) $list->price_list_id]) ? to_currency_no_money($prices[(int) $list->price_list_id]) : ''];
+            }
+        }
+
+        return ['minimum_price_enabled' => $settings->minimumPriceEnabled(), 'max_discount_enabled' => $settings->maxDiscountEnabled(), 'price_list_rows' => $rows];
+    }
+
+    private function mayEnterListPrices(): bool
+    {
+        return $this->employee->has_grant('price_lists', (int) $this->employee->get_logged_in_employee_info()->person_id);
+    }
+
+    /**
+     * The minimum price and the highest discount of the form of an item, when those controls are on.
+     * A value that is not a number in range is refused, never stored as something else.
+     */
+    private function validatePricingFields(int $itemId): ?ResponseInterface
+    {
+        $settings = new SalesControlSettings();
+        $minimum  = trim((string) $this->request->getPost('minimum_price'));
+        $ceiling  = trim((string) $this->request->getPost('max_discount_percent'));
+
+        if ($settings->minimumPriceEnabled() && $minimum !== '' && (parse_decimals($minimum) === false || (float) parse_decimals($minimum) < 0)) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Items.minimum_price_invalid'), 'id' => $itemId]);
+        }
+
+        if ($settings->maxDiscountEnabled() && $ceiling !== '' && (parse_decimals($ceiling) === false || (float) parse_decimals($ceiling) < 0 || (float) parse_decimals($ceiling) > 100)) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Items.max_discount_invalid'), 'id' => $itemId]);
+        }
+
+        foreach ($this->postedListPrices() ?? [] as $price) {
+            if ($price !== '' && (parse_decimals($price) === false || (float) parse_decimals($price) < 0)) {
+                return $this->response->setJSON(['success' => false, 'message' => lang('Items.price_list_price_invalid'), 'id' => $itemId]);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * What the form gave as the price of the item in each price list, or null when the employee may
+     * not enter them or the price lists are off.
+     *
+     * @return array<int, string>|null
+     */
+    private function postedListPrices(): ?array
+    {
+        $posted = $this->request->getPost('price_list_prices');
+
+        if (! is_array($posted) || ! (new SalesControlSettings())->priceListsEnabled() || ! $this->mayEnterListPrices()) {
+            return null;
+        }
+
+        $prices = [];
+
+        foreach ($posted as $priceListId => $price) {
+            $prices[(int) $priceListId] = is_string($price) ? trim($price) : '';
+        }
+
+        return $prices;
     }
 
     /**
@@ -732,7 +814,7 @@ class Items extends Secure_Controller
             }
         }
 
-        return $this->validatePurchaseTaxes($itemId);
+        return $this->validatePurchaseTaxes($itemId) ?? $this->validatePricingFields($itemId);
     }
 
     /**
@@ -907,6 +989,18 @@ class Items extends Secure_Controller
             $itemData += $this->postedPurchaseTaxes();
         }
 
+        $settings = new SalesControlSettings();
+
+        if ($settings->minimumPriceEnabled() && $this->request->getPost('minimum_price') !== null) {
+            $itemData['minimum_price'] = number_format((float) parse_decimals(trim((string) $this->request->getPost('minimum_price'))), 4, '.', '');
+        }
+
+        if ($settings->maxDiscountEnabled() && $this->request->getPost('max_discount_percent') !== null) {
+            $ceiling = trim((string) $this->request->getPost('max_discount_percent'));
+
+            $itemData['max_discount_percent'] = $ceiling === '' ? null : number_format((float) parse_decimals($ceiling), 2, '.', '');
+        }
+
         $taxCategoryId = $this->request->getPost('tax_category_id');
 
         if (!isset($taxCategoryId)) {
@@ -1001,6 +1095,7 @@ class Items extends Secure_Controller
             }
 
             $success = $success && $this->saveItemAttributes($itemId);
+            $success = $success && $this->saveListPrices($itemId);
         }
 
         // Check all success conditions before committing
@@ -1016,6 +1111,34 @@ class Items extends Secure_Controller
         $message = $uploadSuccess ? lang('Items.error_adding_updating') . ' ' . $itemData['name'] . $this->adjustmentFailureNote() : strip_tags($uploadData['error']);
 
         return $this->response->setJSON(['success' => false, 'message' => $message, 'id' => $itemId]);
+    }
+
+    /**
+     * Puts the prices of the form in the price lists, in the transaction that saves the item.
+     */
+    private function saveListPrices(int $itemId): bool
+    {
+        $posted = $this->postedListPrices();
+
+        if ($posted === null) {
+            return true;
+        }
+
+        $prices = [];
+
+        foreach ($posted as $priceListId => $price) {
+            $prices[$priceListId] = $price === '' ? '' : number_format((float) parse_decimals($price), 4, '.', '');
+        }
+
+        try {
+            $this->priceList->saveItemPrices($itemId, $prices, (int) $this->employee->get_logged_in_employee_info()->person_id);
+        } catch (AccountingException $failure) {
+            $this->adjustmentFailure = $failure;
+
+            return false;
+        }
+
+        return true;
     }
 
     /**

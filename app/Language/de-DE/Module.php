@@ -65,6 +65,8 @@ return [
     'migrate_desc'                 => 'Aktualisiere die OSPOS-Datenbank.',
     'office'                       => 'Verwaltung',
     'office_desc'                  => 'Auflistung der Module für das Verwaltungs-Menü.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Eingänge',

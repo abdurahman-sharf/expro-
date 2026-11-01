@@ -65,6 +65,8 @@ return [
     'migrate_desc'                 => 'Database güncelleme.',
     'office'                       => 'Yönetim',
     'office_desc'                  => 'Yönetim modülleri.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Alımlar',

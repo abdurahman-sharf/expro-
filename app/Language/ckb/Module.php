@@ -65,6 +65,8 @@ return [
     'migrate_desc'                 => 'داتابەیسی OSPOS نوێ بکەرەوە.',
     'office'                       => 'ئۆفیس',
     'office_desc'                  => 'لیستی مۆدۆلی پێڕستی ئۆفیس نیشان بدە.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'وەرگرتنەکان',
