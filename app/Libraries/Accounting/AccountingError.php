@@ -263,4 +263,17 @@ enum AccountingError: string
     case RevenueCategoryNotFound    = 'revenue_category_not_found';
     case RevenueCategoryNameInvalid = 'revenue_category_name_invalid';
     case RevenueCategoryNameTaken   = 'revenue_category_name_taken';
+
+    case PriceBelowMinimum     = 'price_below_minimum';
+    case DiscountAboveCeiling  = 'discount_above_ceiling';
+    case CreditLimitExceeded   = 'credit_limit_exceeded';
+    case CreditPeriodExceeded  = 'credit_period_exceeded';
+    case PriceListNameInvalid  = 'price_list_name_invalid';
+    case PriceListNameTaken    = 'price_list_name_taken';
+    case PriceListNotFound     = 'price_list_not_found';
+    case PriceListInUse        = 'price_list_in_use';
+    case PriceListInactive     = 'price_list_inactive';
+    case PriceInvalid          = 'price_invalid';
+    case ControlSettingInvalid = 'control_setting_invalid';
+    case CreditTermsInvalid    = 'credit_terms_invalid';
 }

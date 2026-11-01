@@ -26,6 +26,8 @@ class AccountingSetup extends AccountingController
         AccountingGuard::RECEIVABLES_MANAGE => 'Accounting_receivables.receivables_manage',
         AccountingGuard::RECEIVABLES_REFUND => 'Accounting_receivables.receivables_refund',
         AccountingGuard::RETURN_OVERRIDE    => 'Sales.return_override',
+        AccountingGuard::PRICE_OVERRIDE     => 'Sales.price_override',
+        AccountingGuard::CREDIT_OVERRIDE    => 'Sales.credit_override',
         AccountingGuard::INTERBRANCH_SETTLE => 'Accounting_treasuries.interbranch_settle',
         AccountingGuard::YEAR_END_CLOSE     => 'Accounting_periods.year_end_close',
     ];
