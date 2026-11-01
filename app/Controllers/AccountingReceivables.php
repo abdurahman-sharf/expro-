@@ -17,6 +17,7 @@ use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\SaleAmounts;
+use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchService;
@@ -125,6 +126,8 @@ class AccountingReceivables extends AccountingController
             'can_refund'      => $this->can(AccountingGuard::RECEIVABLES_REFUND),
             'amount'          => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'            => fn (string $value): string => $this->formatDate($value),
+            'debit_note_of'   => static fn (int $key): string => (new SalesDebitNotes())->numberOf((int) SalesDebitNotes::idOfKey($key)),
+            'debit_note_number' => static fn (int $debitNoteId): string => (new SalesDebitNotes())->numberOf($debitNoteId),
         ]);
     }
 

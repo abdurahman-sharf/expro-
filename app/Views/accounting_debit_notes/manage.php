@@ -1,13 +1,13 @@
 <?php
 /**
- * @var list<object> $rows
- * @var int          $total
- * @var int          $offset
- * @var int          $page_size
+ * @var list<object>                                                    $rows
+ * @var int                                                             $total
+ * @var int                                                             $offset
+ * @var int                                                             $page_size
  * @var array{status: string, search: string, from: string, to: string} $filters
- * @var bool         $enabled
- * @var bool         $can_manage
- * @var bool         $scopeNotice
+ * @var bool                                                            $enabled
+ * @var bool                                                            $can_manage
+ * @var bool                                                            $scopeNotice
  */
 $query = static fn (array $extra): string => http_build_query(array_filter([...$filters, ...$extra], static fn ($value): bool => $value !== '' && $value !== 0));
 ?>

@@ -145,6 +145,7 @@ return [
     'source'                  => '',
     'source_advance'          => '',
     'source_credit_note'      => '',
+    'source_debit_note'       => '',
     'source_excess'           => '',
     'source_opening'          => '',
     'statement'               => '',

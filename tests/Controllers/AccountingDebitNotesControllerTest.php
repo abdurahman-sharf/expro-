@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\SalesDebitNotes;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -304,6 +305,24 @@ class AccountingDebitNotesControllerTest extends CIUnitTestCase
 
         $this->assertSame(lang('Accounting.error_permission_denied'), $this->postJson('/accounting_debit_notes/reverse/' . $id, ['reason' => 'no grant'])['message']);
         $this->assertSame('posted', $this->accountingDb()->table('sales_debit_notes')->where('debit_note_id', $id)->get()->getRow()->status);
+    }
+
+    public function testCustomerPosition_ShowsTheNoteAsAnOpenItemWithItsNumberAndTheCreditSpentOnIt(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        $id = $this->raise('100');
+
+        (new CustomerOpening())->create($this->customerId, CustomerOpening::WE_OWE, '40', date('Y-m-d', strtotime('-30 days')), 'credit', $this->employeeWithGrants([AccountingGuard::OPENING_MANAGE]));
+
+        $this->actAsWith(['accounting_receivables']);
+
+        $page = $this->get('/accounting_receivables/customer/' . $this->customerId);
+
+        $page->assertStatus(200);
+        $page->assertSee(lang('Accounting_receivables.source_debit_note'));
+        $page->assertSee('#' . str_pad((string) $id, 5, '0', STR_PAD_LEFT));
+        $this->accountingDb()->table('app_config')->where('key', 'accounting_customer_opening')->delete();
     }
 
     public function testRoutes_AcceptNoChangeByGet(): void

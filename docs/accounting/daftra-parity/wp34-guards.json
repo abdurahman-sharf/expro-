@@ -1,0 +1,1103 @@
+[
+ {
+  "name": "G01 header charges: adjustment and shipping must be numbers",
+  "file": "app/Libraries/HeaderCharges.php",
+  "find": "if ($this->number($this->adjustment) === null || $this->number($this->shipping) === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G02 header charges: shipping cannot be negative",
+  "file": "app/Libraries/HeaderCharges.php",
+  "find": "if (bccomp($this->safe($this->shipping), '0', self::WORK) < 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G03 header charges: tax rate of shipping within 0 to 100",
+  "file": "app/Libraries/HeaderCharges.php",
+  "find": "|| bccomp($this->shippingTaxPercent, '100', self::WORK) > 0) {",
+  "replace": ") {",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G04 header charges: only the known shipping address choices",
+  "file": "app/Libraries/HeaderCharges.php",
+  "find": "if ($this->shippingOptions !== null && ! in_array($this->shippingOptions, self::SHIPPING_VIEWS, true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G05 header charges: label no longer than 100 characters",
+  "file": "app/Libraries/HeaderCharges.php",
+  "find": "if (mb_strlen($this->adjustmentLabel) > self::LABEL_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G06 header charges: the adjustment cannot take the total below zero",
+  "file": "app/Libraries/HeaderCharges.php",
+  "find": "return bccomp($after, '0', self::WORK) < 0 ? HeaderChargesProblem::ExceedsTotal : null;",
+  "replace": "return null;",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G07 header charges: the adjustment counts only while the total before it is above zero",
+  "file": "app/Libraries/HeaderCharges.php",
+  "find": "$effective  = bccomp($before, '0', self::WORK) > 0 ? bcadd($adjustment, '0', self::SCALE) : '0.0000';",
+  "replace": "$effective  = bcadd($adjustment, '0', self::SCALE);",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G08 header charges: tax inside the shipping is taken out of it",
+  "file": "app/Libraries/HeaderCharges.php",
+  "find": "? bcsub($shipping, bcdiv($shipping, bcadd('1', $rate, self::WORK), self::WORK), self::WORK)",
+  "replace": "? bcmul($shipping, $rate, self::WORK)",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G09 header charges: a shipping tax option of none or a rate of zero taxes nothing",
+  "file": "app/Libraries/HeaderCharges.php",
+  "find": "if ($this->shippingTaxOption === ShippingTaxOption::None || bccomp($percent, '0', self::WORK) === 0 || bccomp($shipping, '0', self::WORK) === 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G10 header charges: text that is not a number is refused and not dropped as empty",
+  "file": "app/Libraries/HeaderCharges.php",
+  "find": "return $number === null || bccomp($number, '0', self::WORK) !== 0;",
+  "replace": "return $number !== null && bccomp($number, '0', self::WORK) !== 0;",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G11 header charges: the shipping tax on top is added to the total, the included one is not",
+  "file": "app/Libraries/HeaderCharges.php",
+  "find": "$before     = bcadd(SaleAmounts::absolute($running), bcadd($shipping, $included ? '0' : $tax, self::WORK), self::WORK);",
+  "replace": "$before     = bcadd(SaleAmounts::absolute($running), bcadd($shipping, $tax, self::WORK), self::WORK);",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G12 resolved charges: shipping net takes the included tax out",
+  "file": "app/Libraries/ResolvedCharges.php",
+  "find": "return $this->shippingTaxIncluded ? bcsub($this->shipping, $this->shippingTax, SaleAmounts::SCALE) : bcadd($this->shipping, '0', SaleAmounts::SCALE);",
+  "replace": "return bcadd($this->shipping, '0', SaleAmounts::SCALE);",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G13 resolved charges: a tax inside the amount is not added to the total",
+  "file": "app/Libraries/ResolvedCharges.php",
+  "find": "return $this->shippingTaxIncluded ? '0.0000' : bcadd($this->shippingTax, '0', SaleAmounts::SCALE);",
+  "replace": "return bcadd($this->shippingTax, '0', SaleAmounts::SCALE);",
+  "tests": [
+   "tests/Libraries/HeaderChargesTest.php",
+   "tests/Libraries/ResolvedChargesTest.php"
+  ]
+ },
+ {
+  "name": "G14 routing: shipping and adjustment rows apply automatic routing",
+  "file": "app/Libraries/Accounting/RoutingKey.php",
+  "find": "if ($type === RoutingType::Auto && $this === self::PurchaseAdjustment) {",
+  "replace": "if ($type === RoutingType::Auto && in_array($this, [self::SalesAdjustment, self::PurchaseAdjustment], true)) {",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingKeyTest.php",
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G15 routing: shipping row accepts revenue accounts only",
+  "file": "app/Libraries/Accounting/RoutingKey.php",
+  "find": "self::SalesRevenue, self::SalesReturns, self::ProductSales, self::SalesShipping => [AccountType::Revenue],",
+  "replace": "self::SalesRevenue, self::SalesReturns, self::ProductSales => [AccountType::Revenue],\n            self::SalesShipping => [AccountType::Revenue, AccountType::Expense],",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingKeyTest.php"
+  ]
+ },
+ {
+  "name": "G16 default chart: new charts open the adjustment and shipping accounts",
+  "file": "app/Libraries/Accounting/DefaultChart.php",
+  "find": "            ['4208', 'إيرادات الشحن', AccountType::Revenue, '42', false, 'sales_shipping', false],\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/DefaultChartTest.php",
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G17 builder: shipping posts to its own routed account",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "$incomeSide[] = [$this->required(RoutingKey::SalesShipping), $figures['shipping']];",
+  "replace": "$incomeSide[] = [$revenue, $figures['shipping']];",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G18 builder: an adjustment posts to its routed account",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "$adjustment = [$this->required(RoutingKey::SalesAdjustment), SaleAmounts::absolute($figures['adjustment'])];",
+  "replace": "$adjustment = [$this->required(RoutingKey::SalesRevenue), SaleAmounts::absolute($figures['adjustment'])];",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G19 builder: a negative adjustment debits the adjustment account",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "                $against = $adjustment;",
+  "replace": "                $incomeSide[] = $adjustment;",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G20 builder: a credit note mirrors the charges",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "? $this->mirror($customerSide, $incomeSide, $discount, $figures['discount'], $against)\n            : $this->forward($customerSide, $incomeSide, $discount, $figures['discount'], $against);",
+  "replace": "? $this->forward($customerSide, $incomeSide, $discount, $figures['discount'], $against)\n            : $this->forward($customerSide, $incomeSide, $discount, $figures['discount'], $against);",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G21 builder: a sale without a customer must settle the charges as well",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "$total   = SaleAmounts::figures($sale, $this->decimals)['total'];",
+  "replace": "$total   = InvoiceRounding::split(SaleAmounts::totals($sale, $this->decimals)['net'], SaleAmounts::totals($sale, $this->decimals)['tax'])['total'];",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G22 builder: the product sales row stays refused",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "if ($this->resolver->accountFor(RoutingKey::ProductSales) !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G23 amounts: the rounding of the cent falls on the goods and the shipping stays exact",
+  "file": "app/Libraries/Accounting/SaleAmounts.php",
+  "find": "'revenue'    => bcsub(bcsub($split['revenue'], $shipping, self::SCALE), $adjusted, self::SCALE),",
+  "replace": "'revenue'    => $split['revenue'],",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G24 amounts: the tax of the shipping joins the tax of the invoice",
+  "file": "app/Libraries/Accounting/SaleAmounts.php",
+  "find": "$tax      = bcadd($amounts['tax'], $sale->charges?->shippingTax ?? '0', self::SCALE);",
+  "replace": "$tax      = $amounts['tax'];",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G25 loader: posting reads the charges stored on the sale",
+  "file": "app/Libraries/Accounting/SaleLoader.php",
+  "find": "charges: $this->charges($sale),",
+  "replace": "charges: null,",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G26 sale model: only an invoice, a quote or a credit note carries charges",
+  "file": "app/Models/Sale.php",
+  "find": "if (! in_array($saleType, [SALE_TYPE_INVOICE, SALE_TYPE_QUOTE, SALE_TYPE_RETURN], true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G27 sale model: a charge whose setting is off is refused",
+  "file": "app/Models/Sale.php",
+  "find": "if (($charges->hasAdjustment() && ! $settings->salesAdjustmentEnabled()) || ($charges->hasShipping() && ! $settings->salesShippingEnabled())) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G28 sale model: charges that cannot be added are refused with their own words",
+  "file": "app/Models/Sale.php",
+  "find": "if ($problem !== null) {\n            return new AccountingException($problem === HeaderChargesProblem::ExceedsTotal",
+  "replace": "if (false) {\n            return new AccountingException($problem === HeaderChargesProblem::ExceedsTotal",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G29 sale model: the tax on shipping follows the rate and the mode of the company",
+  "file": "app/Models/Sale.php",
+  "find": "if ($problem === null && $charges->shippingTaxOption !== ShippingTaxOption::None && ! $this->shippingTaxFollowsTheSettings($charges, $settings, $taxIncluded)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G30 sale model: the rate typed must be the rate of the setting",
+  "file": "app/Models/Sale.php",
+  "find": "&& bccomp($charges->shippingTaxPercent, $settings->shippingTaxPercent(), 4) === 0",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G31 sale model: what is stored is the amount that counts",
+  "file": "app/Models/Sale.php",
+  "find": "'adjustment_amount'    => $zero($resolved->adjustment),",
+  "replace": "'adjustment_amount'    => $zero($charges->adjustment),",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G32 sale model: a sale saved without charges has its columns emptied",
+  "file": "app/Models/Sale.php",
+  "find": "            'adjustment_label'     => null,\n            'adjustment_amount'    => null,",
+  "replace": "            'x_adjustment_label'     => null,\n            'x_adjustment_amount'    => null,",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G33 sale model: the audit says who gave the charges",
+  "file": "app/Models/Sale.php",
+  "find": "(new AuditLog($this->db))->write('sale', $saleId, 'header_charges_given'",
+  "replace": "(new AuditLog($this->db))->write('sale', $saleId, 'header_charges_given_x'",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G34 sale model: no audit while accounting is off",
+  "file": "app/Models/Sale.php",
+  "find": "        if (! (new AccountingSettings($this->db))->isEnabled()) {\n            return;\n        }\n\n        $row = $this->db->table('sales')->select('adjustment_amount, shipping_amount, shipping_tax_amount')",
+  "replace": "        $row = $this->db->table('sales')->select('adjustment_amount, shipping_amount, shipping_tax_amount')",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G35 sale model: a draft is issued with its stored charges",
+  "file": "app/Models/Sale.php",
+  "find": "            headerCharges: $issue->headerCharges,\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G36 draft: a change of its charges changes its fingerprint",
+  "file": "app/Libraries/Accounting/DraftInvoice.php",
+  "find": "invoice_date, payment_terms_days, invoice_number, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent')",
+  "replace": "invoice_date, payment_terms_days, invoice_number')",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G37 draft: the total of the draft counts the charges",
+  "file": "app/Libraries/Accounting/DraftInvoice.php",
+  "find": "'total'           => bcadd($running, $charges->addedToTotal(), SaleAmounts::SCALE),",
+  "replace": "'total'           => $running,",
+  "tests": [
+   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+  ]
+ },
+ {
+  "name": "G38 register: the total carries the charges",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "$total = bcadd($total, bcmul($sign, $charges->addedToTotal(), HeaderCharges::SCALE));",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G39 register: a return counts the charges in the direction of the credit",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "$sign = bccomp($total, '0') < 0 ? '-1' : '1';",
+  "replace": "$sign = '1';",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G40 register: an empty cart adds no charges",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "if ($this->session->get('sales_cart') === null || $this->session->get('sales_cart') === []) {\n            return new ResolvedCharges();",
+  "replace": "if (false) {\n            return new ResolvedCharges();",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G41 register: a loaded sale gives back its charges",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "$this->setHeaderCharges($this->sale->getHeaderCharges($saleId));",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G42 register: a loaded sale forgets the charges of the register first",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        $this->clearInvoiceDiscount();\n        $this->clearHeaderCharges();\n\n        $storedShares = [];",
+  "replace": "        $this->clearInvoiceDiscount();\n\n        $storedShares = [];",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G43 register: clearing the sale forgets the charges",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        $this->clearInvoiceDiscount();\n        $this->clearHeaderCharges();\n        $this->clear_quote_number();",
+  "replace": "        $this->clearInvoiceDiscount();\n        $this->clear_quote_number();",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G44 register: charges that empty are forgotten, not stored",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        if ($charges->isEmpty()) {\n            $this->clearHeaderCharges();\n\n            return;\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G45 controller: charges only on an invoice, a quote or a credit note",
+  "file": "app/Controllers/Sales.php",
+  "find": "return in_array($this->sale_lib->get_mode(), ['sale_invoice', 'sale_quote', 'return'], true);",
+  "replace": "return true;",
+  "tests": [
+   "--filter",
+   "HeaderCharges|TheChargesOf|OffersTheFormOfTheCharges|OffersOnlyTheChargeWhose|ForgetsTheCharges|SavesTheChargesWithTheInvoice|RefusesChargesWhoseSetting",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G46 controller: a charge whose setting is off is ignored",
+  "file": "app/Controllers/Sales.php",
+  "find": "$adjustment = $settings->salesAdjustmentEnabled() ? ($posted('adjustment') === '' ? '0' : $posted('adjustment')) : '0';",
+  "replace": "$adjustment = ($posted('adjustment') === '' ? '0' : $posted('adjustment'));",
+  "tests": [
+   "--filter",
+   "HeaderCharges|TheChargesOf|OffersTheFormOfTheCharges|OffersOnlyTheChargeWhose|ForgetsTheCharges|SavesTheChargesWithTheInvoice|RefusesChargesWhoseSetting",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G47 controller: tax on shipping only at the rate of the setting",
+  "file": "app/Controllers/Sales.php",
+  "find": "$taxed ? $settings->shippingTaxPercent() : '0',",
+  "replace": "$taxed ? '99' : '0',",
+  "tests": [
+   "--filter",
+   "HeaderCharges|TheChargesOf|OffersTheFormOfTheCharges|OffersOnlyTheChargeWhose|ForgetsTheCharges|SavesTheChargesWithTheInvoice|RefusesChargesWhoseSetting",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G48 controller: charges that cannot be added keep the ones that were",
+  "file": "app/Controllers/Sales.php",
+  "find": "$this->sale_lib->setHeaderCharges($current);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "HeaderCharges|TheChargesOf|OffersTheFormOfTheCharges|OffersOnlyTheChargeWhose|ForgetsTheCharges|SavesTheChargesWithTheInvoice|RefusesChargesWhoseSetting",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G49 controller: the payments are emptied because the amount due changed",
+  "file": "app/Controllers/Sales.php",
+  "find": "        $this->sale_lib->empty_payments();\n\n        return $this->reload();\n    }\n\n    /**\n     * The block that says where the goods are sent",
+  "replace": "        return $this->reload();\n    }\n\n    /**\n     * The block that says where the goods are sent",
+  "tests": [
+   "--filter",
+   "HeaderCharges|TheChargesOf|OffersTheFormOfTheCharges|OffersOnlyTheChargeWhose|ForgetsTheCharges|SavesTheChargesWithTheInvoice|RefusesChargesWhoseSetting",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G50 controller: a change of mode forgets the charges",
+  "file": "app/Controllers/Sales.php",
+  "find": "            $this->sale_lib->clearHeaderCharges();\n            $this->sale_lib->clearReturnDocument();",
+  "replace": "            $this->sale_lib->clearReturnDocument();",
+  "tests": [
+   "--filter",
+   "HeaderCharges|TheChargesOf|OffersTheFormOfTheCharges|OffersOnlyTheChargeWhose|ForgetsTheCharges|SavesTheChargesWithTheInvoice|RefusesChargesWhoseSetting",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G51 controller: the register offers the form only where charges are allowed",
+  "file": "app/Controllers/Sales.php",
+  "find": "$data['can_shipping'] = $allowed && $chargeSettings->salesShippingEnabled();",
+  "replace": "$data['can_shipping'] = $chargeSettings->salesShippingEnabled();",
+  "tests": [
+   "--filter",
+   "HeaderCharges|TheChargesOf|OffersTheFormOfTheCharges|OffersOnlyTheChargeWhose|ForgetsTheCharges|SavesTheChargesWithTheInvoice|RefusesChargesWhoseSetting",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G52 controller: the sale is saved with the charges of the register",
+  "file": "app/Controllers/Sales.php",
+  "find": "$data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource(), headerCharges: $this->sale_lib->getHeaderCharges());",
+  "replace": "$data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource());",
+  "tests": [
+   "--filter",
+   "HeaderCharges|TheChargesOf|OffersTheFormOfTheCharges|OffersOnlyTheChargeWhose|ForgetsTheCharges|SavesTheChargesWithTheInvoice|RefusesChargesWhoseSetting",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G53 settings: the tax on shipping must be a percentage",
+  "file": "app/Libraries/Accounting/AccountingSettings.php",
+  "find": "if (preg_match('/^\\d{1,3}(\\.\\d{1,4})?$/', $percent) !== 1 || bccomp($percent, '100', 4) > 0) {\n                throw new AccountingException(AccountingError::ShippingTaxPercentInvalid",
+  "replace": "if (false) {\n                throw new AccountingException(AccountingError::ShippingTaxPercentInvalid",
+  "tests": [
+   "tests/Libraries/Accounting/AccountingSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G54 settings: a template that is not valid is refused",
+  "file": "app/Libraries/Accounting/AccountingSettings.php",
+  "find": "if (! JournalDescriptionTemplate::isValid($template)) {\n                    throw new AccountingException(AccountingError::JournalTemplateInvalid",
+  "replace": "if (false) {\n                    throw new AccountingException(AccountingError::JournalTemplateInvalid",
+  "tests": [
+   "tests/Libraries/Accounting/AccountingSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G55 settings: a stored template that is not valid is not used",
+  "file": "app/Libraries/Accounting/AccountingSettings.php",
+  "find": "return JournalDescriptionTemplate::isValid($value) ? trim($value) : '';",
+  "replace": "return trim($value);",
+  "tests": [
+   "tests/Libraries/Accounting/AccountingSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G56 settings: the setting of the debit note is off until turned on",
+  "file": "app/Libraries/Accounting/AccountingSettings.php",
+  "find": "return $this->config->get_value(self::DEBIT_NOTE_KEY, '0') === '1';",
+  "replace": "return $this->config->get_value(self::DEBIT_NOTE_KEY, '1') === '1';",
+  "tests": [
+   "tests/Libraries/Accounting/AccountingSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G57 settings: adjustment is off until turned on",
+  "file": "app/Libraries/Accounting/AccountingSettings.php",
+  "find": "return $this->config->get_value(self::SALES_ADJUSTMENT_KEY, '0') === '1';",
+  "replace": "return $this->config->get_value(self::SALES_ADJUSTMENT_KEY, '1') === '1';",
+  "tests": [
+   "tests/Libraries/Accounting/AccountingSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G58 settings: shipping is off until turned on",
+  "file": "app/Libraries/Accounting/AccountingSettings.php",
+  "find": "return $this->config->get_value(self::SALES_SHIPPING_KEY, '0') === '1';",
+  "replace": "return $this->config->get_value(self::SALES_SHIPPING_KEY, '1') === '1';",
+  "tests": [
+   "tests/Libraries/Accounting/AccountingSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G59 template: at most 200 characters, no markup and no control characters",
+  "file": "app/Libraries/Accounting/JournalDescriptionTemplate.php",
+  "find": "if (mb_strlen($template) > self::MAX || preg_match('/[\\x00-\\x1F\\x7F<>]/u', $template) === 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/JournalDescriptionTemplateTest.php"
+  ]
+ },
+ {
+  "name": "G60 template: only the four placeholders",
+  "file": "app/Libraries/Accounting/JournalDescriptionTemplate.php",
+  "find": "return $rest !== null && ! str_contains($rest, '{') && ! str_contains($rest, '}');",
+  "replace": "return true;",
+  "tests": [
+   "tests/Libraries/Accounting/JournalDescriptionTemplateTest.php"
+  ]
+ },
+ {
+  "name": "G61 template: values are cleaned of markup",
+  "file": "app/Libraries/Accounting/JournalDescriptionTemplate.php",
+  "find": "$value = strip_tags($value);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/JournalDescriptionTemplateTest.php"
+  ]
+ },
+ {
+  "name": "G62 template: values are cleaned of control characters",
+  "file": "app/Libraries/Accounting/JournalDescriptionTemplate.php",
+  "find": "$value = (string) preg_replace('/[\\x00-\\x1F\\x7F]/u', ' ', $value);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/JournalDescriptionTemplateTest.php"
+  ]
+ },
+ {
+  "name": "G63 template: an invalid template renders nothing",
+  "file": "app/Libraries/Accounting/JournalDescriptionTemplate.php",
+  "find": "if ($template === '' || ! self::isValid($template)) {",
+  "replace": "if ($template === '') {",
+  "tests": [
+   "tests/Libraries/Accounting/JournalDescriptionTemplateTest.php"
+  ]
+ },
+ {
+  "name": "G64 template: the result is cut at the length of a line description",
+  "file": "app/Libraries/Accounting/JournalDescriptionTemplate.php",
+  "find": "return mb_substr($text, 0, self::RESULT_MAX);",
+  "replace": "return $text;",
+  "tests": [
+   "tests/Libraries/Accounting/JournalDescriptionTemplateTest.php"
+  ]
+ },
+ {
+  "name": "G65 template: a value typed with a placeholder is not expanded again",
+  "file": "app/Libraries/Accounting/JournalDescriptionTemplate.php",
+  "find": "$text = trim((string) preg_replace('/\\s+/u', ' ', strtr($template, $replacements)));",
+  "replace": "$text = trim((string) preg_replace('/\\s+/u', ' ', str_replace(array_keys($replacements), array_values($replacements), $template)));",
+  "tests": [
+   "tests/Libraries/Accounting/JournalDescriptionTemplateTest.php"
+  ]
+ },
+ {
+  "name": "G66 descriptions: the mark of a return without a sale stays",
+  "file": "app/Libraries/Accounting/JournalDescriptions.php",
+  "find": "withDescription(ReturnOverride::describe($text, $sale->returnOverride))",
+  "replace": "withDescription($text)",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G67 sale posting: the invoice journal takes the template of sales",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "$this->posting->post((new JournalDescriptions($this->db))->ofSale($draft, $sale));",
+  "replace": "$this->posting->post($draft);",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G68 receiving posting: the journal of a purchase takes the template of purchases",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "$this->posting->post((new JournalDescriptions($this->db))->ofPurchase($plan->journal, $purchase))->journalId",
+  "replace": "$this->posting->post($plan->journal)->journalId",
+  "tests": [
+   "--filter",
+   "Template|Description|Describes|DoesNotDescribe",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "G69 descriptions: a sale without a template keeps the description of the application",
+  "file": "app/Libraries/Accounting/JournalDescriptions.php",
+  "find": "        if ($template === '') {\n            return $draft;\n        }\n\n        $text = JournalDescriptionTemplate::render($template, [\n            'number' => $this->saleNumber($sale),",
+  "replace": "        $text = JournalDescriptionTemplate::render($template, [\n            'number' => $this->saleNumber($sale),",
+  "tests": [
+   "--filter",
+   "Charges|Shipping|Adjustment|Description|Template|Party",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "D01 debit note: creating needs the permission",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "        $this->guard->require(AccountingGuard::DEBIT_NOTES_MANAGE, $employeeId);\n        $this->assertOn();",
+  "replace": "        $this->assertOn();",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D02 debit note: taking back needs the permission",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "        $this->guard->require(AccountingGuard::DEBIT_NOTES_MANAGE, $employeeId);\n\n        $reason = $this->reason($reason);",
+  "replace": "        $reason = $this->reason($reason);",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D03 debit note: the setting and accounting must be on",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "if (! $this->settings->isEnabled() || ! $this->settings->debitNoteEnabled()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D04 debit note: the customer must exist",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "if ($customerId <= 0 || $this->db->table('customers')->where(['person_id' => $customerId, 'deleted' => 0])->countAllResults() === 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D05 debit note: the branch must be one the employee works in",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "        $this->branches->requireBranch($branchId, $employeeId);\n\n        if ((int) $branch->active === 0) {",
+  "replace": "        if ((int) $branch->active === 0) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D06 debit note: taking back needs the branch of the note",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "        $this->branches->requireBranch((int) $note->branch_id, $employeeId);\n\n        $customerId = (int) $note->customer_id;",
+  "replace": "        $customerId = (int) $note->customer_id;",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D07 debit note: the amount must be more than zero with four decimals",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "if (preg_match(self::AMOUNT, $amount) !== 1 || bccomp($amount, '0', SaleAmounts::SCALE) <= 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D08 debit note: the tax is a percentage from 0 to 100",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "if (preg_match(self::PERCENT, $percent) !== 1 || bccomp($percent, '100', SaleAmounts::SCALE) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D09 debit note: dated up to today",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "if ($date > date('Y-m-d')) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D10 debit note: the date must be a real date",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "if ($day === false || $day->format('Y-m-d') !== $date) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D11 debit note: the note is at most 500 characters",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "if (mb_strlen($note) > self::NOTE_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D12 debit note: taking back needs a reason",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D13 debit note: the account must be one a note may credit",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "        foreach ($this->allowedAccounts() as $account) {\n            if ((int) $account->account_id === $accountId) {\n                return $accountId;\n            }\n        }\n",
+  "replace": "        return $accountId;\n",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D14 debit note: a note taken back cannot be taken back again",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "if ($note->status !== 'posted') {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D15 debit note: the reversal is dated today when the day is in a closed period",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "$date   = $cutoff !== null && $journal->journal_date <= $cutoff['date'] ? date('Y-m-d') : $journal->journal_date;",
+  "replace": "$date   = $journal->journal_date;",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D16 debit note: credit is spent on the note once it stands",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "            $this->settlement->settle($customerId, $employeeId);\n            $this->audit->write(self::ENTITY, $debitNoteId, 'created'",
+  "replace": "            $this->audit->write(self::ENTITY, $debitNoteId, 'created'",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D17 debit note: credit spent on a note taken back is given back",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "            $this->settlement->settle($customerId, $employeeId);\n            $this->audit->write(self::ENTITY, $debitNoteId, 'reversed'",
+  "replace": "            $this->audit->write(self::ENTITY, $debitNoteId, 'reversed'",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D18 debit note: the tax goes to the output tax account",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "$taxAccount = bccomp($figures['tax'], '0', SaleAmounts::SCALE) > 0 ? $this->routed(RoutingKey::TaxOutput) : null;",
+  "replace": "$taxAccount = null;",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D19 debit note: the note is numbered by the sequence of its own type",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "$this->numbering->assign(DocumentType::SalesDebitNote, 'sales_debit_notes', $debitNoteId, $branchId);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D20 debit note: who raised it is audited",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "$this->audit->write(self::ENTITY, $debitNoteId, 'created'",
+  "replace": "$this->audit->write(self::ENTITY, $debitNoteId, 'created_x'",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D21 debit note: who took it back is audited",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "$this->audit->write(self::ENTITY, $debitNoteId, 'reversed'",
+  "replace": "$this->audit->write(self::ENTITY, $debitNoteId, 'reversed_x'",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D22 debit note: the list shows the notes of the branches of the employee only",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "            $branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('n.branch_id', $branchIds);",
+  "replace": "            $branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->where('1 = 1', null, false);",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D23 debit note: the list filters by status",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "$builder->where('n.status', $filters['status']);",
+  "replace": "$builder->where('1 = 1', null, false);",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D24 debit note: the revenue is what is left of the total after the tax",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "return ['amount' => $amount, 'percent' => bcadd($percent, '0', SaleAmounts::SCALE), 'tax' => $split['tax'], 'total' => $split['total'], 'revenue' => $split['revenue']];",
+  "replace": "return ['amount' => $amount, 'percent' => bcadd($percent, '0', SaleAmounts::SCALE), 'tax' => $split['tax'], 'total' => $split['total'], 'revenue' => $amount];",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D25 debit note: its own key range past the openings",
+  "file": "app/Libraries/Accounting/SalesDebitNotes.php",
+  "find": "return -(self::KEY_BASE + $debitNoteId);",
+  "replace": "return -$debitNoteId;",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D26 debit note: the journal is the one the journal screen cannot reverse",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "        CustomerOpening::SOURCE,\n        SalesDebitNotes::SOURCE,\n        RevenuePostingBuilder::SOURCE,",
+  "replace": "        CustomerOpening::SOURCE,\n        RevenuePostingBuilder::SOURCE,",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D27 ledger: the debit notes that stand are open items of the customer",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "foreach ($this->debitNotes($customerId, $accountId, $asOf) as $note) {",
+  "replace": "foreach ([] as $note) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php",
+   "tests/Libraries/Accounting/CustomerBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "D28 ledger: an application on a debit note is read as such",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "return ($application->debit_note_id ?? null) !== null ? SalesDebitNotes::keyOf((int) $application->debit_note_id) : -(int) $application->opening_id;",
+  "replace": "return -(int) $application->opening_id;",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D29 ledger: a note is dated by its own day in a day of the past",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "ORDER BY n.note_date ASC, n.debit_note_id ASC",
+  "replace": "ORDER BY n.debit_note_id DESC",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D30 settlement: credit spent on a note is written as an application of the note",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "find": "            'debit_note_id'   => $debitNoteId,\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D31 settlement: releasing part of an application keeps its note",
+  "file": "app/Libraries/Accounting/CreditSettlement.php",
+  "find": "                'debit_note_id'   => $row->debit_note_id,\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D32 balance report: a debit note is counted as sales",
+  "file": "app/Libraries/Accounting/CustomerBalanceReport.php",
+  "find": "IN (?, ?) THEN 'sales'",
+  "replace": "= ? THEN 'sales'",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "D33 numbering: five digits for the sales debit note",
+  "file": "app/Libraries/Numbering/DocumentType.php",
+  "find": "return $this === self::SalesDebitNote ? 5 : 0;",
+  "replace": "return 0;",
+  "tests": [
+   "tests/Libraries/Numbering/DocumentTypeTest.php",
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D34 numbering: the sales debit note keeps its own table",
+  "file": "app/Libraries/Numbering/DocumentType.php",
+  "find": "self::SalesDebitNote => ['sales_debit_notes' => 'debit_note_id'],",
+  "replace": "self::SalesDebitNote => ['receivings' => 'receiving_id'],",
+  "tests": [
+   "tests/Libraries/Numbering/DocumentTypeTest.php",
+   "tests/Libraries/Accounting/SalesDebitNotesTest.php"
+  ]
+ },
+ {
+  "name": "D35 screen: the form is for those who may manage debit notes",
+  "file": "app/Controllers/AccountingDebitNotes.php",
+  "find": "    public function getForm(): ResponseInterface|string\n    {\n        if (! $this->can(AccountingGuard::DEBIT_NOTES_MANAGE)) {",
+  "replace": "    public function getForm(): ResponseInterface|string\n    {\n        if (false) {",
+  "tests": [
+   "tests/Controllers/AccountingDebitNotesControllerTest.php"
+  ]
+ },
+ {
+  "name": "D36 screen: the customers search is for those who may manage debit notes",
+  "file": "app/Controllers/AccountingDebitNotes.php",
+  "find": "    public function getCustomers(): ResponseInterface\n    {\n        if (! $this->can(AccountingGuard::DEBIT_NOTES_MANAGE)) {",
+  "replace": "    public function getCustomers(): ResponseInterface\n    {\n        if (false) {",
+  "tests": [
+   "tests/Controllers/AccountingDebitNotesControllerTest.php"
+  ]
+ },
+ {
+  "name": "D37 screen: the reverse form is for the branches of the employee",
+  "file": "app/Controllers/AccountingDebitNotes.php",
+  "find": "if ($note === null || ! $this->can(AccountingGuard::DEBIT_NOTES_MANAGE)) {",
+  "replace": "if ($note === null && false) {",
+  "tests": [
+   "tests/Controllers/AccountingDebitNotesControllerTest.php"
+  ]
+ },
+ {
+  "name": "D38 screen: taking back is offered to those who may manage notes",
+  "file": "app/Views/accounting_debit_notes/manage.php",
+  "find": "<?php if ($can_manage && $row->status === 'posted'): ?>",
+  "replace": "<?php if ($row->status === 'posted'): ?>",
+  "tests": [
+   "tests/Controllers/AccountingDebitNotesControllerTest.php"
+  ]
+ },
+ {
+  "name": "D39 screen: a new note is offered only while the setting is on",
+  "file": "app/Views/accounting_debit_notes/manage.php",
+  "find": "<?php if ($can_manage && $enabled): ?>",
+  "replace": "<?php if ($can_manage): ?>",
+  "tests": [
+   "tests/Controllers/AccountingDebitNotesControllerTest.php"
+  ]
+ },
+ {
+  "name": "D40 screen: the list shows the notes of the branches of the employee only",
+  "file": "app/Controllers/AccountingDebitNotes.php",
+  "find": "$result  = $this->notes->search($filters, $this->employeeId(), self::PAGE_SIZE, $offset);",
+  "replace": "$result  = $this->notes->search($filters, 0, self::PAGE_SIZE, $offset);",
+  "tests": [
+   "tests/Controllers/AccountingDebitNotesControllerTest.php"
+  ]
+ },
+ {
+  "name": "D41 screen: the status filter takes only the two statuses",
+  "file": "app/Controllers/AccountingDebitNotes.php",
+  "find": "'status' => in_array($status, ['posted', 'reversed'], true) ? $status : '',",
+  "replace": "'status' => $status,",
+  "tests": [
+   "tests/Controllers/AccountingDebitNotesControllerTest.php"
+  ]
+ },
+ {
+  "name": "M01 migration: the adjustment row moves only when nobody changed it",
+  "file": "app/Database/Migrations/20271900000000_InvoiceHeaderCharges.php",
+  "find": "if ($account['routing'] === 'sales.adjustment' && $this->untouchedAdjustment($route)) {",
+  "replace": "if ($account['routing'] === 'sales.adjustment') {",
+  "tests": [
+   "tests/Database/InvoiceHeaderChargesMigrationTest.php"
+  ]
+ },
+ {
+  "name": "M02 migration: a free code is taken when the first is taken",
+  "file": "app/Database/Migrations/20271900000000_InvoiceHeaderCharges.php",
+  "find": "if ($this->db->table('accounting_accounts')->where('code', $code)->countAllResults() > 0) {\n                    continue;\n                }",
+  "replace": "",
+  "tests": [
+   "tests/Database/InvoiceHeaderChargesMigrationTest.php"
+  ]
+ },
+ {
+  "name": "M03 migration: the shipping row that has an account is kept",
+  "file": "app/Database/Migrations/20271900000000_InvoiceHeaderCharges.php",
+  "find": "} elseif ($route->account_id === null) {",
+  "replace": "} else {",
+  "tests": [
+   "tests/Database/InvoiceHeaderChargesMigrationTest.php"
+  ]
+ },
+ {
+  "name": "M04 migration: an application points at exactly one of three targets",
+  "file": "app/Database/Migrations/20271900000001_SalesDebitNotes.php",
+  "find": "CHECK ((`invoice_sale_id` IS NOT NULL) + (`opening_id` IS NOT NULL) + (`debit_note_id` IS NOT NULL) = 1)",
+  "replace": "CHECK ((`invoice_sale_id` IS NOT NULL) + (`opening_id` IS NOT NULL) + (`debit_note_id` IS NOT NULL) >= 1)",
+  "tests": [
+   "tests/Database/SalesDebitNotesMigrationTest.php"
+  ]
+ },
+ {
+  "name": "M05 migration: the permission is registered and never granted",
+  "file": "app/Database/Migrations/20271900000001_SalesDebitNotes.php",
+  "find": "            ['permission_id' => self::PERMISSION, 'module_id' => self::MODULE],\n",
+  "replace": "",
+  "tests": [
+   "tests/Database/SalesDebitNotesMigrationTest.php"
+  ]
+ }
+]

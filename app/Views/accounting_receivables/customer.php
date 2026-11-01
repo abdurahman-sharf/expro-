@@ -18,6 +18,8 @@
  * @var bool             $can_refund
  * @var Closure          $amount
  * @var Closure          $date
+ * @var Closure          $debit_note_of
+ * @var Closure          $debit_note_number
  */
 
 use App\Libraries\Accounting\AgingBuckets;
@@ -159,6 +161,8 @@ $sourceLink = static fn (string $type, int $sourceId): string => match ($type) {
                         <td>
                             <?php if ($invoice->opening): ?>
                                 <?= esc(lang('Accounting_receivables.source_opening')) ?> <bdi dir="ltr">#<?= -$invoice->saleId ?></bdi>
+                            <?php elseif ($invoice->debitNote): ?>
+                                <?= esc(lang('Accounting_receivables.source_debit_note')) ?> <bdi dir="ltr">#<?= esc($debit_note_of($invoice->saleId)) ?></bdi>
                             <?php else: ?>
                                 <?= anchor('sales/receipt/' . $invoice->saleId, 'POS ' . $invoice->saleId, ['target' => '_blank', 'dir' => 'ltr']) ?>
                             <?php endif; ?>
@@ -376,7 +380,9 @@ $sourceLink = static fn (string $type, int $sourceId): string => match ($type) {
                     <tr>
                         <td><?= esc($sourceLabel($application->source_type, (int) $application->source_id)) ?> <bdi dir="ltr"><?= $application->source_type === CreditSource::CHEQUE ? esc($chequeNumber((int) $application->source_id)) : (int) $application->source_id ?></bdi></td>
                         <td>
-                            <?php if ($application->invoice_sale_id === null): ?>
+                            <?php if ($application->debit_note_id !== null): ?>
+                                <?= esc(lang('Accounting_receivables.source_debit_note')) ?> <bdi dir="ltr">#<?= esc($debit_note_number((int) $application->debit_note_id)) ?></bdi>
+                            <?php elseif ($application->invoice_sale_id === null): ?>
                                 <?= esc(lang('Accounting_receivables.source_opening')) ?> <bdi dir="ltr">#<?= (int) $application->opening_id ?></bdi>
                             <?php else: ?>
                                 <bdi dir="ltr"><?= (int) $application->invoice_sale_id ?></bdi>

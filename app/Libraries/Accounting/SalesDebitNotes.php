@@ -31,13 +31,13 @@ final class SalesDebitNotes
 {
     use RunsInTransaction;
 
-    public const SOURCE      = 'sales_debit_note';
-    public const KEY_BASE    = 1_000_000_000;
-    public const NOTE_MAX    = 500;
-    public const REASON_MAX  = 255;
-    private const ENTITY     = 'sales_debit_note';
-    private const AMOUNT     = '/^\d{1,11}(\.\d{1,4})?$/';
-    private const PERCENT    = '/^\d{1,3}(\.\d{1,4})?$/';
+    public const SOURCE         = 'sales_debit_note';
+    public const KEY_BASE       = 1_000_000_000;
+    public const NOTE_MAX       = 500;
+    public const REASON_MAX     = 255;
+    private const ENTITY        = 'sales_debit_note';
+    private const AMOUNT        = '/^\d{1,11}(\.\d{1,4})?$/';
+    private const PERCENT       = '/^\d{1,3}(\.\d{1,4})?$/';
     private const ACCOUNT_TYPES = [AccountType::Revenue, AccountType::Expense];
 
     private BaseConnection $db;

@@ -145,6 +145,7 @@ return [
     'source'                  => 'Source',
     'source_advance'          => 'Advance payment',
     'source_credit_note'      => 'Credit note',
+    'source_debit_note'       => 'Sales debit note',
     'source_excess'           => 'Excess payment on invoice',
     'source_opening'          => 'Opening balance',
     'statement'               => 'Statement',
