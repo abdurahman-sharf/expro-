@@ -2,6 +2,7 @@
 
 namespace Tests\Models\Reports;
 
+use App\Models\Appconfig;
 use App\Models\Reports\Summary_sales;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -128,5 +129,26 @@ class Summary_salesTest extends CIUnitTestCase
 
         $this->assertSame('120.00', bcadd((string) $summary['subtotal'], '0', 2));
         $this->assertSame('120.00', bcadd((string) $summary['total'], '0', 2));
+    }
+
+    public function testGetSummaryData_TakesTheTaxInsideThePriceOutOfTheSubtotalAndAddsOnlyTheTaxAddedToItToTheTotalWhateverTheDefaultModeIs(): void
+    {
+        try {
+            foreach (['0', '1'] as $default) {
+                model(Appconfig::class)->save(['tax_included' => $default]);
+                $this->removeReportSales(self::MONTH);
+                $this->dropReportTables();
+
+                $itemId = $this->createTestItem(HAS_NO_STOCK);
+
+                $this->reportSale($itemId, '1', '100', null, self::MONTH . '05', [$this->reportTax($itemId, '13.0435', 0, 'Inside'), $this->reportTax($itemId, '4.35', 1, 'Added', '5.0000')]);
+
+                $summary = (new Summary_sales())->getSummaryData(['start_date' => self::MONTH . '05', 'end_date' => self::MONTH . '05', 'location_id' => 'all', 'sale_type' => 'complete']);
+
+                $this->assertSame(['86.96', '104.35', '17.39'], [bcadd((string) $summary['subtotal'], '0', 2), bcadd((string) $summary['total'], '0', 2), bcadd((string) $summary['tax'], '0', 2)], 'default ' . $default);
+            }
+        } finally {
+            model(Appconfig::class)->save(['tax_included' => '0']);
+        }
     }
 }

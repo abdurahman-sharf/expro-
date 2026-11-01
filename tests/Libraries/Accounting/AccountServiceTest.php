@@ -413,6 +413,89 @@ class AccountServiceTest extends CIUnitTestCase
         $this->assertFailsWith(AccountingError::ParentInactive, fn () => $this->service->activate($child));
     }
 
+    public function testDeactivate_RejectsTheAccountATaxIsCreditedTo(): void
+    {
+        $accountId = $this->customAccount('215', '215003', 'Tax on services');
+        $db        = $this->accountingDb();
+
+        $db->table('tax_definitions')->insert(['tax_name' => 'Service ' . uniqid(), 'liability_account_id' => $accountId]);
+
+        try {
+            $this->assertFailsWith(AccountingError::AccountRouted, fn () => $this->service->deactivate($accountId));
+            $this->assertSame('1', (string) $this->account($accountId)->active);
+        } finally {
+            $db->table('tax_definitions')->truncate();
+        }
+    }
+
+    public function testDelete_RejectsTheAccountATaxIsCreditedTo(): void
+    {
+        $accountId = $this->customAccount('215', '215004', 'Tax on food');
+        $db        = $this->accountingDb();
+
+        $db->table('tax_definitions')->insert(['tax_name' => 'Food ' . uniqid(), 'liability_account_id' => $accountId]);
+
+        try {
+            $this->assertFailsWith(AccountingError::AccountRouted, fn () => $this->service->delete($accountId));
+            $this->assertNotNull($this->service->find($accountId));
+        } finally {
+            $db->table('tax_definitions')->truncate();
+        }
+    }
+
+    public function testDeactivate_FreesTheAccountOfATaxThatWasDeleted(): void
+    {
+        $accountId = $this->customAccount('215', '215005', 'Tax on drinks');
+        $db        = $this->accountingDb();
+
+        $db->table('tax_definitions')->insert(['tax_name' => 'Drinks ' . uniqid(), 'liability_account_id' => $accountId]);
+        $db->table('tax_definitions')->truncate();
+
+        $this->service->deactivate($accountId);
+
+        $this->assertSame('0', (string) $this->account($accountId)->active);
+    }
+
+    public function testDelete_RejectsTheAccountTheTaxRowsOfASaleWereSavedWith(): void
+    {
+        $accountId = $this->customAccount('215', '215006', 'Tax on rent');
+        $db        = $this->accountingDb();
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $db->table('sales_items_taxes')->insert(['sale_id' => 987654, 'item_id' => 987654, 'line' => 1, 'name' => 'Rent', 'percent' => '5.0000', 'liability_account_id' => $accountId]);
+
+        try {
+            $this->assertFailsWith(AccountingError::AccountInUse, fn () => $this->service->delete($accountId));
+            $this->assertNotNull($this->service->find($accountId));
+        } finally {
+            $db->table('sales_items_taxes')->where('sale_id', 987654)->delete();
+            $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        }
+
+        $this->service->delete($accountId);
+
+        $this->assertNull($this->service->find($accountId));
+    }
+
+    public function testDeactivate_RejectsTheAccountTheTaxRowsOfASaleWereSavedWith(): void
+    {
+        $accountId = $this->customAccount('215', '215007', 'Tax on fuel');
+        $db        = $this->accountingDb();
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $db->table('sales_items_taxes')->insert(['sale_id' => 987655, 'item_id' => 987655, 'line' => 1, 'name' => 'Fuel', 'percent' => '5.0000', 'liability_account_id' => $accountId]);
+
+        try {
+            $this->assertFailsWith(AccountingError::AccountTaxStamped, fn () => $this->service->deactivate($accountId));
+            $this->assertSame('1', (string) $this->account($accountId)->active);
+        } finally {
+            $db->table('sales_items_taxes')->where('sale_id', 987655)->delete();
+            $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        }
+
+        $this->service->deactivate($accountId);
+
+        $this->assertSame('0', (string) $this->account($accountId)->active);
+    }
+
     public function testDelete_RemovesAnUnusedCustomAccount(): void
     {
         $accountId = $this->customAccount();

@@ -16,6 +16,7 @@ use App\Models\Item_quantity;
 use App\Models\Item_taxes;
 use App\Models\Sale;
 use App\Models\Stock_location;
+use App\Models\Tax_definition;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -776,6 +777,103 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertNull($saleLib->getInvoiceDate());
         $this->assertNull($saleLib->getPaymentTerms());
         $this->assertSame(9, $saleLib->getQuoteSource(), 'the quote of this conversion and not an earlier one');
+    }
+
+    /**
+     * A register whose item carries two taxes, the first inside the price and the second added to it,
+     * for a walk-in customer.
+     *
+     * @param array<string, array{included: bool|null, account: int|null}> $definitions
+     */
+    private function registerWithTaxes(bool $defaultIncluded = false, array $definitions = ['vat' => ['included' => true, 'account' => null], 'service' => ['included' => false, 'account' => null]], bool $byDestination = false): Sale_lib
+    {
+        $ospos           = new OSPOS();
+        $ospos->settings = ['cash_rounding_code' => '', 'cash_decimals' => 2, 'currency_decimals' => 2, 'tax_decimals' => 2, 'quantity_decimals' => 2, 'tax_included' => $defaultIncluded ? '1' : '0', 'use_destination_based_tax' => $byDestination ? '1' : '0'];
+        Factories::injectMock('config', OSPOS::class, $ospos);
+
+        $customer = $this->createStub(Customer::class);
+        $customer->method('get_info')->willReturn((object) ['taxable' => 1, 'city' => '', 'state' => '', 'sales_tax_code_id' => 0]);
+        Factories::injectMock('models', Customer::class, $customer);
+
+        $itemTaxes = $this->createStub(Item_taxes::class);
+        $itemTaxes->method('get_info')->willReturn([['name' => 'VAT', 'percent' => '15'], ['name' => 'Service', 'percent' => '5']]);
+        Factories::injectMock('models', Item_taxes::class, $itemTaxes);
+
+        $list = $this->createStub(Tax_definition::class);
+        $list->method('forNames')->willReturnCallback(static fn (array $names): array => array_intersect_key($definitions, array_flip(array_map(Tax_definition::key(...), $names))));
+        Factories::injectMock('models', Tax_definition::class, $list);
+
+        session()->destroy();
+
+        $saleLib = new Sale_lib();
+        $saleLib->set_cart([1 => ['item_id' => 3, 'item_location' => 1, 'line' => 1, 'quantity' => '1', 'price' => '100', 'discount' => '0', 'discount_type' => PERCENT, 'stock_type' => HAS_STOCK]]);
+
+        return $saleLib;
+    }
+
+    public function testGetTotal_AddsOnlyTheTaxesThatAreAddedToThePrice(): void
+    {
+        $this->assertSame('104.3500', $this->fourDecimals($this->registerWithTaxes()->get_total()), 'the tax inside the price is already in it, and the other is charged on what is left of it');
+    }
+
+    public function testGetTotal_AddsNothingWhenEveryTaxIsInsideThePrice(): void
+    {
+        $saleLib = $this->registerWithTaxes(true, []);
+
+        $this->assertSame('100.0000', $this->fourDecimals($saleLib->get_total()));
+    }
+
+    public function testGetTotal_AddsEveryTaxWhenNoneIsInsideThePrice(): void
+    {
+        $saleLib = $this->registerWithTaxes(false, []);
+
+        $this->assertSame('120.0000', $this->fourDecimals($saleLib->get_total()), '15 and 5 on 100');
+    }
+
+    public function testGetSubtotal_TakesOnlyTheTaxInsideThePriceOutOfTheLineWhenAskedForItWithoutTax(): void
+    {
+        $saleLib = $this->registerWithTaxes();
+
+        $this->assertSame('86.9565', $this->fourDecimals($saleLib->get_subtotal(true, true)));
+        $this->assertSame('100.0000', $this->fourDecimals($saleLib->get_subtotal(true, false)));
+    }
+
+    public function testGetSubtotal_LeavesTheLineAloneWhenNoTaxIsInsideThePrice(): void
+    {
+        $this->assertSame('100.0000', $this->fourDecimals($this->registerWithTaxes(false, [])->get_subtotal(true, true)));
+    }
+
+    public function testGetSubtotal_LeavesTheLineAloneWhenTheShopTaxesByDestination(): void
+    {
+        $saleLib = $this->registerWithTaxes(false, ['vat' => ['included' => true, 'account' => null]], true);
+
+        $this->assertSame('100.0000', $this->fourDecimals($saleLib->get_subtotal(true, true)), 'the taxes by destination are not those of the item');
+    }
+
+    public function testGetItemTotalTaxExclusive_TakesTheTaxInsideThePriceOutOfTheItemAndLeavesTheOneAddedToIt(): void
+    {
+        $this->assertSame('86.9565', $this->fourDecimals($this->registerWithTaxes()->get_item_total_tax_exclusive(3, '1', '100', '0', PERCENT, true)));
+    }
+
+    public function testGetTotals_TakesTheTaxInsideThePriceOffTheSubtotalAndAddsTheOneAddedToItToTheTotal(): void
+    {
+        $saleLib = $this->registerWithTaxes();
+
+        $totals = $saleLib->get_totals([
+            'a' => ['tax_type' => Tax_lib::TAX_TYPE_INCLUDED, 'sale_tax_amount' => '13.0435'],
+            'b' => ['tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'sale_tax_amount' => '4.35'],
+        ]);
+
+        $this->assertSame('86.9565', $this->fourDecimals($totals['subtotal']));
+        $this->assertSame('104.3500', $this->fourDecimals($totals['total']));
+        $this->assertSame('4.3500', $this->fourDecimals($totals['tax_total']));
+    }
+
+    public function testGetItemTax_WorksTheTaxOutOfThePriceOrOnTopOfItAsTheModeItIsGivenSays(): void
+    {
+        $this->assertSame('15.0000', $this->fourDecimals($this->saleLib->get_item_tax('1', '115', '0', PERCENT, '15', '0', true)));
+        $this->assertSame('17.2500', $this->fourDecimals($this->saleLib->get_item_tax('1', '115', '0', PERCENT, '15', '0', false)));
+        $this->assertSame('17.2500', $this->fourDecimals($this->saleLib->get_item_tax('1', '115', '0', PERCENT, '15')), 'without a mode the default of the shop decides');
     }
 
     private function fourDecimals(string $amount): string

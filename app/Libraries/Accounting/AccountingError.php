@@ -280,4 +280,12 @@ enum AccountingError: string
     case BackfillOpeningMissing   = 'backfill_opening_missing';
     case BackfillPreviewChanged   = 'backfill_preview_changed';
     case BackfillNothingToApprove = 'backfill_nothing_to_approve';
+
+    case AccountTaxStamped          = 'account_tax_stamped';
+    case TaxDefinitionNotFound      = 'tax_definition_not_found';
+    case TaxLiabilityAccountInvalid = 'tax_liability_account_invalid';
+    case TaxModeInvalid             = 'tax_mode_invalid';
+    case TaxNameInvalid             = 'tax_name_invalid';
+    case TaxNameTaken               = 'tax_name_taken';
+    case TaxOneRequired             = 'tax_one_required';
 }

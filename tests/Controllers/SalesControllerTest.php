@@ -10,19 +10,26 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Config\Services;
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\InvoiceTiming;
 use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\SaleDocumentList;
 use App\Libraries\Accounting\ReturnDocument;
+use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
 use PHPUnit\Framework\Attributes\DataProvider;
+use App\Models\Appconfig;
 use App\Models\Employee;
+use App\Models\Item_taxes;
+use App\Models\Sale;
 use CodeIgniter\Test\TestResponse;
 use Config\Database;
 use Config\OSPOS;
@@ -3098,6 +3105,224 @@ class SalesControllerTest extends CIUnitTestCase
     private function switchOn(DocumentType $type, string $prefix, int $padding = 3): void
     {
         (new DocumentNumbering())->configure($type, ['enabled' => true, 'prefix' => $prefix, 'padding' => $padding, 'next_number' => 1]);
+    }
+
+    /**
+     * A cashier's register holding a line of the price for an item that carries the two taxes of
+     * the tax list below: VAT inside the price, the service charge on top of it.
+     *
+     * @return array{int, int}
+     */
+    private function registerWithTwoTaxes(string $mode = 'sale_invoice'): array
+    {
+        $cashierId = $this->createCashierEmployee();
+        $itemId    = $this->createTestItem(HAS_NO_STOCK);
+        $taxes     = [['name' => 'VAT', 'percent' => '15'], ['name' => 'Service', 'percent' => '5']];
+
+        model(Item_taxes::class)->save_value($taxes, $itemId);
+        Database::connect()->table('tax_definitions')->insertBatch([['tax_name' => 'VAT', 'tax_included' => 1], ['tax_name' => 'Service', 'tax_included' => 0]]);
+
+        $this->loginAs($cashierId);
+        $this->seedCartLine(1, '100.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => $mode]));
+
+        return [$cashierId, $itemId];
+    }
+
+    private function forgetTheTaxList(): void
+    {
+        model(Appconfig::class)->save(['receipt_show_taxes' => '0']);
+        Database::connect()->table('tax_definitions')->truncate();
+        model(Appconfig::class)->save(['tax_included' => '0']);
+        model(Appconfig::class)->save(['require_tax_1' => '0']);
+    }
+
+    private function lastSaleId(): int
+    {
+        return (int) Database::connect()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+    }
+
+    public function testPostComplete_ChargesEachTaxOfTheItemInTheModeOfTheTaxListAndSavesThemSo(): void
+    {
+        try {
+            $this->registerWithTwoTaxes();
+
+            $response = $this->post('/sales/complete');
+
+            $saleId = $this->lastSaleId();
+            $rows   = Database::connect()->table('sales_items_taxes')->where('sale_id', $saleId)->orderBy('name', 'ASC')->get()->getResult();
+
+            $this->assertSame(['Service', 'VAT'], array_column($rows, 'name'));
+            $this->assertSame(['1', '0'], array_map(static fn (object $row): string => (string) $row->tax_type, $rows));
+            $this->assertSame(['4.3500', '13.0435'], array_map(static fn (object $row): string => bcadd((string) $row->item_tax_amount, '0', 4), $rows));
+            $this->assertSame('104.35', bcadd((string) model(Sale::class)->get_info($saleId)->getRow()->amount_due, '0', 2));
+            $response->assertSee('104.35');
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testGetReceipt_ShowsASaleAsItWasSavedAfterTheModeOfItsTaxesChanged(): void
+    {
+        try {
+            $this->registerWithTwoTaxes();
+            $this->post('/sales/complete');
+
+            $saleId = $this->lastSaleId();
+
+            Database::connect()->table('tax_definitions')->where('tax_name', 'VAT')->update(['tax_included' => 0]);
+            Database::connect()->table('tax_definitions')->where('tax_name', 'Service')->update(['tax_included' => 1]);
+            model(Appconfig::class)->save(['tax_included' => '1']);
+
+            $this->loginAs($this->createBranchLimitedSupervisor(1));
+            model(Appconfig::class)->save(['receipt_show_taxes' => '1']);
+
+            $receipt = $this->get('/sales/receipt/' . $saleId);
+
+            $receipt->assertStatus(200);
+            $receipt->assertSee('104.35');
+            $receipt->assertSee('13.04');
+            $receipt->assertSee('4.35');
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testPostComplete_RefusesALineWithNoTaxWhenTheSettingAsksForOneAndSavesNothing(): void
+    {
+        model(Appconfig::class)->save(['require_tax_1' => '1']);
+
+        try {
+            $cashierId = $this->createCashierEmployee();
+            $itemId    = $this->createTestItem(HAS_NO_STOCK);
+
+            $this->loginAs($cashierId);
+            $this->seedCartLine(1, '100.00', $itemId);
+            $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice']));
+
+            $sales    = Database::connect()->table('sales')->countAllResults();
+            $response = $this->post('/sales/complete');
+
+            $this->assertSame($sales, Database::connect()->table('sales')->countAllResults());
+            $response->assertSee(AccountingMessage::of(new AccountingException(AccountingError::TaxOneRequired, '', ['line' => 1])));
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testPostComplete_AcceptsALineWithATaxWhenTheSettingAsksForOne(): void
+    {
+        model(Appconfig::class)->save(['require_tax_1' => '1']);
+
+        try {
+            $this->registerWithTwoTaxes();
+
+            $sales = Database::connect()->table('sales')->countAllResults();
+
+            $this->post('/sales/complete');
+
+            $this->assertSame($sales + 1, Database::connect()->table('sales')->countAllResults());
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testPostComplete_TakesACreditNoteOfAnInvoiceWithTaxInsideThePricesBackAtTheModeAndAccountTheInvoiceHad(): void
+    {
+        $this->startSelling();
+
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+        $invoice = $this->save([$this->line($item, 0, '1', '115')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '15.00', $account)], [], SALE_TYPE_INVOICE);
+
+        Database::connect()->table('tax_definitions')->insert(['tax_name' => 'VAT', 'tax_included' => 0]);
+        model(Appconfig::class)->save(['tax_included' => '0']);
+
+        try {
+            $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+            $this->assertTrue($this->jsonOf($this->post('/sales/creditNote/' . $invoice))['success']);
+
+            $this->withSession(Services::session()->get());
+            $this->post('/sales/addPayment', ['payment_type' => lang('Sales.cash'), 'amount_tendered' => '-115.00']);
+            $this->withSession(Services::session()->get());
+
+            $this->post('/sales/complete');
+
+            $returnId = $this->lastSaleId();
+
+            $this->saleIds[] = $returnId;
+
+            $row = Database::connect()->table('sales_items_taxes')->where('sale_id', $returnId)->get()->getRow();
+
+            $this->assertNotSame($invoice, $returnId, 'the credit note was saved as a sale of its own');
+            $this->assertSame(['0', '-15.0000', (string) $account], [(string) $row->tax_type, bcadd((string) $row->item_tax_amount, '0', 4), (string) $row->liability_account_id]);
+            $this->assertSame('0.00', $this->balance($account), 'the credit note gave back the tax to the account the invoice took it to');
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testPostComplete_TakesACreditNoteOfAnInvoiceSavedWithSeveralTaxesInsideThePricesBackAtWhatTheInvoiceCharged(): void
+    {
+        $this->startSelling();
+
+        $item    = $this->item('0', false);
+        $invoice = $this->save([$this->line($item, 0, '1', '115')], [$this->taxRow($item, 0, 'VAT', '10.0000', 0, '10.4545'), $this->taxRow($item, 0, 'Levy', '5.0000', 0, '5.4762')], [], SALE_TYPE_INVOICE);
+        $output  = $this->accountId(RoutingKey::TaxOutput->defaultSystemKey());
+
+        $this->assertSame('-15.93', $this->balance($output), 'the invoice took 15.93 of tax');
+
+        try {
+            $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+            $this->assertTrue($this->jsonOf($this->post('/sales/creditNote/' . $invoice))['success']);
+
+            $this->withSession(Services::session()->get());
+            $this->post('/sales/addPayment', ['payment_type' => lang('Sales.cash'), 'amount_tendered' => '-115.00']);
+            $this->withSession(Services::session()->get());
+            $this->post('/sales/complete');
+
+            $returnId = $this->lastSaleId();
+
+            $this->saleIds[] = $returnId;
+
+            $rows = Database::connect()->table('sales_items_taxes')->where('sale_id', $returnId)->orderBy('name', 'ASC')->get()->getResult();
+
+            $this->assertNotSame($invoice, $returnId, 'the credit note was saved as a sale of its own');
+            $this->assertSame(['Levy', 'VAT'], array_column($rows, 'name'));
+            $this->assertSame(['-5.4762', '-10.4545'], array_map(static fn (object $row): string => bcadd((string) $row->item_tax_amount, '0', 4), $rows));
+            $this->assertSame('0.00', $this->balance($output), 'the credit note gave back all the tax the invoice took and not the 15.00 the arithmetic of today would make of it');
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testGetReceipt_ShowsASaleSavedWithSeveralTaxesInsideThePricesWithTheSubtotalItsTaxesLeave(): void
+    {
+        $this->startSelling();
+
+        $item    = $this->item('0', false);
+        $invoice = $this->save([$this->line($item, 0, '1', '115')], [$this->taxRow($item, 0, 'VAT', '10.0000', 0, '10.4545'), $this->taxRow($item, 0, 'Levy', '5.0000', 0, '5.4762')], [], SALE_TYPE_INVOICE);
+
+        Database::connect()->table('sales_taxes')->insertBatch([
+            ['sale_id' => $invoice, 'tax_type' => 0, 'tax_group' => 'VAT', 'name' => 'VAT', 'tax_rate' => '10.0000', 'sale_tax_basis' => '115.0000', 'sale_tax_amount' => '10.45', 'print_sequence' => 1, 'rounding_code' => 0],
+            ['sale_id' => $invoice, 'tax_type' => 0, 'tax_group' => 'Levy', 'name' => 'Levy', 'tax_rate' => '5.0000', 'sale_tax_basis' => '115.0000', 'sale_tax_amount' => '5.48', 'print_sequence' => 2, 'rounding_code' => 0],
+        ]);
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        model(Appconfig::class)->save(['receipt_show_taxes' => '1']);
+
+        try {
+            $receipt = $this->get('/sales/receipt/' . $invoice);
+
+            $receipt->assertStatus(200);
+            $receipt->assertSee('10.45');
+            $receipt->assertSee('5.48');
+            $receipt->assertSee('99.07');
+        } finally {
+            $this->forgetTheTaxList();
+        }
     }
 
     /**

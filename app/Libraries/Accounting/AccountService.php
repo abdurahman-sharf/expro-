@@ -165,6 +165,10 @@ final class AccountService
             throw new AccountingException(AccountingError::AccountRouted, 'The account is a routing target.');
         }
 
+        if ($this->isStamped($accountId)) {
+            throw new AccountingException(AccountingError::AccountTaxStamped, 'The account is on the tax rows of saved sales, which a return of them posts to.');
+        }
+
         if ($this->db->table('accounting_accounts')->where('parent_id', $accountId)->where('active', 1)->countAllResults() > 0) {
             throw new AccountingException(AccountingError::HasActiveChildren, 'The account has active children.');
         }
@@ -213,8 +217,8 @@ final class AccountService
             throw new AccountingException(AccountingError::HasChildren, 'The account has children.');
         }
 
-        if ($this->isUsed($accountId)) {
-            throw new AccountingException(AccountingError::AccountInUse, 'The account has journal lines.');
+        if ($this->isUsed($accountId) || $this->isStamped($accountId)) {
+            throw new AccountingException(AccountingError::AccountInUse, 'The account has journal lines or the tax rows of a sale.');
         }
 
         if ($this->isRouted($accountId)) {
@@ -245,7 +249,13 @@ final class AccountService
     {
         return $this->db->table('accounting_routing')->where('account_id', $accountId)->countAllResults() > 0
             || $this->db->table('expense_categories')->where('account_id', $accountId)->countAllResults() > 0
-            || $this->db->table('revenue_categories')->where('account_id', $accountId)->countAllResults() > 0;
+            || $this->db->table('revenue_categories')->where('account_id', $accountId)->countAllResults() > 0
+            || $this->db->table('tax_definitions')->where('liability_account_id', $accountId)->countAllResults() > 0;
+    }
+
+    private function isStamped(int $accountId): bool
+    {
+        return $this->db->table('sales_items_taxes')->where('liability_account_id', $accountId)->countAllResults() > 0;
     }
 
     /**

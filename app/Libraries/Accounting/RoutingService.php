@@ -300,6 +300,7 @@ final class RoutingService
             ->select('t.name, t.percent')
             ->join('sales s', 's.sale_id = t.sale_id')
             ->where('s.sale_status', COMPLETED)
+            ->where('t.liability_account_id IS NULL', null, false)
             ->where('s.sale_time >=', date('Y-m-d H:i:s', strtotime(self::USAGE_WINDOW)))
             ->groupBy('t.name, t.percent')
             ->get()

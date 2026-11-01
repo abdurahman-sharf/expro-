@@ -25,22 +25,19 @@ abstract class Summary_report extends Report
 
         $decimals = totals_decimals();
 
-        $sale_price = 'CASE WHEN sales_items.discount_type = ' . PERCENT
+        $salePrice = 'CASE WHEN sales_items.discount_type = ' . PERCENT
             . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, $decimals) "
             . 'ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END - ' . InvoiceDiscount::sqlShare('sales_items');
 
-        $sale_cost = 'SUM(sales_items.item_cost_price * sales_items.quantity_purchased)';
-        $sales_tax = "IFNULL(SUM(sales_items_taxes.tax), 0)";
+        $saleCost = 'SUM(sales_items.item_cost_price * sales_items.quantity_purchased)';
+        $salesTax = "IFNULL(SUM(sales_items_taxes.tax), 0)";
+        $internalTax = "IFNULL(SUM(sales_items_taxes.internal_tax), 0)";
+        $addedTax = "IFNULL(SUM(sales_items_taxes.sales_tax), 0)";
 
-        $cash_adjustment = 'IFNULL(SUM(payments.sale_cash_adjustment), 0)';
+        $cashAdjustment = 'IFNULL(SUM(payments.sale_cash_adjustment), 0)';
 
-        if ($config['tax_included']) {
-            $sale_total = "ROUND(SUM($sale_price), $decimals) + $cash_adjustment";
-            $sale_subtotal = "$sale_total - $sales_tax";
-        } else {
-            $sale_subtotal = "ROUND(SUM($sale_price), $decimals) + $cash_adjustment";
-            $sale_total = "ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment";
-        }
+        $saleSubtotal = "ROUND(SUM($salePrice), $decimals) - $internalTax + $cashAdjustment";
+        $saleTotal = "ROUND(SUM($salePrice), $decimals) + $addedTax + $cashAdjustment";
 
         // Create a temporary table to contain all the sum of taxes per sale item
         $this->db->query(
@@ -82,11 +79,11 @@ abstract class Summary_report extends Report
         );
 
         $builder->select("
-                IFNULL($sale_subtotal, $sale_total) AS subtotal,
-                $sales_tax AS tax,
-                IFNULL($sale_total, $sale_subtotal) AS total,
-                $sale_cost AS cost,
-                (IFNULL($sale_subtotal, $sale_total) - $sale_cost) AS profit
+                IFNULL($saleSubtotal, $saleTotal) AS subtotal,
+                $salesTax AS tax,
+                IFNULL($saleTotal, $saleSubtotal) AS total,
+                $saleCost AS cost,
+                (IFNULL($saleSubtotal, $saleTotal) - $saleCost) AS profit
         ");
     }
 

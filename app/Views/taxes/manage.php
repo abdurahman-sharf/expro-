@@ -27,6 +27,11 @@
             <?= lang(ucfirst($controller_name) . '.tax_rates') ?>
         </a>
     </li>
+    <li class="nav-item">
+        <a class="nav-link" href="<?= esc(base_url('tax_definitions'), 'attr') ?>" title="<?= esc(lang('Config.tax_list_desc'), 'attr') ?>">
+            <?= lang('Config.tax_list') ?>
+        </a>
+    </li>
 </ul>
 
 <div class="tab-content">

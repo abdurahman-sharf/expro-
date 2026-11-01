@@ -2,6 +2,7 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\SalesTaxSettings;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -9,6 +10,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Test\TestResponse;
 use Config\Database;
+use Config\OSPOS;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\TaxFixtureTrait;
 
@@ -35,6 +37,9 @@ class ConfigTest extends CIUnitTestCase
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
+        $db->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->delete();
+        (new SalesTaxSettings())->update([SalesTaxSettings::INCLUDED_KEY => false, SalesTaxSettings::TAX_ONE_KEY => false]);
+        $db->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->delete();
 
         parent::tearDown();
     }
@@ -356,6 +361,75 @@ class ConfigTest extends CIUnitTestCase
         $this->assertTrue($result['success']);
     }
 
+    public function testSaveTax_SavesTheDefaultInvoiceTaxModeAndTheRequirementOfATaxAndAuditsTheChange(): void
+    {
+        $this->resetSession();
+
+        $result = json_decode($this->post('/config/saveTax', $this->baseTaxPayload(['tax_included' => 'tax_included', 'require_tax_1' => 'require_tax_1']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue((new SalesTaxSettings())->defaultIncluded());
+        $this->assertTrue((new SalesTaxSettings())->requireTaxOne());
+
+        $entry   = Database::connect()->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->get()->getRow();
+        $details = json_decode((string) $entry->details, true);
+
+        $this->assertSame(1, (int) $entry->employee_id);
+        $this->assertSame([SalesTaxSettings::INCLUDED_KEY => false, SalesTaxSettings::TAX_ONE_KEY => false], $details['before']);
+        $this->assertSame([SalesTaxSettings::INCLUDED_KEY => true, SalesTaxSettings::TAX_ONE_KEY => true], $details['after']);
+    }
+
+    public function testSaveTax_TurnsTheTwoSettingsOffWhenTheirBoxesAreLeftOutAndAuditsThat(): void
+    {
+        $this->resetSession();
+
+        $this->post('/config/saveTax', $this->baseTaxPayload(['tax_included' => 'tax_included', 'require_tax_1' => 'require_tax_1']));
+        $this->post('/config/saveTax', $this->baseTaxPayload());
+
+        $this->assertFalse((new SalesTaxSettings())->defaultIncluded());
+        $this->assertFalse((new SalesTaxSettings())->requireTaxOne());
+        $this->assertSame(2, Database::connect()->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->countAllResults());
+    }
+
+    public function testSaveTax_AuditsNothingWhenTheTwoSettingsStayAsTheyWere(): void
+    {
+        $this->resetSession();
+
+        $this->post('/config/saveTax', $this->baseTaxPayload());
+        $this->post('/config/saveTax', $this->baseTaxPayload(['default_tax_1_rate' => '7.00']));
+
+        $this->assertSame(0, Database::connect()->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->countAllResults());
+    }
+
+    public function testSaveTax_ChangesNeitherSettingWhenTheRateIsRefused(): void
+    {
+        $this->resetSession();
+
+        $this->post('/config/saveTax', $this->baseTaxPayload(['default_tax_1_rate' => '-1.00', 'tax_included' => 'tax_included', 'require_tax_1' => 'require_tax_1']));
+
+        $this->assertFalse((new SalesTaxSettings())->defaultIncluded());
+        $this->assertFalse((new SalesTaxSettings())->requireTaxOne());
+    }
+
+    public function testTaxConfigView_OffersTheTwoTaxSettingsAndALinkToTheTaxListAndShowsWhatIsSaved(): void
+    {
+        $data = ['tax_code_options' => [], 'tax_category_options' => [], 'tax_jurisdiction_options' => [], 'controller_name' => 'config'];
+
+        $off = view('configs/tax_config', $data + ['config' => [...config(OSPOS::class)->settings, 'tax_included' => '0', 'require_tax_1' => '0']]);
+
+        $this->assertStringContainsString('name="require_tax_1"', $off);
+        $this->assertStringContainsString(lang('Config.tax_included_desc'), $off);
+        $this->assertStringContainsString(lang('Config.require_tax_1_desc'), $off);
+        $this->assertMatchesRegularExpression('/id="tax_list"[^>]*href="[^"]*tax_definitions"/', $off);
+        $this->assertStringNotContainsString('for="tax_list"', $off, 'a label points at a field and not at a link');
+        $this->assertDoesNotMatchRegularExpression('/name="require_tax_1"[^>]*checked/', $off);
+
+        $on = view('configs/tax_config', $data + ['config' => [...config(OSPOS::class)->settings, 'tax_included' => '1', 'require_tax_1' => '1']]);
+
+        $this->assertMatchesRegularExpression('/name="require_tax_1"[^>]*checked/', $on);
+        $this->assertMatchesRegularExpression('/name="tax_included"[^>]*checked/', $on);
+    }
+
     /**
      * @param array<string, string> $fields
      *
@@ -551,6 +625,24 @@ class ConfigTest extends CIUnitTestCase
         $this->assertStringContainsString('CN-00001', $page);
         $this->assertSame(1, substr_count($page, 'name="prevent_duplicates"'));
         $this->assertSame(2, substr_count($page, lang('Numbering.invoice_note')));
+    }
+
+    public function testGetIndex_OffersTheTaxListOnlyToWhoHoldsTheTaxesModule(): void
+    {
+        $withTaxes    = $this->createEmployee(grants: [['permission_id' => 'config', 'menu_group' => 'office'], ['permission_id' => 'taxes', 'menu_group' => 'office']]);
+        $withoutTaxes = $this->createEmployee(grants: [['permission_id' => 'config', 'menu_group' => 'office']]);
+
+        $this->withSession(['person_id' => $withTaxes, 'menu_group' => 'office']);
+
+        $this->assertStringContainsString('id="tax_list"', $this->settingsPage()->getBody());
+
+        $this->withSession(['person_id' => $withoutTaxes, 'menu_group' => 'office']);
+
+        $response = $this->settingsPage();
+
+        $response->assertStatus(200);
+        $this->assertStringNotContainsString('id="tax_list"', $response->getBody());
+        $this->assertStringContainsString('name="require_tax_1"', $response->getBody());
     }
 
     public function testGetIndex_KeepsTheNextNumberOfARunningSequenceNoLowerThanItsCurrentOne(): void

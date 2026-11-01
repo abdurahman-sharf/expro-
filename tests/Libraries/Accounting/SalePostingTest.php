@@ -4,6 +4,8 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\InterBranchBalances;
@@ -22,6 +24,7 @@ use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\StockLedger;
+use App\Libraries\Accounting\TaxDefinitions;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -29,6 +32,8 @@ use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Tax_lib;
+use App\Models\Item_taxes;
 use CodeIgniter\Database\Query;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -5691,5 +5696,247 @@ class SalePostingTest extends CIUnitTestCase
 
         $this->assertSame($before, $this->journals($saleId));
         $this->assertNotContains('preview', array_column($this->journals($saleId), 'status'));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // A mode and a liability account for each tax (WP25)
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * @return list<string> "account:debit:credit" of each line of a journal at four decimals, in order.
+     */
+    private function exactLines(int $journalId): array
+    {
+        return array_map(
+            static fn (object $line): string => $line->account_id . ':' . bcadd($line->debit, '0', 4) . ':' . bcadd($line->credit, '0', 4),
+            $this->accountingDb()->table('accounting_journal_lines')->select('account_id, debit, credit')->where('journal_id', $journalId)->orderBy('line_no', 'ASC')->get()->getResult(),
+        );
+    }
+
+    public function testSaveValue_PostsALineWithATaxInsideThePriceAndOneAddedToItAsOneInvoiceOfTheNetAndTheWholeTax(): void
+    {
+        $item   = $this->item('0', false);
+        $saleId = $this->save([$this->line($item, 0, '1', '100')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '13.0435'), $this->taxRow($item, 0, 'Service', '5.0000', 1, '4.3478')]);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(
+            [$this->customerAccount() . ':104.3500:0.0000', $this->accountId('sales_revenue') . ':0.0000:86.9587', $this->accountId('tax_output') . ':0.0000:17.3913'],
+            $this->exactLines($this->standing($saleId, 'revenue')[0]['id']),
+        );
+    }
+
+    public function testSaveValue_PostsTheTaxOfATaxWithAnAccountOfItsOwnToThatAccountAndTheRestToTheRoutedOne(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+        $saleId  = $this->save([$this->line($item, 0, '1', '100')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '13.0435', $account), $this->taxRow($item, 0, 'Service', '5.0000', 1, '4.3478')]);
+
+        $this->assertSame(
+            [$this->customerAccount() . ':104.3500:0.0000', $this->accountId('sales_revenue') . ':0.0000:86.9587', $this->accountId('tax_output') . ':0.0000:4.3478', $account . ':0.0000:13.0435'],
+            $this->exactLines($this->standing($saleId, 'revenue')[0]['id']),
+        );
+        $this->assertSame('-13.04', $this->balance($account));
+    }
+
+    public function testSaveValue_PostsTheSameJournalAsBeforeWhenNoTaxHasAnAccountOfItsOwn(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame(
+            [$this->customerAccount() . ':816.50:0.00', $this->accountId('sales_revenue') . ':0.00:710.00', $this->accountId('tax_output') . ':0.00:106.50'],
+            $this->standing($saleId, 'revenue')[0]['lines'],
+        );
+        $this->assertSame(0, $this->accountingDb()->table('sales_items_taxes')->where('sale_id', $saleId)->where('liability_account_id IS NOT NULL', null, false)->countAllResults());
+    }
+
+    public function testDelete_ReversesTheTaxOfAnAccountOfItsOwnToTheSameAccountAndMirrorsTheInvoice(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+        $saleId  = $this->save([$this->line($item, 0, '1', '100')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '13.0435', $account), $this->taxRow($item, 0, 'Service', '5.0000', 1, '4.3478')], [], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY);
+        $invoice = $this->journals($saleId)[0]['id'];
+
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+        $reversal = (int) $this->accountingDb()->table('accounting_journals')->select('journal_id')->where('reverses_journal_id', $invoice)->get()->getRow()->journal_id;
+
+        $this->assertSame(
+            [$this->customerAccount() . ':0.0000:104.3500', $this->accountId('sales_revenue') . ':86.9587:0.0000', $this->accountId('tax_output') . ':4.3478:0.0000', $account . ':13.0435:0.0000'],
+            $this->exactLines($reversal),
+            'the reversal takes back what the invoice posted, account by account',
+        );
+
+        foreach ([$this->customerAccount(), $this->accountId('sales_revenue'), $this->accountId('tax_output'), $account] as $accountId) {
+            $this->assertSame('0.00', $this->balance($accountId), (string) $accountId);
+        }
+    }
+
+    public function testSaveValue_PostsACreditNoteOfAnInvoiceWithTheTaxInsideThePricesAsTheMirrorOfTheInvoice(): void
+    {
+        $account  = $this->customAccount('215', '215003', 'Tax on services');
+        $item     = $this->item('0', false);
+        $invoice  = $this->save([$this->line($item, 0, '1', '115')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '15.00', $account)]);
+        $returnId = $this->save([$this->line($item, 0, '-1', '115')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '-15.00', $account)], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $this->assertSame(
+            [$this->accountId('sales_returns') . ':100.0000:0.0000', $account . ':15.0000:0.0000', $this->customerAccount() . ':0.0000:115.0000'],
+            $this->exactLines($this->standing($returnId, 'revenue')[0]['id']),
+        );
+        $this->assertSame('0.00', $this->balance($account));
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+    }
+
+    public function testSaveValue_PostsARefundInvoiceOfAnInvoiceWithTheTaxInsideThePricesWithTheLinesOfACreditNote(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+        $invoice = $this->save([$this->line($item, 0, '2', '115')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '30.00', $account)]);
+        $rows    = [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '-15.00', $account)];
+
+        $credit = $this->save([$this->line($item, 0, '-1', '115')], $rows, [], SALE_TYPE_RETURN, -1, true, $invoice);
+        $refund = $this->save([$this->line($item, 0, '-1', '115')], $rows, [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice);
+
+        $this->assertGreaterThan(0, $refund);
+        $this->assertSame($this->standing($credit, 'revenue')[0]['lines'], $this->standing($refund, 'revenue')[0]['lines']);
+        $this->assertSame('0.00', $this->balance($account));
+    }
+
+    public function testSaveValue_RefusesASaleWhoseTaxAccountCannotTakeEntriesAndLeavesNothingOfIt(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+
+        (new AccountService())->deactivate($account);
+
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($item, 0, '1', '100')], [$this->taxRow($item, 0, 'VAT', '15.0000', 1, '15.00', $account)]));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+        $this->assertSame(0, $this->accountingDb()->table('sales_items_taxes')->where('liability_account_id', $account)->countAllResults());
+    }
+
+    public function testSaveValue_KeepsTheModeAndTheAccountEachTaxRowWasSavedWithWhateverTheTaxListSaysLater(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+        $taxes   = new TaxDefinitions();
+        $id      = $taxes->save(['tax_name' => 'VAT', 'tax_mode' => TaxDefinitions::INCLUDED, 'account_id' => $account], null, $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE]));
+
+        try {
+            $saleId = $this->save([$this->line($item, 0, '1', '115')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '15.00', $account)]);
+            $before = $this->exactLines($this->standing($saleId, 'revenue')[0]['id']);
+
+            $taxes->save(['tax_mode' => TaxDefinitions::EXCLUDED, 'account_id' => ''], $id, $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE]));
+
+            $stored = $this->accountingDb()->table('sales_items_taxes')->where('sale_id', $saleId)->get()->getRow();
+
+            $this->assertSame(['0', (string) $account], [(string) $stored->tax_type, (string) $stored->liability_account_id]);
+            $this->assertSame($before, $this->exactLines($this->standing($saleId, 'revenue')[0]['id']));
+            $this->assertSame('15.0000', bcadd((string) $stored->item_tax_amount, '0', 4));
+        } finally {
+            $this->accountingDb()->table('tax_definitions')->truncate();
+        }
+    }
+
+    public function testSaveValue_PostsTheTaxesTheRegisterWorkedOutFromTheTaxListWithTheirModeAndAccount(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $item    = $this->item('0', false);
+        $router  = $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE]);
+        $taxes   = new TaxDefinitions();
+        $itemTax = [['name' => 'VAT', 'percent' => '15'], ['name' => 'Service', 'percent' => '5']];
+
+        $taxes->save(['tax_name' => 'VAT', 'tax_mode' => TaxDefinitions::INCLUDED, 'account_id' => $account], null, $router);
+        $taxes->save(['tax_name' => 'Service', 'tax_mode' => TaxDefinitions::EXCLUDED], null, $router);
+        model(Item_taxes::class)->save_value($itemTax, $item);
+        $this->setConfigValue('tax_decimals', '4');
+
+        try {
+            $cart    = [0 => ['item_id' => $item, 'line' => 0, 'quantity' => '1', 'price' => '100', 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null]];
+            $before  = bcscale();
+            bcscale(max(2, totals_decimals() + tax_decimals()));
+            $details = (new Tax_lib())->get_taxes($cart, NEW_ENTRY, $this->customerId, 'sale_invoice');
+            bcscale($before);
+
+            $saleId = $this->save([$this->line($item, 0, '1', '100')], $details[1]);
+        } finally {
+            $this->setConfigValue('tax_decimals', '2');
+            $this->accountingDb()->table('tax_definitions')->truncate();
+        }
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(
+            [$this->customerAccount() . ':104.3500:0.0000', $this->accountId('sales_revenue') . ':0.0000:86.9587', $this->accountId('tax_output') . ':0.0000:4.3478', $account . ':0.0000:13.0435'],
+            $this->exactLines($this->standing($saleId, 'revenue')[0]['id']),
+        );
+    }
+
+    public function testSaveValue_PostsManyLinesWithTaxesOfBothModesAsOneBalancedInvoiceWhoseTotalIsTheRoundedSumOfTheLines(): void
+    {
+        $router = $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE]);
+        $taxes  = new TaxDefinitions();
+        $kinds  = [
+            $this->item('0', false) => [['name' => 'VAT', 'percent' => '15'], ['name' => 'Service', 'percent' => '5']],
+            $this->item('0', false) => [['name' => 'Levy', 'percent' => '10']],
+            $this->item('0', false) => [['name' => 'Service', 'percent' => '5']],
+        ];
+
+        $taxes->save(['tax_name' => 'VAT', 'tax_mode' => TaxDefinitions::INCLUDED], null, $router);
+        $taxes->save(['tax_name' => 'Levy', 'tax_mode' => TaxDefinitions::INCLUDED], null, $router);
+        $taxes->save(['tax_name' => 'Service', 'tax_mode' => TaxDefinitions::EXCLUDED], null, $router);
+
+        foreach ($kinds as $itemId => $rows) {
+            model(Item_taxes::class)->save_value($rows, $itemId);
+        }
+
+        $this->setConfigValue('tax_decimals', '4');
+
+        try {
+            $items  = [];
+            $cart   = [];
+            $prices = [['19.99', '3'], ['33.33', '2'], ['7.77', '7'], ['101.01', '1'], ['0.99', '13'], ['250.50', '2'], ['12.34', '5'], ['0.37', '29']];
+            $ids    = array_keys($kinds);
+
+            foreach ($prices as $line => [$price, $quantity]) {
+                $itemId       = $ids[$line % 3];
+                $items[]      = $this->line($itemId, $line, $quantity, $price);
+                $cart[$line]  = ['item_id' => $itemId, 'line' => $line, 'quantity' => $quantity, 'price' => $price, 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null];
+            }
+
+            $before  = bcscale();
+            bcscale(max(2, totals_decimals() + tax_decimals()));
+            $details = (new Tax_lib())->get_taxes($cart, NEW_ENTRY, $this->customerId, 'sale_invoice');
+            bcscale($before);
+
+            $saleId = $this->save($items, $details[1]);
+        } finally {
+            $this->setConfigValue('tax_decimals', '2');
+            $this->accountingDb()->table('tax_definitions')->truncate();
+        }
+
+        $this->assertGreaterThan(0, $saleId);
+
+        $gross = '0';
+        $added = '0';
+        $all   = '0';
+
+        foreach ($prices as [$price, $quantity]) {
+            $gross = bcadd($gross, bcmul($price, $quantity, 4), 4);
+        }
+
+        foreach ($details[1] as $tax) {
+            $stored = bcadd($this->accountingDb()->table('sales_items_taxes')->select('item_tax_amount')->where(['sale_id' => $saleId, 'item_id' => $tax['item_id'], 'line' => $tax['line'], 'name' => $tax['name']])->get()->getRow()->item_tax_amount, '0', 4);
+            $all   = bcadd($all, $stored, 4);
+            $added = (string) $tax['tax_type'] === '1' ? bcadd($added, $stored, 4) : $added;
+        }
+
+        $lines = $this->exactLines($this->standing($saleId, 'revenue')[0]['id']);
+        $total = bcadd(bcadd(bcadd($gross, $added, 4), '0.005', 3), '0', 2);
+
+        $this->assertSame($this->customerAccount() . ':' . bcadd($total, '0', 4) . ':0.0000', $lines[0], 'the customer owes the rounded sum of the lines and the tax added to them');
+        $this->assertSame($this->accountId('tax_output') . ':0.0000:' . $all, $lines[2], 'the tax is posted as it was worked out, inside the price or not');
+        $this->assertSame($this->accountId('sales_revenue') . ':0.0000:' . bcsub($total, $all, 4), $lines[1], 'and the revenue is what is left of the total (E14)');
     }
 }

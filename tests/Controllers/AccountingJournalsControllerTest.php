@@ -1866,4 +1866,19 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
             $this->assertSame(1, substr_count($body, '<option value="' . $code . '">' . lang('Accounting.' . $key) . '</option>'), $code);
         }
     }
+
+    public function testGetAudit_OffersTheEntityFilterForTaxesAndNamesTheirChanges(): void
+    {
+        $accountant = $this->accountant();
+        $audit      = new AuditLog();
+
+        $audit->write('tax_definition', 4, 'mode_changed', $accountant, JournalOrigin::User);
+        $audit->write('tax_definition', 4, 'tax_account_changed', $accountant, JournalOrigin::User);
+
+        $body = $this->get('/accounting_journals/audit')->getBody();
+        $rows = $this->jsonOf($this->get('/accounting_journals/audit/search?entity_type=tax_definition&order=asc'))['rows'];
+
+        $this->assertSame(1, substr_count($body, '<option value="tax_definition">' . lang('Accounting.entity_tax_definition') . '</option>'));
+        $this->assertSame([lang('Accounting.action_mode_changed'), lang('Accounting.action_tax_account_changed')], array_column($rows, 'action'));
+    }
 }
