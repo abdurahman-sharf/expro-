@@ -3,6 +3,7 @@
 namespace Tests\Support;
 
 use CodeIgniter\Test\TestResponse;
+use Config\Services;
 use DOMDocument;
 use DOMXPath;
 
@@ -34,6 +35,18 @@ trait OperationalReportFixtureTrait
         $this->withSession(['person_id' => $personId, 'menu_group' => 'home']);
 
         return $personId;
+    }
+
+    /**
+     * A request that starts from a response of its own: the response of a request is a service shared by
+     * the requests of one test, and one that was redirected leaves its address in it, so a later request
+     * would look redirected whatever the screen did.
+     */
+    protected function fetch(string $url): TestResponse
+    {
+        Services::resetSingle('response');
+
+        return $this->get($url);
     }
 
     protected function pageOf(TestResponse $response): DOMXPath

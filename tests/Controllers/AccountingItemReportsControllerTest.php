@@ -65,7 +65,7 @@ class AccountingItemReportsControllerTest extends CIUnitTestCase
     {
         $this->reader();
 
-        $response = $this->get(self::SCREEN);
+        $response = $this->fetch(self::SCREEN);
 
         $response->assertStatus(200);
         $response->assertSee('id="report_not_run"');
@@ -77,7 +77,7 @@ class AccountingItemReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $response = $this->get(self::SCREEN . '?show=1&group=item');
+        $response = $this->fetch(self::SCREEN . '?show=1&group=item');
 
         $this->assertSame($this->shown('310.50'), $this->grandTotal($response, 'total'));
         $this->assertSame(['Cream'], $this->column($response, 'item'));
@@ -88,31 +88,31 @@ class AccountingItemReportsControllerTest extends CIUnitTestCase
     {
         $this->reader(['accounting_reports', 'reports_items']);
 
-        $this->get(self::SCREEN . '?show=1&group=item')->assertStatus(200);
-        $this->get(self::SCREEN . '?show=1&group=day')->assertStatus(200);
-        $this->get(self::SCREEN . '?show=1&group=category')->assertRedirect();
-        $this->get(self::SCREEN . '?show=1&group=customer')->assertRedirect();
-        $this->get(self::SCREEN . '?show=1&group=user')->assertRedirect();
+        $this->fetch(self::SCREEN . '?show=1&group=item')->assertStatus(200);
+        $this->fetch(self::SCREEN . '?show=1&group=day')->assertStatus(200);
+        $this->fetch(self::SCREEN . '?show=1&group=category')->assertRedirect();
+        $this->fetch(self::SCREEN . '?show=1&group=customer')->assertRedirect();
+        $this->fetch(self::SCREEN . '?show=1&group=user')->assertRedirect();
 
         $this->reader(['accounting_reports', 'reports_categories']);
 
-        $this->get(self::SCREEN . '?show=1&group=category')->assertStatus(200);
-        $this->get(self::SCREEN . '?show=1&group=item')->assertRedirect();
-        $this->get(self::SCREEN . '/csv?group=item')->assertRedirect();
+        $this->fetch(self::SCREEN . '?show=1&group=category')->assertStatus(200);
+        $this->fetch(self::SCREEN . '?show=1&group=item')->assertRedirect();
+        $this->fetch(self::SCREEN . '/csv?group=item')->assertRedirect();
     }
 
     public function testGetIndex_RedirectsSomeoneWithoutTheModuleAndIsNotFoundWhileAccountingIsOff(): void
     {
         $this->reader(['reports_items']);
 
-        $this->get(self::SCREEN)->assertRedirect();
+        $this->fetch(self::SCREEN)->assertRedirect();
 
         $this->reader();
         $this->setConfigValue('accounting_enabled', '0');
 
         $this->expectException(PageNotFoundException::class);
 
-        $this->get(self::SCREEN);
+        $this->fetch(self::SCREEN);
     }
 
     public function testGetIndex_AddsUpOnlyTheBranchesOfTheReader(): void
@@ -123,11 +123,11 @@ class AccountingItemReportsControllerTest extends CIUnitTestCase
 
         $this->reader($this->everyReportPermission(), [1]);
 
-        $this->assertSame($this->shown('100'), $this->grandTotal($this->get(self::SCREEN . '?show=1&group=item'), 'total'));
+        $this->assertSame($this->shown('100'), $this->grandTotal($this->fetch(self::SCREEN . '?show=1&group=item'), 'total'));
 
         $this->reader($this->everyReportPermission(), [$second]);
 
-        $this->assertSame($this->shown('70'), $this->grandTotal($this->get(self::SCREEN . '?show=1&group=item'), 'total'));
+        $this->assertSame($this->shown('70'), $this->grandTotal($this->fetch(self::SCREEN . '?show=1&group=item'), 'total'));
     }
 
     public function testGetIndex_LimitsToACategoryAndShowsNoCheckWhileLimited(): void
@@ -135,8 +135,8 @@ class AccountingItemReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $creams = $this->get(self::SCREEN . '?show=1&group=item&category=Creams');
-        $oils   = $this->get(self::SCREEN . '?show=1&group=item&category=Oils');
+        $creams = $this->fetch(self::SCREEN . '?show=1&group=item&category=Creams');
+        $oils   = $this->fetch(self::SCREEN . '?show=1&group=item&category=Oils');
 
         $this->assertSame($this->shown('310.50'), $this->grandTotal($creams, 'total'));
         $this->assertSame($this->shown('0'), $this->grandTotal($oils, 'total'));
@@ -150,9 +150,9 @@ class AccountingItemReportsControllerTest extends CIUnitTestCase
         $this->save([$this->line($item, 0, '2', '10', '1')], [], [], SALE_TYPE_POS, $this->customerId);
         $this->reader();
 
-        $this->get(self::SCREEN . '/csv?from=nonsense')->assertStatus(422);
+        $this->fetch(self::SCREEN . '/csv?from=nonsense')->assertStatus(422);
 
-        $response = $this->get(self::SCREEN . '/csv?group=item&view=details');
+        $response = $this->fetch(self::SCREEN . '/csv?group=item&view=details');
         $body     = $response->response()->getBody();
 
         $this->assertStringContainsString("'=cmd|calc", $body);

@@ -69,9 +69,9 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $this->get(self::PROFIT)->assertDontSee('id="report_table"');
+        $this->fetch(self::PROFIT)->assertDontSee('id="report_table"');
 
-        $response = $this->get(self::PROFIT . '?show=1&group=item');
+        $response = $this->fetch(self::PROFIT . '?show=1&group=item');
 
         $this->assertSame($this->shown('480'), $this->grandTotal($response, 'profit'));
         $this->assertSame($this->shown('320'), $this->grandTotal($response, 'cost'));
@@ -84,7 +84,7 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $response = $this->get(self::PROFIT . '?show=1&group=item');
+        $response = $this->fetch(self::PROFIT . '?show=1&group=item');
 
         $this->assertSame($this->shown($this->balance($this->accountId('cogs'))), $this->grandTotal($response, 'cost'));
     }
@@ -93,13 +93,13 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
     {
         $this->reader(['accounting_reports', 'reports_items']);
 
-        $this->get(self::PROFIT . '?show=1&group=day')->assertStatus(200);
-        $this->get(self::PROFIT . '?show=1&group=customer')->assertRedirect();
-        $this->get(self::PROFIT . '/csv?group=user')->assertRedirect();
+        $this->fetch(self::PROFIT . '?show=1&group=day')->assertStatus(200);
+        $this->fetch(self::PROFIT . '?show=1&group=customer')->assertRedirect();
+        $this->fetch(self::PROFIT . '/csv?group=user')->assertRedirect();
 
         $this->reader(['accounting_reports']);
 
-        $this->get(self::PROFIT . '?show=1&group=day')->assertRedirect();
+        $this->fetch(self::PROFIT . '?show=1&group=day')->assertRedirect();
     }
 
     public function testGetIndex_IsNotFoundWhileAccountingIsOff(): void
@@ -109,7 +109,7 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
 
         $this->expectException(PageNotFoundException::class);
 
-        $this->get(self::PROFIT);
+        $this->fetch(self::PROFIT);
     }
 
     public function testGetItems_StartsFromTheLastMonthWhenGivenNoDays(): void
@@ -117,8 +117,8 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $untouched = $this->get(self::ITEMS . '?show=1');
-        $explicit  = $this->get(self::ITEMS . '?show=1&from=2020-01-01');
+        $untouched = $this->fetch(self::ITEMS . '?show=1');
+        $explicit  = $this->fetch(self::ITEMS . '?show=1&from=2020-01-01');
 
         $this->assertSame($this->shown('0'), $this->grandTotal($untouched, 'profit'));
         $this->assertSame($this->shown('480'), $this->grandTotal($explicit, 'profit'));
@@ -130,7 +130,7 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $response = $this->get(self::ITEMS . '?show=1&from=2020-01-01');
+        $response = $this->fetch(self::ITEMS . '?show=1&from=2020-01-01');
 
         $this->assertSame(['60.00%'], array_map(static fn (string $text): string => $text, $this->column($response, 'profit_to_sales')));
         $this->assertSame(['150.00%'], $this->column($response, 'profit_to_cost'));
@@ -141,9 +141,9 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
     {
         $this->reader(['accounting_reports', 'reports_items']);
 
-        $this->get(self::ITEMS . '?show=1&group=item')->assertStatus(200);
-        $this->get(self::ITEMS . '?show=1&group=category')->assertRedirect();
-        $this->get(self::ITEMS . '/csv?group=customer')->assertRedirect();
+        $this->fetch(self::ITEMS . '?show=1&group=item')->assertStatus(200);
+        $this->fetch(self::ITEMS . '?show=1&group=category')->assertRedirect();
+        $this->fetch(self::ITEMS . '/csv?group=customer')->assertRedirect();
     }
 
     public function testGetItemsCsv_GivesTheRowsWithThePercentagesAndRefusesABadDay(): void
@@ -151,11 +151,11 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $rows = $this->csvRows($this->get(self::ITEMS . '/csv?from=2020-01-01'));
+        $rows = $this->csvRows($this->fetch(self::ITEMS . '/csv?from=2020-01-01'));
 
         $this->assertContains('60.00', array_merge(...$rows));
         $this->assertContains('480.0000', array_merge(...$rows));
-        $this->get(self::ITEMS . '/csv?from=nonsense')->assertStatus(422);
+        $this->fetch(self::ITEMS . '/csv?from=nonsense')->assertStatus(422);
     }
 
     public function testGetCsv_GivesTheMovementsOfTheDaysWithTheCheck(): void
@@ -163,9 +163,9 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $this->get(self::PROFIT . '/csv?from=nonsense')->assertStatus(422);
+        $this->fetch(self::PROFIT . '/csv?from=nonsense')->assertStatus(422);
 
-        $rows = $this->csvRows($this->get(self::PROFIT . '/csv?group=item&view=details'));
+        $rows = $this->csvRows($this->fetch(self::PROFIT . '/csv?group=item&view=details'));
         $flat = array_merge(...$rows);
 
         $this->assertContains('480.0000', $flat);

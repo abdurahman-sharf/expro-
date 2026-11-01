@@ -73,7 +73,7 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
     {
         $this->reader();
 
-        $response = $this->get(self::PAYMENTS);
+        $response = $this->fetch(self::PAYMENTS);
 
         $response->assertStatus(200);
         $response->assertSee('id="report_not_run"');
@@ -85,8 +85,8 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
         $this->pay();
         $this->reader();
 
-        $byMethod   = $this->get(self::PAYMENTS . '?show=1&group=method');
-        $byTreasury = $this->get(self::PAYMENTS . '?show=1&group=treasury');
+        $byMethod   = $this->fetch(self::PAYMENTS . '?show=1&group=method');
+        $byTreasury = $this->fetch(self::PAYMENTS . '?show=1&group=treasury');
 
         $this->assertSame($this->shown('100'), $this->grandTotal($byMethod, 'amount'));
         $this->assertSame($this->shown('100'), $this->grandTotal($byTreasury, 'amount'));
@@ -99,7 +99,7 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
         $this->pay();
         $this->reader();
 
-        $ties = $this->tieRows($this->get(self::PAYMENTS . '?show=1&group=customer'));
+        $ties = $this->tieRows($this->fetch(self::PAYMENTS . '?show=1&group=customer'));
 
         $this->assertCount(1, $ties);
         $this->assertStringContainsString(lang('Accounting_operational_reports.ties'), $ties[0]);
@@ -110,19 +110,19 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
     {
         $this->reader(['accounting_reports', 'reports_sales', 'reports_customers']);
 
-        $this->get(self::PAYMENTS . '?show=1')->assertRedirect();
-        $this->get(self::PAYMENTS . '/csv')->assertRedirect();
-        $this->get(self::ADVANCES)->assertRedirect();
-        $this->get(self::ADVANCES . '/csv')->assertRedirect();
+        $this->fetch(self::PAYMENTS . '?show=1')->assertRedirect();
+        $this->fetch(self::PAYMENTS . '/csv')->assertRedirect();
+        $this->fetch(self::ADVANCES)->assertRedirect();
+        $this->fetch(self::ADVANCES . '/csv')->assertRedirect();
 
         $this->reader(['reports_payments']);
 
-        $this->get(self::PAYMENTS)->assertRedirect();
+        $this->fetch(self::PAYMENTS)->assertRedirect();
 
         $this->reader(['accounting_reports', 'reports_payments']);
 
-        $this->get(self::PAYMENTS . '?show=1')->assertStatus(200);
-        $this->get(self::ADVANCES . '?show=1')->assertStatus(200);
+        $this->fetch(self::PAYMENTS . '?show=1')->assertStatus(200);
+        $this->fetch(self::ADVANCES . '?show=1')->assertStatus(200);
     }
 
     public function testGetIndex_IsNotFoundWhileAccountingIsOff(): void
@@ -132,7 +132,7 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
 
         $this->expectException(PageNotFoundException::class);
 
-        $this->get(self::PAYMENTS);
+        $this->fetch(self::PAYMENTS);
     }
 
     public function testGetIndex_AddsUpOnlyThePaymentsOfTheBranchesOfTheReader(): void
@@ -143,11 +143,11 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
 
         $this->reader($this->everyReportPermission(), [1]);
 
-        $this->assertSame($this->shown('100'), $this->grandTotal($this->get(self::PAYMENTS . '?show=1&group=customer'), 'amount'));
+        $this->assertSame($this->shown('100'), $this->grandTotal($this->fetch(self::PAYMENTS . '?show=1&group=customer'), 'amount'));
 
         $this->reader($this->everyReportPermission(), null);
 
-        $this->assertSame($this->shown('170'), $this->grandTotal($this->get(self::PAYMENTS . '?show=1&group=customer'), 'amount'));
+        $this->assertSame($this->shown('170'), $this->grandTotal($this->fetch(self::PAYMENTS . '?show=1&group=customer'), 'amount'));
     }
 
     public function testGetCsv_GivesThePaymentsWithTheirReferenceAndTheCheck(): void
@@ -155,9 +155,9 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
         $this->pay();
         $this->reader();
 
-        $this->get(self::PAYMENTS . '/csv?from=nonsense')->assertStatus(422);
+        $this->fetch(self::PAYMENTS . '/csv?from=nonsense')->assertStatus(422);
 
-        $response = $this->get(self::PAYMENTS . '/csv?group=method&view=details');
+        $response = $this->fetch(self::PAYMENTS . '/csv?group=method&view=details');
         $flat     = array_merge(...$this->csvRows($response));
 
         $this->assertContains('CHQ-7', $flat);
@@ -172,7 +172,7 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
         (new CustomerAdvances())->receive($this->customerId, '200', date('Y-m-d'), 'Cash', null, 'REF-1', '', $teller);
         $this->reader();
 
-        $response = $this->get(self::ADVANCES . '?show=1');
+        $response = $this->fetch(self::ADVANCES . '?show=1');
 
         $this->assertSame($this->shown('200'), $this->grandTotal($response, 'unsettled'));
         $this->assertCount(1, $this->column($response, 'number'));
@@ -186,7 +186,7 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
         (new CustomerAdvances())->receive($this->customerId, '200', date('Y-m-d'), 'Cash', null, '', '', $teller);
         $this->reader();
 
-        $this->assertContains('200.0000', array_merge(...$this->csvRows($this->get(self::ADVANCES . '/csv'))));
-        $this->get(self::ADVANCES . '/csv?from=nonsense')->assertStatus(422);
+        $this->assertContains('200.0000', array_merge(...$this->csvRows($this->fetch(self::ADVANCES . '/csv'))));
+        $this->fetch(self::ADVANCES . '/csv?from=nonsense')->assertStatus(422);
     }
 }

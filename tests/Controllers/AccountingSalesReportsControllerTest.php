@@ -68,7 +68,7 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
     {
         $this->reader();
 
-        $response = $this->get(self::REVENUE);
+        $response = $this->fetch(self::REVENUE);
 
         $response->assertStatus(200);
         $response->assertSee('id="report_not_run"');
@@ -80,7 +80,7 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $response = $this->get(self::REVENUE . '?show=1&group=customer&view=details');
+        $response = $this->fetch(self::REVENUE . '?show=1&group=customer&view=details');
 
         $response->assertSee('id="report_table"');
         $this->assertSame($this->shown('287.50'), $this->grandTotal($response, 'total'));
@@ -95,7 +95,7 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $ties = $this->tieRows($this->get(self::REVENUE . '?show=1&group=customer'));
+        $ties = $this->tieRows($this->fetch(self::REVENUE . '?show=1&group=customer'));
 
         $this->assertCount(3, $ties);
 
@@ -109,24 +109,24 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
     {
         $this->reader(['reports_sales', 'reports_customers']);
 
-        $this->get(self::REVENUE)->assertRedirect();
+        $this->fetch(self::REVENUE)->assertRedirect();
     }
 
     public function testGetRevenue_RedirectsSomeoneWithoutThePermissionOfTheGrouping(): void
     {
         $this->reader(['accounting_reports', 'reports_sales']);
 
-        $this->get(self::REVENUE . '?show=1&group=day')->assertStatus(200);
-        $this->get(self::REVENUE . '?show=1&group=customer')->assertRedirect();
-        $this->get(self::REVENUE . '?show=1&group=user')->assertRedirect();
-        $this->get(self::REVENUE . '/csv?group=customer')->assertRedirect();
+        $this->fetch(self::REVENUE . '?show=1&group=day')->assertStatus(200);
+        $this->fetch(self::REVENUE . '?show=1&group=customer')->assertRedirect();
+        $this->fetch(self::REVENUE . '?show=1&group=user')->assertRedirect();
+        $this->fetch(self::REVENUE . '/csv?group=customer')->assertRedirect();
     }
 
     public function testGetRevenue_OffersOnlyTheGroupingsTheEmployeeMayRead(): void
     {
         $this->reader(['accounting_reports', 'reports_customers']);
 
-        $response = $this->get(self::REVENUE . '?group=customer');
+        $response = $this->fetch(self::REVENUE . '?group=customer');
 
         $response->assertSee('value="customer"');
         $response->assertDontSee('value="day"');
@@ -140,14 +140,14 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
 
         $this->expectException(PageNotFoundException::class);
 
-        $this->get(self::REVENUE);
+        $this->fetch(self::REVENUE);
     }
 
     public function testGetRevenue_OffersTheShortcutsAndTheModesOfTheDays(): void
     {
         $this->reader();
 
-        $response = $this->get(self::REVENUE);
+        $response = $this->fetch(self::REVENUE);
 
         foreach (DateFilter::PRESETS as $preset) {
             $response->assertSee('value="' . $preset . '"');
@@ -163,8 +163,8 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $good = $this->get(self::REVENUE . '?show=1&group=customer&from=01%2F01%2F2020&to=' . urlencode(date('d/m/Y')));
-        $bad  = $this->get(self::REVENUE . '?show=1&group=customer&from=31%2F02%2F2026');
+        $good = $this->fetch(self::REVENUE . '?show=1&group=customer&from=01%2F01%2F2020&to=' . urlencode(date('d/m/Y')));
+        $bad  = $this->fetch(self::REVENUE . '?show=1&group=customer&from=31%2F02%2F2026');
 
         $good->assertDontSee('id="report_error"');
         $this->assertSame($this->shown('287.50'), $this->grandTotal($good, 'total'));
@@ -176,7 +176,7 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
     {
         $this->reader();
 
-        $response = $this->get(self::REVENUE . '?show=1&from=2026-10-31&to=2026-10-01');
+        $response = $this->fetch(self::REVENUE . '?show=1&from=2026-10-31&to=2026-10-01');
 
         $response->assertSee('id="report_error"');
         $response->assertSee(lang('Accounting.error_report_period_invalid'));
@@ -187,7 +187,7 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $response = $this->get(self::REVENUE . '?show=1&group=customer&preset=last_year');
+        $response = $this->fetch(self::REVENUE . '?show=1&group=customer&preset=last_year');
 
         $this->assertSame($this->shown('0'), $this->grandTotal($response, 'total'));
     }
@@ -199,11 +199,11 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->invoiceInBranch($second, '70', [], $this->customerId);
 
         $this->reader([...$this->everyReportPermission()], [1]);
-        $mine = $this->get(self::REVENUE . '?show=1&group=customer');
+        $mine = $this->fetch(self::REVENUE . '?show=1&group=customer');
 
         $this->reader([...$this->everyReportPermission()], null);
-        $all      = $this->get(self::REVENUE . '?show=1&group=customer');
-        $onlyBoth = $this->get(self::REVENUE . '?show=1&group=customer&branches[]=' . $second);
+        $all      = $this->fetch(self::REVENUE . '?show=1&group=customer');
+        $onlyBoth = $this->fetch(self::REVENUE . '?show=1&group=customer&branches[]=' . $second);
 
         $this->assertSame($this->shown('100'), $this->grandTotal($mine, 'total'));
         $mine->assertDontSee('name="branches[]"');
@@ -219,7 +219,7 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
 
         $this->reader($this->everyReportPermission(), [1]);
 
-        $response = $this->get(self::REVENUE . '?show=1&group=customer&branches[]=' . $second);
+        $response = $this->fetch(self::REVENUE . '?show=1&group=customer&branches[]=' . $second);
 
         $this->assertSame($this->shown('0'), $this->grandTotal($response, 'total'));
     }
@@ -229,7 +229,7 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $rows = $this->csvRows($this->get(self::REVENUE . '/csv?group=customer&view=details'));
+        $rows = $this->csvRows($this->fetch(self::REVENUE . '/csv?group=customer&view=details'));
 
         $this->assertSame(lang('Accounting_operational_reports.revenue_title'), $rows[0][0]);
         $this->assertContains(lang('Accounting_operational_reports.grand_total'), array_column($rows, 0));
@@ -243,7 +243,7 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->invoiceOf('50', $this->anotherCustomer('=HYPERLINK("http://x")', 'Evil'));
         $this->reader();
 
-        $response = $this->get(self::REVENUE . '/csv?group=customer&view=details');
+        $response = $this->fetch(self::REVENUE . '/csv?group=customer&view=details');
 
         $this->assertStringContainsString("'=HYPERLINK", $response->response()->getBody());
         $this->assertStringNotContainsString(',=HYPERLINK', $response->response()->getBody());
@@ -254,7 +254,7 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
     {
         $this->reader();
 
-        $response = $this->get(self::REVENUE . '/csv?from=nonsense');
+        $response = $this->fetch(self::REVENUE . '/csv?from=nonsense');
 
         $response->assertStatus(422);
         $response->assertSee(lang('Accounting.error_invalid_date'));
@@ -265,8 +265,8 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $screen = $this->grandTotal($this->get(self::REVENUE . '?show=1&group=user&view=summary'), 'total');
-        $rows   = $this->csvRows($this->get(self::REVENUE . '/csv?group=user&view=summary'));
+        $screen = $this->grandTotal($this->fetch(self::REVENUE . '?show=1&group=user&view=summary'), 'total');
+        $rows   = $this->csvRows($this->fetch(self::REVENUE . '/csv?group=user&view=summary'));
         $total  = array_values(array_filter($rows, static fn (array $row): bool => ($row[0] ?? '') === lang('Accounting_operational_reports.grand_total')))[0];
 
         $this->assertSame($screen, $this->shown(end($total)));
@@ -277,12 +277,12 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader(['accounting_reports', 'reports_sales']);
 
-        $this->get(self::CLIENTS . '?show=1')->assertRedirect();
-        $this->get(self::CLIENTS . '/csv')->assertRedirect();
+        $this->fetch(self::CLIENTS . '?show=1')->assertRedirect();
+        $this->fetch(self::CLIENTS . '/csv')->assertRedirect();
 
         $this->reader(['accounting_reports', 'reports_customers']);
 
-        $response = $this->get(self::CLIENTS . '?show=1&group=document&view=details');
+        $response = $this->fetch(self::CLIENTS . '?show=1&group=document&view=details');
 
         $this->assertSame($this->shown('287.50'), $this->grandTotal($response, 'total'));
         $this->assertCount(3, $this->column($response, 'total'));
@@ -293,8 +293,8 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $invoices = $this->get(self::CLIENTS . '?show=1&group=document&type=invoice');
-        $notes    = $this->get(self::CLIENTS . '?show=1&group=document&type=credit_note');
+        $invoices = $this->fetch(self::CLIENTS . '?show=1&group=document&type=invoice');
+        $notes    = $this->fetch(self::CLIENTS . '?show=1&group=document&type=credit_note');
 
         $this->assertSame($this->shown('345'), $this->grandTotal($invoices, 'total'));
         $this->assertSame($this->shown('-57.50'), $this->grandTotal($notes, 'total'));
@@ -305,9 +305,9 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $this->get(self::CLIENTS . '/csv?from=nonsense')->assertStatus(422);
+        $this->fetch(self::CLIENTS . '/csv?from=nonsense')->assertStatus(422);
 
-        $rows = $this->csvRows($this->get(self::CLIENTS . '/csv?group=document'));
+        $rows = $this->csvRows($this->fetch(self::CLIENTS . '/csv?group=document'));
 
         $this->assertSame(lang('Accounting_operational_reports.clients_title'), $rows[0][0]);
         $this->assertContains(lang('Accounting_operational_reports.col_shipping'), array_merge(...$rows));

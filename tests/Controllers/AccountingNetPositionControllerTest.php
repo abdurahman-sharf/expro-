@@ -73,9 +73,9 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $this->get(self::NET)->assertDontSee('id="report_table"');
+        $this->fetch(self::NET)->assertDontSee('id="report_table"');
 
-        $response = $this->get(self::NET . '?show=1');
+        $response = $this->fetch(self::NET . '?show=1');
 
         $this->assertSame($this->shown('-51.75'), $this->grandTotal($response, 'net'));
         $this->assertSame($this->shown('34.50'), $this->grandTotal($response, 'total'));
@@ -87,7 +87,7 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $response = $this->get(self::NET . '?show=1&hide_credit_notes=1');
+        $response = $this->fetch(self::NET . '?show=1&hide_credit_notes=1');
 
         $this->assertSame($this->shown('201.25'), $this->grandTotal($response, 'net'));
         $this->assertCount(2, $this->column($response, 'number'));
@@ -98,7 +98,7 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $response = $this->get(self::NET . '?show=1&view=details');
+        $response = $this->fetch(self::NET . '?show=1&view=details');
 
         $this->assertGreaterThan(5, count($this->column($response, 'number')));
         $response->assertSee(lang('Accounting_operational_reports.row_credit_applied'));
@@ -109,7 +109,7 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $ties = $this->tieRows($this->get(self::NET . '?show=1'));
+        $ties = $this->tieRows($this->fetch(self::NET . '?show=1'));
 
         $this->assertCount(2, $ties);
 
@@ -122,19 +122,19 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
     {
         $this->reader(['accounting_reports', 'reports_customers']);
 
-        $this->get(self::NET . '?show=1')->assertRedirect();
-        $this->get(self::NET . '/csv')->assertRedirect();
-        $this->get(self::CROSS . '?show=1')->assertRedirect();
-        $this->get(self::CROSS . '/csv')->assertRedirect();
+        $this->fetch(self::NET . '?show=1')->assertRedirect();
+        $this->fetch(self::NET . '/csv')->assertRedirect();
+        $this->fetch(self::CROSS . '?show=1')->assertRedirect();
+        $this->fetch(self::CROSS . '/csv')->assertRedirect();
 
         $this->reader(['reports_sales']);
 
-        $this->get(self::NET)->assertRedirect();
+        $this->fetch(self::NET)->assertRedirect();
 
         $this->reader(['accounting_reports', 'reports_sales']);
 
-        $this->get(self::NET . '?show=1')->assertStatus(200);
-        $this->get(self::CROSS . '?show=1')->assertStatus(200);
+        $this->fetch(self::NET . '?show=1')->assertStatus(200);
+        $this->fetch(self::CROSS . '?show=1')->assertStatus(200);
     }
 
     public function testGetIndex_IsNotFoundWhileAccountingIsOff(): void
@@ -144,7 +144,7 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
 
         $this->expectException(PageNotFoundException::class);
 
-        $this->get(self::NET);
+        $this->fetch(self::NET);
     }
 
     public function testGetIndex_AddsUpOnlyTheBranchesOfTheReader(): void
@@ -155,11 +155,11 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
 
         $this->reader($this->everyReportPermission(), [1]);
 
-        $this->assertSame($this->shown('100'), $this->grandTotal($this->get(self::NET . '?show=1'), 'total'));
+        $this->assertSame($this->shown('100'), $this->grandTotal($this->fetch(self::NET . '?show=1'), 'total'));
 
         $this->reader($this->everyReportPermission(), null);
 
-        $this->assertSame($this->shown('170'), $this->grandTotal($this->get(self::NET . '?show=1'), 'total'));
+        $this->assertSame($this->shown('170'), $this->grandTotal($this->fetch(self::NET . '?show=1'), 'total'));
     }
 
     public function testGetCross_ListsOnlyTheInvoicesThatHaveAReturn(): void
@@ -167,7 +167,7 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $response = $this->get(self::CROSS . '?show=1&view=details');
+        $response = $this->fetch(self::CROSS . '?show=1&view=details');
 
         $this->assertSame($this->shown('172.50'), $this->grandTotal($response, 'total'));
         $this->assertSame($this->shown('86.25'), $this->grandTotal($response, 'returns'));
@@ -180,9 +180,9 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
-        $this->assertContains('-51.7500', array_merge(...$this->csvRows($this->get(self::NET . '/csv'))));
-        $this->assertContains('86.2500', array_merge(...$this->csvRows($this->get(self::CROSS . '/csv'))));
-        $this->get(self::NET . '/csv?to=nonsense')->assertStatus(422);
-        $this->get(self::CROSS . '/csv?to=nonsense')->assertStatus(422);
+        $this->assertContains('-51.7500', array_merge(...$this->csvRows($this->fetch(self::NET . '/csv'))));
+        $this->assertContains('86.2500', array_merge(...$this->csvRows($this->fetch(self::CROSS . '/csv'))));
+        $this->fetch(self::NET . '/csv?to=nonsense')->assertStatus(422);
+        $this->fetch(self::CROSS . '/csv?to=nonsense')->assertStatus(422);
     }
 }
