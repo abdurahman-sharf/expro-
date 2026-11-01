@@ -183,8 +183,9 @@ final class CreditSettlement
      */
     private function give(int $customerId, CreditSource $source, int $invoiceId, string $available, array &$open, ?int $employeeId): string
     {
-        $owed = $open[$invoiceId] ?? '0.0000';
-        $take = bccomp($available, $owed, SaleAmounts::SCALE) < 0 ? $available : $owed;
+        $owed        = $open[$invoiceId] ?? '0.0000';
+        $take        = bccomp($available, $owed, SaleAmounts::SCALE) < 0 ? $available : $owed;
+        $debitNoteId = SalesDebitNotes::idOfKey($invoiceId);
 
         if (bccomp($take, '0', SaleAmounts::SCALE) <= 0) {
             return $available;
@@ -193,7 +194,8 @@ final class CreditSettlement
         $this->db->table('customer_credit_applications')->insert([
             'customer_id'     => $customerId,
             'invoice_sale_id' => $invoiceId > 0 ? $invoiceId : null,
-            'opening_id'      => $invoiceId < 0 ? -$invoiceId : null,
+            'opening_id'      => $invoiceId < 0 && $debitNoteId === null ? -$invoiceId : null,
+            'debit_note_id'   => $debitNoteId,
             'source_type'     => $source->type,
             'source_id'       => $source->sourceId,
             'amount'          => $take,
@@ -232,6 +234,7 @@ final class CreditSettlement
                 'customer_id'     => $row->customer_id,
                 'invoice_sale_id' => $row->invoice_sale_id,
                 'opening_id'      => $row->opening_id,
+                'debit_note_id'   => $row->debit_note_id,
                 'source_type'     => $row->source_type,
                 'source_id'       => $row->source_id,
                 'amount'          => $rest,
@@ -242,7 +245,8 @@ final class CreditSettlement
     }
 
     /**
-     * What stands on an invoice, or on an opening balance, which is numbered minus its number.
+     * What stands on an invoice, on an opening balance, which is numbered minus its number, or on a
+     * sales debit note, which is numbered in a range of its own.
      *
      * @param list<object> $applications
      *

@@ -40,6 +40,7 @@ return [
     'item_sales_product'            => '',
     'item_sales_returns'            => '',
     'item_sales_revenue'            => '',
+    'item_sales_shipping'           => '',
     'item_stock_permits_add'        => '',
     'item_stock_permits_count_in'   => '',
     'item_stock_permits_count_out'  => '',

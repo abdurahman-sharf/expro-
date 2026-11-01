@@ -46,12 +46,21 @@ class RoutingKeyTest extends CIUnitTestCase
         $this->assertSame($numbers, array_map(static fn (RoutingType $type): int => $type->number(), $key->allowedTypes()));
     }
 
-    public function testDefaultType_CancelsTheDiscountAndSettlementRowsAndProductSales(): void
+    public function testAllowedTypes_OffersShippingCancelledAndAutomaticWithRevenueAccountsOnly(): void
+    {
+        $this->assertSame([RoutingType::Cancelled, RoutingType::Auto], RoutingKey::SalesShipping->allowedTypes());
+        $this->assertSame([AccountType::Revenue], RoutingKey::SalesShipping->allowedAccountTypes());
+        $this->assertSame(RoutingType::Auto, RoutingKey::SalesShipping->defaultType());
+        $this->assertSame(RoutingType::Auto, RoutingKey::SalesAdjustment->defaultType());
+        $this->assertTrue(RoutingKey::SalesAdjustment->applies(RoutingType::Auto));
+    }
+
+    public function testDefaultType_CancelsTheDiscountRowsThePurchaseAdjustmentAndProductSales(): void
     {
         $cancelled = array_filter(RoutingKey::cases(), static fn (RoutingKey $key): bool => $key->defaultType() === RoutingType::Cancelled);
 
         $this->assertEqualsCanonicalizing(
-            [RoutingKey::SalesDiscount, RoutingKey::ProductSales, RoutingKey::SalesAdjustment, RoutingKey::PurchaseDiscount, RoutingKey::PurchaseAdjustment],
+            [RoutingKey::SalesDiscount, RoutingKey::ProductSales, RoutingKey::PurchaseDiscount, RoutingKey::PurchaseAdjustment],
             array_values($cancelled),
         );
     }
@@ -128,7 +137,8 @@ class RoutingKeyTest extends CIUnitTestCase
     {
         $this->assertSame(['sales_revenue'], RoutingKey::ProductSales->acceptedSystemKeys());
         $this->assertSame(['purchases'], RoutingKey::PurchaseReturns->acceptedSystemKeys());
-        $this->assertSame(['sales_discount'], RoutingKey::SalesAdjustment->acceptedSystemKeys());
+        $this->assertSame(['sales_adjustment', 'sales_discount'], RoutingKey::SalesAdjustment->acceptedSystemKeys());
+        $this->assertSame(['sales_shipping'], RoutingKey::SalesShipping->acceptedSystemKeys());
     }
 
     public function testAllowedAccountTypes_PutsInputTaxAmongTheLiabilitiesAndTheAssets(): void
@@ -137,11 +147,11 @@ class RoutingKeyTest extends CIUnitTestCase
         $this->assertSame([AccountType::Liability], RoutingKey::TaxOutput->allowedAccountTypes());
     }
 
-    public function testApplies_RefusesAutomaticOnlyOnTheSettlementRowsBecauseNothingFeedsThem(): void
+    public function testApplies_RefusesAutomaticOnlyOnThePurchaseAdjustmentBecauseNothingFeedsIt(): void
     {
         foreach (RoutingKey::cases() as $key) {
             foreach (RoutingType::cases() as $type) {
-                $settlement = in_array($key, [RoutingKey::SalesAdjustment, RoutingKey::PurchaseAdjustment], true) && $type === RoutingType::Auto;
+                $settlement = $key === RoutingKey::PurchaseAdjustment && $type === RoutingType::Auto;
 
                 $this->assertSame(! $settlement && $type->isImplemented(), $key->applies($type), "{$key->value} {$type->value}");
             }

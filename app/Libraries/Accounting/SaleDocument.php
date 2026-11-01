@@ -2,13 +2,16 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\ResolvedCharges;
+
 /**
  * A saved sale, with what posting needs to know about it. Its date is the day its journals take:
  * the date typed on the invoice, or else the day it was saved. A return carries the sale it was
  * taken back from, because the cost of a returned item is the cost it was sold at, unless a manager
  * let it through with no sale to take it back from, which is then costed at the cost of the day.
  * The units of an invoice that came back before its goods were delivered are kept apart, because
- * the delivery takes out only what stayed sold.
+ * the delivery takes out only what stayed sold. The charges of its header, an adjustment and shipping
+ * with its tax, are the amounts it was saved with.
  */
 final readonly class SaleDocument
 {
@@ -33,6 +36,7 @@ final readonly class SaleDocument
         public bool $returnOverride = false,
         public bool $refundInvoice = false,
         public array $returnedUnits = [],
+        public ?ResolvedCharges $charges = null,
     ) {
     }
 
@@ -57,6 +61,7 @@ final readonly class SaleDocument
             $this->returnOverride,
             $this->refundInvoice,
             $units,
+            $this->charges,
         );
     }
 

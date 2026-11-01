@@ -7,6 +7,8 @@ return [
     'accounting_cheques_desc'      => 'الشيكات المستلمة من العملاء والمدفوعة للموردين ودفاتر الشيكات وتقارير الشيكات',
     'accounting_cost_centers'      => 'مراكز التكلفة',
     'accounting_cost_centers_desc' => 'عرض مراكز التكلفة وإدارتها.',
+    'accounting_debit_notes'       => 'الإشعارات المدينة للمبيعات',
+    'accounting_debit_notes_desc'  => 'زيادة ما يدين به العميل بلا فاتورة، وإلغاء الإشعار المدين.',
     'accounting_journals'          => 'القيود اليومية',
     'accounting_journals_desc'     => 'إنشاء القيود اليومية وترحيلها وعكسها.',
     'accounting_payables'          => 'أرصدة الموردين',

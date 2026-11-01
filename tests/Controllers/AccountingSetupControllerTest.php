@@ -10,6 +10,7 @@ use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\RoutingKey;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClassConstant;
 use Tests\Support\AccountingControllerFixtureTrait;
 
@@ -42,6 +43,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
     {
         $this->releaseOpenTransactions();
         $this->setConfigValue('accounting_line_description_required', '0');
+        $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent', 'accounting_debit_note', 'accounting_journal_description_sales', 'accounting_journal_description_purchases'])->delete();
 
         parent::tearDown();
     }
@@ -254,6 +256,137 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->setConfigValue('accounting_revenue_account_required', '0');
         $this->assertStringContainsString('id="revenue_account_required" value="1"', $this->get('/accounting_settings')->getBody());
         $this->assertStringNotContainsString('id="revenue_account_required" value="1" checked', $this->get('/accounting_settings')->getBody());
+    }
+
+    /**
+     * @return array<string, array{string, string}> The name of the field in the form and the key of the setting.
+     */
+    public static function switchProvider(): array
+    {
+        return [
+            'the adjustment of the header' => ['sales_adjustment', 'accounting_sales_adjustment'],
+            'the shipping of the header'   => ['sales_shipping', 'accounting_sales_shipping'],
+            'the sales debit note'         => ['debit_note', 'accounting_debit_note'],
+        ];
+    }
+
+    #[DataProvider('switchProvider')]
+    public function testPostSave_SavesTheSwitchAndLeavesItAloneWhenTheFormDoesNotSendIt(string $field, string $key): void
+    {
+        $this->manager();
+
+        $form = ['base_currency' => 'usd', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1'];
+        $read = fn (): ?string => $this->accountingDb()->table('app_config')->where('key', $key)->get()->getRow()?->value;
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + [$field => '1']))['success']);
+        $this->assertSame('1', $read());
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form))['success']);
+        $this->assertSame('1', $read(), 'A form without the switch leaves it as it was');
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + [$field => '0']))['success']);
+        $this->assertNotSame('1', $read());
+    }
+
+    #[DataProvider('switchProvider')]
+    public function testGetIndex_ShowsWhetherTheSwitchIsOnAndNamesItsField(string $field, string $key): void
+    {
+        $this->manager();
+
+        $this->setConfigValue($key, '1');
+        $this->assertStringContainsString('name="' . $field . '" id="' . $field . '" value="1" checked', $this->get('/accounting_settings')->getBody(), 'the switch posts under the name the controller reads');
+        $this->assertStringContainsString('<input type="hidden" name="' . $field . '" value="0">', $this->get('/accounting_settings')->getBody());
+
+        $this->setConfigValue($key, '0');
+        $this->assertStringContainsString('name="' . $field . '" id="' . $field . '" value="1"', $this->get('/accounting_settings')->getBody());
+        $this->assertStringNotContainsString('name="' . $field . '" id="' . $field . '" value="1" checked', $this->get('/accounting_settings')->getBody());
+    }
+
+    public function testPostSave_SavesTheTaxRateOfShippingAndRefusesWhatIsNotAPercentage(): void
+    {
+        $this->manager();
+
+        $form = ['base_currency' => 'usd', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1'];
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + ['shipping_tax_percent' => '15']))['success']);
+        $this->assertSame('15', (new AccountingSettings())->shippingTaxPercent());
+
+        foreach (['100.01', '-1', 'ten', '15%'] as $invalid) {
+            $answer = $this->jsonOf($this->post('/accounting_settings/save', $form + ['shipping_tax_percent' => $invalid]));
+
+            $this->assertFalse($answer['success'], $invalid);
+            $this->assertSame(lang('Accounting.error_shipping_tax_percent_invalid'), $answer['message'], $invalid);
+            $this->assertSame('15', (new AccountingSettings())->shippingTaxPercent(), 'a refused rate leaves the one that stood');
+        }
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form))['success']);
+        $this->assertSame('15', (new AccountingSettings())->shippingTaxPercent(), 'a form without the field leaves it alone');
+    }
+
+    public function testGetIndex_ShowsTheTaxRateOfShippingInItsField(): void
+    {
+        $this->manager();
+
+        $this->setConfigValue('accounting_shipping_tax_percent', '7.5');
+
+        $this->assertStringContainsString('name="shipping_tax_percent" id="shipping_tax_percent" value="7.5"', $this->get('/accounting_settings')->getBody());
+    }
+
+    public function testPostSave_SavesTheDescriptionTemplatesOfSalesAndPurchasesAndRefusesAnUnknownPlaceholder(): void
+    {
+        $this->manager();
+
+        $form = ['base_currency' => 'usd', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1'];
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + ['journal_description_sales' => 'Invoice {number} for {party}', 'journal_description_purchases' => 'Bill {number} from {party} on {date}']))['success']);
+        $this->assertSame('Invoice {number} for {party}', (new AccountingSettings())->journalDescriptionTemplate('sales'));
+        $this->assertSame('Bill {number} from {party} on {date}', (new AccountingSettings())->journalDescriptionTemplate('purchases'));
+
+        foreach (['journal_description_sales', 'journal_description_purchases'] as $field) {
+            foreach (['Total {amount}', '<b>{number}</b>', str_repeat('x', 201)] as $invalid) {
+                $answer = $this->jsonOf($this->post('/accounting_settings/save', $form + [$field => $invalid]));
+
+                $this->assertFalse($answer['success'], $field);
+                $this->assertSame(lang('Accounting.error_journal_template_invalid', [200]), $answer['message'], $field);
+            }
+        }
+
+        $this->assertSame('Invoice {number} for {party}', (new AccountingSettings())->journalDescriptionTemplate('sales'), 'a refused template leaves the one that stood');
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form))['success']);
+        $this->assertSame('Bill {number} from {party} on {date}', (new AccountingSettings())->journalDescriptionTemplate('purchases'), 'a form without the field leaves it alone');
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + ['journal_description_sales' => '', 'journal_description_purchases' => '']))['success']);
+        $this->assertSame('', (new AccountingSettings())->journalDescriptionTemplate('sales'), 'an empty field takes the template away');
+    }
+
+    public function testGetIndex_ShowsTheDescriptionTemplatesEscapedWithTheirPlaceholders(): void
+    {
+        $this->manager();
+
+        $this->setConfigValue('accounting_journal_description_sales', 'Invoice {number} "{party}"');
+        $this->setConfigValue('accounting_journal_description_purchases', 'Bill {number}');
+
+        $body = $this->get('/accounting_settings')->getBody();
+
+        $this->assertSame(1, preg_match('/id="journal_description_sales" value=(["\'])(.*?)\1 maxlength/s', $body, $sales), 'the quotes of the text do not end the attribute');
+        $this->assertSame(1, preg_match('/id="journal_description_purchases" value=(["\'])(.*?)\1 maxlength/s', $body, $purchases));
+        $this->assertSame('Invoice {number} "{party}"', html_entity_decode($sales[2]));
+        $this->assertSame('Bill {number}', html_entity_decode($purchases[2]));
+        $this->assertStringContainsString('{number} {party} {type} {date}', $body);
+        $this->assertStringContainsString('maxlength="200"', $body);
+    }
+
+    public function testPostSave_RefusesTheNewSettingsToAnEmployeeWithoutThePermissionToManageSettings(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $answer = $this->jsonOf($this->post('/accounting_settings/save', ['base_currency' => 'usd', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1', 'sales_shipping' => '1', 'debit_note' => '1', 'journal_description_sales' => 'Invoice {number}']));
+
+        $this->assertFalse($answer['success']);
+        $this->assertFalse((new AccountingSettings())->salesShippingEnabled());
+        $this->assertFalse((new AccountingSettings())->debitNoteEnabled());
+        $this->assertSame('', (new AccountingSettings())->journalDescriptionTemplate('sales'));
     }
 
     public function testPostSave_ReportsAnInvalidCurrency(): void

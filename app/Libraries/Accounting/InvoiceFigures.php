@@ -8,7 +8,8 @@ namespace App\Libraries\Accounting;
  * journals that stand, so it cannot disagree with the account of the customer. It has the day it
  * is dated, which is where its age counts from, and the day it falls due, which is its own day
  * when it has no payment terms. An opening balance the customer owes is read the same way, as an
- * invoice without lines: it has no sale, so its number is minus the number of the opening balance.
+ * invoice without lines: it has no sale, so its number is minus the number of the opening balance. A sales
+ * debit note is read the same way, numbered in its own range past the openings (SalesDebitNotes::keyOf).
  */
 final readonly class InvoiceFigures
 {
@@ -23,6 +24,7 @@ final readonly class InvoiceFigures
         public string $dueDate,
         public ?int $termsDays = null,
         public bool $opening = false,
+        public bool $debitNote = false,
     ) {
     }
 

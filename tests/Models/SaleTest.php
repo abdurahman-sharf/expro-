@@ -8,12 +8,14 @@ use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\ShippingTaxOption;
 use App\Models\Appconfig;
 use App\Models\Sale;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\OSPOS;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\FailedQueryConnectionTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -1214,6 +1216,99 @@ class SaleTest extends CIUnitTestCase
         $saleId = $this->saveSaleWithDiscount($itemId, '2', '50', null);
 
         $this->assertSame('100.00', bcadd((string) model(Sale::class)->get_info($saleId)->getRow()->amount_due, '0', 2));
+    }
+
+    /**
+     * @param array<string, mixed> $charges
+     */
+    private function amountDueWithCharges(array $charges, int $type = SALE_TYPE_POS, string $quantity = '2'): string
+    {
+        $this->dropReportTables();
+
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->saveSaleWithDiscount($itemId, $quantity, '50', null, [], $type);
+
+        Database::connect()->table('sales')->where('sale_id', $saleId)->update($charges);
+
+        $info = model(Sale::class)->get_info($saleId)->getRow();
+
+        return bcadd((string) $info->amount_due, '0', 2);
+    }
+
+    public function testGetHeaderCharges_GivesBackWhatTheSaleWasSavedWithForTheRegisterToTakeUp(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->saveSaleWithDiscount($itemId, '2', '50', null);
+
+        Database::connect()->table('sales')->where('sale_id', $saleId)->update(['adjustment_label' => 'Handling fee', 'adjustment_amount' => '-10.0000', 'shipping_amount' => '20.0000', 'shipping_options' => 2, 'shipping_tax_option' => 'added', 'shipping_tax_percent' => '15.0000', 'shipping_tax_amount' => '3.0000']);
+
+        $charges = model(Sale::class)->getHeaderCharges($saleId);
+
+        $this->assertSame('Handling fee', $charges->adjustmentLabel);
+        $this->assertSame('-10.0000', $charges->adjustment);
+        $this->assertSame('20.0000', $charges->shipping);
+        $this->assertSame(ShippingTaxOption::Added, $charges->shippingTaxOption);
+        $this->assertSame('15.0000', $charges->shippingTaxPercent);
+        $this->assertSame(2, $charges->shippingOptions);
+        $this->assertFalse($charges->isEmpty());
+    }
+
+    public function testGetHeaderCharges_GivesNoChargesForASaleThatHasNoneOrIsNotThere(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->saveSaleWithDiscount($itemId, '2', '50', null);
+
+        $this->assertTrue(model(Sale::class)->getHeaderCharges($saleId)->isEmpty());
+        $this->assertTrue(model(Sale::class)->getHeaderCharges(999999999)->isEmpty());
+        $this->assertSame(ShippingTaxOption::None, model(Sale::class)->getHeaderCharges($saleId)->shippingTaxOption);
+        $this->assertNull(model(Sale::class)->getHeaderCharges($saleId)->shippingOptions);
+    }
+
+    public function testGetInfo_GivesTheAmountDueWithTheShippingTheTaxOnItAndTheAdjustmentOfTheHeader(): void
+    {
+        $this->assertSame('113.00', $this->amountDueWithCharges(['adjustment_label' => 'Fee', 'adjustment_amount' => '-10.0000', 'shipping_amount' => '20.0000', 'shipping_tax_option' => 'added', 'shipping_tax_amount' => '3.0000']));
+    }
+
+    public function testGetInfo_LeavesTheTaxOnShippingInsideTheAmountWhenTheTaxIsIncluded(): void
+    {
+        $this->assertSame('120.00', $this->amountDueWithCharges(['shipping_amount' => '20.0000', 'shipping_tax_option' => 'included', 'shipping_tax_amount' => '2.6087']));
+    }
+
+    public function testGetInfo_RoundsTheTotalWithTheChargesToTheCentOnce(): void
+    {
+        $this->assertSame('135.83', $this->amountDueWithCharges(['shipping_amount' => '33.3300', 'shipping_tax_option' => 'added', 'shipping_tax_amount' => '2.4998']));
+    }
+
+    public function testGetInfo_GivesTheChargesOfACreditNoteInTheDirectionOfTheCredit(): void
+    {
+        $this->assertSame('-120.00', $this->amountDueWithCharges(['shipping_amount' => '20.0000'], SALE_TYPE_RETURN, '-2'));
+    }
+
+    public function testGetInfo_DoesNotRoundTheAmountDueOfASaleWithoutChargesToTheDecimalsOfTheTotals(): void
+    {
+        $this->dropReportTables();
+
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->saveSaleWithDiscount($itemId, '2', '50', null);
+
+        Database::connect()->table('sales_payments')->insert(['sale_id' => $saleId, 'payment_type' => 'Cash', 'payment_amount' => '0.50', 'cash_refund' => 0, 'cash_adjustment' => 1, 'employee_id' => 1]);
+
+        $before = config(OSPOS::class)->settings;
+
+        config(OSPOS::class)->settings['currency_decimals'] = '0';
+
+        try {
+            $amountDue = bcadd((string) model(Sale::class)->get_info($saleId)->getRow()->amount_due, '0', 2);
+        } finally {
+            config(OSPOS::class)->settings = $before;
+        }
+
+        $this->assertSame('100.50', $amountDue, 'what a sale without charges owed is as it was, whatever the cash adjustment added');
+    }
+
+    public function testGetInfo_GivesTheAmountDueOfASaleWhoseChargesAreEmptyAsItAlwaysDid(): void
+    {
+        $this->assertSame('100.00', $this->amountDueWithCharges(['adjustment_amount' => null, 'shipping_amount' => null, 'shipping_tax_option' => null, 'shipping_tax_amount' => null]));
     }
 
     public function testCreateTempTable_GivesTheLinesOfASaleTheirSubtotalTaxAndTotalAfterTheDiscountOnTheWholeOfTheSale(): void

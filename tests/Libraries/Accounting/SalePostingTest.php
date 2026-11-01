@@ -26,7 +26,9 @@ use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\TaxDefinitions;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\HeaderCharges;
 use App\Libraries\InvoiceDiscountProblem;
+use App\Libraries\ShippingTaxOption;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
@@ -34,6 +36,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Tax_lib;
 use App\Models\Item_taxes;
+use Config\OSPOS;
 use CodeIgniter\Database\Query;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -94,7 +97,8 @@ class SalePostingTest extends CIUnitTestCase
         $db = $this->accountingDb();
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
-        $db->table('accounting_audit_log')->whereIn('action', ['numbering_configured', 'quote_status_changed', 'quote_converted', 'draft_issued'])->delete();
+        $db->table('accounting_audit_log')->whereIn('action', ['numbering_configured', 'quote_status_changed', 'quote_converted', 'draft_issued', 'header_charges_given'])->delete();
+        $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent', 'accounting_journal_description_sales'])->delete();
 
         parent::tearDown();
     }
@@ -5938,5 +5942,606 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame($this->customerAccount() . ':' . bcadd($total, '0', 4) . ':0.0000', $lines[0], 'the customer owes the rounded sum of the lines and the tax added to them');
         $this->assertSame($this->accountId('tax_output') . ':0.0000:' . $all, $lines[2], 'the tax is posted as it was worked out, inside the price or not');
         $this->assertSame($this->accountId('sales_revenue') . ':0.0000:' . bcsub($total, $all, 4), $lines[1], 'and the revenue is what is left of the total (E14)');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The adjustment and the shipping on the header of an invoice, a quote or a credit note
+    // ---------------------------------------------------------------------------------------
+
+    private function turnOnHeaderCharges(string $shippingTax = '15'): void
+    {
+        $this->setConfigValue('accounting_sales_adjustment', '1');
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', $shippingTax);
+    }
+
+    private function chargeColumns(int $saleId): array
+    {
+        $row = $this->saleRow($saleId);
+
+        return [$row->adjustment_label, $row->adjustment_amount, $row->shipping_amount, $row->shipping_tax_option, $row->shipping_tax_amount];
+    }
+
+    public function testSaveValue_PostsTheShippingAndTheAdjustmentOfAnInvoiceToTheAccountsOfTheirRoutingRows(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Handling', '-10', '20'));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':826.50:0.00',
+                $this->accountId('sales_adjustment') . ':10.00:0.00',
+                $this->accountId('sales_revenue') . ':0.00:710.00',
+                $this->accountId('tax_output') . ':0.00:106.50',
+                $this->accountId('sales_shipping') . ':0.00:20.00',
+            ],
+            $this->standing($saleId, 'revenue')[0]['lines'],
+        );
+        $this->assertSame(['Handling', '-10.0000', '20.0000', null, null], $this->chargeColumns($saleId));
+        $this->assertSame('826.50', $this->balance($this->customerAccount()));
+        $this->assertSame([$this->accountId('cogs') . ':400.00:0.00', $this->stockAccount() . ':0.00:400.00'], $this->standing($saleId, 'cogs')[0]['lines'], 'the cost of the goods does not depend on the charges');
+    }
+
+    public function testSaveValue_SavesAnInvoiceOfFreeGoodsWithShippingAndTiesTheCustomerPosition(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $free   = $this->line($this->item('4.00'), 0, '1', '0', '4.00');
+        $saleId = $this->save([$free], [], headerCharges: new HeaderCharges(shipping: '20'));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame([$this->customerAccount() . ':20.00:0.00', $this->accountId('sales_shipping') . ':0.00:20.00'], $this->standing($saleId, 'revenue')[0]['lines']);
+        $this->assertSame('20.00', $this->balance($this->customerAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('sales_revenue')));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_SavesAnInvoiceOfFreeGoodsWithTaxedShippingWhoseRoundingFallsOnTheShipping(): void
+    {
+        $this->turnOnHeaderCharges('4.5');
+
+        $free   = $this->line($this->item('4.00'), 0, '1', '0', '4.00');
+        $saleId = $this->save([$free], [], headerCharges: new HeaderCharges(shipping: '10.01', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '4.5'));
+
+        $this->assertGreaterThan(0, $saleId);
+        $shipping = $this->accountingDb()->table('accounting_journal_lines')->where('account_id', $this->accountId('sales_shipping'))->get()->getRow();
+
+        $this->assertSame('10.46', $this->balance($this->customerAccount()));
+        $this->assertSame('10.0095', bcadd($shipping->credit, '0', 4), 'the shipping carries the rounding of the cent because there are no goods');
+        $this->assertSame('0.4505', bcadd($this->accountingDb()->table('accounting_journal_lines')->where('account_id', $this->accountId('tax_output'))->get()->getRow()->credit, '0', 4));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_SavesACreditNoteOfFreeGoodsWithShippingAndTiesTheCustomerPosition(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle    = $this->referenceInvoice();
+        $original = $this->save($cycle['items'], $cycle['taxes']);
+        $return   = $this->save([$this->line($cycle['cream'], 0, '-1', '0')], [], [], SALE_TYPE_RETURN, origin: $original, headerCharges: new HeaderCharges(shipping: '20'));
+
+        $this->assertGreaterThan(0, $return);
+        $this->assertSame([$this->accountId('sales_shipping') . ':20.00:0.00', $this->customerAccount() . ':0.00:20.00'], $this->standing($return, 'revenue')[0]['lines']);
+        $this->assertTies();
+    }
+
+    public function testSaveValue_PostsTheTaxOnShippingWithTheOutputTaxWhenItIsOnTopOfTheAmount(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '100', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':931.50:0.00',
+                $this->accountId('sales_revenue') . ':0.00:710.00',
+                $this->accountId('tax_output') . ':0.00:121.50',
+                $this->accountId('sales_shipping') . ':0.00:100.00',
+            ],
+            $this->standing($saleId, 'revenue')[0]['lines'],
+        );
+        $this->assertSame([null, null, '100.0000', 'added', '15.0000'], $this->chargeColumns($saleId));
+        $this->assertSame('15.0000', $this->saleRow($saleId)->shipping_tax_percent === null ? '' : bcadd($this->saleRow($saleId)->shipping_tax_percent, '0', 4));
+    }
+
+    public function testSaveValue_PostsTheTaxOnShippingInsideTheAmountWhenThePricesIncludeTax(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $settings = config(OSPOS::class)->settings;
+        config(OSPOS::class)->settings['tax_included'] = '1';
+
+        try {
+            $cycle  = $this->referenceInvoice();
+            $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '100', shippingTaxOption: ShippingTaxOption::Included, shippingTaxPercent: '15'));
+        } finally {
+            config(OSPOS::class)->settings = $settings;
+        }
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame([null, null, '100.0000', 'included', '13.0435'], $this->chargeColumns($saleId));
+
+        $lines = $this->accountingDb()->table('accounting_journal_lines l')->select('l.account_id, l.debit, l.credit')->join('accounting_journals j', 'j.journal_id = l.journal_id')->where(['j.source_type' => 'sale', 'j.source_id' => $saleId, 'j.entry_type' => 'revenue'])->get()->getResult();
+        $shape = array_map(static fn (object $line): string => $line->account_id . ':' . bcadd($line->debit, '0', 4) . ':' . bcadd($line->credit, '0', 4), $lines);
+
+        $this->assertContains($this->accountId('sales_shipping') . ':0.0000:86.9565', $shape);
+        $this->assertContains($this->accountId('tax_output') . ':0.0000:119.5435', $shape);
+        $this->assertContains($this->customerAccount() . ':916.5000:0.0000', $shape);
+    }
+
+    public function testSaveValue_RoundsTheCustomerTotalAndLeavesTheShippingAndItsTaxToTheFourthDecimal(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $item   = $this->item('0', false);
+        $saleId = $this->save([$this->line($item, 0, '1', '0.70')], [$this->tax($item, 0, '0.105')], headerCharges: new HeaderCharges(shipping: '0.07', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+
+        $lines = $this->accountingDb()->table('accounting_journal_lines l')->select('l.account_id, l.debit, l.credit')->join('accounting_journals j', 'j.journal_id = l.journal_id')->where(['j.source_type' => 'sale', 'j.source_id' => $saleId, 'j.entry_type' => 'revenue'])->orderBy('l.line_no')->get()->getResult();
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':0.8900:0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:0.7045',
+                $this->accountId('tax_output') . ':0.0000:0.1155',
+                $this->accountId('sales_shipping') . ':0.0000:0.0700',
+            ],
+            array_map(static fn (object $line): string => $line->account_id . ':' . bcadd($line->debit, '0', 4) . ':' . bcadd($line->credit, '0', 4), $lines),
+        );
+    }
+
+    public function testSaveValue_PostsTheChargesBesideTheDiscountOnTheWholeInvoice(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount'], headerCharges: new HeaderCharges('Fee', '5', '20'));
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':759.85:0.00',
+                $this->accountId('sales_revenue') . ':0.00:639.00',
+                $this->accountId('tax_output') . ':0.00:95.85',
+                $this->accountId('sales_shipping') . ':0.00:20.00',
+                $this->accountId('sales_adjustment') . ':0.00:5.00',
+            ],
+            $this->standing($saleId, 'revenue')[0]['lines'],
+        );
+    }
+
+    public function testSaveValue_PostsACreditNoteWithTheChargesOnTheOppositeSides(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes']);
+        $service = $this->item('0', false);
+        $note    = $this->save([$this->line($service, 0, '-1', '50')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, headerCharges: new HeaderCharges('Goodwill', '-5', '20'));
+
+        $this->assertGreaterThan(0, $note);
+        $this->assertSame(
+            [
+                $this->accountId('sales_returns') . ':50.00:0.00',
+                $this->accountId('sales_shipping') . ':20.00:0.00',
+                $this->accountId('sales_adjustment') . ':0.00:5.00',
+                $this->customerAccount() . ':0.00:65.00',
+            ],
+            $this->standing($note, 'revenue')[0]['lines'],
+        );
+        $this->assertSame('751.50', $this->balance($this->customerAccount()));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_PostsARefundInvoiceWithTheChargesAsACreditNoteDoes(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes']);
+        $service = $this->item('0', false);
+        $refund  = $this->save([$this->line($service, 0, '-1', '50')], [], [], SALE_TYPE_RETURN, -1, true, $invoice, COMPLETED, NEW_ENTRY, null, ReturnDocument::RefundInvoice, headerCharges: new HeaderCharges('', '0', '20'));
+
+        $this->assertSame(
+            [$this->accountId('sales_returns') . ':50.00:0.00', $this->accountId('sales_shipping') . ':20.00:0.00', $this->customerAccount() . ':0.00:70.00'],
+            $this->standing($refund, 'revenue')[0]['lines'],
+        );
+    }
+
+    public function testDelete_RefusesToCancelAnInvoiceWithChargesAsEveryIssuedInvoiceIsLocked(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Handling', '-10', '20'));
+        $before = $this->journals($saleId);
+
+        $this->assertFalse($this->sales->delete($saleId, false, true, $this->employeeId));
+        $this->assertSame(AccountingError::IssuedDocumentLocked, $this->failure()->error);
+        $this->assertSame($before, $this->journals($saleId));
+        $this->assertSame(['Handling', '-10.0000', '20.0000', null, null], $this->chargeColumns($saleId));
+    }
+
+    public function testReverseAutomatic_MirrorsTheStoredLinesOfAnInvoiceWithChargesEvenAfterTheSettingsWereTurnedOff(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Handling', '-10', '20'));
+
+        $this->setConfigValue('accounting_sales_adjustment', '0');
+        $this->setConfigValue('accounting_sales_shipping', '0');
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.shipping')->update(['routing_type' => 'cancelled', 'account_id' => null]);
+
+        (new JournalService())->reverseAutomatic($this->standing($saleId, 'revenue')[0]['id'], date('Y-m-d'), 'correction', $this->employeeId);
+
+        foreach (['customer' => $this->customerAccount(), 'adjustment' => $this->accountId('sales_adjustment'), 'shipping' => $this->accountId('sales_shipping'), 'tax' => $this->accountId('tax_output'), 'revenue' => $this->accountId('sales_revenue')] as $name => $accountId) {
+            $this->assertSame('0.00', $this->balance($accountId), $name);
+        }
+    }
+
+    public function testSaveValue_KeepsTheTotalOfAnInvoiceWhoseChargesWereSavedWhenTheCustomerPaysPartOfIt(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], headerCharges: new HeaderCharges('Handling', '-10', '20'));
+
+        $position = $this->position();
+
+        $this->assertSame('526.50', bcadd($position->open(), '0', 2));
+        $this->assertSame('826.50', bcadd($position->invoices[0]->total, '0', 2));
+        $this->assertTies();
+        $this->assertSame([], array_filter($position->aging(date('Y-m-d')), static fn (string $amount, string $bucket): bool => $bucket !== 'today' && bccomp($amount, '0', 4) !== 0, ARRAY_FILTER_USE_BOTH));
+        $this->assertGreaterThan(0, $saleId);
+    }
+
+    public function testSaveValue_RefusesChargesWhileTheirSettingIsOffAndLeavesNothingOfTheSale(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '5')));
+        $this->assertSame(AccountingError::HeaderChargesOff, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+
+        $this->setConfigValue('accounting_sales_adjustment', '1');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('', '0', '5')));
+        $this->assertSame(AccountingError::HeaderChargesOff, $this->failure()->error, 'the shipping has its own setting');
+
+        $this->assertGreaterThan(0, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '5')));
+    }
+
+    public function testSaveValue_RefusesChargesOnASaleThatIsNeitherAnInvoiceNorAQuoteNorACreditNote(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle = $this->referenceInvoice();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '900.00')], SALE_TYPE_POS, headerCharges: new HeaderCharges('', '0', '20')));
+        $this->assertSame(AccountingError::HeaderChargesNotAllowed, $this->failure()->error);
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_RefusesAnAdjustmentThatTakesTheTotalBelowZero(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle = $this->referenceInvoice();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '-816.51')));
+        $this->assertSame(AccountingError::AdjustmentExceedsTotal, $this->failure()->error);
+        $this->assertSame(0, $this->countJournals());
+        $this->assertGreaterThan(0, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '-816.50')) ?: 0, 'an adjustment that brings the total to zero is allowed');
+    }
+
+    public function testSaveValue_RefusesAShippingTaxThatIsNotTheRateAndTheModeTheCompanyWorksIn(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle = $this->referenceInvoice();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('', '0', '100', ShippingTaxOption::Added, '5')));
+        $this->assertSame(AccountingError::HeaderChargesInvalid, $this->failure()->error, 'another rate');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('', '0', '100', ShippingTaxOption::Included, '15')));
+        $this->assertSame(AccountingError::HeaderChargesInvalid, $this->failure()->error, 'the prices do not include tax');
+
+        $this->setConfigValue('accounting_shipping_tax_percent', '0');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('', '0', '100', ShippingTaxOption::Added, '15')));
+        $this->assertSame(AccountingError::HeaderChargesInvalid, $this->failure()->error, 'the company charges no tax on shipping');
+    }
+
+    public function testSaveValue_RefusesChargesThatAreNotNumbersOrShippingBelowZero(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle = $this->referenceInvoice();
+
+        foreach ([new HeaderCharges('', 'x'), new HeaderCharges('', '0', '-1'), new HeaderCharges(str_repeat('a', 101), '5'), new HeaderCharges('', '0', '5', ShippingTaxOption::None, '0', 9)] as $charges) {
+            $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: $charges));
+            $this->assertSame(AccountingError::HeaderChargesInvalid, $this->failure()->error);
+        }
+
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_RefusesAnInvoiceWithChargesInAClosedPeriodWithoutLeavingAnyOfIt(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle = $this->referenceInvoice();
+        $this->closeThrough(date('Y-m-d'));
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '5', '20')));
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_RefusesChargesWhoseRoutingRowIsCancelledAndLeavesNoSale(): void
+    {
+        $this->turnOnHeaderCharges();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.shipping')->update(['routing_type' => 'cancelled']);
+
+        $cycle = $this->referenceInvoice();
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('', '0', '20')));
+        $this->assertSame(PostingError::RoutingRowCancelled, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+    }
+
+    public function testSaveValue_StoresTheChargesOfASuspendedInvoiceAndPostsThemWhenTheDraftIsIssued(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle  = $this->referenceInvoice();
+        $draft  = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, headerCharges: new HeaderCharges('Handling', '-10', '20'));
+
+        $this->assertGreaterThan(0, $draft);
+        $this->assertSame([], $this->standing($draft));
+        $this->assertSame(['Handling', '-10.0000', '20.0000', null, null], $this->chargeColumns($draft));
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame('720.00', $this->balance($this->customerAccount()), 'the goods of the draft carry no tax of their own here: 710 and 20 of shipping less 10');
+        $this->assertSame(['Handling', '-10.0000', '20.0000', null, null], $this->chargeColumns($draft));
+    }
+
+    public function testSaveValue_ChangesTheFingerprintOfADraftWhoseChargesChanged(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle = $this->referenceInvoice();
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, headerCharges: new HeaderCharges('Handling', '-10', '20'));
+        $print = (new DraftInvoice())->fingerprint($draft);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $draft)->update(['shipping_amount' => '25.0000']);
+
+        $this->assertNotSame($print, (new DraftInvoice())->fingerprint($draft));
+    }
+
+    public function testSaveValue_KeepsTheChargesOfAQuoteAndPostsNothing(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle = $this->referenceInvoice();
+        $quote = $this->save($cycle['items'], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED, headerCharges: new HeaderCharges('Fee', '5', '20'));
+
+        $this->assertGreaterThan(0, $quote);
+        $this->assertSame(['Fee', '5.0000', '20.0000', null, null], $this->chargeColumns($quote));
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_SavesAnInvoiceWithChargesWithoutJournalsWhileAccountingIsOff(): void
+    {
+        $this->turnOnHeaderCharges();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Handling', '-10', '20'));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(['Handling', '-10.0000', '20.0000', null, null], $this->chargeColumns($saleId));
+        $this->assertSame(0, $this->countJournals());
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'header_charges_given')->countAllResults());
+    }
+
+    public function testSaveValue_WritesWhoGaveTheChargesToTheAuditLogWhileAccountingIsOn(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Handling', '-10', '20'));
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where(['action' => 'header_charges_given', 'entity_id' => $saleId])->get()->getRow();
+
+        $this->assertNotNull($entry);
+        $this->assertSame($this->employeeId, (int) $entry->employee_id);
+        $this->assertSame(['adjustment' => '-10.0000', 'shipping' => '20.0000', 'shipping_tax' => '0.0000'], json_decode((string) $entry->details, true));
+    }
+
+    public function testSaveValue_LeavesTheColumnsOfTheChargesEmptyOnASaleWithoutAnyAndJournalsItAsBefore(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: HeaderCharges::none());
+
+        $this->assertSame([null, null, null, null, null], $this->chargeColumns($saleId));
+        $this->assertSame(
+            [$this->customerAccount() . ':816.50:0.00', $this->accountId('sales_revenue') . ':0.00:710.00', $this->accountId('tax_output') . ':0.00:106.50'],
+            $this->standing($saleId, 'revenue')[0]['lines'],
+        );
+    }
+
+    public function testSaveValue_ForgetsTheChargesOfASuspendedInvoiceThatIsSavedAgainWithout(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $cycle = $this->referenceInvoice();
+        $draft = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, headerCharges: new HeaderCharges('Fee', '5', '20'));
+
+        $this->assertSame($draft, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, $draft));
+        $this->assertSame([null, null, null, null, null], $this->chargeColumns($draft));
+    }
+
+    public function testSaveValue_IgnoresTheAdjustmentOfAnInvoiceWhoseLinesCameToNothing(): void
+    {
+        $this->turnOnHeaderCharges();
+
+        $item   = $this->item('0', false);
+        $saleId = $this->save([$this->line($item, 0, '1', '0')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, headerCharges: new HeaderCharges('Fee', '50'));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame([null, null, null, null, null], $this->chargeColumns($saleId));
+        $this->assertSame(0, $this->countJournals() - count($this->accountingDb()->table('accounting_journals')->where('source_type', 'sale_payment')->get()->getResult()), 'nothing to post for an invoice that comes to nothing');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The description template of the journals of sales
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * @return array<string, string> The description of each journal of a sale, by "source/entry".
+     */
+    private function descriptionsOf(int $saleId): array
+    {
+        $rows = $this->accountingDb()->table('accounting_journals')->select('source_type, entry_type, description')->groupStart()->where(['source_type' => 'sale', 'source_id' => $saleId])->groupEnd()->orderBy('journal_id')->get()->getResult();
+        $out  = [];
+
+        foreach ($rows as $row) {
+            $out[$row->source_type . '/' . $row->entry_type] = (string) $row->description;
+        }
+
+        return $out;
+    }
+
+    public function testSaveValue_DescribesTheInvoiceJournalWithTheTemplateOfSales(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', '{type} {number} - {party} - {date}');
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame(lang('Accounting.template_type_invoice') . ' ' . $saleId . ' - Omar Khaled - ' . date('Y-m-d'), $this->descriptionsOf($saleId)['sale/revenue']);
+    }
+
+    public function testSaveValue_TakesTheNumberOfTheInvoiceSequenceIntoTheTemplate(): void
+    {
+        $manager = $this->employeeWithGrants(['config']);
+
+        (new DocumentNumbering())->configure(DocumentType::SalesInvoice, ['enabled' => true, 'prefix' => 'INV-', 'padding' => 4], $manager);
+        $this->setConfigValue('accounting_journal_description_sales', 'Invoice {number}');
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame('Invoice INV-0001', $this->descriptionsOf($saleId)['sale/revenue']);
+    }
+
+    public function testSaveValue_LeavesTheDescriptionsTheApplicationWritesWhenThereIsNoTemplate(): void
+    {
+        $cycle     = $this->referenceInvoice();
+        $saleId    = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '100.00')]);
+        $paymentId = (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->payment_id;
+        $payment   = (string) $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'sale_payment', 'source_id' => $paymentId])->get()->getRow()->description;
+
+        $this->assertSame(['sale/revenue' => 'Sale #' . $saleId, 'sale/cogs' => 'Cost of sale #' . $saleId], $this->descriptionsOf($saleId));
+        $this->assertSame('Payment #' . $paymentId . ' of sale #' . $saleId, $payment);
+    }
+
+    public function testSaveValue_AppliesTheTemplateToTheMainJournalOnlyAndNotToTheCostOrThePayments(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', 'Doc {number}');
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '100.00')]);
+
+        $descriptions = $this->descriptionsOf($saleId);
+
+        $this->assertSame('Doc ' . $saleId, $descriptions['sale/revenue']);
+        $this->assertSame('Cost of sale #' . $saleId, $descriptions['sale/cogs']);
+        $this->assertStringStartsWith('Payment #', (string) $this->accountingDb()->table('accounting_journals')->where('source_type', 'sale_payment')->get()->getRow()->description);
+    }
+
+    public function testSaveValue_KeepsTheDescriptionOfAJournalThatStandsWhenTheTemplateIsSetLater(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->setConfigValue('accounting_journal_description_sales', 'Changed {number}');
+        $this->addPayment($saleId, '100.00');
+
+        $this->assertSame('Sale #' . $saleId, $this->descriptionsOf($saleId)['sale/revenue']);
+    }
+
+    public function testSaveValue_NamesACreditNoteAndARefundInvoiceInTheTemplate(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', '{type} {number}');
+
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes']);
+        $note    = $this->creditNoteOf($invoice, '30');
+        $refund  = $this->refundInvoiceOf($invoice, '20');
+
+        $this->assertSame(lang('Accounting.template_type_credit_note') . ' POS ' . $note, $this->descriptionsOf($note)['sale/revenue']);
+        $this->assertSame(lang('Accounting.template_type_refund_invoice') . ' POS ' . $refund, $this->descriptionsOf($refund)['sale/revenue']);
+    }
+
+    public function testSaveValue_KeepsTheMarkOfAReturnWithoutASaleWhenTheTemplateDescribesIt(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', '{type} {number}');
+        $this->grantReturnOverride();
+
+        $item     = $this->item('66.00');
+        $returnId = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'lost the receipt');
+
+        $this->assertSame(lang('Accounting.template_type_credit_note') . ' POS ' . $returnId . ' ' . ReturnOverride::MARKER, $this->descriptionsOf($returnId)['sale/revenue']);
+    }
+
+    public function testSaveValue_WritesNothingOfAPartyForASaleWithoutACustomer(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', 'Sale for [{party}]');
+
+        $item   = $this->item('0', false);
+        $saleId = $this->save([$this->line($item, 0, '1', '50')], [], [$this->payment(lang('Sales.cash'), '50.00')], SALE_TYPE_POS, null);
+
+        $this->assertSame('Sale for []', $this->descriptionsOf($saleId)['sale/revenue']);
+    }
+
+    public function testDelete_LeavesTheDescriptionOfTheOriginalJournalAndGivesTheReversalTheReasonAndNotTheTemplate(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', 'Doc {number}');
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '816.50')], SALE_TYPE_POS);
+
+        $this->sales->delete($saleId, false, true, $this->employeeId);
+
+        $db       = $this->accountingDb();
+        $original = $db->table('accounting_journals')->where(['source_type' => 'sale', 'source_id' => $saleId, 'entry_type' => 'revenue'])->get()->getRow();
+        $reversal = $db->table('accounting_journals')->where('reverses_journal_id', $original->journal_id)->get()->getRow();
+
+        $this->assertSame('reversed', $original->status);
+        $this->assertSame('Doc ' . $saleId, (string) $original->description, 'the journal that stands keeps the text it was posted with');
+        $this->assertNotNull($reversal);
+        $this->assertNotSame('', trim((string) $reversal->description), 'a reversal says why it was made');
+        $this->assertStringNotContainsString('Doc ' . $saleId, (string) $reversal->description, 'the template describes the journal of a new document and not its reversal');
+    }
+
+    public function testSaveValue_IgnoresATemplateStoredByHandThatIsNotValid(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', '<b>{number}</b>');
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame('Sale #' . $saleId, $this->descriptionsOf($saleId)['sale/revenue']);
     }
 }

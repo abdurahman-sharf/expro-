@@ -40,6 +40,7 @@ return [
     'item_sales_product'            => 'حساب مبيعات المنتج',
     'item_sales_returns'            => 'مردودات المبيعات',
     'item_sales_revenue'            => 'إيراد المبيعات',
+    'item_sales_shipping'           => 'شحن المبيعات',
     'item_stock_permits_add'        => 'إذن إضافة مخزن',
     'item_stock_permits_count_in'   => 'ورقة جرد وارد',
     'item_stock_permits_count_out'  => 'ورقة جرد منصرف',

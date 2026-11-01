@@ -16,7 +16,7 @@ final readonly class NumberingSequence
 
     public static function defaultFor(DocumentType $type, int $nextNumber = 1): self
     {
-        return new self($type, false, '', 0, $nextNumber, true);
+        return new self($type, false, '', $type->defaultPadding(), $nextNumber, true);
     }
 
     public function format(int $number): string

@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AgedLedger;
 use App\Libraries\Accounting\AgedLedgerRow;
 use App\Libraries\Accounting\AgingBuckets;
@@ -9,6 +10,7 @@ use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\ReceivingPostingBuilder;
 use App\Libraries\Accounting\SalePostingBuilder;
+use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\Accounting\SupplierLedger;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -55,6 +57,8 @@ class AgedLedgerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'sales_debit_note')->delete();
+        $this->accountingDb()->table('app_config')->where('key', 'accounting_debit_note')->delete();
         $this->stopBuying();
 
         parent::tearDown();
@@ -129,6 +133,24 @@ class AgedLedgerTest extends CIUnitTestCase
 
         $this->payPurchase($paid, '120.00');
         $this->datePurchasePayments($paid, $this->daysAgo(1));
+    }
+
+    public function testBuild_AgesASalesDebitNoteFromItsOwnDayAndTheBucketsTieToTheAccount(): void
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $clerk = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+
+        (new SalesDebitNotes())->create(['customer_id' => $this->customerId, 'date' => $this->daysAgo(45), 'amount' => '100', 'tax_percent' => '15'], $clerk);
+        $this->invoiceDated('50.00', $this->daysAgo(0));
+
+        $row = $this->rowOf($this->customers(date('Y-m-d')), $this->customerId);
+
+        $this->assertSame('115.00', bcadd($row->buckets[2], '0', 2), 'the 31 to 60 bucket');
+        $this->assertSame('50.00', bcadd($row->buckets[0], '0', 2), 'the day itself');
+        $this->assertSame('165.00', bcadd($row->total(), '0', 2));
+        $this->assertSame($this->balance($this->customerAccount()), bcadd($row->total(), '0', 2));
+        $this->assertSame([], array_filter($this->customers($this->daysAgo(50)), fn (AgedLedgerRow $other): bool => $other->partyId === $this->customerId), 'a day before the note nobody owed it');
     }
 
     public function testBuild_AppliesTheCreditToTheOldestDebitFirstAndAgesWhatIsLeftByItsOwnDay(): void

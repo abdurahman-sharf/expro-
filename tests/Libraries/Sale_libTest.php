@@ -3,6 +3,9 @@
 namespace Tests\Libraries;
 
 use App\Libraries\Accounting\ReturnDocument;
+use App\Libraries\HeaderCharges;
+use App\Libraries\HeaderChargesProblem;
+use App\Libraries\ShippingTaxOption;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Sale_lib;
 use App\Libraries\Tax_lib;
@@ -43,7 +46,7 @@ class Sale_libTest extends CIUnitTestCase
         bcscale(4);
 
         $ospos           = new OSPOS();
-        $ospos->settings = ['cash_rounding_code' => '', 'cash_decimals' => 2, 'currency_decimals' => 2, 'tax_decimals' => 2, 'quantity_decimals' => 2, 'tax_included' => '0'];
+        $ospos->settings = ['cash_rounding_code' => '', 'cash_decimals' => 2, 'currency_decimals' => 2, 'tax_decimals' => 2, 'quantity_decimals' => 2, 'tax_included' => '0', 'use_destination_based_tax' => '0'];
         Factories::injectMock('config', OSPOS::class, $ospos);
 
         foreach ([Attribute::class, Customer::class, Dinner_table::class, Item::class, Item_kit_items::class, Item_quantity::class, Item_taxes::class, Sale::class, Stock_location::class] as $model) {
@@ -278,6 +281,7 @@ class Sale_libTest extends CIUnitTestCase
         $empty->method('getResult')->willReturn([]);
 
         $sale = $this->createStub(Sale::class);
+        $sale->method('getHeaderCharges')->willReturn(HeaderCharges::none());
         $sale->method('get_sale_items_ordered')->willReturn($empty);
         $sale->method('get_sale_payments')->willReturn($empty);
         $sale->method('get_customer')->willReturn((object) ['person_id' => 3]);
@@ -307,6 +311,7 @@ class Sale_libTest extends CIUnitTestCase
         $empty->method('getResult')->willReturn([]);
 
         $sale = $this->createStub(Sale::class);
+        $sale->method('getHeaderCharges')->willReturn(HeaderCharges::none());
         $sale->method('get_sale_items_ordered')->willReturn($empty);
         $sale->method('get_sale_payments')->willReturn($empty);
         $sale->method('get_customer')->willReturn((object) ['person_id' => 3]);
@@ -331,6 +336,7 @@ class Sale_libTest extends CIUnitTestCase
         $empty->method('getResult')->willReturn([]);
 
         $sale = $this->createStub(Sale::class);
+        $sale->method('getHeaderCharges')->willReturn(HeaderCharges::none());
         $sale->method('get_sale_items_ordered')->willReturn($empty);
         $sale->method('get_sale_payments')->willReturn($empty);
         $sale->method('get_customer')->willReturn((object) ['person_id' => 3]);
@@ -601,7 +607,7 @@ class Sale_libTest extends CIUnitTestCase
     /**
      * @param list<object> $lines
      */
-    private function loadSale(array $lines, int $status, ?array $discount, int $type = SALE_TYPE_INVOICE, ?string $quoteNumber = null, ?int $sourceQuote = null): Sale_lib
+    private function loadSale(array $lines, int $status, ?array $discount, int $type = SALE_TYPE_INVOICE, ?string $quoteNumber = null, ?int $sourceQuote = null, ?HeaderCharges $charges = null): Sale_lib
     {
         $rows = $this->createStub(ResultInterface::class);
         $rows->method('getResult')->willReturn($lines);
@@ -610,6 +616,7 @@ class Sale_libTest extends CIUnitTestCase
         $empty->method('getResult')->willReturn([]);
 
         $sale = $this->createStub(Sale::class);
+        $sale->method('getHeaderCharges')->willReturn($charges ?? HeaderCharges::none());
         $sale->method('get_sale_items_ordered')->willReturn($rows);
         $sale->method('get_sale_payments')->willReturn($empty);
         $sale->method('get_customer')->willReturn((object) ['person_id' => 3]);
@@ -874,6 +881,208 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertSame('15.0000', $this->fourDecimals($this->saleLib->get_item_tax('1', '115', '0', PERCENT, '15', '0', true)));
         $this->assertSame('17.2500', $this->fourDecimals($this->saleLib->get_item_tax('1', '115', '0', PERCENT, '15', '0', false)));
         $this->assertSame('17.2500', $this->fourDecimals($this->saleLib->get_item_tax('1', '115', '0', PERCENT, '15')), 'without a mode the default of the shop decides');
+    }
+
+    private function vat(string $amount = '53.25'): array
+    {
+        return ['VAT' => ['tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'sale_tax_amount' => $amount]];
+    }
+
+    public function testGetTotals_AddsTheShippingTheTaxOnItAndTheAdjustmentToTheTotalOnly(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Rounding', '-10', '100', ShippingTaxOption::Added, '15'));
+
+        $totals = $this->saleLib->get_totals($this->vat());
+
+        $this->assertSame('355.0000', $this->fourDecimals($totals['subtotal']), 'the charges are not part of the subtotal of the lines');
+        $this->assertSame('513.2500', $this->fourDecimals($totals['total']));
+        $this->assertSame('408.2500', $this->fourDecimals($totals['items_total']));
+        $this->assertSame('100.0000', $totals['shipping']);
+        $this->assertSame('15.0000', $totals['shipping_tax']);
+        $this->assertSame('-10.0000', $totals['adjustment']);
+        $this->assertSame('Rounding', $totals['adjustment_label']);
+        $this->assertSame('513.2500', $this->fourDecimals($totals['amount_due']));
+    }
+
+    public function testGetTotals_LeavesTheTaxOnShippingInsideTheAmountWhenTheTaxIsIncluded(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setHeaderCharges(new HeaderCharges(shipping: '100', shippingTaxOption: ShippingTaxOption::Included, shippingTaxPercent: '15'));
+
+        $totals = $this->saleLib->get_totals($this->vat());
+
+        $this->assertSame('508.2500', $this->fourDecimals($totals['total']));
+        $this->assertSame('13.0435', $totals['shipping_tax']);
+        $this->assertTrue($totals['shipping_tax_included']);
+    }
+
+    public function testGetTotals_IgnoresAnAdjustmentWhenTheLinesCameToNothing(): void
+    {
+        $this->saleLib->set_cart([1 => ['item_id' => 3, 'item_location' => 1, 'line' => 1, 'quantity' => '1', 'price' => '0', 'discount' => '0', 'discount_type' => PERCENT, 'stock_type' => HAS_STOCK]]);
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Fee', '50'));
+
+        $totals = $this->saleLib->get_totals([]);
+
+        $this->assertSame('0.0000', $this->fourDecimals($totals['total']));
+        $this->assertSame('0.0000', $this->fourDecimals($totals['adjustment']));
+    }
+
+    public function testGetTotals_CountsTheAdjustmentOnceTheShippingMakesTheTotalPositive(): void
+    {
+        $this->saleLib->set_cart([1 => ['item_id' => 3, 'item_location' => 1, 'line' => 1, 'quantity' => '1', 'price' => '0', 'discount' => '0', 'discount_type' => PERCENT, 'stock_type' => HAS_STOCK]]);
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Fee', '-5', '20'));
+
+        $this->assertSame('15.0000', $this->fourDecimals($this->saleLib->get_totals([])['total']));
+    }
+
+    public function testGetTotals_GivesAReturnTheChargesInTheDirectionOfTheCredit(): void
+    {
+        $cart = $this->referenceCart();
+        $cart[1]['quantity'] = '-2';
+        $cart[2]['quantity'] = '-1';
+
+        $this->saleLib->set_cart($cart);
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Goodwill', '-5', '20'));
+
+        $totals = $this->saleLib->get_totals($this->vat('-53.25'));
+
+        $this->assertSame('-20.0000', $totals['shipping']);
+        $this->assertSame('5.0000', $totals['adjustment']);
+        $this->assertSame('-423.2500', $this->fourDecimals($totals['total']));
+    }
+
+    public function testGetTotals_GivesTheSameTotalWithoutChargesAsBefore(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+
+        $totals = $this->saleLib->get_totals($this->vat());
+
+        $this->assertSame('408.2500', $this->fourDecimals($totals['total']));
+        $this->assertSame('0.0000', $totals['shipping']);
+        $this->assertSame('0.0000', $totals['adjustment']);
+        $this->assertSame('', $totals['adjustment_label']);
+    }
+
+    public function testGetTotals_AddsNoChargesToAnEmptyCart(): void
+    {
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Fee', '10', '5'));
+
+        $this->assertSame('0.0000', $this->fourDecimals($this->saleLib->get_totals([])['total']));
+    }
+
+    public function testGetTotal_CountsTheChargesSoItIsTheTotalTheRegisterShows(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Rounding', '-10', '100', ShippingTaxOption::Added, '15'));
+
+        $this->assertSame('460.0000', $this->fourDecimals($this->saleLib->get_total()));
+        $this->assertSame($this->fourDecimals($this->saleLib->get_totals([])['total']), $this->fourDecimals($this->saleLib->get_total()));
+    }
+
+    public function testGetTotal_CountsTheChargesInTheDirectionOfAReturn(): void
+    {
+        $cart = $this->referenceCart();
+        $cart[1]['quantity'] = '-2';
+        $cart[2]['quantity'] = '-1';
+
+        $this->saleLib->set_cart($cart);
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Goodwill', '-5', '20'));
+
+        $this->assertSame('-370.0000', $this->fourDecimals($this->saleLib->get_total()));
+    }
+
+    public function testGetTotal_IsTheTotalOfTheLinesWhenThereAreNoCharges(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+
+        $this->assertSame('355.0000', $this->fourDecimals($this->saleLib->get_total()));
+    }
+
+    public function testGetTotal_RoundsTheTotalWithTheChargesAndNotTheLinesAloneWhenCashIsRounded(): void
+    {
+        config(OSPOS::class)->settings['cash_rounding_code'] = PHP_ROUND_HALF_UP;
+        config(OSPOS::class)->settings['cash_decimals']      = 0;
+
+        $saleLib = new Sale_lib();
+        $saleLib->set_cart($this->referenceCart());
+        $saleLib->setHeaderCharges(new HeaderCharges(shipping: '0.60'));
+        session()->set('cash_mode', CASH_MODE_TRUE);
+
+        $this->assertSame('356', (string) $saleLib->get_total());
+        $this->assertSame('355.6000', $this->fourDecimals($saleLib->get_total(false)));
+    }
+
+    public function testGetAmountDue_IsWhatTheChargesLeaveOnceThePaymentsAreTaken(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Rounding', '-30', '0'));
+
+        $this->assertSame('325.0000', $this->fourDecimals($this->saleLib->get_amount_due()));
+
+        $this->saleLib->addPayment(lang('Sales.cash'), '300');
+
+        $this->assertSame('25.0000', $this->fourDecimals($this->saleLib->get_amount_due()));
+        $this->assertSame('25.0000', $this->fourDecimals($this->saleLib->get_totals([])['amount_due']));
+    }
+
+    public function testSetHeaderCharges_KeepsWhatWasTypedAndForgetsItWhenEmptied(): void
+    {
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Fee', '10.5', '7', ShippingTaxOption::Added, '15', 2));
+
+        $kept = $this->saleLib->getHeaderCharges();
+
+        $this->assertSame(['Fee', '10.5', '7', ShippingTaxOption::Added, '15', 2], [$kept->adjustmentLabel, $kept->adjustment, $kept->shipping, $kept->shippingTaxOption, $kept->shippingTaxPercent, $kept->shippingOptions]);
+
+        $this->saleLib->setHeaderCharges(HeaderCharges::none());
+
+        $this->assertTrue($this->saleLib->getHeaderCharges()->isEmpty());
+        $this->assertNull(session()->get('sales_header_charges'));
+    }
+
+    public function testClearAll_ForgetsTheChargesOfTheHeaderSoTheNextSaleDoesNotInheritThem(): void
+    {
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Fee', '10'));
+        $this->saleLib->clear_all();
+
+        $this->assertTrue($this->saleLib->getHeaderCharges()->isEmpty());
+    }
+
+    public function testHeaderChargesProblem_NamesAnAdjustmentThatWouldTakeTheTotalBelowZero(): void
+    {
+        $this->saleLib->set_cart($this->referenceCart());
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Fee', '-500'));
+
+        $this->assertSame(HeaderChargesProblem::ExceedsTotal, $this->saleLib->headerChargesProblem($this->vat()));
+
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Fee', '-408.25'));
+
+        $this->assertNull($this->saleLib->headerChargesProblem($this->vat()));
+    }
+
+    public function testCopyEntireSale_GivesBackTheChargesTheSaleWasSavedWith(): void
+    {
+        $saleLib = $this->loadSale([
+            (object) ['item_id' => 3, 'item_location' => 1, 'quantity_purchased' => '2', 'discount' => '10', 'discount_type' => PERCENT, 'item_unit_price' => '75', 'description' => 'a', 'serialnumber' => '', 'print_option' => 0, 'invoice_discount_share' => null],
+        ], COMPLETED, null, charges: new HeaderCharges('Fee', '12.5', '20', ShippingTaxOption::Added, '15', 3));
+
+        $charges = $saleLib->getHeaderCharges();
+
+        $this->assertSame('Fee', $charges->adjustmentLabel);
+        $this->assertSame('12.5', $charges->adjustment);
+        $this->assertSame('20', $charges->shipping);
+        $this->assertSame(3, $charges->shippingOptions);
+    }
+
+    public function testCopyEntireSale_ForgetsTheChargesTheRegisterHeldBefore(): void
+    {
+        $this->saleLib->setHeaderCharges(new HeaderCharges('Old', '99'));
+
+        $saleLib = $this->loadSale([
+            (object) ['item_id' => 3, 'item_location' => 1, 'quantity_purchased' => '2', 'discount' => '10', 'discount_type' => PERCENT, 'item_unit_price' => '75', 'description' => 'a', 'serialnumber' => '', 'print_option' => 0, 'invoice_discount_share' => null],
+        ], COMPLETED, null);
+
+        $this->assertTrue($saleLib->getHeaderCharges()->isEmpty());
     }
 
     private function fourDecimals(string $amount): string

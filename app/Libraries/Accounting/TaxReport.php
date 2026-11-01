@@ -17,7 +17,8 @@ use DateTimeImmutable;
  *
  * What the tax was charged on, and the rate, come from the lines of the document the journal was
  * posted for, the way posting reads them, so a document that was never posted has no part in it.
- * For an expense and a receipt voucher, which carry no lines, it comes from the journal itself. A document whose lines
+ * For a sales debit note it comes from the note, which has one amount and one rate. For an expense and a receipt
+ * voucher, which carry no lines, it comes from the journal itself. A document whose lines
  * no longer say what its journal says, or that is gone with its lines as a deleted purchase is,
  * keeps its tax in the report and leaves its base out, so that a period that was read once is read
  * the same after the document is deleted, and the report still ties to the books. What the
@@ -87,7 +88,7 @@ final class TaxReport
                 continue;
             }
 
-            if ($type === SalePostingBuilder::SOURCE_SALE || $type === ReceivingPostingBuilder::SOURCE_PURCHASE) {
+            if ($type === SalePostingBuilder::SOURCE_SALE || $type === ReceivingPostingBuilder::SOURCE_PURCHASE || $type === SalesDebitNotes::SOURCE) {
                 $pending[$type][$sourceId][] = $row;
 
                 continue;
@@ -101,7 +102,11 @@ final class TaxReport
         }
 
         foreach ($pending as $type => $documents) {
-            $loaded = $type === SalePostingBuilder::SOURCE_SALE ? $this->documents->sales(array_keys($documents)) : $this->documents->purchases(array_keys($documents));
+            $loaded = match ($type) {
+                SalePostingBuilder::SOURCE_SALE => $this->documents->sales(array_keys($documents)),
+                SalesDebitNotes::SOURCE         => $this->documents->debitNotes(array_keys($documents)),
+                default                         => $this->documents->purchases(array_keys($documents)),
+            };
 
             foreach ($documents as $sourceId => $documentRows) {
                 $document = $loaded[$sourceId] ?? null;
@@ -280,7 +285,7 @@ final class TaxReport
 
         $adds = bccomp($owed, '0', self::SCALE) >= 0;
 
-        $section = $type === SalePostingBuilder::SOURCE_SALE
+        $section = $type !== ReceivingPostingBuilder::SOURCE_PURCHASE
             ? ($adds ? TaxSection::SalesInvoices : TaxSection::SalesReturns)
             : ($adds ? TaxSection::PurchaseReturns : TaxSection::Purchases);
 

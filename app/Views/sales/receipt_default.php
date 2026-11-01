@@ -137,6 +137,13 @@
         }
         ?>
 
+        <?php foreach (headerChargeRows($header_charges ?? []) as [$chargeLabel, $chargeAmount]) { ?>
+            <tr>
+                <td colspan="3" class="total-value"><?= esc($chargeLabel) ?>:</td>
+                <td class="total-value"><?= to_currency($chargeAmount) ?></td>
+            </tr>
+        <?php } ?>
+
         <tr></tr>
 
         <?php $border = (!$config['receipt_show_taxes'] && !($config['receipt_show_total_discount'] && $discount > 0) && bccomp((string) ($invoice_discount ?? '0'), '0') === 0); ?>

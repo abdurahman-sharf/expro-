@@ -12,6 +12,14 @@
  * @var bool $revenue_account_required
  * @var bool $customer_opening
  * @var bool $backfill_enabled
+ * @var bool $sales_adjustment
+ * @var bool $sales_shipping
+ * @var string $shipping_tax_percent
+ * @var bool $debit_note
+ * @var string $journal_description_sales
+ * @var string $journal_description_purchases
+ * @var list<string> $template_placeholders
+ * @var int $template_max
  * @var bool $locked
  * @var int $next_number
  * @var bool $can_manage
@@ -180,6 +188,56 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                         <label class="form-check-label" for="backfill_enabled"><?= lang('Accounting_settings.backfill_enabled') ?></label>
                     </div>
                     <p class="form-text"><?= lang('Accounting_settings.backfill_enabled_desc') ?></p>
+                </div>
+
+                <div class="field span-all">
+                    <div class="form-check form-switch">
+                        <input type="hidden" name="sales_adjustment" value="0">
+                        <input type="checkbox" class="form-check-input" role="switch" name="sales_adjustment" id="sales_adjustment" value="1"<?= $sales_adjustment ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
+                        <label class="form-check-label" for="sales_adjustment"><?= lang('Accounting_settings.sales_adjustment') ?></label>
+                    </div>
+                    <p class="form-text"><?= lang('Accounting_settings.sales_adjustment_desc') ?></p>
+                </div>
+
+                <div class="field span-all">
+                    <div class="form-check form-switch">
+                        <input type="hidden" name="sales_shipping" value="0">
+                        <input type="checkbox" class="form-check-input" role="switch" name="sales_shipping" id="sales_shipping" value="1"<?= $sales_shipping ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
+                        <label class="form-check-label" for="sales_shipping"><?= lang('Accounting_settings.sales_shipping') ?></label>
+                    </div>
+                    <p class="form-text"><?= lang('Accounting_settings.sales_shipping_desc') ?></p>
+                </div>
+
+                <div class="field">
+                    <label class="form-label" for="shipping_tax_percent"><?= lang('Accounting_settings.shipping_tax_percent') ?></label>
+                    <div class="field-control">
+                        <input type="text" class="form-control" name="shipping_tax_percent" id="shipping_tax_percent" value="<?= esc($shipping_tax_percent, 'attr') ?>" inputmode="decimal" dir="ltr"<?= $can_manage ? '' : ' disabled' ?>>
+                        <p class="form-text"><?= lang('Accounting_settings.shipping_tax_percent_desc') ?></p>
+                    </div>
+                </div>
+
+                <div class="field span-all">
+                    <div class="form-check form-switch">
+                        <input type="hidden" name="debit_note" value="0">
+                        <input type="checkbox" class="form-check-input" role="switch" name="debit_note" id="debit_note" value="1"<?= $debit_note ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
+                        <label class="form-check-label" for="debit_note"><?= lang('Accounting_settings.debit_note') ?></label>
+                    </div>
+                    <p class="form-text"><?= lang('Accounting_settings.debit_note_desc') ?></p>
+                </div>
+
+                <div class="field span-all">
+                    <label class="form-label" for="journal_description_sales"><?= lang('Accounting_settings.journal_description_sales') ?></label>
+                    <div class="field-control">
+                        <input type="text" class="form-control" name="journal_description_sales" id="journal_description_sales" value="<?= esc($journal_description_sales, 'attr') ?>" maxlength="<?= $template_max ?>" aria-describedby="journal_description_help"<?= $can_manage ? '' : ' disabled' ?>>
+                    </div>
+                </div>
+
+                <div class="field span-all">
+                    <label class="form-label" for="journal_description_purchases"><?= lang('Accounting_settings.journal_description_purchases') ?></label>
+                    <div class="field-control">
+                        <input type="text" class="form-control" name="journal_description_purchases" id="journal_description_purchases" value="<?= esc($journal_description_purchases, 'attr') ?>" maxlength="<?= $template_max ?>" aria-describedby="journal_description_help"<?= $can_manage ? '' : ' disabled' ?>>
+                        <p class="form-text" id="journal_description_help"><?= lang('Accounting_settings.journal_description_help') ?> <bdi dir="ltr"><?= esc(implode(' ', $template_placeholders)) ?></bdi></p>
+                    </div>
                 </div>
 
                 <div class="field">

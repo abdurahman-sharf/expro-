@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\ShippingTaxOption;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -9,7 +10,8 @@ use Config\Database;
  * What the lines of sales and of purchases say about their tax, by the same rules posting applies
  * to them: the part of a document that carries tax is the lines that have tax, after their own
  * discount and the share they took of the discount on the whole document and without the tax that
- * was inside the prices. Documents are read many at a time, because a report counts thousands.
+ * was inside the prices; the tax on the shipping of a sale is part of its document, at its own rate.
+ * Documents are read many at a time, because a report counts thousands.
  */
 final class TaxDocuments
 {
@@ -58,8 +60,38 @@ final class TaxDocuments
                 $this->add($built[$saleId], $line['net'], $line['tax'], $line['rates'], bccomp($line['share'], '0', self::WORK_SCALE) > 0);
             }
 
+            foreach ($this->shippingTaxes(array_keys($sections)) as $saleId => $shipping) {
+                $this->add($built[$saleId], $shipping['net'], $shipping['tax'], [$shipping['rate'] => $shipping['tax']], false);
+            }
+
             foreach ($built as $saleId => $totals) {
                 $found[$saleId] = $this->document($sections[$saleId], $totals);
+            }
+        }
+
+        return $found;
+    }
+
+    /**
+     * @param list<int> $debitNoteIds
+     *
+     * @return array<int, TaxDocument> By debit note, in the section of the sales invoices it raises what is owed with. A note that is not there has none.
+     */
+    public function debitNotes(array $debitNoteIds): array
+    {
+        $found = [];
+
+        foreach (array_chunk(array_values(array_unique($debitNoteIds)), $this->chunk) as $chunk) {
+            foreach ($this->db->table('sales_debit_notes')
+                ->select('debit_note_id, amount, tax_percent, tax_amount')
+                ->whereIn('debit_note_id', $chunk)
+                ->get()
+                ->getResult() as $row) {
+                $tax   = bcadd((string) $row->tax_amount, '0', self::SCALE);
+                $base  = bcadd((string) $row->amount, '0', self::SCALE);
+                $rates = bccomp($tax, '0', self::SCALE) > 0 ? [self::rateKey((string) $row->tax_percent) => ['base' => $base, 'tax' => $tax]] : [];
+
+                $found[(int) $row->debit_note_id] = new TaxDocument(TaxSection::SalesInvoices, $base, $tax, $rates, false);
             }
         }
 
@@ -133,6 +165,37 @@ final class TaxDocuments
         }
 
         return $sections;
+    }
+
+    /**
+     * The tax on the shipping of the sales that charge it: what the shipping comes to without the tax, the tax
+     * and the rate it was taxed at. The journal of the sale puts it in the output tax with the tax of the lines.
+     *
+     * @param list<int> $saleIds
+     *
+     * @return array<int, array{net: numeric-string, tax: numeric-string, rate: string}>
+     */
+    private function shippingTaxes(array $saleIds): array
+    {
+        $found = [];
+
+        foreach ($this->db->table('sales')
+            ->select('sale_id, shipping_amount, shipping_tax_option, shipping_tax_percent, shipping_tax_amount')
+            ->whereIn('sale_id', $saleIds)
+            ->where('shipping_tax_amount >', 0)
+            ->get()
+            ->getResult() as $row) {
+            $tax    = bcadd((string) $row->shipping_tax_amount, '0', self::WORK_SCALE);
+            $amount = bcadd((string) $row->shipping_amount, '0', self::WORK_SCALE);
+
+            $found[(int) $row->sale_id] = [
+                'net'  => ShippingTaxOption::fromStored($row->shipping_tax_option) === ShippingTaxOption::Included ? bcsub($amount, $tax, self::WORK_SCALE) : $amount,
+                'tax'  => $tax,
+                'rate' => self::rateKey((string) $row->shipping_tax_percent),
+            ];
+        }
+
+        return $found;
     }
 
     /**

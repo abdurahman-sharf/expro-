@@ -126,6 +126,10 @@ $summaryRow = static fn (string $label, string $value, string $style = ''): stri
             <?php endforeach; ?>
         <?php endif; ?>
 
+        <?php foreach (headerChargeRows($header_charges ?? []) as [$chargeLabel, $chargeAmount]): ?>
+            <?= $summaryRow(esc($chargeLabel), to_currency($chargeAmount)) ?>
+        <?php endforeach; ?>
+
         <?= $summaryRow(lang('Sales.total'), to_currency($total), 'font-size: 15px; font-weight: bold; color: #042359; border-top: 2px solid #042359;') ?>
 
         <?php foreach ($payments as $payment): ?>

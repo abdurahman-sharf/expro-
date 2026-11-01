@@ -63,6 +63,13 @@ $notes = array_filter([
         </div>
     <?php endif; ?>
 
+    <?php if (! empty($sale['ship_to'])): ?>
+        <div class="doc-party doc-ship-to">
+            <div class="doc-party-label"><?= lang('Sales.ship_to') ?></div>
+            <div class="doc-party-body"><?= nl2br(esc($sale['ship_to'])) ?></div>
+        </div>
+    <?php endif; ?>
+
     <table class="doc-items">
         <thead>
             <tr>
@@ -137,6 +144,12 @@ $notes = array_filter([
                             <tr>
                                 <td class="<?= $alignStart ?>"><?= documentIsolate((float) $tax['tax_rate'] . '%') ?> <?= esc($tax['tax_group']) ?></td>
                                 <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency_tax($tax['sale_tax_amount'])) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        <?php foreach (headerChargeRows($sale['header_charges'] ?? []) as [$chargeLabel, $chargeAmount]): ?>
+                            <tr class="doc-header-charge">
+                                <td class="<?= $alignStart ?>"><?= esc($chargeLabel) ?></td>
+                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($chargeAmount)) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         <tr class="doc-grand">

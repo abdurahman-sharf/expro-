@@ -145,6 +145,7 @@ return [
     'source'                  => 'المصدر',
     'source_advance'          => 'دفعة مقدمة',
     'source_credit_note'      => 'إشعار دائن',
+    'source_debit_note'       => 'إشعار مدين للمبيعات',
     'source_excess'           => 'زيادة دفعة على الفاتورة',
     'source_opening'          => 'رصيد افتتاحي',
     'statement'               => 'كشف الحساب',

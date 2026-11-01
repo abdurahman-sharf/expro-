@@ -23,6 +23,7 @@ use App\Libraries\Accounting\SaleDocumentList;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\HeaderCharges;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -31,6 +32,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pdf_lib;
 use App\Libraries\Sale_lib;
+use App\Libraries\ShippingTaxOption;
 use App\Libraries\Tax_lib;
 use App\Libraries\Token_lib;
 use App\Models\Customer;
@@ -317,6 +319,7 @@ class Sales extends Secure_Controller
 
         if ($mode !== $this->sale_lib->get_mode()) {
             $this->sale_lib->clearInvoiceDiscount();
+            $this->sale_lib->clearHeaderCharges();
             $this->sale_lib->clearReturnDocument();
             $this->sale_lib->clearQuoteSource();
         }
@@ -436,6 +439,117 @@ class Sales extends Secure_Controller
         $this->sale_lib->empty_payments();
 
         return $this->reload();
+    }
+
+    /**
+     * Sets the adjustment and the shipping of the document in the register: a label and a signed
+     * amount for the adjustment, an amount and whether to tax it for the shipping, and what the shipping
+     * block shows of the address. Each is taken only where its setting is on, and only on an invoice, a
+     * quote or a credit note. Used in app/Views/sales/register.php
+     *
+     * @return ResponseInterface|string
+     * @noinspection PhpUnused
+     */
+    public function postSetHeaderCharges(): ResponseInterface|string
+    {
+        $settings = new AccountingSettings();
+
+        if (!$this->headerChargesAllowed()) {
+            return $this->reload(['error' => lang('Accounting.error_header_charges_not_allowed')]);
+        }
+
+        $posted = fn (string $name): string => is_string($this->request->getPost($name)) ? trim(str_replace(',', '.', (string) $this->request->getPost($name))) : '';
+        $current = $this->sale_lib->getHeaderCharges();
+
+        $adjustment = $settings->salesAdjustmentEnabled() ? ($posted('adjustment') === '' ? '0' : $posted('adjustment')) : '0';
+        $label = $settings->salesAdjustmentEnabled() && is_string($this->request->getPost('adjustment_label')) ? trim((string) $this->request->getPost('adjustment_label')) : '';
+        $shipping = $settings->salesShippingEnabled() ? ($posted('shipping') === '' ? '0' : $posted('shipping')) : '0';
+        $taxed = $settings->salesShippingEnabled() && $this->request->getPost('shipping_taxed') === '1' && bccomp($settings->shippingTaxPercent(), '0', 4) > 0;
+        $option = $settings->salesShippingEnabled() && $posted('shipping_options') !== '' ? (int) $posted('shipping_options') : null;
+
+        $charges = new HeaderCharges(
+            $label,
+            $adjustment,
+            $shipping,
+            $taxed ? ($this->config['tax_included'] ? ShippingTaxOption::Included : ShippingTaxOption::Added) : ShippingTaxOption::None,
+            $taxed ? $settings->shippingTaxPercent() : '0',
+            $option,
+        );
+
+        if (!$this->mayGiveHeaderCharges($charges, $this->sale_lib->is_return_mode())) {
+            return $this->reload(['error' => lang('Sales.not_authorized')]);
+        }
+
+        $this->sale_lib->setHeaderCharges($charges);
+
+        $cart = $this->sale_lib->get_cart();
+        $problem = $this->sale_lib->headerChargesProblem($this->tax_lib->get_taxes($cart)[0]);
+
+        if ($problem !== null) {
+            $this->sale_lib->setHeaderCharges($current);
+
+            return $this->reload(['error' => lang($problem->languageKey())]);
+        }
+
+        $this->sale_lib->empty_payments();
+
+        return $this->reload();
+    }
+
+    /**
+     * The block that says where the goods are sent, as the shipping details of the document ask for: the
+     * address of the customer or the second one, nothing at all when they say so, and when they leave it to
+     * the document (automatic) the address of the customer for a document that carries shipping.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function shipTo(array $data): string
+    {
+        $charges = $data['header_charges'] ?? [];
+        $option  = $charges['shipping_options'] ?? null;
+
+        if (!isset($data['customer_id']) || $option === 1 || ($option === null && bccomp((string) ($charges['shipping'] ?? '0'), '0', 4) === 0)) {
+            return '';
+        }
+
+        $second = $option === 3;
+        $lines  = [(string) ($data['customer'] ?? ''), (string) ($second ? ($data['customer_second_address'] ?? '') : ($data['customer_address'] ?? '')), $second ? '' : (string) ($data['customer_location'] ?? '')];
+
+        return trim(implode("\n", array_filter(array_map('trim', $lines), static fn (string $line): bool => $line !== '')));
+    }
+
+    private function mayGiveHeaderCharges(HeaderCharges $charges, bool $creditNote): bool
+    {
+        return !$charges->givesAway($creditNote) || $this->mayGiveInvoiceDiscount();
+    }
+
+    private function headerChargesAllowed(): bool
+    {
+        return in_array($this->sale_lib->get_mode(), ['sale_invoice', 'sale_quote', 'return'], true);
+    }
+
+    /**
+     * The charges of the header as the register, the receipt and the documents show them, from the totals
+     * of the cart.
+     *
+     * @param array<string, mixed> $totals
+     *
+     * @return array<string, mixed>
+     */
+    private function headerChargesView(array $totals): array
+    {
+        $rows = [
+            'shipping'              => (string) $totals['shipping'],
+            'shipping_tax'          => (string) $totals['shipping_tax'],
+            'shipping_tax_included' => (bool) $totals['shipping_tax_included'],
+            'adjustment'            => (string) $totals['adjustment'],
+            'adjustment_label'      => (string) $totals['adjustment_label'],
+            'shipping_options'      => $totals['shipping_options'],
+        ];
+
+        $rows['has'] = bccomp($rows['shipping'], '0', 4) !== 0 || bccomp($rows['adjustment'], '0', 4) !== 0;
+
+        return $rows;
     }
 
     /**
@@ -781,7 +895,7 @@ class Sales extends Secure_Controller
 
         $personId = (int) $this->session->get('person_id');
 
-        if ((new DraftInvoice())->carriesInvoiceDiscount($saleId) && !$this->mayGiveInvoiceDiscount()) {
+        if (((new DraftInvoice())->carriesInvoiceDiscount($saleId) || $this->sale->getHeaderCharges($saleId)->givesAway(false)) && !$this->mayGiveInvoiceDiscount()) {
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized'), 'id' => $saleId]);
         }
 
@@ -1290,7 +1404,7 @@ class Sales extends Secure_Controller
 
         $invoiceDiscount = $this->registerInvoiceDiscount();
 
-        if ($invoiceDiscount !== null && !$this->mayGiveInvoiceDiscount()) {
+        if (($invoiceDiscount !== null && !$this->mayGiveInvoiceDiscount()) || !$this->mayGiveHeaderCharges($this->sale_lib->getHeaderCharges(), $this->sale_lib->is_return_mode())) {
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 
@@ -1343,6 +1457,8 @@ class Sales extends Secure_Controller
         // Returns 'subtotal', 'total', 'cash_total', 'payment_total', 'amount_due', 'cash_amount_due', 'payments_cover_total'
         $totals = $this->sale_lib->get_totals($taxDetails[0]);
         $data['subtotal'] = $totals['subtotal'];
+        $data['header_charges'] = $this->headerChargesView($totals);
+        $data['ship_to'] = $this->shipTo($data);
         $data['total'] = $totals['total'];
         $data['payments_total'] = $totals['payment_total'];
         $data['payments_cover_total'] = $totals['payments_cover_total'];
@@ -1419,7 +1535,7 @@ class Sales extends Secure_Controller
                 $invoiceView = $invoiceType;
 
                 // Save the data to the sales table
-                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource());
+                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource(), headerCharges: $this->sale_lib->getHeaderCharges());
                 $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
                 // Resort and filter cart lines for printing
@@ -1481,7 +1597,7 @@ class Sales extends Secure_Controller
                 $data['sale_status'] = SUSPENDED;
                 $saleType = SALE_TYPE_WORK_ORDER;
 
-                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount);
+                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount, headerCharges: $this->sale_lib->getHeaderCharges());
 
                 if ($data['sale_id_num'] === INSUFFICIENT_GIFTCARD_BALANCE) {
                     $data['error_message'] = lang('Sales.insufficient_giftcard_balance');
@@ -1529,7 +1645,7 @@ class Sales extends Secure_Controller
                 $data['sale_status'] = SUSPENDED;
                 $saleType = SALE_TYPE_QUOTE;
 
-                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount);
+                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount, headerCharges: $this->sale_lib->getHeaderCharges());
 
                 if ($data['sale_id_num'] === INSUFFICIENT_GIFTCARD_BALANCE) {
                     $data['error_message'] = lang('Sales.insufficient_giftcard_balance');
@@ -1569,7 +1685,7 @@ class Sales extends Secure_Controller
                 $saleType = SALE_TYPE_POS;
             }
 
-            $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount, $this->sale_lib->getReturnDocument(), returnOverrideReason: $this->sale_lib->getReturnOverride());
+            $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount, $this->sale_lib->getReturnDocument(), returnOverrideReason: $this->sale_lib->getReturnOverride(), headerCharges: $this->sale_lib->getHeaderCharges());
 
             $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
@@ -1819,6 +1935,7 @@ class Sales extends Secure_Controller
             $data['last_name'] = $customer_info->last_name;
             $data['customer_email'] = $customer_info->email;
             $data['customer_address'] = $customer_info->address_1;
+            $data['customer_second_address'] = $customer_info->address_2;
 
             if (!empty($customer_info->zip) || !empty($customer_info->city)) {
                 $data['customer_location'] = $customer_info->zip . ' ' . $customer_info->city . "\n" . $customer_info->state;
@@ -1893,6 +2010,7 @@ class Sales extends Secure_Controller
         $totals = $this->sale_lib->get_totals($taxDetails[0]);
         $this->session->set('cash_adjustment_amount', $totals['cash_adjustment_amount']);
         $data['subtotal'] = $totals['subtotal'];
+        $data['header_charges'] = $this->headerChargesView($totals);
         $data['payments_total'] = $totals['payment_total'];
         $data['payments_cover_total'] = $totals['payments_cover_total'];
         $data['cash_mode'] = $this->session->get('cash_mode');    // TODO: Duplicated code.
@@ -1915,6 +2033,7 @@ class Sales extends Secure_Controller
         $employeeInfo = $this->employee->get_info($this->sale_lib->get_employee());
         $data['employee'] = $employeeInfo->first_name . ' ' . mb_substr($employeeInfo->last_name, 0, 1);
         $this->_load_customer_data($this->sale_lib->get_customer(), $data);
+        $data['ship_to'] = $this->shipTo($data);
 
         $data['sale_id_num'] = $saleId;
         $data['sale_id'] = 'POS ' . $saleId;
@@ -2323,6 +2442,20 @@ class Sales extends Secure_Controller
         $data['invoice_discount_entry'] = $this->sale_lib->getInvoiceDiscount();
         $data['can_invoice_discount'] = !$this->sale_lib->is_return_mode() && $this->mayGiveInvoiceDiscount();
 
+        $chargeSettings = new AccountingSettings();
+        $allowed = $this->headerChargesAllowed();
+        $data['can_adjustment'] = $allowed && $chargeSettings->salesAdjustmentEnabled();
+        $data['can_shipping'] = $allowed && $chargeSettings->salesShippingEnabled();
+        $data['shipping_tax_percent'] = $chargeSettings->shippingTaxPercent();
+        $data['header_charges_entry'] = $this->sale_lib->getHeaderCharges();
+        $data['shipping_taxed'] = $data['header_charges_entry']->shippingTaxOption !== ShippingTaxOption::None;
+
+        $chargesProblem = $this->sale_lib->headerChargesProblem($this->tax_lib->get_taxes($data['cart'])[0]);
+
+        if ($chargesProblem !== null && !isset($data['error'])) {
+            $data['warning'] = lang($chargesProblem->languageKey());
+        }
+
         $discountProblem = $this->sale_lib->invoiceDiscountProblem();
 
         if ($discountProblem !== null && !isset($data['error'])) {
@@ -2336,6 +2469,7 @@ class Sales extends Secure_Controller
         $data['item_count'] = $totals['item_count'];
         $data['total_units'] = $totals['total_units'];
         $data['subtotal'] = $totals['subtotal'];
+        $data['header_charges'] = $this->headerChargesView($totals);
         $data['total'] = $totals['total'];
         $data['payments_total'] = $totals['payment_total'];
         $data['payments_cover_total'] = $totals['payments_cover_total'];
@@ -2920,11 +3054,11 @@ class Sales extends Secure_Controller
 
         $invoiceDiscount = $this->registerInvoiceDiscount();
 
-        if ($invoiceDiscount !== null && !$this->mayGiveInvoiceDiscount()) {
+        if (($invoiceDiscount !== null && !$this->mayGiveInvoiceDiscount()) || !$this->mayGiveHeaderCharges($this->sale_lib->getHeaderCharges(), $this->sale_lib->is_return_mode())) {
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 
-        $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms(), $saleType === SALE_TYPE_QUOTE ? QuoteStatus::Draft : null, $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null);
+        $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms(), $saleType === SALE_TYPE_QUOTE ? QuoteStatus::Draft : null, $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null, headerCharges: $this->sale_lib->getHeaderCharges());
 
         if ($saleIdNum === INSUFFICIENT_GIFTCARD_BALANCE) {
             $data['error'] = lang('Sales.insufficient_giftcard_balance');

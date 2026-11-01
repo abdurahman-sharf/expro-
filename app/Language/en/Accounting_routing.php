@@ -40,6 +40,7 @@ return [
     'item_sales_product'            => 'Product sales account',
     'item_sales_returns'            => 'Sales returns',
     'item_sales_revenue'            => 'Sales revenue',
+    'item_sales_shipping'           => 'Sales shipping',
     'item_stock_permits_add'        => 'Stock receipt note',
     'item_stock_permits_count_in'   => 'Stocktake surplus',
     'item_stock_permits_count_out'  => 'Stocktake shortage',

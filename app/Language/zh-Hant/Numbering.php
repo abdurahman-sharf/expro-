@@ -30,6 +30,7 @@ return [
     'type_received_cheque'    => '',
     'type_refund_invoice'     => '',
     'type_revenue'            => '',
+    'type_sales_debit_note'   => '',
     'type_sales_invoice'      => '',
     'type_sales_quote'        => '',
     'type_supplier_payment'   => '',

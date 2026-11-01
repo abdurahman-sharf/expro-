@@ -211,12 +211,12 @@ class DefaultChartTest extends CIUnitTestCase
         $this->assertSame($parentCode, $db->table('accounting_accounts')->where('account_id', $account->parent_id)->get()->getRow()->code, $code);
     }
 
-    public function testInstall_AddsOnlyTheGiftCardTheCounterCustomersTheTwoBranchAccountsAndTheChequesAccountsToTheReferenceChart(): void
+    public function testInstall_AddsOnlyTheGiftCardTheCounterCustomersTheBranchChequesAndSalesChargeAccountsToTheReferenceChart(): void
     {
         $codes    = array_column($this->accountingDb()->table('accounting_accounts')->select('code')->get()->getResultArray(), 'code');
         $observed = array_merge(['1', '2', '3', '4', '5'], array_column(self::observedChartProvider(), 0));
 
-        $this->assertEqualsCanonicalizing([...$observed, '216', '12043', '12044', '2214', '120601', '120602', '212001', '546'], $codes);
+        $this->assertEqualsCanonicalizing([...$observed, '216', '12043', '12044', '2214', '120601', '120602', '212001', '546', '4204', '4208'], $codes);
     }
 
     public function testInstall_PutsInputTaxAmongTheLiabilitiesBesideOutputTax(): void
@@ -307,6 +307,19 @@ class DefaultChartTest extends CIUnitTestCase
             $this->assertSame([$code, $type, $normal, '0', '1'], [$account->code, $account->account_type, $account->normal_balance, (string) $account->is_group, (string) $account->is_system], $systemKey);
             $this->assertSame($parentCode, $db->table('accounting_accounts')->where('account_id', $account->parent_id)->get()->getRow()->code, $systemKey);
             $this->assertSame((int) $account->account_id, (int) $db->table('accounting_routing')->where('routing_key', $routingKey)->get()->getRow()->account_id, $routingKey);
+        }
+    }
+
+    public function testInstall_RoutesAdjustmentsAndShippingToTheirOwnRevenueAccountsAutomatically(): void
+    {
+        $db = $this->accountingDb();
+
+        foreach (['sales.adjustment' => 'sales_adjustment', 'sales.shipping' => 'sales_shipping'] as $key => $systemKey) {
+            $row = $db->table('accounting_routing')->where('routing_key', $key)->get()->getRow();
+
+            $this->assertSame('auto', $row->routing_type, $key);
+            $this->assertSame($this->accountId($systemKey), (int) $row->account_id, $key);
+            $this->assertSame('revenue', $db->table('accounting_accounts')->where('system_key', $systemKey)->get()->getRow()->account_type);
         }
     }
 }

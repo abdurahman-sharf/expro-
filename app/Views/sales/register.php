@@ -21,6 +21,12 @@
  * @var string    $invoice_discount
  * @var array|null $invoice_discount_entry
  * @var bool      $can_invoice_discount
+ * @var array     $header_charges
+ * @var bool      $can_adjustment
+ * @var bool      $can_shipping
+ * @var string    $shipping_tax_percent
+ * @var bool      $shipping_taxed
+ * @var \App\Libraries\HeaderCharges $header_charges_entry
  * @var array     $taxes
  * @var float     $total
  * @var float     $payments_total
@@ -420,6 +426,9 @@ $employee        = model(Employee::class);
                     <?php foreach ($taxes as $tax): ?>
                         <div><dt><?= (float) $tax['tax_rate'] . '% ' . esc($tax['tax_group']) ?></dt><dd><?= to_currency_tax($tax['sale_tax_amount']) ?></dd></div>
                     <?php endforeach; ?>
+                    <?php foreach (headerChargeRows($header_charges) as [$chargeLabel, $chargeAmount]): ?>
+                        <div class="pos-header-charge"><dt><?= esc($chargeLabel) ?></dt><dd><?= to_currency($chargeAmount) ?></dd></div>
+                    <?php endforeach; ?>
                     <div class="pos-sum-total"><dt><?= lang("{$sectionName}.total") ?></dt><dd id="sale_total"><?= to_currency($total) ?></dd></div>
                 </dl>
 
@@ -432,6 +441,33 @@ $employee        = model(Employee::class);
                             <button type="submit" class="btn btn-outline-secondary btn-sm" id="invoice_discount_apply"><?= lang("{$sectionName}.invoice_discount_apply") ?></button>
                         </div>
                         <span class="text-body-secondary small" id="invoice_discount_help"><?= lang("{$sectionName}.invoice_discount_help") ?></span>
+                    <?= form_close() ?>
+                <?php endif; ?>
+
+                <?php if ($hasCart && ($can_adjustment || $can_shipping)): ?>
+                    <?= form_open("{$controller_name}/setHeaderCharges", ['id' => 'header_charges_form', 'class' => 'app-form pos-header-charges']) ?>
+                        <?php if ($can_adjustment): ?>
+                            <label for="adjustment_label" class="pos-label"><?= lang('Sales.adjustment') ?></label>
+                            <div class="input-group input-group-sm">
+                                <?= form_input(['name' => 'adjustment_label', 'id' => 'adjustment_label', 'class' => 'form-control form-control-sm', 'value' => $header_charges_entry->adjustmentLabel, 'maxlength' => 100, 'placeholder' => lang('Sales.adjustment_label'), 'autocomplete' => 'off']) ?>
+                                <?= form_input(['name' => 'adjustment', 'id' => 'adjustment', 'class' => 'form-control form-control-sm', 'value' => $header_charges_entry->hasAdjustment() ? $header_charges_entry->adjustment : '', 'inputmode' => 'decimal', 'autocomplete' => 'off', 'aria-label' => lang('Sales.adjustment_amount'), 'aria-describedby' => 'header_charges_help']) ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($can_shipping): ?>
+                            <label for="shipping" class="pos-label"><?= lang('Sales.shipping') ?></label>
+                            <div class="input-group input-group-sm">
+                                <?= form_input(['name' => 'shipping', 'id' => 'shipping', 'class' => 'form-control form-control-sm', 'value' => bccomp($header_charges_entry->shipping, '0', 4) !== 0 ? $header_charges_entry->shipping : '', 'inputmode' => 'decimal', 'autocomplete' => 'off', 'aria-describedby' => 'header_charges_help']) ?>
+                                <?= form_dropdown('shipping_options', ['' => lang('Sales.shipping_options_auto'), '1' => lang('Sales.shipping_options_hidden'), '2' => lang('Sales.shipping_options_customer_address'), '3' => lang('Sales.shipping_options_second_address')], (string) ($header_charges_entry->shippingOptions ?? ''), ['id' => 'shipping_options', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Sales.shipping_options')]) ?>
+                            </div>
+                            <?php if (bccomp($shipping_tax_percent, '0', 4) > 0): ?>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" name="shipping_taxed" id="shipping_taxed" value="1"<?= $shipping_taxed ? ' checked' : '' ?>>
+                                    <label class="form-check-label" for="shipping_taxed"><?= lang('Sales.shipping_tax_apply', [esc(to_decimals($shipping_tax_percent))]) ?></label>
+                                </div>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                        <button type="submit" class="btn btn-outline-secondary btn-sm" id="header_charges_apply"><?= lang('Sales.header_charges_apply') ?></button>
+                        <span class="text-body-secondary small" id="header_charges_help"><?= lang('Sales.header_charges_help') ?></span>
                     <?= form_close() ?>
                 <?php endif; ?>
 

@@ -140,6 +140,17 @@ class LanguageFilesTest extends CIUnitTestCase
     }
 
     #[DataProvider('translatedLocaleProvider')]
+    public function testAccountingDebitNotesFile_LabelsThePermissionTheEmployeesFormListsUnderTheModule(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_debit_notes.php";
+        $module   = include __DIR__ . "/../app/Language/{$locale}/Module.php";
+
+        $this->assertNotSame('', $messages['debit_notes_manage'] ?? '', "{$locale} lacks the label of the permission acc_debit_notes_manage");
+        $this->assertNotSame('', $module['accounting_debit_notes'] ?? '', $locale);
+        $this->assertNotSame('', $module['accounting_debit_notes_desc'] ?? '', $locale);
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
     public function testAccountingSettingsFile_DescribesEveryReadinessCode(string $locale): void
     {
         $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_settings.php";

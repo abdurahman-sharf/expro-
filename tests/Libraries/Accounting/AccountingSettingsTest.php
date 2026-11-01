@@ -9,6 +9,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingNotReadyException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\JournalDescriptionTemplate;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\ReadinessCode;
@@ -740,5 +741,119 @@ class AccountingSettingsTest extends CIUnitTestCase
         }
 
         $this->assertFalse($this->settings->backfillEnabled());
+    }
+
+    private function forgetChargeSettings(): void
+    {
+        $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent', 'accounting_debit_note', 'accounting_journal_description_sales', 'accounting_journal_description_purchases'])->delete();
+    }
+
+    public function testSalesAdjustmentEnabled_IsOffUntilTurnedOnAndSoAreShippingAndTheDebitNote(): void
+    {
+        $this->forgetChargeSettings();
+
+        $this->assertFalse($this->settings->salesAdjustmentEnabled());
+        $this->assertFalse($this->settings->salesShippingEnabled());
+        $this->assertFalse($this->settings->debitNoteEnabled());
+        $this->assertSame('0', $this->settings->shippingTaxPercent());
+        $this->assertSame('', $this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::SALES));
+        $this->assertSame('', $this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::PURCHASES));
+    }
+
+    public function testUpdate_SavesTheSettingsOfTheChargesTheDebitNoteAndTheTemplatesAndAuditsWhatChanged(): void
+    {
+        $this->forgetChargeSettings();
+        $employee = $this->manager();
+
+        $this->settings->update([
+            'sales_adjustment'              => true,
+            'sales_shipping'                => true,
+            'shipping_tax_percent'          => '15.5',
+            'debit_note'                    => true,
+            'journal_description_sales'     => ' {type} {number} - {party} ',
+            'journal_description_purchases' => 'Purchase {number}',
+        ], $employee);
+
+        $this->assertTrue($this->settings->salesAdjustmentEnabled());
+        $this->assertTrue($this->settings->salesShippingEnabled());
+        $this->assertSame('15.5', $this->settings->shippingTaxPercent());
+        $this->assertTrue($this->settings->debitNoteEnabled());
+        $this->assertSame('{type} {number} - {party}', $this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::SALES));
+        $this->assertSame('Purchase {number}', $this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::PURCHASES));
+
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where('action', 'settings_updated')->orderBy('audit_id', 'DESC')->get()->getRow();
+        $details = json_decode($audit->details, true);
+
+        $this->assertSame((string) $employee, (string) $audit->employee_id);
+        $this->assertSame(['sales_adjustment' => false, 'sales_shipping' => false, 'shipping_tax_percent' => '0', 'debit_note' => false, 'journal_description_sales' => '', 'journal_description_purchases' => ''], $details['before']);
+        $this->assertSame('15.5', $details['after']['shipping_tax_percent']);
+    }
+
+    public function testUpdate_WritesNothingWhenTheSettingsOfTheChargesAreUnchanged(): void
+    {
+        $this->forgetChargeSettings();
+        $before = $this->accountingDb()->table('accounting_audit_log')->where('action', 'settings_updated')->countAllResults();
+
+        $this->settings->update(['sales_adjustment' => false, 'sales_shipping' => false, 'debit_note' => false, 'shipping_tax_percent' => '0', 'journal_description_sales' => ''], $this->manager());
+
+        $this->assertSame($before, $this->accountingDb()->table('accounting_audit_log')->where('action', 'settings_updated')->countAllResults());
+    }
+
+    public function testUpdate_RejectsATaxOnShippingThatIsNotAPercentage(): void
+    {
+        $this->forgetChargeSettings();
+
+        foreach (['-1', '100.01', 'abc', '1.23456', ''] as $percent) {
+            try {
+                $this->settings->update(['shipping_tax_percent' => $percent], $this->manager());
+                $this->fail("'{$percent}' should be refused");
+            } catch (AccountingException $exception) {
+                $this->assertSame(AccountingError::ShippingTaxPercentInvalid, $exception->error, $percent);
+            }
+        }
+
+        $this->assertSame('0', $this->settings->shippingTaxPercent());
+    }
+
+    public function testUpdate_RejectsADescriptionTemplateThatIsTooLongHasUnknownPlaceholdersOrMarkup(): void
+    {
+        $this->forgetChargeSettings();
+
+        foreach ([str_repeat('a', 201), '{unknown} {number}', 'Sale {number', '<b>{number}</b>', "line\nbreak"] as $template) {
+            try {
+                $this->settings->update(['journal_description_sales' => $template], $this->manager());
+                $this->fail('A template should be refused: ' . $template);
+            } catch (AccountingException $exception) {
+                $this->assertSame(AccountingError::JournalTemplateInvalid, $exception->error, $template);
+            }
+        }
+
+        $this->assertSame('', $this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::SALES));
+
+        $this->settings->update(['journal_description_sales' => str_repeat('a', 200)], $this->manager());
+
+        $this->assertSame(200, mb_strlen($this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::SALES)));
+    }
+
+    public function testUpdate_RequiresThePermissionToChangeTheSettingsOfTheCharges(): void
+    {
+        $this->forgetChargeSettings();
+
+        try {
+            $this->settings->update(['sales_shipping' => true], $this->employeeWithGrants([]));
+            $this->fail('The permission should be required.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::PermissionDenied, $exception->error);
+        }
+
+        $this->assertFalse($this->settings->salesShippingEnabled());
+    }
+
+    public function testJournalDescriptionTemplate_GivesNothingForAStoredTemplateThatIsNotValid(): void
+    {
+        $this->forgetChargeSettings();
+        $this->setConfigValue('accounting_journal_description_sales', '<script>{number}</script>');
+
+        $this->assertSame('', $this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::SALES));
     }
 }

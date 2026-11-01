@@ -23,6 +23,7 @@ enum DocumentType: string
     case ReceivedCheque  = 'received_cheque';
     case PaidCheque      = 'paid_cheque';
     case Revenue         = 'revenue';
+    case SalesDebitNote  = 'sales_debit_note';
 
     /**
      * The tables a document of this kind may be stored in, with the column of its id.
@@ -40,6 +41,7 @@ enum DocumentType: string
             self::Expense         => ['expenses' => 'expense_id'],
             self::ReceivedCheque, self::PaidCheque => ['cheques' => 'cheque_id'],
             self::Revenue => ['revenues' => 'revenue_id'],
+            self::SalesDebitNote => ['sales_debit_notes' => 'debit_note_id'],
         };
     }
 
@@ -66,7 +68,7 @@ enum DocumentType: string
     public function bareIdSources(): array
     {
         return match ($this) {
-            self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue => $this->sources(),
+            self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue, self::SalesDebitNote => $this->sources(),
             default => [],
         };
     }
@@ -80,10 +82,20 @@ enum DocumentType: string
             self::CreditNote, self::RefundInvoice => 'POS ' . $id,
             self::Purchase, self::DebitNote => 'RECV ' . $id,
             self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue => (string) $id,
+            self::SalesDebitNote => str_pad((string) $id, $this->defaultPadding(), '0', STR_PAD_LEFT),
             self::ReceivedCheque => 'CHQ-IN ' . $id,
             self::PaidCheque     => 'CHQ-OUT ' . $id,
             default              => '',
         };
+    }
+
+    /**
+     * The digits a number of the kind has until the company chooses otherwise: the sales debit note
+     * is numbered with five, as the reference system numbers it.
+     */
+    public function defaultPadding(): int
+    {
+        return $this === self::SalesDebitNote ? 5 : 0;
     }
 
     public function labelKey(): string

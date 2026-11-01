@@ -131,4 +131,42 @@ class DocumentHelperTest extends CIUnitTestCase
         $this->assertSame(lang('Sales.invoice_discount'), invoiceDiscountLabel(['type' => FIXED, 'value' => '20']));
         $this->assertSame(lang('Sales.invoice_discount'), invoiceDiscountLabel(null));
     }
+
+    public function testHeaderChargeRows_ListsNothingForADocumentWithoutCharges(): void
+    {
+        $this->assertSame([], headerChargeRows([]));
+        $this->assertSame([], headerChargeRows(['shipping' => '0.0000', 'adjustment' => '0.0000', 'shipping_tax' => '0.0000']));
+    }
+
+    public function testHeaderChargeRows_ListsTheShippingTheTaxOnItAndTheAdjustmentInThatOrderUnderTheLabelTyped(): void
+    {
+        $rows = headerChargeRows(['shipping' => '20.0000', 'shipping_tax' => '3.0000', 'shipping_tax_included' => false, 'adjustment' => '-10.0000', 'adjustment_label' => 'Handling fee']);
+
+        $this->assertSame([[lang('Sales.shipping'), '20.0000'], [lang('Sales.shipping_tax'), '3.0000'], ['Handling fee', '-10.0000']], $rows);
+    }
+
+    public function testHeaderChargeRows_LeavesOutTheTaxOnShippingWhenItIsInsideTheAmount(): void
+    {
+        $rows = headerChargeRows(['shipping' => '100.0000', 'shipping_tax' => '13.0435', 'shipping_tax_included' => true]);
+
+        $this->assertSame([[lang('Sales.shipping'), '100.0000']], $rows);
+    }
+
+    public function testHeaderChargeRows_LeavesOutTheTaxWhenTheShippingHasNoneAndTheTaxWhenThereIsNoShipping(): void
+    {
+        $this->assertSame([[lang('Sales.shipping'), '20.0000']], headerChargeRows(['shipping' => '20.0000', 'shipping_tax' => '0.0000']));
+        $this->assertSame([], headerChargeRows(['shipping' => '0.0000', 'shipping_tax' => '3.0000']), 'a tax with no shipping under it is not printed alone');
+    }
+
+    public function testHeaderChargeRows_NamesAnAdjustmentWithoutALabelByTheGenericWord(): void
+    {
+        foreach ([[], ['adjustment_label' => ''], ['adjustment_label' => '   ']] as $label) {
+            $this->assertSame([[lang('Sales.adjustment'), '5.0000']], headerChargeRows(['adjustment' => '5.0000'] + $label));
+        }
+    }
+
+    public function testHeaderChargeRows_PrintsAnAdjustmentThatIsOnlyANegativeAmount(): void
+    {
+        $this->assertSame([[lang('Sales.adjustment'), '-0.0100']], headerChargeRows(['adjustment' => '-0.0100']));
+    }
 }

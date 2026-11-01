@@ -303,9 +303,7 @@ final class CustomerDocuments
             return '0.0000';
         }
 
-        $amounts = SaleAmounts::totals($sale, totals_decimals());
-
-        return InvoiceRounding::split($amounts['net'], $amounts['tax'])['total'];
+        return SaleAmounts::figures($sale, totals_decimals())['total'];
     }
 
     /**

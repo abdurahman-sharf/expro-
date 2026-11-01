@@ -122,6 +122,13 @@
         }
         ?>
 
+        <?php foreach (headerChargeRows($header_charges ?? []) as [$chargeLabel, $chargeAmount]) { ?>
+            <tr>
+                <td colspan="2" class="total-value"><?= esc($chargeLabel) ?>:</td>
+                <td class="total-value"><?= to_currency($chargeAmount) ?></td>
+            </tr>
+        <?php } ?>
+
         <tr>
         </tr>
 

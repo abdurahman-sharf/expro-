@@ -28,6 +28,7 @@ final class JournalService
         ExpensePostingBuilder::SOURCE,
         CashupPostingBuilder::SOURCE,
         CustomerOpening::SOURCE,
+        SalesDebitNotes::SOURCE,
         RevenuePostingBuilder::SOURCE,
         ...ChequeSources::ALL,
     ];

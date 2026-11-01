@@ -69,6 +69,40 @@ final class SaleAmounts
     }
 
     /**
+     * What an invoice journal holds, from the lines and the charges of the header: the total the party
+     * owes rounded to the cent, the tax as calculated (the shipping tax with it), the revenue of the goods
+     * that balances the journal, the shipping revenue without its tax, the adjustment in the direction of
+     * the document, and what the lines took off. The rounding of the cent falls on the goods, so the
+     * shipping and the adjustment are the amounts that were typed; when the lines come to nothing there
+     * are no goods to carry it, and it falls on the shipping, which is then the whole of the revenue.
+     *
+     * @return array{total: numeric-string, tax: numeric-string, revenue: numeric-string, shipping: numeric-string, adjustment: numeric-string, discount: numeric-string}
+     */
+    public static function figures(SaleDocument $sale, int $decimals): array
+    {
+        $amounts  = self::totals($sale, $decimals);
+        $shipping = $sale->charges?->shippingNet() ?? '0.0000';
+        $tax      = bcadd($amounts['tax'], $sale->charges?->shippingTax ?? '0', self::SCALE);
+        $adjusted = $sale->charges?->adjustment ?? '0.0000';
+        $split    = InvoiceRounding::split(bcadd(bcadd($amounts['net'], $shipping, self::SCALE), $adjusted, self::SCALE), $tax);
+        $revenue  = bcsub(bcsub($split['revenue'], $shipping, self::SCALE), $adjusted, self::SCALE);
+
+        if (bccomp($amounts['net'], '0', self::SCALE) === 0 && bccomp($shipping, '0', self::SCALE) > 0) {
+            $shipping = bcadd($shipping, $revenue, self::SCALE);
+            $revenue  = '0.0000';
+        }
+
+        return [
+            'total'      => $split['total'],
+            'tax'        => $split['tax'],
+            'revenue'    => $revenue,
+            'shipping'   => $shipping,
+            'adjustment' => $adjusted,
+            'discount'   => $amounts['discount'],
+        ];
+    }
+
+    /**
      * What the line sells for before its discount.
      *
      * @return numeric-string

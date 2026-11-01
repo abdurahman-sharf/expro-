@@ -288,4 +288,20 @@ enum AccountingError: string
     case TaxNameInvalid             = 'tax_name_invalid';
     case TaxNameTaken               = 'tax_name_taken';
     case TaxOneRequired             = 'tax_one_required';
+
+    case HeaderChargesOff        = 'header_charges_off';
+    case HeaderChargesInvalid    = 'header_charges_invalid';
+    case HeaderChargesNotAllowed = 'header_charges_not_allowed';
+    case AdjustmentExceedsTotal  = 'adjustment_exceeds_total';
+
+    case DebitNoteOff              = 'debit_note_off';
+    case DebitNoteNotFound         = 'debit_note_not_found';
+    case DebitNoteReversed         = 'debit_note_reversed';
+    case DebitNoteAmountInvalid    = 'debit_note_amount_invalid';
+    case DebitNoteTaxInvalid       = 'debit_note_tax_invalid';
+    case DebitNoteCustomerMissing  = 'debit_note_customer_missing';
+    case DebitNoteAccountInvalid   = 'debit_note_account_invalid';
+    case DebitNoteNoteTooLong      = 'debit_note_note_too_long';
+    case JournalTemplateInvalid    = 'journal_template_invalid';
+    case ShippingTaxPercentInvalid = 'shipping_tax_percent_invalid';
 }

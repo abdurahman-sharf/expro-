@@ -6,6 +6,10 @@ use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountPlan;
 use App\Libraries\InvoiceDiscountProblem;
+use App\Libraries\HeaderCharges;
+use App\Libraries\HeaderChargesProblem;
+use App\Libraries\ResolvedCharges;
+use App\Libraries\ShippingTaxOption;
 use App\Models\Attribute;
 use App\Models\Customer;
 use App\Models\Dinner_table;
@@ -213,6 +217,82 @@ class Sale_lib
     public function clearInvoiceDiscount(): void
     {
         $this->session->remove('sales_invoice_discount');
+    }
+
+    /**
+     * What was typed on the header of the sale in the register apart from its lines: the adjustment
+     * and the shipping with the tax on it.
+     */
+    public function getHeaderCharges(): HeaderCharges
+    {
+        $stored = $this->session->get('sales_header_charges');
+
+        if (!is_array($stored)) {
+            return HeaderCharges::none();
+        }
+
+        return new HeaderCharges(
+            (string) ($stored['adjustment_label'] ?? ''),
+            (string) ($stored['adjustment'] ?? '0'),
+            (string) ($stored['shipping'] ?? '0'),
+            ShippingTaxOption::fromStored($stored['shipping_tax_option'] ?? null),
+            (string) ($stored['shipping_tax_percent'] ?? '0'),
+            isset($stored['shipping_options']) ? (int) $stored['shipping_options'] : null,
+        );
+    }
+
+    public function setHeaderCharges(HeaderCharges $charges): void
+    {
+        if ($charges->isEmpty()) {
+            $this->clearHeaderCharges();
+
+            return;
+        }
+
+        $this->session->set('sales_header_charges', [
+            'adjustment_label'     => $charges->adjustmentLabel,
+            'adjustment'           => $charges->adjustment,
+            'shipping'             => $charges->shipping,
+            'shipping_tax_option'  => $charges->shippingTaxOption->value,
+            'shipping_tax_percent' => $charges->shippingTaxPercent,
+            'shipping_options'     => $charges->shippingOptions,
+        ]);
+    }
+
+    public function clearHeaderCharges(): void
+    {
+        $this->session->remove('sales_header_charges');
+    }
+
+    /**
+     * The charges as they count against the lines in the cart now: none for an empty cart.
+     */
+    public function resolvedCharges(string $running): ResolvedCharges
+    {
+        if ($this->session->get('sales_cart') === null || $this->session->get('sales_cart') === []) {
+            return new ResolvedCharges();
+        }
+
+        return $this->getHeaderCharges()->resolve($running);
+    }
+
+    private function chargesSign(string $running): string
+    {
+        return bccomp($running, '0') < 0 ? '-1' : '1';
+    }
+
+    /**
+     * Why the charges typed cannot be added to what the lines come to now, or null when they can.
+     *
+     * @param array<int|string, array<string, mixed>> $taxes The taxes of the register as get_taxes returns them.
+     */
+    public function headerChargesProblem(array $taxes): ?HeaderChargesProblem
+    {
+        if ($this->session->get('sales_cart') === null || $this->session->get('sales_cart') === []) {
+            return null;
+        }
+
+        return $this->getHeaderCharges()->problem($this->get_totals($taxes)['items_total']);
     }
 
     /**
@@ -1025,6 +1105,19 @@ class Sale_lib
             }
         }
 
+        $totals['items_total'] = $total;
+
+        $charges = $this->resolvedCharges($total);
+        $sign = $this->chargesSign($total);
+        $total = bcadd($total, bcmul($sign, $charges->addedToTotal(), HeaderCharges::SCALE));
+
+        $totals['shipping'] = bcmul($sign, $charges->shipping, HeaderCharges::SCALE);
+        $totals['shipping_tax'] = bcmul($sign, $charges->shippingTax, HeaderCharges::SCALE);
+        $totals['shipping_tax_included'] = $charges->shippingTaxIncluded;
+        $totals['adjustment'] = bcmul($sign, $charges->adjustment, HeaderCharges::SCALE);
+        $totals['adjustment_label'] = $charges->adjustmentLabel;
+        $totals['shipping_options'] = $charges->shippingOptions;
+
         $totals['subtotal'] = $subtotal;
         $totals['total'] = $total;
         $totals['tax_total'] = $salesTax;
@@ -1677,6 +1770,7 @@ class Sale_lib
         }
 
         $this->restoreInvoiceDiscount($saleId, $storedShares);
+        $this->setHeaderCharges($this->sale->getHeaderCharges($saleId));
 
         $this->session->set('cash_mode', CASH_MODE_FALSE);
 
@@ -1803,6 +1897,7 @@ class Sale_lib
         $this->clearReturnDocument();
         $this->clearQuoteSource();
         $this->clearInvoiceDiscount();
+        $this->clearHeaderCharges();
         $this->clear_quote_number();
         $this->clear_work_order_number();
         $this->clear_sale_type();
@@ -2083,6 +2178,8 @@ class Sale_lib
                 $total = bcadd($total, $tax['sale_tax_amount']);
             }
         }
+
+        $total = bcadd($total, bcmul($this->chargesSign($total), $this->resolvedCharges($total)->addedToTotal(), HeaderCharges::SCALE));
 
         if ($includeCashRounding && $cashMode) {
             $total = $this->check_for_cash_rounding($total);
