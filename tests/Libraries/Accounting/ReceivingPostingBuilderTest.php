@@ -783,6 +783,44 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         $this->assertSame(PostingError::ForeignRateMismatch, $failure->error);
     }
 
+    public function testSupplierPaymentDifference_RefusesWhenTheRoutingOfExchangeGainsHasNoAccount(): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'fx.gain')->update(['account_id' => null]);
+        $payment  = $this->supplierPayment(3, '200.00', '3.60000000');
+        $purchase = $this->purchase([$this->line('4', '50.00')], currency: $this->dollars(), payments: [$payment]);
+
+        $failure = $this->failureOf(fn () => $this->builder->supplierPaymentDifference($purchase, $payment, 1));
+
+        $this->assertSame(PostingError::FxAccountsMissing, $failure->error);
+    }
+
+    public function testSupplierPaymentDifference_SettlesWhatTheEarlierPaymentsLeftAndNotEachPaymentOnItsOwn(): void
+    {
+        $payments = [$this->supplierPayment(1, '0.10', '3.75000000'), $this->supplierPayment(2, '0.10', '3.75000000')];
+        $purchase = $this->purchase([$this->line('1', '0.20')], currency: $this->dollars(), payments: $payments);
+
+        $this->assertNull($this->builder->supplierPaymentDifference($purchase, $payments[0], 1));
+        $this->assertSame([$this->accountId('fx_loss') . ':0.0100:0.0000', $this->supplierAccount() . ':0.0000:0.0100'], $this->shape($this->builder->supplierPaymentDifference($purchase, $payments[1], 1)));
+    }
+
+    public function testSupplierPaymentDifference_SettlesAPaymentAfterThePaymentMadeAtOnceFromWhatThatPaymentSettled(): void
+    {
+        $later    = $this->supplierPayment(3, '0.10', '3.75000000');
+        $purchase = $this->purchase([$this->line('1', '0.30')], payment: lang('Sales.cash'), currency: $this->dollars(), payments: [$later]);
+
+        $this->assertSame([$this->accountId('fx_loss') . ':0.0100:0.0000', $this->supplierAccount() . ':0.0000:0.0100'], $this->shape($this->builder->supplierPaymentDifference($purchase, $later, 1)));
+    }
+
+    public function testPurchase_KeepsTheTotalOfAPurchaseInYenInWholeUnits(): void
+    {
+        $purchase = $this->purchase([$this->line('1', '100.50')], currency: new DocumentCurrency('JPY', '0.02376000', 0));
+
+        $plan = $this->builder->purchase($purchase, 1);
+
+        $this->assertSame(['101.0000', '101.0000'], array_map(static fn ($line): string => (string) $line->foreignAmount, $plan->journal->lines));
+        $this->assertSame([$this->stockAccount($this->warehouse) . ':2.4000:0.0000', $this->supplierAccount() . ':0.0000:2.4000'], $this->shape($plan->journal));
+    }
+
     public function testSupplierPaymentDifference_CountsWhatWasPaidAtOnceAmongThePaymentsOfThePurchase(): void
     {
         $refund   = $this->supplierPayment(3, '-50.00', '3.60000000');

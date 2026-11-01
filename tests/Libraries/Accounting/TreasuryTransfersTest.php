@@ -863,6 +863,23 @@ class TreasuryTransfersTest extends CIUnitTestCase
         $this->assertSame('0.0000', $this->treasuries->position($dollars)->balance);
     }
 
+    public function testTransfer_RefusesAnExchangeLossWhenTheRoutingOfExchangeLossesHasNoAccountAndChangesNothing(): void
+    {
+        $dollars = $this->dollarBox();
+        $routing = $this->accountingDb()->table('accounting_routing')->where('routing_key', 'fx.loss')->get()->getRow();
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'fx.loss')->update(['account_id' => null]);
+
+        try {
+            $exception = $this->refusal(fn () => $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager, '99.00'));
+        } finally {
+            $this->accountingDb()->table('accounting_routing')->where('routing_key', 'fx.loss')->update(['account_id' => $routing->account_id]);
+        }
+
+        $this->assertSame(PostingError::FxAccountsMissing, $exception->error);
+        $this->assertSame('0.0000', $this->treasuries->position($dollars)->balance);
+    }
+
     public function testTransfer_RefusesATransferBetweenBranchesInAForeignCurrencyAndChangesNothing(): void
     {
         $dollars = $this->dollarBox();

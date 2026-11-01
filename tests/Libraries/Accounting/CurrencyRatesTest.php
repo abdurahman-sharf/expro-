@@ -181,6 +181,36 @@ class CurrencyRatesTest extends CIUnitTestCase
         $this->assertSame('3.75000000', $this->rates->find($first)->rate);
     }
 
+    public function testUpdate_RejectsAnEmployeeLimitedToSomeBranches(): void
+    {
+        $rateId     = $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $this->manager());
+        $restricted = $this->employeeWithGrants([AccountingGuard::CURRENCIES_MANAGE], [$this->createBranch('B3')]);
+
+        try {
+            $this->rates->update($rateId, ['rate' => '9'], $restricted);
+            $this->fail('An employee of one branch changed a rate of the company.');
+        } catch (BranchException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertSame('3.75000000', $this->rates->find($rateId)->rate);
+    }
+
+    public function testDelete_RejectsAnEmployeeLimitedToSomeBranches(): void
+    {
+        $rateId     = $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $this->manager());
+        $restricted = $this->employeeWithGrants([AccountingGuard::CURRENCIES_MANAGE], [$this->createBranch('B3')]);
+
+        try {
+            $this->rates->delete($rateId, $restricted);
+            $this->fail('An employee of one branch deleted a rate of the company.');
+        } catch (BranchException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertNotNull($this->rates->find($rateId));
+    }
+
     public function testUpdate_ChangesNothingAndWritesNoAuditWhenNothingChanged(): void
     {
         $rateId = $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $this->manager());

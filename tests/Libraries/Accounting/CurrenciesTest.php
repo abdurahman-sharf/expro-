@@ -212,6 +212,21 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertRefused(AccountingError::CurrencyNotFound, fn () => $this->currencies->update('QQQ', ['name_en' => 'x'], $this->manager()));
     }
 
+    public function testUpdate_RejectsAnEmployeeLimitedToSomeBranches(): void
+    {
+        $restricted = $this->employeeWithGrants([AccountingGuard::CURRENCIES_MANAGE], [$this->createBranch('B2')]);
+        $before     = $this->currencies->find('EUR')->nameEn;
+
+        try {
+            $this->currencies->update('EUR', ['name_en' => 'Changed'], $restricted);
+            $this->fail('An employee of one branch changed a currency of the company.');
+        } catch (BranchException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertSame($before, $this->currencies->find('EUR')->nameEn);
+    }
+
     public function testSetActive_SwitchesACurrencyOnAndOffAndRefusesToSwitchOffTheBase(): void
     {
         $manager = $this->manager();
@@ -230,6 +245,20 @@ class CurrenciesTest extends CIUnitTestCase
     public function testSetActive_RequiresThePermission(): void
     {
         $this->assertRefused(AccountingError::PermissionDenied, fn () => $this->currencies->setActive('EUR', true, $this->employeeWithGrants([])));
+        $this->assertFalse($this->currencies->find('EUR')->active);
+    }
+
+    public function testSetActive_RejectsAnEmployeeLimitedToSomeBranches(): void
+    {
+        $restricted = $this->employeeWithGrants([AccountingGuard::CURRENCIES_MANAGE], [$this->createBranch('B2')]);
+
+        try {
+            $this->currencies->setActive('EUR', true, $restricted);
+            $this->fail('An employee of one branch switched on a currency of the company.');
+        } catch (BranchException) {
+            $this->addToAssertionCount(1);
+        }
+
         $this->assertFalse($this->currencies->find('EUR')->active);
     }
 

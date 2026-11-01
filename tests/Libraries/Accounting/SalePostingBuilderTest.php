@@ -1536,6 +1536,14 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $this->assertNull($this->builder->paymentDifference($sale, $sale->payments[0], 1));
     }
 
+    public function testPaymentDifference_SettlesWhatTheEarlierPaymentsLeftAndNotEachPaymentOnItsOwn(): void
+    {
+        $sale = $this->sale([$this->line('1', '0.20')], [$this->foreignPayment(1, '0.10', '3.75000000'), $this->foreignPayment(2, '0.10', '3.75000000')], currency: $this->foreign());
+
+        $this->assertNull($this->builder->paymentDifference($sale, $sale->payments[0], 1));
+        $this->assertSame([$this->customerAccount() . ':0.01:0.00', $this->accountId('fx_gain') . ':0.00:0.01'], $this->shape($this->builder->paymentDifference($sale, $sale->payments[1], 1)));
+    }
+
     public function testPaymentDifference_SettlesTheWholeInvoiceByTheRateOfTheInvoiceAcrossPartPayments(): void
     {
         $sale = $this->sale([$this->line('2', '100', added: '30'), $this->line('1', '33.33', added: '4.9995', itemId: 2)], [

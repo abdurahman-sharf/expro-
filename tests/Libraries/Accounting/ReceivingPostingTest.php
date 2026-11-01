@@ -5039,6 +5039,30 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame('750.00', $this->owed());
     }
 
+    public function testUpdate_RefusesAPaymentOfAForeignPurchaseWhenTheTableHasNoRateForItsDay(): void
+    {
+        $this->dollars();
+        $receivingId = $this->dollarPurchase();
+        $this->accountingDb()->table('accounting_currency_rates')->truncate();
+
+        $this->assertFalse($this->purchases->update($receivingId, ['comment' => 'paid', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '200.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]));
+        $this->assertSame(AccountingError::RateMissing, $this->failure()->error);
+        $this->assertSame(0, $this->accountingDb()->table('receivings_payments')->where('receiving_id', $receivingId)->countAllResults());
+    }
+
+    public function testSaveValue_ForgetsTheCurrencyAfterOneSaveSoTheNextPurchaseIsInTheBase(): void
+    {
+        $this->dollars();
+
+        $first = $this->dollarPurchase();
+        $next  = $this->purchaseOf('50.00');
+
+        $this->assertSame('USD', $this->accountingDb()->table('receivings')->where('receiving_id', $first)->get()->getRow()->currency_code);
+        $this->assertNull($this->accountingDb()->table('receivings')->where('receiving_id', $next)->get()->getRow()->currency_code);
+    }
+
     private function lastPaymentRow(int $receivingId): object
     {
         return $this->accountingDb()->table('receivings_payments')->where('receiving_id', $receivingId)->orderBy('payment_id', 'DESC')->get()->getRow();

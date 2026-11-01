@@ -562,10 +562,10 @@
   ]
  },
  {
-  "name": "S06 an exchange account that is cancelled is refused",
+  "name": "S06 a routing of the exchange difference that has no usable account is refused with a name",
   "file": "app/Libraries/Accounting/SalePostingBuilder.php",
-  "find": "if ($account === null) {\n            throw new PostingException(PostingError::FxAccountsMissing, \"The routing of {$key->value} has no account",
-  "replace": "if (false) {\n            throw new PostingException(PostingError::FxAccountsMissing, \"The routing of {$key->value} has no account",
+  "find": "} catch (PostingException $failure) {\n            throw new PostingException(PostingError::FxAccountsMissing, \"The routing of {$key->value} has no usable account, so the exchange difference cannot be posted.\", ['routing_key' => $key->value], $failure);\n        }",
+  "replace": "} catch (PostingException $failure) {\n            throw $failure;\n        }",
   "tests": [
    "--filter",
    "Foreign|Dollar|Payment|Invoice|Exchange|Decimal",
@@ -914,6 +914,17 @@
   ]
  },
  {
+  "name": "B11 a routing of the exchange difference that has no usable account is refused with a name",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "find": "} catch (PostingException $failure) {\n            throw new PostingException(PostingError::FxAccountsMissing, \"The routing of {$key->value} has no usable account, so the exchange difference cannot be posted.\", ['routing_key' => $key->value], $failure);\n        }",
+  "replace": "} catch (PostingException $failure) {\n            throw $failure;\n        }",
+  "tests": [
+   "--filter",
+   "Purchase|Payment|Supplier",
+   "tests/Libraries/Accounting/ReceivingPostingBuilderTest.php"
+  ]
+ },
+ {
   "name": "Q01 a foreign payment does not come out of a treasury of another branch",
   "file": "app/Libraries/Accounting/ReceivingPosting.php",
   "find": "if ($purchase->currency !== null && $payment->treasuryBranchId !== null && $payment->treasuryBranchId !== $purchase->branchId) {",
@@ -1072,6 +1083,17 @@
   "file": "app/Libraries/Accounting/TreasuryTransfers.php",
   "find": "if ($rate === null) {\n            throw new AccountingException(AccountingError::RateMissing, \"Currency {$code} has no rate on or before {$date}.\"",
   "replace": "if (false) {\n            throw new AccountingException(AccountingError::RateMissing, \"Currency {$code} has no rate on or before {$date}.\"",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Currency|Transfer",
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "T11 a routing of the exchange difference that has no usable account is refused with a name",
+  "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+  "find": "} catch (PostingException $failure) {\n            throw new PostingException(PostingError::FxAccountsMissing, \"The routing of {$key->value} has no usable account, so the exchange difference cannot be posted.\", ['routing_key' => $key->value], $failure);\n        }",
+  "replace": "} catch (PostingException $failure) {\n            throw $failure;\n        }",
   "tests": [
    "--filter",
    "Dollar|Foreign|Currency|Transfer",

@@ -1543,6 +1543,19 @@ class PostingServiceTest extends CIUnitTestCase
         $this->assertSame('USD', $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $result->journalId)->orderBy('line_no')->get()->getRow()->currency_code);
     }
 
+    public function testPost_RejectsALineInAnotherCurrencyInAJournalInTheBaseCurrencyWithARateOtherThanOne(): void
+    {
+        (new Currencies())->setActive('USD', true);
+
+        $draft = new JournalDraft(date: '2026-10-21', lines: [
+            new JournalLineDraft($this->accountId('cash'), debit: '375.00', foreignAmount: '100.00', currencyCode: 'USD'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '375.00'),
+        ], sourceType: 'sale', sourceId: 1, employeeId: 1, currencyCode: 'SAR', exchangeRate: '2');
+
+        $this->assertPostingRefused(PostingError::ForeignRateMismatch, fn () => $this->service->post($draft));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
     public function testPost_RejectsAForeignAmountInTheBaseCurrencyOnALineOfABaseJournal(): void
     {
         $draft = new JournalDraft(date: '2026-10-21', lines: [
