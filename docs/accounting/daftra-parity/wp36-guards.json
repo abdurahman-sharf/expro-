@@ -189,8 +189,8 @@
   {
     "name": "G20 the credit check refuses the sale inside its transaction",
     "file": "app/Models/Sale.php",
-    "find": "if ($creditRefusal !== null) {",
-    "replace": "if (false) {",
+    "find": "$creditRefusal = $this->creditRefusalOf($saleId, $salesData['customer_id'], $employeeId, (int) $salesData['branch_id']);\n\n            if ($creditRefusal !== null) {",
+    "replace": "$creditRefusal = $this->creditRefusalOf($saleId, $salesData['customer_id'], $employeeId, (int) $salesData['branch_id']);\n\n            if (false) {",
     "tests": [
       "--filter",
       "Save_|RefusesTheSaleThat",
@@ -1025,8 +1025,8 @@
   {
     "name": "G130 a list is assigned only by who holds the price lists module",
     "file": "app/Controllers/Customers.php",
-    "find": " && $this->employee->has_grant('price_lists', $employeeId)) {\n                $this->priceList->assignTo",
-    "replace": ") {\n                $this->priceList->assignTo",
+    "find": " && $this->employee->has_grant('price_lists', $employeeId)) {\n            $given['list']",
+    "replace": ") {\n            $given['list']",
     "tests": [
       "--filter",
       "DoesNotAssignAList",
@@ -1069,8 +1069,8 @@
   {
     "name": "G134 the credit days are saved only while their control is on",
     "file": "app/Controllers/Customers.php",
-    "find": "$days  = $settings->creditPeriodEnabled() && $this->request->getPost('credit_period_days')",
-    "replace": "$days  = $this->request->getPost('credit_period_days')",
+    "find": "if ($settings->creditPeriodEnabled() && $this->request->getPost('credit_period_days') !== null) {",
+    "replace": "if ($this->request->getPost('credit_period_days') !== null) {",
     "tests": [
       "--filter",
       "KeepsTheDaysWhenOnlyTheLimitControlIsOn",
@@ -1080,8 +1080,8 @@
   {
     "name": "G135 the credit limit is saved only while its control is on",
     "file": "app/Controllers/Customers.php",
-    "find": "$limit = $settings->creditLimitEnabled() && $this->request->getPost('credit_limit') !== null",
-    "replace": "$limit = $this->request->getPost('credit_limit') !== null",
+    "find": "if ($settings->creditLimitEnabled() && $this->request->getPost('credit_limit') !== null) {",
+    "replace": "if ($this->request->getPost('credit_limit') !== null) {",
     "tests": [
       "--filter",
       "WhileAccountingIsOffOrTheirControlIsOff|KeepsTheLimitWhenOnlyTheDaysControlIsOn",
@@ -1192,8 +1192,8 @@
   {
     "name": "G154 the name of a list is text in the choice of the default list",
     "file": "app/Views/accounting_settings/manage.php",
-    "find": "array_map(static fn (string $name): string => esc($name), $control_lists)",
-    "replace": "$control_lists",
+    "find": "array_map(static fn (string $name): string => esc($name), $controlLists)",
+    "replace": "$controlLists",
     "tests": [
       "--filter",
       "ShowsTheNameOfAListInTheDefaultListChoice",

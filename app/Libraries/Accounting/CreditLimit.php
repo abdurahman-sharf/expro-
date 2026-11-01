@@ -203,7 +203,12 @@ final class CreditLimit
     private function checksOf(int $customerId): array
     {
         $settings = new SalesControlSettings($this->db);
-        $terms    = $this->termsOf($customerId);
+
+        if (! $settings->creditLimitEnabled() && ! $settings->creditPeriodEnabled()) {
+            return [['limit' => '0.0000', 'days' => 0], false, false];
+        }
+
+        $terms = $this->termsOf($customerId);
 
         return [
             $terms,
