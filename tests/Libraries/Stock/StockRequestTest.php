@@ -185,6 +185,17 @@ class StockRequestTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::StockRequestStatusInvalid, fn () => $this->requests->approve($requestId, $this->keeperId));
     }
 
+    public function testApprove_WorksOnlyWhileTheSettingIsOn(): void
+    {
+        $itemId    = $this->stocked('10', '50');
+        $requestId = $this->ask([['item_id' => $itemId, 'quantity' => '4']]);
+
+        $this->accountingDb()->table('app_config')->where('key', 'stock_requests_enabled')->delete();
+
+        $this->refusedWith(AccountingError::StockDocumentOff, fn () => $this->requests->approve($requestId, $this->keeperId));
+        $this->assertSame('requested', $this->requests->find($requestId)->status);
+    }
+
     public function testApprove_RequiresThePermissionToApproveAndTheBranchOfTheLocationThatGives(): void
     {
         $other     = $this->createBranch();

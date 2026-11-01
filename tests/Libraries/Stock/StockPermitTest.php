@@ -534,6 +534,8 @@ class StockPermitTest extends CIUnitTestCase
 
         $cases = [
             'no lines'            => [AccountingError::StockPermitLinesInvalid, ['lines' => []]],
+            'too many lines'      => [AccountingError::StockPermitLinesInvalid, ['lines' => array_fill(0, 201, $line)]],
+            'a quantity too big'  => [AccountingError::StockPermitLinesInvalid, ['lines' => [[...$line, 'quantity' => '999999999.001']]]],
             'zero quantity'       => [AccountingError::StockPermitLinesInvalid, ['lines' => [[...$line, 'quantity' => '0']]]],
             'negative quantity'   => [AccountingError::StockPermitLinesInvalid, ['lines' => [[...$line, 'quantity' => '-1']]]],
             'four decimals'       => [AccountingError::StockPermitLinesInvalid, ['lines' => [[...$line, 'quantity' => '1.0001']]]],
@@ -739,6 +741,20 @@ class StockPermitTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::StockPermitCancelled, fn () => $this->permits->cancel($permitId, 'twice', $this->keeperId));
         $this->refusedWith(AccountingError::StockPermitNotFound, fn () => $this->permits->cancel(999999, 'none', $this->keeperId));
         $this->assertSame('10.000', $this->onHand($itemId));
+    }
+
+    public function testCancel_RequiresAReasonWhileTheBooksDoNotFollowThePermitToo(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $permitId = $this->add($itemId, '2', '10');
+
+        $this->refusedWith(AccountingError::ReasonRequired, fn () => $this->permits->cancel($permitId, '', $this->keeperId));
+        $this->refusedWith(AccountingError::ReasonRequired, fn () => $this->permits->cancel($permitId, str_repeat('x', 256), $this->keeperId));
+
+        $this->assertSame('posted', $this->permits->find($permitId)->status);
+        $this->assertSame('12.000', $this->onHand($itemId));
     }
 
     public function testCancel_RequiresThePermissionTheLocationsAndTheBranchOfThePermit(): void

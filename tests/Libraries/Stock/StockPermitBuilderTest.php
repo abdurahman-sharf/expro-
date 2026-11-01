@@ -179,6 +179,19 @@ class StockPermitBuilderTest extends CIUnitTestCase
         $this->assertSame('-80.0000', $plan->movements[0]->value);
     }
 
+    public function testPlan_AnIssuePermitOfGoodsThatCostNothingHasMovementsAndNoJournal(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->putOnShelf($itemId, '10');
+
+        $plan = $this->builder->plan($this->document(StockPermitType::Issue, [new StockPermitLine($itemId, 1, '2.000', '0', '0.00')]), 1);
+
+        $this->assertNull($plan->journal, 'goods that cost nothing have no journal');
+        $this->assertCount(1, $plan->movements);
+        $this->assertSame('-2.000', $plan->movements[0]->quantity);
+        $this->assertSame(0, bccomp($plan->movements[0]->value, '0', 4));
+    }
+
     public function testPlan_AnIssuePermitDebitsTheAccountChosen(): void
     {
         $itemId  = $this->stocked('10', '50');

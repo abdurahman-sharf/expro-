@@ -408,6 +408,12 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_stock_permit_not_found', ['']), $refused['message']);
         $this->assertSame('posted', $this->permits->find($permitId)->status);
 
+        $refusedUpdate = $this->postJson('/stock_documents/permits/update/' . $permitId, ['permit_date' => date('Y-m-d'), 'note' => 'other branch', 'lines' => [['item_id' => (string) $itemId, 'quantity' => '9', 'unit_cost' => '25']]]);
+
+        $this->assertFalse($refusedUpdate['success']);
+        $this->assertSame(lang('Accounting.error_stock_permit_not_found', ['']), $refusedUpdate['message']);
+        $this->assertSame(1, (int) $this->permits->find($permitId)->revision);
+
         $this->actAsKeeper();
 
         $updated = $this->postJson('/stock_documents/permits/update/' . $permitId, ['permit_date' => date('Y-m-d'), 'note' => 'corrected', 'lines' => [['item_id' => (string) $itemId, 'quantity' => '3', 'unit_cost' => '25']]]);

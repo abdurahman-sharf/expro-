@@ -314,6 +314,25 @@ class StocktakesControllerTest extends CIUnitTestCase
         $this->assertSame(403, $this->get('/stock_documents/stocktakes/cancel_form/' . $stocktakeId)->response()->getStatusCode());
     }
 
+    public function testPostCountAndPostApproveAndPostCancel_AnswerThatAStocktakeOfAnotherBranchDoesNotExist(): void
+    {
+        $other       = $this->createBranch();
+        $itemId      = $this->stocked('10', '50');
+        $stocktakeId = $this->started($itemId);
+
+        $this->actAsWith([StockPermissions::MODULE, StockPermissions::STOCKTAKE_MANAGE, StockPermissions::STOCKTAKE_APPROVE, 'items_stock'], [$other]);
+
+        foreach ([['count', ['counted' => [$itemId => '8']]], ['approve', []], ['cancel', ['reason' => 'no']]] as [$step, $data]) {
+            $answer = $this->postJson('/stock_documents/stocktakes/' . $step . '/' . $stocktakeId, $data);
+
+            $this->assertFalse($answer['success'], $step);
+            $this->assertSame(lang('Accounting.error_stocktake_not_found', ['']), $answer['message'], $step);
+        }
+
+        $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
+        $this->assertNull($this->takes->lines($stocktakeId)[0]->counted_quantity);
+    }
+
     public function testPostCancel_DiscardsACountAndReversesAnApprovedOneWithAReason(): void
     {
         $first  = $this->stocked('10', '50');

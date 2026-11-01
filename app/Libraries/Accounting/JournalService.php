@@ -25,7 +25,6 @@ final class JournalService
         InterBranchSettlements::SOURCE,
         InterBranchSettlements::SOURCE_SECOND,
         StockPermitSources::TRANSFER,
-        StockPermitSources::TRANSFER_RECEIPT,
     ];
     public const DOCUMENT_SOURCES = [
         StockPermitSources::PERMIT,

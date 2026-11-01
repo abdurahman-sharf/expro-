@@ -90,6 +90,41 @@ class StockShelvesTest extends CIUnitTestCase
         $this->assertSame('10.000', $this->shelves->onHand($itemId, self::LOCATION_ID));
     }
 
+    public function testAssertStays_NeverRefusesAnAddEvenWhenTheShelfIsAlreadyBelowZero(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $this->putOnShelf($itemId, '-4');
+
+        $this->shelves->assertStays([['itemId' => $itemId, 'locationId' => self::LOCATION_ID, 'delta' => '1.000']]);
+
+        $this->expectException(AccountingException::class);
+
+        $this->shelves->assertStays([['itemId' => $itemId, 'locationId' => self::LOCATION_ID, 'delta' => '-1.000']]);
+    }
+
+    public function testAssertStays_ReadsTheShelfUnderALockWhenItJudgesATake(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $reads  = [];
+
+        $listener = static function ($query) use (&$reads): void {
+            if (str_contains((string) $query->getQuery(), 'item_quantities')) {
+                $reads[] = (string) $query->getQuery();
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $this->shelves->assertStays([['itemId' => $itemId, 'locationId' => self::LOCATION_ID, 'delta' => '-1.000']]);
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        $this->assertCount(1, $reads);
+        $this->assertStringContainsString('FOR UPDATE', $reads[0]);
+    }
+
     public function testAssertStays_RefusesWhatLeavesLessThanNothingAndNamesTheItemAndTheLocation(): void
     {
         $itemId = $this->stocked('10', '50');

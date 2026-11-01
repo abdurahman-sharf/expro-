@@ -525,8 +525,8 @@
  {
   "name": "S05 the shelf is read under a lock when it is judged",
   "file": "app/Libraries/Stock/StockShelves.php",
-  "find": "$result = $lock ? LockedRead::row($this->db, $sql, [$itemId, $locationId]) : $this->db->query($sql, [$itemId, $locationId])->getRow();",
-  "replace": "$result = $this->db->query($sql, [$itemId, $locationId])->getRow();",
+  "find": "WHERE item_id = ? AND location_id = ?' . ($lock ? ' FOR UPDATE' : '');",
+  "replace": "WHERE item_id = ? AND location_id = ?';",
   "tests": [
    "tests/Libraries/Stock/StockShelvesTest.php"
   ]
@@ -1475,15 +1475,6 @@
   "name": "J03 the sending journal of a transfer permit is that of a transfer",
   "file": "app/Libraries/Accounting/JournalService.php",
   "find": "        StockPermitSources::TRANSFER,\n",
-  "replace": "",
-  "tests": [
-   "tests/Libraries/Stock/StockPermitTest.php"
-  ]
- },
- {
-  "name": "J04 the receipt of a transfer permit is that of a transfer",
-  "file": "app/Libraries/Accounting/JournalService.php",
-  "find": "        StockPermitSources::TRANSFER_RECEIPT,\n",
   "replace": "",
   "tests": [
    "tests/Libraries/Stock/StockPermitTest.php"

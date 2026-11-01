@@ -288,6 +288,25 @@ class StockRequestsControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('stock_permits'));
     }
 
+    public function testPostApproveAndPostFulfilAndPostCancel_AnswerThatARequestOfAnotherBranchDoesNotExist(): void
+    {
+        $other     = $this->createBranch();
+        $requestId = $this->asked($this->stocked('10', '50'));
+
+        $this->requests->approve($requestId, $this->keeperId);
+        $this->actAsWith([StockPermissions::MODULE, StockPermissions::REQUESTS_MANAGE, StockPermissions::REQUESTS_APPROVE, StockPermissions::PERMITS_MANAGE, 'items_stock'], [$other]);
+
+        foreach (['approve' => [], 'fulfil' => [], 'cancel' => ['reason' => 'no']] as $step => $data) {
+            $answer = $this->postJson('/stock_documents/requests/' . $step . '/' . $requestId, $data);
+
+            $this->assertFalse($answer['success'], $step);
+            $this->assertSame(lang('Accounting.error_stock_request_not_found', ['']), $answer['message'], $step);
+        }
+
+        $this->assertSame('approved', $this->requests->find($requestId)->status);
+        $this->assertSame(0, $this->countRows('stock_permits'));
+    }
+
     public function testPostCancelAndTheCancelForm_CancelARequestWithAReasonForWhoMayAndNoOneElse(): void
     {
         $other     = $this->createBranch();
