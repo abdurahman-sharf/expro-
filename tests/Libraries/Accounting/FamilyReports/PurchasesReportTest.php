@@ -7,15 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\FamilyReports\PurchaseDocuments;
 use App\Libraries\Accounting\FamilyReports\PurchasesReport;
 use App\Libraries\Accounting\ReportPeriod;
-use CodeIgniter\Test\CIUnitTestCase;
-use CodeIgniter\Test\DatabaseTestTrait;
-use Config\Database;
-use Tests\Support\AccountingFixtureTrait;
-use Tests\Support\EmployeeFixtureTrait;
-use Tests\Support\FamilyReportFixtureTrait;
-use Tests\Support\ItemFixtureTrait;
-use Tests\Support\PurchaseAccountingFixtureTrait;
-use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\FamilyReportTestCase;
 
 /**
  * What was bought: the invoices less the returns, by supplier, employee and period, as a summary or as
@@ -24,69 +16,15 @@ use Tests\Support\SaleAccountingFixtureTrait;
  *
  * @internal
  */
-final class PurchasesReportTest extends CIUnitTestCase
+final class PurchasesReportTest extends FamilyReportTestCase
 {
-    use DatabaseTestTrait;
-    use AccountingFixtureTrait;
-    use EmployeeFixtureTrait;
-    use ItemFixtureTrait;
-    use SaleAccountingFixtureTrait;
-    use PurchaseAccountingFixtureTrait;
-    use FamilyReportFixtureTrait;
-
-    protected $migrate     = true;
-    protected $migrateOnce = true;
-    protected $refresh     = false;
-    protected $namespace;
     private PurchasesReport $report;
-
-    public static function setUpBeforeClass(): void
-    {
-        $seeder = Database::seeder('tests');
-        $seeder->call('TestDatabaseBootstrapSeeder');
-    }
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->startBuying();
-
         $this->report = new PurchasesReport();
-    }
-
-    protected function tearDown(): void
-    {
-        $this->stopBuying();
-        $this->reinstallChart();
-        $this->resetBranches();
-
-        parent::tearDown();
-    }
-
-    /**
-     * Two suppliers: the first has invoices of 230 and 115 and a return of 50, the second one of 100.
-     *
-     * @return array{first: int, second: int, big: int, small: int, note: int, other: int}
-     */
-    private function market(): array
-    {
-        $item   = $this->item('0.00');
-        $other  = $this->anotherSupplier();
-        $big    = $this->buy([$this->purchaseLine($item, 0, '2', '100.00', '15')]);
-        $small  = $this->buy([$this->purchaseLine($item, 0, '1', '100.00', '15')]);
-        $note   = $this->debitNoteOf($small, '50.00');
-        $second = $this->buy([$this->purchaseLine($item, 0, '1', '100.00')], $other);
-
-        return ['first' => $this->supplierId, 'second' => $other, 'big' => $big, 'small' => $small, 'note' => $note, 'other' => $second];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function thisDay(): array
-    {
-        return ['from' => $this->today(), 'to' => $this->today()];
     }
 
     public function testBuild_SummarisesBySupplierWithTheInvoicesLessTheReturnsAndDebitNotes(): void
