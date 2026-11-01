@@ -749,4 +749,55 @@ class CustomerLedgerTest extends CIUnitTestCase
         $this->assertTies($other);
         $this->assertTies();
     }
+
+    public function testPosition_GivesTheOpenAmountOfASaleThatTheCreditLimitReadsAsWhatIsLeftAfterWhatWasPaid(): void
+    {
+        $sale = $this->invoiceOf('100.00', null, [$this->payment('Cash', '30.00')]);
+
+        $invoice = $this->position()->invoice($sale);
+
+        $this->assertSame('70.0000', $invoice->open());
+        $this->assertSame('70.0000', $this->position()->open());
+        $this->assertNull($this->position()->invoice(987654));
+    }
+
+    public function testPosition_LeavesTheOpenAmountOfASaleWhoseCustomerPaidItInFullAtNothing(): void
+    {
+        $sale = $this->invoiceOf('100.00', null, [$this->payment('Cash', '100.00')]);
+
+        $this->assertSame('0.0000', $this->position()->invoice($sale)->open());
+        $this->assertSame('0.0000', $this->position()->open());
+    }
+
+    public function testPosition_CountsADraftAndAQuoteAsNothingOpen(): void
+    {
+        $service = $this->item('0', false);
+
+        $this->save([$this->line($service, 0, '1', '500.00')], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+        $this->save([$this->line($service, 0, '1', '500.00')], [], [], SALE_TYPE_QUOTE, -1, true, null, SUSPENDED);
+
+        $this->assertSame('0.0000', $this->position()->open());
+        $this->assertSame([], $this->position()->invoices);
+    }
+
+    public function testPosition_NetsACreditNoteThatTheBooksSpentOnTheOlderInvoiceAgainstWhatIsOpen(): void
+    {
+        $first = $this->invoiceOf('100.00');
+
+        $this->creditNoteOf($first, '40.00');
+
+        $this->assertSame('60.0000', $this->position()->open());
+        $this->assertSame('60.0000', $this->position()->invoice($first)->open());
+    }
+
+    public function testPosition_CountsAnOpeningBalanceTheCustomerOwesAmongWhatIsOpen(): void
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        (new CustomerOpening())->create($this->customerId, CustomerOpening::OWES_US, '250.00', date('Y-m-d', strtotime('-5 days')), '', null);
+
+        $this->assertSame('250.0000', $this->position()->open());
+
+        $this->setConfigValue('accounting_customer_opening', '0');
+    }
 }

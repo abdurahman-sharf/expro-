@@ -78,7 +78,12 @@ final class CreditLimit
     public function refusalFor(int $customerId, int $saleId, string $today): ?AccountingException
     {
         $settings = new SalesControlSettings($this->db);
-        $terms    = $this->termsOf($customerId);
+
+        if (! $settings->creditLimitEnabled() && ! $settings->creditPeriodEnabled()) {
+            return null;
+        }
+
+        $terms = $this->termsOf($customerId);
 
         $checksLimit  = $settings->creditLimitEnabled() && bccomp($terms['limit'], '0', 4) > 0;
         $checksPeriod = $settings->creditPeriodEnabled() && $terms['days'] > 0;
