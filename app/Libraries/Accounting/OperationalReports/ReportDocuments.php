@@ -88,6 +88,46 @@ final class ReportDocuments
         return $documents;
     }
 
+    /**
+     * The credit notes and refund invoices that stand for each of the invoices given, in the order they
+     * were made, whatever their days.
+     *
+     * @param list<int> $invoiceIds
+     *
+     * @return array<int, list<ReportDocument>> By the invoice they take back.
+     */
+    public function returnsOf(ReportScope $scope, array $invoiceIds): array
+    {
+        $returns = [];
+
+        if ($scope->isEmpty() || $invoiceIds === []) {
+            return $returns;
+        }
+
+        foreach (array_chunk(array_values(array_unique($invoiceIds)), 400) as $chunk) {
+            foreach ($this->sales($scope, null, null, [DocumentKind::CreditNote, DocumentKind::RefundInvoice], null, null, false, null, $chunk) as $document) {
+                if ($document->originId !== null) {
+                    $returns[$document->originId][] = $document;
+                }
+            }
+        }
+
+        return $returns;
+    }
+
+    /**
+     * The credit notes and refund invoices that stand for no invoice, in the days of a report.
+     *
+     * @return list<ReportDocument>
+     */
+    public function orphanReturns(ReportScope $scope, ?string $from, string $to, ?int $customerId = null): array
+    {
+        return array_values(array_filter(
+            $this->read($scope, $from, $to, [DocumentKind::CreditNote, DocumentKind::RefundInvoice], $customerId),
+            static fn (ReportDocument $document): bool => $document->originId === null,
+        ));
+    }
+
     public function counterAccountId(): int
     {
         try {
@@ -102,7 +142,7 @@ final class ReportDocuments
      *
      * @return list<ReportDocument>
      */
-    private function sales(ReportScope $scope, ?string $from, ?string $to, array $kinds, ?int $customerId, ?int $employeeId, bool $withLines, ?array $saleIds = null): array
+    private function sales(ReportScope $scope, ?string $from, ?string $to, array $kinds, ?int $customerId, ?int $employeeId, bool $withLines, ?array $saleIds = null, ?array $originIds = null): array
     {
         [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', null);
 
@@ -118,6 +158,10 @@ final class ReportDocuments
 
         if ($saleIds !== null) {
             $where[] = 's.sale_id IN (' . implode(',', array_map('intval', $saleIds)) . ')';
+        }
+
+        if ($originIds !== null) {
+            $where[] = 's.return_of_sale_id IN (' . implode(',', array_map('intval', $originIds)) . ')';
         }
 
         if ($from !== null) {

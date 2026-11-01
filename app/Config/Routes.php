@@ -224,6 +224,14 @@ $routes->group('accounting_reports', static function (RouteCollection $routes): 
     $routes->get('profit/csv', 'AccountingProfitReports::getCsv');
     $routes->get('item_profit', 'AccountingProfitReports::getItems');
     $routes->get('item_profit/csv', 'AccountingProfitReports::getItemsCsv');
+    $routes->get('payments', 'AccountingPaymentReports::getIndex');
+    $routes->get('payments/csv', 'AccountingPaymentReports::getCsv');
+    $routes->get('advance_payments', 'AccountingPaymentReports::getAdvances');
+    $routes->get('advance_payments/csv', 'AccountingPaymentReports::getAdvancesCsv');
+    $routes->get('net_position', 'AccountingNetPosition::getIndex');
+    $routes->get('net_position/csv', 'AccountingNetPosition::getCsv');
+    $routes->get('invoice_returns', 'AccountingNetPosition::getCross');
+    $routes->get('invoice_returns/csv', 'AccountingNetPosition::getCrossCsv');
 });
 
 $routes->group('accounting_statements', static function (RouteCollection $routes): void {
