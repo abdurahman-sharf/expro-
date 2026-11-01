@@ -8,7 +8,7 @@
  * @var bool $is_admin
  * @var int $employee_id
  * @var array{scope: array{all: bool, branch_ids: list<int>, default_branch_id: ?int}, branches: list<object>, can_all: bool, locked: bool, hidden: bool}|null $branch_tab
- * @var array{roles: list<object>, held: list<int>, can_manage: bool, record_scope: string, locations: list<object>, default_location_id: ?int, role_permissions: array<string, list<string>>} $roles_tab
+ * @var array{roles: list<object>, held: list<int>, can_manage: bool, record_scope: string, locations: list<object>, default_location_id: ?int, role_permissions: array<string, list<string>>}|null $roles_tab
  */
 ?>
 
@@ -31,9 +31,11 @@
                 <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="employee_branch_info" href="#employee_branch_info"><?= lang('Branches.employee_tab') ?></a>
             </li>
         <?php endif; ?>
-        <li class="nav-item" role="presentation">
-            <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="employee_roles_info" href="#employee_roles_info"><?= lang('Roles.employee_tab') ?></a>
-        </li>
+        <?php if ($roles_tab !== null): ?>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="employee_roles_info" href="#employee_roles_info"><?= lang('Roles.employee_tab') ?></a>
+            </li>
+        <?php endif; ?>
     </ul>
 
     <ul id="error_message_box" class="error_message_box"></ul>
@@ -264,6 +266,7 @@
             </div>
         <?php endif; ?>
 
+        <?php if ($roles_tab !== null): ?>
         <div class="tab-pane fade" id="employee_roles_info" role="tabpanel">
             <fieldset>
                 <div class="form-grid">
@@ -319,6 +322,7 @@
                 </div>
             </fieldset>
         </div>
+        <?php endif; ?>
     </div>
 
 <?= form_close() ?>

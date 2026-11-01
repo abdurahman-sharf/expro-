@@ -68,4 +68,32 @@ trait RoleFixtureTrait
     {
         RoleGrants::flush();
     }
+
+    /**
+     * Runs the callback as the code does on a server whose migration of the roles has not run: the
+     * tables of roles are not there.
+     */
+    protected function withoutRoleTables(callable $then): void
+    {
+        $db     = $this->roleDb();
+        $tables = ['employee_default_locations', 'employee_record_scopes', 'employee_roles', 'role_permissions', 'roles'];
+
+        RoleGrants::flush();
+
+        foreach ($tables as $table) {
+            $name = $db->prefixTable($table);
+            $db->query("RENAME TABLE `{$name}` TO `{$name}_away`");
+        }
+
+        try {
+            $then();
+        } finally {
+            foreach (array_reverse($tables) as $table) {
+                $name = $db->prefixTable($table);
+                $db->query("RENAME TABLE `{$name}_away` TO `{$name}`");
+            }
+
+            RoleGrants::flush();
+        }
+    }
 }

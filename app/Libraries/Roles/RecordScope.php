@@ -52,8 +52,9 @@ final class RecordScope
         }
 
         if ($this->seen !== RoleGrants::generation()) {
-            $this->memo = [];
-            $this->seen = RoleGrants::generation();
+            $this->memo      = [];
+            $this->available = null;
+            $this->seen      = RoleGrants::generation();
         }
 
         return $this->memo[$employeeId] ??= $this->read($employeeId);

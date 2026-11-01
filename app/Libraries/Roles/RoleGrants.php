@@ -65,8 +65,9 @@ final class RoleGrants
     public function idsFor(int $personId): array
     {
         if ($this->seen !== self::$generation) {
-            $this->memo = [];
-            $this->seen = self::$generation;
+            $this->memo      = [];
+            $this->available = null;
+            $this->seen      = self::$generation;
         }
 
         return $this->memo[$personId] ??= $this->read($personId);

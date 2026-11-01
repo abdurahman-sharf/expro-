@@ -18,6 +18,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
@@ -33,6 +34,7 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use RoleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -696,6 +698,29 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/name="deposit_members\[\]" value="' . $manager . '" checked/', $body);
         $this->assertMatchesRegularExpression('/name="withdraw_members\[\]" value="' . $branch . '" checked/', $body);
         $this->assertStringContainsString(lang('Accounting_treasuries.scope_title'), $body);
+    }
+
+    public function testGetView_OffersTheActiveRolesAndStillOpensBeforeTheMigrationOfTheRolesHasRun(): void
+    {
+        $manager = $this->manager();
+        $role    = $this->createRole([], 'all', true, 'Tellers ' . uniqid());
+        $retired = $this->createRole([], 'all', false, 'Retired ' . uniqid());
+        $drawer  = $this->treasuries->create(['name' => 'Role drawer', 'kind' => 'cash'], $manager);
+
+        $body = $this->get('/accounting_treasuries/view/' . $drawer)->getBody();
+
+        $this->assertStringContainsString('id="deposit_role_' . $role . '"', $body);
+        $this->assertStringNotContainsString('id="deposit_role_' . $retired . '"', $body);
+
+        $this->withoutRoleTables(function () use ($drawer): void {
+            foreach (['/accounting_treasuries/view/' . $drawer, '/accounting_treasuries/view'] as $url) {
+                $page = $this->get($url);
+
+                $page->assertStatus(200);
+                $this->assertStringContainsString('name="deposit_scope"', $page->getBody());
+                $this->assertStringNotContainsString('id="deposit_role_', $page->getBody());
+            }
+        });
     }
 
     public function testGetView_OffersEverybodyAsTheScopeOfANewTreasury(): void

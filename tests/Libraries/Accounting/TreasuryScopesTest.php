@@ -11,6 +11,7 @@ use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Roles\RoleService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -194,18 +195,34 @@ class TreasuryScopesTest extends CIUnitTestCase
 
         $this->assertFalse($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
 
-        (new \App\Libraries\Roles\RoleService())->assign($employee, [$role], null);
+        (new RoleService())->assign($employee, [$role], null);
 
         $this->assertTrue($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
 
-        (new \App\Libraries\Roles\RoleService())->update($role, ['name' => 'Gone quiet ' . uniqid(), 'active' => false], null);
+        (new RoleService())->update($role, ['name' => 'Gone quiet ' . uniqid(), 'active' => false], null);
 
         $this->assertFalse($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee), 'An inactive role gives nobody the treasury');
 
-        (new \App\Libraries\Roles\RoleService())->update($role, ['name' => 'Back again ' . uniqid(), 'active' => true], null);
-        (new \App\Libraries\Roles\RoleService())->assign($employee, [], null);
+        (new RoleService())->update($role, ['name' => 'Back again ' . uniqid(), 'active' => true], null);
+        (new RoleService())->assign($employee, [], null);
 
         $this->assertFalse($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
+    }
+
+    public function testAllows_RefusesEveryoneForARolesScopeAndDoesNotFailBeforeTheMigrationHasCreatedTheTables(): void
+    {
+        $role     = $this->createRole(['accounting_treasuries']);
+        $employee = $this->employeeWithRoles([$role]);
+        $id       = $this->drawer(['deposit_scope' => 'roles', 'deposit_members' => [$role]]);
+
+        $this->assertTrue($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
+
+        $this->withoutRoleTables(function () use ($id, $employee): void {
+            $this->assertFalse($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
+            $this->assertTrue($this->scopes->allows($id, TreasuryScopes::DEPOSIT, null), 'The books act without an employee');
+        });
+
+        $this->assertTrue($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
     }
 
     public function testAllows_RefusesAnEmployeeWhoHoldsTheRoleOnlyAfterTheyWereDeleted(): void

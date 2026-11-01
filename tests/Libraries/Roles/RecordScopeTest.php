@@ -200,6 +200,19 @@ final class RecordScopeTest extends CIUnitTestCase
         $this->assertNull(RecordScope::sessionEmployee());
     }
 
+    public function testOwnOnly_AsksAgainWhetherTheTablesExistOnceTheGrantsWereFlushed(): void
+    {
+        $employee = $this->employeeWithRoles([$this->createRole([], 'own')]);
+
+        $this->assertTrue($this->scope->ownOnly($employee));
+
+        $this->withoutRoleTables(function () use ($employee): void {
+            $this->assertFalse($this->scope->ownOnly($employee));
+        });
+
+        $this->assertTrue($this->scope->ownOnly($employee));
+    }
+
     public function testOwnOnly_IsFalseAndDoesNotFailBeforeTheMigrationHasCreatedTheTables(): void
     {
         $db       = $this->roleDb();

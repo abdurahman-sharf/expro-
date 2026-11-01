@@ -12,10 +12,12 @@ use App\Libraries\Roles\DefaultLocations;
 use App\Libraries\Roles\RecordScope;
 use App\Libraries\Roles\RoleException;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Roles\RoleTables;
 use App\Models\Module;
 use App\Models\Stock_location;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Database;
 use Config\Services;
 
 /**
@@ -374,12 +376,17 @@ class Employees extends Persons
 
     /**
      * What the roles and records tab of the form shows: the roles there are, the ones the employee
-     * holds, the records they see, and the stock location they start in.
+     * holds, the records they see, and the stock location they start in. Null before the migration
+     * of the roles has run, when the form carries no such tab.
      *
-     * @return array{roles: list<object>, held: list<int>, can_manage: bool, record_scope: string, locations: list<object>, default_location_id: ?int, role_permissions: array<string, list<string>>}
+     * @return array{roles: list<object>, held: list<int>, can_manage: bool, record_scope: string, locations: list<object>, default_location_id: ?int, role_permissions: array<string, list<string>>}|null
      */
-    private function rolesTab(int $targetId, int $actorId): array
+    private function rolesTab(int $targetId, int $actorId): ?array
     {
+        if (! RoleTables::complete(Database::connect())) {
+            return null;
+        }
+
         return [
             'roles'               => $this->roles->all(),
             'held'                => $targetId === 0 ? [] : $this->roles->roleIdsOf($targetId),

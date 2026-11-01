@@ -468,10 +468,10 @@ class Employee extends Person
             }
         }
 
-        $result_count = count(array_unique($held));
+        $resultCount = count(array_unique($held));
 
-        if ($result_count != 1) {
-            return ($result_count != 0);
+        if ($resultCount != 1) {
+            return ($resultCount != 0);
         }
 
         return $this->has_subpermissions($permission_id);

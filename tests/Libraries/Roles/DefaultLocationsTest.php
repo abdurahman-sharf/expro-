@@ -68,6 +68,20 @@ final class DefaultLocationsTest extends CIUnitTestCase
         $this->assertNull($this->defaults->of(999999));
     }
 
+    public function testOf_IsNullAndDoesNotFailBeforeTheMigrationHasCreatedTheTables(): void
+    {
+        $employee = $this->createEmployee();
+        $location = $this->location();
+
+        $this->defaults->set($employee, $location, null);
+
+        $this->withoutRoleTables(function () use ($employee): void {
+            $this->assertNull($this->defaults->of($employee));
+        });
+
+        $this->assertSame($location, $this->defaults->of($employee));
+    }
+
     public function testSet_StoresTheLocationOfAnEmployeeAndAuditsTheChange(): void
     {
         $employee = $this->createEmployee();

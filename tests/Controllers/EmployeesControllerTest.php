@@ -448,6 +448,24 @@ class EmployeesControllerTest extends CIUnitTestCase
         $response->assertDontSee('grant_org_all_branches');
     }
 
+    public function testGetView_OpensTheFormWithoutTheRolesTabBeforeTheMigrationHasCreatedTheTables(): void
+    {
+        $this->loginAsAdmin();
+
+        $this->withoutRoleTables(function (): void {
+            foreach (['/employees/view/-1', '/employees/view/1'] as $url) {
+                $response = $this->get($url);
+
+                $response->assertStatus(200);
+                $response->assertSeeElement('#permission_select_all');
+                $response->assertDontSee('employee_roles_info');
+                $response->assertDontSee('default_location_id');
+            }
+        });
+
+        $this->get('/employees/view/-1')->assertSee('employee_roles_info');
+    }
+
     public function testGetView_HidesTheBranchesTabWhileThereIsOneBranch(): void
     {
         $this->onlyTheDefaultBranch();

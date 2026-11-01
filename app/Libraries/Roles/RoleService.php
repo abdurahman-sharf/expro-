@@ -43,6 +43,10 @@ final class RoleService
      */
     public function all(): array
     {
+        if (! RoleTables::exist($this->db, 'roles', 'role_permissions', 'employee_roles')) {
+            return [];
+        }
+
         return $this->db->table('roles r')
             ->select('r.role_id, r.name, r.description, r.active, r.record_scope, r.created_at, r.updated_at')
             ->select('(SELECT COUNT(*) FROM ' . $this->db->prefixTable('role_permissions') . ' rp WHERE rp.role_id = r.role_id) AS permission_count', false)

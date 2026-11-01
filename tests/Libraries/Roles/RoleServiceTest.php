@@ -577,6 +577,29 @@ final class RoleServiceTest extends CIUnitTestCase
         $this->assertSame(['before' => [$role], 'after' => []], json_decode($audit[array_key_last($audit)]->details, true));
     }
 
+    public function testReleaseEmployees_DoesNothingAndDoesNotFailBeforeTheMigrationHasCreatedTheTables(): void
+    {
+        $role     = $this->createRole(['sales']);
+        $employee = $this->employeeWithRoles([$role]);
+
+        $this->withoutRoleTables(function () use ($employee): void {
+            $this->roles->releaseEmployees([$employee], null);
+        });
+
+        $this->assertSame([$role], $this->roles->roleIdsOf($employee), 'The tables were not there, so nothing was taken');
+    }
+
+    public function testCarryLocationPermission_DoesNothingAndDoesNotFailBeforeTheMigrationHasCreatedTheTables(): void
+    {
+        $holder = $this->createRole(['sales']);
+
+        $this->withoutRoleTables(function (): void {
+            $this->roles->carryLocationPermission('sales', 'sales_carry_missing');
+        });
+
+        $this->assertNotContains('sales_carry_missing', $this->roles->permissionsOf($holder));
+    }
+
     public function testCarryLocationPermission_GivesTheNewPermissionToTheRolesThatHoldTheModule(): void
     {
         $holder = $this->createRole(['sales']);

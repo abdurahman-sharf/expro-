@@ -11,6 +11,11 @@ use CodeIgniter\Database\BaseConnection;
  */
 final class RoleTables
 {
+    public static function complete(BaseConnection $db): bool
+    {
+        return self::exist($db, 'roles', 'role_permissions', 'employee_roles', 'employee_record_scopes', 'employee_default_locations');
+    }
+
     public static function exist(BaseConnection $db, string ...$names): bool
     {
         foreach ($names as $name) {
