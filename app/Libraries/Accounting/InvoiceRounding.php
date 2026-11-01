@@ -16,15 +16,17 @@ final class InvoiceRounding
     private const SCALE = 4;
 
     /**
-     * @param numeric-string $net The invoice amount after discounts, before tax.
-     * @param numeric-string $tax The tax as calculated, not rounded.
+     * @param numeric-string $net      The invoice amount after discounts, before tax.
+     * @param numeric-string $tax      The tax as calculated, not rounded.
+     * @param int            $decimals The decimals the total is kept in: two, as it always was, or those of the currency of a foreign document.
      *
      * @return array{total: numeric-string, tax: numeric-string, revenue: numeric-string}
      */
-    public static function split(string $net, string $tax): array
+    public static function split(string $net, string $tax, int $decimals = 2): array
     {
         $tax     = bcadd($tax, '0', self::SCALE);
-        $total   = self::roundToCents(bcadd(bcadd($net, '0', self::SCALE), $tax, self::SCALE));
+        $sum     = bcadd(bcadd($net, '0', self::SCALE), $tax, self::SCALE);
+        $total   = $decimals === 2 ? self::roundToCents($sum) : bcadd(SaleAmounts::round($sum, $decimals), '0', self::SCALE);
         $revenue = bcsub($total, $tax, self::SCALE);
 
         return ['total' => $total, 'tax' => $tax, 'revenue' => $revenue];

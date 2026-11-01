@@ -2,11 +2,13 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalOrigin;
+use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingFailureLog;
@@ -1368,5 +1370,197 @@ class PostingServiceTest extends CIUnitTestCase
 
             $this->assertSame(['Libraries/Accounting/Backfill/BackfillService.php'], $callers, $call);
         }
+    }
+
+    private function foreignDraft(string $foreign = '100.0000', string $base = '375.0000', string $rate = '3.75000000', string $currency = 'USD', int $sourceId = 1): JournalDraft
+    {
+        return new JournalDraft(
+            date: '2026-10-21',
+            lines: [
+                new JournalLineDraft($this->accountId('cash'), debit: $base, foreignAmount: $foreign, currencyCode: $currency),
+                new JournalLineDraft($this->accountId('sales_revenue'), credit: $base, foreignAmount: $foreign, currencyCode: $currency),
+            ],
+            sourceType: 'sale',
+            sourceId: $sourceId,
+            employeeId: 1,
+            currencyCode: $currency,
+            exchangeRate: $rate,
+        );
+    }
+
+    private function assertPostingRefused(PostingError $expected, callable $action): void
+    {
+        try {
+            $action();
+            $this->fail('A refusal was expected.');
+        } catch (PostingException $exception) {
+            $this->assertSame($expected, $exception->error);
+        }
+    }
+
+    public function testPost_WritesTheForeignAmountAndTheCurrencyOnTheLinesOfAForeignJournal(): void
+    {
+        (new Currencies())->setActive('USD', true);
+
+        $result  = $this->service->post($this->foreignDraft());
+        $journal = $this->accountingDb()->table('accounting_journals')->where('journal_id', $result->journalId)->get()->getRow();
+        $lines   = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $result->journalId)->orderBy('line_no')->get()->getResult();
+
+        $this->assertSame(['USD', '3.75000000', '375.0000', '375.0000'], [$journal->currency_code, $journal->exchange_rate, $journal->total_debit, $journal->total_credit]);
+        $this->assertSame(['375.0000', '100.0000', 'USD'], [$lines[0]->debit, $lines[0]->foreign_amount, $lines[0]->currency_code]);
+        $this->assertSame(['375.0000', '100.0000', 'USD'], [$lines[1]->credit, $lines[1]->foreign_amount, $lines[1]->currency_code]);
+    }
+
+    public function testPost_LeavesTheLinesOfABaseJournalWithoutAForeignAmountOrACurrency(): void
+    {
+        $result = $this->service->post($this->balancedDraft());
+        $lines  = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $result->journalId)->get()->getResult();
+
+        $this->assertSame([null, null], [$lines[0]->foreign_amount, $lines[0]->currency_code]);
+        $this->assertSame('1.00000000', $this->accountingDb()->table('accounting_journals')->where('journal_id', $result->journalId)->get()->getRow()->exchange_rate);
+    }
+
+    public function testPost_RejectsAJournalInTheBaseCurrencyWithARateOtherThanOne(): void
+    {
+        $draft = new JournalDraft(date: '2026-10-21', lines: $this->balancedDraft()->lines, sourceType: 'sale', sourceId: 1, employeeId: 1, currencyCode: 'SAR', exchangeRate: '2');
+
+        $this->assertPostingRefused(PostingError::ForeignRateMismatch, fn () => $this->service->post($draft));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPost_RejectsAForeignJournalWhoseLinesHaveNoForeignAmount(): void
+    {
+        (new Currencies())->setActive('USD', true);
+
+        $draft = new JournalDraft(date: '2026-10-21', lines: $this->balancedDraft(amount: '375.00')->lines, sourceType: 'sale', sourceId: 1, employeeId: 1, currencyCode: 'USD', exchangeRate: '3.75');
+
+        $this->assertPostingRefused(PostingError::ForeignAmountMissing, fn () => $this->service->post($draft));
+    }
+
+    public function testPost_RejectsAForeignAmountWithoutItsCurrencyAndTheOtherWayRound(): void
+    {
+        $withoutCurrency = new JournalDraft(date: '2026-10-21', lines: [
+            new JournalLineDraft($this->accountId('cash'), debit: '5.00', foreignAmount: '1.00'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '5.00'),
+        ], sourceType: 'sale', sourceId: 1, employeeId: 1, currencyCode: 'SAR');
+        $withoutAmount = new JournalDraft(date: '2026-10-21', lines: [
+            new JournalLineDraft($this->accountId('cash'), debit: '5.00', currencyCode: 'USD'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '5.00'),
+        ], sourceType: 'sale', sourceId: 1, employeeId: 1, currencyCode: 'SAR');
+
+        $this->assertPostingRefused(PostingError::ForeignAmountMissing, fn () => $this->service->post($withoutCurrency));
+        $this->assertPostingRefused(PostingError::ForeignAmountMissing, fn () => $this->service->post($withoutAmount));
+    }
+
+    public function testPost_RejectsAZeroOrNegativeForeignAmount(): void
+    {
+        (new Currencies())->setActive('USD', true);
+
+        $this->assertPostingRefused(PostingError::InvalidAmount, fn () => $this->service->post($this->foreignDraft(foreign: '0')));
+        $this->assertPostingRefused(PostingError::InvalidAmount, fn () => $this->service->post($this->foreignDraft(foreign: '-100')));
+    }
+
+    public function testPost_RejectsForeignAmountsThatDoNotAddUpToTheSameOnBothSides(): void
+    {
+        (new Currencies())->setActive('USD', true);
+
+        $draft = new JournalDraft(date: '2026-10-21', lines: [
+            new JournalLineDraft($this->accountId('cash'), debit: '50.00', foreignAmount: '100.00', currencyCode: 'USD'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '50.00', foreignAmount: '100.01', currencyCode: 'USD'),
+        ], sourceType: 'sale', sourceId: 1, employeeId: 1, currencyCode: 'USD', exchangeRate: '0.5');
+
+        $this->assertPostingRefused(PostingError::ForeignUnbalanced, fn () => $this->service->post($draft));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPost_RejectsALineThatIsNotWhatItsForeignAmountComesToAtTheRate(): void
+    {
+        (new Currencies())->setActive('USD', true);
+
+        $this->assertPostingRefused(PostingError::ForeignRateMismatch, fn () => $this->service->post($this->foreignDraft(base: '380.0000')));
+    }
+
+    public function testPost_AcceptsTheFewUnitsOfRoundingTheBalancingLineTakes(): void
+    {
+        (new Currencies())->setActive('USD', true);
+
+        $draft = new JournalDraft(date: '2026-10-21', lines: [
+            new JournalLineDraft($this->accountId('cash'), debit: '100.50', foreignAmount: '100.00', currencyCode: 'USD'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '33.50', foreignAmount: '33.33', currencyCode: 'USD'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '33.50', foreignAmount: '33.33', currencyCode: 'USD'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '33.50', foreignAmount: '33.34', currencyCode: 'USD'),
+        ], sourceType: 'sale', sourceId: 1, employeeId: 1, currencyCode: 'USD', exchangeRate: '1.005');
+
+        $this->assertTrue($this->service->post($draft)->created);
+    }
+
+    public function testPost_RejectsAForeignCurrencyThatIsUnknownOrSwitchedOff(): void
+    {
+        $this->assertPostingRefused(PostingError::InvalidCurrency, fn () => $this->service->post($this->foreignDraft()));
+        $this->assertPostingRefused(PostingError::InvalidCurrency, fn () => $this->service->post($this->foreignDraft(currency: 'QQQ')));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPost_AcceptsTheReversalOfAJournalWhoseCurrencyWasSwitchedOffSince(): void
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $posted = $this->service->post($this->foreignDraft())->journalId;
+        $currencies->setActive('USD', false);
+
+        $reversal = (new JournalService())->reverseAutomatic($posted, '2026-10-22', 'undo', null);
+
+        $lines = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $reversal)->orderBy('line_no')->get()->getResult();
+        $this->assertSame(['100.0000', 'USD', '375.0000'], [$lines[0]->foreign_amount, $lines[0]->currency_code, $lines[0]->credit]);
+        $this->assertSame(['USD', '3.75000000'], [$this->accountingDb()->table('accounting_journals')->where('journal_id', $reversal)->get()->getRow()->currency_code, $this->accountingDb()->table('accounting_journals')->where('journal_id', $reversal)->get()->getRow()->exchange_rate]);
+    }
+
+    public function testPost_AcceptsALineInAnotherCurrencyInAJournalInTheBaseCurrency(): void
+    {
+        (new Currencies())->setActive('USD', true);
+
+        $draft = new JournalDraft(date: '2026-10-21', lines: [
+            new JournalLineDraft($this->accountId('cash'), debit: '375.00', foreignAmount: '100.00', currencyCode: 'USD'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '375.00'),
+        ], sourceType: 'sale', sourceId: 1, employeeId: 1, currencyCode: 'SAR');
+
+        $result = $this->service->post($draft);
+
+        $this->assertSame('USD', $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $result->journalId)->orderBy('line_no')->get()->getRow()->currency_code);
+    }
+
+    public function testPost_RejectsAForeignAmountInTheBaseCurrencyOnALineOfABaseJournal(): void
+    {
+        $draft = new JournalDraft(date: '2026-10-21', lines: [
+            new JournalLineDraft($this->accountId('cash'), debit: '375.00', foreignAmount: '375.00', currencyCode: 'SAR'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '375.00'),
+        ], sourceType: 'sale', sourceId: 1, employeeId: 1, currencyCode: 'SAR');
+
+        $this->assertPostingRefused(PostingError::ForeignRateMismatch, fn () => $this->service->post($draft));
+    }
+
+    public function testPost_PostsAForeignJournalOnceAndReturnsTheSameJournalTheSecondTime(): void
+    {
+        (new Currencies())->setActive('USD', true);
+
+        $first  = $this->service->post($this->foreignDraft());
+        $second = $this->service->post($this->foreignDraft());
+
+        $this->assertTrue($first->created);
+        $this->assertFalse($second->created);
+        $this->assertSame($first->journalId, $second->journalId);
+    }
+
+    public function testPost_AcceptsZeroAndThreeDecimalAmountsOfAForeignCurrency(): void
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('JPY', true);
+        $currencies->setActive('KWD', true);
+
+        $jpy = $this->service->post($this->foreignDraft(foreign: '3704.0000', base: '88.0000', rate: '0.02376000', currency: 'JPY', sourceId: 2));
+        $kwd = $this->service->post($this->foreignDraft(foreign: '30.3750', base: '365.9940', rate: '12.04917000', currency: 'KWD', sourceId: 3));
+
+        $this->assertTrue($jpy->created);
+        $this->assertTrue($kwd->created);
     }
 }

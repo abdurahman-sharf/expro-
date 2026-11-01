@@ -347,4 +347,22 @@ enum AccountingError: string
     case BankReconciliationNotLatest      = 'bank_reconciliation_not_latest';
     case BankReconciliationReopened       = 'bank_reconciliation_reopened';
     case BankDirectoryCodeInvalid         = 'bank_directory_code_invalid';
+
+    case CurrencyNotFound           = 'currency_not_found';
+    case CurrencyCodeInvalid        = 'currency_code_invalid';
+    case CurrencyCodeTaken          = 'currency_code_taken';
+    case CurrencyNameInvalid        = 'currency_name_invalid';
+    case CurrencyDecimalsInvalid    = 'currency_decimals_invalid';
+    case CurrencyInUse              = 'currency_in_use';
+    case CurrencyIsBase             = 'currency_is_base';
+    case CurrencyInactive           = 'currency_inactive';
+    case RateInvalid                = 'currency_rate_invalid';
+    case RateMissing                = 'currency_rate_missing';
+    case RateNotFound               = 'currency_rate_not_found';
+    case RateDateTaken              = 'currency_rate_date_taken';
+    case DocumentCurrencyLocked     = 'document_currency_locked';
+    case ForeignCurrencyUnsupported = 'foreign_currency_unsupported';
+    case TreasuryCurrencyLocked     = 'treasury_currency_locked';
+    case TransferAmountRequired     = 'transfer_amount_required';
+    case FxJournalLocked            = 'fx_journal_locked';
 }

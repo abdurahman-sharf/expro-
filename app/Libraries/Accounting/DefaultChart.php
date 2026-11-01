@@ -93,8 +93,8 @@ final class DefaultChart
      * this application needs: unused gift cards (216), the customers of sales made without naming
      * one (12043), the leaf accounts of the cheque cycle under the two groups of notes (120601,
      * 120602 and 212001) and the deposit fees (546), and the adjustments and the shipping charged on
-     * sales (4204 and 4208). Rows are [code, name, type, parent code,
-     * is group, system key, contra account].
+     * sales (4204 and 4208), and the gains and losses of exchange differences (4209 and 5410). Rows are
+     * [code, name, type, parent code, is group, system key, contra account].
      *
      * @return list<array{string, string, AccountType, ?string, bool, ?string, bool}>
      */
@@ -166,6 +166,7 @@ final class DefaultChart
             ['4203', 'خصم مكتسب', AccountType::Revenue, '42', false, 'purchase_discount', false],
             ['4204', 'تسويات المبيعات', AccountType::Revenue, '42', false, 'sales_adjustment', false],
             ['4208', 'إيرادات الشحن', AccountType::Revenue, '42', false, 'sales_shipping', false],
+            ['4209', 'أرباح فروق العملة', AccountType::Revenue, '42', false, 'fx_gain', false],
 
             ['51', 'تكلفة المبيعات', AccountType::Expense, '5', true, null, false],
             ['511', 'تكلفة المبيعات', AccountType::Expense, '51', false, 'cogs', false],
@@ -186,6 +187,7 @@ final class DefaultChart
             ['544', 'إعادة تقييم', AccountType::Expense, '54', false, null, false],
             ['545', 'إيجار', AccountType::Expense, '54', false, null, false],
             ['546', 'رسوم الإيداع', AccountType::Expense, '54', false, 'cheque_deposit_fees', false],
+            ['5410', 'خسائر فروق العملة', AccountType::Expense, '54', false, 'fx_loss', false],
         ];
     }
 }

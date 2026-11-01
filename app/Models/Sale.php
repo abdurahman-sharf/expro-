@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CreditLimit;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerLock;
 use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\Accounting\InvoiceTiming;
@@ -76,10 +77,27 @@ class Sale extends Model
 
     private ?RecordScope $recordScope = null;
 
+    /** @var array{string, ?string}|null The currency the next sale saved is in, and the rate typed for it. */
+    private ?array $currencyChoice = null;
+
+    /** @var array{string, ?string}|null */
+    private ?array $savingCurrency = null;
+
     public function __construct()
     {
         parent::__construct();
         helper('text');
+    }
+
+    /**
+     * Says which currency the next sale that is saved is in. The choice is for that one save and is
+     * forgotten after it, so that a sale saved later is in the base currency unless it is said again. The
+     * rate is the one of the table for the day of the sale unless one is typed, which asks the permission
+     * to manage currencies. A return takes the currency and the rate of the sale it takes back whatever is said.
+     */
+    public function useCurrency(?string $code, ?string $typedRate = null): void
+    {
+        $this->currencyChoice = $code === null || $code === '' ? null : [$code, $typedRate];
     }
 
     /**
@@ -752,6 +770,12 @@ class Sale extends Model
                     $changes['invoice_date'] = (string) $typedDate;
                 }
 
+                foreach (['currency_code', 'currency_rate'] as $column) {
+                    if (array_key_exists($column, $updateData)) {
+                        $changes[$column] = $updateData[$column] === null ? null : (string) $updateData[$column];
+                    }
+                }
+
                 $accounting->assertEditable((int) $saleId, $changes);
 
                 if ($hasTerms) {
@@ -1048,6 +1072,9 @@ class Sale extends Model
             return NEW_ENTRY;
         }
 
+        $this->savingCurrency = $this->currencyChoice;
+        $this->currencyChoice = null;
+
         try {
             return (new CustomerLock($this->db))->run(
                 $customerId,
@@ -1063,6 +1090,8 @@ class Sale extends Model
             $this->accountingFailure = $busy;
 
             return ACCOUNTING_FAILED;
+        } finally {
+            $this->savingCurrency = null;
         }
     }
 
@@ -1136,6 +1165,14 @@ class Sale extends Model
             return ACCOUNTING_FAILED;
         }
 
+        try {
+            $currencyColumns = $this->currencyColumns($saleType, $returnOfSaleId, $timing['invoice_date'] ?? date('Y-m-d'), $employeeId);
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
         $storedDate = $saleId === NEW_ENTRY ? null : $this->storedInvoiceDate($saleId);
 
         $salesData = [
@@ -1161,6 +1198,7 @@ class Sale extends Model
             'shipping_tax_percent' => null,
             'shipping_tax_amount'  => null,
             'price_list_id'        => $saleType === SALE_TYPE_RETURN ? null : $priceListId,
+            ...$currencyColumns,
             ...$timing,
         ];
 
@@ -1474,6 +1512,47 @@ class Sale extends Model
     }
 
     /**
+     * The currency and the rate a sale is saved with. A return is in the currency and at the rate of the
+     * sale it takes back: it mirrors it, and is never re-rated. Anything else is in the base currency
+     * unless a currency was chosen, which takes the rate of the day of the sale. A foreign currency needs
+     * the books to be on, because without them there is no base to convert to.
+     *
+     * @return array{currency_code: ?string, currency_rate: ?string}
+     *
+     * @throws AccountingException
+     */
+    private function currencyColumns(int $saleType, ?int $returnOfSaleId, string $date, int $employeeId): array
+    {
+        $none   = ['currency_code' => null, 'currency_rate' => null];
+        $choice = $this->savingCurrency;
+        $origin = $saleType === SALE_TYPE_RETURN && $returnOfSaleId !== null
+            ? $this->db->table('sales')->select('currency_code, currency_rate')->where('sale_id', $returnOfSaleId)->get()->getRow()
+            : null;
+
+        if ($origin !== null) {
+            $code = $origin->currency_code;
+
+            if ($choice !== null && $choice[0] !== (string) $code) {
+                throw new AccountingException(AccountingError::DocumentCurrencyLocked, 'A return is in the currency of the sale it takes back.', ['sale_id' => $returnOfSaleId]);
+            }
+
+            return $code === null ? $none : ['currency_code' => $code, 'currency_rate' => $origin->currency_rate];
+        }
+
+        if ($choice === null) {
+            return $none;
+        }
+
+        if (! (new AccountingSettings($this->db))->isEnabled()) {
+            throw new AccountingException(AccountingError::ForeignCurrencyUnsupported, 'A document is in a foreign currency only while the books are on.');
+        }
+
+        $currency = (new Currencies($this->db))->documentCurrency($choice[0], $date, $choice[1], $employeeId);
+
+        return $currency === null ? $none : ['currency_code' => $currency->code, 'currency_rate' => $currency->rate];
+    }
+
+    /**
      * Locks the row of a sale that is saved again and refuses what must not be: a quote that was
      * converted into an invoice is the record of it and is not saved again, a sale is saved again
      * only while it is still suspended (one that was issued or cancelled meanwhile, from another
@@ -1540,6 +1619,9 @@ class Sale extends Model
         $saleStatus = COMPLETED;
         $items      = $issue->items;
         $taxes      = $issue->taxes;
+        $draftsCode = $this->db->table('sales')->select('currency_code')->where('sale_id', $saleId)->get()->getRow()->currency_code ?? null;
+
+        $this->useCurrency($draftsCode);
 
         return $this->save_value(
             $saleId,

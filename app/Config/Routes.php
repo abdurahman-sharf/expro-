@@ -357,6 +357,25 @@ $routes->group('accounting_cost_centers', static function (RouteCollection $rout
     $routes->post('delete/(:num)', 'AccountingCostCenters::postDeleteCostCenter/$1');
 });
 
+$routes->group('accounting_currencies', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingCurrencies::getIndex');
+    $routes->get('search', 'AccountingCurrencies::getSearch');
+    $routes->get('row/(:segment)', 'AccountingCurrencies::getRow/$1');
+    $routes->get('form', 'AccountingCurrencies::getForm');
+    $routes->get('form/(:segment)', 'AccountingCurrencies::getForm/$1');
+    $routes->get('rates/(:segment)', 'AccountingCurrencies::getRates/$1');
+    $routes->get('rates/(:segment)/search', 'AccountingCurrencies::getRatesSearch/$1');
+    $routes->get('rate_form/(:segment)', 'AccountingCurrencies::getRateForm/$1');
+    $routes->get('rate_form/(:segment)/(:num)', 'AccountingCurrencies::getRateForm/$1/$2');
+    $routes->post('store', 'AccountingCurrencies::postStore');
+    $routes->post('store/(:segment)', 'AccountingCurrencies::postStore/$1');
+    $routes->post('activate/(:segment)', 'AccountingCurrencies::postActivate/$1');
+    $routes->post('deactivate/(:segment)', 'AccountingCurrencies::postDeactivate/$1');
+    $routes->post('rate_store/(:segment)', 'AccountingCurrencies::postRateStore/$1');
+    $routes->post('rate_store/(:segment)/(:num)', 'AccountingCurrencies::postRateStore/$1/$2');
+    $routes->post('rate_delete/(:num)', 'AccountingCurrencies::postRateDelete/$1');
+});
+
 $routes->group('accounting_journals', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingJournals::getIndex');
     $routes->get('search', 'AccountingJournals::getSearch');

@@ -22,6 +22,8 @@ final class ReceivingPostingBuilder
     public const SOURCE_PURCHASE         = 'purchase';
     public const SOURCE_PAYMENT          = 'purchase_payment';
     public const SOURCE_SUPPLIER_PAYMENT = 'supplier_payment';
+    public const SOURCE_PAYMENT_FX       = 'purchase_payment_fx';
+    public const SOURCE_SUPPLIER_FX      = 'supplier_payment_fx';
     public const SOURCE_STOCK_TRANSFER   = 'stock_transfer';
     public const SOURCE_TRANSFER_RECEIPT = 'stock_transfer_receipt';
     private const SCALE                  = ReceivingAmounts::SCALE;

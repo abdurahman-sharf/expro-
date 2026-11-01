@@ -309,10 +309,10 @@ final class CustomerLedger
             'SELECT p.sale_id, SUM(l.credit - l.debit) AS paid
              FROM ' . $this->db->prefixTable('sales_payments') . ' p
              JOIN ' . $this->db->prefixTable('sales') . ' s ON s.sale_id = p.sale_id AND s.customer_id = ?
-             JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = p.payment_id AND {$standing}
+             JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type IN (?, ?) AND j.source_id = p.payment_id AND {$standing}
              JOIN " . $this->db->prefixTable('accounting_journal_lines') . ' l ON l.journal_id = j.journal_id AND l.account_id = ?
              GROUP BY p.sale_id',
-            [$customerId, SalePostingBuilder::SOURCE_PAYMENT, ...$standingBindings, $accountId],
+            [$customerId, SalePostingBuilder::SOURCE_PAYMENT, SalePostingBuilder::SOURCE_PAYMENT_FX, ...$standingBindings, $accountId],
         )->getResult();
 
         $paid = [];

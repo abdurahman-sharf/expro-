@@ -45,4 +45,28 @@ final readonly class JournalDraft
             $this->entryType,
         );
     }
+
+    /**
+     * The same journal with other lines and the currency and rate they were converted at.
+     *
+     * @param list<JournalLineDraft> $lines
+     */
+    public function withLinesIn(array $lines, string $currencyCode, string $exchangeRate): self
+    {
+        return new self(
+            $this->date,
+            $lines,
+            $this->sourceType,
+            $this->sourceId,
+            $this->revision,
+            $this->origin,
+            $this->employeeId,
+            $this->description,
+            $currencyCode,
+            $exchangeRate,
+            $this->reversesJournalId,
+            $this->branchId,
+            $this->entryType,
+        );
+    }
 }

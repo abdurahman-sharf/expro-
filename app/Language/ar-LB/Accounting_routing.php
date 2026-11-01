@@ -25,6 +25,8 @@ return [
     'item_cheques_payable'          => 'أوراق الدفع (الشيكات المسلَّمة)',
     'item_cheques_receivable'       => 'أوراق القبض (الشيكات المستلمة)',
     'item_fiscal_retained_earnings' => 'الأرباح المرحلة',
+    'item_fx_gain'                  => 'أرباح فروق العملة',
+    'item_fx_loss'                  => 'خسائر فروق العملة',
     'item_giftcards_liability'      => 'التزام بطاقات الهدايا',
     'item_inventory_locations'      => 'مواقع المخزون (الحساب الرئيسي)',
     'item_purchases_adjustment'     => 'تسوية المشتريات',

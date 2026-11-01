@@ -273,6 +273,8 @@ final class PostingService
 
             $this->assertParty($line, $lineNumber);
 
+            [$foreignAmount, $lineCurrency] = $this->normalizeForeign($line, $lineNumber);
+
             $totalDebit  = bcadd($totalDebit, $debit, self::SCALE);
             $totalCredit = bcadd($totalCredit, $credit, self::SCALE);
 
@@ -287,6 +289,8 @@ final class PostingService
                 'cost_center_id' => $line->costCenterId,
                 'party_type'     => $line->partyType,
                 'party_id'       => $line->partyId,
+                'foreign_amount' => $foreignAmount,
+                'currency_code'  => $lineCurrency,
             ];
         }
 
@@ -308,12 +312,18 @@ final class PostingService
             $this->periods->check($draft->date, $branchId);
         }
 
+        $currency = $this->resolveCurrency($draft->currencyCode);
+        $rate     = $this->normalizeRate($draft->exchangeRate);
+
+        $this->assertForeign($lines, $currency, $rate, $draft->reversesJournalId !== null || $this->yearEndRelief);
+        $this->assertTreasuryCurrencies($lines, $accounts);
+
         return [
             'lines'     => $lines,
             'debit'     => $totalDebit,
             'credit'    => $totalCredit,
-            'currency'  => $this->resolveCurrency($draft->currencyCode),
-            'rate'      => $this->normalizeRate($draft->exchangeRate),
+            'currency'  => $currency,
+            'rate'      => $rate,
             'branch_id' => $branchId,
         ];
     }
@@ -386,6 +396,172 @@ final class PostingService
         }
 
         return bcadd($value, '0', self::SCALE);
+    }
+
+    /**
+     * The foreign amount of a line and the currency it is in go together, and the amount is above zero: which
+     * side of the journal it is on says whether it is owed or owing.
+     *
+     * @return array{?string, ?string}
+     *
+     * @throws PostingException
+     */
+    private function normalizeForeign(JournalLineDraft $line, int $lineNumber): array
+    {
+        if ($line->foreignAmount === null && $line->currencyCode === null) {
+            return [null, null];
+        }
+
+        if ($line->foreignAmount === null || $line->currencyCode === null) {
+            throw new PostingException(PostingError::ForeignAmountMissing, "Line {$lineNumber} has a foreign amount or a currency without the other.", ['line' => $lineNumber]);
+        }
+
+        $amount = $this->normalizeAmount($line->foreignAmount, $lineNumber);
+
+        if (bccomp($amount, '0', self::SCALE) <= 0 || preg_match('/^[A-Z]{3}$/', $line->currencyCode) !== 1) {
+            throw new PostingException(PostingError::InvalidAmount, "Line {$lineNumber} has an invalid foreign amount.", ['line' => $lineNumber, 'value' => $line->foreignAmount]);
+        }
+
+        return [$amount, $line->currencyCode];
+    }
+
+    /**
+     * A journal in the base currency has the rate one and no foreign amount unless a line is in another
+     * currency (the line of a treasury that holds one). A journal in another currency carries a foreign
+     * amount on every line, in its currency, that adds up to the same on both sides, and each base amount is
+     * what the foreign one comes to at the rate of the journal, apart from the few rounding units the line
+     * that balances the journal takes. A currency the books do not know, or have switched off, is refused,
+     * except for the reversal of a journal that was posted while it was on.
+     *
+     * @param list<array<string, mixed>> $lines
+     *
+     * @throws PostingException
+     */
+    private function assertForeign(array $lines, string $currency, string $rate, bool $allowInactive): void
+    {
+        $base    = (new AccountingSettings($this->db))->baseCurrency();
+        $foreign = $base !== '' && $currency !== $base;
+        $any     = $foreign || array_filter(array_column($lines, 'foreign_amount'), static fn (?string $amount): bool => $amount !== null) !== [];
+
+        if (! $any) {
+            if ($base !== '' && bccomp($rate, '1', 8) !== 0) {
+                throw new PostingException(PostingError::ForeignRateMismatch, 'A journal in the base currency has the rate one.', ['rate' => $rate]);
+            }
+
+            return;
+        }
+
+        $currencies = new Currencies($this->db);
+        $decimals   = $currencies->baseDecimals();
+        $unit       = $decimals === 0 ? '1' : '0.' . str_repeat('0', $decimals - 1) . '1';
+        $tolerance  = bcmul($unit, (string) (intdiv(count($lines), 2) + 1), self::SCALE);
+
+        if ($foreign) {
+            $this->assertCurrencyUsable($currencies, $currency, $allowInactive);
+        } elseif (bccomp($rate, '1', 8) !== 0) {
+            throw new PostingException(PostingError::ForeignRateMismatch, 'A journal in the base currency has the rate one.', ['rate' => $rate]);
+        }
+
+        $foreignDebit  = '0';
+        $foreignCredit = '0';
+
+        foreach ($lines as $line) {
+            if ($line['foreign_amount'] === null) {
+                if ($foreign) {
+                    throw new PostingException(PostingError::ForeignAmountMissing, "Line {$line['line_no']} of a journal in {$currency} has no foreign amount.", ['line' => $line['line_no']]);
+                }
+
+                continue;
+            }
+
+            if ($foreign && $line['currency_code'] !== $currency) {
+                throw new PostingException(PostingError::ForeignRateMismatch, "Line {$line['line_no']} is not in the currency of the journal.", ['line' => $line['line_no']]);
+            }
+
+            if (! $foreign) {
+                if ($line['currency_code'] === $base) {
+                    throw new PostingException(PostingError::ForeignRateMismatch, "Line {$line['line_no']} carries a foreign amount in the base currency.", ['line' => $line['line_no']]);
+                }
+
+                $this->assertCurrencyUsable($currencies, (string) $line['currency_code'], $allowInactive);
+
+                continue;
+            }
+
+            $isDebit    = bccomp($line['debit'], '0', self::SCALE) > 0;
+            $baseAmount = $isDebit ? $line['debit'] : $line['credit'];
+            $expected   = Money::toBase($line['foreign_amount'], $rate, $decimals);
+
+            if (bccomp(SaleAmounts::absolute(bcsub($baseAmount, $expected, self::SCALE)), $tolerance, self::SCALE) > 0) {
+                throw new PostingException(PostingError::ForeignRateMismatch, "Line {$line['line_no']} is not what its foreign amount comes to at the rate of the journal.", ['line' => $line['line_no'], 'rate' => $rate]);
+            }
+
+            if ($isDebit) {
+                $foreignDebit = bcadd($foreignDebit, $line['foreign_amount'], self::SCALE);
+            } else {
+                $foreignCredit = bcadd($foreignCredit, $line['foreign_amount'], self::SCALE);
+            }
+        }
+
+        if ($foreign && bccomp($foreignDebit, $foreignCredit, self::SCALE) !== 0) {
+            throw new PostingException(PostingError::ForeignUnbalanced, "The journal is unbalanced in {$currency}: debit {$foreignDebit}, credit {$foreignCredit}.", ['debit' => $foreignDebit, 'credit' => $foreignCredit]);
+        }
+    }
+
+    /**
+     * @throws PostingException
+     */
+    private function assertCurrencyUsable(Currencies $currencies, string $code, bool $allowInactive): void
+    {
+        $known = $currencies->find($code);
+
+        if ($known === null || (! $known->active && ! $allowInactive)) {
+            throw new PostingException(PostingError::InvalidCurrency, "The currency {$code} is not one the books use.", ['currency' => $code]);
+        }
+    }
+
+    /**
+     * A treasury that holds a currency takes and gives only amounts in that currency: every line on its
+     * account says how much, in the currency of the treasury.
+     *
+     * @param list<array<string, mixed>> $lines
+     * @param array<int, object>         $accounts
+     *
+     * @throws PostingException
+     */
+    private function assertTreasuryCurrencies(array $lines, array $accounts): void
+    {
+        $treasuries = [];
+
+        foreach ($lines as $line) {
+            $account = $accounts[(int) $line['account_id']];
+
+            if ($account->entity_type === EntityAccountService::TREASURY) {
+                $treasuries[(int) $account->account_id] = (int) $account->entity_id;
+            }
+        }
+
+        if ($treasuries === []) {
+            return;
+        }
+
+        $held = array_column(
+            $this->db->table('treasuries')->select('treasury_id, currency_code')->whereIn('treasury_id', array_values($treasuries))->where('currency_code IS NOT NULL', null, false)->get()->getResultArray(),
+            'currency_code',
+            'treasury_id',
+        );
+
+        if ($held === []) {
+            return;
+        }
+
+        foreach ($lines as $line) {
+            $treasuryId = $treasuries[(int) $line['account_id']] ?? null;
+
+            if ($treasuryId !== null && isset($held[$treasuryId]) && ($line['foreign_amount'] === null || $line['currency_code'] !== $held[$treasuryId])) {
+                throw new PostingException(PostingError::TreasuryCurrency, "Line {$line['line_no']} is on a treasury that holds {$held[$treasuryId]}, so it needs an amount in {$held[$treasuryId]}.", ['line' => $line['line_no'], 'currency' => $held[$treasuryId]]);
+            }
+        }
     }
 
     private function normalizeRate(string $rate): string

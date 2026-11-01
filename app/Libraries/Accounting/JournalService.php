@@ -38,6 +38,11 @@ final class JournalService
         CreditRefunds::CUSTOMER_SOURCE,
         CreditRefunds::SUPPLIER_SOURCE,
     ];
+    public const FX_SOURCES = [
+        SalePostingBuilder::SOURCE_PAYMENT_FX,
+        ReceivingPostingBuilder::SOURCE_PAYMENT_FX,
+        ReceivingPostingBuilder::SOURCE_SUPPLIER_FX,
+    ];
     private const MAX_LINES      = 500;
     private const AMOUNT_PATTERN = '/^\d{1,11}(\.\d{1,4})?$/';
     private const SORTABLE       = ['journal_date', 'number', 'created_at', 'total_debit', 'status'];
@@ -427,6 +432,7 @@ final class JournalService
             ...self::TRANSFER_SOURCES,
             ...self::DOCUMENT_SOURCES,
             ...self::CREDIT_SOURCES,
+            ...self::FX_SOURCES,
         ])->countAllResults() > 0;
 
         if (! $isAutomatic) {
@@ -528,6 +534,12 @@ final class JournalService
                 if (in_array($original->source_type, self::CREDIT_SOURCES, true)) {
                     throw new AccountingException(AccountingError::CreditJournalLocked, 'The journal of an advance payment or a cash refund is taken back by cancelling the document.', ['journal_id' => $journalId]);
                 }
+
+                $base = (new AccountingSettings($this->db))->baseCurrency();
+
+                if (in_array($original->source_type, self::FX_SOURCES, true) || ($base !== '' && $original->currency_code !== $base)) {
+                    throw new AccountingException(AccountingError::FxJournalLocked, 'A journal in a foreign currency, and the journal of an exchange difference, are taken back with the document or the payment they belong to.', ['journal_id' => $journalId]);
+                }
             }
 
             if ($original->status === JournalStatus::Reversed->value) {
@@ -553,6 +565,8 @@ final class JournalService
                     costCenterId: $line->cost_center_id === null ? null : (int) $line->cost_center_id,
                     partyType: $line->party_type,
                     partyId: $line->party_id === null ? null : (int) $line->party_id,
+                    foreignAmount: $line->foreign_amount,
+                    currencyCode: $line->currency_code,
                 );
             }
 

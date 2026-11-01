@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
+use App\Libraries\Accounting\CurrencyCatalog;
 use App\Libraries\Accounting\DefaultChart;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Accounting\JournalDraft;
@@ -78,9 +79,13 @@ trait AccountingFixtureTrait
             'accounting_audit_log',
             'accounting_closed_periods',
             'accounting_opening_drafts',
+            'accounting_currency_rates',
         ] as $table) {
             $db->table($table)->truncate();
         }
+
+        $db->table('accounting_currencies')->whereNotIn('currency_code', array_keys(CurrencyCatalog::CURRENCIES))->delete();
+        $db->table('accounting_currencies')->update(['active' => 0]);
 
         $this->removeTreasuries();
         $db->query('SET FOREIGN_KEY_CHECKS = 1');

@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\DocumentCurrency;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\ResolvedCharges;
@@ -86,7 +87,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
      * @param list<SaleLine>    $lines
      * @param list<SalePayment> $payments
      */
-    private function sale(array $lines, array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?SaleDocument $origin = null, bool $override = false, bool $refundInvoice = false, ?ResolvedCharges $charges = null): SaleDocument
+    private function sale(array $lines, array $payments = [], int $type = SALE_TYPE_INVOICE, ?int $customerId = -1, bool $delivered = true, ?SaleDocument $origin = null, bool $override = false, bool $refundInvoice = false, ?ResolvedCharges $charges = null, ?DocumentCurrency $currency = null): SaleDocument
     {
         return new SaleDocument(
             saleId: 7,
@@ -103,6 +104,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
             returnOverride: $override,
             refundInvoice: $refundInvoice,
             charges: $charges,
+            currency: $currency,
         );
     }
 
@@ -1365,5 +1367,242 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $this->assertSame(PostingError::CreditNeedsCustomer, $failure->error);
 
         $this->builder->assertSettled($this->sale([$this->line('1', '100')], [$this->payment(lang('Sales.cash'), '120.00')], customerId: null, charges: new ResolvedCharges(shipping: '20.0000')));
+    }
+
+    private function foreign(string $code = 'USD', string $rate = '3.75000000', int $decimals = 2): DocumentCurrency
+    {
+        return new DocumentCurrency($code, $rate, $decimals);
+    }
+
+    private function foreignPayment(int $id, string $amount, ?string $rate, string $refund = '0', bool $adjustment = false): SalePayment
+    {
+        return new SalePayment($id, lang('Sales.cash'), $amount, $refund, $adjustment, '2026-10-21', PaymentStatus::Completed, null, null, $rate);
+    }
+
+    /**
+     * @return list<string> "account:foreign" of each line, in order.
+     */
+    private function foreignShape(JournalDraft $draft): array
+    {
+        return array_map(static fn ($line): string => $line->accountId . ':' . $line->foreignAmount . ':' . $line->currencyCode, $draft->lines);
+    }
+
+    public function testInvoice_ConvertsTheObservedDollarInvoiceLineByLineToTheBase(): void
+    {
+        $sale  = $this->sale([$this->line('2', '100', added: '30'), $this->line('1', '33.33', added: '4.9995', itemId: 2)], currency: $this->foreign());
+        $draft = $this->builder->invoice($sale, 1, 5);
+
+        $this->assertSame([
+            $this->customerAccount() . ':1006.24:0.00',
+            $this->accountId('sales_revenue') . ':0.00:874.99',
+            $this->accountId('tax_output') . ':0.00:131.25',
+        ], $this->shape($draft));
+        $this->assertSame(['USD', '3.75000000'], [$draft->currencyCode, $draft->exchangeRate]);
+        $this->assertSame([
+            $this->customerAccount() . ':268.3300:USD',
+            $this->accountId('sales_revenue') . ':233.3305:USD',
+            $this->accountId('tax_output') . ':34.9995:USD',
+        ], $this->foreignShape($draft));
+    }
+
+    public function testInvoice_LeavesTheJournalOfABaseSaleAsItWasWithNoForeignAmounts(): void
+    {
+        $draft = $this->builder->invoice($this->sale([$this->line('2', '100', added: '30')]), 1);
+
+        $this->assertSame('', $draft->currencyCode);
+        $this->assertSame('1', $draft->exchangeRate);
+        $this->assertSame([null, null], [$draft->lines[0]->foreignAmount, $draft->lines[0]->currencyCode]);
+        $this->assertSame([$this->customerAccount() . ':230.00:0.00', $this->accountId('sales_revenue') . ':0.00:200.00', $this->accountId('tax_output') . ':0.00:30.00'], $this->shape($draft));
+    }
+
+    public function testInvoice_RoundsTheTotalOfAZeroDecimalCurrencyToWholeUnits(): void
+    {
+        $sale  = $this->sale([$this->line('3', '1234.5')], currency: $this->foreign('JPY', '0.02376000', 0));
+        $draft = $this->builder->invoice($sale, 1);
+
+        $this->assertSame(['3704.0000', '3704.0000'], [$draft->lines[0]->foreignAmount, $draft->lines[1]->foreignAmount]);
+        $this->assertSame([$this->customerAccount() . ':88.01:0.00', $this->accountId('sales_revenue') . ':0.00:88.01'], $this->shape($draft));
+        $this->assertSame('JPY', $draft->currencyCode);
+    }
+
+    public function testInvoice_KeepsTheThreeDecimalsOfACurrencyThatHasThem(): void
+    {
+        $sale  = $this->sale([$this->line('3', '10.125')], currency: $this->foreign('KWD', '12.04917000', 3));
+        $draft = $this->builder->invoice($sale, 1);
+
+        $this->assertSame('30.3750', $draft->lines[0]->foreignAmount);
+        $this->assertSame([$this->customerAccount() . ':365.99:0.00', $this->accountId('sales_revenue') . ':0.00:365.99'], $this->shape($draft));
+    }
+
+    public function testInvoice_RoundsTheTotalOfATwoDecimalCurrencyToTheCentAndLeavesTheRoundingOnTheRevenue(): void
+    {
+        $sale  = $this->sale([$this->line('1', '33.335')], currency: $this->foreign('USD', '2.00000000', 2));
+        $draft = $this->builder->invoice($sale, 1);
+
+        $this->assertSame(['33.3400', '33.3400'], [$draft->lines[0]->foreignAmount, $draft->lines[1]->foreignAmount]);
+        $this->assertSame([$this->customerAccount() . ':66.68:0.00', $this->accountId('sales_revenue') . ':0.00:66.68'], $this->shape($draft));
+    }
+
+    public function testInvoice_PutsTheRoundingDifferenceOfTheConversionOnTheRevenueOfTheGoodsOnly(): void
+    {
+        $sale  = $this->sale([$this->line('1', '33.33', itemId: 1), $this->line('1', '33.33', itemId: 2), $this->line('1', '33.34', itemId: 3)], currency: $this->foreign('USD', '1.00500000', 2));
+        $draft = $this->builder->invoice($sale, 1);
+
+        $this->assertSame([$this->customerAccount() . ':100.50:0.00', $this->accountId('sales_revenue') . ':0.00:100.50'], $this->shape($draft));
+    }
+
+    public function testInvoice_MirrorsAReturnOfAForeignSaleAtTheRateOfTheSaleItTakesBack(): void
+    {
+        $currency = $this->foreign();
+        $origin   = $this->sale([$this->line('2', '100', added: '30')], currency: $currency);
+        $return   = $this->sale([$this->line('-2', '100', added: '30')], type: SALE_TYPE_RETURN, origin: $origin, currency: $currency);
+
+        $draft = $this->builder->invoice($return, 2);
+
+        $this->assertSame([
+            $this->accountId('sales_returns') . ':750.00:0.00',
+            $this->accountId('tax_output') . ':112.50:0.00',
+            $this->customerAccount() . ':0.00:862.50',
+        ], $this->shape($draft));
+        $this->assertSame('3.75000000', $draft->exchangeRate);
+    }
+
+    public function testInvoice_PostsAShippingOnlyForeignSaleWithTheRoundingOnTheShipping(): void
+    {
+        $this->setRouting(RoutingKey::SalesShipping, RoutingType::Auto, 'sales_shipping');
+        $charges = new ResolvedCharges(adjustmentLabel: '', adjustment: '0.0000', shipping: '10.0000', shippingTax: '0.0000', shippingTaxIncluded: false, shippingOptions: null);
+        $sale    = $this->sale([$this->line('1', '0')], charges: $charges, currency: $this->foreign());
+        $draft   = $this->builder->invoice($sale, 1);
+
+        $this->assertSame([$this->customerAccount() . ':37.50:0.00', $this->accountId('sales_shipping') . ':0.00:37.50'], $this->shape($draft));
+    }
+
+    public function testPayment_PostsTheMoneyAtTheRateOfThePaymentWithTheForeignAmountOnBothLines(): void
+    {
+        $sale  = $this->sale([$this->line('1', '100')], currency: $this->foreign());
+        $draft = $this->builder->payment($sale, $this->foreignPayment(3, '100.00', '3.60000000'), 1, 5);
+
+        $this->assertSame([$this->accountId('cash') . ':360.00:0.00', $this->customerAccount() . ':0.00:360.00'], $this->shape($draft));
+        $this->assertSame([$this->accountId('cash') . ':100.0000:USD', $this->customerAccount() . ':100.0000:USD'], $this->foreignShape($draft));
+        $this->assertSame(['USD', '3.60000000'], [$draft->currencyCode, $draft->exchangeRate]);
+        $this->assertSame('sale_payment', $draft->sourceType);
+    }
+
+    public function testPayment_RefusesAPaymentOfAForeignSaleThatHasNoRate(): void
+    {
+        $failure = $this->failureOf(fn () => $this->builder->payment($this->sale([$this->line('1', '100')], currency: $this->foreign()), $this->foreignPayment(3, '100.00', null), 1));
+
+        $this->assertSame(PostingError::ForeignRateMismatch, $failure->error);
+    }
+
+    public function testPayment_RefusesTheRoundingOfCashOnAForeignSale(): void
+    {
+        $failure = $this->failureOf(fn () => $this->builder->payment($this->sale([$this->line('1', '100')], currency: $this->foreign()), $this->foreignPayment(3, '0.02', '3.75000000', adjustment: true), 1));
+
+        $this->assertSame(PostingError::FxNotSupported, $failure->error);
+    }
+
+    public function testPaymentDifference_PostsTheLossWhenTheDollarCostsLessThanItDidOnTheInvoice(): void
+    {
+        $sale  = $this->sale([$this->line('1', '100')], [$this->foreignPayment(3, '100.00', '3.60000000')], currency: $this->foreign());
+        $draft = $this->builder->paymentDifference($sale, $sale->payments[0], 1, 5);
+
+        $this->assertSame([$this->accountId('fx_loss') . ':15.00:0.00', $this->customerAccount() . ':0.00:15.00'], $this->shape($draft));
+        $this->assertSame('sale_payment_fx', $draft->sourceType);
+        $this->assertSame(3, $draft->sourceId);
+        $this->assertSame(JournalEntryType::General, $draft->entryType);
+        $this->assertSame('', $draft->currencyCode);
+    }
+
+    public function testPaymentDifference_PostsTheGainWhenTheDollarCostsMoreThanItDidOnTheInvoice(): void
+    {
+        $sale  = $this->sale([$this->line('1', '100')], [$this->foreignPayment(3, '100.00', '3.90000000')], currency: $this->foreign());
+        $draft = $this->builder->paymentDifference($sale, $sale->payments[0], 1);
+
+        $this->assertSame([$this->customerAccount() . ':15.00:0.00', $this->accountId('fx_gain') . ':0.00:15.00'], $this->shape($draft));
+    }
+
+    public function testPaymentDifference_IsNothingWhenThePaymentIsAtTheRateOfTheInvoice(): void
+    {
+        $sale = $this->sale([$this->line('1', '100')], [$this->foreignPayment(3, '100.00', '3.75000000')], currency: $this->foreign());
+
+        $this->assertNull($this->builder->paymentDifference($sale, $sale->payments[0], 1));
+    }
+
+    public function testPaymentDifference_IsNothingForABaseSale(): void
+    {
+        $sale = $this->sale([$this->line('1', '100')], [$this->payment(lang('Sales.cash'), '115.00')]);
+
+        $this->assertNull($this->builder->paymentDifference($sale, $sale->payments[0], 1));
+    }
+
+    public function testPaymentDifference_SettlesTheWholeInvoiceByTheRateOfTheInvoiceAcrossPartPayments(): void
+    {
+        $sale = $this->sale([$this->line('2', '100', added: '30'), $this->line('1', '33.33', added: '4.9995', itemId: 2)], [
+            $this->foreignPayment(1, '100.00', '3.75000000'),
+            $this->foreignPayment(2, '100.00', '3.60000000'),
+            $this->foreignPayment(3, '68.33', '3.90000000'),
+        ], currency: $this->foreign());
+
+        $this->assertNull($this->builder->paymentDifference($sale, $sale->payments[0], 1));
+        $this->assertSame([$this->accountId('fx_loss') . ':15.00:0.00', $this->customerAccount() . ':0.00:15.00'], $this->shape($this->builder->paymentDifference($sale, $sale->payments[1], 1)));
+        $this->assertSame([$this->customerAccount() . ':10.25:0.00', $this->accountId('fx_gain') . ':0.00:10.25'], $this->shape($this->builder->paymentDifference($sale, $sale->payments[2], 1)));
+
+        $settled  = '0';
+        $customer = $this->customerAccount();
+
+        foreach ($sale->payments as $payment) {
+            foreach ([$this->builder->payment($sale, $payment, 1), $this->builder->paymentDifference($sale, $payment, 1)] as $draft) {
+                foreach ($draft?->lines ?? [] as $line) {
+                    if ($line->accountId === $customer) {
+                        $settled = bcadd($settled, bcsub($line->credit, $line->debit, 2), 2);
+                    }
+                }
+            }
+        }
+
+        $this->assertSame('1006.24', $settled);
+    }
+
+    public function testPaymentDifference_MirrorsARefundOfAForeignSale(): void
+    {
+        $sale = $this->sale([$this->line('1', '100')], [$this->foreignPayment(1, '100.00', '3.75000000'), $this->foreignPayment(2, '-100.00', '3.60000000')], currency: $this->foreign());
+
+        $draft = $this->builder->paymentDifference($sale, $sale->payments[1], 1);
+
+        $this->assertSame([$this->customerAccount() . ':15.00:0.00', $this->accountId('fx_gain') . ':0.00:15.00'], $this->shape($draft));
+        $this->assertSame([$this->customerAccount() . ':360.00:0.00', $this->accountId('cash') . ':0.00:360.00'], $this->shape($this->builder->payment($sale, $sale->payments[1], 1)));
+    }
+
+    public function testPaymentDifference_SkipsAPaymentThatIsNotCompletedAndOneLeftOnCredit(): void
+    {
+        $sale = $this->sale([$this->line('1', '100')], [
+            new SalePayment(1, lang('Sales.cash'), '40.00', '0', false, '2026-10-21', PaymentStatus::Incomplete, null, null, '3.60000000'),
+            new SalePayment(2, lang('Sales.due'), '60.00', '0', false, '2026-10-21', PaymentStatus::Completed, null, null, '3.60000000'),
+            $this->foreignPayment(3, '100.00', '3.60000000'),
+        ], currency: $this->foreign());
+
+        $this->assertNull($this->builder->paymentDifference($sale, $sale->payments[0], 1));
+        $this->assertNull($this->builder->paymentDifference($sale, $sale->payments[1], 1));
+        $this->assertSame([$this->accountId('fx_loss') . ':15.00:0.00', $this->customerAccount() . ':0.00:15.00'], $this->shape($this->builder->paymentDifference($sale, $sale->payments[2], 1)));
+    }
+
+    public function testPaymentDifference_RefusesWhenTheRoutingOfExchangeLossesHasNoAccount(): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'fx.loss')->update(['account_id' => null]);
+        $sale = $this->sale([$this->line('1', '100')], [$this->foreignPayment(3, '100.00', '3.60000000')], currency: $this->foreign());
+
+        $failure = $this->failureOf(fn () => $this->builder->paymentDifference($sale, $sale->payments[0], 1));
+
+        $this->assertSame(PostingError::FxAccountsMissing, $failure->error);
+    }
+
+    public function testPaymentDifference_RoundsEachPartOnTheDecimalsOfTheBase(): void
+    {
+        $sale = $this->sale([$this->line('1', '10.125')], [$this->foreignPayment(3, '10.125', '12.00000000')], currency: $this->foreign('KWD', '12.04917000', 3));
+
+        $draft = $this->builder->paymentDifference($sale, $sale->payments[0], 1);
+
+        $this->assertSame([$this->accountId('fx_loss') . ':0.50:0.00', $this->customerAccount() . ':0.00:0.50'], $this->shape($draft));
     }
 }

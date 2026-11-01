@@ -23,7 +23,7 @@ final class SaleLoader
     public function load(int $saleId, bool $withOrigin = true): ?SaleDocument
     {
         $sale = $this->db->table('sales')
-            ->select('sale_id, sale_time, invoice_date, customer_id, sale_status, sale_type, branch_id, delivered, return_of_sale_id, return_document, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_amount')
+            ->select('sale_id, sale_time, invoice_date, customer_id, sale_status, sale_type, branch_id, delivered, return_of_sale_id, return_document, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_amount, currency_code, currency_rate')
             ->where('sale_id', $saleId)
             ->get()
             ->getRow();
@@ -52,6 +52,7 @@ final class SaleLoader
             returnOverride: $withOrigin && $sale->return_of_sale_id === null && (new ReturnOverride($this->db))->exists($saleId),
             refundInvoice: $sale->return_document === ReturnDocument::RefundInvoice->storedValue(),
             charges: $this->charges($sale),
+            currency: (new Currencies($this->db))->stored($sale->currency_code, $sale->currency_rate),
         );
     }
 
@@ -134,7 +135,7 @@ final class SaleLoader
         $payments = [];
 
         foreach ($this->db->table('sales_payments')
-            ->select('payment_id, payment_type, payment_amount, cash_refund, cash_adjustment, payment_time, payment_status, treasury_id, treasury_branch_id')
+            ->select('payment_id, payment_type, payment_amount, cash_refund, cash_adjustment, payment_time, payment_status, treasury_id, treasury_branch_id, currency_rate')
             ->where('sale_id', $saleId)
             ->orderBy('payment_id', 'ASC')
             ->get()
@@ -149,6 +150,7 @@ final class SaleLoader
                 status: PaymentStatus::fromStored($row->payment_status),
                 treasuryId: $row->treasury_id === null ? null : (int) $row->treasury_id,
                 treasuryBranchId: $row->treasury_branch_id === null ? null : (int) $row->treasury_branch_id,
+                rate: $row->currency_rate === null ? null : bcadd((string) $row->currency_rate, '0', 8),
             );
         }
 

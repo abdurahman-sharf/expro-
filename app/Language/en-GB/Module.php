@@ -7,6 +7,8 @@ return [
     'accounting_cheques_desc'      => 'Cheques received from customers and paid to suppliers, cheque books and the cheque reports',
     'accounting_cost_centers'      => 'Cost Centers',
     'accounting_cost_centers_desc' => 'View and manage cost centers.',
+    'accounting_currencies'        => 'Currencies',
+    'accounting_currencies_desc'   => 'View and manage currencies and their rates.',
     'accounting_debit_notes'       => 'Sales Debit Notes',
     'accounting_debit_notes_desc'  => 'Raise what a customer owes without an invoice, and take a debit note back.',
     'accounting_journals'          => 'Journal Entries',

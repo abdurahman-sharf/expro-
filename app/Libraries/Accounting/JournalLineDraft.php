@@ -12,6 +12,8 @@ final readonly class JournalLineDraft
         public ?int $costCenterId = null,
         public ?string $partyType = null,
         public ?int $partyId = null,
+        public ?string $foreignAmount = null,
+        public ?string $currencyCode = null,
     ) {
     }
 }

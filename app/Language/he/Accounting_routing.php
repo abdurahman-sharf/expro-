@@ -25,6 +25,8 @@ return [
     'item_cheques_payable'          => '',
     'item_cheques_receivable'       => '',
     'item_fiscal_retained_earnings' => '',
+    'item_fx_gain'                  => '',
+    'item_fx_loss'                  => '',
     'item_giftcards_liability'      => '',
     'item_inventory_locations'      => '',
     'item_purchases_adjustment'     => '',

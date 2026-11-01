@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use Closure;
 use CodeIgniter\Database\BaseConnection;
 
 /**
@@ -13,16 +14,27 @@ use CodeIgniter\Database\BaseConnection;
  * puts the whole amount on the customer, the cost of what was delivered, and one journal for
  * each payment, which settles the customer. A sale without a customer is posted to the
  * account of counter customers instead, which must be settled in full.
+ *
+ * A sale in a foreign currency is built in the amounts of its own currency and then converted line by
+ * line to the base currency at the rate captured for it, the rounding falling on the goods (ForeignConversion).
+ * Its payments are posted at the rate of the day they were made, in a journal of their own, and what is
+ * left between that and what the document owed at its own rate is one more journal, the exchange
+ * difference, tied to the payment by its source and taken back with it.
  */
 final class SalePostingBuilder
 {
-    public const SOURCE_SALE    = 'sale';
-    public const SOURCE_PAYMENT = 'sale_payment';
-    private const TOLERANCE     = '0.005';
+    public const SOURCE_SALE       = 'sale';
+    public const SOURCE_PAYMENT    = 'sale_payment';
+    public const SOURCE_PAYMENT_FX = 'sale_payment_fx';
+    private const TOLERANCE        = '0.005';
 
+    /**
+     * @param (Closure(): int)|null $baseDecimals The decimals the base currency is kept in, asked only when a foreign document needs them.
+     */
     public function __construct(
         private readonly RoutingResolver $resolver,
         private readonly int $decimals = 2,
+        private readonly ?Closure $baseDecimals = null,
     ) {
     }
 
@@ -32,7 +44,7 @@ final class SalePostingBuilder
      */
     public static function forDatabase(BaseConnection $db): self
     {
-        return new self(new RoutingResolver($db), totals_decimals());
+        return new self(new RoutingResolver($db), totals_decimals(), static fn (): int => (new Currencies($db))->baseDecimals());
     }
 
     /**
@@ -88,7 +100,7 @@ final class SalePostingBuilder
             ? $this->mirror($customerSide, $incomeSide, $discount, $figures['discount'], $against)
             : $this->forward($customerSide, $incomeSide, $discount, $figures['discount'], $against);
 
-        return new JournalDraft(
+        $draft = new JournalDraft(
             date: $sale->date,
             lines: $lines,
             sourceType: self::SOURCE_SALE,
@@ -100,6 +112,15 @@ final class SalePostingBuilder
             branchId: $sale->branchId,
             entryType: JournalEntryType::Revenue,
         );
+
+        if ($sale->currency === null) {
+            return $draft;
+        }
+
+        $goods = bccomp($goods, '0', SaleAmounts::SCALE) !== 0 ? RoutingKey::SalesRevenue : RoutingKey::SalesShipping;
+        $goods = $sale->isReturn() && $goods === RoutingKey::SalesRevenue ? RoutingKey::SalesReturns : $goods;
+
+        return ForeignConversion::toBase($draft, $sale->currency, $this->baseDecimalsOf(), ForeignConversion::indexOf($draft, $this->required($goods)));
     }
 
     /**
@@ -224,6 +245,10 @@ final class SalePostingBuilder
             return null;
         }
 
+        if ($sale->currency !== null && $payment->cashAdjustment) {
+            throw new PostingException(PostingError::FxNotSupported, 'The rounding of cash is not supported on a document in a foreign currency.', ['what' => 'cash_adjustment', 'sale_id' => $sale->saleId]);
+        }
+
         $receivable = $this->receivableAccount($sale);
 
         if ($payment->cashAdjustment) {
@@ -264,7 +289,7 @@ final class SalePostingBuilder
             ? [new JournalLineDraft($account, debit: $magnitude), new JournalLineDraft($receivable, credit: $magnitude)]
             : [new JournalLineDraft($receivable, debit: $magnitude), new JournalLineDraft($account, credit: $magnitude)];
 
-        return new JournalDraft(
+        $draft = new JournalDraft(
             date: $payment->date,
             lines: $lines,
             sourceType: self::SOURCE_PAYMENT,
@@ -276,6 +301,148 @@ final class SalePostingBuilder
             branchId: $sale->branchId,
             entryType: JournalEntryType::General,
         );
+
+        if ($sale->currency === null) {
+            return $draft;
+        }
+
+        return ForeignConversion::toBase($draft, $this->currencyOfPayment($sale, $payment), $this->baseDecimalsOf(), 0);
+    }
+
+    /**
+     * The journal of what a payment of a foreign document leaves over: the customer is owed or owes the
+     * amount in the currency of the document at the rate of the document, while the money moved at the rate
+     * of the day of the payment. What the document's rate says the customer's balance falls by, from the
+     * payments before it and this one added together so that the payments of a document never drift apart
+     * from its total by a rounding unit, less what the payment journal moved, is posted to the account
+     * of exchange losses when the customer's balance falls by more than the money received, and to
+     * the account of exchange gains when it falls by less. Null when the two agree.
+     *
+     * @throws PostingException
+     */
+    public function paymentDifference(SaleDocument $sale, SalePayment $payment, int $revision, ?int $employeeId = null): ?JournalDraft
+    {
+        if ($sale->currency === null) {
+            return null;
+        }
+
+        $net = $this->bookedNet($payment);
+
+        if ($net === null) {
+            return null;
+        }
+
+        $current  = $this->currencyOfPayment($sale, $payment);
+        $decimals = $this->baseDecimalsOf();
+        $before   = '0';
+
+        foreach ($sale->payments as $earlier) {
+            if ($earlier->paymentId >= $payment->paymentId) {
+                break;
+            }
+
+            $amount = $this->bookedNet($earlier);
+
+            if ($amount !== null) {
+                $before = bcadd($before, $amount, SaleAmounts::SCALE);
+            }
+        }
+
+        $after      = bcadd($before, $net, SaleAmounts::SCALE);
+        $settled    = bcsub(Money::toBase($after, $sale->currency->rate, $decimals), Money::toBase($before, $sale->currency->rate, $decimals), SaleAmounts::SCALE);
+        $difference = bcsub($settled, Money::toBase($net, $current->rate, $decimals), SaleAmounts::SCALE);
+
+        if (bccomp($difference, '0', SaleAmounts::SCALE) === 0) {
+            return null;
+        }
+
+        $customer  = $this->receivableAccount($sale);
+        $magnitude = SaleAmounts::absolute($difference);
+        $lines     = bccomp($difference, '0', SaleAmounts::SCALE) > 0
+            ? [new JournalLineDraft($this->fxAccount(RoutingKey::FxLoss), debit: $magnitude), new JournalLineDraft($customer, credit: $magnitude)]
+            : [new JournalLineDraft($customer, debit: $magnitude), new JournalLineDraft($this->fxAccount(RoutingKey::FxGain), credit: $magnitude)];
+
+        return new JournalDraft(
+            date: $payment->date,
+            lines: $lines,
+            sourceType: self::SOURCE_PAYMENT_FX,
+            sourceId: $payment->paymentId,
+            revision: $revision,
+            origin: JournalOrigin::System,
+            employeeId: $employeeId,
+            description: 'Exchange difference of payment #' . $payment->paymentId . ' of sale #' . $sale->saleId,
+            branchId: $sale->branchId,
+            entryType: JournalEntryType::General,
+        );
+    }
+
+    /**
+     * What a payment moves, in the currency of its document and with the sign of the money: null when it
+     * books nothing (it is not completed, it is the rounding of cash, it is left on credit, or it nets to
+     * zero after the change given back).
+     *
+     * @return numeric-string|null
+     *
+     * @throws PostingException
+     */
+    private function bookedNet(SalePayment $payment): ?string
+    {
+        if (! $payment->status->posts() || $payment->cashAdjustment) {
+            return null;
+        }
+
+        $type = PaymentType::fromLabel($payment->type);
+
+        if ($type === null) {
+            throw new PostingException(PostingError::PaymentTypeUnknown, "The payment type {$payment->type} is not one posting knows.", ['payment_type' => $payment->type]);
+        }
+
+        $account = $payment->treasuryId !== null && $type->usesTreasury()
+            ? $this->resolver->accountFor(RoutingKey::Treasuries, $payment->treasuryId)
+            : $this->resolver->accountForPayment($type);
+
+        if ($account === null) {
+            return null;
+        }
+
+        $net = bcsub($payment->amount, $payment->cashRefund, SaleAmounts::SCALE);
+
+        return bccomp($net, '0', SaleAmounts::SCALE) === 0 ? null : $net;
+    }
+
+    /**
+     * @throws PostingException
+     */
+    private function currencyOfPayment(SaleDocument $sale, SalePayment $payment): DocumentCurrency
+    {
+        if ($sale->currency === null || $payment->rate === null) {
+            throw new PostingException(PostingError::ForeignRateMismatch, 'The payment of a document in a foreign currency has no rate.', ['payment_id' => $payment->paymentId]);
+        }
+
+        return new DocumentCurrency($sale->currency->code, $payment->rate, $sale->currency->decimals);
+    }
+
+    private function baseDecimalsOf(): int
+    {
+        return $this->baseDecimals === null ? 2 : ($this->baseDecimals)();
+    }
+
+    /**
+     * @throws PostingException
+     */
+    private function fxAccount(RoutingKey $key): int
+    {
+        try {
+            $account = $this->resolver->accountFor($key);
+        } catch (PostingException $failure) {
+            throw new PostingException(PostingError::FxAccountsMissing, "The routing of {$key->value} has no usable account, so the exchange difference cannot be posted.", ['routing_key' => $key->value], $failure);
+        }
+
+        if ($account === null) {
+            throw new PostingException(PostingError::FxAccountsMissing, "The routing of {$key->value} has no account, so the exchange difference cannot be posted.", ['routing_key' => $key->value]);
+        }
+
+        return $account;
     }
 
     /**

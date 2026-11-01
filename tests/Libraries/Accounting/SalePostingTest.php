@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\InterBranchBalances;
@@ -6543,5 +6544,391 @@ class SalePostingTest extends CIUnitTestCase
         $saleId = $this->save($cycle['items'], $cycle['taxes']);
 
         $this->assertSame('Sale #' . $saleId, $this->descriptionsOf($saleId)['sale/revenue']);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // A sale in a foreign currency
+    // ---------------------------------------------------------------------------------------
+
+    private function dollars(): Currencies
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => $this->daysAgo(30)]);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.60', 'effective_date' => $this->daysAgo(5)]);
+
+        return $currencies;
+    }
+
+    /**
+     * An invoice of a service for a price in dollars, dated ten days ago, when the dollar was at 3.75.
+     *
+     * @param list<array<string, mixed>> $payments
+     */
+    private function dollarInvoice(string $price = '100', array $payments = [], string $code = 'USD', ?string $typedRate = null): int
+    {
+        $this->grantInvoiceDate();
+
+        $service = $this->item('0', false);
+
+        $this->sales->useCurrency($code, $typedRate);
+
+        return $this->save([$this->line($service, 0, '1', $price)], [], $payments, SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+    }
+
+    /**
+     * @return list<string> "source:account:debit:credit" of every line of the standing journals of the sale, oldest first.
+     */
+    private function linesOfStanding(int $saleId): array
+    {
+        $lines = [];
+
+        foreach ($this->standing($saleId) as $journal) {
+            foreach ($journal['lines'] as $line) {
+                $lines[] = $journal['source'] . ':' . $line;
+            }
+        }
+
+        return $lines;
+    }
+
+    public function testSaveValue_PostsAnInvoiceInDollarsAtTheRateOfItsDateWithTheForeignAmountOnItsLines(): void
+    {
+        $this->dollars();
+
+        $saleId = $this->dollarInvoice();
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(['USD', '3.75000000'], [$this->saleRow($saleId)->currency_code, $this->saleRow($saleId)->currency_rate]);
+        $this->assertSame(['sale:' . $this->customerAccount() . ':375.00:0.00', 'sale:' . $this->accountId('sales_revenue') . ':0.00:375.00'], $this->linesOfStanding($saleId));
+
+        $journal = $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'sale', 'source_id' => $saleId])->get()->getRow();
+        $this->assertSame(['USD', '3.75000000'], [$journal->currency_code, $journal->exchange_rate]);
+
+        $lines = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journal->journal_id)->orderBy('line_no')->get()->getResult();
+        $this->assertSame(['100.0000', 'USD', '100.0000', 'USD'], [$lines[0]->foreign_amount, $lines[0]->currency_code, $lines[1]->foreign_amount, $lines[1]->currency_code]);
+        $this->assertSame('375.00', $this->balance($this->customerAccount()));
+    }
+
+    public function testSaveValue_KeepsTheCostOfTheGoodsOfAForeignSaleInTheBase(): void
+    {
+        $this->dollars();
+        $this->grantInvoiceDate();
+
+        $item = $this->item('40.00');
+
+        $this->sales->useCurrency('USD');
+        $saleId = $this->save([$this->line($item, 0, '2', '100', '40.00')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+
+        $cost = $this->standing($saleId, 'cogs');
+        $row  = $this->accountingDb()->table('accounting_journals')->where('journal_id', $cost[0]['id'])->get()->getRow();
+
+        $this->assertSame([$this->accountId('cogs') . ':80.00:0.00', $this->stockAccount() . ':0.00:80.00'], $cost[0]['lines']);
+        $this->assertSame(['SAR', '1.00000000'], [$row->currency_code, $row->exchange_rate]);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $cost[0]['id'])->where('foreign_amount IS NOT NULL', null, false)->countAllResults());
+    }
+
+    public function testUpdate_PostsAPaymentAtTheRateOfItsDayAndTheLossAsAJournalOfItsOwn(): void
+    {
+        $this->dollars();
+        $saleId = $this->dollarInvoice();
+
+        $paymentId = $this->addPayment($saleId, '100.00');
+
+        $this->assertSame(['3.60000000', 'USD'], [$this->paymentRow($saleId)->currency_rate, $this->paymentRow($saleId)->currency_code]);
+        $this->assertSame([
+            'sale:' . $this->customerAccount() . ':375.00:0.00',
+            'sale:' . $this->accountId('sales_revenue') . ':0.00:375.00',
+            'sale_payment:' . $this->accountId('cash') . ':360.00:0.00',
+            'sale_payment:' . $this->customerAccount() . ':0.00:360.00',
+            'sale_payment_fx:' . $this->accountId('fx_loss') . ':15.00:0.00',
+            'sale_payment_fx:' . $this->customerAccount() . ':0.00:15.00',
+        ], $this->linesOfStanding($saleId));
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+        $this->assertSame('15.00', $this->balance($this->accountId('fx_loss')));
+        $this->assertSame($paymentId, (int) $this->accountingDb()->table('accounting_journals')->where('source_type', 'sale_payment_fx')->get()->getRow()->source_id, 'The difference is tied to the payment by its source');
+        $this->assertTies();
+    }
+
+    public function testUpdate_PostsTheGainWhenThePaymentIsAtAHigherRateThanTheInvoice(): void
+    {
+        $currencies = $this->dollars();
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.90', 'effective_date' => date('Y-m-d')]);
+        $saleId = $this->dollarInvoice();
+
+        $this->addPayment($saleId, '100.00');
+
+        $this->assertSame(['sale_payment_fx:' . $this->customerAccount() . ':15.00:0.00', 'sale_payment_fx:' . $this->accountId('fx_gain') . ':0.00:15.00'], array_slice($this->linesOfStanding($saleId), -2));
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+        $this->assertSame('-15.00', $this->balance($this->accountId('fx_gain')));
+        $this->assertTies();
+    }
+
+    public function testUpdate_TakesEachPaymentAtTheRateOfItsOwnDayAndNeverAgain(): void
+    {
+        $currencies = $this->dollars();
+        $saleId     = $this->dollarInvoice('268.33');
+
+        $first = $this->addPayment($saleId, '100.00');
+
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.90', 'effective_date' => date('Y-m-d')]);
+        $second = $this->addPayment($saleId, '168.33');
+
+        $rates = array_column($this->accountingDb()->table('sales_payments')->select('payment_id, currency_rate')->where('sale_id', $saleId)->orderBy('payment_id')->get()->getResultArray(), 'currency_rate', 'payment_id');
+
+        $this->assertSame(['3.60000000', '3.90000000'], [$rates[$first], $rates[$second]]);
+        $this->assertSame('0.00', $this->balance($this->customerAccount()), 'The invoice is settled to the cent although the rounding of the parts differs');
+        $this->assertTies();
+        $this->assertSame('0.0000', $this->position()->open());
+    }
+
+    public function testUpdate_TakesBackTheExchangeDifferenceWithThePaymentThatCausedIt(): void
+    {
+        $this->dollars();
+        $saleId    = $this->dollarInvoice();
+        $paymentId = $this->addPayment($saleId, '100.00');
+
+        $this->removePayment($saleId, $paymentId);
+
+        $this->assertSame(['sale:' . $this->customerAccount() . ':375.00:0.00', 'sale:' . $this->accountId('sales_revenue') . ':0.00:375.00'], $this->linesOfStanding($saleId));
+        $this->assertSame('375.00', $this->balance($this->customerAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('fx_loss')));
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where('source_type', 'sale_payment_fx')->countAllResults(), 'The difference and its reversal are both kept');
+        $this->assertTies();
+    }
+
+    public function testDelete_CancelsAForeignSaleWithItsPaymentAndItsExchangeDifferenceAndMirrorsTheForeignAmounts(): void
+    {
+        $currencies = $this->dollars();
+        $item       = $this->item('0', false);
+
+        $this->sales->useCurrency('USD');
+        $saleId = $this->save([$this->line($item, 0, '1', '100')], [], [], SALE_TYPE_POS);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.90', 'effective_date' => date('Y-m-d')]);
+        $this->addPayment($saleId, '100.00');
+
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+        $this->assertSame([], $this->standing($saleId));
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('fx_gain')));
+
+        $reversal = $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->orderBy('journal_id')->get()->getRow();
+        $mirrored = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $reversal->journal_id)->get()->getResult();
+
+        $this->assertSame(['USD', '3.60000000'], [$reversal->currency_code, $reversal->exchange_rate]);
+        $this->assertSame('100.0000', $mirrored[0]->foreign_amount);
+    }
+
+    public function testSaveValue_RefusesAForeignSaleWhenTheCurrencyHasNoRateOnItsDayAndSavesNothing(): void
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => date('Y-m-d', strtotime('+3 days'))]);
+        $before = $this->countSales();
+
+        $saleId = $this->dollarInvoice();
+
+        $this->assertSame(ACCOUNTING_FAILED, $saleId);
+        $this->assertSame(AccountingError::RateMissing, $this->failure()->error);
+        $this->assertSame($before, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_RefusesASwitchedOffCurrencyAndTakesTheBaseCurrencyAsNone(): void
+    {
+        $this->dollars();
+        (new Currencies())->setActive('USD', false);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->dollarInvoice());
+        $this->assertSame(AccountingError::CurrencyInactive, $this->failure()->error);
+
+        $base = $this->dollarInvoice('100', [], 'SAR');
+
+        $this->assertGreaterThan(0, $base);
+        $this->assertNull($this->saleRow($base)->currency_code);
+        $this->assertNull($this->saleRow($base)->currency_rate);
+    }
+
+    public function testSaveValue_RefusesAForeignCurrencyWhileTheBooksAreOff(): void
+    {
+        $this->dollars();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->dollarInvoice());
+        $this->assertSame(AccountingError::ForeignCurrencyUnsupported, $this->failure()->error);
+        $this->assertSame(0, $this->countSales());
+    }
+
+    public function testSaveValue_TakesATypedRateOnlyFromAnEmployeeWhoManagesCurrencies(): void
+    {
+        $this->dollars();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->dollarInvoice('100', [], 'USD', '3.5'));
+        $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
+
+        $this->accountingDb()->table('grants')->insert(['permission_id' => AccountingGuard::CURRENCIES_MANAGE, 'person_id' => $this->employeeId, 'menu_group' => 'home']);
+
+        $saleId = $this->dollarInvoice('100', [], 'USD', '3.5');
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame('3.50000000', $this->saleRow($saleId)->currency_rate);
+        $this->assertSame(['sale:' . $this->customerAccount() . ':350.00:0.00', 'sale:' . $this->accountId('sales_revenue') . ':0.00:350.00'], $this->linesOfStanding($saleId));
+    }
+
+    public function testSaveValue_MirrorsTheRateOfTheSaleInACreditNoteWhateverTheTableSaysNow(): void
+    {
+        $currencies = $this->dollars();
+        $saleId     = $this->dollarInvoice();
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.00', 'effective_date' => date('Y-m-d')]);
+
+        $service = $this->item('0', false);
+        $return  = $this->save([$this->line($service, 0, '-1', '100')], [], [], SALE_TYPE_RETURN, -1, true, $saleId);
+
+        $this->assertGreaterThan(0, $return);
+        $this->assertSame(['USD', '3.75000000'], [$this->saleRow($return)->currency_code, $this->saleRow($return)->currency_rate]);
+        $this->assertSame(['sale:' . $this->accountId('sales_returns') . ':375.00:0.00', 'sale:' . $this->customerAccount() . ':0.00:375.00'], $this->linesOfStanding($return));
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+    }
+
+    public function testSaveValue_RefusesAReturnInAnotherCurrencyThanTheSaleItTakesBack(): void
+    {
+        $this->dollars();
+        (new Currencies())->setActive('EUR', true);
+        $saleId  = $this->dollarInvoice();
+        $service = $this->item('0', false);
+
+        $this->sales->useCurrency('EUR');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($service, 0, '-1', '100')], [], [], SALE_TYPE_RETURN, -1, true, $saleId));
+        $this->assertSame(AccountingError::DocumentCurrencyLocked, $this->failure()->error);
+
+        $baseSale = $this->invoiceOf('100.00');
+        $this->sales->useCurrency('USD');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$this->line($service, 0, '-1', '100')], [], [], SALE_TYPE_RETURN, -1, true, $baseSale));
+        $this->assertSame(AccountingError::DocumentCurrencyLocked, $this->failure()->error);
+    }
+
+    public function testUpdate_RefusesToChangeTheCurrencyOrTheRateOfAPostedSale(): void
+    {
+        $this->dollars();
+        (new Currencies())->setActive('EUR', true);
+        $saleId = $this->dollarInvoice();
+
+        $this->assertFalse($this->sales->update($saleId, ['currency_code' => 'EUR']));
+        $this->assertSame(AccountingError::DocumentCurrencyLocked, $this->failure()->error);
+        $this->assertFalse($this->sales->update($saleId, ['currency_rate' => '9.99']));
+        $this->assertSame(AccountingError::DocumentCurrencyLocked, $this->failure()->error);
+        $this->assertFalse($this->sales->update($saleId, ['currency_code' => null]));
+        $this->assertSame(['USD', '3.75000000'], [$this->saleRow($saleId)->currency_code, $this->saleRow($saleId)->currency_rate]);
+
+        $this->assertTrue($this->sales->update($saleId, ['currency_code' => 'USD', 'currency_rate' => '3.75', 'comment' => 'same']));
+    }
+
+    public function testSaveValue_PostsAZeroDecimalCurrencyInWholeUnits(): void
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('JPY', true);
+        $currencies->rates()->add(['currency_code' => 'JPY', 'rate' => '0.02376000', 'effective_date' => $this->daysAgo(30)]);
+        $this->grantInvoiceDate();
+
+        $service = $this->item('0', false);
+        $this->sales->useCurrency('JPY');
+        $saleId = $this->save([$this->line($service, 0, '3', '1234.5')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(['sale:' . $this->customerAccount() . ':88.01:0.00', 'sale:' . $this->accountId('sales_revenue') . ':0.00:88.01'], $this->linesOfStanding($saleId));
+        $this->assertSame('3704.0000', $this->accountingDb()->table('accounting_journal_lines')->where('account_id', $this->customerAccount())->get()->getRow()->foreign_amount);
+    }
+
+    public function testSaveValue_PostsAThreeDecimalCurrencyWithItsThousandths(): void
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('KWD', true);
+        $currencies->rates()->add(['currency_code' => 'KWD', 'rate' => '12.04917000', 'effective_date' => $this->daysAgo(30)]);
+        $this->grantInvoiceDate();
+
+        $service = $this->item('0', false);
+        $this->sales->useCurrency('KWD');
+        $saleId = $this->save([$this->line($service, 0, '3', '10.125')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(['sale:' . $this->customerAccount() . ':365.99:0.00', 'sale:' . $this->accountId('sales_revenue') . ':0.00:365.99'], $this->linesOfStanding($saleId));
+        $this->assertSame('30.3750', $this->accountingDb()->table('accounting_journal_lines')->where('account_id', $this->customerAccount())->get()->getRow()->foreign_amount);
+    }
+
+    public function testSaveValue_RefusesTheRoundingOfCashOnAForeignSaleAndSavesNothing(): void
+    {
+        $this->dollars();
+        $before = $this->countSales();
+
+        $saleId = $this->dollarInvoice('100', [$this->payment(lang('Sales.cash'), '0.02', '0', 1)]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $saleId);
+        $this->assertSame(PostingError::FxNotSupported, $this->failure()->error);
+        $this->assertSame($before, $this->countSales());
+    }
+
+    public function testSaveValue_RefusesAForeignPaymentIntoATreasuryOfAnotherBranchAndSavesNothing(): void
+    {
+        $this->dollars();
+        ['treasury' => $treasury] = $this->treasuryOfAnotherBranch();
+        $before = $this->countSales();
+
+        $saleId = $this->dollarInvoice('100', [$this->payment(lang('Sales.cash'), '100.00') + ['treasury_id' => $treasury]]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $saleId);
+        $this->assertSame(PostingError::FxNotSupported, $this->failure()->error);
+        $this->assertSame($before, $this->countSales());
+    }
+
+    public function testSaveValue_RefusesAForeignSaleInAClosedPeriodAndSavesNothing(): void
+    {
+        $this->dollars();
+        $this->closeThrough($this->daysAgo(3));
+        $before = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->dollarInvoice());
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($before, $this->countSales());
+    }
+
+    public function testSaveValue_PostsAForeignSaleInTheBranchOfItsStockAndItsPaymentsToo(): void
+    {
+        $this->dollars();
+        $branch = $this->createBranch('B2');
+        $this->grantInvoiceDate();
+        $this->accountingDb()->table('grants')->insert(['person_id' => $this->employeeId, 'permission_id' => BranchGuard::ALL_BRANCHES, 'menu_group' => 'home']);
+
+        $service = $this->item('0', false);
+        $this->sales->useCurrency('USD');
+        $saleId = $this->save([$this->line($service, 0, '1', '100', '0', '0', PERCENT, $this->branchLocation($branch))], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+        $this->addPayment($saleId, '100.00');
+
+        $branches = array_unique(array_column($this->accountingDb()->table('accounting_journals')->select('branch_id')->whereIn('source_type', ['sale', 'sale_payment', 'sale_payment_fx'])->where('source_id', $saleId)->get()->getResultArray(), 'branch_id'));
+
+        $this->assertSame([(string) $branch], array_values(array_map('strval', $branches)));
+    }
+
+    public function testSaveValue_LeavesTheJournalsOfABaseSaleWithoutAForeignAmountOrACurrency(): void
+    {
+        $saleId = $this->invoiceOf('230.00', null, [$this->payment(lang('Sales.cash'), '100.00')]);
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journal_lines l')->join('accounting_journals j', 'j.journal_id = l.journal_id')->where('j.source_id', $saleId)->groupStart()->where('l.foreign_amount IS NOT NULL', null, false)->orWhere('l.currency_code IS NOT NULL', null, false)->groupEnd()->countAllResults());
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'sale_payment_fx')->countAllResults());
+        $this->assertNull($this->saleRow($saleId)->currency_code);
+    }
+
+    public function testSaveValue_TiesTheCustomerTheAccountAndTheAgingInTheBaseForAForeignInvoiceAndABaseOne(): void
+    {
+        $this->dollars();
+        $foreign = $this->dollarInvoice('268.33');
+        $this->invoiceOf('50.00');
+
+        $this->addPayment($foreign, '100.00');
+
+        $this->assertTies();
+        $this->assertSame(bcadd('1006.24', '50.00', 4) === '1056.2400' ? '1056.24' : '', bcadd($this->position()->ledgerBalance(), '375.00', 2), 'The ledger holds the open part of the foreign invoice in the base');
     }
 }
