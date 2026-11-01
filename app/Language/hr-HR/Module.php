@@ -81,6 +81,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Prodaja',
     'sales_desc'                   => 'Procesi prodaje i povrata',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Dobavljači',
     'suppliers_desc'               => 'Dodaj, ažuriraj, obriši ili traži dobavljače',
     'taxes'                        => '',

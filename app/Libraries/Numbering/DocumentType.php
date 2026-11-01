@@ -25,9 +25,9 @@ enum DocumentType: string
     case Revenue         = 'revenue';
     case SalesDebitNote  = 'sales_debit_note';
 
-    case StockPermitAdd      = 'stock_permit_add';
-    case StockPermitIssue    = 'stock_permit_issue';
-    case StockPermitTransfer = 'stock_permit_transfer';
+    case StockPermitAdd      = 'permit_in';
+    case StockPermitIssue    = 'permit_out';
+    case StockPermitTransfer = 'permit_transfer';
     case Stocktake           = 'stocktake';
     case StockRequest        = 'stock_request';
 

@@ -81,6 +81,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Sales',
     'sales_desc'                   => 'Process Sales and Returns.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Suppliers',
     'suppliers_desc'               => 'Add, Update, Delete, and Search Suppliers.',
     'taxes'                        => 'Taxes',

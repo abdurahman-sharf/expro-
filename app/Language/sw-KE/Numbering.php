@@ -26,6 +26,9 @@ return [
     'type_debit_note'         => '',
     'type_expense'            => '',
     'type_paid_cheque'        => '',
+    'type_permit_in'          => '',
+    'type_permit_out'         => '',
+    'type_permit_transfer'    => '',
     'type_purchase'           => '',
     'type_received_cheque'    => '',
     'type_refund_invoice'     => '',
@@ -33,5 +36,7 @@ return [
     'type_sales_debit_note'   => '',
     'type_sales_invoice'      => '',
     'type_sales_quote'        => '',
+    'type_stock_request'      => '',
+    'type_stocktake'          => '',
     'type_supplier_payment'   => '',
 ];

@@ -81,6 +81,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Ventes',
     'sales_desc'                   => 'Ventes et chiffre d\'affaire.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Fournisseurs',
     'suppliers_desc'               => 'Ajouter, mettre à jour, supprimer et rechercher des fournisseurs.',
     'taxes'                        => 'Taxe',

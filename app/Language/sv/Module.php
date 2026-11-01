@@ -81,6 +81,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Försäljning',
     'sales_desc'                   => 'Process Försäljning och Returer.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Leverantörer',
     'suppliers_desc'               => 'Lägg till, uppdatera, ta bort och sök efter leverantörer.',
     'taxes'                        => 'Skatter',

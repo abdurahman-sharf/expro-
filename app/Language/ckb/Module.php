@@ -81,6 +81,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'فرۆشتن',
     'sales_desc'                   => 'پرۆسەی فرۆشتن و گەڕانەوە.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'دابینکەران',
     'suppliers_desc'               => 'زیادکردن، نوێکردنەوە، سڕینەوە و گەڕان بەدوای دابینکەران.',
     'taxes'                        => 'باجەکان',

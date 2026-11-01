@@ -81,6 +81,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Продажі',
     'sales_desc'                   => 'Процес продажу та повернення.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Постачальники',
     'suppliers_desc'               => 'Додавання, оновлення, видалення та пошук постачальників.',
     'taxes'                        => 'Податки',

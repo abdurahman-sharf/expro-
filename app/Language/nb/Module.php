@@ -81,6 +81,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => '',
     'sales_desc'                   => '',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => '',
     'suppliers_desc'               => '',
     'taxes'                        => '',

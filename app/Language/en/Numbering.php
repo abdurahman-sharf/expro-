@@ -26,6 +26,9 @@ return [
     'type_debit_note'         => 'Debit note',
     'type_expense'            => 'Expense',
     'type_paid_cheque'        => 'Paid cheque',
+    'type_permit_in'          => 'Stock add permit',
+    'type_permit_out'         => 'Stock issue permit',
+    'type_permit_transfer'    => 'Stock transfer permit',
     'type_purchase'           => 'Purchase',
     'type_received_cheque'    => 'Received cheque',
     'type_refund_invoice'     => 'Refund invoice',
@@ -33,5 +36,7 @@ return [
     'type_sales_debit_note'   => 'Sales debit note',
     'type_sales_invoice'      => 'Sales invoice',
     'type_sales_quote'        => 'Quote',
+    'type_stock_request'      => 'Stock request',
+    'type_stocktake'          => 'Stocktake',
     'type_supplier_payment'   => 'Supplier payment',
 ];

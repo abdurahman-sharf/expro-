@@ -361,7 +361,7 @@ enum AccountingError: string
     case StocktakeNotFound            = 'stocktake_not_found';
     case StocktakeExists              = 'stocktake_exists';
     case StocktakeNotCounting         = 'stocktake_not_counting';
-    case StocktakeNotApproved         = 'stocktake_not_approved';
+    case StocktakeCancelled           = 'stocktake_cancelled';
     case StocktakeLinesInvalid        = 'stocktake_lines_invalid';
     case StocktakeNotCounted          = 'stocktake_not_counted';
     case StocktakeNothingToApprove    = 'stocktake_nothing_to_approve';

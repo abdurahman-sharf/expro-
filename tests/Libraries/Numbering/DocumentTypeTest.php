@@ -74,10 +74,35 @@ class DocumentTypeTest extends CIUnitTestCase
         $this->assertNotSame(DocumentType::DebitNote->value, $type->value, 'the sales debit note is not the debit note of purchases');
     }
 
-    public function testDefaultPadding_IsZeroForEveryKindButTheSalesDebitNote(): void
+    public function testDefaultPadding_IsZeroForEveryKindButTheSalesDebitNoteAndTheStockDocuments(): void
     {
+        $stock = [DocumentType::StockPermitAdd, DocumentType::StockPermitIssue, DocumentType::StockPermitTransfer, DocumentType::Stocktake, DocumentType::StockRequest];
+
         foreach (DocumentType::cases() as $type) {
-            $this->assertSame($type === DocumentType::SalesDebitNote ? 5 : 0, $type->defaultPadding(), $type->value);
+            $this->assertSame(match (true) {
+                $type === DocumentType::SalesDebitNote => 5,
+                in_array($type, $stock, true)          => 6,
+                default                                => 0,
+            }, $type->defaultPadding(), $type->value);
         }
+    }
+
+    public function testSources_PutsTheThreeStockPermitsInOneTableAndTheStocktakeAndTheRequestInTheirOwn(): void
+    {
+        foreach ([DocumentType::StockPermitAdd, DocumentType::StockPermitIssue, DocumentType::StockPermitTransfer] as $type) {
+            $this->assertSame(['stock_permits' => 'permit_id'], $type->sources(), $type->value);
+        }
+
+        $this->assertSame(['stocktakes' => 'stocktake_id'], DocumentType::Stocktake->sources());
+        $this->assertSame(['stock_requests' => 'request_id'], DocumentType::StockRequest->sources());
+    }
+
+    public function testFallback_NamesTheStockDocumentsByKindSoNoTwoKindsShowTheSameLabel(): void
+    {
+        $labels = array_map(static fn (DocumentType $type): string => $type->fallback(7), [DocumentType::StockPermitAdd, DocumentType::StockPermitIssue, DocumentType::StockPermitTransfer, DocumentType::Stocktake, DocumentType::StockRequest]);
+
+        $this->assertSame(['STK-IN 7', 'STK-OUT 7', 'STK-TRF 7', 'STKT 7', 'STK-REQ 7'], $labels);
+        $this->assertSame([], DocumentType::StockPermitAdd->bareIdSources());
+        $this->assertNull(DocumentType::StockPermitAdd->numberColumn());
     }
 }

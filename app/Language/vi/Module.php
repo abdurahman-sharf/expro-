@@ -81,6 +81,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Bán hàng',
     'sales_desc'                   => 'Xử lý Bán và Trả hàng.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Nhà cung cấp',
     'suppliers_desc'               => 'Thêm, Cập nhật, Xóa và Tìm kiếm Nhà cung cấp.',
     'taxes'                        => 'Thuế',

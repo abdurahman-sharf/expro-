@@ -81,6 +81,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Vendita',
     'sales_desc'                   => 'Elabora Vendite e Resi.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Fornitori',
     'suppliers_desc'               => 'Aggiungi, Aggiorna, Modifica, e Ricerca Fornitori.',
     'taxes'                        => 'Imposte',

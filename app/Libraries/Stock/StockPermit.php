@@ -285,7 +285,7 @@ final class StockPermit
             ->join('accounting_accounts a', 'a.account_id = p.account_id', 'left')
             ->join('people sp', 'sp.person_id = p.supplier_id', 'left')
             ->join('people cp', 'cp.person_id = p.customer_id', 'left')
-            ->join('document_numbers d', "d.source_table = 'stock_permits' AND d.source_id = p.permit_id AND d.doc_type IN ('stock_permit_add', 'stock_permit_issue', 'stock_permit_transfer')", 'left')
+            ->join('document_numbers d', "d.source_table = 'stock_permits' AND d.source_id = p.permit_id AND d.doc_type IN (" . $this->numberedAs() . ')', 'left')
             ->where('p.company_id', CompanyContext::id())
             ->where('p.permit_id', $permitId)
             ->get()
@@ -340,7 +340,7 @@ final class StockPermit
             ->join('branches tb', 'tb.branch_id = p.to_branch_id', 'left')
             ->join('stock_locations l', 'l.location_id = p.location_id')
             ->join('stock_locations tl', 'tl.location_id = p.to_location_id', 'left')
-            ->join('document_numbers d', "d.source_table = 'stock_permits' AND d.source_id = p.permit_id AND d.doc_type IN ('stock_permit_add', 'stock_permit_issue', 'stock_permit_transfer')", 'left')
+            ->join('document_numbers d', "d.source_table = 'stock_permits' AND d.source_id = p.permit_id AND d.doc_type IN (" . $this->numberedAs() . ')', 'left')
             ->where('p.company_id', CompanyContext::id());
 
         if ($branchIds !== null) {
@@ -374,6 +374,11 @@ final class StockPermit
         }
 
         return $builder;
+    }
+
+    private function numberedAs(): string
+    {
+        return implode(', ', array_map(fn (StockPermitType $type): string => $this->db->escape($type->documentType()->value), StockPermitType::cases()));
     }
 
     public function numberOf(int $permitId): string

@@ -81,6 +81,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Verkopen',
     'sales_desc'                   => 'Verkopen en retouren verwerken.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Leveranciers',
     'suppliers_desc'               => 'Leveranciers toevoegen, bijwerken, verwijderen en zoeken.',
     'taxes'                        => 'Belastingen',

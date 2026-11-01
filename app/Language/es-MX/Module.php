@@ -81,6 +81,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Ventas',
     'sales_desc'                   => 'Procesar Ventas y Devoluciones.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Proveedores',
     'suppliers_desc'               => 'Agregar, Actualizar, Borrar, y Buscar Proveedores.',
     'taxes'                        => 'Impuestos',
