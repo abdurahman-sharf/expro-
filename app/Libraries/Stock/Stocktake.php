@@ -58,12 +58,12 @@ final class Stocktake
 {
     use RunsInTransaction;
 
-    public const NOTE_MAX   = 500;
-    public const REASON_MAX = 255;
-    public const ITEMS_MAX  = 5000;
-    private const QUANTITY  = '/^\d{1,9}(\.\d{1,3})?$/';
-    private const ENTITY    = 'stocktake';
-    private const COMMENT   = 'STKT ';
+    public const NOTE_MAX         = 500;
+    public const REASON_MAX       = 255;
+    public const ITEMS_MAX        = 5000;
+    private const QUANTITY        = '/^\d{1,9}(\.\d{1,3})?$/';
+    private const ENTITY          = 'stocktake';
+    private const COMMENT         = 'STKT ';
     private const DUPLICATE_ENTRY = 1062;
 
     private BaseConnection $db;
