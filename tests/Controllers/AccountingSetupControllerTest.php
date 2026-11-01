@@ -294,12 +294,12 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->manager();
 
         $this->setConfigValue($key, '1');
-        $this->assertStringContainsString('id="' . $field . '" value="1" checked', $this->get('/accounting_settings')->getBody());
-        $this->assertStringContainsString('name="' . $field . '"', $this->get('/accounting_settings')->getBody());
+        $this->assertStringContainsString('name="' . $field . '" id="' . $field . '" value="1" checked', $this->get('/accounting_settings')->getBody(), 'the switch posts under the name the controller reads');
+        $this->assertStringContainsString('<input type="hidden" name="' . $field . '" value="0">', $this->get('/accounting_settings')->getBody());
 
         $this->setConfigValue($key, '0');
-        $this->assertStringContainsString('id="' . $field . '" value="1"', $this->get('/accounting_settings')->getBody());
-        $this->assertStringNotContainsString('id="' . $field . '" value="1" checked', $this->get('/accounting_settings')->getBody());
+        $this->assertStringContainsString('name="' . $field . '" id="' . $field . '" value="1"', $this->get('/accounting_settings')->getBody());
+        $this->assertStringNotContainsString('name="' . $field . '" id="' . $field . '" value="1" checked', $this->get('/accounting_settings')->getBody());
     }
 
     public function testPostSave_SavesTheTaxRateOfShippingAndRefusesWhatIsNotAPercentage(): void

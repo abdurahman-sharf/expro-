@@ -14,6 +14,7 @@ use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\OSPOS;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\FailedQueryConnectionTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -1280,6 +1281,28 @@ class SaleTest extends CIUnitTestCase
     public function testGetInfo_GivesTheChargesOfACreditNoteInTheDirectionOfTheCredit(): void
     {
         $this->assertSame('-120.00', $this->amountDueWithCharges(['shipping_amount' => '20.0000'], SALE_TYPE_RETURN, '-2'));
+    }
+
+    public function testGetInfo_DoesNotRoundTheAmountDueOfASaleWithoutChargesToTheDecimalsOfTheTotals(): void
+    {
+        $this->dropReportTables();
+
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $saleId = $this->saveSaleWithDiscount($itemId, '2', '50', null);
+
+        Database::connect()->table('sales_payments')->insert(['sale_id' => $saleId, 'payment_type' => 'Cash', 'payment_amount' => '0.50', 'cash_refund' => 0, 'cash_adjustment' => 1, 'employee_id' => 1]);
+
+        $before = config(OSPOS::class)->settings;
+
+        config(OSPOS::class)->settings['currency_decimals'] = '0';
+
+        try {
+            $amountDue = bcadd((string) model(Sale::class)->get_info($saleId)->getRow()->amount_due, '0', 2);
+        } finally {
+            config(OSPOS::class)->settings = $before;
+        }
+
+        $this->assertSame('100.50', $amountDue, 'what a sale without charges owed is as it was, whatever the cash adjustment added');
     }
 
     public function testGetInfo_GivesTheAmountDueOfASaleWhoseChargesAreEmptyAsItAlwaysDid(): void
