@@ -202,7 +202,7 @@ class AccountingBackfill extends AccountingController
     private function pageOf(string $name, Closure $fetch): array
     {
         $asked = $this->request->getGet($name);
-        $page  = is_string($asked) && ctype_digit($asked) ? min(max(1, (int) $asked), self::PAGE_MAX) : 1;
+        $page  = is_string($asked) ? min(max(1, (int) $asked), self::PAGE_MAX) : 1;
         $rows  = $fetch(($page - 1) * self::PAGE_SIZE);
         $last  = max(1, (int) ceil($rows['total'] / self::PAGE_SIZE));
 

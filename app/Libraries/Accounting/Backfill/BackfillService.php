@@ -747,28 +747,20 @@ final class BackfillService
      */
     private function openingBranches(?int $employeeId, ?int $batchId): array
     {
+        $scope = $batchId === null ? $this->branches->allowedBranchIds($employeeId) : $this->batches->readyBranches($batchId);
+
+        if ($scope === []) {
+            return [];
+        }
+
         $builder = $this->db->table('branches')->select('branch_id, code')->where('company_id', CompanyContext::id());
 
-        if ($batchId !== null) {
-            $writing = $this->batches->readyBranches($batchId);
-
-            if ($writing === []) {
-                return [];
-            }
-
-            $builder->whereIn('branch_id', $writing);
-        } else {
+        if ($batchId === null) {
             $builder->where('active', 1);
+        }
 
-            $allowed = $this->branches->allowedBranchIds($employeeId);
-
-            if ($allowed !== null) {
-                if ($allowed === []) {
-                    return [];
-                }
-
-                $builder->whereIn('branch_id', $allowed);
-            }
+        if ($scope !== null) {
+            $builder->whereIn('branch_id', $scope);
         }
 
         return $builder->orderBy('branch_id', 'ASC')->get()->getResult();

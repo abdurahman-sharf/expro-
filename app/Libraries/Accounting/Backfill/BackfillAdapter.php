@@ -9,7 +9,6 @@ use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\StockMovement;
-use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseConnection;
 
 /**
@@ -137,8 +136,8 @@ abstract class BackfillAdapter
 
         return $this->db->query(
             'SELECT 1 FROM ' . $this->db->prefixTable('accounting_journals') . ' j JOIN ' . $this->db->prefixTable($table) . " d ON d.{$key} = ?"
-            . ' WHERE j.company_id = ? AND j.source_type = ? AND j.source_id IN (' . implode(',', $locations) . ') AND j.status = ? AND j.posted_at > d.' . $savedColumn . ' LIMIT 1',
-            [$documentId, CompanyContext::id(), OpeningStock::SOURCE, JournalStatus::Posted->value],
+            . ' WHERE j.source_type = ? AND j.source_id IN (' . implode(',', $locations) . ') AND j.status = ? AND j.posted_at > d.' . $savedColumn . ' LIMIT 1',
+            [$documentId, OpeningStock::SOURCE, JournalStatus::Posted->value],
         )->getRow() !== null;
     }
 
@@ -177,7 +176,7 @@ abstract class BackfillAdapter
                 continue;
             }
 
-            $early = $step->draft->branchId === null ? null : $this->gate->refusalOf($step->draft->date, $step->draft->branchId);
+            $early = $this->gate->refusalOf($step->draft->date, (int) $step->draft->branchId);
 
             if ($early !== null) {
                 return BackfillPlan::refused($early, $source, $step->draft->sourceType . ' ' . $step->draft->date);

@@ -3,9 +3,11 @@
 namespace Tests\Libraries\Accounting\Backfill;
 
 use ReflectionMethod;
+use App\Models\Expense;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\TaxReport;
+use App\Libraries\Accounting\Backfill\BackfillBatch;
 use App\Libraries\Accounting\Backfill\BackfillService;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
@@ -325,7 +327,11 @@ final class BackfillServiceTest extends CIUnitTestCase
         $second = $this->legacyExpense('200', '0', '2026-03-13');
         $third  = $this->legacyExpense('300', '0', '2026-03-14');
 
-        $batch = $this->previewed(['chunk_size' => 1]);
+        $this->legacyExpense('0.01', '0', '2019-03-14');
+
+        $batch = $this->previewed(['chunk_size' => 1, 'from' => '2019-01-01', 'to' => '2026-12-31']);
+
+        $this->assertSame([3, 1], [$batch->readyCount, $batch->refusedCount]);
 
         $this->backfill->approve($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
         $this->accountingDb()->table('expenses')->where('expense_id', $second)->update(['amount' => '999']);
@@ -609,6 +615,15 @@ final class BackfillServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_backfill_batches'));
 
         $this->assertGreaterThan(0, $this->backfill->create(['name' => 'Mine', 'from' => '2026-01-01', 'to' => '2026-12-31', 'branch_id' => 1], $local));
+    }
+
+    public function testBatches_ListsNothingForAnEmployeeWhoWorksInNoBranch(): void
+    {
+        $this->legacyExpense();
+        $this->previewed();
+
+        $this->assertSame([], $this->backfill->batches($this->employeeWithGrants([AccountingGuard::BACKFILL_MANAGE], [])));
+        $this->assertCount(1, $this->backfill->batches($this->backfillManager));
     }
 
     public function testBatch_IsHiddenFromAnEmployeeWhoDoesNotWorkInItsBranch(): void
@@ -1111,6 +1126,7 @@ final class BackfillServiceTest extends CIUnitTestCase
 
         $this->assertSame(['opening_missing:B2'], $this->backfill->approvalBlockers($this->backfillManager));
         $this->assertSame([], $this->backfill->approvalBlockers($local));
+        $this->assertSame([], $this->backfill->approvalBlockers($this->employeeWithGrants([AccountingGuard::BACKFILL_MANAGE], [])));
         $this->assertSame([], $this->backfill->approvalBlockers($this->backfillManager, $inHeadquarters->id));
 
         $this->backfill->cancel($inHeadquarters->id, $this->backfillManager);
@@ -1181,10 +1197,39 @@ final class BackfillServiceTest extends CIUnitTestCase
 
         $second = $this->legacyExpense('200', '0', '2026-03-13');
         $batch  = $this->previewed(['chunk_size' => 2]);
-        $other  = $this->openSecondConnection();
+
+        $this->assertSame('0', $this->approveInAnotherProcessWhileSomeoneEdits($batch, $second));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'expense')->where('status', 'posted')->countAllResults());
+        $this->assertSame(BackfillStatus::Approving, $this->statusOf($batch->id));
+        $this->assertSame(0, $this->backfill->batch($batch->id, $this->backfillManager)->approvedCount);
+    }
+
+    public function testApprove_ResumedByAnotherProcessReadsEveryDocumentOfAChunkOnlyAfterHoldingTheLocksOfThemAll(): void
+    {
+        $this->legacyExpense('100', '0', '2026-03-12');
+        $this->legacyExpense('150', '0', '2026-03-13');
+        $this->legacyExpense('200', '0', '2026-03-14');
+
+        $last  = $this->legacyExpense('250', '0', '2026-03-15');
+        $batch = $this->previewed(['chunk_size' => 2]);
+
+        $this->backfill->approve($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+
+        $this->assertSame('0', $this->approveInAnotherProcessWhileSomeoneEdits($batch, $last));
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where('source_type', 'expense')->where('status', 'posted')->countAllResults());
+        $this->assertSame(2, $this->backfill->batch($batch->id, $this->backfillManager)->approvedCount);
+    }
+
+    /**
+     * Holds the row of an expense, changed and not saved yet, while another process approves the batch, lets that
+     * process wait for it, saves the change and returns what the process says: 1 when the batch was approved.
+     */
+    private function approveInAnotherProcessWhileSomeoneEdits(BackfillBatch $batch, int $expenseId): string
+    {
+        $other = $this->openSecondConnection();
 
         $other->transStart();
-        $other->table('expenses')->where('expense_id', $second)->update(['amount' => '999']);
+        $other->table('expenses')->where('expense_id', $expenseId)->update(['amount' => '999']);
 
         $worker = $this->startWorker('backfillApprove', [(string) $batch->id, (string) $batch->fingerprint, (string) $this->backfillManager]);
 
@@ -1195,10 +1240,7 @@ final class BackfillServiceTest extends CIUnitTestCase
             $other->close();
         }
 
-        $this->assertSame('0', $this->finishWorker($worker));
-        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'expense')->where('status', 'posted')->countAllResults());
-        $this->assertSame(BackfillStatus::Approving, $this->statusOf($batch->id));
-        $this->assertSame(0, $this->backfill->batch($batch->id, $this->backfillManager)->approvedCount);
+        return $this->finishWorker($worker);
     }
 
     public function testApprove_WaitsForTheChangeOfACustomerThatIsRunning(): void
@@ -1280,6 +1322,119 @@ final class BackfillServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'sale_payment')->where('source_id', $paymentId)->where('status', 'posted')->countAllResults());
         $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'sale')->where('source_id', $saleId)->where('entry_type', 'revenue')->countAllResults());
         $this->assertTies();
+    }
+
+    public function testApprove_LeavesAPastSaleThatIsCancelledAfterwardsToBeReversedWithItsStockAndKeepsTheNumbers(): void
+    {
+        [$saleId, $cycle] = $this->whileOff(function (): array {
+            $cycle = $this->referenceInvoice();
+
+            return [$this->dateSale($this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '816.50')], SALE_TYPE_POS), '2026-03-10'), $cycle];
+        });
+
+        $creams = $this->stock($cycle['cream']);
+        $batch  = $this->previewed();
+
+        $this->approved($batch);
+
+        $posted = $this->batchJournals($batch->id);
+
+        $this->assertSame(['posted', 'posted', 'posted'], array_column($posted, 'status'));
+        $this->assertSame(2, $this->stockEntries($saleId, 'posting'));
+        $this->assertSame(0, $this->stockEntries($saleId, 'reversal'));
+
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+        $reversed = $this->batchJournals($batch->id);
+
+        $this->assertSame([], $this->standing($saleId));
+        $this->assertSame(['reversed', 'reversed', 'reversed'], array_column($reversed, 'status'));
+        $this->assertSame(array_column($posted, 'number'), array_column($reversed, 'number'));
+        $this->assertSame(array_column($posted, 'lines'), array_column($reversed, 'lines'));
+        $this->assertSame($creams + 4.0, $this->stock($cycle['cream']));
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+        $this->assertSame(2, $this->stockEntries($saleId, 'reversal'));
+        $this->assertStockTies();
+        $this->assertTies();
+    }
+
+    private function stockEntries(int $saleId, string $kind): int
+    {
+        return $this->accountingDb()->table('accounting_stock_entries')->where('source_type', 'sale')->where('source_id', $saleId)->where('kind', $kind)->countAllResults();
+    }
+
+    public function testApprove_LeavesAPastInvoiceThatIsReturnedAfterwardsToTheLivePostingAndKeepsEveryTie(): void
+    {
+        [$invoice, $cycle] = $this->whileOff(function (): array {
+            $cycle = $this->referenceInvoice();
+
+            return [$this->dateSale($this->save($cycle['items'], $cycle['taxes']), '2026-03-10'), $cycle];
+        });
+
+        $this->approved($this->previewed());
+
+        $return = $this->save([$this->line($cycle['cream'], 0, '-1', '75', '40', '10')], [], [], SALE_TYPE_RETURN, -1, true, $invoice);
+
+        $this->assertGreaterThan(0, $return);
+        $this->assertNotSame([], $this->standing($return));
+        $this->assertCount(1, $this->standing($invoice, 'revenue'));
+        $this->assertStockTies();
+        $this->assertTies();
+    }
+
+    public function testApprove_LeavesAPaymentOfAPastInvoiceThatIsRemovedAfterwardsToBeReversedByTheLivePosting(): void
+    {
+        $saleId = $this->legacyInvoice('2026-03-10', [$this->payment(lang('Sales.cash'), '300')]);
+        $batch  = $this->previewed();
+
+        $this->approved($batch);
+
+        $payment = (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->payment_id;
+        $before  = $this->balance($this->accountId('cash'));
+
+        $this->removePayment($saleId, $payment);
+
+        $paymentJournal = array_values(array_filter($this->batchJournals($batch->id), static fn (array $journal): bool => str_starts_with($journal['key'], 'sale_payment:')))[0];
+
+        $this->assertSame('reversed', $paymentJournal['status']);
+        $this->assertNotNull($paymentJournal['number']);
+        $this->assertSame(bcsub($before, '300.00', 2), $this->balance($this->accountId('cash')));
+        $this->assertTies();
+    }
+
+    public function testApprove_LeavesAnExpenseThatIsEditedAndThenDeletedAfterwardsToBeReversedAndPostedAgainByTheLivePosting(): void
+    {
+        $expenseId = $this->legacyExpense('230', '30', '2026-03-12');
+        $batch     = $this->previewed();
+
+        $this->approved($batch);
+
+        $model = model(Expense::class);
+        $row   = $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->get()->getRow();
+        $data  = [
+            'date'                => $row->date,
+            'supplier_id'         => null,
+            'supplier_tax_code'   => '',
+            'amount'              => '115.00',
+            'tax_amount'          => '15.00',
+            'payment_type'        => $row->payment_type,
+            'expense_category_id' => $row->expense_category_id,
+            'description'         => $row->description,
+            'employee_id'         => $this->backfillManager,
+            'deleted'             => 0,
+        ];
+
+        $this->assertTrue($model->save_value($data, $expenseId, $this->backfillManager), (string) $model->accountingFailure()?->getMessage());
+
+        $journals = $this->accountingDb()->table('accounting_journals')->where('source_type', 'expense')->where('source_id', $expenseId)->whereIn('status', ['posted', 'reversed'])->orderBy('journal_id', 'ASC')->get()->getResult();
+
+        $this->assertSame([['reversed', '1'], ['posted', '2']], array_map(static fn (object $journal): array => [$journal->status, (string) $journal->revision], array_values(array_filter($journals, static fn (object $journal): bool => $journal->reverses_journal_id === null))));
+        $this->assertSame((string) $this->batchJournals($batch->id)[0]['number'], (string) $journals[0]->number);
+        $this->assertSame('885.00', $this->balance($this->accountId('cash')));
+
+        $this->assertTrue($model->delete_list([$expenseId], $this->backfillManager), (string) $model->accountingFailure()?->getMessage());
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'expense')->where('source_id', $expenseId)->where('status', 'posted')->where('reverses_journal_id IS NULL', null, false)->countAllResults());
+        $this->assertSame('1000.00', $this->balance($this->accountId('cash')));
     }
 
     public function testPreview_ReadsNoFiscalYearIntoBeingForADocumentOutsideEveryYear(): void
