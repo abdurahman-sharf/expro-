@@ -43,7 +43,7 @@ final class ReportDocuments
      *
      * @return list<ReportDocument> Oldest first.
      */
-    public function read(ReportScope $scope, ?string $from, string $to, array $kinds = [], ?int $customerId = null, ?int $employeeId = null): array
+    public function read(ReportScope $scope, ?string $from, string $to, array $kinds = [], ?int $customerId = null, ?int $employeeId = null, bool $withLines = false): array
     {
         $kinds = $kinds === [] ? DocumentKind::sales() : $kinds;
 
@@ -52,13 +52,38 @@ final class ReportDocuments
         }
 
         $saleKinds = array_values(array_filter($kinds, static fn (DocumentKind $kind): bool => $kind !== DocumentKind::DebitNote));
-        $documents = $saleKinds === [] ? [] : $this->sales($scope, $from, $to, $saleKinds, $customerId, $employeeId);
+        $documents = $saleKinds === [] ? [] : $this->sales($scope, $from, $to, $saleKinds, $customerId, $employeeId, $withLines);
 
         if (in_array(DocumentKind::DebitNote, $kinds, true)) {
             $documents = [...$documents, ...$this->debitNotes($scope, $from, $to, $customerId, $employeeId)];
         }
 
-        usort($documents, static fn (ReportDocument $a, ReportDocument $b): int => [$a->date, $a->kind->value, $a->id] <=> [$b->date, $b->kind->value, $b->id]);
+        usort($documents, static fn (ReportDocument $a, ReportDocument $b): int => [$a->date, $a->id, $a->kind->value] <=> [$b->date, $b->id, $b->kind->value]);
+
+        return $documents;
+    }
+
+    /**
+     * The documents of the sales given, whatever their days, for the reports that find their sales
+     * by something other than the day of the document.
+     *
+     * @param list<int> $saleIds
+     *
+     * @return array<int, ReportDocument> By sale.
+     */
+    public function byIds(ReportScope $scope, array $saleIds, bool $withLines = false): array
+    {
+        if ($scope->isEmpty() || $saleIds === []) {
+            return [];
+        }
+
+        $documents = [];
+
+        foreach (array_chunk(array_values(array_unique($saleIds)), 400) as $chunk) {
+            foreach ($this->sales($scope, null, null, DocumentKind::sales(), null, null, $withLines, $chunk) as $document) {
+                $documents[$document->id] = $document;
+            }
+        }
 
         return $documents;
     }
@@ -77,14 +102,23 @@ final class ReportDocuments
      *
      * @return list<ReportDocument>
      */
-    private function sales(ReportScope $scope, ?string $from, string $to, array $kinds, ?int $customerId, ?int $employeeId): array
+    private function sales(ReportScope $scope, ?string $from, ?string $to, array $kinds, ?int $customerId, ?int $employeeId, bool $withLines, ?array $saleIds = null): array
     {
         [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', null);
 
         $join         = ['j.source_type = ?', 'j.entry_type = ?', $standing];
         $joinBindings = [SalePostingBuilder::SOURCE_SALE, JournalEntryType::Revenue->value, ...$standingBindings];
-        $where        = ['s.sale_status = ?', 'j.journal_date <= ?', 'j.branch_id IN (' . implode(',', array_map('intval', $scope->ids)) . ')', $this->kindCondition($kinds)];
-        $bindings     = [COMPLETED, $to];
+        $where        = ['s.sale_status = ?', 'j.branch_id IN (' . implode(',', array_map('intval', $scope->ids)) . ')', $this->kindCondition($kinds)];
+        $bindings     = [COMPLETED];
+
+        if ($to !== null) {
+            $where[]    = 'j.journal_date <= ?';
+            $bindings[] = $to;
+        }
+
+        if ($saleIds !== null) {
+            $where[] = 's.sale_id IN (' . implode(',', array_map('intval', $saleIds)) . ')';
+        }
 
         if ($from !== null) {
             $where[]    = 'j.journal_date >= ?';
@@ -113,7 +147,7 @@ final class ReportDocuments
             [$this->counterAccountId(), ...$joinBindings, ...$bindings],
         )->getResult();
 
-        return $this->documents($rows);
+        return $this->documents($rows, $withLines);
     }
 
     /**
@@ -149,7 +183,7 @@ final class ReportDocuments
      *
      * @return list<ReportDocument>
      */
-    private function documents(array $rows): array
+    private function documents(array $rows, bool $withLines): array
     {
         if ($rows === []) {
             return [];
@@ -216,6 +250,8 @@ final class ReportDocuments
                 returnedByRefund: $returns[$saleId]['refund'] ?? Amounts::ZERO,
                 figures: $isReturn ? null : new InvoiceFigures($saleId, $date, (int) $row->sale_type, $figures['total'], $paid[$saleId] ?? Amounts::ZERO, $applied[$saleId] ?? Amounts::ZERO, $returns[$saleId]['all'] ?? Amounts::ZERO, $row->due_date === null ? $date : (string) $row->due_date, $row->payment_terms_days === null ? null : (int) $row->payment_terms_days),
                 originId: $sale->returnOfSaleId,
+                headerCharges: Amounts::signed($sale->charges?->addedToTotal() ?? Amounts::ZERO, $sign),
+                lines: $withLines ? $sale->lines : [],
             );
         }
 

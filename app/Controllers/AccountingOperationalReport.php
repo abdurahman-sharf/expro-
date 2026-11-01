@@ -41,9 +41,9 @@ abstract class AccountingOperationalReport extends AccountingController
         return date('Y-m-d');
     }
 
-    protected function dates(): DateFilter
+    protected function dates(string $defaultPreset = ''): DateFilter
     {
-        return DateFilter::read($this->request->getGet(), $this->today());
+        return DateFilter::read($this->request->getGet(), $this->today(), $defaultPreset);
     }
 
     protected function isRun(): bool
@@ -137,6 +137,48 @@ abstract class AccountingOperationalReport extends AccountingController
 
         foreach (Database::connect()->table('accounting_accounts')->select('entity_id, name')->where('entity_type', 'customer')->orderBy('name', 'ASC')->limit(500)->get()->getResult() as $account) {
             $choices[(string) $account->entity_id] = (string) $account->name;
+        }
+
+        return $choices;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function categoryChoices(): array
+    {
+        $choices = ['' => lang('Accounting_operational_reports.all_categories')];
+
+        foreach (Database::connect()->table('items')->select('category')->where('deleted', 0)->where('category !=', '')->distinct()->orderBy('category', 'ASC')->limit(500)->get()->getResult() as $item) {
+            $choices[(string) $item->category] = (string) $item->category;
+        }
+
+        return $choices;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function itemChoices(): array
+    {
+        $choices = ['' => lang('Accounting_operational_reports.all_items')];
+
+        foreach (Database::connect()->table('items')->select('item_id, name')->where('deleted', 0)->orderBy('name', 'ASC')->limit(500)->get()->getResult() as $item) {
+            $choices[(string) $item->item_id] = (string) $item->name;
+        }
+
+        return $choices;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function locationChoices(): array
+    {
+        $choices = ['' => lang('Accounting_operational_reports.all_locations')];
+
+        foreach (Database::connect()->table('stock_locations')->select('location_id, location_name')->where('deleted', 0)->orderBy('location_name', 'ASC')->get()->getResult() as $location) {
+            $choices[(string) $location->location_id] = (string) $location->location_name;
         }
 
         return $choices;

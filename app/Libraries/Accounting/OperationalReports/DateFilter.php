@@ -30,7 +30,7 @@ final readonly class DateFilter
     ) {
     }
 
-    public static function read(mixed $input, string $today): self
+    public static function read(mixed $input, string $today, string $defaultPreset = ''): self
     {
         $get  = is_array($input) ? $input : [];
         $text = static fn (string $name): string => isset($get[$name]) && is_string($get[$name]) ? trim($get[$name]) : '';
@@ -38,6 +38,10 @@ final readonly class DateFilter
         $mode   = in_array($text('mode'), self::MODES, true) ? $text('mode') : 'between';
         $preset = in_array($text('preset'), self::PRESETS, true) ? $text('preset') : '';
         $echo   = [$text('from'), $text('to'), $text('date')];
+
+        if ($preset === '' && $defaultPreset !== '' && $echo === ['', '', ''] && $text('preset') === '') {
+            $preset = $defaultPreset;
+        }
 
         try {
             [$from, $to] = $preset !== '' ? self::presetRange($preset, $today) : self::range($mode, $text('from'), $text('to'), $text('date'), $today);

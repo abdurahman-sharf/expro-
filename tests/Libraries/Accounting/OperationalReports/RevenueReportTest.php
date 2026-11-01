@@ -116,10 +116,10 @@ class RevenueReportTest extends CIUnitTestCase
         $table = $this->table(RevenueGroup::Customer, true);
         $keys  = array_flip(['paid', 'unpaid', 'returned', 'total']);
 
-        $this->assertSame(['paid' => '115.0000', 'unpaid' => '0.0000', 'returned' => '0.0000', 'total' => '115.0000'], array_intersect_key($this->rowFor($table, $ids['first']), $keys));
-        $this->assertSame(['paid' => '28.7500', 'unpaid' => '172.5000', 'returned' => '28.7500', 'total' => '230.0000'], array_intersect_key($this->rowFor($table, $ids['second']), $keys));
-        $this->assertSame(['paid' => '0.0000', 'unpaid' => '-57.5000', 'returned' => '0.0000', 'total' => '-57.5000'], array_intersect_key($this->rowFor($table, $ids['note']), $keys));
-        $this->assertSame(['paid' => '0.0000', 'unpaid' => '-28.7500', 'returned' => '0.0000', 'total' => '-28.7500'], array_intersect_key($this->rowFor($table, $ids['refund']), $keys));
+        $this->assertEquals(['paid' => '115.0000', 'unpaid' => '0.0000', 'returned' => '0.0000', 'total' => '115.0000'], array_intersect_key($this->rowFor($table, $ids['first']), $keys));
+        $this->assertEquals(['paid' => '28.7500', 'unpaid' => '172.5000', 'returned' => '28.7500', 'total' => '230.0000'], array_intersect_key($this->rowFor($table, $ids['second']), $keys));
+        $this->assertEquals(['paid' => '0.0000', 'unpaid' => '-57.5000', 'returned' => '0.0000', 'total' => '-57.5000'], array_intersect_key($this->rowFor($table, $ids['note']), $keys));
+        $this->assertEquals(['paid' => '0.0000', 'unpaid' => '-28.7500', 'returned' => '0.0000', 'total' => '-28.7500'], array_intersect_key($this->rowFor($table, $ids['refund']), $keys));
         $this->assertSame(['143.7500', '86.2500', '28.7500', '258.7500'], [$table->total['paid'], $table->total['unpaid'], $table->total['returned'], $table->total['total']]);
     }
 

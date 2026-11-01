@@ -218,6 +218,12 @@ $routes->group('accounting_reports', static function (RouteCollection $routes): 
     $routes->get('revenue/csv', 'AccountingSalesReports::getRevenueCsv');
     $routes->get('clients_sales', 'AccountingSalesReports::getClients');
     $routes->get('clients_sales/csv', 'AccountingSalesReports::getClientsCsv');
+    $routes->get('item_sales', 'AccountingItemReports::getIndex');
+    $routes->get('item_sales/csv', 'AccountingItemReports::getCsv');
+    $routes->get('profit', 'AccountingProfitReports::getIndex');
+    $routes->get('profit/csv', 'AccountingProfitReports::getCsv');
+    $routes->get('item_profit', 'AccountingProfitReports::getItems');
+    $routes->get('item_profit/csv', 'AccountingProfitReports::getItemsCsv');
 });
 
 $routes->group('accounting_statements', static function (RouteCollection $routes): void {

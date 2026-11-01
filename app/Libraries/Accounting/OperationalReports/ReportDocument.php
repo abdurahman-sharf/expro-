@@ -5,16 +5,21 @@ namespace App\Libraries\Accounting\OperationalReports;
 use App\Libraries\Accounting\InvoiceFigures;
 use App\Libraries\Accounting\PaymentState;
 use App\Libraries\Accounting\ReturnState;
+use App\Libraries\Accounting\SaleLine;
 
 /**
  * A sales document as a sales report counts it: the amounts of its header in the direction of the
  * document, so that a credit note or a refund invoice carries them as negatives and a column adds up to
  * the net sales, and, for an invoice or a debit note, what has been settled on it and what was taken back
  * by refund invoices. The ledger amounts are what its journal holds, read apart from the amounts, so that
- * a report can say whether they agree.
+ * a report can say whether they agree. What its header charges add to its total is kept apart, because the
+ * lines of the document come to the total less them.
  */
 final readonly class ReportDocument
 {
+    /**
+     * @param list<SaleLine> $lines Only when the report asked for them.
+     */
     public function __construct(
         public int $id,
         public DocumentKind $kind,
@@ -38,6 +43,8 @@ final readonly class ReportDocument
         public string $returnedByRefund = '0.0000',
         public ?InvoiceFigures $figures = null,
         public ?int $originId = null,
+        public string $headerCharges = '0.0000',
+        public array $lines = [],
     ) {
     }
 
