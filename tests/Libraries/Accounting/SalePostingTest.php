@@ -5804,17 +5804,21 @@ class SalePostingTest extends CIUnitTestCase
         $item    = $this->item('0', false);
         $taxes   = new TaxDefinitions();
         $id      = $taxes->save(['tax_name' => 'VAT', 'tax_mode' => TaxDefinitions::INCLUDED, 'account_id' => $account], null, $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE]));
-        $saleId  = $this->save([$this->line($item, 0, '1', '115')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '15.00', $account)]);
-        $before  = $this->exactLines($this->standing($saleId, 'revenue')[0]['id']);
 
-        $taxes->save(['tax_mode' => TaxDefinitions::EXCLUDED, 'account_id' => ''], $id, $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE]));
+        try {
+            $saleId = $this->save([$this->line($item, 0, '1', '115')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '15.00', $account)]);
+            $before = $this->exactLines($this->standing($saleId, 'revenue')[0]['id']);
 
-        $stored = $this->accountingDb()->table('sales_items_taxes')->where('sale_id', $saleId)->get()->getRow();
+            $taxes->save(['tax_mode' => TaxDefinitions::EXCLUDED, 'account_id' => ''], $id, $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE]));
 
-        $this->assertSame(['0', (string) $account], [(string) $stored->tax_type, (string) $stored->liability_account_id]);
-        $this->assertSame($before, $this->exactLines($this->standing($saleId, 'revenue')[0]['id']));
-        $this->assertSame('15.0000', bcadd((string) $stored->item_tax_amount, '0', 4));
-        $this->accountingDb()->table('tax_definitions')->truncate();
+            $stored = $this->accountingDb()->table('sales_items_taxes')->where('sale_id', $saleId)->get()->getRow();
+
+            $this->assertSame(['0', (string) $account], [(string) $stored->tax_type, (string) $stored->liability_account_id]);
+            $this->assertSame($before, $this->exactLines($this->standing($saleId, 'revenue')[0]['id']));
+            $this->assertSame('15.0000', bcadd((string) $stored->item_tax_amount, '0', 4));
+        } finally {
+            $this->accountingDb()->table('tax_definitions')->truncate();
+        }
     }
 
     public function testSaveValue_PostsTheTaxesTheRegisterWorkedOutFromTheTaxListWithTheirModeAndAccount(): void

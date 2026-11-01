@@ -421,6 +421,7 @@ class ConfigTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Config.tax_included_desc'), $off);
         $this->assertStringContainsString(lang('Config.require_tax_1_desc'), $off);
         $this->assertMatchesRegularExpression('/id="tax_list"[^>]*href="[^"]*tax_definitions"/', $off);
+        $this->assertStringNotContainsString('for="tax_list"', $off, 'a label points at a field and not at a link');
         $this->assertDoesNotMatchRegularExpression('/name="require_tax_1"[^>]*checked/', $off);
 
         $on = view('configs/tax_config', $data + ['config' => [...config(OSPOS::class)->settings, 'tax_included' => '1', 'require_tax_1' => '1']]);
@@ -624,6 +625,24 @@ class ConfigTest extends CIUnitTestCase
         $this->assertStringContainsString('CN-00001', $page);
         $this->assertSame(1, substr_count($page, 'name="prevent_duplicates"'));
         $this->assertSame(2, substr_count($page, lang('Numbering.invoice_note')));
+    }
+
+    public function testGetIndex_OffersTheTaxListOnlyToWhoHoldsTheTaxesModule(): void
+    {
+        $withTaxes    = $this->createEmployee(grants: [['permission_id' => 'config', 'menu_group' => 'office'], ['permission_id' => 'taxes', 'menu_group' => 'office']]);
+        $withoutTaxes = $this->createEmployee(grants: [['permission_id' => 'config', 'menu_group' => 'office']]);
+
+        $this->withSession(['person_id' => $withTaxes, 'menu_group' => 'office']);
+
+        $this->assertStringContainsString('id="tax_list"', $this->settingsPage()->getBody());
+
+        $this->withSession(['person_id' => $withoutTaxes, 'menu_group' => 'office']);
+
+        $response = $this->settingsPage();
+
+        $response->assertStatus(200);
+        $this->assertStringNotContainsString('id="tax_list"', $response->getBody());
+        $this->assertStringContainsString('name="require_tax_1"', $response->getBody());
     }
 
     public function testGetIndex_KeepsTheNextNumberOfARunningSequenceNoLowerThanItsCurrentOne(): void

@@ -165,6 +165,10 @@ final class AccountService
             throw new AccountingException(AccountingError::AccountRouted, 'The account is a routing target.');
         }
 
+        if ($this->isStamped($accountId)) {
+            throw new AccountingException(AccountingError::AccountTaxStamped, 'The account is on the tax rows of saved sales, which a return of them posts to.');
+        }
+
         if ($this->db->table('accounting_accounts')->where('parent_id', $accountId)->where('active', 1)->countAllResults() > 0) {
             throw new AccountingException(AccountingError::HasActiveChildren, 'The account has active children.');
         }

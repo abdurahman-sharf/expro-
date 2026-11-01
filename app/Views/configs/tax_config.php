@@ -53,13 +53,15 @@
                 </div>
             </div>
 
-            <div class="row mb-3">
-                <?= form_label(lang('Config.tax_list'), 'tax_list', ['class' => 'col-form-label col-3 col-md-2']) ?>
-                <div class="col-9">
-                    <a id="tax_list" class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('tax_definitions'), 'attr') ?>"><?= lang('Config.tax_list') ?></a>
-                    <span class="form-text"><?= lang('Config.tax_list_desc') ?></span>
+            <?php if ($canOpenTaxList ?? true): ?>
+                <div class="row mb-3">
+                    <span class="col-form-label col-3 col-md-2"><?= lang('Config.tax_list') ?></span>
+                    <div class="col-9">
+                        <a id="tax_list" class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('tax_definitions'), 'attr') ?>"><?= lang('Config.tax_list') ?></a>
+                        <span class="form-text"><?= lang('Config.tax_list_desc') ?></span>
+                    </div>
                 </div>
-            </div>
+            <?php endif; ?>
 
             <div class="row mb-3">
                 <?= form_label(lang('Config.default_tax_rate_1'), 'default_tax_1_rate', ['class' => 'col-form-label col-3 col-md-2']) ?>

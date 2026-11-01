@@ -946,17 +946,15 @@ class SalePostingBuilderTest extends CIUnitTestCase
 
     public function testInvoice_PostsTheSameJournalAsBeforeWhenNoTaxHasAnAccountOfItsOwn(): void
     {
-        $with    = $this->builder->invoice($this->sale([$this->line('4', '75', '10', PERCENT, added: '40.50'), $this->line('2', '220', added: '66.00', itemId: 2)]), 1);
-        $without = $this->builder->invoice($this->sale([$this->line('4', '75', '10', PERCENT, added: '40.50', accounts: []), $this->line('2', '220', added: '66.00', itemId: 2, accounts: [])]), 1);
+        $draft = $this->builder->invoice($this->sale([$this->line('4', '75', '10', PERCENT, added: '40.50'), $this->line('2', '220', added: '66.00', itemId: 2)]), 1);
 
-        $this->assertSame($this->shape($with, 4), $this->shape($without, 4));
         $this->assertSame(
             [
                 $this->customerAccount() . ':816.5000:0.0000',
                 $this->accountId('sales_revenue') . ':0.0000:710.0000',
                 $this->accountId('tax_output') . ':0.0000:106.5000',
             ],
-            $this->shape($with, 4),
+            $this->shape($draft, 4),
         );
     }
 
@@ -1066,7 +1064,15 @@ class SalePostingBuilderTest extends CIUnitTestCase
 
         $draft = $this->builder->invoice($this->sale([$this->line('4', '75', '10', PERCENT, added: '40.50')]), 1);
 
-        $this->assertNotNull($draft);
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':310.5000:0.0000',
+                $this->accountId('sales_discount') . ':30.0000:0.0000',
+                $this->accountId('sales_revenue') . ':0.0000:300.0000',
+                $this->accountId('tax_output') . ':0.0000:40.5000',
+            ],
+            $this->shape($draft, 4),
+        );
     }
 
     public function testInvoice_RefusesADiscountAccountWhenOneTaxOnTheSaleIsInsideThePrice(): void

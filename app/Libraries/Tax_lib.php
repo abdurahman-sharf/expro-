@@ -226,7 +226,7 @@ class Tax_lib
             $net = bcsub($total, $rows[$index]['amount']);
         } elseif (count($includedRows) > 1) {
             $quantity = (string) $item['quantity'];
-            $net      = $this->savedAmountsOf($rows, $includedRows, $quantity)
+            $net      = $this->savedAmountsOf($rows, $includedRows)
                 ? $this->takeSavedOut($rows, $includedRows, $quantity, $total)
                 : $this->takeSeveralOut($rows, $includedRows, $total);
         }
@@ -259,7 +259,7 @@ class Tax_lib
      * @param list<array<string, mixed>> $rows
      * @param list<int>                  $indexes
      */
-    private function savedAmountsOf(array $rows, array $indexes, string $quantity): bool
+    private function savedAmountsOf(array $rows, array $indexes): bool
     {
         foreach ($indexes as $index) {
             if ($rows[$index]['saved'] === null || $rows[$index]['sold'] === null || bccomp((string) $rows[$index]['sold'], '0') === 0) {
@@ -267,7 +267,7 @@ class Tax_lib
             }
         }
 
-        return bccomp($quantity, '0') !== 0;
+        return true;
     }
 
     /**

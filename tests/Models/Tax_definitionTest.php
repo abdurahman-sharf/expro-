@@ -71,8 +71,12 @@ final class Tax_definitionTest extends CIUnitTestCase
 
     public function testForNames_AsksNothingOfTheDatabaseWhenThereAreNoNames(): void
     {
+        $database  = Database::connect();
+        $lastQuery = $database->getLastQuery();
+
         $this->assertSame([], (new Tax_definition())->forNames([]));
         $this->assertSame([], (new Tax_definition())->forNames(['', '  ']));
+        $this->assertSame($lastQuery, $database->getLastQuery(), 'no query was sent');
     }
 
     public function testKey_IgnoresTheCaseAndTheSpacesAroundAName(): void

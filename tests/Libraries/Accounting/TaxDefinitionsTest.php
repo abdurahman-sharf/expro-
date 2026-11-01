@@ -164,7 +164,7 @@ final class TaxDefinitionsTest extends CIUnitTestCase
         $this->taxes->save(['account_id' => ''], $id, $this->router);
 
         $this->assertNull($this->row($id)->liability_account_id);
-        $this->assertSame(1, $this->audited($id, 'account_changed'));
+        $this->assertSame(1, $this->audited($id, 'tax_account_changed'));
     }
 
     public function testSave_AsksForThePermissionAndEveryBranchBeforeAnAccountIsChosen(): void

@@ -56,6 +56,16 @@ class TaxesControllerTest extends CIUnitTestCase
         ]);
     }
 
+    public function testGetIndex_OffersALinkToTheTaxListToWhoHoldsTheTaxesModule(): void
+    {
+        $this->loginAsTaxesEmployee($this->createTaxesEmployee());
+
+        $response = $this->get('/taxes');
+
+        $response->assertStatus(200);
+        $this->assertMatchesRegularExpression('/<a [^>]*href="[^"]*tax_definitions"/', $response->getBody());
+    }
+
     /**
      * Regression test: `tax_code_name[]` containing `<`/`>` (the stored-XSS
      * vector) must be rejected by postSave_tax_codes before anything is saved.

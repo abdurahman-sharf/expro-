@@ -476,6 +476,26 @@ class AccountServiceTest extends CIUnitTestCase
         $this->assertNull($this->service->find($accountId));
     }
 
+    public function testDeactivate_RejectsTheAccountTheTaxRowsOfASaleWereSavedWith(): void
+    {
+        $accountId = $this->customAccount('215', '215007', 'Tax on fuel');
+        $db        = $this->accountingDb();
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $db->table('sales_items_taxes')->insert(['sale_id' => 987655, 'item_id' => 987655, 'line' => 1, 'name' => 'Fuel', 'percent' => '5.0000', 'liability_account_id' => $accountId]);
+
+        try {
+            $this->assertFailsWith(AccountingError::AccountTaxStamped, fn () => $this->service->deactivate($accountId));
+            $this->assertSame('1', (string) $this->account($accountId)->active);
+        } finally {
+            $db->table('sales_items_taxes')->where('sale_id', 987655)->delete();
+            $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        }
+
+        $this->service->deactivate($accountId);
+
+        $this->assertSame('0', (string) $this->account($accountId)->active);
+    }
+
     public function testDelete_RemovesAnUnusedCustomAccount(): void
     {
         $accountId = $this->customAccount();

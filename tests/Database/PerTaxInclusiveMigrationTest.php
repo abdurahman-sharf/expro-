@@ -5,6 +5,7 @@ namespace Tests\Database;
 use App\Database\Migrations\PerTaxInclusive;
 use App\Models\Appconfig;
 use App\Models\Sale;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -13,7 +14,6 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
-use Throwable;
 
 /**
  * @internal
@@ -122,7 +122,8 @@ final class PerTaxInclusiveMigrationTest extends CIUnitTestCase
     {
         $this->accountingDb()->table('tax_definitions')->insert(['tax_name' => 'VAT']);
 
-        $this->expectException(Throwable::class);
+        $this->expectException(DatabaseException::class);
+        $this->expectExceptionMessageMatches('/Duplicate entry/');
 
         $this->accountingDb()->table('tax_definitions')->insert(['tax_name' => 'vat']);
     }

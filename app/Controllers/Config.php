@@ -232,6 +232,7 @@ class Config extends Secure_Controller
         $data['tax_code_options'] = $this->tax_lib->get_tax_code_options();
         $data['tax_category_options'] = $this->tax_lib->get_tax_category_options();
         $data['tax_jurisdiction_options'] = $this->tax_lib->get_tax_jurisdiction_options();
+        $data['canOpenTaxList'] = $this->employee->has_grant('taxes', (int) $this->employee->get_logged_in_employee_info()->person_id);
         $data['currency_code'] = $this->config['currency_code'] ?? '';
         $data['dbVersion'] = mysqli_get_server_info($this->db->getConnection());
         $data['numbering'] = (new DocumentNumbering())->overview();

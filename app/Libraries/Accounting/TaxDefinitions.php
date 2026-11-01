@@ -97,7 +97,7 @@ final class TaxDefinitions
             }
 
             if ($accountId !== $currentAccount) {
-                $this->audit->write(self::ENTITY, (int) $definitionId, 'account_changed', $employeeId, JournalOrigin::User, ['name' => $name, 'before' => $currentAccount, 'after' => $accountId]);
+                $this->audit->write(self::ENTITY, (int) $definitionId, 'tax_account_changed', $employeeId, JournalOrigin::User, ['name' => $name, 'before' => $currentAccount, 'after' => $accountId]);
             }
 
             return (int) $definitionId;
