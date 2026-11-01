@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\HeaderCharges;
 use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\InvoiceDiscountProblem;
+use App\Libraries\ShippingTaxOption;
 use App\Libraries\Tax_lib;
 use App\Models\Enums\Rounding_mode;
 use CodeIgniter\Database\Query;
@@ -375,7 +376,7 @@ class DraftInvoiceTest extends CIUnitTestCase
         $draft = $this->draftInvoice($cycle['items']);
 
         $this->assertSame(
-            ['gross' => '740.0000', 'discount' => '30.0000', 'invoiceDiscount' => '0.0000', 'tax' => '106.5000', 'total' => '816.5000', 'shipping' => '0.0000', 'shippingTax' => '0.0000', 'adjustment' => '0.0000', 'adjustmentLabel' => ''],
+            ['gross' => '740.0000', 'discount' => '30.0000', 'invoiceDiscount' => '0.0000', 'tax' => '106.5000', 'total' => '816.5000', 'shipping' => '0.0000', 'shippingTax' => '0.0000', 'shippingTaxIncluded' => false, 'adjustment' => '0.0000', 'adjustmentLabel' => ''],
             $this->drafts->figures($this->drafts->forIssue($draft)),
         );
     }
@@ -391,7 +392,7 @@ class DraftInvoiceTest extends CIUnitTestCase
         $draft = $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, NEW_ENTRY, $cycle['discount']);
 
         $this->assertSame(
-            ['gross' => '740.0000', 'discount' => '30.0000', 'invoiceDiscount' => '71.0000', 'tax' => '95.8500', 'total' => '734.8500', 'shipping' => '0.0000', 'shippingTax' => '0.0000', 'adjustment' => '0.0000', 'adjustmentLabel' => ''],
+            ['gross' => '740.0000', 'discount' => '30.0000', 'invoiceDiscount' => '71.0000', 'tax' => '95.8500', 'total' => '734.8500', 'shipping' => '0.0000', 'shippingTax' => '0.0000', 'shippingTaxIncluded' => false, 'adjustment' => '0.0000', 'adjustmentLabel' => ''],
             $this->drafts->figures($this->drafts->forIssue($draft)),
         );
     }
@@ -416,7 +417,7 @@ class DraftInvoiceTest extends CIUnitTestCase
         $issue = $this->drafts->forIssue($draft);
 
         $this->assertSame([], $issue->items);
-        $this->assertSame(['gross' => '0.0000', 'discount' => '0.0000', 'invoiceDiscount' => '0.0000', 'tax' => '0.0000', 'total' => '0.0000', 'shipping' => '0.0000', 'shippingTax' => '0.0000', 'adjustment' => '0.0000', 'adjustmentLabel' => ''], $this->drafts->figures($issue));
+        $this->assertSame(['gross' => '0.0000', 'discount' => '0.0000', 'invoiceDiscount' => '0.0000', 'tax' => '0.0000', 'total' => '0.0000', 'shipping' => '0.0000', 'shippingTax' => '0.0000', 'shippingTaxIncluded' => false, 'adjustment' => '0.0000', 'adjustmentLabel' => ''], $this->drafts->figures($issue));
     }
 
     public function testForIssue_WorksTheTaxesOutWithTheScaleOfTheRegisterWhateverScaleTheCallerLeftAndPutsItBack(): void
@@ -449,12 +450,48 @@ class DraftInvoiceTest extends CIUnitTestCase
             $issue = $this->drafts->forIssue($draft);
 
             $this->assertSame(
-                ['gross' => '740.0000', 'discount' => '30.0000', 'invoiceDiscount' => '0.0000', 'tax' => '106.5000', 'total' => '826.5000', 'shipping' => '20.0000', 'shippingTax' => '0.0000', 'adjustment' => '-10.0000', 'adjustmentLabel' => 'Handling'],
+                ['gross' => '740.0000', 'discount' => '30.0000', 'invoiceDiscount' => '0.0000', 'tax' => '106.5000', 'total' => '826.5000', 'shipping' => '20.0000', 'shippingTax' => '0.0000', 'shippingTaxIncluded' => false, 'adjustment' => '-10.0000', 'adjustmentLabel' => 'Handling'],
                 $this->drafts->figures($issue),
             );
             $this->assertSame('20.0000', $issue->headerCharges->shipping);
         } finally {
             $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping'])->delete();
+        }
+    }
+
+    public function testFigures_SaysTheTaxOnTheShippingIsOnTopOfTheAmountWhenTheDraftChargesItSo(): void
+    {
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        try {
+            $cycle = $this->taxedReference();
+            $draft = $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, headerCharges: new HeaderCharges(shipping: '100', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+            $figures = $this->drafts->figures($this->drafts->forIssue($draft));
+
+            $this->assertSame(['100.0000', '15.0000', false, '931.5000'], [$figures['shipping'], $figures['shippingTax'], $figures['shippingTaxIncluded'], $figures['total']]);
+        } finally {
+            $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_sales_shipping', 'accounting_shipping_tax_percent'])->delete();
+        }
+    }
+
+    public function testFigures_SaysTheTaxOnTheShippingIsInsideTheAmountWhenThePricesIncludeTax(): void
+    {
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        $settings = config(OSPOS::class)->settings;
+        config(OSPOS::class)->settings['tax_included'] = '1';
+
+        try {
+            $cycle = $this->taxedReference();
+            $draft = $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, headerCharges: new HeaderCharges(shipping: '100', shippingTaxOption: ShippingTaxOption::Included, shippingTaxPercent: '15'));
+            $figures = $this->drafts->figures($this->drafts->forIssue($draft));
+
+            $this->assertSame(['100.0000', '13.0435', true], [$figures['shipping'], $figures['shippingTax'], $figures['shippingTaxIncluded']]);
+        } finally {
+            config(OSPOS::class)->settings = $settings;
+            $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_sales_shipping', 'accounting_shipping_tax_percent'])->delete();
         }
     }
 }

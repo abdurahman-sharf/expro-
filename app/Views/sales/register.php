@@ -457,7 +457,7 @@ $employee        = model(Employee::class);
                             <label for="shipping" class="pos-label"><?= lang('Sales.shipping') ?></label>
                             <div class="input-group input-group-sm">
                                 <?= form_input(['name' => 'shipping', 'id' => 'shipping', 'class' => 'form-control form-control-sm', 'value' => bccomp($header_charges_entry->shipping, '0', 4) !== 0 ? $header_charges_entry->shipping : '', 'inputmode' => 'decimal', 'autocomplete' => 'off', 'aria-describedby' => 'header_charges_help']) ?>
-                                <?= form_dropdown('shipping_options', ['' => lang('Sales.shipping_options_auto'), '1' => lang('Sales.shipping_options_hidden'), '2' => lang('Sales.shipping_options_customer_address'), '3' => lang('Sales.shipping_options_customer_second_address')], (string) ($header_charges_entry->shippingOptions ?? ''), ['id' => 'shipping_options', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Sales.shipping_options')]) ?>
+                                <?= form_dropdown('shipping_options', ['' => lang('Sales.shipping_options_auto'), '1' => lang('Sales.shipping_options_hidden'), '2' => lang('Sales.shipping_options_customer_address'), '3' => lang('Sales.shipping_options_second_address')], (string) ($header_charges_entry->shippingOptions ?? ''), ['id' => 'shipping_options', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Sales.shipping_options')]) ?>
                             </div>
                             <?php if (bccomp($shipping_tax_percent, '0', 4) > 0): ?>
                                 <div class="form-check">

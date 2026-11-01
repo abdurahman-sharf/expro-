@@ -13,6 +13,7 @@ return [
     'date_from'            => '',
     'date_required'        => '',
     'date_to'              => '',
+    'debit_notes_manage'   => '',
     'empty'                => '',
     'filter'               => '',
     'form_note'            => '',

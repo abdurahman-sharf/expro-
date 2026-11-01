@@ -20,6 +20,7 @@ use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\HeaderCharges;
 use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\ShippingTaxOption;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -3249,6 +3250,65 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(COMPLETED, $this->saleStatusOf($draft));
     }
 
+    private function completeAnInvoiceWithShipping(array $posted, bool $withAddress = true): string
+    {
+        $this->registerForHeaderCharges();
+
+        if ($withAddress) {
+            $this->accountingDb()->table('people')->where('person_id', $this->customerId)->update(['address_1' => '12 Palm Street', 'address_2' => 'Warehouse Road 9', 'city' => 'Riyadh']);
+        }
+
+        $this->withSession(array_merge($this->session, ['sales_customer' => $this->customerId]));
+        $this->post('/sales/setHeaderCharges', $posted);
+        $this->carryTheChargesToTheNextRequest();
+        $this->withSession(array_merge($this->session, ['sales_customer' => $this->customerId]));
+
+        $body = $this->post('/sales/complete')->getBody();
+
+        $this->saleIds[] = (int) $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow()->sale_id;
+
+        return $body;
+    }
+
+    public function testPostComplete_PrintsTheShipToBlockWithTheAddressOfTheCustomerRightAfterTheInvoiceIsCompleted(): void
+    {
+        $body = $this->completeAnInvoiceWithShipping(['shipping' => '20', 'shipping_options' => '2']);
+
+        $this->assertStringContainsString('doc-ship-to', $body);
+        $this->assertStringContainsString('12 Palm Street', $body);
+        $this->assertStringNotContainsString('Warehouse Road 9', $body);
+    }
+
+    public function testPostComplete_PrintsTheSecondAddressInTheShipToBlockWhenTheDocumentAsksForIt(): void
+    {
+        $body = $this->completeAnInvoiceWithShipping(['shipping' => '20', 'shipping_options' => '3']);
+
+        $this->assertStringContainsString('doc-ship-to', $body);
+        $this->assertStringContainsString('Warehouse Road 9', $body);
+    }
+
+    public function testPostComplete_PrintsTheShipToBlockOfADocumentThatLeavesItToTheDocumentWhenItCarriesShipping(): void
+    {
+        $body = $this->completeAnInvoiceWithShipping(['shipping' => '20']);
+
+        $this->assertStringContainsString('doc-ship-to', $body);
+        $this->assertStringContainsString('12 Palm Street', $body);
+    }
+
+    public function testPostComplete_PrintsNoShipToBlockWhenTheDocumentAsksForNone(): void
+    {
+        $body = $this->completeAnInvoiceWithShipping(['shipping' => '20', 'shipping_options' => '1']);
+
+        $this->assertStringNotContainsString('doc-ship-to', $body);
+    }
+
+    public function testPostComplete_PrintsNoShipToBlockForAnInvoiceWithoutShipping(): void
+    {
+        $body = $this->completeAnInvoiceWithShipping(['adjustment' => '5', 'adjustment_label' => 'Fee']);
+
+        $this->assertStringNotContainsString('doc-ship-to', $body);
+    }
+
     public function testPostComplete_RefusesChargesWhoseSettingWasTurnedOffMeanwhileAndSavesNothing(): void
     {
         $this->registerForHeaderCharges();
@@ -3394,6 +3454,84 @@ class SalesControllerTest extends CIUnitTestCase
         } finally {
             $this->setConfigValue('receipt_template', 'receipt_default');
         }
+    }
+
+    private function invoiceWithCharges(): int
+    {
+        $this->startSelling();
+        $this->setConfigValue('accounting_sales_adjustment', '1');
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['taxable' => 1]);
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, headerCharges: new HeaderCharges('Handling fee', '-10', '20', ShippingTaxOption::Added, '15'));
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        return $saleId;
+    }
+
+    /**
+     * @param array<string, string> $settings
+     */
+    private function withReceiptSettings(array $settings, callable $work): void
+    {
+        $before = config(OSPOS::class)->settings;
+
+        config(OSPOS::class)->settings = [...$before, ...$settings];
+
+        try {
+            $work();
+        } finally {
+            config(OSPOS::class)->settings = $before;
+        }
+    }
+
+    #[DataProvider('receiptTemplateProvider')]
+    public function testGetReceipt_ShowsTheShippingTheTaxOnItAndTheAdjustmentOnEveryReceiptTemplate(string $template): void
+    {
+        $saleId = $this->invoiceWithCharges();
+
+        $this->withReceiptSettings(['receipt_template' => $template], function () use ($saleId): void {
+            $page = $this->get('/sales/receipt/' . $saleId);
+
+            $page->assertStatus(200);
+            $page->assertSee(lang('Sales.shipping'));
+            $page->assertSee(lang('Sales.shipping_tax'));
+            $page->assertSee('Handling fee');
+            $page->assertSee(to_currency('-10'));
+            $page->assertSee(to_currency('829.50'));
+        });
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function receiptWithTaxesProvider(): array
+    {
+        return ['the default receipt' => ['receipt_default'], 'the short receipt' => ['receipt_short']];
+    }
+
+    #[DataProvider('receiptWithTaxesProvider')]
+    public function testGetReceipt_PrintsTheChargesAfterTheSubTotalOfTheTaxBlockSoTheColumnAddsUp(string $template): void
+    {
+        $saleId = $this->invoiceWithCharges();
+
+        $this->withReceiptSettings(['receipt_template' => $template, 'receipt_show_taxes' => '1'], function () use ($saleId): void {
+            $body = $this->get('/sales/receipt/' . $saleId)->getBody();
+
+            $subTotal = strrpos($body, lang('Sales.sub_total'));
+            $shipping = strpos($body, lang('Sales.shipping') . ':');
+
+            $this->assertNotFalse($subTotal);
+            $this->assertNotFalse($shipping);
+            $this->assertLessThan($shipping, $subTotal, 'the shipping is below the sub total of the lines');
+            $this->assertLessThan(strpos($body, lang('Sales.shipping_tax') . ':'), $shipping);
+            $this->assertLessThan(strpos($body, 'Handling fee:'), strpos($body, lang('Sales.shipping_tax') . ':'));
+            $this->assertLessThan(strpos($body, to_currency('829.50')), strpos($body, 'Handling fee:'), 'the total comes last');
+        });
     }
 
     public function testReceiptEmail_ShowsTheDiscountOnTheWholeOfTheSaleAsItWasSaved(): void
@@ -4417,6 +4555,40 @@ class SalesControllerTest extends CIUnitTestCase
         $page->assertSee(to_currency('106.50'));
         $page->assertSee(lang('Sales.document_figures_note'));
         $page->assertSee('Omar Khaled');
+    }
+
+    public function testGetDocument_ShowsTheShippingAndItsTaxOfADraftWhoseShippingTaxIsOnTopOfTheAmount(): void
+    {
+        $this->supervisorForDocuments();
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        $draft = $this->save($this->taxedLines(), [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, headerCharges: new HeaderCharges(shipping: '100', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+        $page  = $this->get('/sales/document/' . $draft);
+
+        $page->assertSee(lang('Sales.shipping'));
+        $page->assertSee(lang('Sales.shipping_tax'));
+        $page->assertSee(to_currency('931.50'));
+    }
+
+    public function testGetDocument_ShowsNoSeparateShippingTaxRowForADraftWhoseShippingTaxIsInsideTheAmount(): void
+    {
+        $this->supervisorForDocuments();
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        $settings = config(OSPOS::class)->settings;
+        config(OSPOS::class)->settings['tax_included'] = '1';
+
+        try {
+            $draft = $this->save($this->taxedLines(), [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, headerCharges: new HeaderCharges(shipping: '100', shippingTaxOption: ShippingTaxOption::Included, shippingTaxPercent: '15'));
+            $page  = $this->get('/sales/document/' . $draft);
+        } finally {
+            config(OSPOS::class)->settings = $settings;
+        }
+
+        $page->assertSee(lang('Sales.shipping'));
+        $page->assertDontSee(lang('Sales.shipping_tax'));
     }
 
     public function testGetDocument_OffersTheIssueOfADraftAsAFormThatPostsWithTheTokenAndNeverAsALink(): void

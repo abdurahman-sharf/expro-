@@ -1442,7 +1442,6 @@ class Sales extends Secure_Controller
         $quoteNumber = $this->sale_lib->get_quote_number();
         $data["quote_number"] = $quoteNumber;
         $customerInfo = $this->_load_customer_data($customerId, $data);
-        $data['ship_to'] = $this->shipTo($data);
 
         if ($customerInfo != null) {
             $data["customer_comments"] = $customerInfo->comments;
@@ -1459,6 +1458,7 @@ class Sales extends Secure_Controller
         $totals = $this->sale_lib->get_totals($taxDetails[0]);
         $data['subtotal'] = $totals['subtotal'];
         $data['header_charges'] = $this->headerChargesView($totals);
+        $data['ship_to'] = $this->shipTo($data);
         $data['total'] = $totals['total'];
         $data['payments_total'] = $totals['payment_total'];
         $data['payments_cover_total'] = $totals['payments_cover_total'];

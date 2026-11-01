@@ -13,6 +13,7 @@ return [
     'date_from'            => 'From',
     'date_required'        => 'The date is required.',
     'date_to'              => 'To',
+    'debit_notes_manage'   => 'Raise sales debit notes and take them back',
     'empty'                => 'There are no debit notes.',
     'filter'               => 'Filter',
     'form_note'            => 'A debit note raises what the customer owes without an invoice. It is posted on the day entered and is never edited: it is taken back with a reason.',

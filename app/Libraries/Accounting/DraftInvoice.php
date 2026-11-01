@@ -181,7 +181,7 @@ final class DraftInvoice
      * the discount on the whole of it take off, the tax it would carry now, and the total. The tax is
      * the one worked out at this moment, so it can still change before the draft is issued.
      *
-     * @return array{gross: string, discount: string, invoiceDiscount: string, tax: string, total: string, shipping: string, shippingTax: string, adjustment: string, adjustmentLabel: string}
+     * @return array{gross: string, discount: string, invoiceDiscount: string, tax: string, total: string, shipping: string, shippingTax: string, shippingTaxIncluded: bool, adjustment: string, adjustmentLabel: string}
      */
     public function figures(DraftIssue $issue): array
     {
@@ -204,15 +204,16 @@ final class DraftInvoice
         $charges = $issue->headerCharges->resolve($running);
 
         return [
-            'gross'           => bcadd($gross, '0', SaleAmounts::SCALE),
-            'discount'        => bcadd($discount, '0', SaleAmounts::SCALE),
-            'invoiceDiscount' => bcadd($share, '0', SaleAmounts::SCALE),
-            'tax'             => bcadd($added, $included, SaleAmounts::SCALE),
-            'total'           => bcadd($running, $charges->addedToTotal(), SaleAmounts::SCALE),
-            'shipping'        => $charges->shipping,
-            'shippingTax'     => $charges->shippingTax,
-            'adjustment'      => $charges->adjustment,
-            'adjustmentLabel' => $charges->adjustmentLabel,
+            'gross'               => bcadd($gross, '0', SaleAmounts::SCALE),
+            'discount'            => bcadd($discount, '0', SaleAmounts::SCALE),
+            'invoiceDiscount'     => bcadd($share, '0', SaleAmounts::SCALE),
+            'tax'                 => bcadd($added, $included, SaleAmounts::SCALE),
+            'total'               => bcadd($running, $charges->addedToTotal(), SaleAmounts::SCALE),
+            'shipping'            => $charges->shipping,
+            'shippingTax'         => $charges->shippingTax,
+            'shippingTaxIncluded' => $charges->shippingTaxIncluded,
+            'adjustment'          => $charges->adjustment,
+            'adjustmentLabel'     => $charges->adjustmentLabel,
         ];
     }
 

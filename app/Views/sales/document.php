@@ -100,7 +100,7 @@ $locked  = $quote_status?->isLocked() === true;
                     <tr><th scope="row"><?= lang('Sales.invoice_discount') ?></th><td><bdi dir="ltr"><?= to_currency($figures['invoiceDiscount']) ?></bdi></td></tr>
                 <?php endif; ?>
                 <tr><th scope="row"><?= lang('Sales.tax') ?></th><td><bdi dir="ltr"><?= to_currency($figures['tax']) ?></bdi></td></tr>
-                <?php foreach (headerChargeRows(['shipping' => $figures['shipping'], 'shipping_tax' => $figures['shippingTax'], 'adjustment' => $figures['adjustment'], 'adjustment_label' => $figures['adjustmentLabel']]) as [$chargeLabel, $chargeAmount]): ?>
+                <?php foreach (headerChargeRows(['shipping' => $figures['shipping'], 'shipping_tax' => $figures['shippingTax'], 'shipping_tax_included' => $figures['shippingTaxIncluded'], 'adjustment' => $figures['adjustment'], 'adjustment_label' => $figures['adjustmentLabel']]) as [$chargeLabel, $chargeAmount]): ?>
                     <tr><th scope="row"><?= esc($chargeLabel) ?></th><td><bdi dir="ltr"><?= to_currency($chargeAmount) ?></bdi></td></tr>
                 <?php endforeach; ?>
                 <tr><th scope="row"><?= lang('Sales.total') ?></th><td><bdi dir="ltr"><?= to_currency($figures['total']) ?></bdi></td></tr>
