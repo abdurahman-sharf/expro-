@@ -9,6 +9,7 @@ use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -663,7 +664,7 @@ class ItemTest extends CIUnitTestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('priceAfterDiscountProvider')]
+    #[DataProvider('priceAfterDiscountProvider')]
     public function testPriceAfterDiscount_TakesAPercentOrAnAmountPerUnitOffThePrice(string $price, string $discount, int $type, string $expected): void
     {
         $this->assertSame($expected, Item::priceAfterDiscount($price, $discount, $type));
@@ -691,7 +692,7 @@ class ItemTest extends CIUnitTestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('marginProvider')]
+    #[DataProvider('marginProvider')]
     public function testMarginPercent_IsTheShareOfThePriceThatIsProfitAndNothingWithoutAPrice(string $price, string $cost, ?string $expected): void
     {
         $this->assertSame($expected, Item::marginPercent($price, $cost));

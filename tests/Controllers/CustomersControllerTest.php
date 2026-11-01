@@ -748,6 +748,22 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->resetCustomerControls();
     }
 
+    public function testPostSave_KeepsTheLimitWhenOnlyTheDaysControlIsOn(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_PERIOD, '1');
+
+        $customerId = $this->insertCustomer();
+
+        $this->accountingDb()->table('customers')->where('person_id', $customerId)->update(['credit_limit' => '10', 'credit_period_days' => 12]);
+        $this->actAsEmployeeWith([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        $this->assertTrue($this->save(['credit_limit' => '99', 'credit_period_days' => '77'], $customerId)['success']);
+        $this->assertSame(['limit' => '10.0000', 'days' => 77], (new CreditLimit())->termsOf($customerId));
+
+        $this->resetCustomerControls();
+    }
+
     public function testPostSave_DoesNotChangeTheCreditTermsForAnEmployeeWhoMayNotManageReceivables(): void
     {
         $this->setConfigValue('accounting_enabled', '1');

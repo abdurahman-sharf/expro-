@@ -6217,4 +6217,14 @@ class SalesControllerTest extends CIUnitTestCase
 
         $this->assertSame($listId, (int) Services::session()->get('sales_price_list'));
     }
+
+    public function testPostEditItem_DoesNotHoldAReturnToTheMinimumPrice(): void
+    {
+        $this->registerWithPriceControls(['sales_change_price'], '100.00', 'return', minimum: '90');
+        $this->turnOnPriceControls(true);
+
+        $this->post('/sales/editItem/1', ['price' => '85', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
+
+        $this->assertSame('85.00', (string) Services::session()->get('sales_cart')[1]['price'], 'a return takes stock back and is held to no minimum, whatever the sign typed on its line');
+    }
 }

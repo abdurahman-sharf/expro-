@@ -221,6 +221,19 @@ final class CreditLimitTest extends CIUnitTestCase
         $this->assertNull($this->credit->refusalFor($this->customerId, $second, date('Y-m-d')), 'the paid invoice owes nothing');
     }
 
+    public function testRefusalFor_IgnoresTheLimitWhileOnlyTheControlOfTheDaysIsOn(): void
+    {
+        $this->giveTerms('50', 0);
+
+        $this->invoiceOf('100.00');
+
+        $sale = $this->invoiceOf('100.00');
+
+        $this->turnOn(false, true);
+
+        $this->assertNull($this->credit->refusalFor($this->customerId, $sale, date('Y-m-d')));
+    }
+
     public function testRefusalFor_NeverRefusesASaleThatPutNothingOnCredit(): void
     {
         $this->giveTerms('50');

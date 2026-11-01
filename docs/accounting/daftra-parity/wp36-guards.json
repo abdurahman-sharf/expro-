@@ -39,7 +39,7 @@
     "replace": "$checksLimit  = bccomp(",
     "tests": [
       "--filter",
-      "IgnoresTheLimitWhileTheControlIsOff",
+      "IgnoresTheLimitWhileTheControlIsOff|IgnoresTheLimitWhileOnlyTheControlOfTheDaysIsOn",
       "tests/Libraries/Accounting/CreditLimitTest.php"
     ]
   },
@@ -820,7 +820,7 @@
     "replace": "if ($this->sale_lib->is_quote_mode() || $this->sale_lib->is_work_order_mode()) {",
     "tests": [
       "--filter",
-      "DoesNotHoldAWorkOrderOrAReturn",
+      "DoesNotHoldAWorkOrderOrAReturn|PostEditItem_DoesNotHoldAReturn",
       "tests/Controllers/SalesControllerTest.php"
     ]
   },
@@ -883,7 +883,7 @@
     "name": "G108 a list that is not active is not chosen for a sale",
     "file": "app/Controllers/Sales.php",
     "find": "} elseif ($this->priceList->isActive($listId)) {",
-    "replace": "} else {",
+    "replace": "} elseif (true) {",
     "tests": [
       "--filter",
       "PostSetPriceList_RefusesAListThatIsNotActive",
@@ -1084,7 +1084,7 @@
     "replace": "$limit = $this->request->getPost('credit_limit') !== null",
     "tests": [
       "--filter",
-      "WhileAccountingIsOffOrTheirControlIsOff",
+      "WhileAccountingIsOffOrTheirControlIsOff|KeepsTheLimitWhenOnlyTheDaysControlIsOn",
       "tests/Controllers/CustomersControllerTest.php"
     ]
   },
@@ -1154,6 +1154,17 @@
       "--filter",
       "CreatesTheListsAndTheirPrices",
       "tests/Database/PricingAndCreditControlsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G153 a sale is made under the lock of its customer so that two credit checks cannot both pass",
+    "file": "app/Models/Sale.php",
+    "find": "return (new CustomerLock($this->db))->run(\n                $customerId,\n                function () use (&$saleStatus",
+    "replace": "return (new CustomerLock($this->db))->run(\n                null,\n                function () use (&$saleStatus",
+    "tests": [
+      "--filter",
+      "StopsTwoSalesMadeAtTheSameMoment",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
     ]
   },
   {

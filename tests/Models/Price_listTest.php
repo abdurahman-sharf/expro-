@@ -9,6 +9,7 @@ use App\Models\Price_list;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -299,7 +300,7 @@ class Price_listTest extends CIUnitTestCase
         return ['negative' => ['-1'], 'not a number' => ['cheap'], 'five decimals' => ['1.23456'], 'with a sign' => ['+5'], 'with a comma' => ['1,5']];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('invalidPriceProvider')]
+    #[DataProvider('invalidPriceProvider')]
     public function testSaveItemPrices_RejectsAPriceThatIsNotANumberThatIsNotNegativeAndSavesNothingOfTheRest(string $price): void
     {
         $wholesale = $this->list('Wholesale');
