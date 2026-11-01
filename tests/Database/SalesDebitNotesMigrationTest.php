@@ -101,11 +101,19 @@ class SalesDebitNotesMigrationTest extends CIUnitTestCase
 
         $this->assertSame(1, $this->countRows('sales_debit_notes'));
         $this->assertSame(1, $this->countRows('customer_credit_applications'));
-        $this->assertTrue($this->hasConstraint('customer_credit_applications_target3'));
-        $this->assertFalse($this->hasConstraint('customer_credit_applications_target'));
+        $this->assertTrue($this->hasConstraint('customer_credit_applications_target'));
+        $this->assertEquals(1, $this->accountingDb()->query('SELECT COUNT(*) AS found FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CHECK_CLAUSE LIKE ?', [$this->accountingDb()->prefixTable('customer_credit_applications'), $this->accountingDb()->prefixTable('customer_credit_applications_target'), '%debit_note_id%'])->getRow()->found, 'the one rule names the three targets');
     }
 
-    public function testDown_DropsTheTheTableAndTheColumnAndRestoresTheRuleOfTwoTargets(): void
+    public function testDown_RunsTwiceWithoutHarmAfterTheOpeningColumnIsGone(): void
+    {
+        (new SalesDebitNotes())->down();
+        (new SalesDebitNotes())->down();
+
+        $this->assertFalse($this->hasTable('sales_debit_notes'));
+    }
+
+    public function testDown_DropsTheTableAndTheColumnAndRestoresTheRuleOfTwoTargets(): void
     {
         $customerId = $this->insertCustomer();
         $note       = $this->noteFor($customerId);
@@ -120,7 +128,7 @@ class SalesDebitNotesMigrationTest extends CIUnitTestCase
         $this->assertFalse($this->hasTable('sales_debit_notes'));
         $this->assertSame(1, $this->countRows('customer_credit_applications'), 'only the application that pointed at a note is deleted');
         $this->assertTrue($this->hasConstraint('customer_credit_applications_target'));
-        $this->assertFalse($this->hasConstraint('customer_credit_applications_target3'));
+        $this->assertEquals(0, $this->accountingDb()->query('SELECT COUNT(*) AS found FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CHECK_CLAUSE LIKE ?', [$this->accountingDb()->prefixTable('customer_credit_applications'), $this->accountingDb()->prefixTable('customer_credit_applications_target'), '%debit_note_id%'])->getRow()->found, 'the rule of two targets is back');
         $this->assertSame([], array_filter($this->accountingDb()->getFieldNames('customer_credit_applications'), static fn (string $name): bool => $name === 'debit_note_id'));
         $this->assertSame(0, $this->accountingDb()->table('permissions')->where('permission_id', 'acc_debit_notes_manage')->countAllResults());
     }

@@ -26,4 +26,23 @@ final readonly class JournalDraft
         public JournalEntryType $entryType = JournalEntryType::General,
     ) {
     }
+
+    public function withDescription(string $description): self
+    {
+        return new self(
+            $this->date,
+            $this->lines,
+            $this->sourceType,
+            $this->sourceId,
+            $this->revision,
+            $this->origin,
+            $this->employeeId,
+            $description,
+            $this->currencyCode,
+            $this->exchangeRate,
+            $this->reversesJournalId,
+            $this->branchId,
+            $this->entryType,
+        );
+    }
 }

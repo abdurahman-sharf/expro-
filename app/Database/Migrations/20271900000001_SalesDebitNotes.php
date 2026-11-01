@@ -11,7 +11,7 @@ use CodeIgniter\Database\Migration;
  * application points at an invoice, at an opening or at a debit note, one of the three. The screen is
  * registered as a module and the permission to create and take back debit notes as a permission, and
  * nothing is granted. Additive only: the new table, one column and its key on the applications, and the
- * rule that an application has exactly one target widened to three. Safe to run again.
+ * rule that an application has exactly one target widened to three (the same check, with the same name). Safe to run again.
  */
 class SalesDebitNotes extends Migration
 {
@@ -74,12 +74,12 @@ class SalesDebitNotes extends Migration
             $this->db->query("ALTER TABLE `{$applications}` ADD CONSTRAINT `{$applications}_fk_debit_note` FOREIGN KEY (`debit_note_id`) REFERENCES `{$table}` (`debit_note_id`) ON DELETE RESTRICT");
         }
 
-        if (! $this->hasConstraint('customer_credit_applications', 'customer_credit_applications_target3')) {
+        if (! $this->targetNamesDebitNotes()) {
             if ($this->hasConstraint('customer_credit_applications', 'customer_credit_applications_target')) {
                 $this->db->query("ALTER TABLE `{$applications}` DROP CONSTRAINT `{$applications}_target`");
             }
 
-            $this->db->query("ALTER TABLE `{$applications}` ADD CONSTRAINT `{$applications}_target3` CHECK ((`invoice_sale_id` IS NOT NULL) + (`opening_id` IS NOT NULL) + (`debit_note_id` IS NOT NULL) = 1)");
+            $this->db->query("ALTER TABLE `{$applications}` ADD CONSTRAINT `{$applications}_target` CHECK ((`invoice_sale_id` IS NOT NULL) + (`opening_id` IS NOT NULL) + (`debit_note_id` IS NOT NULL) = 1)");
         }
 
         $this->db->table('modules')->ignore(true)->insert([
@@ -105,8 +105,8 @@ class SalesDebitNotes extends Migration
         if ($this->hasColumn('customer_credit_applications', 'debit_note_id')) {
             $this->db->query("DELETE FROM `{$applications}` WHERE `debit_note_id` IS NOT NULL");
 
-            if ($this->hasConstraint('customer_credit_applications', 'customer_credit_applications_target3')) {
-                $this->db->query("ALTER TABLE `{$applications}` DROP CONSTRAINT `{$applications}_target3`");
+            if ($this->hasConstraint('customer_credit_applications', 'customer_credit_applications_target')) {
+                $this->db->query("ALTER TABLE `{$applications}` DROP CONSTRAINT `{$applications}_target`");
             }
 
             if ($this->hasConstraint('customer_credit_applications', 'customer_credit_applications_fk_debit_note')) {
@@ -120,11 +120,19 @@ class SalesDebitNotes extends Migration
             $this->db->query("ALTER TABLE `{$applications}` DROP COLUMN `debit_note_id`");
         }
 
-        if (! $this->hasConstraint('customer_credit_applications', 'customer_credit_applications_target')) {
+        if ($this->hasColumn('customer_credit_applications', 'opening_id') && ! $this->hasConstraint('customer_credit_applications', 'customer_credit_applications_target')) {
             $this->db->query("ALTER TABLE `{$applications}` ADD CONSTRAINT `{$applications}_target` CHECK ((`invoice_sale_id` IS NULL) <> (`opening_id` IS NULL))");
         }
 
         $this->db->query('DROP TABLE IF EXISTS `' . $this->db->prefixTable('sales_debit_notes') . '`');
+    }
+
+    private function targetNamesDebitNotes(): bool
+    {
+        return $this->db->query(
+            'SELECT 1 FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? AND CHECK_CLAUSE LIKE ?',
+            [$this->db->prefixTable('customer_credit_applications'), $this->db->prefixTable('customer_credit_applications_target'), '%debit_note_id%'],
+        )->getRow() !== null;
     }
 
     private function hasColumn(string $table, string $column): bool

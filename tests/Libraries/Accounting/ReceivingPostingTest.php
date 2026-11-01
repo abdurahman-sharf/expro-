@@ -74,6 +74,7 @@ class ReceivingPostingTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_journal_description_purchases'])->delete();
         $this->stopBuying();
 
         parent::tearDown();
@@ -4705,5 +4706,41 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertNull($this->accountingDb()->table('receivings')->where('receiving_id', $id)->get()->getRow()->treasury_id);
         $this->assertSame('-100.00', $this->balance($held));
         $this->assertSame(0, $this->countRows('cheques'));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The description template of the journals of purchases
+    // ---------------------------------------------------------------------------------------
+
+    private function descriptionOfPurchase(int $receivingId, string $source = 'purchase'): string
+    {
+        return (string) $this->accountingDb()->table('accounting_journals')->where(['source_type' => $source, 'source_id' => $receivingId])->orderBy('journal_id')->get()->getRow()->description;
+    }
+
+    public function testSaveValue_DescribesTheJournalOfAPurchaseWithTheTemplateOfPurchases(): void
+    {
+        $this->accountingDb()->table('suppliers')->where('person_id', $this->supplierId)->update(['company_name' => 'Gulf Trading']);
+        $this->setConfigValue('accounting_journal_description_purchases', '{type} {number} from {party} on {date}');
+
+        $receivingId = $this->purchaseOf('100.00');
+
+        $this->assertSame(lang('Accounting.template_type_purchase') . ' RECV ' . $receivingId . ' from Gulf Trading on ' . date('Y-m-d'), $this->descriptionOfPurchase($receivingId));
+    }
+
+    public function testSaveValue_LeavesTheDescriptionOfAPurchaseAsItWasWhenThereIsNoTemplate(): void
+    {
+        $receivingId = $this->purchaseOf('100.00');
+
+        $this->assertSame('Purchase #' . $receivingId, $this->descriptionOfPurchase($receivingId));
+    }
+
+    public function testSaveValue_DoesNotDescribeThePaymentOfAPurchaseWithTheTemplate(): void
+    {
+        $this->setConfigValue('accounting_journal_description_purchases', 'Doc {number}');
+
+        $receivingId = $this->purchaseOf('100.00', null, lang('Sales.cash'));
+
+        $this->assertSame('Doc RECV ' . $receivingId, $this->descriptionOfPurchase($receivingId));
+        $this->assertSame('Payment of purchase #' . $receivingId, $this->descriptionOfPurchase($receivingId, 'purchase_payment'));
     }
 }

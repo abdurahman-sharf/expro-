@@ -425,4 +425,10 @@ return [
     'state_reversed'                             => 'معكوس',
     'state_system'                               => 'نظام',
     'status'                                     => 'الحالة',
+    'template_type_credit_note'                  => 'إشعار دائن',
+    'template_type_invoice'                      => 'فاتورة',
+    'template_type_purchase'                     => 'مشتريات',
+    'template_type_purchase_return'              => 'مرتجع مشتريات',
+    'template_type_refund_invoice'               => 'فاتورة مرتجعة',
+    'template_type_sale'                         => 'بيع',
 ];

@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => 'Изпращане на поръчка за работа',
     'serial'                                   => 'Сериен',
     'service_charge'                           => '',
+    'ship_to'                                  => '',
     'shipping'                                 => '',
     'shipping_negative'                        => '',
     'shipping_options'                         => '',

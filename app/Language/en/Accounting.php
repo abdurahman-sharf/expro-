@@ -425,4 +425,10 @@ return [
     'state_reversed'                             => 'Reversed',
     'state_system'                               => 'System',
     'status'                                     => 'Status',
+    'template_type_credit_note'                  => 'Credit note',
+    'template_type_invoice'                      => 'Invoice',
+    'template_type_purchase'                     => 'Purchase',
+    'template_type_purchase_return'              => 'Purchase return',
+    'template_type_refund_invoice'               => 'Refund invoice',
+    'template_type_sale'                         => 'Sale',
 ];

@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => 'பணி ஆணையை அனுப்பவும்',
     'serial'                                   => 'வரிசை',
     'service_charge'                           => '',
+    'ship_to'                                  => '',
     'shipping'                                 => '',
     'shipping_negative'                        => '',
     'shipping_options'                         => '',

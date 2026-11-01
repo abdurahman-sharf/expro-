@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => 'İş Sifarişini Göndərin',
     'serial'                                   => 'seriya nömrəsi',
     'service_charge'                           => '',
+    'ship_to'                                  => '',
     'shipping'                                 => '',
     'shipping_negative'                        => '',
     'shipping_options'                         => '',

@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => 'ارسال طلب عمل',
     'serial'                                   => 'مسلسل',
     'service_charge'                           => 'رسوم الخدمة',
+    'ship_to'                                  => 'الشحن إلى',
     'shipping'                                 => 'الشحن',
     'shipping_negative'                        => 'لا يمكن أن يكون الشحن سالبًا.',
     'shipping_options'                         => 'بيانات الشحن',

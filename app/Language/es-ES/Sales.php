@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => 'Enviar Orden de Trabajo',
     'serial'                                   => 'Serie',
     'service_charge'                           => 'Costo de Servicio',
+    'ship_to'                                  => '',
     'shipping'                                 => '',
     'shipping_negative'                        => '',
     'shipping_options'                         => '',

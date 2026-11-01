@@ -91,7 +91,7 @@ class SalePostingTest extends CIUnitTestCase
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->whereIn('action', ['numbering_configured', 'quote_status_changed', 'quote_converted', 'draft_issued', 'header_charges_given'])->delete();
-        $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent'])->delete();
+        $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent', 'accounting_journal_description_sales'])->delete();
 
         parent::tearDown();
     }
@@ -6092,5 +6092,142 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $saleId);
         $this->assertSame([null, null, null, null, null], $this->chargeColumns($saleId));
         $this->assertSame(0, $this->countJournals() - count($this->accountingDb()->table('accounting_journals')->where('source_type', 'sale_payment')->get()->getResult()), 'nothing to post for an invoice that comes to nothing');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The description template of the journals of sales
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * @return array<string, string> The description of each journal of a sale, by "source/entry".
+     */
+    private function descriptionsOf(int $saleId): array
+    {
+        $rows = $this->accountingDb()->table('accounting_journals')->select('source_type, entry_type, description')->groupStart()->where(['source_type' => 'sale', 'source_id' => $saleId])->groupEnd()->orderBy('journal_id')->get()->getResult();
+        $out  = [];
+
+        foreach ($rows as $row) {
+            $out[$row->source_type . '/' . $row->entry_type] = (string) $row->description;
+        }
+
+        return $out;
+    }
+
+    public function testSaveValue_DescribesTheInvoiceJournalWithTheTemplateOfSales(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', '{type} {number} - {party} - {date}');
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame(lang('Accounting.template_type_invoice') . ' ' . $saleId . ' - Omar Khaled - ' . date('Y-m-d'), $this->descriptionsOf($saleId)['sale/revenue']);
+    }
+
+    public function testSaveValue_TakesTheNumberOfTheInvoiceSequenceIntoTheTemplate(): void
+    {
+        $manager = $this->employeeWithGrants(['config']);
+
+        (new DocumentNumbering())->configure(DocumentType::SalesInvoice, ['enabled' => true, 'prefix' => 'INV-', 'padding' => 4], $manager);
+        $this->setConfigValue('accounting_journal_description_sales', 'Invoice {number}');
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame('Invoice INV-0001', $this->descriptionsOf($saleId)['sale/revenue']);
+    }
+
+    public function testSaveValue_LeavesTheDescriptionsTheApplicationWritesWhenThereIsNoTemplate(): void
+    {
+        $cycle     = $this->referenceInvoice();
+        $saleId    = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '100.00')]);
+        $paymentId = (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->payment_id;
+        $payment   = (string) $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'sale_payment', 'source_id' => $paymentId])->get()->getRow()->description;
+
+        $this->assertSame(['sale/revenue' => 'Sale #' . $saleId, 'sale/cogs' => 'Cost of sale #' . $saleId], $this->descriptionsOf($saleId));
+        $this->assertSame('Payment #' . $paymentId . ' of sale #' . $saleId, $payment);
+    }
+
+    public function testSaveValue_AppliesTheTemplateToTheMainJournalOnlyAndNotToTheCostOrThePayments(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', 'Doc {number}');
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '100.00')]);
+
+        $descriptions = $this->descriptionsOf($saleId);
+
+        $this->assertSame('Doc ' . $saleId, $descriptions['sale/revenue']);
+        $this->assertSame('Cost of sale #' . $saleId, $descriptions['sale/cogs']);
+        $this->assertStringStartsWith('Payment #', (string) $this->accountingDb()->table('accounting_journals')->where('source_type', 'sale_payment')->get()->getRow()->description);
+    }
+
+    public function testSaveValue_KeepsTheDescriptionOfAJournalThatStandsWhenTheTemplateIsSetLater(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->setConfigValue('accounting_journal_description_sales', 'Changed {number}');
+        $this->addPayment($saleId, '100.00');
+
+        $this->assertSame('Sale #' . $saleId, $this->descriptionsOf($saleId)['sale/revenue']);
+    }
+
+    public function testSaveValue_NamesACreditNoteAndARefundInvoiceInTheTemplate(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', '{type} {number}');
+
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes']);
+        $note    = $this->creditNoteOf($invoice, '30');
+        $refund  = $this->refundInvoiceOf($invoice, '20');
+
+        $this->assertSame(lang('Accounting.template_type_credit_note') . ' POS ' . $note, $this->descriptionsOf($note)['sale/revenue']);
+        $this->assertSame(lang('Accounting.template_type_refund_invoice') . ' POS ' . $refund, $this->descriptionsOf($refund)['sale/revenue']);
+    }
+
+    public function testSaveValue_KeepsTheMarkOfAReturnWithoutASaleWhenTheTemplateDescribesIt(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', '{type} {number}');
+        $this->grantReturnOverride();
+
+        $item     = $this->item('66.00');
+        $returnId = $this->save([$this->line($item, 0, '-2', '100', '66.00')], [], [], SALE_TYPE_RETURN, -1, true, null, COMPLETED, NEW_ENTRY, null, ReturnDocument::CreditNote, returnOverrideReason: 'lost the receipt');
+
+        $this->assertSame(lang('Accounting.template_type_credit_note') . ' POS ' . $returnId . ' ' . ReturnOverride::MARKER, $this->descriptionsOf($returnId)['sale/revenue']);
+    }
+
+    public function testSaveValue_WritesNothingOfAPartyForASaleWithoutACustomer(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', 'Sale for [{party}]');
+
+        $item   = $this->item('0', false);
+        $saleId = $this->save([$this->line($item, 0, '1', '50')], [], [$this->payment(lang('Sales.cash'), '50.00')], SALE_TYPE_POS, null);
+
+        $this->assertSame('Sale for []', $this->descriptionsOf($saleId)['sale/revenue']);
+    }
+
+    public function testSaveValue_ReversalsKeepTheDescriptionOfTheOriginalJournalSoNothingIsRewritten(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', 'Doc {number}');
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '816.50')], SALE_TYPE_POS);
+
+        $this->sales->delete($saleId, false, true, $this->employeeId);
+
+        $rows = $this->accountingDb()->table('accounting_journals')->select('description')->where(['source_type' => 'sale', 'source_id' => $saleId, 'entry_type' => 'revenue'])->get()->getResult();
+
+        $this->assertNotEmpty($rows);
+        $this->assertSame('Doc ' . $saleId, (string) $rows[0]->description);
+    }
+
+    public function testSaveValue_IgnoresATemplateStoredByHandThatIsNotValid(): void
+    {
+        $this->setConfigValue('accounting_journal_description_sales', '<b>{number}</b>');
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame('Sale #' . $saleId, $this->descriptionsOf($saleId)['sale/revenue']);
     }
 }

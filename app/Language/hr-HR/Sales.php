@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => '',
     'serial'                                   => 'Serijski broj',
     'service_charge'                           => '',
+    'ship_to'                                  => '',
     'shipping'                                 => '',
     'shipping_negative'                        => '',
     'shipping_options'                         => '',

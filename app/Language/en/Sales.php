@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => 'Send Work Order',
     'serial'                                   => 'Serial',
     'service_charge'                           => 'Service Charge',
+    'ship_to'                                  => 'Ship to',
     'shipping'                                 => 'Shipping',
     'shipping_negative'                        => 'Shipping cannot be negative.',
     'shipping_options'                         => 'Shipping details',

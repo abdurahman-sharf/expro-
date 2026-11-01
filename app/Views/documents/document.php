@@ -63,6 +63,13 @@ $notes = array_filter([
         </div>
     <?php endif; ?>
 
+    <?php if (! empty($sale['ship_to'])): ?>
+        <div class="doc-party doc-ship-to">
+            <div class="doc-party-label"><?= lang('Sales.ship_to') ?></div>
+            <div class="doc-party-body"><?= nl2br(esc($sale['ship_to'])) ?></div>
+        </div>
+    <?php endif; ?>
+
     <table class="doc-items">
         <thead>
             <tr>

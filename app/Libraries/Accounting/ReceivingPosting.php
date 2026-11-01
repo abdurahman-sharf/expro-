@@ -349,7 +349,7 @@ final class ReceivingPosting
         $plan = $this->builder->purchase($purchase, $revision, $employeeId);
 
         if ($purchase->toBranchId === null) {
-            $journalId = $plan->journal === null ? null : $this->posting->post($plan->journal)->journalId;
+            $journalId = $plan->journal === null ? null : $this->posting->post((new JournalDescriptions($this->db))->ofPurchase($plan->journal, $purchase))->journalId;
 
             $this->ledger->record($source, $purchase->receivingId, JournalEntryType::General, $revision, $purchase->date, $purchase->branchId, $plan->movements, $journalId);
 

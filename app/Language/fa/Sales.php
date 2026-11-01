@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => 'ارسال سفارش کار',
     'serial'                                   => 'سریال',
     'service_charge'                           => '',
+    'ship_to'                                  => '',
     'shipping'                                 => '',
     'shipping_negative'                        => '',
     'shipping_options'                         => '',

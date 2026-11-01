@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => 'שלח הזמנת עבודה',
     'serial'                                   => 'מספר סידורי',
     'service_charge'                           => '',
+    'ship_to'                                  => '',
     'shipping'                                 => '',
     'shipping_negative'                        => '',
     'shipping_options'                         => '',

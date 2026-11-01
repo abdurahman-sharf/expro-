@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => '',
     'serial'                                   => '序號',
     'service_charge'                           => '',
+    'ship_to'                                  => '',
     'shipping'                                 => '',
     'shipping_negative'                        => '',
     'shipping_options'                         => '',

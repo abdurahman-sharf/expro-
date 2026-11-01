@@ -492,6 +492,28 @@ class Sales extends Secure_Controller
         return $this->reload();
     }
 
+    /**
+     * The block that says where the goods are sent, as the shipping details of the document ask for: the
+     * address of the customer or the second one, nothing at all when they say so, and when they leave it to
+     * the document (automatic) the address of the customer for a document that carries shipping.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function shipTo(array $data): string
+    {
+        $charges = $data['header_charges'] ?? [];
+        $option  = $charges['shipping_options'] ?? null;
+
+        if (!isset($data['customer_id']) || $option === 1 || ($option === null && bccomp((string) ($charges['shipping'] ?? '0'), '0', 4) === 0)) {
+            return '';
+        }
+
+        $second = $option === 3;
+        $lines  = [(string) ($data['customer'] ?? ''), (string) ($second ? ($data['customer_second_address'] ?? '') : ($data['customer_address'] ?? '')), $second ? '' : (string) ($data['customer_location'] ?? '')];
+
+        return trim(implode("\n", array_filter(array_map('trim', $lines), static fn (string $line): bool => $line !== '')));
+    }
+
     private function headerChargesAllowed(): bool
     {
         return in_array($this->sale_lib->get_mode(), ['sale_invoice', 'sale_quote', 'return'], true);
@@ -1411,6 +1433,7 @@ class Sales extends Secure_Controller
         $quoteNumber = $this->sale_lib->get_quote_number();
         $data["quote_number"] = $quoteNumber;
         $customerInfo = $this->_load_customer_data($customerId, $data);
+        $data['ship_to'] = $this->shipTo($data);
 
         if ($customerInfo != null) {
             $data["customer_comments"] = $customerInfo->comments;
@@ -1903,6 +1926,7 @@ class Sales extends Secure_Controller
             $data['last_name'] = $customer_info->last_name;
             $data['customer_email'] = $customer_info->email;
             $data['customer_address'] = $customer_info->address_1;
+            $data['customer_second_address'] = $customer_info->address_2;
 
             if (!empty($customer_info->zip) || !empty($customer_info->city)) {
                 $data['customer_location'] = $customer_info->zip . ' ' . $customer_info->city . "\n" . $customer_info->state;
@@ -2000,6 +2024,7 @@ class Sales extends Secure_Controller
         $employeeInfo = $this->employee->get_info($this->sale_lib->get_employee());
         $data['employee'] = $employeeInfo->first_name . ' ' . mb_substr($employeeInfo->last_name, 0, 1);
         $this->_load_customer_data($this->sale_lib->get_customer(), $data);
+        $data['ship_to'] = $this->shipTo($data);
 
         $data['sale_id_num'] = $saleId;
         $data['sale_id'] = 'POS ' . $saleId;

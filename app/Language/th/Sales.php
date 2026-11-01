@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => 'ส่งคำสั่งงาน',
     'serial'                                   => 'หมายเลขซีเรียล',
     'service_charge'                           => '',
+    'ship_to'                                  => '',
     'shipping'                                 => '',
     'shipping_negative'                        => '',
     'shipping_options'                         => '',

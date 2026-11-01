@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => 'Tuma Agizo la Kazi',
     'serial'                                   => 'Nambari ya Seriali',
     'service_charge'                           => '',
+    'ship_to'                                  => '',
     'shipping'                                 => '',
     'shipping_negative'                        => '',
     'shipping_options'                         => '',

@@ -3,6 +3,7 @@
 namespace Tests\Database;
 
 use App\Database\Migrations\CustomerOpenings;
+use App\Database\Migrations\SalesDebitNotes;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -34,9 +35,20 @@ class CustomerOpeningsMigrationTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         (new CustomerOpenings())->up();
+        (new SalesDebitNotes())->up();
         $this->stopSelling();
 
         parent::tearDown();
+    }
+
+    /**
+     * Takes the migration back as it would be taken back with the migrations that came after it, which
+     * lean on what it made.
+     */
+    private function rollBack(CustomerOpenings $migration): void
+    {
+        (new SalesDebitNotes())->down();
+        $migration->down();
     }
 
     private function hasTable(): bool
@@ -168,7 +180,7 @@ class CustomerOpeningsMigrationTest extends CIUnitTestCase
         $migration = new CustomerOpenings();
         $invoice   = $this->invoiceOf('100.00');
 
-        $migration->down();
+        $this->rollBack($migration);
 
         $this->assertFalse($this->hasColumn(), 'The state before the migration');
 
@@ -183,13 +195,13 @@ class CustomerOpeningsMigrationTest extends CIUnitTestCase
 
     public function testDown_RemovesTheTableAndTheTargetAndMakesTheInvoiceRequiredAgain(): void
     {
-        (new CustomerOpenings())->down();
+        $this->rollBack(new CustomerOpenings());
 
         $this->assertFalse($this->hasTable());
         $this->assertFalse($this->hasColumn());
         $this->assertTrue($this->invoiceIsRequired());
 
-        (new CustomerOpenings())->down();
+        $this->rollBack(new CustomerOpenings());
 
         $this->assertFalse($this->hasTable(), 'Taking it down again changes nothing');
     }
@@ -207,7 +219,7 @@ class CustomerOpeningsMigrationTest extends CIUnitTestCase
             ['customer_id' => $this->customerId, 'invoice_sale_id' => null, 'opening_id' => $opening, 'source_type' => 'credit_note', 'source_id' => 1, 'amount' => '3.0000'],
         ]);
 
-        (new CustomerOpenings())->down();
+        $this->rollBack(new CustomerOpenings());
 
         $rows = $this->accountingDb()->table('customer_credit_applications')->get()->getResult();
 

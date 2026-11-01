@@ -78,7 +78,7 @@ class DocumentNumberingTest extends CIUnitTestCase
 
             $this->assertFalse($sequence->enabled, $type->value);
             $this->assertSame('', $sequence->prefix, $type->value);
-            $this->assertSame(0, $sequence->padding, $type->value);
+            $this->assertSame($type->defaultPadding(), $sequence->padding, $type->value);
         }
 
         $this->assertSame(0, $this->countRows('document_sequences'));
@@ -889,7 +889,7 @@ class DocumentNumberingTest extends CIUnitTestCase
         foreach ($this->numbering->overview() as $sequence) {
             $this->assertFalse($sequence->enabled, $sequence->type->value);
             $this->assertSame('', $sequence->prefix, $sequence->type->value);
-            $this->assertSame(0, $sequence->padding, $sequence->type->value);
+            $this->assertSame($sequence->type->defaultPadding(), $sequence->padding, $sequence->type->value);
         }
     }
 

@@ -328,6 +328,7 @@ return [
     'send_work_order'                          => 'Надіслати робочий наказ',
     'serial'                                   => 'Серійний номер',
     'service_charge'                           => '',
+    'ship_to'                                  => '',
     'shipping'                                 => '',
     'shipping_negative'                        => '',
     'shipping_options'                         => '',

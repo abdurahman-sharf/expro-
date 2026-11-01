@@ -303,7 +303,7 @@ final class SalePosting
         $draft = $this->builder->invoice($sale, $this->nextRevision(SalePostingBuilder::SOURCE_SALE, $sale->saleId, JournalEntryType::Revenue), $employeeId);
 
         if ($draft !== null) {
-            $this->posting->post($draft);
+            $this->posting->post((new JournalDescriptions($this->db))->ofSale($draft, $sale));
         }
     }
 
