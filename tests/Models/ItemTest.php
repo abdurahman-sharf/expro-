@@ -647,4 +647,69 @@ class ItemTest extends CIUnitTestCase
 
         $this->assertCount(1, model(Item::class)->get_top_sellers(1));
     }
+
+    /**
+     * @return array<string, array{0: string, 1: string, 2: int, 3: string}>
+     */
+    public static function priceAfterDiscountProvider(): array
+    {
+        return [
+            'a percent of the price'     => ['100', '20', PERCENT, '80.0000'],
+            'ten percent'                => ['100', '10', PERCENT, '90.0000'],
+            'no discount'                => ['100', '0', PERCENT, '100.0000'],
+            'an amount a unit'           => ['100', '5', FIXED, '95.0000'],
+            'a third of the price'       => ['10', '33.3333', PERCENT, '6.6666'],
+            'an amount that takes it all' => ['20', '20', FIXED, '0.0000'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('priceAfterDiscountProvider')]
+    public function testPriceAfterDiscount_TakesAPercentOrAnAmountPerUnitOffThePrice(string $price, string $discount, int $type, string $expected): void
+    {
+        $this->assertSame($expected, Item::priceAfterDiscount($price, $discount, $type));
+    }
+
+    public function testPriceAfterDiscount_MatchesTheExamplesOfTheReferenceSystemForTheMinimumPriceOfAProduct(): void
+    {
+        $this->assertSame(-1, bccomp(Item::priceAfterDiscount('100', '20', PERCENT), '90', 2), '100 less 20% is 80 and is under a minimum of 90');
+        $this->assertSame(1, bccomp(Item::priceAfterDiscount('100', '5', FIXED), '90', 2), '100 less 5 is 95 and passes');
+        $this->assertSame(0, bccomp(Item::priceAfterDiscount('100', '10', PERCENT), '90', 2), 'a final price equal to the minimum passes');
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string, 2: ?string}>
+     */
+    public static function marginProvider(): array
+    {
+        return [
+            'a fifth of the price'   => ['100', '80', '20.00'],
+            'a loss'                 => ['100', '120', '-20.00'],
+            'no cost'                => ['50', '0', '100.00'],
+            'a price of nothing'     => ['0', '5', null],
+            'a negative price'       => ['-5', '1', null],
+            'cost with six decimals' => ['3', '2.123456', '29.21'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('marginProvider')]
+    public function testMarginPercent_IsTheShareOfThePriceThatIsProfitAndNothingWithoutAPrice(string $price, string $cost, ?string $expected): void
+    {
+        $this->assertSame($expected, Item::marginPercent($price, $cost));
+    }
+
+    public function testGetInfo_ReadsTheMinimumPriceAndTheHighestDiscountOfAnItemAsNoControlForOneThatHasNone(): void
+    {
+        $itemId = $this->createTestItem();
+        $info   = model(Item::class)->get_info($itemId);
+
+        $this->assertSame('0.0000', $info->minimum_price);
+        $this->assertNull($info->max_discount_percent);
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['minimum_price' => '12.5', 'max_discount_percent' => '7.5']);
+
+        $info = model(Item::class)->get_info($itemId);
+
+        $this->assertSame('12.5000', $info->minimum_price);
+        $this->assertSame('7.50', $info->max_discount_percent);
+    }
 }

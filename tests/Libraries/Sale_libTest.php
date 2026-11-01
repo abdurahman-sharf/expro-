@@ -778,6 +778,46 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertSame(9, $saleLib->getQuoteSource(), 'the quote of this conversion and not an earlier one');
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function priced(string $price, string $source): array
+    {
+        return ['item_id' => 3, 'item_location' => 1, 'line' => 1, 'quantity' => '2', 'price' => $price, 'price_source' => $source, 'discount' => '0', 'discount_type' => PERCENT, 'stock_type' => HAS_NO_STOCK, 'total' => '0', 'discounted_total' => '0'];
+    }
+
+    public function testEditItem_MarksALineWhoseTypedPriceDiffersSoThatNoListPricesItAgain(): void
+    {
+        session()->set('sales_cart', [1 => $this->priced('10.00', 'list')]);
+
+        $this->saleLib->edit_item('1', 'a', '', '2', '0', (string) PERCENT, '12.50');
+
+        $this->assertSame('manual', $this->saleLib->get_cart()[1]['price_source']);
+        $this->assertSame('12.50', $this->saleLib->get_cart()[1]['price']);
+    }
+
+    public function testEditItem_KeepsTheSourceOfAPriceWhenOnlyTheQuantityChanged(): void
+    {
+        session()->set('sales_cart', [1 => $this->priced('10.00', 'list')]);
+
+        $this->saleLib->edit_item('1', 'a', '', '5', '0', (string) PERCENT, '10.0000');
+
+        $this->assertSame('list', $this->saleLib->get_cart()[1]['price_source']);
+    }
+
+    public function testPriceListChoice_IsKeptForTheSaleAndForgottenWhenTheRegisterIsCleared(): void
+    {
+        $this->assertNull($this->saleLib->getPriceListChoice());
+
+        $this->saleLib->setPriceListChoice(7);
+
+        $this->assertSame(7, $this->saleLib->getPriceListChoice());
+
+        $this->saleLib->clear_all();
+
+        $this->assertNull($this->saleLib->getPriceListChoice());
+    }
+
     private function fourDecimals(string $amount): string
     {
         return bcadd($amount, '0', 4);
