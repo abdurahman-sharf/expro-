@@ -4,6 +4,8 @@ namespace Tests\Libraries\Stock;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Numbering\DocumentType;
@@ -12,6 +14,7 @@ use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockPermissions;
 use App\Libraries\Stock\StockPermitSources;
 use App\Libraries\Stock\Stocktake;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -672,5 +675,128 @@ class StocktakeTest extends CIUnitTestCase
         $this->takes->approve($stocktakeId, $this->keeperId);
 
         $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->countAllResults());
+    }
+
+    /**
+     * Runs the action and, the moment it has locked its items, adds a line to the stocktake over a second
+     * connection that commits at once, as a request that lists one more item would.
+     */
+    private function whileLockedAnotherRequestListsOneMoreItem(int $stocktakeId, int $itemId, callable $action): void
+    {
+        $link     = $this->openSecondConnection(false);
+        $fired    = false;
+        $listener = static function ($query) use (&$fired, $link, $stocktakeId, $itemId): void {
+            $sql = (string) $query->getQuery();
+
+            if (! $fired && str_contains($sql, 'ospos_items WHERE item_id IN') && str_contains($sql, 'FOR UPDATE')) {
+                $fired = true;
+                $link->query('INSERT INTO ' . $link->prefixTable('stocktake_lines') . ' (stocktake_id, item_id, system_quantity, counted_quantity) VALUES (?, ?, 1, 1)', [$stocktakeId, $itemId]);
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+            $this->fail('A change prepared on what the stocktake listed before must be asked to be made again.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::WriteFailed, $exception->error);
+            $this->assertTrue($fired);
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+    }
+
+    public function testApprove_IsAskedToBeMadeAgainWhenAnotherRequestListedMoreItemsAfterTheyWereRead(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first]);
+
+        $this->countAll($stocktakeId, [$first => '8']);
+
+        $this->whileLockedAnotherRequestListsOneMoreItem($stocktakeId, $second, fn () => $this->takes->approve($stocktakeId, $this->keeperId));
+
+        $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
+        $this->assertSame('10.000', $this->onHand($first));
+    }
+
+    public function testCancel_OfAnApprovedStocktakeIsAskedToBeMadeAgainWhenMoreItemsWereListedAfterTheyWereRead(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first]);
+
+        $this->countAll($stocktakeId, [$first => '8']);
+        $this->takes->approve($stocktakeId, $this->keeperId);
+
+        $this->whileLockedAnotherRequestListsOneMoreItem($stocktakeId, $second, fn () => $this->takes->cancel($stocktakeId, 'x', $this->keeperId));
+
+        $this->assertSame('approved', $this->takes->find($stocktakeId)->status);
+        $this->assertSame('8.000', $this->onHand($first));
+    }
+
+    public function testCreate_ReportsASecondStocktakeOfTheDayInWordsEvenWhenTheConnectionReturnsFalseInsteadOfThrowing(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $this->start([$itemId]);
+
+        $quiet = new Stocktake($this->openSecondConnection(false));
+
+        $this->refusedWith(AccountingError::StocktakeExists, fn () => $quiet->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d'), 'item_ids' => [$itemId]], $this->keeperId));
+        $this->assertSame(1, $this->countRows('stocktakes'));
+        $this->assertSame(1, $this->countRows('stocktake_lines'));
+    }
+
+    public function testApprove_TheJournalOfAStocktakeCannotBeReversedByHand(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '8']);
+        $this->takes->approve($stocktakeId, $this->keeperId);
+
+        $reverser = $this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_DRAFT, AccountingGuard::JOURNALS_POST, AccountingGuard::JOURNALS_REVERSE, AccountingGuard::JOURNALS_ALL]);
+        $journal  = $this->journalsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId)[0];
+
+        $this->refusedWith(AccountingError::DocumentJournalLocked, fn () => (new JournalService())->reverse((int) $journal->journal_id, date('Y-m-d'), 'By hand', $reverser));
+        $this->assertSame('posted', $this->journalsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId)[0]->status);
+    }
+
+    public function testCancel_ReversesTodayWhenTheDayOfTheJournalIsInAClosedPeriodAndTheJournalStaysWhereItWas(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '8']);
+        $this->takes->approve($stocktakeId, $this->keeperId);
+
+        $day = date('Y-m-d', strtotime('-3 days'));
+
+        $this->accountingDb()->table('accounting_journals')->where(['source_type' => StockPermitSources::STOCKTAKE, 'source_id' => $stocktakeId])->update(['journal_date' => $day]);
+        $this->closeThrough(date('Y-m-d', strtotime('-1 day')));
+        $this->takes->cancel($stocktakeId, 'late', $this->keeperId);
+
+        $journal  = $this->journalsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId)[0];
+        $reversal = $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $journal->journal_id)->get()->getRow();
+
+        $this->assertSame($day, $journal->journal_date);
+        $this->assertSame(date('Y-m-d'), $reversal->journal_date);
+        $this->assertSame('10.000', $this->onHand($itemId));
+    }
+
+    public function testCancel_RequiresTheItemsPermissionOfTheLocationAsWellAsThePermission(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->refusedWith(AccountingError::StockLocationDenied, fn () => $this->takes->cancel($stocktakeId, 'no', $this->keeper(null, [StockPermissions::STOCKTAKE_MANAGE])));
+        $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
     }
 }

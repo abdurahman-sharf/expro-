@@ -11,6 +11,7 @@ use App\Libraries\Stock\StockPermissions;
 use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockPermitSources;
 use App\Libraries\Stock\StockRequest;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -413,5 +414,64 @@ class StockRequestTest extends CIUnitTestCase
         $this->assertSame([$across, $local], $ids($this->requests->search([], $this->keeper([1]))), 'the giving branch sees both');
         $this->assertSame([$across], $ids($this->requests->search([], $this->keeper([$other]))), 'the asking branch sees its own');
         $this->assertSame([], $this->requests->search([], $this->keeper([]))['rows']);
+    }
+
+    public function testApproveAndFulfilAndCancel_AreWrittenToTheAuditLog(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $fulfilled = $this->ask([['item_id' => $itemId, 'quantity' => '4']]);
+        $cancelled = $this->ask([['item_id' => $itemId, 'quantity' => '4']]);
+
+        $this->requests->approve($fulfilled, $this->keeperId);
+
+        $permitId = $this->requests->fulfil($fulfilled, $this->keeperId);
+
+        $this->requests->cancel($cancelled, 'not needed', $this->keeperId);
+
+        $actions = static fn (array $rows): array => array_map(static fn (object $row): string => $row->action, $rows);
+        $log     = fn (int $requestId): array => $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'stock_request', 'entity_id' => $requestId])->orderBy('audit_id', 'ASC')->get()->getResult();
+
+        $this->assertSame(['stock_request_created', 'stock_request_approved', 'stock_request_fulfilled'], $actions($log($fulfilled)));
+        $this->assertSame(['stock_request_created', 'stock_request_cancelled'], $actions($log($cancelled)));
+        $this->assertSame($permitId, json_decode((string) $log($fulfilled)[2]->details, true)['permit_id']);
+        $this->assertSame('not needed', json_decode((string) $log($cancelled)[1]->details, true)['reason']);
+    }
+
+    public function testFulfil_TakesTheLockOfTheItemsBeforeItReadsTheRequest(): void
+    {
+        $itemId    = $this->stocked('10', '50');
+        $requestId = $this->ask([['item_id' => $itemId, 'quantity' => '4']]);
+
+        $this->requests->approve($requestId, $this->keeperId);
+
+        $queries  = [];
+        $listener = static function ($query) use (&$queries): void {
+            $queries[] = (string) $query->getQuery();
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $this->requests->fulfil($requestId, $this->keeperId);
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        $lock = null;
+        $row  = null;
+
+        foreach ($queries as $index => $sql) {
+            if ($lock === null && str_contains($sql, 'ospos_items WHERE item_id IN') && str_contains($sql, 'FOR UPDATE')) {
+                $lock = $index;
+            }
+
+            if ($row === null && str_contains($sql, 'ospos_stock_requests WHERE request_id') && str_contains($sql, 'FOR UPDATE')) {
+                $row = $index;
+            }
+        }
+
+        $this->assertNotNull($lock);
+        $this->assertLessThan($row, $lock);
     }
 }

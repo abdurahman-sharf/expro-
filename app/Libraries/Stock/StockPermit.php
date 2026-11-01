@@ -202,10 +202,6 @@ final class StockPermit
                 $this->assertLocked($items, [...array_column($data['lines'], 'item_id'), ...array_map(static fn (StockPermitLine $line): int => $line->itemId, $before->lines)]);
                 $this->shelves->assertStays([...$this->deltas($before, -1), ...$this->deltas($this->documentFrom($permitId, $data, $before->label), 1)]);
 
-                if ($this->follows($data['date'])) {
-                    $this->assertOpen($this->documentFrom($permitId, $data, $before->label));
-                }
-
                 $this->takeBack($permit, $before, 'Stock permit #' . $before->label . ' edited', $employeeId);
 
                 $revision = (int) $permit->revision + 1;
@@ -788,10 +784,6 @@ final class StockPermit
     {
         $permitId = (int) $permit->permit_id;
         $sources  = $document->type === StockPermitType::Transfer ? [StockPermitSources::TRANSFER, StockPermitSources::TRANSFER_RECEIPT] : [StockPermitSources::PERMIT];
-
-        foreach ($document->toBranchId === null ? [$document->branchId] : [$document->branchId, $document->toBranchId] as $branchId) {
-            $this->branches->requireBranch($branchId, $employeeId);
-        }
 
         if ($document->type === StockPermitType::Add && ((bool) $permit->booked || $this->averagesCost())) {
             $this->averageOut($document);

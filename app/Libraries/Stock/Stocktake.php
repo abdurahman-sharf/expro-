@@ -64,6 +64,7 @@ final class Stocktake
     private const QUANTITY  = '/^\d{1,9}(\.\d{1,3})?$/';
     private const ENTITY    = 'stocktake';
     private const COMMENT   = 'STKT ';
+    private const DUPLICATE_ENTRY = 1062;
 
     private BaseConnection $db;
     private AccountingGuard $guard;
@@ -117,12 +118,8 @@ final class Stocktake
         return $this->transactional(function () use ($location, $date, $note, $itemIds, $employeeId): int {
             $slot = $location->location_id . '|' . $date;
 
-            if ($this->db->table('stocktakes')->where('slot', $slot)->countAllResults() > 0) {
-                throw new AccountingException(AccountingError::StocktakeExists, 'This location already has a stocktake for this day.', ['date' => $date, 'name' => (string) $location->location_name]);
-            }
-
             try {
-                $this->db->table('stocktakes')->insert([
+                $inserted = $this->db->table('stocktakes')->insert([
                     'company_id'  => CompanyContext::id(),
                     'branch_id'   => (int) $location->branch_id,
                     'location_id' => (int) $location->location_id,
@@ -131,8 +128,16 @@ final class Stocktake
                     'note'        => $note,
                     'created_by'  => $employeeId,
                 ]);
-            } catch (DatabaseException) {
-                throw new AccountingException(AccountingError::StocktakeExists, 'This location already has a stocktake for this day.', ['date' => $date, 'name' => (string) $location->location_name]);
+                $code = $inserted === false ? (int) ($this->db->error()['code'] ?? 0) : 0;
+            } catch (DatabaseException $exception) {
+                $inserted = false;
+                $code     = (int) $exception->getCode();
+            }
+
+            if ($inserted === false) {
+                throw $code === self::DUPLICATE_ENTRY
+                    ? new AccountingException(AccountingError::StocktakeExists, 'This location already has a stocktake for this day.', ['date' => $date, 'name' => (string) $location->location_name])
+                    : new AccountingException(AccountingError::WriteFailed, 'The stocktake could not be saved.');
             }
 
             $stocktakeId = (int) $this->db->insertID();

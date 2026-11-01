@@ -1088,8 +1088,8 @@ class StockPermitTest extends CIUnitTestCase
 
         $back = fn (): int => $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '1']], ['location_id' => $store, 'to_location_id' => self::LOCATION_ID]), $this->keeperId);
 
-        $this->assertSame([1, $other], $this->periodLocksTakenBy($back), 'the lower branch first when the stock comes back too');
-        $this->assertSame([1, $other], $this->periodLocksTakenBy(fn (): int => $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '1']], ['to_location_id' => $store]), $this->keeperId)));
+        $this->assertSame([1, $other, 1, $other], $this->periodLocksTakenBy($back), 'the lower branch first, in the check of the periods and in the posting, when the stock comes back too');
+        $this->assertSame([1, $other, 1, $other], $this->periodLocksTakenBy(fn (): int => $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '1']], ['to_location_id' => $store]), $this->keeperId)));
     }
 
     /**
@@ -1201,5 +1201,60 @@ class StockPermitTest extends CIUnitTestCase
         }
 
         $this->assertSame(['posted'], array_unique(array_map(static fn (array $case): string => (string) (new JournalService())->find($case[1])->status, $cases)));
+    }
+
+    /**
+     * Runs the action and, the moment it has locked its items, lets another request change what the
+     * permit holds, over a second connection that commits at once.
+     */
+    private function whileLockedAnotherRequestChangesThePermit(int $permitId, int $toItem, callable $action): void
+    {
+        $link     = $this->openSecondConnection(false);
+        $fired    = false;
+        $listener = static function ($query) use (&$fired, $link, $toItem, $permitId): void {
+            $sql = (string) $query->getQuery();
+
+            if (! $fired && str_contains($sql, 'ospos_items WHERE item_id IN') && str_contains($sql, 'FOR UPDATE')) {
+                $fired = true;
+                $link->query('UPDATE ' . $link->prefixTable('stock_permit_lines') . ' SET item_id = ? WHERE permit_id = ?', [$toItem, $permitId]);
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+            $this->fail('A change prepared on what the permit held before must be asked to be made again.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::WriteFailed, $exception->error);
+            $this->assertTrue($fired);
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+    }
+
+    public function testCancel_IsAskedToBeMadeAgainWhenAnotherRequestChangedTheItemsOfThePermitAfterTheyWereRead(): void
+    {
+        $first    = $this->stocked('10', '50');
+        $second   = $this->stocked('10', '50');
+        $permitId = $this->add($first, '5', '50');
+
+        $this->whileLockedAnotherRequestChangesThePermit($permitId, $second, fn () => $this->permits->cancel($permitId, 'x', $this->keeperId));
+
+        $this->assertSame('posted', $this->permits->find($permitId)->status);
+        $this->assertSame('15.000', $this->onHand($first));
+        $this->assertSame('10.000', $this->onHand($second));
+    }
+
+    public function testUpdate_IsAskedToBeMadeAgainWhenAnotherRequestChangedTheItemsOfThePermitAfterTheyWereRead(): void
+    {
+        $first    = $this->stocked('10', '50');
+        $second   = $this->stocked('10', '50');
+        $permitId = $this->add($first, '5', '50');
+
+        $this->whileLockedAnotherRequestChangesThePermit($permitId, $second, fn () => $this->permits->update($permitId, ['lines' => [['item_id' => $first, 'quantity' => '4', 'unit_cost' => '50']]], $this->keeperId));
+
+        $this->assertSame(1, (int) $this->permits->find($permitId)->revision);
+        $this->assertSame('15.000', $this->onHand($first));
     }
 }

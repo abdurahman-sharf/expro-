@@ -8,11 +8,13 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
 
 class StockDocumentsMigrationTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ItemFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -135,7 +137,7 @@ class StockDocumentsMigrationTest extends CIUnitTestCase
         $db->table('stock_permits')->insert($this->permit());
 
         $permitId = (int) $db->insertID();
-        $itemId   = (int) $db->table('items')->select('item_id')->limit(1)->get()->getRow()->item_id;
+        $itemId   = $this->createTestItem();
 
         $db->table('stock_permit_lines')->insert(['permit_id' => $permitId, 'line_no' => 1, 'item_id' => $itemId, 'quantity' => '1.000', 'unit_cost' => '0']);
 
@@ -169,12 +171,12 @@ class StockDocumentsMigrationTest extends CIUnitTestCase
         $db->table('stocktakes')->insert(['company_id' => 1, 'branch_id' => 1, 'location_id' => 1, 'count_date' => date('Y-m-d'), 'slot' => '1|' . date('Y-m-d')]);
 
         $stocktakeId = (int) $db->insertID();
-        $itemId      = (int) $db->table('items')->select('item_id')->limit(1)->get()->getRow()->item_id;
+        $itemId      = $this->createTestItem();
 
         $db->table('stocktake_lines')->insert(['stocktake_id' => $stocktakeId, 'item_id' => $itemId, 'system_quantity' => '5.000']);
 
         $this->assertNull($db->table('stocktake_lines')->where('stocktake_id', $stocktakeId)->get()->getRow()->counted_quantity);
-        $this->assertSame(1, $db->table('stocktake_lines')->where('stocktake_id', $stocktakeId)->update(['counted_quantity' => '0.000']));
+        $this->assertTrue($db->table('stocktake_lines')->where('stocktake_id', $stocktakeId)->update(['counted_quantity' => '0.000']));
         $this->refused(fn () => $db->table('stocktake_lines')->where('stocktake_id', $stocktakeId)->update(['counted_quantity' => '-1.000']));
     }
 
@@ -201,7 +203,7 @@ class StockDocumentsMigrationTest extends CIUnitTestCase
         $db->table('stock_requests')->insert(['company_id' => 1, 'branch_id' => 1, 'from_branch_id' => 1, 'from_location_id' => 1, 'to_location_id' => $second, 'request_date' => date('Y-m-d')]);
 
         $requestId = (int) $db->insertID();
-        $itemId    = (int) $db->table('items')->select('item_id')->limit(1)->get()->getRow()->item_id;
+        $itemId    = $this->createTestItem();
 
         $db->table('stock_request_lines')->insert(['request_id' => $requestId, 'line_no' => 1, 'item_id' => $itemId, 'quantity' => '1.000']);
 
@@ -215,7 +217,7 @@ class StockDocumentsMigrationTest extends CIUnitTestCase
         $db->table('stock_permits')->insert($this->permit());
 
         $permitId = (int) $db->insertID();
-        $itemId   = (int) $db->table('items')->select('item_id')->limit(1)->get()->getRow()->item_id;
+        $itemId   = $this->createTestItem();
 
         $db->table('stock_permit_lines')->insert(['permit_id' => $permitId, 'line_no' => 1, 'item_id' => $itemId, 'quantity' => '1.000', 'unit_cost' => '0']);
 
