@@ -244,7 +244,7 @@ class SalePostingTest extends CIUnitTestCase
     public function testSaveValue_RefusesASaleWhenARoutingRowIsSavedWithATypePostingDoesNotApply(): void
     {
         $cycle = $this->referenceInvoice();
-        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::Customers->value)->update(['routing_type' => RoutingType::MainPerEntity->value]);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::Customers->value)->update(['routing_type' => RoutingType::PerItem->value]);
 
         $sales = $this->countSales();
 
@@ -6543,5 +6543,240 @@ class SalePostingTest extends CIUnitTestCase
         $saleId = $this->save($cycle['items'], $cycle['taxes']);
 
         $this->assertSame('Sale #' . $saleId, $this->descriptionsOf($saleId)['sale/revenue']);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The routing types per item and main account per entity (WP24)
+    // ---------------------------------------------------------------------------------------
+
+    private function routeRow(RoutingKey $key, RoutingType $type): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', $key->value)->update(['routing_type' => $type->value]);
+    }
+
+    private function nameItemAccount(int $itemId, RoutingKey $key, int $accountId): void
+    {
+        $this->accountingDb()->table('item_routing_accounts')->replace(['item_id' => $itemId, 'routing_key' => $key->value, 'account_id' => $accountId]);
+    }
+
+    /**
+     * The reference invoice with the creams under an account of their own and the row set to per item.
+     *
+     * @return array{items: list<array<string, mixed>>, taxes: list<array<string, mixed>>, cream: int, perfume: int, creamAccount: int}
+     */
+    private function perItemCycle(): array
+    {
+        $cycle                 = $this->referenceInvoice();
+        $cycle['creamAccount'] = $this->customAccount('41', '4101', 'Cream revenue');
+
+        $this->nameItemAccount($cycle['cream'], RoutingKey::SalesRevenue, $cycle['creamAccount']);
+        $this->routeRow(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        return $cycle;
+    }
+
+    /**
+     * @return list<string> The lines of the reversal of a journal, as "account:debit:credit".
+     */
+    private function reversalLinesOf(int $journalId): array
+    {
+        $db       = $this->accountingDb();
+        $reversal = $db->table('accounting_journals')->select('journal_id')->where('reverses_journal_id', $journalId)->get()->getRow();
+
+        $this->assertNotNull($reversal, 'The journal was not reversed.');
+
+        return array_map(
+            static fn (object $line): string => $line->account_id . ':' . bcadd($line->debit, '0', 2) . ':' . bcadd($line->credit, '0', 2),
+            $db->table('accounting_journal_lines')->select('account_id, debit, credit')->where('journal_id', $reversal->journal_id)->orderBy('line_no', 'ASC')->get()->getResult(),
+        );
+    }
+
+    public function testSaveValue_PostsTheRevenueOfEachItemToTheAccountItNamesWhenTheRowIsPerItem(): void
+    {
+        $cycle  = $this->perItemCycle();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':816.50:0.00',
+                $cycle['creamAccount'] . ':0.00:270.00',
+                $this->accountId('sales_revenue') . ':0.00:440.00',
+                $this->accountId('tax_output') . ':0.00:106.50',
+            ],
+            $this->standing($saleId, 'revenue')[0]['lines'],
+        );
+        $this->assertSame('270.00', bcmul('-1', $this->balance($cycle['creamAccount']), 2));
+        $this->assertSame('440.00', bcmul('-1', $this->balance($this->accountId('sales_revenue')), 2));
+    }
+
+    public function testSaveValue_KeepsTheCostJournalAndTheStockTiesWhenTheRevenueRowIsPerItem(): void
+    {
+        $cycle  = $this->perItemCycle();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+        $stock  = new StockLedger();
+
+        $this->assertSame([$this->accountId('cogs') . ':400.00:0.00', $this->stockAccount() . ':0.00:400.00'], $this->standing($saleId, 'cogs')[0]['lines']);
+        $this->assertSame([], $stock->mismatchedJournals());
+
+        foreach ($stock->reconcile() as $row) {
+            $this->assertSame('0.0000', $row['unattributed'], 'location ' . $row['location_id']);
+        }
+
+        $this->assertTies();
+    }
+
+    public function testSaveValue_PostsAPerItemSaleInTheBranchOfTheSale(): void
+    {
+        $cycle  = $this->perItemCycle();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $branches = array_unique(array_column($this->accountingDb()->table('accounting_journals')->select('branch_id')->whereIn('journal_id', array_column($this->journals($saleId), 'id'))->get()->getResultArray(), 'branch_id'));
+
+        $this->assertSame([(string) $this->saleRow($saleId)->branch_id], array_values($branches));
+    }
+
+    public function testSaveValue_RefusesAPerItemSaleWhoseItemNamesAnAccountThatWasDeactivatedAndLeavesNoSale(): void
+    {
+        $cycle = $this->perItemCycle();
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $cycle['creamAccount'])->update(['active' => 0]);
+
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes']));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(PostingError::ItemAccountUnusable, $this->failure()->error);
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_PostsNothingForAPerItemSaleWhileAccountingIsOff(): void
+    {
+        $cycle = $this->perItemCycle();
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $cycle['creamAccount'])->update(['active' => 0]);
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame([], $this->journals($saleId));
+    }
+
+    public function testSaveValue_PostsAReturnToTheReturnsAccountOfTheItemWhenThatRowIsPerItem(): void
+    {
+        $cycle         = $this->referenceInvoice();
+        $creamReturns = $this->customAccount('41', '4101', 'Cream returns');
+        $this->nameItemAccount($cycle['cream'], RoutingKey::SalesReturns, $creamReturns);
+        $this->routeRow(RoutingKey::SalesReturns, RoutingType::PerItem);
+        $invoice = $this->save($cycle['items'], $cycle['taxes']);
+
+        $return = $this->save(
+            [$this->line($cycle['cream'], 0, '-1', '75', '40.00', '10'), $this->line($cycle['perfume'], 1, '-1', '220', '120.00')],
+            [$this->tax($cycle['cream'], 0, '-10.125'), $this->tax($cycle['perfume'], 1, '-33.00')],
+            [],
+            SALE_TYPE_RETURN,
+            -1,
+            true,
+            $invoice,
+        );
+
+        $revenue = $this->standing($return, 'revenue')[0]['lines'];
+
+        $this->assertContains($creamReturns . ':67.50:0.00', $revenue);
+        $this->assertContains($this->accountId('sales_returns') . ':220.00:0.00', $revenue);
+        $this->assertContains($this->accountId('sales_revenue') . ':0.00:710.00', $this->standing($invoice, 'revenue')[0]['lines']);
+    }
+
+    public function testSaveValue_PostsAMainPerEntitySaleWithTheLinesTheAutomaticRowGives(): void
+    {
+        $cycle     = $this->referenceInvoice();
+        $automatic = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '100.00')]);
+        $this->routeRow(RoutingKey::Customers, RoutingType::MainPerEntity);
+        $perEntity = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '100.00')]);
+
+        $shape = static fn (array $journals): array => array_map(static fn (array $journal): array => [$journal['entry'], $journal['lines']], $journals);
+
+        $this->assertSame($shape($this->journals($automatic)), $shape($this->journals($perEntity)));
+        $this->assertSame(['revenue', 'general', 'cogs'], array_column($this->journals($perEntity), 'entry'));
+    }
+
+    public function testSaveValue_RefusesAMainPerEntitySaleOfACustomerWithoutAnAccountAndLeavesNoSale(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $this->routeRow(RoutingKey::Customers, RoutingType::MainPerEntity);
+        $other = $this->insertCustomer('No', 'Account');
+
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, $other));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(PostingError::EntityAccountMissing, $this->failure()->error);
+    }
+
+    public function testDelete_ReversalMirrorsTheOriginalJournalWhateverTheItemAccountAndTheRoutingBecameSince(): void
+    {
+        $cycle    = $this->perItemCycle();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_POS);
+        $original = $this->standing($saleId, 'revenue')[0];
+        $cost     = $this->standing($saleId, 'cogs')[0];
+
+        $this->nameItemAccount($cycle['cream'], RoutingKey::SalesRevenue, $this->customAccount('41', '4102', 'Moved revenue'));
+        $this->nameItemAccount($cycle['perfume'], RoutingKey::SalesRevenue, $this->customAccount('41', '4103', 'Perfume revenue'));
+        $this->routeRow(RoutingKey::SalesRevenue, RoutingType::Auto);
+
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+        $mirror = static fn (string $line): string => implode(':', [explode(':', $line)[0], explode(':', $line)[2], explode(':', $line)[1]]);
+
+        $this->assertSame(array_map($mirror, $original['lines']), $this->reversalLinesOf($original['id']));
+        $this->assertSame(array_map($mirror, $cost['lines']), $this->reversalLinesOf($cost['id']));
+        $this->assertContains($cycle['creamAccount'] . ':270.00:0.00', $this->reversalLinesOf($original['id']));
+        $this->assertSame($original['lines'], $this->journals($saleId)[0]['lines']);
+        $this->assertSame('0.00', $this->balance($cycle['creamAccount']));
+        $this->assertSame('0.00', $this->balance($this->accountId('sales_revenue')));
+    }
+
+    public function testDelete_ARestoredPerItemSaleResolvesWithTheSettingsOfTheMomentAndLeavesTheOldJournalUntouched(): void
+    {
+        $cycle    = $this->perItemCycle();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_POS);
+        $original = $this->standing($saleId, 'revenue')[0];
+
+        $moved = $this->customAccount('41', '4102', 'Moved revenue');
+        $this->nameItemAccount($cycle['cream'], RoutingKey::SalesRevenue, $moved);
+
+        $this->sales->delete($saleId, false, true, $this->employeeId);
+        $this->sales->restore_list([$saleId], $this->employeeId);
+        $this->assertSame($saleId, $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_POS, -1, true, null, COMPLETED, $saleId));
+
+        $revenue = array_values(array_filter($this->journals($saleId), static fn (array $journal): bool => $journal['entry'] === 'revenue'));
+
+        $this->assertSame([1, 2], array_column($revenue, 'revision'));
+        $this->assertSame(['reversed', 'posted'], array_column($revenue, 'status'));
+        $this->assertSame($original['lines'], $revenue[0]['lines']);
+        $this->assertContains($moved . ':0.00:270.00', $revenue[1]['lines']);
+        $this->assertNotContains($cycle['creamAccount'] . ':0.00:270.00', $revenue[1]['lines']);
+
+        $this->routeRow(RoutingKey::SalesRevenue, RoutingType::Auto);
+        $this->sales->delete($saleId, false, true, $this->employeeId);
+        $this->sales->restore_list([$saleId], $this->employeeId);
+        $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_POS, -1, true, null, COMPLETED, $saleId);
+
+        $third = array_values(array_filter($this->standing($saleId), static fn (array $journal): bool => $journal['entry'] === 'revenue'))[0];
+
+        $this->assertSame(3, $third['revision']);
+        $this->assertContains($this->accountId('sales_revenue') . ':0.00:710.00', $third['lines']);
+    }
+
+    public function testDelete_ReversesAPerItemSaleToTheZeroBalanceOfEveryAccountItTouched(): void
+    {
+        $cycle  = $this->perItemCycle();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '300.00')], SALE_TYPE_POS);
+
+        $this->sales->delete($saleId, false, true, $this->employeeId);
+
+        $this->assertSame([], $this->standing($saleId));
+
+        foreach ([$this->customerAccount(), $cycle['creamAccount'], $this->accountId('sales_revenue'), $this->accountId('tax_output'), $this->accountId('cogs'), $this->stockAccount(), $this->accountId('cash')] as $accountId) {
+            $this->assertSame('0.00', $this->balance($accountId), (string) $accountId);
+        }
     }
 }
