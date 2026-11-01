@@ -172,6 +172,30 @@ final class CreditLimitTest extends CIUnitTestCase
         ];
     }
 
+    #[DataProvider('provideSaveTerms_RejectsTermsThatAreNotANumberInRange')]
+    public function testCheckTerms_RejectsTermsThatAreNotANumberInRangeAndChangesNothing(string $limit, string $days): void
+    {
+        $this->giveTerms('50', 5);
+
+        try {
+            $this->credit->checkTerms($limit, $days);
+            $this->fail('The terms should have been refused.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::CreditTermsInvalid, $refusal->error);
+        }
+
+        $this->assertSame(['limit' => '50.0000', 'days' => 5], $this->credit->termsOf($this->customerId));
+    }
+
+    public function testCheckTerms_AcceptsWhatIsLeftOutAndWhatIsEmptyAndTheLargestValues(): void
+    {
+        $this->credit->checkTerms(null, null);
+        $this->credit->checkTerms('', '  ');
+        $this->credit->checkTerms('99999999999.9999', '65535');
+
+        $this->assertSame(['limit' => '0.0000', 'days' => 0], $this->credit->termsOf($this->customerId));
+    }
+
     public function testSaveTerms_AcceptsTheLargestDaysThatFit(): void
     {
         $this->credit->saveTerms($this->customerId, '0', '65535', $this->employeeId);

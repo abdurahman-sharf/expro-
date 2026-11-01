@@ -484,6 +484,29 @@ class Price_listTest extends CIUnitTestCase
         $this->assertSame(AccountingError::PriceListNotFound, $this->refused(fn () => $this->lists->assignTo($this->insertCustomer(), 987654, $this->employeeId))->error);
     }
 
+    public function testCheckAssignable_RefusesAListThatIsGoneOrNotActiveAndAcceptsNoneTheListTheCustomerHasAndAnActiveOne(): void
+    {
+        $active     = $this->list('Active');
+        $retired    = $this->list('Retired');
+        $customerId = $this->insertCustomer();
+
+        $this->lists->assignTo($customerId, $retired, $this->employeeId);
+        $this->lists->setStatus($retired, false, $this->employeeId);
+
+        $this->lists->checkAssignable($customerId, null);
+        $this->lists->checkAssignable($customerId, 0);
+        $this->lists->checkAssignable($customerId, $retired);
+        $this->lists->checkAssignable($customerId, $active);
+
+        $newcomer = $this->insertCustomer('New', 'Comer');
+
+        $this->assertSame(AccountingError::PriceListInactive, $this->refused(fn () => $this->lists->checkAssignable($newcomer, $retired))->error);
+        $this->assertSame(AccountingError::PriceListNotFound, $this->refused(fn () => $this->lists->checkAssignable($newcomer, 987654))->error);
+        $this->assertSame(AccountingError::PriceListNotFound, $this->refused(fn () => $this->lists->checkAssignable(NEW_ENTRY, 987654))->error);
+        $this->assertNull($this->lists->assignedTo($newcomer));
+        $this->assertCount(1, $this->audit('customer_price_list_changed'));
+    }
+
     public function testSearch_CountsTheCustomersAndTheItemsOfEachListAndFindsByName(): void
     {
         $wholesale  = $this->list('Wholesale');

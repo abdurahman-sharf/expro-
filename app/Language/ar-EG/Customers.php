@@ -60,6 +60,7 @@ return [
     'price_list'                    => 'قائمة الأسعار',
     'price_list_none'               => 'بلا (أسعار الأصناف)',
     'pricing_and_credit'            => 'الأسعار والائتمان',
+    'pricing_not_saved'             => 'لم تُحفظ قائمة الأسعار أو شروط الائتمان: {0}',
     'quantity'                      => 'العدد',
     'rewards_package'               => 'فئة المكافئة',
     'stats_info'                    => 'الحالة',

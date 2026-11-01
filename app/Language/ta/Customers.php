@@ -60,6 +60,7 @@ return [
     'price_list'                    => '',
     'price_list_none'               => '',
     'pricing_and_credit'            => '',
+    'pricing_not_saved'             => '',
     'quantity'                      => 'அளவு',
     'rewards_package'               => 'வெகுமதி தொகுப்பு',
     'stats_info'                    => 'புள்ளிவிவரங்கள்',

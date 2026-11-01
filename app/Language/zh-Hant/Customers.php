@@ -60,6 +60,7 @@ return [
     'price_list'                    => '',
     'price_list_none'               => '',
     'pricing_and_credit'            => '',
+    'pricing_not_saved'             => '',
     'quantity'                      => '數量',
     'rewards_package'               => '獎勵禮包',
     'stats_info'                    => '客戶統計信息',

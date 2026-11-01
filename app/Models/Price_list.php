@@ -311,6 +311,29 @@ class Price_list extends Model
     }
 
     /**
+     * Whether a list may be given to a customer, so a form can refuse it before it saves anything
+     * else. A customer keeps the list it has, active or not, and may always have none.
+     *
+     * @throws AccountingException
+     */
+    public function checkAssignable(int $customerId, ?int $priceListId): void
+    {
+        if ($priceListId === null || $priceListId === 0 || $priceListId === $this->assignedTo($customerId)) {
+            return;
+        }
+
+        $list = $this->getList($priceListId);
+
+        if ($list === null) {
+            throw new AccountingException(AccountingError::PriceListNotFound, 'The price list does not exist.', ['id' => $priceListId]);
+        }
+
+        if ((int) $list->status !== 1) {
+            throw new AccountingException(AccountingError::PriceListInactive, 'A price list that is not active is not given to a customer.', ['name' => $list->name]);
+        }
+    }
+
+    /**
      * Assigns a price list to a customer, or takes the customer's list away when the list is null. A
      * list that is not active is not given to anyone new, but the customer who has it keeps it.
      *
@@ -325,18 +348,7 @@ class Price_list extends Model
             return;
         }
 
-        if ($priceListId !== null) {
-            $list = $this->getList($priceListId);
-
-            if ($list === null) {
-                throw new AccountingException(AccountingError::PriceListNotFound, 'The price list does not exist.', ['id' => $priceListId]);
-            }
-
-            if ((int) $list->status !== 1) {
-                throw new AccountingException(AccountingError::PriceListInactive, 'A price list that is not active is not given to a customer.', ['name' => $list->name]);
-            }
-        }
-
+        $this->checkAssignable($customerId, $priceListId);
         $this->db->transStart();
         $this->db->table('customers')->where('person_id', $customerId)->update(['price_list_id' => $priceListId]);
         (new AuditLog($this->db))->write('customer', $customerId, 'customer_price_list_changed', $employeeId, JournalOrigin::User, ['before' => $before, 'after' => $priceListId]);

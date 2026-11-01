@@ -60,6 +60,7 @@ return [
     'price_list'                    => '',
     'price_list_none'               => '',
     'pricing_and_credit'            => '',
+    'pricing_not_saved'             => '',
     'quantity'                      => 'ចំនួន',
     'rewards_package'               => 'កញ្ចប់រង្វាន់',
     'stats_info'                    => 'ស្ថិតិព័ត៌មាន',

@@ -60,6 +60,7 @@ return [
     'price_list'                    => 'Price list',
     'price_list_none'               => 'None (item prices)',
     'pricing_and_credit'            => 'Prices and credit',
+    'pricing_not_saved'             => 'The price list or the credit terms were not saved: {0}',
     'quantity'                      => 'Quantity',
     'rewards_package'               => 'Rewards',
     'stats_info'                    => 'Stats',

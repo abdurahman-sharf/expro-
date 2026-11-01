@@ -748,18 +748,36 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertFalse((new SalesControlSettings())->minimumPriceEnabled());
     }
 
-    public function testPostSaveControls_ClearsTheExcludedCategoriesWhenTheFormSendsNone(): void
+    public function testPostSaveControls_ClearsTheExcludedCategoriesWhenTheFormSendsOnlyTheEmptyFallback(): void
     {
         $this->resetSalesControlSettings();
-        $this->manager();
+        $manager = $this->manager();
 
         $this->post('/accounting_settings/save_controls', ['exempt_categories' => ['Services']]);
 
         $this->assertSame(['Services'], (new SalesControlSettings())->discountExemptCategories());
 
-        $this->post('/accounting_settings/save_controls', ['exempt_categories' => 'x']);
+        $result = $this->jsonOf($this->post('/accounting_settings/save_controls', ['exempt_categories' => ['']]));
 
+        $this->assertTrue($result['success']);
         $this->assertSame([], (new SalesControlSettings())->discountExemptCategories());
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'settings', 'action' => 'settings_updated'])->orderBy('audit_id', 'DESC')->get()->getRow();
+
+        $this->assertSame($manager, (int) $entry->employee_id);
+        $this->assertSame([], json_decode($entry->details, true)['after']['exempt_categories']);
+
+        $this->resetSalesControlSettings();
+    }
+
+    public function testGetIndex_SendsAnEmptyCategoryBeforeTheChoiceSoThatClearingTheLastExcludedCategoryReachesTheServer(): void
+    {
+        $this->resetSalesControlSettings();
+        $this->manager();
+
+        $body = $this->get('/accounting_settings')->getBody();
+
+        $this->assertMatchesRegularExpression('/<input type="hidden" name="exempt_categories\[\]" value="">\s*<select name="exempt_categories\[\]"/', $body);
 
         $this->resetSalesControlSettings();
     }

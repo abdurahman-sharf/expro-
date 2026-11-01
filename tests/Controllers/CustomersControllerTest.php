@@ -852,4 +852,62 @@ class CustomersControllerTest extends CIUnitTestCase
 
         $this->resetCustomerControls();
     }
+
+    public function testPostSave_SavesNoNewCustomerAndEntersNoOpeningBalanceWhenTheCreditTermsAreRefused(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_PERIOD, '1');
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers', AccountingGuard::OPENING_MANAGE, AccountingGuard::RECEIVABLES_MANAGE]), 'menu_group' => 'office']);
+
+        $customers = $this->countRows('customers');
+        $people    = $this->countRows('people');
+
+        foreach ([['credit_limit' => '-100'], ['credit_limit' => 'abc'], ['credit_period_days' => '70000'], ['credit_period_days' => 'abc']] as $invalid) {
+            $result = $this->save(['opening_side' => 'owes_us', 'opening_amount' => '5000.00', 'opening_date' => date('Y-m-d'), ...$invalid]);
+
+            $this->assertFalse($result['success'], json_encode($invalid));
+            $this->assertSame(lang('Accounting.error_credit_terms_invalid'), $result['message']);
+            $this->assertSame(NEW_ENTRY, $result['id']);
+        }
+
+        $this->assertSame([$customers, $people, 0], [$this->countRows('customers'), $this->countRows('people'), $this->countRows('customer_openings')]);
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_SavesNoNewCustomerWhenTheListTheFormNamesIsNotActive(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $listId = model(Price_list::class)->saveList('Retired', false, null, null);
+
+        $this->actAsEmployeeWith(['price_lists']);
+
+        $customers = $this->countRows('customers');
+        $result    = $this->save(['price_list_id' => (string) $listId]);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_price_list_inactive'), $result['message']);
+        $this->assertSame($customers, $this->countRows('customers'));
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_ChangesNothingOfACustomerThatExistsWhenTheCreditTermsAreRefused(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $customerId = $this->insertCustomer('Omar', 'Khaled');
+
+        $this->actAsEmployeeWith([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        $result = $this->save(['first_name' => 'Changed', 'credit_limit' => 'big'], $customerId);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('Omar', $this->accountingDb()->table('people')->where('person_id', $customerId)->get()->getRow()->first_name);
+
+        $this->resetCustomerControls();
+    }
 }

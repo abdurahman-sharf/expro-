@@ -44,21 +44,34 @@ final class CreditLimit
     }
 
     /**
+     * Whether what was typed is a limit and days that can be saved, so a form can refuse them before
+     * it saves anything else.
+     *
+     * @throws AccountingException
+     */
+    public function checkTerms(?string $limit, ?string $days): void
+    {
+        $limit = $limit === null || trim($limit) === '' ? '0' : trim($limit);
+        $days  = $days === null || trim($days) === '' ? '0' : trim($days);
+
+        if (preg_match('/^\d{1,11}(\.\d{1,4})?$/', $limit) !== 1 || ! ctype_digit($days) || (int) $days > self::DAYS_MAX) {
+            throw new AccountingException(AccountingError::CreditTermsInvalid, 'The credit limit or the credit days are not valid.');
+        }
+    }
+
+    /**
      * @param string|null $limit What is left out (null) stays as it is, for a form that shows only one of the two.
      *
      * @throws AccountingException
      */
     public function saveTerms(int $customerId, ?string $limit, ?string $days, ?int $employeeId): void
     {
+        $this->checkTerms($limit, $days);
+
         $before = $this->termsOf($customerId);
         $limit  = $limit === null ? $before['limit'] : (trim($limit) === '' ? '0' : trim($limit));
         $days   = $days === null ? (string) $before['days'] : (trim($days) === '' ? '0' : trim($days));
-
-        if (preg_match('/^\d{1,11}(\.\d{1,4})?$/', $limit) !== 1 || ! ctype_digit($days) || (int) $days > self::DAYS_MAX) {
-            throw new AccountingException(AccountingError::CreditTermsInvalid, 'The credit limit or the credit days are not valid.');
-        }
-
-        $limit = bcadd($limit, '0', 4);
+        $limit  = bcadd($limit, '0', 4);
 
         if (bccomp($before['limit'], $limit, 4) === 0 && $before['days'] === (int) $days) {
             return;

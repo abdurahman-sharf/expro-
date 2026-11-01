@@ -242,6 +242,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 <div class="field span-all">
                     <?= form_label(lang('Accounting_settings.control_exempt_categories'), 'control_exempt_categories', ['class' => 'form-label']) ?>
                     <div class="field-control">
+                        <input type="hidden" name="exempt_categories[]" value="">
                         <select name="exempt_categories[]" id="control_exempt_categories" class="form-select form-select-sm" multiple size="5"<?= $can_manage ? '' : ' disabled' ?>>
                             <?php foreach (array_unique([...$control_categories, ...$controls['exempt_categories']]) as $category): ?>
                                 <option value="<?= esc($category, 'attr') ?>"<?= in_array($category, $controls['exempt_categories'], true) ? ' selected' : '' ?>><?= esc($category) ?></option>

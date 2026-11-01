@@ -60,6 +60,7 @@ return [
     'price_list'                    => '',
     'price_list_none'               => '',
     'pricing_and_credit'            => '',
+    'pricing_not_saved'             => '',
     'quantity'                      => 'Miqdarı',
     'rewards_package'               => 'Mükafatlar Paketi',
     'stats_info'                    => 'Statistikalar',

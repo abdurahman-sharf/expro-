@@ -303,12 +303,15 @@ class Customers extends Persons
             return $this->response->setJSON(['success' => false, 'message' => lang('Customers.account_number_duplicate'), 'id' => NEW_ENTRY]);
         }
 
-        if ($this->customer->save_customer($personData, $customerData, $customerId)) {
-            $pricingFailure = $this->saveCustomerPricing((int) ($customerData['person_id'] ?? $customerId));
+        $pricingRefusal = $this->refusalOfPricing((int) $customerId);
 
-            if ($pricingFailure !== null) {
-                return $this->response->setJSON(['success' => false, 'message' => $pricingFailure, 'id' => (int) ($customerData['person_id'] ?? $customerId)]);
-            }
+        if ($pricingRefusal !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $pricingRefusal, 'id' => NEW_ENTRY]);
+        }
+
+        if ($this->customer->save_customer($personData, $customerData, $customerId)) {
+            $notSaved    = $this->saveCustomerPricing((int) ($customerData['person_id'] ?? $customerId));
+            $pricingNote = $notSaved === null ? '' : ' ' . lang('Customers.pricing_not_saved', [$notSaved]);
 
             // Save customer to Mailchimp selected list    // TODO: addOrUpdateMember should be refactored. Potentially pass an array or object instead of 6 parameters.
             $mailchimpStatus = $this->request->getPost('mailchimp_status');
@@ -327,13 +330,13 @@ class Customers extends Persons
 
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Customers.successful_adding') . ' ' . $firstName . ' ' . $lastName . ($notEntered === null ? '' : ' ' . lang('Customers.opening_not_entered', [$notEntered])),
+                    'message' => lang('Customers.successful_adding') . ' ' . $firstName . ' ' . $lastName . $pricingNote . ($notEntered === null ? '' : ' ' . lang('Customers.opening_not_entered', [$notEntered])),
                     'id'      => $customerData['person_id']
                 ]);
             } else { // Existing customer
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Customers.successful_updating') . ' ' . $firstName . ' ' . $lastName,
+                    'message' => lang('Customers.successful_updating') . ' ' . $firstName . ' ' . $lastName . $pricingNote,
                     'id'      => $customerId
                 ]);
             }
@@ -397,24 +400,68 @@ class Customers extends Persons
     }
 
     /**
-     * Saves the price list and the credit terms the form gave, for whoever may set them. What the
-     * books or the lists refuse is returned as the reason.
+     * The price list and the credit terms the form gave, for whoever may set them. What the form
+     * leaves out, or what the employee may not set, is null and stays as it is.
+     *
+     * @return array{list: ?int, limit: ?string, days: ?string}
      */
-    private function saveCustomerPricing(int $customerId): ?string
+    private function pricingGiven(): array
     {
         $settings   = new SalesControlSettings();
         $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+        $given      = ['list' => null, 'limit' => null, 'days' => null];
 
-        try {
-            if ($settings->priceListsEnabled() && $this->request->getPost('price_list_id') !== null && $this->employee->has_grant('price_lists', $employeeId)) {
-                $this->priceList->assignTo($customerId, (int) $this->request->getPost('price_list_id'), $employeeId);
+        if ($settings->priceListsEnabled() && $this->request->getPost('price_list_id') !== null && $this->employee->has_grant('price_lists', $employeeId)) {
+            $given['list'] = (int) $this->request->getPost('price_list_id');
+        }
+
+        if ($this->creditTermsEditable()) {
+            if ($settings->creditLimitEnabled() && $this->request->getPost('credit_limit') !== null) {
+                $given['limit'] = $this->amountOf((string) $this->request->getPost('credit_limit'));
             }
 
-            if ($this->creditTermsEditable() && ($settings->creditLimitEnabled() || $settings->creditPeriodEnabled())) {
-                $limit = $settings->creditLimitEnabled() && $this->request->getPost('credit_limit') !== null ? $this->amountOf((string) $this->request->getPost('credit_limit')) : null;
-                $days  = $settings->creditPeriodEnabled() && $this->request->getPost('credit_period_days') !== null ? trim((string) $this->request->getPost('credit_period_days')) : null;
+            if ($settings->creditPeriodEnabled() && $this->request->getPost('credit_period_days') !== null) {
+                $given['days'] = trim((string) $this->request->getPost('credit_period_days'));
+            }
+        }
 
-                (new CreditLimit())->saveTerms($customerId, $limit, $days, $employeeId);
+        return $given;
+    }
+
+    /**
+     * Why the price list or the credit terms of the form cannot be saved, asked before the customer
+     * is saved so that a customer is never saved next to a refusal.
+     */
+    private function refusalOfPricing(int $customerId): ?string
+    {
+        $given = $this->pricingGiven();
+
+        try {
+            $this->priceList->checkAssignable($customerId, $given['list']);
+            (new CreditLimit())->checkTerms($given['limit'], $given['days']);
+        } catch (AccountingException $failure) {
+            return AccountingMessage::of($failure);
+        }
+
+        return null;
+    }
+
+    /**
+     * Saves the price list and the credit terms the form gave. What the books or the lists refuse
+     * after all, when they changed since the form was checked, is returned as the reason.
+     */
+    private function saveCustomerPricing(int $customerId): ?string
+    {
+        $given      = $this->pricingGiven();
+        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+
+        try {
+            if ($given['list'] !== null) {
+                $this->priceList->assignTo($customerId, $given['list'], $employeeId);
+            }
+
+            if ($given['limit'] !== null || $given['days'] !== null) {
+                (new CreditLimit())->saveTerms($customerId, $given['limit'], $given['days'], $employeeId);
             }
         } catch (AccountingException $failure) {
             return AccountingMessage::of($failure);
