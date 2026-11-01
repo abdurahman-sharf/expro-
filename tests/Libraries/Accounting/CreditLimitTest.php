@@ -499,6 +499,16 @@ final class CreditLimitTest extends CIUnitTestCase
         $this->assertSame(0, $this->auditCount(CreditLimit::AUDIT_OVERRIDE));
     }
 
+    public function testSave_LeavesASaleWithNoCustomerAloneWhileTheControlsAreOn(): void
+    {
+        $this->turnOn(true, true);
+
+        $service = $this->item('0', false);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($service, 0, '1', '100.00')], [], [$this->payment('Cash', '100.00')], SALE_TYPE_POS, null));
+        $this->assertSame(0, $this->auditCount(CreditLimit::AUDIT_REFUSED));
+    }
+
     public function testSave_DoesNotCheckTheLimitWhileAccountingIsOff(): void
     {
         $this->giveTerms('10');

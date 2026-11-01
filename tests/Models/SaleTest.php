@@ -1392,7 +1392,10 @@ class SaleTest extends CIUnitTestCase
     {
         $this->resetPriceControls();
 
-        $this->assertGreaterThan(0, $this->saveControlled($this->controlledItem(), '80', SALE_TYPE_RETURN, COMPLETED, null, '0', null, '-1'));
+        $itemId = $this->controlledItem();
+
+        $this->assertGreaterThan(0, $this->saveControlled($itemId, '80', SALE_TYPE_RETURN, COMPLETED, null, '0', null, '-1'));
+        $this->assertGreaterThan(0, $this->saveControlled($itemId, '80', SALE_TYPE_RETURN, COMPLETED, null, '0', null, '1'), 'a return is held to nothing, whatever the sign of its lines');
 
         $this->resetPriceControls();
     }

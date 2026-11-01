@@ -1294,7 +1294,7 @@ class Sale extends Model
                 return ACCOUNTING_FAILED;
             }
 
-            $creditRefusal = $this->creditRefusalOf($saleId, $saleType, $salesData['customer_id'], $employeeId, (int) $salesData['branch_id']);
+            $creditRefusal = $this->creditRefusalOf($saleId, $salesData['customer_id'], $employeeId, (int) $salesData['branch_id']);
 
             if ($creditRefusal !== null) {
                 $this->db->transRollback();
@@ -1759,12 +1759,12 @@ class Sale extends Model
     /**
      * Whether the sale that was just posted puts its customer over the credit limit or the credit days,
      * which an employee who holds the permission to override is let through, and the audit log says
-     * so. Returns, and sales of customers who have no limit or days, are never refused, and nothing
-     * is read while accounting is off.
+     * so. The books decide what is open: a return is a credit and not an invoice, so it is never
+     * refused, and with accounting off nothing is posted, so nothing is open.
      */
-    private function creditRefusalOf(int $saleId, int $saleType, ?int $customerId, int $employeeId, int $branchId): ?AccountingException
+    private function creditRefusalOf(int $saleId, ?int $customerId, int $employeeId, int $branchId): ?AccountingException
     {
-        if ($saleType === SALE_TYPE_RETURN || $customerId === null || $customerId <= 0 || !(new AccountingSettings($this->db))->isEnabled()) {
+        if ($customerId === null || $customerId <= 0) {
             return null;
         }
 

@@ -204,6 +204,30 @@ class PriceControlsTest extends CIUnitTestCase
         $this->assertSame([], $this->controls->violationsOf([$this->line($item, '10', '33')]), '6.70 does not');
     }
 
+    public function testViolationsOf_IgnoresAnItemWithNoMinimumEvenWhenTheDiscountTakesMoreThanThePrice(): void
+    {
+        $this->minimumOn();
+
+        $this->assertSame([], $this->controls->violationsOf([$this->line($this->item('0'), '10', '15', FIXED)]), 'a discount larger than the price is for the amount check of the register, not for the minimum');
+    }
+
+    public function testViolationsOf_LeavesTheMinimumAloneWhileOnlyTheCeilingIsOn(): void
+    {
+        $this->ceilingOn('50');
+
+        $this->assertSame([], $this->controls->violationsOf([$this->line($this->item('90'), '80')]));
+    }
+
+    public function testViolationsOf_ReadsTheFixedDiscountOfALineOfSeveralUnitsPerUnit(): void
+    {
+        $this->ceilingOn('10');
+
+        $item = $this->item();
+
+        $this->assertSame([], $this->controls->violationsOf([$this->line($item, '100', '10', FIXED, '5')]), '10 off each of 5 units is 10%');
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '100', '10.5', FIXED, '5')]));
+    }
+
     public function testViolationsOf_RefusesMoreDiscountThanTheShopAllowsAndAcceptsExactlyThatMuch(): void
     {
         $this->ceilingOn('10');

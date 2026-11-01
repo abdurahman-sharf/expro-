@@ -6117,4 +6117,104 @@ class SalesControllerTest extends CIUnitTestCase
 
         $this->assertSame($sales + 1, $this->countSales());
     }
+
+    public function testPostAdd_DoesNotHoldAWorkOrderOrAReturnToTheMinimumPrice(): void
+    {
+        foreach (['sale_work_order', 'return'] as $mode) {
+            $setup = $this->registerWithPriceControls(mode: $mode, minimum: '90');
+
+            $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '80']);
+            $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+            $this->turnOnPriceControls(true);
+
+            $this->post('/sales/add', ['item' => (string) $setup['item']]);
+
+            $this->assertCount(1, Services::session()->get('sales_cart'), $mode);
+
+            $this->stopSelling();
+        }
+    }
+
+    public function testPostAdd_DoesNotPriceAReturnFromTheListOfTheCustomer(): void
+    {
+        $setup = $this->registerWithPriceControls(mode: 'return');
+        $list  = $this->pricedList('Wholesale', '90', $setup['item']);
+
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '120']);
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['price_list_id' => $list]);
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+        $this->carryTheRegister();
+        $this->post('/sales/selectCustomer', ['customer' => (string) $this->customerId]);
+
+        $this->assertSame('120.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
+    }
+
+    public function testPostSelectCustomer_LeavesThePricesAloneWhileThePriceListsAreOff(): void
+    {
+        $setup = $this->registerWithPriceControls();
+
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '120']);
+        $this->withSession(array_merge($this->session, ['sales_cart' => [], 'sales_customer' => null]));
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+        $this->carryTheRegister();
+        $this->accountingDb()->table('items')->where('item_id', $setup['item'])->update(['unit_price' => '130']);
+        $this->post('/sales/selectCustomer', ['customer' => (string) $this->customerId]);
+
+        $this->assertSame('120.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price'], 'with the lists off nothing is priced again');
+    }
+
+    public function testPostSetPriceList_RefusesWhileThePriceListsAreOffEvenIfASaleMayChangeItsList(): void
+    {
+        $setup  = $this->registerWithPriceControls(['sales_change_price']);
+        $retail = $this->pricedList('Retail', '95', $setup['item']);
+
+        $this->setConfigValue(SalesControlSettings::CHANGE_LIST, '1');
+
+        $this->post('/sales/setPriceList', ['price_list_id' => (string) $retail])->assertSee(lang('Sales.not_authorized'));
+        $this->assertNull(Services::session()->get('sales_price_list'));
+    }
+
+    public function testPostSuspend_KeepsThePriceListOfTheCustomerWithTheDraft(): void
+    {
+        $setup  = $this->registerWithPriceControls();
+        $listId = $this->pricedList('Wholesale', '90', $setup['item']);
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['price_list_id' => $listId]);
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+        $this->carryTheRegister();
+        $this->post('/sales/suspend');
+
+        $draft = $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->assertSame($listId, (int) $draft->price_list_id);
+        $this->assertSame('90.00', $this->accountingDb()->table('sales_items')->where('sale_id', $draft->sale_id)->get()->getRow()->item_unit_price);
+    }
+
+    public function testPostUnsuspend_GivesTheRegisterBackTheListTheDraftWasPricedFrom(): void
+    {
+        $setup  = $this->registerWithPriceControls();
+        $listId = $this->pricedList('Wholesale', '90', $setup['item']);
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['price_list_id' => $listId]);
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+
+        $this->post('/sales/add', ['item' => (string) $setup['item']]);
+        $this->carryTheRegister();
+        $this->post('/sales/suspend');
+
+        $draft = (int) $this->accountingDb()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+
+        $this->withSession(array_merge($this->session, ['sales_cart' => [], 'sale_id' => NEW_ENTRY, 'sales_price_list' => null]));
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $draft]);
+
+        $this->assertSame($listId, (int) Services::session()->get('sales_price_list'));
+    }
 }
