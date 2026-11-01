@@ -279,14 +279,28 @@ class EntityAccountServiceTest extends CIUnitTestCase
         $this->assertNull($this->service->entityOf(999999));
     }
 
-    public function testIsAutomatic_IsTrueOnlyWhileTheRoutingTypeIsAutomatic(): void
+    public function testIsAutomatic_IsTrueWhileTheRoutingTypeIsAutomaticOrNamesTheAccountPerEntity(): void
     {
         $this->assertTrue($this->service->isAutomatic(EntityAccountService::CUSTOMER));
 
         $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'main_per_entity']);
 
+        $this->assertTrue($this->service->isAutomatic(EntityAccountService::CUSTOMER));
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'per_item']);
+
         $this->assertFalse($this->service->isAutomatic(EntityAccountService::CUSTOMER));
         $this->assertFalse($this->service->isAutomatic('employee'));
+    }
+
+    public function testSync_OpensTheAccountOfANewCustomerWhileTheRowNamesTheAccountPerEntity(): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'main_per_entity']);
+        $customerId = $this->insertCustomer();
+
+        $this->service->sync(EntityAccountService::CUSTOMER, $customerId);
+
+        $this->assertNotNull($this->service->accountFor(EntityAccountService::CUSTOMER, $customerId));
     }
 
     public function testRename_FollowsTheEntityAndKeepsTheCode(): void

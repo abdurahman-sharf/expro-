@@ -2499,7 +2499,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $item         = $this->item('0', false);
         $supervisorId = $this->createBranchLimitedSupervisor(1);
         $this->grantStockLocationIn(1, $supervisorId);
-        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'main_per_entity']);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'per_item']);
         $this->loginAs($supervisorId);
         $this->seedCartLine(1, '100.00', $item);
         $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_customer' => $this->customerId, 'sales_mode' => 'sale_invoice', 'sales_payments' => []]));
@@ -5627,7 +5627,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $draft = $this->draftInvoice($this->taxedLines());
 
-        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'main_per_entity']);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'per_item']);
 
         $answer = $this->jsonOf($this->post('/sales/issue/' . $draft));
 

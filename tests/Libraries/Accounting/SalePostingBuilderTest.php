@@ -764,6 +764,16 @@ class SalePostingBuilderTest extends CIUnitTestCase
         );
     }
 
+    public function testInvoice_LeavesOutTheLineOfAnItemThatCostsNothingAndNamesAnAccount(): void
+    {
+        [$first, $second] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $draft = $this->builder->invoice($this->sale([$this->line('1', '50', itemId: $first), $this->line('1', '0', itemId: $second)]), 1);
+
+        $this->assertSame([$this->customerAccount() . ':50.00:0.00', $this->accountIdByCode('4101') . ':0.00:50.00'], $this->shape($draft));
+    }
+
     public function testInvoice_PostsAReturnToTheReturnsAccountOfTheItemOnTheDebitSide(): void
     {
         [$first, , $plain] = $this->itemsOfTwoAccountsAndOneWithout();

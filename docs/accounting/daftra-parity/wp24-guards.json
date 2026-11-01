@@ -1,0 +1,558 @@
+[
+ {
+  "name": "G01 per item applies only on the rows that take the accounts of products",
+  "file": "app/Libraries/Accounting/RoutingKey.php",
+  "find": "RoutingType::PerItem       => $this->takesItemAccounts(),",
+  "replace": "RoutingType::PerItem       => true,",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingKeyTest.php"
+  ]
+ },
+ {
+  "name": "G02 main per entity applies only on the entity rows",
+  "file": "app/Libraries/Accounting/RoutingKey.php",
+  "find": "RoutingType::MainPerEntity => $this->isEntity(),",
+  "replace": "RoutingType::MainPerEntity => true,",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingKeyTest.php"
+  ]
+ },
+ {
+  "name": "G03 the per-item rows are the revenue and the returns rows only (the stock and the cost of sales rows stay out)",
+  "file": "app/Libraries/Accounting/RoutingKey.php",
+  "find": "return [self::SalesRevenue, self::SalesReturns];",
+  "replace": "return [self::SalesRevenue, self::SalesReturns, self::StockLocations];",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingKeyTest.php"
+  ]
+ },
+ {
+  "name": "G04 the resolver refuses a type posting does not apply on the row",
+  "file": "app/Libraries/Accounting/RoutingResolver.php",
+  "find": "if (! $key->applies($type) || ! in_array($type, $key->allowedTypes(), true)) {",
+  "replace": "if (! in_array($type, $key->allowedTypes(), true)) {",
+  "tests": [
+   "--filter",
+   "testAccountFor_RefusesPerItemOnTheRowsWhoseTies",
+   "tests/Libraries/Accounting/RoutingResolverTest.php"
+  ]
+ },
+ {
+  "name": "G05 the resolver refuses a type the row does not offer",
+  "file": "app/Libraries/Accounting/RoutingResolver.php",
+  "find": "if (! $key->applies($type) || ! in_array($type, $key->allowedTypes(), true)) {",
+  "replace": "if (! $key->applies($type)) {",
+  "tests": [
+   "--filter",
+   "testAccountFor_RefusesMainPerEntityOnARowTheReferenceSystemDoesNotOfferItOn",
+   "tests/Libraries/Accounting/RoutingResolverTest.php"
+  ]
+ },
+ {
+  "name": "G06 a per-item row takes the account the item names",
+  "file": "app/Libraries/Accounting/RoutingResolver.php",
+  "find": "return $own === null ? $this->mappedAccount($key->value, $route) : $this->usableItemAccount($key, $itemId, $own);",
+  "replace": "return $this->mappedAccount($key->value, $route);",
+  "tests": [
+   "--filter",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "tests/Libraries/Accounting/RoutingResolverTest.php"
+  ]
+ },
+ {
+  "name": "G07 an item that names no account falls back to the account of the row and says it did not name it",
+  "file": "app/Libraries/Accounting/RoutingResolver.php",
+  "find": "$accounts[$itemId] = new ItemRoutedAccount($fallback, false);",
+  "replace": "$accounts[$itemId] = new ItemRoutedAccount($fallback, true);",
+  "tests": [
+   "--filter",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "tests/Libraries/Accounting/RoutingResolverTest.php"
+  ]
+ },
+ {
+  "name": "G08 the accounts of items are read only for a row set to per item",
+  "file": "app/Libraries/Accounting/RoutingResolver.php",
+  "find": "if ($this->appliedType($key, $route) !== RoutingType::PerItem) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "tests/Libraries/Accounting/RoutingResolverTest.php"
+  ]
+ },
+ {
+  "name": "G09 an account an item names that cannot take entries stops the posting",
+  "file": "app/Libraries/Accounting/RoutingResolver.php",
+  "find": "if ($problem !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "tests/Libraries/Accounting/RoutingResolverTest.php"
+  ]
+ },
+ {
+  "name": "G10 the fallback account of the row is needed only by an item that names none",
+  "file": "app/Libraries/Accounting/RoutingResolver.php",
+  "find": "$fallback ??= $this->mappedAccount($key->value, $route);",
+  "replace": "$fallback = $this->mappedAccount($key->value, $route);",
+  "tests": [
+   "--filter",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "tests/Libraries/Accounting/RoutingResolverTest.php"
+  ]
+ },
+ {
+  "name": "G11 a document that has an entity never lands on the account of the row",
+  "file": "app/Libraries/Accounting/RoutingResolver.php",
+  "find": "if ($entityId === null && $route !== null && $route->account_id !== null",
+  "replace": "if ($route !== null && $route->account_id !== null",
+  "tests": [
+   "--filter",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "tests/Libraries/Accounting/RoutingResolverTest.php"
+  ]
+ },
+ {
+  "name": "G12 an entity without an account stops the posting of its document",
+  "file": "app/Libraries/Accounting/RoutingResolver.php",
+  "find": "if ($accountId === null) {\n            throw new PostingException(PostingError::EntityAccountMissing",
+  "replace": "if (false) {\n            throw new PostingException(PostingError::EntityAccountMissing",
+  "tests": [
+   "--filter",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "tests/Libraries/Accounting/RoutingResolverTest.php"
+  ]
+ },
+ {
+  "name": "G13 an account of another company is refused for an item",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "if ((int) $account->company_id !== CompanyContext::id()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G14 an account that belongs to an entity is refused for an item",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "return $problem ?? ($account->entity_type === null ? null : AccountingError::RoutingAccountReserved);",
+  "replace": "return $problem;",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G15 naming the account of an item needs the routing permission",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "        $this->guard->require(AccountingGuard::ROUTING_MANAGE, $employeeId);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G16 naming the account of an item needs every branch",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G17 an item that does not exist is refused",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "if ($this->db->table('items')->where('item_id', $itemId)->countAllResults() === 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G18 a row that takes no accounts of products is refused",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "if ($key === null || ! $key->takesItemAccounts()) {\n                $errors[$keyName]",
+  "replace": "if ($key === null) {\n                $errors[$keyName]",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G19 an account that is not fit for the row is refused",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": ": $this->problem($key, $accountId, $existing);",
+  "replace": ": null;",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G20 every problem is reported together and nothing is written",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "if ($errors !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G21 a change of the account of an item is audited under its own action",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "'item_routing_accounts_changed', $employeeId",
+  "replace": "'item_routing_accounts_changedX', $employeeId",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G22 an empty account takes the account of the item away",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "if ($change['after'] === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G23 the problems leave out a deleted item",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "->where('it.deleted', 0)->orderBy('i.item_id', 'ASC')",
+  "replace": "->orderBy('i.item_id', 'ASC')",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G24 the counts leave out a deleted item",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "->where('it.deleted', 0)\n            ->groupBy('i.routing_key')",
+  "replace": "->groupBy('i.routing_key')",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G25 the candidates leave out an inactive account",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "->where('is_group', 0)\n            ->where('active', 1)",
+  "replace": "->where('is_group', 0)",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G26 the candidates leave out the accounts the chart reserves for another row",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "->where('system_key IS NULL')",
+  "replace": "->where('1 = 1')",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G27 the revenue is split over the items only when the row is set to per item",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "if ($this->resolver->typeOf($key) !== RoutingType::PerItem || bccomp($goods, '0', SaleAmounts::SCALE) < 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G28 goods too small to be shared over the accounts stop the posting",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "if ($parts === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G29 a part of nothing writes no line",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "if (bccomp($amount, '0', SaleAmounts::SCALE) !== 0) {\n                $lines[] = [$routed",
+  "replace": "if (true) {\n                $lines[] = [$routed",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G30 the lines of the items that named no account say so in the preview",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "$routed[$group]->own ? null : self::FALLBACK_NOTE",
+  "replace": "null",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G31 items that name the account of the row stay apart from the ones that named nothing",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "$group  = $choice->accountId . ($choice->own ? ':item' : ':row');",
+  "replace": "$group  = (string) $choice->accountId;",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G32 the share of the discount on the whole invoice comes off the line that carried it",
+  "file": "app/Libraries/Accounting/SaleAmounts.php",
+  "find": "$goods = bcsub(bcsub(self::lineGross($line), self::absolute($line->invoiceDiscountShare), self::WORK_SCALE), self::absolute($line->includedTax), self::WORK_SCALE);",
+  "replace": "$goods = bcsub(self::lineGross($line), self::absolute($line->includedTax), self::WORK_SCALE);",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G33 the tax inside the price comes off the line",
+  "file": "app/Libraries/Accounting/SaleAmounts.php",
+  "find": "$goods = bcsub(bcsub(self::lineGross($line), self::absolute($line->invoiceDiscountShare), self::WORK_SCALE), self::absolute($line->includedTax), self::WORK_SCALE);",
+  "replace": "$goods = bcsub(self::lineGross($line), self::absolute($line->invoiceDiscountShare), self::WORK_SCALE);",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G34 the discount of the line comes off it unless the discount has an account of its own",
+  "file": "app/Libraries/Accounting/SaleAmounts.php",
+  "find": "return $discountHasAccount ? $goods : bcsub($goods, self::lineDiscount($line, $decimals), self::WORK_SCALE);",
+  "replace": "return $goods;",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "G35 what the rounding leaves falls on the largest part",
+  "file": "app/Libraries/Accounting/GoodsSplit.php",
+  "find": "if (bccomp($part, $parts[$largest], SaleAmounts::SCALE) > 0) {",
+  "replace": "if (bccomp($part, $parts[$largest], SaleAmounts::SCALE) < 0) {",
+  "tests": [
+   "tests/Libraries/Accounting/GoodsSplitTest.php"
+  ]
+ },
+ {
+  "name": "G36 a share that is not positive counts as nothing",
+  "file": "app/Libraries/Accounting/GoodsSplit.php",
+  "find": "bccomp($share, '0', self::SHARE_SCALE) > 0 ? $share : '0'",
+  "replace": "$share",
+  "tests": [
+   "tests/Libraries/Accounting/GoodsSplitTest.php"
+  ]
+ },
+ {
+  "name": "G37 a largest part that cannot carry what is left is refused",
+  "file": "app/Libraries/Accounting/GoodsSplit.php",
+  "find": "return bccomp($parts[$largest], '0', SaleAmounts::SCALE) < 0 ? null : $parts;",
+  "replace": "return $parts;",
+  "tests": [
+   "tests/Libraries/Accounting/GoodsSplitTest.php"
+  ]
+ },
+ {
+  "name": "G38 the account of an entity is opened while the row names the account per entity",
+  "file": "app/Libraries/Accounting/EntityAccountService.php",
+  "find": "[RoutingType::Auto, RoutingType::MainPerEntity]",
+  "replace": "[RoutingType::Auto]",
+  "tests": [
+   "tests/Libraries/Accounting/EntityAccountServiceTest.php"
+  ]
+ },
+ {
+  "name": "G39 an account of an item that cannot take entries blocks only a row set to per item",
+  "file": "app/Libraries/Accounting/RoutingService.php",
+  "find": "if ($key !== null && $this->currentType($key, $routes[$key->value] ?? null) === RoutingType::PerItem) {",
+  "replace": "if ($key !== null) {",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G40 an account of an item that cannot take entries blocks the activation",
+  "file": "app/Libraries/Accounting/RoutingService.php",
+  "find": "if ($unusable > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G41 the screen counts the items that name an account for the rows that take them only",
+  "file": "app/Libraries/Accounting/RoutingService.php",
+  "find": "itemAccounts: $key->takesItemAccounts() ? ($named[$key->value] ?? 0) : null,",
+  "replace": "itemAccounts: $named[$key->value] ?? 0,",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G42 a row saved with a type posting does not apply on it is marked as not applied",
+  "file": "app/Libraries/Accounting/RoutingService.php",
+  "find": "if ($routingKey !== null && ! $routingKey->applies($type)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G43 the readiness check lists the rows saved with a type posting does not apply",
+  "file": "app/Libraries/Accounting/Readiness/RoutingChecks.php",
+  "find": "if (! $key->applies($type)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/RoutingChecksTest.php"
+  ]
+ },
+ {
+  "name": "G44 the readiness check looks at the fallback account of a per-item row only",
+  "file": "app/Libraries/Accounting/Readiness/RoutingChecks.php",
+  "find": "if ($this->typeOf($key) !== RoutingType::PerItem) {\n                continue;",
+  "replace": "if (false) {\n                continue;",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/RoutingChecksTest.php"
+  ]
+ },
+ {
+  "name": "G45 the readiness check fails a per-item row without an account to fall back to",
+  "file": "app/Libraries/Accounting/Readiness/RoutingChecks.php",
+  "find": "if ($problem !== null) {\n                $fails[]",
+  "replace": "if (false) {\n                $fails[]",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/RoutingChecksTest.php"
+  ]
+ },
+ {
+  "name": "G46 the readiness check names the account per entity only for the rows that set it",
+  "file": "app/Libraries/Accounting/Readiness/RoutingChecks.php",
+  "find": "|| $this->typeOf($key) !== RoutingType::MainPerEntity",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/RoutingChecksTest.php"
+  ]
+ },
+ {
+  "name": "G47 the form of an item offers the accounts only while accounting is on",
+  "file": "app/Controllers/Items.php",
+  "find": "        return (new AccountingSettings())->isEnabled()\n            && (new AccountingGuard())",
+  "replace": "        return (new AccountingGuard())",
+  "tests": [
+   "--filter",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G48 the form of an item offers the accounts only to whoever may change the routing",
+  "file": "app/Controllers/Items.php",
+  "find": "            && (new AccountingGuard())->has(AccountingGuard::ROUTING_MANAGE, $employeeId)\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G49 the form of an item offers the accounts only to an employee of every branch",
+  "file": "app/Controllers/Items.php",
+  "find": "            && (new BranchGuard())->isUnrestricted($employeeId);",
+  "replace": "            && true;",
+  "tests": [
+   "--filter",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G50 saving an item hears the accounts of the form only from whoever may change the routing",
+  "file": "app/Controllers/Items.php",
+  "find": "if (! is_array($posted) || ! $this->mayEditItemAccounts()) {",
+  "replace": "if (! is_array($posted)) {",
+  "tests": [
+   "--filter",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G51 an account the books refuse for an item undoes the save of the item",
+  "file": "app/Controllers/Items.php",
+  "find": "'An account of the item was refused.', ['item_id' => $itemId]);\n\n            return false;",
+  "replace": "'An account of the item was refused.', ['item_id' => $itemId]);\n\n            return true;",
+  "tests": [
+   "--filter",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G52 saving an item saves the accounts of the form",
+  "file": "app/Controllers/Items.php",
+  "find": "            $success = $success && $this->saveItemAccounts($itemId);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G53 the form says when the row is not set to per item so the account is not used",
+  "file": "app/Controllers/Items.php",
+  "find": "'used' => $resolver->typeOf($key) === RoutingType::PerItem,",
+  "replace": "'used' => true,",
+  "tests": [
+   "--filter",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G54 the migration cannot be taken down while items name accounts",
+  "file": "app/Database/Migrations/20272100000000_ItemRoutingAccounts.php",
+  "find": "if ($this->hasTable($table) && $this->db->table('item_routing_accounts')->countAllResults() > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Database/ItemRoutingAccountsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G55 the migration is safe to run again",
+  "file": "app/Database/Migrations/20272100000000_ItemRoutingAccounts.php",
+  "find": "CREATE TABLE IF NOT EXISTS",
+  "replace": "CREATE TABLE",
+  "tests": [
+   "tests/Database/ItemRoutingAccountsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G56 an account an item names cannot be deleted",
+  "file": "app/Database/Migrations/20272100000000_ItemRoutingAccounts.php",
+  "find": "`account_id`) ON DELETE RESTRICT",
+  "replace": "`account_id`) ON DELETE CASCADE",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G57 an item names one account for a routing row",
+  "file": "app/Database/Migrations/20272100000000_ItemRoutingAccounts.php",
+  "find": "PRIMARY KEY (`item_id`, `routing_key`)",
+  "replace": "KEY (`item_id`, `routing_key`)",
+  "tests": [
+   "tests/Database/ItemRoutingAccountsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G58 the reversal of a journal mirrors the lines of the original",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "debit: $line->credit,\n                    credit: $line->debit,",
+  "replace": "debit: $line->debit,\n                    credit: $line->credit,",
+  "tests": [
+   "--filter",
+   "PerItem|MainPerEntity|testDelete_Reversal",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ }
+]

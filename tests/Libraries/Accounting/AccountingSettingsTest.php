@@ -20,11 +20,13 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
 
 class AccountingSettingsTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ItemFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -255,19 +257,60 @@ class AccountingSettingsTest extends CIUnitTestCase
     public function testReadiness_BlocksARowSavedWithATypePostingDoesNotApply(): void
     {
         $this->completeTheSettings();
-        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.revenue')->update(['routing_type' => 'per_item']);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'inventory.locations')->update(['routing_type' => 'per_item']);
         $this->accountingDb()->table('accounting_routing')->where('routing_key', 'purchases.suppliers')->update(['routing_type' => 'per_item']);
 
         $issues = $this->settings->readiness();
 
         $this->assertSame([ReadinessCode::RoutingTypeUnsupported, ReadinessCode::RoutingTypeUnsupported], array_column($issues, 'code'));
-        $this->assertEqualsCanonicalizing(['sales.revenue', 'purchases.suppliers'], array_column($issues, 'subject'));
+        $this->assertEqualsCanonicalizing(['inventory.locations', 'purchases.suppliers'], array_column($issues, 'subject'));
+    }
+
+    public function testReadiness_AcceptsTheRowsSetToTheTypesPostingNowApplies(): void
+    {
+        $this->completeTheSettings();
+        $this->insertCustomer();
+        (new EntityAccountService())->fill();
+
+        foreach ([['sales.revenue', 'per_item'], ['sales.returns', 'per_item'], ['sales.customers', 'main_per_entity']] as [$key, $type]) {
+            $this->accountingDb()->table('accounting_routing')->where('routing_key', $key)->update(['routing_type' => $type]);
+        }
+
+        $this->assertSame([], $this->settings->readiness());
+    }
+
+    public function testReadiness_BlocksOnACustomerWithoutAnAccountWhileTheRowNamesTheAccountPerEntity(): void
+    {
+        $this->completeTheSettings();
+        $this->insertCustomer();
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'main_per_entity']);
+
+        $this->assertSame([ReadinessCode::EntityAccountsMissing], array_column($this->settings->readiness(), 'code'));
+    }
+
+    public function testReadiness_BlocksOnAnAccountAnItemNamesThatCannotTakeEntriesWhileTheRowIsPerItem(): void
+    {
+        $this->completeTheSettings();
+        $account = $this->customAccount('41', '4101', 'Item revenue');
+        $itemId  = $this->createTestItem();
+        $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $account]);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.revenue')->update(['routing_type' => 'per_item']);
+
+        try {
+            $this->settings->enable();
+            $this->fail('Accounting must not be turned on over an item whose account cannot take entries.');
+        } catch (AccountingNotReadyException $exception) {
+            $this->assertSame([ReadinessCode::ItemAccountInvalid], array_column($exception->issues, 'code'));
+        }
+
+        $this->assertFalse($this->settings->isEnabled());
     }
 
     public function testEnable_RefusesWhileARowIsSavedWithATypePostingDoesNotApply(): void
     {
         $this->completeTheSettings();
-        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'main_per_entity']);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'per_item']);
 
         try {
             $this->settings->enable();

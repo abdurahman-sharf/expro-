@@ -8,8 +8,10 @@ use App\Libraries\Accounting\Backfill\BackfillPlan;
 use App\Libraries\Accounting\Backfill\BackfillRefusal;
 use App\Libraries\Accounting\Backfill\BackfillScope;
 use App\Libraries\Accounting\Backfill\SaleBackfill;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\SalePostingBuilder;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -94,6 +96,28 @@ final class SaleBackfillTest extends CIUnitTestCase
 
         $this->assertNotEmpty($this->posted($live));
         $this->assertSame($this->posted($live), $this->plannedLines($this->plan($legacy)));
+    }
+
+    public function testPlan_ShowsInThePreviewWhichLinesTookTheAccountOfTheRowBecauseTheirItemsNameNone(): void
+    {
+        $legacy = $this->legacyInvoice('2026-03-10');
+        $items  = array_map(static fn (object $row): int => (int) $row->item_id, $this->accountingDb()->table('sales_items')->where('sale_id', $legacy)->orderBy('line', 'ASC')->get()->getResult());
+        $own    = $this->customAccount('41', '4101', 'Cream revenue');
+
+        $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $items[0], 'routing_key' => 'sales.revenue', 'account_id' => $own]);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.revenue')->update(['routing_type' => 'per_item']);
+
+        $draft = $this->plan($legacy)->steps[0]->draft;
+
+        $this->assertNotNull($draft);
+
+        $described = array_map(
+            static fn (JournalLineDraft $line): string => $line->accountId . ':' . bcadd($line->debit, '0', 2) . ':' . bcadd($line->credit, '0', 2) . ':' . (string) $line->description,
+            $draft->lines,
+        );
+
+        $this->assertContains($own . ':0.00:270.00:', $described);
+        $this->assertContains($this->accountId('sales_revenue') . ':0.00:440.00:' . SalePostingBuilder::FALLBACK_NOTE, $described);
     }
 
     public function testPlan_MakesTheJournalsOfAReturnTheLivePostingMakes(): void
