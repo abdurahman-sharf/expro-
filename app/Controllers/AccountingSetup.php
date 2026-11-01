@@ -28,6 +28,7 @@ class AccountingSetup extends AccountingController
         AccountingGuard::RETURN_OVERRIDE    => 'Sales.return_override',
         AccountingGuard::INTERBRANCH_SETTLE => 'Accounting_treasuries.interbranch_settle',
         AccountingGuard::YEAR_END_CLOSE     => 'Accounting_periods.year_end_close',
+        AccountingGuard::BACKFILL_MANAGE    => 'Accounting_periods.backfill_manage',
     ];
 
     private AccountingSettings $settings;
@@ -58,6 +59,7 @@ class AccountingSetup extends AccountingController
             'revenue_account_required' => $this->settings->revenueAccountRequired(),
             'lineDescriptionRequired'  => $this->settings->lineDescriptionRequired(),
             'customer_opening'         => $this->settings->customerOpeningEnabled(),
+            'backfill_enabled'         => $this->settings->backfillEnabled(),
             'locked'                   => $this->settings->isLocked(),
             'next_number'              => $this->settings->lastManualNumber() + 1,
             'can_manage'               => $this->canManageSettings(),
@@ -93,6 +95,10 @@ class AccountingSetup extends AccountingController
 
             if ($this->request->getPost('customer_opening') !== null) {
                 $input['customer_opening'] = $this->request->getPost('customer_opening') === '1';
+            }
+
+            if ($this->request->getPost('backfill_enabled') !== null) {
+                $input['backfill_enabled'] = $this->request->getPost('backfill_enabled') === '1';
             }
 
             $this->settings->update($input, $this->employeeId());

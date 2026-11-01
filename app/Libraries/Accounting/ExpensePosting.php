@@ -166,7 +166,10 @@ final class ExpensePosting
         return $change;
     }
 
-    public function document(int $expenseId): ?ExpenseDocument
+    /**
+     * @param int|null $assumedBranchId The branch of an expense that was never stamped with one, which only the retroactive posting gives one.
+     */
+    public function document(int $expenseId, ?int $assumedBranchId = null): ?ExpenseDocument
     {
         $row = $this->db->table('expenses e')
             ->select('e.expense_id, e.date, e.amount, e.tax_amount, e.payment_type, e.treasury_id, e.treasury_branch_id, e.branch_id, e.deleted, c.account_id')
@@ -175,7 +178,7 @@ final class ExpensePosting
             ->get()
             ->getRow();
 
-        if ($row === null || $row->branch_id === null) {
+        if ($row === null || ($row->branch_id === null && $assumedBranchId === null)) {
             return null;
         }
 
@@ -187,7 +190,7 @@ final class ExpensePosting
             paymentType: (string) $row->payment_type,
             categoryAccountId: $row->account_id === null ? null : (int) $row->account_id,
             treasuryId: $row->treasury_id === null ? null : (int) $row->treasury_id,
-            branchId: (int) $row->branch_id,
+            branchId: (int) ($row->branch_id ?? $assumedBranchId),
             deleted: (int) $row->deleted === 1,
             treasuryBranchId: $row->treasury_branch_id === null ? null : (int) $row->treasury_branch_id,
         );
@@ -241,6 +244,7 @@ final class ExpensePosting
             ->select('journal_id, number, journal_date, status, revision, total_debit, reverses_journal_id')
             ->whereIn('source_type', [ExpensePostingBuilder::SOURCE, ...CrossBranchPayments::companionsOf(ExpensePostingBuilder::SOURCE)])
             ->where('source_id', $expenseId)
+            ->where('status !=', JournalStatus::Preview->value)
             ->orderBy('journal_id', 'ASC')
             ->get()
             ->getResult();

@@ -161,6 +161,82 @@ final class PostingService
     }
 
     /**
+     * Writes the journal of a document that the books do not hold yet as a preview of a batch of the
+     * retroactive posting. A preview has no number, is counted by no balance and no report, and holds
+     * the key of its source, so the document cannot be posted another way while the preview stands.
+     * It is checked as a posted journal is, the period included. It runs inside the transaction of
+     * the batch, and a preview whose source already has a journal is refused.
+     *
+     * @throws PostingException
+     */
+    public function postPreview(JournalDraft $draft, int $batchId): int
+    {
+        if (in_array($draft->sourceType, [JournalDraft::SOURCE_MANUAL, JournalDraft::SOURCE_REVERSAL], true) || YearEndEntries::marks($draft->entryType->value, $draft->sourceType)) {
+            throw new PostingException(PostingError::InvalidSource, 'Only the journal of a document is written as a preview.', ['source_type' => $draft->sourceType]);
+        }
+
+        $prepared = $this->validate($draft);
+
+        if ($this->findExisting($draft, true) !== null) {
+            throw new PostingException(PostingError::InvalidSource, 'The source of the journal has a journal already.', ['source_type' => $draft->sourceType, 'source_id' => $draft->sourceId]);
+        }
+
+        return $this->write($draft, $prepared, JournalStatus::Preview, $batchId);
+    }
+
+    /**
+     * Turns the preview of a batch into a posted journal, as it was written: the lines are not
+     * touched, the date stays the date of the document, and the number is the one a journal posted by
+     * the books takes. The period of its date and branch is checked again and locked first.
+     *
+     * @throws PostingException
+     */
+    public function approvePreview(int $journalId, int $batchId, ?int $employeeId): void
+    {
+        $table   = $this->db->prefixTable('accounting_journals');
+        $journal = LockedRead::row($this->db, "SELECT journal_id, branch_id, journal_date, status, backfill_batch_id, source_type, source_id, entry_type, revision, total_debit FROM {$table} WHERE journal_id = ? FOR UPDATE", [$journalId]);
+
+        if ($journal === null || $journal->status !== JournalStatus::Preview->value || (int) $journal->backfill_batch_id !== $batchId) {
+            throw new PostingException(PostingError::PreviewMissing, "Journal {$journalId} is not a preview of batch {$batchId}.", ['journal_id' => $journalId]);
+        }
+
+        $this->periods->enforce((string) $journal->journal_date, (int) $journal->branch_id);
+
+        $this->db->table('accounting_journals')->where('journal_id', $journalId)->update([
+            'status'    => JournalStatus::Posted->value,
+            'number'    => sprintf('%06d', $journalId),
+            'posted_by' => $employeeId,
+            'posted_at' => new RawSql('CURRENT_TIMESTAMP'),
+        ]);
+
+        $this->audit->write('journal', $journalId, 'posted', $employeeId, JournalOrigin::System, [
+            'source_type' => $journal->source_type,
+            'source_id'   => (int) $journal->source_id,
+            'entry_type'  => $journal->entry_type,
+            'revision'    => (int) $journal->revision,
+            'total'       => $journal->total_debit,
+            'batch_id'    => $batchId,
+        ], (int) $journal->branch_id);
+    }
+
+    /**
+     * Removes every preview of a batch, with its lines. A journal that is posted is never removed
+     * this way: only a journal that no book has counted can be taken out.
+     *
+     * @return int The previews removed.
+     */
+    public function discardPreviews(int $batchId): int
+    {
+        $journals = $this->db->prefixTable('accounting_journals');
+        $lines    = $this->db->prefixTable('accounting_journal_lines');
+
+        $this->db->query("DELETE l FROM {$lines} l JOIN {$journals} j ON j.journal_id = l.journal_id WHERE j.backfill_batch_id = ? AND j.status = ?", [$batchId, JournalStatus::Preview->value]);
+        $this->db->query("DELETE FROM {$journals} WHERE backfill_batch_id = ? AND status = ?", [$batchId, JournalStatus::Preview->value]);
+
+        return $this->db->affectedRows();
+    }
+
+    /**
      * Checks a journal without writing anything and returns the normalized values.
      *
      * @return array{lines: list<array<string, mixed>>, debit: string, credit: string, currency: string, rate: string, branch_id: int}
@@ -439,6 +515,10 @@ final class PostingService
             return null;
         }
 
+        if (($journal->status ?? null) === JournalStatus::Preview->value) {
+            throw new PostingException(PostingError::PreviewHoldsSource, 'A preview of a batch of the retroactive posting holds the source.', ['source_type' => $draft->sourceType, 'source_id' => $draft->sourceId]);
+        }
+
         if ($draft->branchId !== null && (int) $journal->branch_id !== $draft->branchId) {
             throw new PostingException(PostingError::BranchMismatch, 'The source was already posted in another branch.', [
                 'branch_id' => $draft->branchId,
@@ -452,7 +532,7 @@ final class PostingService
     private function findLatest(JournalDraft $draft): ?object
     {
         $result = $this->db->query(
-            'SELECT journal_id, branch_id FROM ' . $this->db->prefixTable('accounting_journals') . ' WHERE source_type = ? AND source_id = ? AND entry_type = ? AND revision = ? LOCK IN SHARE MODE',
+            'SELECT journal_id, branch_id, status FROM ' . $this->db->prefixTable('accounting_journals') . ' WHERE source_type = ? AND source_id = ? AND entry_type = ? AND revision = ? LOCK IN SHARE MODE',
             [$draft->sourceType, $draft->sourceId, $draft->entryType->value, $draft->revision],
         );
 
@@ -462,11 +542,12 @@ final class PostingService
     /**
      * @param array{lines: list<array<string, mixed>>, debit: string, credit: string, currency: string, rate: string, branch_id: int} $prepared
      */
-    private function write(JournalDraft $draft, array $prepared): int
+    private function write(JournalDraft $draft, array $prepared, JournalStatus $status = JournalStatus::Posted, ?int $batchId = null): int
     {
         $this->yearEndRelief ? $this->periods->enforceYearEnd($draft->date, $prepared['branch_id']) : $this->periods->enforce($draft->date, $prepared['branch_id']);
 
         $userNumbered = in_array($draft->sourceType, [JournalDraft::SOURCE_MANUAL, JournalDraft::SOURCE_REVERSAL], true);
+        $standing     = $status === JournalStatus::Posted;
 
         $inserted = $this->db->table('accounting_journals')->insert([
             'company_id'          => CompanyContext::id(),
@@ -475,7 +556,7 @@ final class PostingService
             'number'              => $userNumbered ? $this->numbering->nextManual() : null,
             'journal_date'        => $draft->date,
             'description'         => $draft->description === '' ? null : $draft->description,
-            'status'              => JournalStatus::Posted->value,
+            'status'              => $status->value,
             'source_type'         => $draft->sourceType,
             'source_id'           => $draft->sourceId,
             'entry_type'          => $draft->entryType->value,
@@ -486,9 +567,10 @@ final class PostingService
             'total_debit'         => $prepared['debit'],
             'total_credit'        => $prepared['credit'],
             'reverses_journal_id' => $draft->reversesJournalId,
+            'backfill_batch_id'   => $batchId,
             'created_by'          => $draft->employeeId,
-            'posted_by'           => $draft->employeeId,
-            'posted_at'           => new RawSql('CURRENT_TIMESTAMP'),
+            'posted_by'           => $standing ? $draft->employeeId : null,
+            'posted_at'           => $standing ? new RawSql('CURRENT_TIMESTAMP') : null,
         ]);
 
         if ($inserted === false) {
@@ -497,7 +579,7 @@ final class PostingService
 
         $journalId = (int) $this->db->insertID();
 
-        if (! $userNumbered) {
+        if (! $userNumbered && $standing) {
             $this->db->table('accounting_journals')
                 ->where('journal_id', $journalId)
                 ->update(['number' => sprintf('%06d', $journalId)]);
@@ -509,13 +591,15 @@ final class PostingService
             throw new PostingException(PostingError::WriteFailed, 'The journal lines could not be written.');
         }
 
-        $this->audit->write('journal', $journalId, 'posted', $draft->employeeId, $draft->origin, [
-            'source_type' => $draft->sourceType,
-            'source_id'   => $draft->sourceId,
-            'entry_type'  => $draft->entryType->value,
-            'revision'    => $draft->revision,
-            'total'       => $prepared['debit'],
-        ], $prepared['branch_id']);
+        if ($standing) {
+            $this->audit->write('journal', $journalId, 'posted', $draft->employeeId, $draft->origin, [
+                'source_type' => $draft->sourceType,
+                'source_id'   => $draft->sourceId,
+                'entry_type'  => $draft->entryType->value,
+                'revision'    => $draft->revision,
+                'total'       => $prepared['debit'],
+            ], $prepared['branch_id']);
+        }
 
         return $journalId;
     }

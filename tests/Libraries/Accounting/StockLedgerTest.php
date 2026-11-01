@@ -12,6 +12,7 @@ use App\Libraries\Accounting\StockMovement;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -28,6 +29,7 @@ use Tests\Support\SaleAccountingFixtureTrait;
 class StockLedgerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
@@ -363,5 +365,19 @@ class StockLedgerTest extends CIUnitTestCase
         $this->assertSame(bcadd($valuation['reference']['value'], '0', 2), $this->balance($this->stockAccount()), 'The account of the stock location holds the same');
         $this->assertSame('6.0000', $position->differenceFromItemCost());
         $this->assertStockTies();
+    }
+
+    public function testReconcile_LeavesOutThePreviewsOfABatch(): void
+    {
+        $receivingId = $this->purchaseOf('500');
+
+        $before = $this->ledger->reconcile();
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $this->assertSame($before, $this->ledger->reconcile());
+        $this->assertSame([], $this->ledger->mismatchedJournals());
+        $this->assertGreaterThan(0, $receivingId);
     }
 }

@@ -18,6 +18,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use DateTimeImmutable;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -34,6 +35,7 @@ use Tests\Support\SaleAccountingFixtureTrait;
 class CustomerLedgerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use ChequeFixtureTrait;
     use EmployeeFixtureTrait;
@@ -748,5 +750,37 @@ class CustomerLedgerTest extends CIUnitTestCase
         $this->assertSame('80.0000', (new CustomerLedger())->position($other)->credit());
         $this->assertTies($other);
         $this->assertTies();
+    }
+
+    public function testPosition_LeavesOutThePreviewsOfABatch(): void
+    {
+        $this->invoiceOf('100');
+
+        $before = $this->position();
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $after = $this->position();
+
+        $this->assertEquals($before, $after);
+        $this->assertSame('100.0000', bcadd($after->accountBalance, '0', 4));
+        $this->assertTies();
+    }
+
+    public function testCustomersWithBalance_LeavesOutThePreviewsOfABatch(): void
+    {
+        $this->invoiceOf('100');
+
+        $before = (new CustomerLedger())->customersWithBalance();
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $after = (new CustomerLedger())->customersWithBalance();
+
+        $this->assertEquals($before, $after);
+        $this->assertSame(1, $after['total']);
+        $this->assertSame('100.00', bcadd($after['rows'][0]->balance, '0', 2));
     }
 }

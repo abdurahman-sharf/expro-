@@ -254,6 +254,16 @@ $routes->group('accounting_periods', static function (RouteCollection $routes): 
     $routes->post('year_end/approve', 'AccountingYearEnd::postApprove');
     $routes->get('year_end/reverse_form/(:num)', 'AccountingYearEnd::getReverseForm/$1');
     $routes->post('year_end/reverse/(:num)', 'AccountingYearEnd::postReverse/$1');
+
+    $routes->get('backfill', 'AccountingBackfill::getIndex');
+    $routes->get('backfill/new_form', 'AccountingBackfill::getNewForm');
+    $routes->post('backfill/create', 'AccountingBackfill::postCreate');
+    $routes->get('backfill/view/(:num)', 'AccountingBackfill::getBatch/$1');
+    $routes->post('backfill/preview/(:num)', 'AccountingBackfill::postPreview/$1');
+    $routes->get('backfill/approve_form/(:num)', 'AccountingBackfill::getApproveForm/$1');
+    $routes->post('backfill/approve/(:num)', 'AccountingBackfill::postApprove/$1');
+    $routes->get('backfill/cancel_form/(:num)', 'AccountingBackfill::getCancelForm/$1');
+    $routes->post('backfill/cancel/(:num)', 'AccountingBackfill::postCancel/$1');
 });
 
 $routes->group('accounting_chart', static function (RouteCollection $routes): void {

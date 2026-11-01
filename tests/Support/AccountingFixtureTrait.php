@@ -67,6 +67,8 @@ trait AccountingFixtureTrait
             'accounting_journal_attachments',
             'accounting_journal_lines',
             'accounting_journals',
+            'accounting_backfill_items',
+            'accounting_backfill_batches',
             'accounting_posting_failures',
             'accounting_audit_log',
             'accounting_closed_periods',

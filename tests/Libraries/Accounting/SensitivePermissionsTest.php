@@ -62,6 +62,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
             AccountingGuard::PAYABLES_MANAGE,
             AccountingGuard::INTERBRANCH_SETTLE,
             AccountingGuard::YEAR_END_CLOSE,
+            AccountingGuard::BACKFILL_MANAGE,
         ];
 
         foreach ($sensitive as $permissionId) {
@@ -91,6 +92,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
                 AccountingGuard::RETURN_OVERRIDE,
                 AccountingGuard::INTERBRANCH_SETTLE,
                 AccountingGuard::YEAR_END_CLOSE,
+                AccountingGuard::BACKFILL_MANAGE,
             ],
             AccountingGuard::SENSITIVE,
         );

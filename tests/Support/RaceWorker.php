@@ -10,6 +10,7 @@
  */
 
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\Backfill\BackfillService;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\OpeningStock;
@@ -183,6 +184,24 @@ $result = match ($method) {
         ]];
 
         return model(App\Models\Receiving::class)->save_value($lines, (int) $args[0], (int) $args[4], 'race', 'REF', 'Due', NEW_ENTRY, isset($args[5]) ? (int) $args[5] : null) > 0;
+    })($args),
+    'backfillApprove' => (static function (array $args): bool {
+        try {
+            (new BackfillService())->approve((int) $args[0], (string) $args[1], (int) $args[2]);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    })($args),
+    'backfillCreate' => (static function (array $args): bool {
+        try {
+            (new BackfillService())->create(['name' => 'Race ' . uniqid(), 'from' => (string) $args[0], 'to' => (string) $args[1]], (int) $args[2]);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
     })($args),
     'assignNumber' => (static function (array $args): bool {
         $db = Database::connect();

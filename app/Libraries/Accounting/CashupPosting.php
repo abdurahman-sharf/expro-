@@ -114,27 +114,44 @@ final class CashupPosting
 
         $this->branches->requireBranch($branchId, $actorId);
 
-        $treasuryId = $isNew ? $this->treasuries->stampFor($actorId, $branchId) : ($stored->treasury_id === null ? null : (int) $stored->treasury_id);
-        $expected   = null;
-        $difference = null;
-
-        if ($this->isClosed($data, $stored)) {
-            $counted  = $this->money($data['closed_amount_cash'] ?? $stored->closed_amount_cash ?? '0');
-            $expected = $this->expectation->expected(
-                $branchId,
-                (string) ($data['open_date'] ?? $stored->open_date),
-                (string) ($data['close_date'] ?? $stored->close_date),
-                $this->money($data['open_amount_cash'] ?? $stored->open_amount_cash ?? '0'),
-                $this->money($data['transfer_amount_cash'] ?? $stored->transfer_amount_cash ?? '0'),
-            );
-            $difference = bcsub($counted, $expected, SaleAmounts::SCALE);
-        }
+        $treasuryId              = $isNew ? $this->treasuries->stampFor($actorId, $branchId) : ($stored->treasury_id === null ? null : (int) $stored->treasury_id);
+        [$expected, $difference] = $this->isClosed($data, $stored) ? $this->counted($data, $stored, $branchId) : [null, null];
 
         return [
             'data'      => array_merge($data, ['branch_id' => $branchId, 'treasury_id' => $treasuryId, 'expected_amount_cash' => $expected, 'cash_difference' => $difference]),
             'post'      => true,
             'branch_id' => $branchId,
         ];
+    }
+
+    /**
+     * The cash a cash-up was expected to hold in a branch and the difference the count made, from the
+     * columns given and, for what they leave out, the row as stored.
+     *
+     * @param array<string, mixed> $data
+     *
+     * @return array{0: numeric-string, 1: numeric-string}
+     */
+    public function counted(array $data, ?object $stored, int $branchId): array
+    {
+        $counted  = $this->money($data['closed_amount_cash'] ?? $stored->closed_amount_cash ?? '0');
+        $expected = $this->expectation->expected(
+            $branchId,
+            (string) ($data['open_date'] ?? $stored->open_date),
+            (string) ($data['close_date'] ?? $stored->close_date),
+            $this->money($data['open_amount_cash'] ?? $stored->open_amount_cash ?? '0'),
+            $this->money($data['transfer_amount_cash'] ?? $stored->transfer_amount_cash ?? '0'),
+        );
+
+        return [$expected, bcsub($counted, $expected, SaleAmounts::SCALE)];
+    }
+
+    /**
+     * Whether cash has been counted on a stored cash-up: at least one of its closed amounts is not zero.
+     */
+    public function isCounted(object $stored): bool
+    {
+        return $this->isClosed([], $stored);
     }
 
     /**
@@ -263,6 +280,7 @@ final class CashupPosting
             ->select('journal_id, number, journal_date, status, revision, total_debit, reverses_journal_id')
             ->where('source_type', CashupPostingBuilder::SOURCE)
             ->where('source_id', $cashupId)
+            ->where('status !=', JournalStatus::Preview->value)
             ->orderBy('journal_id', 'ASC')
             ->get()
             ->getResult();

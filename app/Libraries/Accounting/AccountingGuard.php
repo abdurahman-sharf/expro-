@@ -33,6 +33,7 @@ final class AccountingGuard
     public const INTERBRANCH_SETTLE  = 'acc_interbranch_settle';
     public const YEAR_END_CLOSE      = 'acc_year_end_close';
     public const CHEQUES_MANAGE      = 'acc_cheques_manage';
+    public const BACKFILL_MANAGE     = 'acc_backfill_manage';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them
@@ -53,6 +54,7 @@ final class AccountingGuard
         self::RETURN_OVERRIDE,
         self::INTERBRANCH_SETTLE,
         self::YEAR_END_CLOSE,
+        self::BACKFILL_MANAGE,
     ];
 
     private Employee $employee;

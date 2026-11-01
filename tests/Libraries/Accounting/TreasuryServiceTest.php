@@ -20,6 +20,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -36,6 +37,7 @@ use Tests\Support\SaleAccountingFixtureTrait;
 class TreasuryServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
@@ -1069,5 +1071,20 @@ class TreasuryServiceTest extends CIUnitTestCase
             'can_be_transferred_to_while_inactive' => $transfers,
             'activated_again'                     => (int) $this->treasuries->find($id)->active === 1,
         ], 'deactivation and activation');
+    }
+
+    public function testPosition_LeavesOutThePreviewsOfABatch(): void
+    {
+        $drawer = $this->treasuries->create(['name' => 'Drawer', 'kind' => 'cash']);
+
+        $this->fund($drawer, '100.00');
+
+        $before = $this->treasuries->position($drawer);
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $this->assertEquals($before, $this->treasuries->position($drawer));
+        $this->assertSame('100.0000', bcadd($this->treasuries->position($drawer)->balance, '0', 4));
     }
 }

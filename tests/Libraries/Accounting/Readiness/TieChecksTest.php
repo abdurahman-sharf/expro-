@@ -20,6 +20,7 @@ use App\Libraries\Accounting\TreasuryTransfers;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -35,6 +36,7 @@ use Tests\Support\SaleAccountingFixtureTrait;
 class TieChecksTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
@@ -462,6 +464,13 @@ class TieChecksTest extends CIUnitTestCase
         $this->assertSame(CheckStatus::Pass, $this->check('interbranch_unattributed')->status);
     }
 
+    public function testInterbranchUnattributed_LeavesOutThePreviewsOnTheAccountsBetweenBranches(): void
+    {
+        $this->previewOfSource('sale', 990003, 1, '50.00', 'branches_receivable', 'opening_balance');
+
+        $this->assertSame(CheckStatus::Pass, $this->check('interbranch_unattributed')->status);
+    }
+
     public function testInterbranchUnattributed_LeavesEveryTransferJournalWhetherOrNotALegWasRecorded(): void
     {
         foreach ([TreasuryTransfers::SOURCE, TreasuryTransfers::SOURCE_RECEIPT, ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER, ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT] as $source) {
@@ -522,5 +531,17 @@ class TieChecksTest extends CIUnitTestCase
         $this->checks->run();
 
         $this->assertDatabaseUnchanged($before);
+    }
+
+    public function testRun_LeavesOutThePreviewsOfABatch(): void
+    {
+        $this->saleWithCash();
+
+        $before = array_map(static fn (CheckResult $result): array => $result->toArray(), $this->checks->run());
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $this->assertSame($before, array_map(static fn (CheckResult $result): array => $result->toArray(), $this->checks->run()));
     }
 }

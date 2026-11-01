@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Organization\BranchError;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
@@ -686,5 +687,58 @@ class AccountingSettingsTest extends CIUnitTestCase
             $db->table('cash_up')->truncate();
             $db->table('expense_categories')->where('expense_category_id', $categoryId)->delete();
         }
+    }
+
+    public function testBackfillEnabled_IsOffWhenTheSettingIsNotThereAtAll(): void
+    {
+        $this->accountingDb()->table('app_config')->where('key', 'accounting_backfill_enabled')->delete();
+
+        try {
+            $this->assertFalse($this->settings->backfillEnabled());
+        } finally {
+            $this->setConfigValue('accounting_backfill_enabled', '0');
+        }
+    }
+
+    public function testBackfillEnabled_IsOffUntilTheSettingTurnsItOnAndIsAuditedAndNeedsThePermission(): void
+    {
+        $this->accountingDb()->table('accounting_audit_log')->truncate();
+
+        $this->assertFalse($this->settings->backfillEnabled());
+
+        $this->settings->update(['backfill_enabled' => true], $this->manager());
+
+        $details = json_decode($this->accountingDb()->table('accounting_audit_log')->where('action', 'settings_updated')->get()->getRow()->details, true);
+
+        $this->assertTrue($this->settings->backfillEnabled());
+        $this->assertSame(['backfill_enabled' => true], $details['after']);
+        $this->assertSame(['backfill_enabled' => false], $details['before']);
+
+        try {
+            $this->settings->update(['backfill_enabled' => false], $this->employeeWithGrants([]));
+            $this->fail('Expected the permission to be required.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::PermissionDenied, $exception->error);
+        }
+
+        $this->assertTrue($this->settings->backfillEnabled());
+
+        $this->settings->update(['backfill_enabled' => false], $this->manager());
+
+        $this->assertFalse($this->settings->backfillEnabled());
+    }
+
+    public function testUpdate_RefusesToTurnTheRetroactivePostingOnForSomeoneWhoDoesNotWorkInEveryBranch(): void
+    {
+        $this->createBranch('B2', 'Second branch');
+
+        try {
+            $this->settings->update(['backfill_enabled' => true], $this->manager([1]));
+            $this->fail('Expected the company scope to be required.');
+        } catch (BranchException $exception) {
+            $this->assertSame(BranchError::CompanyScopeNeeded, $exception->error);
+        }
+
+        $this->assertFalse($this->settings->backfillEnabled());
     }
 }

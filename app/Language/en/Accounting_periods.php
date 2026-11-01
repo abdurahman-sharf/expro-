@@ -3,6 +3,7 @@
 return [
     'all_scopes'                                      => 'Company and branches',
     'all_statuses'                                    => 'All',
+    'backfill_manage'                                 => 'Preview, approve and cancel batches of past documents',
     'close_action'                                    => 'Close…',
     'close_submit'                                    => 'Close',
     'close_through'                                   => 'Close through',
@@ -126,6 +127,7 @@ return [
     'successful_deleting'                             => 'The fiscal year was deleted.',
     'successful_updating'                             => 'The fiscal year was updated.',
     'summary'                                         => 'Closing status',
+    'tab_backfill'                                    => 'Past documents',
     'tab_closings'                                    => 'Closing',
     'tab_opening'                                     => 'Opening balances',
     'tab_year_end'                                    => 'Year-end closing',

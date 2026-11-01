@@ -2,6 +2,9 @@
 
 namespace App\Libraries\Accounting;
 
+use CodeIgniter\Database\BaseConnection;
+use Config\OSPOS;
+
 /**
  * The journals a saved sale needs, as drafts. It writes nothing. Whatever it cannot decide
  * with certainty it refuses with a named failure, so that a journal that looks right and is
@@ -23,6 +26,15 @@ final class SalePostingBuilder
         private readonly int $decimals = 2,
         private readonly bool $taxIncluded = false,
     ) {
+    }
+
+    /**
+     * The builder the live posting and the retroactive posting both use, set up as the settings of
+     * the shop say: the decimals of a total and whether the prices include the tax.
+     */
+    public static function forDatabase(BaseConnection $db): self
+    {
+        return new self(new RoutingResolver($db), totals_decimals(), (bool) (config(OSPOS::class)->settings['tax_included'] ?? false));
     }
 
     /**

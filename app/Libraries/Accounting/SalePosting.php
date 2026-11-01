@@ -4,7 +4,6 @@ namespace App\Libraries\Accounting;
 
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
-use Config\OSPOS;
 
 /**
  * Posts what happens to a sale: it is completed, its goods are delivered, a payment is added
@@ -41,11 +40,7 @@ final class SalePosting
         $this->stock    = new StockLedger($this->db);
         $this->settings = new AccountingSettings($this->db);
         $this->periods  = new PeriodGuard($this->db);
-        $this->builder  = new SalePostingBuilder(
-            new RoutingResolver($this->db),
-            totals_decimals(),
-            (bool) (config(OSPOS::class)->settings['tax_included'] ?? false),
-        );
+        $this->builder  = SalePostingBuilder::forDatabase($this->db);
 
         $this->crossBranch = new CrossBranchPayments($this->db);
     }
@@ -261,6 +256,7 @@ final class SalePosting
         $paymentIds = $this->paymentIds($saleId);
         $builder    = $this->db->table('accounting_journals')
             ->select('journal_id, number, journal_date, status, source_type, source_id, entry_type, revision, total_debit')
+            ->where('status !=', JournalStatus::Preview->value)
             ->groupStart()
             ->groupStart()->where('source_type', SalePostingBuilder::SOURCE_SALE)->where('source_id', $saleId)->groupEnd();
 

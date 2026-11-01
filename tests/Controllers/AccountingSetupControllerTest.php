@@ -596,4 +596,36 @@ class AccountingSetupControllerTest extends CIUnitTestCase
     {
         return $this->accountingDb()->table('employees')->where('person_id', $personId)->get()->getRow()->username;
     }
+
+    public function testPostSave_SavesWhetherThePastMayBePostedAndLeavesItAloneWhenNotSent(): void
+    {
+        $this->manager();
+
+        $form = ['base_currency' => 'usd', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1'];
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + ['backfill_enabled' => '1']))['success']);
+        $this->assertTrue((new AccountingSettings())->backfillEnabled());
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form))['success']);
+        $this->assertTrue((new AccountingSettings())->backfillEnabled(), 'A form without the switch leaves it as it was');
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + ['backfill_enabled' => '0']))['success']);
+        $this->assertFalse((new AccountingSettings())->backfillEnabled());
+    }
+
+    public function testGetIndex_ShowsWhetherThePastMayBePostedAndNamesThePermissionAmongTheSensitiveOnes(): void
+    {
+        $this->manager();
+
+        $this->setConfigValue('accounting_backfill_enabled', '1');
+        $this->assertStringContainsString('id="backfill_enabled" value="1" checked', $this->get('/accounting_settings')->getBody());
+
+        $this->setConfigValue('accounting_backfill_enabled', '0');
+        $this->assertStringNotContainsString('id="backfill_enabled" value="1" checked', $this->get('/accounting_settings')->getBody());
+
+        $holder = $this->employeeWithGrants([AccountingGuard::BACKFILL_MANAGE]);
+
+        $this->assertGreaterThan(0, $holder);
+        $this->assertStringContainsString(lang('Accounting_periods.backfill_manage'), $this->get('/accounting_settings')->getBody());
+    }
 }

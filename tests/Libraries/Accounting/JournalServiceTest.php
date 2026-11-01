@@ -38,6 +38,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\JournalAttachmentFixtureTrait;
@@ -46,6 +47,7 @@ use Tests\Support\SaleAccountingFixtureTrait;
 class JournalServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use ItemFixtureTrait;
     use JournalAttachmentFixtureTrait;
@@ -2457,5 +2459,30 @@ class JournalServiceTest extends CIUnitTestCase
         }
 
         $this->assertCount(10, array_unique(array_map(static fn (string $source): string => $english['source_' . $source], $this->chequeAndVoucherSources())));
+    }
+
+    public function testSearch_LeavesOutThePreviewsOfABatchAndNoPreviewCanBeChangedOrTakenBack(): void
+    {
+        $posted  = $this->service->postNew($this->journalInput('100.00'), null);
+        $preview = $this->previewOfSource('sale', 4242);
+
+        $this->assertSame([$posted], array_map(static fn (object $row): int => (int) $row->journal_id, $this->service->search([], 'journal_date', 'desc', 25, 0, null)['rows']));
+        $this->assertSame(1, $this->service->search([], 'journal_date', 'desc', 25, 0, null)['total']);
+
+        foreach ([
+            fn () => $this->service->reverse($preview, '2026-10-21', 'No', null),
+            fn () => $this->service->updateDetails($preview, ['description' => 'x'], null),
+            fn () => $this->service->postDraft($preview, null),
+            fn () => $this->service->deleteDraft($preview, null),
+        ] as $change) {
+            try {
+                $change();
+                $this->fail('A preview was changed.');
+            } catch (AccountingException $exception) {
+                $this->assertContains($exception->error, [AccountingError::NotPosted, AccountingError::JournalNotPosted, AccountingError::NotADraft, AccountingError::JournalNotFound]);
+            }
+        }
+
+        $this->assertSame('preview', $this->accountingDb()->table('accounting_journals')->where('journal_id', $preview)->get()->getRow()->status);
     }
 }

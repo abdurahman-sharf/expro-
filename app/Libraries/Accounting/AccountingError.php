@@ -263,4 +263,21 @@ enum AccountingError: string
     case RevenueCategoryNotFound    = 'revenue_category_not_found';
     case RevenueCategoryNameInvalid = 'revenue_category_name_invalid';
     case RevenueCategoryNameTaken   = 'revenue_category_name_taken';
+
+    case BackfillNotFound         = 'backfill_not_found';
+    case BackfillNameInvalid      = 'backfill_name_invalid';
+    case BackfillRangeInvalid     = 'backfill_range_invalid';
+    case BackfillFamiliesInvalid  = 'backfill_families_invalid';
+    case BackfillChunkInvalid     = 'backfill_chunk_invalid';
+    case BackfillOverlaps         = 'backfill_overlaps';
+    case BackfillBusy             = 'backfill_busy';
+    case BackfillDecided          = 'backfill_decided';
+    case BackfillNotReady         = 'backfill_not_ready';
+    case BackfillApproving        = 'backfill_approving';
+    case BackfillDisabled         = 'backfill_disabled';
+    case BackfillAccountingOff    = 'backfill_accounting_off';
+    case BackfillStartDateMissing = 'backfill_start_date_missing';
+    case BackfillOpeningMissing   = 'backfill_opening_missing';
+    case BackfillPreviewChanged   = 'backfill_preview_changed';
+    case BackfillNothingToApprove = 'backfill_nothing_to_approve';
 }

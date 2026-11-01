@@ -26,6 +26,7 @@ use App\Models\Expense;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -41,6 +42,7 @@ use Tests\Support\SaleAccountingFixtureTrait;
 class TrialBalanceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
+    use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
@@ -1297,5 +1299,19 @@ class TrialBalanceTest extends CIUnitTestCase
         }
 
         $this->assertSameAsFixture($case['expected'], $actual, 'T-65 the total does not move with the depth shown');
+    }
+
+    public function testBuild_LeavesOutThePreviewsOfABatch(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->postOn('2026-10-07', 1, [[$this->accountId('cogs'), '30.00', '0'], [$this->accountId('cash'), '0', '30.00']]);
+
+        $before = $this->build(expand: true);
+
+        $this->previewEverything();
+        $this->assertPreviewsStand();
+
+        $this->assertEquals($before, $this->build(expand: true));
+        $this->assertSame('100.0000', $this->row($this->build(), '41')->credit);
     }
 }

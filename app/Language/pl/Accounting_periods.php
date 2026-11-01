@@ -3,6 +3,7 @@
 return [
     'all_scopes'                                      => '',
     'all_statuses'                                    => '',
+    'backfill_manage'                                 => '',
     'close_action'                                    => '',
     'close_submit'                                    => '',
     'close_through'                                   => '',
@@ -126,6 +127,7 @@ return [
     'successful_deleting'                             => '',
     'successful_updating'                             => '',
     'summary'                                         => '',
+    'tab_backfill'                                    => '',
     'tab_closings'                                    => '',
     'tab_opening'                                     => '',
     'tab_year_end'                                    => '',
