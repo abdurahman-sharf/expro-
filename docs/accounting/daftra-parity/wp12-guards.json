@@ -446,7 +446,7 @@
   "replace": "(static fn (callable $work): mixed => $work())(function",
   "tests": [
    "--filter",
-   "Create_TwoRealConnections",
+   "Create_TwoRealConnections|Create_RefusesWhileAnotherRunHoldsTheLockOfCreations",
    "tests/Libraries/Accounting/Backfill/BackfillServiceTest.php"
   ]
  },
@@ -1150,7 +1150,7 @@
   "replace": "        if (false) {\n            return BackfillPlan::refused($early, $source);",
   "tests": [
    "--filter",
-   "Plan_RefusesADocumentDatedBefore",
+   "Plan_RefusesADocumentDatedBefore|PutsASaleDatedBeforeTheBooksBeginOut",
    "tests/Libraries/Accounting/Backfill/SaleBackfillTest.php"
   ]
  },
@@ -1282,7 +1282,7 @@
   "replace": "        if (false) {\n            return BackfillPlan::refused($early, $source);",
   "tests": [
    "--filter",
-   "Plan_RefusesAPurchaseDatedBefore",
+   "Plan_RefusesAPurchaseDatedBefore|PutsAPurchaseDatedBeforeTheBooksBeginOut",
    "tests/Libraries/Accounting/Backfill/PurchaseBackfillTest.php"
   ]
  },
@@ -1315,7 +1315,7 @@
   "replace": "        if (false) {\n            return BackfillPlan::refused($early, $source);",
   "tests": [
    "--filter",
-   "Plan_RefusesAnExpenseBeforeTheStartDate",
+   "Plan_RefusesAnExpenseBeforeTheStartDate|PutsAnExpenseDatedBeforeTheBooksBeginOut",
    "tests/Libraries/Accounting/Backfill/ExpenseBackfillTest.php"
   ]
  },
@@ -1392,7 +1392,7 @@
   "replace": "        if (false) {\n            return BackfillPlan::refused($early, $source);",
   "tests": [
    "--filter",
-   "Plan_RefusesACashupBeforeTheStartDate",
+   "Plan_RefusesACashupBeforeTheStartDate|PutsACashupDatedBeforeTheBooksBeginOut",
    "tests/Libraries/Accounting/Backfill/CashupBackfillTest.php"
   ]
  },

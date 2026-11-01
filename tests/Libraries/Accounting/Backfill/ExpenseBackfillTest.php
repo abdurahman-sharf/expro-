@@ -122,6 +122,16 @@ final class ExpenseBackfillTest extends CIUnitTestCase
         $this->assertSame(BackfillRefusal::BeforeStartDate, $this->plan($legacy)->refusal);
     }
 
+    public function testPlan_PutsAnExpenseDatedBeforeTheBooksBeginOutWhateverElseIsWrongWithIt(): void
+    {
+        $legacy = $this->legacyExpense();
+
+        $this->withoutKeys(fn () => $this->accountingDb()->table('expenses')->where('expense_id', $legacy)->update(['treasury_id' => 987654]));
+        $this->setConfigValue('accounting_start_date', '2026-06-01');
+
+        $this->assertSame(BackfillRefusal::BeforeStartDate, $this->plan($legacy)->refusal);
+    }
+
     public function testPlan_RefusesAnExpensePaidFromATreasuryThatIsGoneOrOfAnotherBranch(): void
     {
         $other  = $this->createBranch();

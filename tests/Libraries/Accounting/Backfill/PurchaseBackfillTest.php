@@ -172,6 +172,16 @@ final class PurchaseBackfillTest extends CIUnitTestCase
         });
     }
 
+    public function testPlan_PutsAPurchaseDatedBeforeTheBooksBeginOutWhateverElseIsWrongWithIt(): void
+    {
+        $receivingId = $this->legacyPurchase('500', '2026-03-10');
+
+        $this->accountingDb()->table('suppliers')->where('person_id', $this->supplierId)->update(['deleted' => 1]);
+        $this->setConfigValue('accounting_start_date', '2026-06-01');
+
+        $this->assertSame(BackfillRefusal::BeforeStartDate, $this->plan($receivingId)->refusal);
+    }
+
     public function testPlan_RefusesAPurchaseOfADeletedSupplier(): void
     {
         $receivingId = $this->legacyPurchase('500');

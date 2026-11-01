@@ -237,6 +237,16 @@ final class SaleBackfillTest extends CIUnitTestCase
         });
     }
 
+    public function testPlan_PutsASaleDatedBeforeTheBooksBeginOutWhateverElseIsWrongWithIt(): void
+    {
+        $saleId = $this->legacyInvoice('2026-03-10');
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['deleted' => 1]);
+        $this->setConfigValue('accounting_start_date', '2026-06-01');
+
+        $this->assertSame(BackfillRefusal::BeforeStartDate, $this->refusalOf($saleId));
+    }
+
     public function testPlan_RefusesADocumentOfADeletedCustomer(): void
     {
         $saleId = $this->legacyInvoice('2026-03-10');

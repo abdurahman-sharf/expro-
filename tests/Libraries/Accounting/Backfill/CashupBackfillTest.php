@@ -143,6 +143,16 @@ final class CashupBackfillTest extends CIUnitTestCase
         $this->assertSame(BackfillRefusal::BeforeStartDate, $this->plan($legacy)->refusal);
     }
 
+    public function testPlan_PutsACashupDatedBeforeTheBooksBeginOutWhateverElseIsWrongWithIt(): void
+    {
+        $legacy = $this->legacyCashup('900');
+
+        $this->withoutKeys(fn () => $this->accountingDb()->table('cash_up')->where('cashup_id', $legacy)->update(['treasury_id' => 987654, 'branch_id' => 1]));
+        $this->setConfigValue('accounting_start_date', '2026-06-01');
+
+        $this->assertSame(BackfillRefusal::BeforeStartDate, $this->plan($legacy)->refusal);
+    }
+
     public function testCandidates_LeavesOutACashupThatCountedNothingOrWasDeleted(): void
     {
         $counted = $this->legacyCashup('900');

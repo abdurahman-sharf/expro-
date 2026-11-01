@@ -852,6 +852,24 @@ final class BackfillServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('accounting_backfill_batches'));
     }
 
+    public function testCreate_RefusesWhileAnotherRunHoldsTheLockOfCreations(): void
+    {
+        $other = $this->openSecondConnection();
+        $name  = 'ospos_backfill_' . substr(sha1($this->accountingDb()->getDatabase()), 0, 10) . '_create';
+
+        $this->assertSame(1, (int) $other->query('SELECT GET_LOCK(?, 0) AS got', [$name])->getRow()->got);
+
+        try {
+            $this->assertRefusedWith(AccountingError::BackfillBusy, fn () => $this->backfill->create(['name' => 'X', 'from' => '2026-01-01', 'to' => '2026-12-31'], $this->backfillManager));
+        } finally {
+            $other->query('SELECT RELEASE_LOCK(?)', [$name]);
+            $other->close();
+        }
+
+        $this->assertSame(0, $this->countRows('accounting_backfill_batches'));
+        $this->assertGreaterThan(0, $this->backfill->create(['name' => 'X', 'from' => '2026-01-01', 'to' => '2026-12-31'], $this->backfillManager));
+    }
+
     public function testApprove_TwoRealConnectionsProduceOneResult(): void
     {
         $this->legacyInvoice('2026-03-10', [$this->payment(lang('Sales.cash'), '816.50')]);
