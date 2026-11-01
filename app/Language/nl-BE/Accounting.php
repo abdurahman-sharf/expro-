@@ -135,6 +135,7 @@ return [
     'error_bank_match_window_invalid'            => '',
     'error_bank_reconciliation_balance_invalid'  => '',
     'error_bank_reconciliation_date_invalid'     => '',
+    'error_bank_reconciliation_date_outside'     => '',
     'error_bank_reconciliation_difference'       => '',
     'error_bank_reconciliation_not_found'        => '',
     'error_bank_reconciliation_not_latest'       => '',

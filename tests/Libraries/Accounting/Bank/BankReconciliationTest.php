@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting\Bank;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountLedger;
 use App\Libraries\Accounting\Bank\BankMatches;
 use App\Libraries\Accounting\Bank\BankSuggestions;
@@ -754,8 +755,13 @@ class BankReconciliationTest extends CIUnitTestCase
         $second = $this->openBank();
         $this->importStatement($this->statementText([['2026-03-10', 'Line', '5.00', '', 'A']]), $second);
 
-        $this->assertSame(AccountingError::BankReconciliationDateInvalid, $this->refusal(fn () => $this->bank->close($second, '2026-03-01', '5.00', $this->bankClerk))->error);
-        $this->assertSame(AccountingError::BankReconciliationDateInvalid, $this->refusal(fn () => $this->bank->close($this->openBank(), '2026-03-01', '0.00', $this->bankClerk))->error);
+        $beforeFirstLine = $this->refusal(fn () => $this->bank->close($second, '2026-03-01', '5.00', $this->bankClerk));
+        $withoutLines    = $this->refusal(fn () => $this->bank->close($this->openBank(), '2026-03-01', '0.00', $this->bankClerk));
+
+        $this->assertSame([AccountingError::BankReconciliationDateOutside, AccountingError::BankReconciliationDateOutside], [$beforeFirstLine->error, $withoutLines->error]);
+        $this->assertStringNotContainsString('()', AccountingMessage::of($beforeFirstLine));
+        $this->assertStringContainsString('2026-03-01', AccountingMessage::of($beforeFirstLine));
+        $this->assertStringContainsString('(2026-03-31)', AccountingMessage::of($this->refusal(fn () => $this->bank->close($this->bankId, '2026-03-15', '1150.00', $this->bankClerk))));
         $this->assertSame(1, $this->accountingDb()->table('bank_reconciliations')->countAllResults());
     }
 
@@ -1339,5 +1345,31 @@ class BankReconciliationTest extends CIUnitTestCase
         $this->assertSame([$credit], array_map(static fn (object $line): int => (int) $line->line_id, $withdrawal['lines']));
         $this->assertTrue($deposit['lines'][0]->exact);
         $this->assertTrue($deposit['lines'][0]->near);
+    }
+
+    public function testForLine_KeepsTheLinesOfTheAmountAndThenTheNearestInDateWhenTheLimitCutsTheListAndSaysThereAreMore(): void
+    {
+        foreach (['2026-01-10' => '11.00', '2026-02-10' => '12.00', '2026-03-10' => '13.00', '2026-04-10' => '14.00', '2026-05-10' => '15.00', '2026-06-10' => '16.00'] as $date => $amount) {
+            $this->bookLine($amount, $date, 'Deposit ' . $amount);
+        }
+
+        $this->importStatement($this->statementText([['2026-01-12', 'Oldest amount', '11.00', '', 'A'], ['2026-02-12', 'Other amount', '99.00', '', 'B']]));
+
+        $suggestions = new BankSuggestions();
+        $amounts     = static fn (array $found): array => array_map(static fn (object $line): string => (string) $line->amount, $found['lines']);
+
+        $first = $suggestions->forLine($this->bankId, $this->statementLineId('Oldest amount'), $this->bankClerk, null, 3);
+        $other = $suggestions->forLine($this->bankId, $this->statementLineId('Other amount'), $this->bankClerk, null, 3);
+
+        $this->assertSame(['11.0000', '12.0000', '13.0000'], $amounts($first));
+        $this->assertTrue($first['more']);
+        $this->assertSame(['12.0000', '13.0000', '11.0000'], $amounts($other));
+        $this->assertTrue($other['more']);
+        $this->assertTrue($suggestions->forLine($this->bankId, $this->statementLineId('Oldest amount'), $this->bankClerk, null, 5)['more']);
+
+        $all = $suggestions->forLine($this->bankId, $this->statementLineId('Oldest amount'), $this->bankClerk, null, 6);
+
+        $this->assertCount(6, $all['lines']);
+        $this->assertFalse($all['more']);
     }
 }

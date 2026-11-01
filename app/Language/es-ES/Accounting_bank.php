@@ -88,6 +88,7 @@ return [
     'mapping' => '',
     'mapping_note' => '',
     'match' => '',
+    'match_limited' => '',
     'match_title' => '',
     'matched' => '',
     'matches' => '',

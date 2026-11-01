@@ -104,9 +104,10 @@ final class BankSuggestions
     /**
      * What a person chooses from to match one statement line: the lines of the books that no match
      * holds, of the direction of the line, those of the amount of the line and within the window first,
-     * then by how near their date is.
+     * then by how near their date is. Of more lines than the limit the list keeps those of the amount
+     * and then the nearest in date, and says there are more.
      *
-     * @return array{line: object, lines: list<object>}
+     * @return array{line: object, lines: list<object>, more: bool}
      *
      * @throws AccountingException
      */
@@ -123,7 +124,9 @@ final class BankSuggestions
         $accountId = $this->access->treasuries()->accountOf($treasuryId);
         $window    = $windowDays ?? $this->settings->windowDays();
         $date      = new DateTimeImmutable((string) $line->line_date);
-        $lines     = $accountId === null ? [] : $this->book->unmatchedOfDirection($accountId, bccomp((string) $line->amount, '0', 4) > 0, $limit);
+        $lines     = $accountId === null ? [] : $this->book->unmatchedOfDirection($accountId, bccomp((string) $line->amount, '0', 4) > 0, (string) $line->amount, (string) $line->line_date, $limit + 1);
+        $more      = count($lines) > $limit;
+        $lines     = array_slice($lines, 0, $limit);
 
         foreach ($lines as $candidate) {
             $candidate->days  = abs((int) $date->diff(new DateTimeImmutable((string) $candidate->journal_date))->format('%a'));
@@ -134,7 +137,7 @@ final class BankSuggestions
 
         usort($lines, static fn (object $first, object $second): int => [(int) $second->near, $first->days, $first->line_id] <=> [(int) $first->near, $second->days, $second->line_id]);
 
-        return ['line' => $line, 'lines' => $lines];
+        return ['line' => $line, 'lines' => $lines, 'more' => $more];
     }
 
     private function hint(object $line, object $candidate): string

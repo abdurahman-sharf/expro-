@@ -10,7 +10,6 @@
  * @var string                                                             $selected_bank
  */
 
-use App\Libraries\Accounting\Bank\BankText;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 
@@ -52,7 +51,7 @@ $isBank = ! $isNew && $treasury->kind === TreasuryService::BANK;
                     <select name="bank_code" id="bank_code" class="form-select form-select-sm">
                         <option value=""><?= lang('Accounting_treasuries.bank_other') ?></option>
                         <?php foreach ($directory as $bank): ?>
-                            <option value="<?= esc($bank['code'], 'attr') ?>" data-search="<?= esc(BankText::normalised($bank['code'] . ' ' . $bank['en'] . ' ' . $bank['ar']), 'attr') ?>" data-country="<?= esc($bank['country'], 'attr') ?>"<?= $selected_bank === $bank['code'] ? ' selected' : '' ?>><?= esc($bank['en'] . ' - ' . $bank['ar']) ?></option>
+                            <option value="<?= esc($bank['code'], 'attr') ?>" data-country="<?= esc($bank['country'], 'attr') ?>"<?= $selected_bank === $bank['code'] ? ' selected' : '' ?>><?= esc($bank['en'] . ' - ' . $bank['ar']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -162,26 +161,31 @@ $isBank = ! $isNew && $treasury->kind === TreasuryService::BANK;
 
         $('#bank_code').on('change', syncBankName);
 
-        const allBanks = $('#bank_code option[value!=""]').map(function() {
-            return {value: this.value, text: $(this).text(), search: $(this).data('search')};
-        }).get();
+        let searching = null;
 
         $('#bank_search').on('input', function() {
-            const words = $.trim($(this).val()).toLowerCase().split(/\s+/).filter(Boolean);
-            const select = $('#bank_code');
-            const current = select.val();
+            const term = $(this).val();
 
-            select.find('option[value!=""]').remove();
+            clearTimeout(searching);
 
-            allBanks.forEach(function(bank) {
-                const matches = words.every(function(word) {
-                    return bank.search.indexOf(word) !== -1 || bank.text.toLowerCase().indexOf(word) !== -1;
+            searching = setTimeout(function() {
+                $.getJSON(<?= json_encode(base_url('accounting_treasuries/banks'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, {term: term}, function(response) {
+                    const select = $('#bank_code');
+                    const chosen = select.find('option:selected');
+                    const current = chosen.val();
+                    const kept = current === '' ? null : chosen.clone();
+
+                    select.find('option[value!=""]').remove();
+
+                    response.rows.forEach(function(bank) {
+                        select.append($('<option>').val(bank.code).text(bank.en + ' - ' + bank.ar).prop('selected', bank.code === current));
+                    });
+
+                    if (kept !== null && select.find('option').filter(function() { return this.value === current; }).length === 0) {
+                        select.append(kept.prop('selected', true));
+                    }
                 });
-
-                if (matches || bank.value === current) {
-                    select.append($('<option>').val(bank.value).text(bank.text).data('search', bank.search).prop('selected', bank.value === current));
-                }
-            });
+            }, 150);
         });
 
         $('.scope-mode').on('change', function() {

@@ -135,6 +135,7 @@ return [
     'error_bank_match_window_invalid'            => 'The window is a whole number of days from {1} to {0}.',
     'error_bank_reconciliation_balance_invalid'  => '"{0}" is not a valid balance: use a number with up to 4 decimals, negative when the account is overdrawn.',
     'error_bank_reconciliation_date_invalid'     => 'The reconciliation cannot be closed up to {0}: the date must be after the last closing ({1}), not in the future and not before the first statement line.',
+    'error_bank_reconciliation_date_outside'     => 'The reconciliation cannot be closed up to {0}: the date must not be in the future and not before the first statement line.',
     'error_bank_reconciliation_difference'       => 'The reconciliation has a difference of {0}: it is closed only when the balance on the statement leaves none.',
     'error_bank_reconciliation_not_found'        => 'This reconciliation does not exist.',
     'error_bank_reconciliation_not_latest'       => 'Only the latest closing of an account is reopened: reopen the one closed up to {0} first.',

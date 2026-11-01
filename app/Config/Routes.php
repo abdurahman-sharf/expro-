@@ -189,6 +189,7 @@ $routes->group('accounting_treasuries', static function (RouteCollection $routes
     $routes->get('search', 'AccountingTreasuries::getSearch');
     $routes->get('row/(:num)', 'AccountingTreasuries::getRow/$1');
     $routes->get('statement/(:num)', 'AccountingTreasuries::getStatement/$1');
+    $routes->get('banks', 'AccountingTreasuries::getBanks');
     $routes->get('view', 'AccountingTreasuries::getView');
     $routes->get('view/(:segment)', 'AccountingTreasuries::getView/$1');
     $routes->post('save', 'AccountingTreasuries::postSave');

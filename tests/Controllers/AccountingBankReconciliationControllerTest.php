@@ -8,6 +8,7 @@ use App\Libraries\Accounting\Bank\BankDirectory;
 use App\Libraries\Accounting\Bank\BankMatches;
 use App\Libraries\Accounting\Bank\StatementMapping;
 use App\Libraries\Accounting\Bank\StatementParser;
+use App\Libraries\Accounting\JournalService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -663,6 +664,32 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
         $response->assertSee('table-success');
         $response->assertSee('bank_match_submit');
         $response->assertSee('journal_line_ids[]');
+    }
+
+    public function testGetMatch_SaysSoWhenMoreLinesOfTheBooksAreOpenThanItLists(): void
+    {
+        $account = (int) $this->bankTreasuries->accountOf($this->bankId);
+        $lines   = array_fill(0, 301, ['account_id' => $account, 'debit' => '1.00', 'credit' => '']);
+
+        (new JournalService())->postNew(['date' => '2026-03-01', 'description' => 'Many small deposits', 'lines' => [...$lines, ['account_id' => $this->accountId('opening_balance'), 'debit' => '', 'credit' => '301.00']]]);
+        $this->importStatement($this->statementText([['2026-03-10', 'One pound', '1.00', '', 'A']]));
+        $this->actAsReconciler();
+
+        $response = $this->get($this->accountUrl('/match/' . $this->statementLineId('One pound')));
+
+        $response->assertStatus(200);
+        $response->assertSee('id="bank_match_limited"');
+        $response->assertSee(lang('Accounting_bank.match_limited', [300]));
+        $this->assertSame(300, substr_count($response->getBody(), 'name="journal_line_ids[]"'));
+    }
+
+    public function testGetMatch_SaysNothingOfALimitWhenEveryOpenLineIsListed(): void
+    {
+        $this->bookLine('200.00', '2026-03-08', 'Near deposit');
+        $this->importStatement($this->statementText([['2026-03-10', 'Wire from Alpha', '200.00', '', 'INV-77']]));
+        $this->actAsReconciler();
+
+        $this->get($this->accountUrl('/match/' . $this->statementLineId('Wire from Alpha')))->assertDontSee('bank_match_limited');
     }
 
     public function testGetMatch_IsNotFoundForALineOfAnotherBankAccountAndAnUnknownLine(): void

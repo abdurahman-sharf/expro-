@@ -3,6 +3,7 @@
  * @var object       $treasury
  * @var object       $line
  * @var list<object> $candidates
+ * @var bool         $more
  * @var int          $window
  * @var bool         $journal_links
  * @var Closure      $amount
@@ -74,6 +75,10 @@ $flags   = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
     <h2 class="h5"><?= lang('Accounting_bank.book_lines') ?></h2>
     <p class="small text-body-secondary"><?= lang($deposit ? 'Accounting_bank.book_lines_deposit_note' : 'Accounting_bank.book_lines_withdrawal_note', [$window]) ?></p>
+
+    <?php if ($more): ?>
+        <p class="small text-warning" id="bank_match_limited"><?= lang('Accounting_bank.match_limited', [count($candidates)]) ?></p>
+    <?php endif; ?>
 
     <?php if ($candidates === []): ?>
         <p class="text-body-secondary" id="bank_match_none"><?= lang('Accounting_bank.book_lines_none') ?></p>

@@ -288,6 +288,7 @@ enum AccountingError: string
     case BankReconciliationNotFound       = 'bank_reconciliation_not_found';
     case BankReconciliationDifference     = 'bank_reconciliation_difference';
     case BankReconciliationDateInvalid    = 'bank_reconciliation_date_invalid';
+    case BankReconciliationDateOutside    = 'bank_reconciliation_date_outside';
     case BankReconciliationBalanceInvalid = 'bank_reconciliation_balance_invalid';
     case BankReconciliationNotLatest      = 'bank_reconciliation_not_latest';
     case BankReconciliationReopened       = 'bank_reconciliation_reopened';

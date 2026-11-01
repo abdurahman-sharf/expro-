@@ -89,6 +89,13 @@ class AccountingTreasuries extends AccountingController
         ]);
     }
 
+    public function getBanks(): ResponseInterface
+    {
+        $this->requireManage();
+
+        return $this->response->setJSON(['rows' => BankDirectory::search((string) $this->request->getGet('term'))]);
+    }
+
     public function getView(int $treasuryId = NEW_ENTRY): string
     {
         $this->requireManage();

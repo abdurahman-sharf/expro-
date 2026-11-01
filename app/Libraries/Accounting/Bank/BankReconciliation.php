@@ -104,7 +104,7 @@ final class BankReconciliation
     }
 
     /**
-     * @return array{line: object, lines: list<object>}
+     * @return array{line: object, lines: list<object>, more: bool}
      *
      * @throws AccountingException
      */

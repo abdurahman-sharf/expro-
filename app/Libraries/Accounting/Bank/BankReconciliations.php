@@ -74,7 +74,9 @@ final class BankReconciliations
             $start    = $this->book->coverageStart($treasuryId);
 
             if ($through > date('Y-m-d') || ($previous !== null && $through <= $previous) || $start === null || $through < $start) {
-                throw new AccountingException(AccountingError::BankReconciliationDateInvalid, "{$through} cannot be closed.", ['date' => $through, 'until' => $previous ?? '']);
+                throw $previous === null
+                    ? new AccountingException(AccountingError::BankReconciliationDateOutside, "{$through} cannot be closed.", ['date' => $through])
+                    : new AccountingException(AccountingError::BankReconciliationDateInvalid, "{$through} cannot be closed.", ['date' => $through, 'until' => $previous]);
             }
 
             $figures = $this->report->build($treasuryId, $through, $balance, $employeeId);

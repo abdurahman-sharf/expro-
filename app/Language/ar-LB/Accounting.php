@@ -135,6 +135,7 @@ return [
     'error_bank_match_window_invalid'            => 'النافذة عدد صحيح من الأيام بين {1} و{0}.',
     'error_bank_reconciliation_balance_invalid'  => '«{0}» ليس رصيدًا صالحًا: استعمل رقمًا بحد أقصى 4 منازل عشرية، وسالبًا إن كان الحساب مكشوفًا.',
     'error_bank_reconciliation_date_invalid'     => 'لا يمكن إغلاق التسوية حتى {0}: يجب أن يكون التاريخ بعد آخر إغلاق ({1}) وغير مستقبلي وغير سابق لأول سطر في الكشف.',
+    'error_bank_reconciliation_date_outside'     => 'لا يمكن إغلاق التسوية حتى {0}: يجب ألا يكون التاريخ مستقبليًا ولا سابقًا لأول سطر في الكشف.',
     'error_bank_reconciliation_difference'       => 'في التسوية فرق قدره {0}: لا تُغلق إلا إذا لم يترك رصيد الكشف أي فرق.',
     'error_bank_reconciliation_not_found'        => 'هذه التسوية غير موجودة.',
     'error_bank_reconciliation_not_latest'       => 'لا يُعاد فتح إلا آخر إغلاق للحساب: أعد فتح الإغلاق حتى {0} أولًا.',

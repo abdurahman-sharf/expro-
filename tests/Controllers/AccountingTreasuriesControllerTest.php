@@ -840,6 +840,40 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Accounting_treasuries.bank_other'), $body);
     }
 
+    public function testGetBanks_FindsABankWhateverTheCaseTheArabicMarksAndTheLetterFormsTyped(): void
+    {
+        $this->manager();
+
+        $codes = fn (string $term): array => array_column(json_decode($this->get('/accounting_treasuries/banks?term=' . rawurlencode($term))->getJSON(), true)['rows'], 'code');
+
+        $this->assertContains('SA_ANB', $codes('العربى الوطنى'));
+        $this->assertContains('SA_RIYAD', $codes('بَنك الرياض'));
+        $this->assertContains('SA_RIYAD', $codes('RIYAD  bank'));
+        $this->assertContains('SA_RAJHI', $codes('مصرف الراجحي'));
+        $this->assertSame([], $codes('no such bank anywhere'));
+        $this->assertCount(count(BankDirectory::search()), $codes(''));
+    }
+
+    public function testGetBanks_IsNotFoundToWhoCannotManageTreasuries(): void
+    {
+        $this->actAsWith(['accounting_treasuries']);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_treasuries/banks?term=riyad');
+    }
+
+    public function testGetView_SearchesTheBankDirectoryOnTheServerSoThatItIgnoresTheMarksAndLetterFormsAsTheDirectoryDoes(): void
+    {
+        $manager = $this->manager();
+        $bank    = $this->treasuries->create(['name' => 'Rajhi', 'kind' => 'bank', 'bank_code' => 'SA_RAJHI', 'account_number' => '1234567890'], $manager);
+
+        $body = $this->get('/accounting_treasuries/view/' . $bank)->getBody();
+
+        $this->assertStringContainsString('accounting_treasuries\/banks', $body);
+        $this->assertStringNotContainsString('data-search', $body);
+    }
+
     public function testGetView_PreselectsTheDirectoryBankOfAnAccountOpenedByHandWhoseNameIsInItAndSavesNothing(): void
     {
         $manager = $this->manager();

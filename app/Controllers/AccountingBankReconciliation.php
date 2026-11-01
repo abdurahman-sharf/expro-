@@ -212,6 +212,7 @@ class AccountingBankReconciliation extends AccountingController
             'treasury'      => $treasury,
             'line'          => $result['line'],
             'candidates'    => $result['lines'],
+            'more'          => $result['more'],
             'window'        => $this->bank->windowDays(),
             'journal_links' => $this->can('accounting_journals'),
             'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),

@@ -88,6 +88,7 @@ return [
     'mapping' => 'Columns of the file',
     'mapping_note' => 'Columns are counted from 1. The date, the deposit and the withdrawal are required; leave the description and the reference as none when the file has no such column.',
     'match' => 'Match',
+    'match_limited' => 'Only the {0} lines of the books that fit best are listed: those of the same amount first, then the nearest in date to the statement line. More lines are open and not shown.',
     'match_title' => 'Match a statement line of {0}',
     'matched' => 'The lines were matched.',
     'matches' => 'Matches',
