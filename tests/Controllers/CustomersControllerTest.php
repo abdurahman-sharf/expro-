@@ -910,4 +910,32 @@ class CustomersControllerTest extends CIUnitTestCase
 
         $this->resetCustomerControls();
     }
+
+    public function testPostSave_SavesTheCustomerAndTheOpeningBalanceAndSaysWhyTheListWasNotGivenWhenItWasDeactivatedWhileTheCustomerWasSaved(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $listId = model(Price_list::class)->saveList('Racing', true, null, null);
+
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers', 'price_lists', AccountingGuard::OPENING_MANAGE]), 'menu_group' => 'office']);
+
+        $db      = $this->accountingDb();
+        $trigger = $db->prefixTable('wp36_deactivate_list');
+
+        $db->query('CREATE TRIGGER ' . $trigger . ' AFTER INSERT ON ' . $db->prefixTable('customers') . ' FOR EACH ROW UPDATE ' . $db->prefixTable('price_lists') . ' SET status = 0');
+
+        try {
+            $result = $this->save(['price_list_id' => (string) $listId, 'opening_side' => 'owes_us', 'opening_amount' => '300.00', 'opening_date' => date('Y-m-d')]);
+        } finally {
+            $db->query('DROP TRIGGER IF EXISTS ' . $trigger);
+        }
+
+        $this->assertTrue($result['success'], 'the customer is saved, and the form says what was left out');
+        $this->assertStringContainsString(lang('Customers.pricing_not_saved', [lang('Accounting.error_price_list_inactive')]), $result['message']);
+        $this->assertNull(model(Price_list::class)->assignedTo((int) $result['id']));
+        $this->assertSame('300.0000', $this->openingOf((int) $result['id'])?->amount, 'the opening balance is entered all the same');
+
+        $this->resetCustomerControls();
+    }
 }

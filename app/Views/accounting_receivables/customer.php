@@ -1,24 +1,24 @@
 <?php
 /**
- * @var string           $customer_name
- * @var CustomerPosition $position
- * @var string           $today
- * @var string           $to
- * @var string|null      $error
- * @var list<object>     $applications
- * @var list<int>        $refund_invoices
- * @var int              $customer_id
- * @var list<object>     $openings
- * @var bool             $can_open
- * @var bool             $can_change
- * @var bool             $can_revise
- * @var list<object>     $advances
- * @var list<object>     $refunds
- * @var bool             $can_manage
- * @var bool             $can_refund
- * @var array{limit: string|null, days: int|null} $credit_terms
- * @var Closure          $amount
- * @var Closure          $date
+ * @var string                                    $customer_name
+ * @var CustomerPosition                          $position
+ * @var string                                    $today
+ * @var string                                    $to
+ * @var string|null                               $error
+ * @var list<object>                              $applications
+ * @var list<int>                                 $refund_invoices
+ * @var int                                       $customer_id
+ * @var list<object>                              $openings
+ * @var bool                                      $can_open
+ * @var bool                                      $can_change
+ * @var bool                                      $can_revise
+ * @var list<object>                              $advances
+ * @var list<object>                              $refunds
+ * @var bool                                      $can_manage
+ * @var bool                                      $can_refund
+ * @var array{limit: string|null, days: int|null} $creditTerms
+ * @var Closure                                   $amount
+ * @var Closure                                   $date
  */
 
 use App\Libraries\Accounting\AgingBuckets;
@@ -104,13 +104,13 @@ $sourceLink = static fn (string $type, int $sourceId): string => match ($type) {
         </dd>
         <dt class="col-sm-3"><?= lang('Accounting_receivables.overdue') ?></dt>
         <dd class="col-sm-9" id="statement_overdue"><?= $amount($position->overdue($today)) ?></dd>
-        <?php if ($credit_terms['limit'] !== null): ?>
+        <?php if ($creditTerms['limit'] !== null): ?>
             <dt class="col-sm-3"><?= lang('Accounting_receivables.credit_limit') ?></dt>
-            <dd class="col-sm-9" id="statement_credit_limit"><?= bccomp($credit_terms['limit'], '0', 4) > 0 ? $amount($credit_terms['limit']) : esc(lang('Accounting_receivables.credit_none')) ?></dd>
+            <dd class="col-sm-9" id="statement_credit_limit"><?= bccomp($creditTerms['limit'], '0', 4) > 0 ? $amount($creditTerms['limit']) : esc(lang('Accounting_receivables.credit_none')) ?></dd>
         <?php endif; ?>
-        <?php if ($credit_terms['days'] !== null): ?>
+        <?php if ($creditTerms['days'] !== null): ?>
             <dt class="col-sm-3"><?= lang('Accounting_receivables.credit_period') ?></dt>
-            <dd class="col-sm-9" id="statement_credit_period"><?= $credit_terms['days'] > 0 ? esc(lang('Accounting_receivables.credit_days', [$credit_terms['days']])) : esc(lang('Accounting_receivables.credit_none')) ?></dd>
+            <dd class="col-sm-9" id="statement_credit_period"><?= $creditTerms['days'] > 0 ? esc(lang('Accounting_receivables.credit_days', [$creditTerms['days']])) : esc(lang('Accounting_receivables.credit_none')) ?></dd>
         <?php endif; ?>
     </dl>
 

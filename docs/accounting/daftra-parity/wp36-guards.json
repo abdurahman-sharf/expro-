@@ -1474,5 +1474,16 @@
       "testPostSave_RefusesTakingAPaymentAway",
       "tests/Controllers/SalesControllerTest.php"
     ]
+  },
+  {
+    "name": "G179 the customer form says why the list or the credit terms were not saved after the customer was saved",
+    "file": "app/Controllers/Customers.php",
+    "find": "$pricingNote = $notSaved === null ? '' : ' ' . lang('Customers.pricing_not_saved', [$notSaved]);",
+    "replace": "$pricingNote = '';",
+    "tests": [
+      "--filter",
+      "WhyTheListWasNotGiven",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
   }
 ]

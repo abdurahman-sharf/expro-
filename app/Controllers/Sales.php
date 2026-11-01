@@ -2526,7 +2526,7 @@ class Sales extends Secure_Controller
         $data['return_document']       = $this->sale_lib->getReturnDocument()->value;
         $data['can_override_return']   = $this->mayOverrideReturn();
         $data['return_override']       = $this->sale_lib->getReturnOverride();
-        $data['price_list_selector']   = $this->priceListSelector();
+        $data['priceListSelector']     = $this->priceListSelector();
 
         $data['pos_mode'] = $data['mode'] == 'sale' || $data['mode'] == 'return';
 

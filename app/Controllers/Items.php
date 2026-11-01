@@ -510,7 +510,7 @@ class Items extends Secure_Controller
      * discount when those controls are on, and a price for each price list for an employee who may
      * enter them.
      *
-     * @return array{minimum_price_enabled: bool, max_discount_enabled: bool, price_list_rows: list<array{id: int, name: string, active: bool, price: string}>}
+     * @return array{minimumPriceEnabled: bool, maxDiscountEnabled: bool, priceListRows: list<array{id: int, name: string, active: bool, price: string}>}
      */
     private function pricingFormData(int $itemId): array
     {
@@ -525,7 +525,7 @@ class Items extends Secure_Controller
             }
         }
 
-        return ['minimum_price_enabled' => $settings->minimumPriceEnabled(), 'max_discount_enabled' => $settings->maxDiscountEnabled(), 'price_list_rows' => $rows];
+        return ['minimumPriceEnabled' => $settings->minimumPriceEnabled(), 'maxDiscountEnabled' => $settings->maxDiscountEnabled(), 'priceListRows' => $rows];
     }
 
     private function mayEnterListPrices(): bool

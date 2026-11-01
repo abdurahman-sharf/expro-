@@ -125,7 +125,7 @@ class AccountingReceivables extends AccountingController
             'refunds'         => $this->refunds->forParty($customerId),
             'can_manage'      => $this->can(AccountingGuard::RECEIVABLES_MANAGE),
             'can_refund'      => $this->can(AccountingGuard::RECEIVABLES_REFUND),
-            'credit_terms'    => $this->creditTermsShown($customerId),
+            'creditTerms'     => $this->creditTermsShown($customerId),
             'amount'          => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'            => fn (string $value): string => $this->formatDate($value),
         ]);

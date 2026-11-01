@@ -375,14 +375,14 @@ class Customers extends Persons
         $terms = isset($info->person_id) && (int) $info->person_id > 0 ? (new CreditLimit())->termsOf((int) $info->person_id) : ['limit' => '0.0000', 'days' => 0];
 
         return [
-            'price_list_options'    => $options,
-            'price_list_selected'   => $assigned,
-            'can_assign_price_list' => $this->employee->has_grant('price_lists', (int) $this->employee->get_logged_in_employee_info()->person_id),
-            'credit_limit_shown'    => $accounting && $settings->creditLimitEnabled(),
-            'credit_period_shown'   => $accounting && $settings->creditPeriodEnabled(),
-            'credit_editable'       => $this->creditTermsEditable(),
-            'credit_limit'          => $terms['limit'],
-            'credit_days'           => $terms['days'],
+            'priceListOptions'   => $options,
+            'priceListSelected'  => $assigned,
+            'canAssignPriceList' => $this->employee->has_grant('price_lists', (int) $this->employee->get_logged_in_employee_info()->person_id),
+            'creditLimitShown'   => $accounting && $settings->creditLimitEnabled(),
+            'creditPeriodShown'  => $accounting && $settings->creditPeriodEnabled(),
+            'creditEditable'     => $this->creditTermsEditable(),
+            'creditLimit'        => $terms['limit'],
+            'creditDays'         => $terms['days'],
         ];
     }
 

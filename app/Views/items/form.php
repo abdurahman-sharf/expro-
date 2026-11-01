@@ -22,16 +22,16 @@
  * @var int $selected_low_sell_item_id
  * @var string $controller_name
  * @var array $config
- * @var bool $minimum_price_enabled
- * @var bool $max_discount_enabled
- * @var list<array{id: int, name: string, active: bool, price: string}> $price_list_rows
+ * @var bool $minimumPriceEnabled
+ * @var bool $maxDiscountEnabled
+ * @var list<array{id: int, name: string, active: bool, price: string}> $priceListRows
  */
 
-$minimum_price_enabled ??= false;
-$max_discount_enabled  ??= false;
-$price_list_rows       ??= [];
-
 use App\Models\Item;
+
+$minimumPriceEnabled ??= false;
+$maxDiscountEnabled  ??= false;
+$priceListRows       ??= [];
 
 $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_info->cost_price);
 ?>
@@ -227,7 +227,7 @@ $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_in
             </div>
         </div>
 
-        <?php if ($minimum_price_enabled): ?>
+        <?php if ($minimumPriceEnabled): ?>
             <div class="field" id="item_margin_field">
                 <?= form_label(lang('Items.margin'), 'item_margin', ['class' => 'form-label']) ?>
                 <div class="field-control">
@@ -254,7 +254,7 @@ $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_in
             </div>
         <?php endif; ?>
 
-        <?php if ($max_discount_enabled): ?>
+        <?php if ($maxDiscountEnabled): ?>
             <div class="field">
                 <?= form_label(lang('Items.max_discount_percent'), 'max_discount_percent', ['class' => 'form-label']) ?>
                 <div class="field-control">
@@ -274,7 +274,7 @@ $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_in
             </div>
         <?php endif; ?>
 
-        <?php foreach ($price_list_rows as $row): ?>
+        <?php foreach ($priceListRows as $row): ?>
             <div class="field price-list-price">
                 <?= form_label(esc($row['name']) . ($row['active'] ? '' : ' (' . lang('Price_lists.inactive') . ')'), 'price_list_price_' . $row['id'], ['class' => 'form-label']) ?>
                 <div class="field-control">
@@ -712,7 +712,7 @@ $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_in
     });
 </script>
 
-<?php if ($minimum_price_enabled): ?>
+<?php if ($minimumPriceEnabled): ?>
 <script type="text/javascript">
     $(document).ready(function() {
         const showMargin = function() {

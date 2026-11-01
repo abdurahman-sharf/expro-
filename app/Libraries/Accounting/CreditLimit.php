@@ -51,8 +51,8 @@ final class CreditLimit
      */
     public function checkTerms(?string $limit, ?string $days): void
     {
-        $limit = $limit === null || trim($limit) === '' ? '0' : trim($limit);
-        $days  = $days === null || trim($days) === '' ? '0' : trim($days);
+        $limit = trim((string) $limit) === '' ? '0' : trim((string) $limit);
+        $days  = trim((string) $days) === '' ? '0' : trim((string) $days);
 
         if (preg_match('/^\d{1,11}(\.\d{1,4})?$/', $limit) !== 1 || ! ctype_digit($days) || (int) $days > self::DAYS_MAX) {
             throw new AccountingException(AccountingError::CreditTermsInvalid, 'The credit limit or the credit days are not valid.');

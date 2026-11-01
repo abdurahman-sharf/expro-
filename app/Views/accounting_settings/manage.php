@@ -12,8 +12,8 @@
  * @var bool $revenue_account_required
  * @var bool $customer_opening
  * @var array{price_lists: bool, default_list: ?int, change_list: bool, minimum_price: bool, max_discount_enabled: bool, max_discount: ?string, exempt_categories: list<string>, credit_limit: bool, credit_period: bool} $controls
- * @var array<int, string> $control_lists
- * @var list<string> $control_categories
+ * @var array<int, string> $controlLists
+ * @var list<string> $controlCategories
  * @var bool $locked
  * @var int $next_number
  * @var bool $can_manage
@@ -224,7 +224,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 <div class="field">
                     <?= form_label(lang('Accounting_settings.control_default_list'), 'control_default_list', ['class' => 'form-label']) ?>
                     <div class="field-control">
-                        <?= form_dropdown('default_list', [0 => lang('Accounting_settings.control_default_list_none')] + array_map(static fn (string $name): string => esc($name), $control_lists), (string) ($controls['default_list'] ?? 0), ['class' => 'form-select form-select-sm', 'id' => 'control_default_list'] + ($can_manage ? [] : ['disabled' => 'disabled'])) ?>
+                        <?= form_dropdown('default_list', [0 => lang('Accounting_settings.control_default_list_none')] + array_map(static fn (string $name): string => esc($name), $controlLists), (string) ($controls['default_list'] ?? 0), ['class' => 'form-select form-select-sm', 'id' => 'control_default_list'] + ($can_manage ? [] : ['disabled' => 'disabled'])) ?>
                     </div>
                 </div>
 
@@ -244,7 +244,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                     <div class="field-control">
                         <input type="hidden" name="exempt_categories[]" value="">
                         <select name="exempt_categories[]" id="control_exempt_categories" class="form-select form-select-sm" multiple size="5"<?= $can_manage ? '' : ' disabled' ?>>
-                            <?php foreach (array_unique([...$control_categories, ...$controls['exempt_categories']]) as $category): ?>
+                            <?php foreach (array_unique([...$controlCategories, ...$controls['exempt_categories']]) as $category): ?>
                                 <option value="<?= esc($category, 'attr') ?>"<?= in_array($category, $controls['exempt_categories'], true) ? ' selected' : '' ?>><?= esc($category) ?></option>
                             <?php endforeach; ?>
                         </select>
