@@ -350,7 +350,7 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
         service('filters')->enableFilters(['csrf'], 'before');
 
         try {
-            $html = view('accounting_periods/backfill_cancel_form', ['batch' => $batch]);
+            $html = view('accounting_periods/backfill_cancel_form', ['batch' => $batch, 'documents' => 1, 'journals' => 1, 'approving' => false]);
         } finally {
             Services::resetSingle('filters');
         }

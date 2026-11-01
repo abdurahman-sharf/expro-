@@ -8,15 +8,16 @@
  * @var array<int, list<object>>                                                      $lines
  * @var list<object>                                                                  $totals
  * @var string|null                                                                   $outcome
- * @var int                                                                           $documents_page
- * @var int                                                                           $journals_page
- * @var int                                                                           $page_size
+ * @var int                                                                           $documentsPage
+ * @var int                                                                           $journalsPage
+ * @var int                                                                           $pageSize
+ * @var array<string, int|string>                                                     $pageQuery
  * @var list<string>                                                                  $blockers
  * @var string|null                                                                   $notice
  * @var Closure                                                                       $date
  * @var Closure                                                                       $amount
- * @var string                                                                        $status_text
- * @var Closure                                                                       $view_url
+ * @var string                                                                        $statusText
+ * @var Closure                                                                       $viewUrl
  */
 
 use App\Libraries\Accounting\Backfill\BackfillBatch;
@@ -25,7 +26,7 @@ use App\Libraries\Accounting\Backfill\BackfillStatus;
 
 $collecting = $batch->status === BackfillStatus::Collecting;
 $approvable = in_array($batch->status, [BackfillStatus::Preview, BackfillStatus::Approving], true) && $batch->fingerprint !== null && $batch->readyCount > 0;
-$cancelable = in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview], true);
+$cancelable = in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview, BackfillStatus::Approving], true);
 $reasonText = static function (string $reason): string {
     $key  = 'Accounting_backfill.refusal_' . $reason;
     $line = lang($key);
@@ -57,7 +58,7 @@ $pager = static function (int $total, int $page, int $size, string $param, Closu
 <div class="container-fluid py-3" id="backfill_view" data-status="<?= esc($batch->status->value, 'attr') ?>">
     <p><a href="<?= esc(base_url('accounting_periods/backfill'), 'attr') ?>"><span class="bi bi-arrow-left" aria-hidden="true"></span> <?= lang('Accounting_backfill.title') ?></a></p>
 
-    <h1 class="h4">#<?= $batch->id ?> <?= esc($batch->name) ?> <span class="badge text-bg-secondary" id="backfill_status"><?= esc($status_text) ?></span></h1>
+    <h1 class="h4">#<?= $batch->id ?> <?= esc($batch->name) ?> <span class="badge text-bg-secondary" id="backfill_status"><?= esc($statusText) ?></span></h1>
 
     <dl class="row" id="backfill_header">
         <dt class="col-sm-3"><?= lang('Accounting_backfill.range') ?></dt>
@@ -72,7 +73,7 @@ $pager = static function (int $total, int $page, int $size, string $param, Closu
             <dt class="col-sm-3"><?= lang('Accounting_backfill.fingerprint') ?></dt>
             <dd class="col-sm-9"><code id="backfill_fingerprint"><?= esc($batch->fingerprint) ?></code></dd>
         <?php endif; ?>
-        <?php if ($batch->status === BackfillStatus::Approving): ?>
+        <?php if ($batch->approvedCount > 0 && in_array($batch->status, [BackfillStatus::Approving, BackfillStatus::Cancelled], true)): ?>
             <dt class="col-sm-3"><?= lang('Accounting_backfill.approved_count') ?></dt>
             <dd class="col-sm-9"><?= $batch->approvedCount ?> / <?= $batch->readyCount ?></dd>
         <?php endif; ?>
@@ -85,7 +86,7 @@ $pager = static function (int $total, int $page, int $size, string $param, Closu
         <?php endforeach; ?>
     <?php endif; ?>
 
-    <p class="print_hide">
+    <div class="print_hide mb-3">
         <?php if ($collecting): ?>
             <?= form_open('accounting_periods/backfill/preview/' . $batch->id, ['id' => 'backfill_preview_form', 'class' => 'd-inline']) ?>
                 <button type="submit" class="btn btn-primary btn-sm" id="backfill_preview"><span class="bi bi-search" aria-hidden="true">&nbsp;</span><?= lang('Accounting_backfill.preview_run') ?></button>
@@ -101,7 +102,7 @@ $pager = static function (int $total, int $page, int $size, string $param, Closu
                 <span class="bi bi-x-circle" aria-hidden="true">&nbsp;</span><?= lang('Accounting_backfill.cancel') ?>
             </button>
         <?php endif; ?>
-    </p>
+    </div>
 
     <?php if ($reasons !== []): ?>
         <section class="mt-3" id="backfill_reasons" aria-label="<?= esc(lang('Accounting_backfill.reasons'), 'attr') ?>">
@@ -148,7 +149,7 @@ $pager = static function (int $total, int $page, int $size, string $param, Closu
         <h2 class="h5"><?= lang('Accounting_backfill.documents') ?></h2>
         <p class="print_hide">
             <?php foreach ([null => 'all', 'ready' => 'ready', 'refused' => 'refused'] as $value => $key): ?>
-                <a class="btn btn-sm <?= $outcome === $value ? 'btn-secondary' : 'btn-outline-secondary' ?>" href="<?= esc($view_url($value === null ? [] : ['outcome' => $value]), 'attr') ?>"><?= lang('Accounting_backfill.filter_' . $key) ?></a>
+                <a class="btn btn-sm <?= $outcome === $value ? 'btn-secondary' : 'btn-outline-secondary' ?>" href="<?= esc($viewUrl(['journals_page' => $journalsPage] + ($value === null ? [] : ['outcome' => $value])), 'attr') ?>"><?= lang('Accounting_backfill.filter_' . $key) ?></a>
             <?php endforeach; ?>
         </p>
         <?php if ($items['rows'] === []): ?>
@@ -184,7 +185,7 @@ $pager = static function (int $total, int $page, int $size, string $param, Closu
                     </tbody>
                 </table>
             </div>
-            <?= $pager($items['total'], $documents_page, $page_size, 'documents_page', $view_url, $outcome === null ? [] : ['outcome' => $outcome]) ?>
+            <?= $pager($items['total'], $documentsPage, $pageSize, 'documents_page', $viewUrl, $pageQuery) ?>
         <?php endif; ?>
     </section>
 
@@ -221,7 +222,7 @@ $pager = static function (int $total, int $page, int $size, string $param, Closu
                     </tbody>
                 </table>
             </div>
-            <?= $pager($journals['total'], $journals_page, $page_size, 'journals_page', $view_url, $outcome === null ? [] : ['outcome' => $outcome]) ?>
+            <?= $pager($journals['total'], $journalsPage, $pageSize, 'journals_page', $viewUrl, $pageQuery) ?>
         <?php endif; ?>
     </section>
 </div>

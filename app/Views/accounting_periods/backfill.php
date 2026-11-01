@@ -1,12 +1,12 @@
 <?php
 /**
- * @var bool                $can_run
+ * @var bool                $canRun
  * @var list<BackfillBatch> $batches
  * @var list<string>        $blockers
  * @var string|null         $notice
  * @var Closure             $date
  * @var Closure             $amount
- * @var Closure             $status_text
+ * @var Closure             $statusText
  */
 
 use App\Libraries\Accounting\Backfill\BackfillBatch;
@@ -23,7 +23,7 @@ use App\Libraries\Accounting\Backfill\BackfillFamily;
     <h1 class="h4"><?= lang('Accounting_backfill.title') ?></h1>
     <p class="text-body-secondary"><?= lang('Accounting_backfill.intro') ?></p>
 
-    <?php if (! $can_run): ?>
+    <?php if (! $canRun): ?>
         <p class="text-body-secondary small" id="backfill_permission_note" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= lang('Accounting_backfill.permission_note') ?></p>
     <?php else: ?>
         <?php if ($blockers !== []): ?>
@@ -70,7 +70,7 @@ use App\Libraries\Accounting\Backfill\BackfillFamily;
                                 <td><bdi dir="ltr"><?= esc($date($batch->from)) ?> - <?= esc($date($batch->to)) ?></bdi></td>
                                 <td><?= $batch->branchId === null ? esc(lang('Accounting_backfill.scope_company')) : '<bdi dir="ltr">' . esc((string) $batch->branchCode) . '</bdi>' ?></td>
                                 <td><?= esc(implode(', ', array_map(static fn (BackfillFamily $family): string => lang('Accounting_backfill.family_' . $family->value), $batch->families))) ?></td>
-                                <td><span class="badge text-bg-secondary"><?= esc($status_text($batch)) ?></span></td>
+                                <td><span class="badge text-bg-secondary"><?= esc($statusText($batch)) ?></span></td>
                                 <td class="text-end"><?= $batch->readyCount ?></td>
                                 <td class="text-end"><?= $batch->refusedCount ?></td>
                                 <td class="text-end"><?= $batch->journalCount ?></td>

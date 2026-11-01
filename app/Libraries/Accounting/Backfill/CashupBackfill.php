@@ -15,7 +15,9 @@ use CodeIgniter\Database\BaseConnection;
  * The cash-ups that were counted and have no journal: the difference of each, as the live posting
  * posts it. A cash-up that was never stamped with a branch belongs to the default branch of the
  * company, and its expected cash and difference are counted from the books of that branch, as they
- * are when a cash-up is saved, and stamped on it when the batch is approved.
+ * are when a cash-up is saved, and stamped on it when the batch is approved. One that counted exactly
+ * what was expected has no journal to post and is stamped all the same, as the live posting stamps it,
+ * so that it is no longer listed among the cash-ups the books never followed.
  */
 final class CashupBackfill extends BackfillAdapter
 {
@@ -98,6 +100,10 @@ final class CashupBackfill extends BackfillAdapter
             );
             $draft = $this->builder->difference($cashup, 1, $employeeId);
             $stamp = $counts ? ['table' => 'cash_up', 'key' => 'cashup_id', 'id' => $cashup->cashupId, 'null' => $row->branch_id === null ? 'branch_id' : 'cash_difference', 'columns' => ['branch_id' => $branchId, 'expected_amount_cash' => $expected, 'cash_difference' => $difference]] : [];
+
+            if ($draft === null && $stamp !== []) {
+                return new BackfillPlan([], $source, stamp: $stamp);
+            }
 
             return $this->checked([new BackfillStep($draft)], $source, stamp: $stamp);
         } catch (PostingException $failure) {

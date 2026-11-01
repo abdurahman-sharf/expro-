@@ -5,8 +5,11 @@ namespace App\Libraries\Accounting\Backfill;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\LockedRead;
+use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\StockMovement;
+use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseConnection;
 
 /**
@@ -116,6 +119,29 @@ abstract class BackfillAdapter
         )->getRow() !== null;
     }
 
+    /**
+     * Whether the opening stock of a location the movements touch was posted after the document was saved.
+     * It is posted from the units on the shelves that no movement accounts for, and the shelves it was
+     * posted from already held what the document moved, so a movement for the document would count the
+     * same units twice.
+     *
+     * @param list<StockMovement> $movements
+     */
+    protected function stockOpenedAfter(string $table, string $key, string $savedColumn, int $documentId, array $movements): bool
+    {
+        $locations = array_values(array_unique(array_map(static fn (StockMovement $movement): int => $movement->locationId, $movements)));
+
+        if ($locations === []) {
+            return false;
+        }
+
+        return $this->db->query(
+            'SELECT 1 FROM ' . $this->db->prefixTable('accounting_journals') . ' j JOIN ' . $this->db->prefixTable($table) . " d ON d.{$key} = ?"
+            . ' WHERE j.company_id = ? AND j.source_type = ? AND j.source_id IN (' . implode(',', $locations) . ') AND j.status = ? AND j.posted_at > d.' . $savedColumn . ' LIMIT 1',
+            [$documentId, CompanyContext::id(), OpeningStock::SOURCE, JournalStatus::Posted->value],
+        )->getRow() !== null;
+    }
+
     protected function treasuryGone(?int $treasuryId): bool
     {
         return $treasuryId !== null && $this->db->table('treasuries')->where('treasury_id', $treasuryId)->countAllResults() === 0;
@@ -147,9 +173,17 @@ abstract class BackfillAdapter
         }
 
         foreach ($steps as $step) {
-            if ($step->draft !== null) {
-                $this->posting->validate($step->draft);
+            if ($step->draft === null) {
+                continue;
             }
+
+            $early = $step->draft->branchId === null ? null : $this->gate->refusalOf($step->draft->date, $step->draft->branchId);
+
+            if ($early !== null) {
+                return BackfillPlan::refused($early, $source, $step->draft->sourceType . ' ' . $step->draft->date);
+            }
+
+            $this->posting->validate($step->draft);
         }
 
         return new BackfillPlan($steps, $source, null, '', $partyType, $partyId, $stamp);

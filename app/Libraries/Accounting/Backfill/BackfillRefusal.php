@@ -19,6 +19,7 @@ enum BackfillRefusal: string
     case CrossBranchPayment  = 'cross_branch_payment';
     case ValuedByLedger      = 'valued_by_ledger';
     case PartlyPosted        = 'partly_posted';
+    case StockOpenedAfter    = 'stock_opened_after';
     case DocumentChanged     = 'document_changed';
     case PostingRefused      = 'posting_refused';
 

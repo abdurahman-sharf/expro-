@@ -114,6 +114,64 @@ final class PurchaseBackfillTest extends CIUnitTestCase
         $this->assertSame('return', $this->plan($return)->detail);
     }
 
+    public function testPlan_RefusesAPurchaseOfGoodsWhoseOpeningStockWasPostedAfterItWasSaved(): void
+    {
+        [$receivingId, $itemId] = $this->legacyPurchaseOfGoods();
+
+        $this->assertNull($this->plan($receivingId)->refusal);
+
+        $this->postOpeningStockOf([$itemId]);
+
+        $this->assertSame(BackfillRefusal::StockOpenedAfter, $this->plan($receivingId)->refusal);
+        $this->assertSame([], $this->plan($receivingId)->steps);
+
+        $this->openingStockWasPostedAt('2026-03-01 00:00:00');
+
+        $this->assertNull($this->plan($receivingId)->refusal);
+    }
+
+    public function testPlan_IgnoresTheOpeningStockOfAnotherLocationForAPurchase(): void
+    {
+        [$receivingId] = $this->legacyPurchaseOfGoods();
+
+        $this->postOpeningStockOf([$this->item('10.00')], '5', $this->branchLocation(1, 'Store'));
+
+        $this->assertNull($this->plan($receivingId)->refusal);
+    }
+
+    public function testPlan_RefusesAPurchasePaidAtOnceOnADayBeforeTheBooksBeginAlthoughItsInvoiceIsAfter(): void
+    {
+        $receivingId = $this->legacyPurchase('500', '2026-03-10', lang('Sales.cash'));
+
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->update(['invoice_date' => '2026-03-12']);
+        $this->setConfigValue('accounting_start_date', '2026-03-11');
+
+        $this->assertSame(BackfillRefusal::BeforeStartDate, $this->plan($receivingId)->refusal);
+        $this->assertSame('purchase_payment 2026-03-10', $this->plan($receivingId)->detail);
+
+        $this->setConfigValue('accounting_start_date', '2020-01-01');
+        $this->accountingDb()->table('accounting_journals')->where('source_type', 'opening')->update(['journal_date' => '2026-03-11']);
+
+        $this->assertSame(BackfillRefusal::BeforeOpening, $this->plan($receivingId)->refusal);
+
+        $this->accountingDb()->table('accounting_journals')->where('source_type', 'opening')->update(['journal_date' => '2026-03-10']);
+
+        $this->assertNull($this->plan($receivingId)->refusal);
+    }
+
+    /**
+     * @return array{0: int, 1: int} The purchase of five units, saved while accounting was off, and its item.
+     */
+    private function legacyPurchaseOfGoods(): array
+    {
+        return $this->whileOff(function (): array {
+            $itemId      = $this->item('100.00');
+            $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '5', '100')]);
+
+            return [$this->datePurchase($receivingId, '2026-03-10'), $itemId];
+        });
+    }
+
     public function testPlan_RefusesAPurchaseOfADeletedSupplier(): void
     {
         $receivingId = $this->legacyPurchase('500');

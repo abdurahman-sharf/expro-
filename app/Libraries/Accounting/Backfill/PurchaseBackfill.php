@@ -105,7 +105,12 @@ final class PurchaseBackfill extends BackfillAdapter
         }
 
         try {
-            $plan  = $this->builder->purchase($purchase, 1, $employeeId);
+            $plan = $this->builder->purchase($purchase, 1, $employeeId);
+
+            if ($this->stockOpenedAfter('receivings', 'receiving_id', 'receiving_time', $purchase->receivingId, $plan->movements)) {
+                return BackfillPlan::refused(BackfillRefusal::StockOpenedAfter, $source);
+            }
+
             $steps = [new BackfillStep($plan->journal, $plan->movements === [] ? null : new BackfillStock(ReceivingPostingBuilder::issueSourceOf($purchase), $purchase->receivingId, JournalEntryType::General, 1, $purchase->date, $purchase->branchId, $plan->movements))];
             $paid  = $this->builder->payment($purchase, 1, $employeeId);
 

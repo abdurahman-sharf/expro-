@@ -96,11 +96,40 @@ final class CashupBackfillTest extends CIUnitTestCase
         $this->assertSame(1, $plan->stamp['columns']['branch_id']);
     }
 
-    public function testPlan_RefusesACashupThatCountedExactlyWhatWasExpected(): void
+    public function testPlan_StampsACashupThatCountedExactlyWhatWasExpectedAndHasNothingToPost(): void
+    {
+        $legacy = $this->legacyCashup('1000', '2026-03-12');
+        $plan   = $this->plan($legacy);
+
+        $this->assertNull($plan->refusal);
+        $this->assertTrue($plan->isReady());
+        $this->assertSame([], $plan->steps);
+        $this->assertSame(0, $plan->journalCount());
+        $this->assertSame('0.0000', $plan->total());
+        $this->assertSame('cash_up', $plan->stamp['table']);
+        $this->assertSame(1, $plan->stamp['columns']['branch_id']);
+        $this->assertSame('0.0000', bcadd($plan->stamp['columns']['cash_difference'], '0', 4));
+    }
+
+    public function testPlan_RefusesACashupThatCountedExactlyWhatWasExpectedAndWasStampedAlready(): void
+    {
+        $legacy = $this->legacyCashup('1000', '2026-03-12', 1);
+
+        $this->accountingDb()->table('cash_up')->where('cashup_id', $legacy)->update(['expected_amount_cash' => '1000', 'cash_difference' => '0']);
+
+        $this->assertSame(BackfillRefusal::ZeroTotal, $this->plan($legacy)->refusal);
+    }
+
+    public function testPlan_RefusesACashupThatCountedExactlyWhatWasExpectedBeforeTheStartDateAndStampsNothing(): void
     {
         $legacy = $this->legacyCashup('1000', '2026-03-12');
 
-        $this->assertSame(BackfillRefusal::ZeroTotal, $this->plan($legacy)->refusal);
+        $this->setConfigValue('accounting_start_date', '2026-06-01');
+
+        $plan = $this->plan($legacy);
+
+        $this->assertSame(BackfillRefusal::BeforeStartDate, $plan->refusal);
+        $this->assertSame([], $plan->stamp);
     }
 
     public function testPlan_RefusesACashupBeforeTheStartDateOrInAClosedPeriod(): void

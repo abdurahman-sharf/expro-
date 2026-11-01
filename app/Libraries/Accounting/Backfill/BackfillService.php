@@ -214,7 +214,10 @@ final class BackfillService
 
     /**
      * Removes the previews of a batch and the record of the documents it looked at. Nothing the books count is
-     * touched. A batch whose approval has begun is not cancelled: its approval is finished.
+     * touched. A batch whose approval has begun but cannot go on is ended the same way: the journals it
+     * posted stay in the books, as any posted journal does, and so does the record of their documents, and
+     * the previews that were not posted are removed, so that the documents they stood for can be looked at
+     * again by another batch.
      *
      * @throws AccountingException|BranchException
      */
@@ -230,13 +233,10 @@ final class BackfillService
 
                 $this->requireOpen($batch);
 
-                if ($batch->status === BackfillStatus::Approving) {
-                    throw new AccountingException(AccountingError::BackfillApproving, 'The approval of the batch has begun.');
-                }
-
+                $posted    = $batch->status === BackfillStatus::Approving ? $batch->cursorId : 0;
                 $figures   = $this->batches->figures($batchId);
                 $previews  = $this->posting->discardPreviews($batchId);
-                $documents = $this->batches->removeItems($batchId);
+                $documents = $this->batches->removeItems($batchId, $posted);
 
                 $this->batches->update($batchId, [
                     'status'        => BackfillStatus::Cancelled->value,
@@ -251,6 +251,7 @@ final class BackfillService
                     'documents' => $documents,
                     'ready'     => $figures['ready'],
                     'refused'   => $figures['refused'],
+                    'approved'  => $batch->status === BackfillStatus::Approving ? $batch->approvedCount : 0,
                 ], $batch->branchId);
 
                 return $this->batches->require($batchId);
@@ -358,11 +359,13 @@ final class BackfillService
     }
 
     /**
-     * What stands in the way of approving the batches, one reading for the screen and the readiness report.
+     * What stands in the way of approving, one reading for the screen and the readiness report. The opening
+     * balances are asked of the branches a batch writes in, which are those of its ready documents, and
+     * without a batch of the branches the employee works in, or of every branch.
      *
      * @return list<string> The codes of what is missing, none when a batch may be approved.
      */
-    public function approvalBlockers(?int $branchId = null): array
+    public function approvalBlockers(?int $employeeId = null, ?int $batchId = null): array
     {
         $blockers = [];
 
@@ -378,8 +381,10 @@ final class BackfillService
             $blockers[] = 'backfill_off';
         }
 
-        foreach ($this->openingBranches($branchId) as $branch) {
-            if ((new BackfillGate($this->db))->openingOf((int) $branch->branch_id) === null) {
+        $gate = new BackfillGate($this->db);
+
+        foreach ($this->openingBranches($employeeId, $batchId) as $branch) {
+            if ($gate->openingOf((int) $branch->branch_id) === null) {
                 $blockers[] = 'opening_missing:' . $branch->code;
             }
         }
@@ -425,7 +430,7 @@ final class BackfillService
                     $this->look($batch, $document, $adapter, $employeeId);
                 }
 
-                $this->batches->update($batch->id, ['cursor_family' => $family->value, 'cursor_id' => $last]);
+                $this->batches->update($batch->id, ['cursor_family' => $family->value, 'cursor_id' => $last] + $this->columnsOf($this->batches->figures($batch->id)));
             });
 
             $afterId = $last;
@@ -490,16 +495,11 @@ final class BackfillService
             $fingerprint = $this->fingerprintOf($batch);
 
             $this->batches->update($batch->id, [
-                'status'         => BackfillStatus::Preview->value,
-                'fingerprint'    => $fingerprint,
-                'document_count' => $figures['documents'],
-                'ready_count'    => $figures['ready'],
-                'refused_count'  => $figures['refused'],
-                'journal_count'  => $figures['journals'],
-                'total_debit'    => $figures['debit'],
-                'cursor_family'  => null,
-                'cursor_id'      => 0,
-            ]);
+                'status'        => BackfillStatus::Preview->value,
+                'fingerprint'   => $fingerprint,
+                'cursor_family' => null,
+                'cursor_id'     => 0,
+            ] + $this->columnsOf($figures));
 
             $this->audit->write('backfill_batch', $batch->id, 'backfill_previewed', $employeeId, $this->originOf($employeeId), [
                 'documents'   => $figures['documents'],
@@ -512,6 +512,25 @@ final class BackfillService
 
             return $this->batches->require($batch->id);
         });
+    }
+
+    /**
+     * The counts a batch shows in the list, as its documents stand, so that a preview that is still
+     * being made shows what it holds so far.
+     *
+     * @param array{documents: int, ready: int, refused: int, journals: int, debit: string} $figures
+     *
+     * @return array{document_count: int, ready_count: int, refused_count: int, journal_count: int, total_debit: string}
+     */
+    private function columnsOf(array $figures): array
+    {
+        return [
+            'document_count' => $figures['documents'],
+            'ready_count'    => $figures['ready'],
+            'refused_count'  => $figures['refused'],
+            'journal_count'  => $figures['journals'],
+            'total_debit'    => $figures['debit'],
+        ];
     }
 
     /**
@@ -564,15 +583,25 @@ final class BackfillService
                 break;
             }
 
-            $this->underPartyLocks($items, fn () => $this->transactional(function () use ($batch, $items, $employeeId): void {
+            $documents = array_map(static fn (object $item): BackfillDocument => new BackfillDocument(BackfillFamily::from((string) $item->family), (int) $item->document_id, (string) $item->document_date, $item->branch_id === null ? null : (int) $item->branch_id), $items);
+
+            foreach ($documents as $document) {
+                $this->adapter($document->family);
+            }
+
+            $this->underPartyLocks($items, fn () => $this->transactional(function () use ($batch, $items, $documents, $employeeId): void {
                 $locked = $this->batches->lock($batch->id);
 
                 if ($locked === null || $locked->status !== BackfillStatus::Approving || $locked->cursorId !== $batch->cursorId) {
                     throw new AccountingException(AccountingError::BackfillBusy, 'The batch is being approved by another run.');
                 }
 
-                foreach ($items as $item) {
-                    $this->approveItem($batch, $item, $employeeId);
+                foreach ($documents as $document) {
+                    $this->adapter($document->family)->lock($document->id);
+                }
+
+                foreach ($items as $index => $item) {
+                    $this->approveItem($batch, $item, $documents[$index], $employeeId);
                 }
 
                 $this->batches->update($batch->id, ['cursor_id' => (int) $items[array_key_last($items)]->item_id, 'approved_count' => $locked->approvedCount + count($items)]);
@@ -607,14 +636,9 @@ final class BackfillService
     /**
      * @throws AccountingException|PostingException
      */
-    private function approveItem(BackfillBatch $batch, object $item, ?int $employeeId): void
+    private function approveItem(BackfillBatch $batch, object $item, BackfillDocument $document, ?int $employeeId): void
     {
-        $document = new BackfillDocument(BackfillFamily::from((string) $item->family), (int) $item->document_id, (string) $item->document_date, $item->branch_id === null ? null : (int) $item->branch_id);
-        $adapter  = $this->adapter($document->family);
-
-        $adapter->lock($document->id);
-
-        $plan = $adapter->plan($document, $employeeId, $batch->id);
+        $plan = $this->adapter($document->family)->plan($document, $employeeId, $batch->id);
 
         if (! $plan->isReady() || ! hash_equals((string) $item->digest, $plan->digest())) {
             throw new AccountingException(AccountingError::BackfillPreviewChanged, "The document {$document->id} is not what the preview showed.", ['count' => $document->id]);
@@ -721,12 +745,30 @@ final class BackfillService
     /**
      * @return list<object>
      */
-    private function openingBranches(?int $branchId): array
+    private function openingBranches(?int $employeeId, ?int $batchId): array
     {
-        $builder = $this->db->table('branches')->select('branch_id, code')->where('company_id', CompanyContext::id())->where('active', 1);
+        $builder = $this->db->table('branches')->select('branch_id, code')->where('company_id', CompanyContext::id());
 
-        if ($branchId !== null) {
-            $builder->where('branch_id', $branchId);
+        if ($batchId !== null) {
+            $writing = $this->batches->readyBranches($batchId);
+
+            if ($writing === []) {
+                return [];
+            }
+
+            $builder->whereIn('branch_id', $writing);
+        } else {
+            $builder->where('active', 1);
+
+            $allowed = $this->branches->allowedBranchIds($employeeId);
+
+            if ($allowed !== null) {
+                if ($allowed === []) {
+                    return [];
+                }
+
+                $builder->whereIn('branch_id', $allowed);
+            }
         }
 
         return $builder->orderBy('branch_id', 'ASC')->get()->getResult();
@@ -766,11 +808,22 @@ final class BackfillService
         $this->branches->requireBranch($branchId, $employeeId);
     }
 
+    /**
+     * @throws BranchException
+     */
     private function branchOf(mixed $value): ?int
     {
-        $branchId = is_numeric($value) ? (int) $value : 0;
+        if ($value === null || $value === '') {
+            return null;
+        }
 
-        return $branchId > 0 ? $branchId : null;
+        $branchId = is_int($value) ? $value : (is_string($value) && ctype_digit($value) ? (int) $value : 0);
+
+        if ($branchId < 1) {
+            throw new BranchException(BranchError::NotFound, 'The branch of a batch is the number of a branch of the company.');
+        }
+
+        return $branchId;
     }
 
     /**

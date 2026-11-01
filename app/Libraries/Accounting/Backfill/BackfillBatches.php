@@ -127,11 +127,25 @@ final class BackfillBatches
         $this->db->table('accounting_backfill_items')->insert(['batch_id' => $batchId] + $values);
     }
 
-    public function removeItems(int $batchId): int
+    /**
+     * Removes the record of the documents of a batch, except the ready ones up to the item given, which are
+     * the documents whose journals the batch has posted.
+     *
+     * @return int The documents removed.
+     */
+    public function removeItems(int $batchId, int $keepThroughItemId = 0): int
     {
-        $this->db->table('accounting_backfill_items')->where('batch_id', $batchId)->delete();
+        $this->db->table('accounting_backfill_items')
+            ->where('batch_id', $batchId)
+            ->groupStart()->where('outcome <>', 'ready')->orWhere('item_id >', $keepThroughItemId)->groupEnd()
+            ->delete();
 
         return $this->db->affectedRows();
+    }
+
+    public function previewCount(int $batchId): int
+    {
+        return (int) $this->db->table('accounting_journals')->where('backfill_batch_id', $batchId)->where('status', JournalStatus::Preview->value)->countAllResults();
     }
 
     /**

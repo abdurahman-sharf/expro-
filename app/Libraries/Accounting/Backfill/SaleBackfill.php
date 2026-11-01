@@ -116,6 +116,10 @@ final class SaleBackfill extends BackfillAdapter
 
             $cost = $this->builder->costPlan($sale, 1, $employeeId);
 
+            if ($this->stockOpenedAfter('sales', 'sale_id', 'sale_time', $sale->saleId, $cost->movements)) {
+                return BackfillPlan::refused(BackfillRefusal::StockOpenedAfter, $source);
+            }
+
             if ($cost->journal !== null || $cost->movements !== []) {
                 $steps[] = new BackfillStep($cost->journal, $cost->movements === [] ? null : new BackfillStock(SalePostingBuilder::SOURCE_SALE, $sale->saleId, JournalEntryType::Cogs, 1, $sale->date, $sale->branchId, $cost->movements));
             }

@@ -1,6 +1,9 @@
 <?php
 /**
  * @var BackfillBatch $batch
+ * @var int           $documents
+ * @var int           $journals
+ * @var bool          $approving
  */
 
 use App\Libraries\Accounting\Backfill\BackfillBatch;
@@ -13,8 +16,8 @@ use App\Libraries\Accounting\Backfill\BackfillBatch;
 <?= form_open('accounting_periods/backfill/cancel/' . $batch->id, ['id' => 'backfill_cancel_form', 'class' => 'app-form']) ?>
 
     <fieldset>
-        <p><?= esc(lang('Accounting_backfill.cancel_summary', [$batch->name, (string) $batch->readyCount, (string) $batch->journalCount])) ?></p>
-        <p class="text-danger"><?= lang('Accounting_backfill.cancel_warning') ?></p>
+        <p><?= esc(lang('Accounting_backfill.cancel_summary', [$batch->name, (string) $documents, (string) $journals])) ?></p>
+        <p class="text-danger"><?= lang($approving ? 'Accounting_backfill.cancel_warning_approving' : 'Accounting_backfill.cancel_warning') ?></p>
 
         <div class="form-check">
             <input type="checkbox" class="form-check-input" name="confirm" id="confirm" value="1">

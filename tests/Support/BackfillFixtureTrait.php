@@ -10,6 +10,8 @@ use App\Libraries\Accounting\Backfill\BackfillStatus;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\OpeningBalanceService;
+use App\Libraries\Accounting\OpeningStock;
+use App\Libraries\Accounting\OpeningStockStatus;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
 
@@ -25,7 +27,9 @@ trait BackfillFixtureTrait
     protected BackfillService $backfill;
     protected int $backfillManager;
 
-    /** @var list<int> */
+    /**
+     * @var list<int>
+     */
     private array $backfillCategories = [];
 
     protected function startBackfill(bool $openingPosted = true, bool $enabled = true): void
@@ -89,6 +93,45 @@ trait BackfillFixtureTrait
         } finally {
             $this->setConfigValue('accounting_enabled', '1');
         }
+    }
+
+    /**
+     * Posts the opening stock of a stock location from shelves that hold the units given of the items given and
+     * nothing else, as it is posted from the shelves on the day it is, and puts the shelves back as they were.
+     *
+     * @param list<int> $itemIds
+     */
+    protected function postOpeningStockOf(array $itemIds, string $quantity = '50', int $locationId = 1): void
+    {
+        $db     = $this->accountingDb();
+        $backup = $db->table('item_quantities')->get()->getResultArray();
+
+        $db->table('item_quantities')->emptyTable();
+
+        foreach ($itemIds as $itemId) {
+            $db->table('item_quantities')->insert(['item_id' => $itemId, 'location_id' => $locationId, 'quantity' => $quantity]);
+        }
+
+        try {
+            $results = (new OpeningStock())->post([$locationId], null);
+
+            $this->assertSame(OpeningStockStatus::Posted, $results[0]->plan->status);
+        } finally {
+            $db->table('item_quantities')->emptyTable();
+
+            if ($backup !== []) {
+                $db->table('item_quantities')->insertBatch($backup);
+            }
+        }
+    }
+
+    /**
+     * Gives the opening stock of every location the day it was posted on, as one that was posted before the
+     * documents of a test were saved, or after.
+     */
+    protected function openingStockWasPostedAt(string $postedAt): void
+    {
+        $this->accountingDb()->table('accounting_journals')->where('source_type', OpeningStock::SOURCE)->update(['posted_at' => $postedAt]);
     }
 
     /**
@@ -284,6 +327,70 @@ trait BackfillFixtureTrait
     protected function treasuryIn(int $branchId, string $name = 'Backfill drawer'): int
     {
         return (new TreasuryService())->create(['name' => $name . ' ' . uniqid(), 'kind' => 'cash', 'branch_id' => $branchId]);
+    }
+
+    /**
+     * Starts a method of tests/Support/RaceWorker.php in a process of its own and returns at once, so that a
+     * test can hold a lock on this connection while the worker runs into it.
+     *
+     * @param list<string> $args
+     *
+     * @return array{process: resource, output: resource, files: list<string>}
+     */
+    protected function startWorker(string $method, array $args): array
+    {
+        $ready = tempnam(sys_get_temp_dir(), 'worker_ready_');
+        $go    = tempnam(sys_get_temp_dir(), 'worker_go_');
+
+        unlink($ready);
+        file_put_contents($go, '1');
+
+        $environment = array_merge(array_filter($_SERVER, static fn ($value): bool => is_scalar($value)), ['RACE_READY_FILE' => $ready, 'RACE_GO_FILE' => $go]);
+        $process     = proc_open([PHP_BINARY, ROOTPATH . 'tests/Support/RaceWorker.php', $method, ...$args], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, ROOTPATH, $environment);
+
+        fclose($pipes[0]);
+        fclose($pipes[2]);
+
+        return ['process' => $process, 'output' => $pipes[1], 'files' => [$ready, $go]];
+    }
+
+    /**
+     * Waits for the process to end and returns what it printed.
+     *
+     * @param array{process: resource, output: resource, files: list<string>} $worker
+     */
+    protected function finishWorker(array $worker): string
+    {
+        $output = (string) stream_get_contents($worker['output']);
+
+        fclose($worker['output']);
+        proc_close($worker['process']);
+
+        foreach ($worker['files'] as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            }
+        }
+
+        return trim($output);
+    }
+
+    /**
+     * Waits until an operation of the database is waiting for a row lock another transaction holds.
+     */
+    protected function waitForALockWait(int $seconds = 30): void
+    {
+        $until = microtime(true) + $seconds;
+
+        do {
+            if ((int) $this->accountingDb()->query("SHOW GLOBAL STATUS LIKE 'Innodb_row_lock_current_waits'")->getRow()->Value > 0) {
+                return;
+            }
+
+            usleep(20000);
+        } while (microtime(true) < $until);
+
+        $this->fail('No transaction waited for a lock.');
     }
 
     /**

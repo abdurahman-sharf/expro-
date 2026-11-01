@@ -10,12 +10,14 @@ use App\Libraries\Accounting\Backfill\BackfillService;
 use App\Libraries\Accounting\Backfill\BackfillStatus;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchService;
+use Closure;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
 class AccountingBackfill extends AccountingController
 {
     private const PAGE_SIZE = 50;
+    private const PAGE_MAX  = 100000;
 
     private BackfillService $backfill;
 
@@ -31,13 +33,13 @@ class AccountingBackfill extends AccountingController
         $canRun = $this->can(AccountingGuard::BACKFILL_MANAGE);
 
         return view('accounting_periods/backfill', [
-            'can_run'     => $canRun,
-            'batches'     => $canRun ? $this->backfill->batches($this->employeeId()) : [],
-            'blockers'    => $canRun ? $this->backfill->approvalBlockers() : [],
-            'notice'      => session()->getFlashdata('accounting_notice'),
-            'date'        => fn (string $value): string => $this->formatDate($value),
-            'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'status_text' => static fn (BackfillBatch $batch): string => lang('Accounting_backfill.status_' . $batch->status->value),
+            'canRun'     => $canRun,
+            'batches'    => $canRun ? $this->backfill->batches($this->employeeId()) : [],
+            'blockers'   => $canRun ? $this->backfill->approvalBlockers($this->employeeId()) : [],
+            'notice'     => session()->getFlashdata('accounting_notice'),
+            'date'       => fn (string $value): string => $this->formatDate($value),
+            'amount'     => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'statusText' => static fn (BackfillBatch $batch): string => lang('Accounting_backfill.status_' . $batch->status->value),
         ]);
     }
 
@@ -77,35 +79,36 @@ class AccountingBackfill extends AccountingController
         $batch   = $this->visibleBatch($batchId);
         $outcome = $this->request->getGet('outcome');
         $outcome = in_array($outcome, ['ready', 'refused'], true) ? $outcome : null;
-        $docPage = max(1, (int) $this->request->getGet('documents_page'));
-        $jrnPage = max(1, (int) $this->request->getGet('journals_page'));
         $repo    = $this->backfill->repository();
-        $items   = $repo->items($batch->id, $outcome, self::PAGE_SIZE, ($docPage - 1) * self::PAGE_SIZE);
-        $journal = $repo->journals($batch->id, self::PAGE_SIZE, ($jrnPage - 1) * self::PAGE_SIZE);
-        $lines   = [];
+
+        [$documentsPage, $items]  = $this->pageOf('documents_page', static fn (int $offset): array => $repo->items($batch->id, $outcome, self::PAGE_SIZE, $offset));
+        [$journalsPage, $journal] = $this->pageOf('journals_page', static fn (int $offset): array => $repo->journals($batch->id, self::PAGE_SIZE, $offset));
+
+        $lines = [];
 
         foreach ($journal['rows'] as $row) {
             $lines[(int) $row->journal_id] = $repo->lines((int) $row->journal_id);
         }
 
         return view('accounting_periods/backfill_view', [
-            'batch'          => $batch,
-            'figures'        => $repo->figures($batch->id),
-            'reasons'        => $repo->reasons($batch->id),
-            'items'          => $items,
-            'journals'       => $journal,
-            'lines'          => $lines,
-            'totals'         => $repo->accountTotals($batch),
-            'outcome'        => $outcome,
-            'documents_page' => $docPage,
-            'journals_page'  => $jrnPage,
-            'page_size'      => self::PAGE_SIZE,
-            'blockers'       => $this->backfill->approvalBlockers($batch->branchId),
-            'notice'         => session()->getFlashdata('accounting_notice'),
-            'date'           => fn (string $value): string => $this->formatDate($value),
-            'amount'         => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'status_text'    => lang('Accounting_backfill.status_' . $batch->status->value),
-            'view_url'       => fn (array $query): string => $this->viewUrl($batch->id, $query),
+            'batch'         => $batch,
+            'figures'       => $repo->figures($batch->id),
+            'reasons'       => $repo->reasons($batch->id),
+            'items'         => $items,
+            'journals'      => $journal,
+            'lines'         => $lines,
+            'totals'        => $repo->accountTotals($batch),
+            'outcome'       => $outcome,
+            'documentsPage' => $documentsPage,
+            'journalsPage'  => $journalsPage,
+            'pageSize'      => self::PAGE_SIZE,
+            'blockers'      => $this->backfill->approvalBlockers($this->employeeId(), $batch->id),
+            'notice'        => session()->getFlashdata('accounting_notice'),
+            'date'          => fn (string $value): string => $this->formatDate($value),
+            'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'statusText'    => lang('Accounting_backfill.status_' . $batch->status->value),
+            'viewUrl'       => fn (array $query): string => $this->viewUrl($batch->id, $query),
+            'pageQuery'     => ['documents_page' => $documentsPage, 'journals_page' => $journalsPage] + ($outcome === null ? [] : ['outcome' => $outcome]),
         ]);
     }
 
@@ -158,11 +161,19 @@ class AccountingBackfill extends AccountingController
     {
         $batch = $this->visibleBatch($batchId);
 
-        if (! in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview], true)) {
+        if (! in_array($batch->status, [BackfillStatus::Collecting, BackfillStatus::Preview, BackfillStatus::Approving], true)) {
             throw PageNotFoundException::forPageNotFound();
         }
 
-        return view('accounting_periods/backfill_cancel_form', ['batch' => $batch]);
+        $repo      = $this->backfill->repository();
+        $approving = $batch->status === BackfillStatus::Approving;
+
+        return view('accounting_periods/backfill_cancel_form', [
+            'batch'     => $batch,
+            'documents' => $repo->figures($batch->id)['ready'] - ($approving ? $batch->approvedCount : 0),
+            'journals'  => $repo->previewCount($batch->id),
+            'approving' => $approving,
+        ]);
     }
 
     public function postCancel(int $batchId): ResponseInterface
@@ -179,6 +190,23 @@ class AccountingBackfill extends AccountingController
 
             return ['success' => true, 'message' => $message, 'id' => $batchId, 'redirect' => base_url('accounting_periods/backfill')];
         });
+    }
+
+    /**
+     * The page asked for of a list and its rows, with a page that does not exist taken for the last one that does.
+     *
+     * @param Closure(int): array{total: int, rows: list<object>} $fetch
+     *
+     * @return array{0: int, 1: array{total: int, rows: list<object>}}
+     */
+    private function pageOf(string $name, Closure $fetch): array
+    {
+        $asked = $this->request->getGet($name);
+        $page  = is_string($asked) && ctype_digit($asked) ? min(max(1, (int) $asked), self::PAGE_MAX) : 1;
+        $rows  = $fetch(($page - 1) * self::PAGE_SIZE);
+        $last  = max(1, (int) ceil($rows['total'] / self::PAGE_SIZE));
+
+        return $page <= $last ? [$page, $rows] : [$last, $fetch(($last - 1) * self::PAGE_SIZE)];
     }
 
     private function requirePermission(): void

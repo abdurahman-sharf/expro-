@@ -46,8 +46,8 @@ use App\Libraries\Accounting\Backfill\BackfillService;
                     </select>
                 </div>
             </div>
-            <div class="field span-all">
-                <span class="form-label"><?= lang('Accounting_backfill.families') ?></span>
+            <div class="field span-all" role="group" aria-labelledby="families_label">
+                <span class="form-label" id="families_label"><?= lang('Accounting_backfill.families') ?></span>
                 <div class="field-control">
                     <?php foreach ($families as $family): ?>
                         <div class="form-check">

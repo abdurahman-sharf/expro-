@@ -8,6 +8,7 @@ use App\Libraries\Accounting\Backfill\BackfillPlan;
 use App\Libraries\Accounting\Backfill\BackfillRefusal;
 use App\Libraries\Accounting\Backfill\BackfillScope;
 use App\Libraries\Accounting\Backfill\SaleBackfill;
+use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\PostingService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -154,6 +155,86 @@ final class SaleBackfillTest extends CIUnitTestCase
         $this->setConfigValue('accounting_start_date', '2020-01-01');
         $this->accountingDb()->table('accounting_journals')->where('source_type', 'opening')->update(['journal_date' => '2026-03-20']);
         $this->assertSame(BackfillRefusal::BeforeOpening, $this->refusalOf($saleId));
+    }
+
+    public function testPlan_RefusesASaleOfGoodsWhoseOpeningStockWasPostedAfterItWasSaved(): void
+    {
+        [$saleId, $cycle] = $this->legacyInvoiceWithItems();
+
+        $this->assertNull($this->refusalOf($saleId));
+
+        $this->postOpeningStockOf([$cycle['cream'], $cycle['perfume']]);
+
+        $this->assertSame(BackfillRefusal::StockOpenedAfter, $this->refusalOf($saleId));
+        $this->assertSame([], $this->plan($saleId)->steps);
+    }
+
+    public function testPlan_PostsASaleSavedAfterTheOpeningStockOfItsLocation(): void
+    {
+        [$saleId, $cycle] = $this->legacyInvoiceWithItems();
+
+        $this->postOpeningStockOf([$cycle['cream'], $cycle['perfume']]);
+        $this->openingStockWasPostedAt('2026-03-01 00:00:00');
+
+        $this->assertNull($this->refusalOf($saleId));
+        $this->assertCount(2, $this->plannedLines($this->plan($saleId)));
+    }
+
+    public function testPlan_IgnoresTheOpeningStockOfAnotherLocationAndOneThatWasTakenBack(): void
+    {
+        [$saleId, $cycle] = $this->legacyInvoiceWithItems();
+
+        $this->postOpeningStockOf([$this->item('10.00')], '5', $this->branchLocation(1, 'Store'));
+
+        $this->assertNull($this->refusalOf($saleId));
+
+        $this->postOpeningStockOf([$cycle['cream'], $cycle['perfume']]);
+        $this->assertSame(BackfillRefusal::StockOpenedAfter, $this->refusalOf($saleId));
+
+        (new OpeningStock())->reverse(1, '2026-03-02', 'Posted too early', $this->backfillManager);
+
+        $this->assertNull($this->refusalOf($saleId));
+    }
+
+    public function testPlan_LeavesASaleOfServicesAloneWhateverTheOpeningStock(): void
+    {
+        $saleId = $this->whileOff(fn (): int => $this->dateSale($this->save([$this->line($this->item('0', false), 0, '1', '100')]), '2026-03-10'));
+
+        $this->postOpeningStockOf([$this->item('10.00')], '5');
+
+        $this->assertNull($this->refusalOf($saleId));
+    }
+
+    public function testPlan_RefusesAPaymentDatedBeforeTheBooksBeginOrTheOpeningBalancesAlthoughTheInvoiceIsAfter(): void
+    {
+        $saleId = $this->legacyInvoice('2026-03-10', [$this->payment(lang('Sales.cash'), '816.50')]);
+
+        $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->update(['payment_time' => '2026-02-20 10:00:00']);
+        $this->setConfigValue('accounting_start_date', '2026-03-01');
+
+        $this->assertSame(BackfillRefusal::BeforeStartDate, $this->refusalOf($saleId));
+        $this->assertSame('sale_payment 2026-02-20', $this->plan($saleId)->detail);
+
+        $this->setConfigValue('accounting_start_date', '2020-01-01');
+        $this->accountingDb()->table('accounting_journals')->where('source_type', 'opening')->update(['journal_date' => '2026-03-01']);
+
+        $this->assertSame(BackfillRefusal::BeforeOpening, $this->refusalOf($saleId));
+
+        $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->update(['payment_time' => '2026-03-01 10:00:00']);
+
+        $this->assertNull($this->refusalOf($saleId));
+    }
+
+    /**
+     * @return array{0: int, 1: array{items: list<array<string, mixed>>, taxes: list<array<string, mixed>>, cream: int, perfume: int}}
+     */
+    private function legacyInvoiceWithItems(): array
+    {
+        return $this->whileOff(function (): array {
+            $cycle = $this->referenceInvoice();
+
+            return [$this->dateSale($this->save($cycle['items'], $cycle['taxes']), '2026-03-10'), $cycle];
+        });
     }
 
     public function testPlan_RefusesADocumentOfADeletedCustomer(): void
