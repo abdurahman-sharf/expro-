@@ -14,6 +14,7 @@ $editing  = $permit !== null;
 $withCost = $type === StockPermitType::Add;
 $action   = $editing ? 'stock_documents/permits/update/' . (int) $permit->permit_id : 'stock_documents/permits/save';
 $party    = $type === StockPermitType::Add ? 'supplier' : ($type === StockPermitType::Issue ? 'customer' : null);
+$sign     = $type === StockPermitType::Add ? 1 : -1;
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
@@ -107,7 +108,11 @@ $party    = $type === StockPermitType::Add ? 'supplier' : ($type === StockPermit
                 <thead>
                     <tr>
                         <th scope="col"><?= lang('Stock_documents.item') ?></th>
+                        <th scope="col" class="text-end"><?= lang('Stock_documents.on_hand') ?></th>
                         <th scope="col" class="text-end"><?= lang('Stock_documents.quantity') ?></th>
+                        <?php if (! $editing): ?>
+                            <th scope="col" class="text-end"><?= lang('Stock_documents.balance_after') ?></th>
+                        <?php endif; ?>
                         <?php if ($withCost): ?>
                             <th scope="col" class="text-end"><?= lang('Stock_documents.unit_cost') ?></th>
                         <?php endif; ?>
@@ -127,8 +132,42 @@ $party    = $type === StockPermitType::Add ? 'supplier' : ($type === StockPermit
 <script type="text/javascript">
     $(document).ready(function() {
         const withCost = <?= $withCost ? 'true' : 'false' ?>;
+        const editing = <?= $editing ? 'true' : 'false' ?>;
+        const sign = <?= $sign ?>;
+        const fixedLocation = <?= $editing ? (int) $permit->location_id : 0 ?>;
         const existing = <?= json_encode(array_map(static fn (object $line): array => ['id' => (int) $line->item_id, 'label' => $line->item_name, 'quantity' => rtrim(rtrim(bcadd((string) $line->quantity, '0', 3), '0'), '.'), 'cost' => rtrim(rtrim(bcadd((string) $line->unit_cost, '0', 6), '0'), '.')], $lines), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         let next = 0;
+
+        const locationId = function() {
+            return fixedLocation > 0 ? fixedLocation : parseInt($('#location_id').val(), 10) || 0;
+        };
+
+        const showAfter = function(row) {
+            const onHand = row.data('onHandValue');
+            const quantity = parseFloat(String(row.data('quantity').val()).replace(',', '.'));
+
+            row.data('after').text(onHand === undefined || isNaN(quantity) ? '-' : (parseFloat(onHand) + sign * quantity).toFixed(3));
+        };
+
+        const refreshBalance = function(row) {
+            const itemId = parseInt(row.data('id').val(), 10) || 0;
+
+            row.removeData('onHandValue');
+            row.data('onHand').text('-');
+
+            if (itemId > 0 && locationId() > 0) {
+                $.getJSON('stock_documents/items', {item_id: itemId, location_id: locationId()}, function(found) {
+                    if (found.length > 0 && found[0].on_hand !== undefined && parseInt(row.data('id').val(), 10) === itemId) {
+                        row.data('onHandValue', found[0].on_hand);
+                        row.data('onHand').text(found[0].on_hand);
+                    }
+
+                    showAfter(row);
+                });
+            }
+
+            showAfter(row);
+        };
 
         const addLine = function(line) {
             const index = next++;
@@ -138,7 +177,16 @@ $party    = $type === StockPermitType::Add ? 'supplier' : ($type === StockPermit
             const quantity = $('<input type="text" class="form-control form-control-sm ltr-input text-end" dir="ltr" inputmode="decimal" autocomplete="off">').attr({name: 'lines[' + index + '][quantity]', 'aria-label': "<?= esc(lang('Stock_documents.quantity'), 'js') ?>"}).val(line.quantity || '');
             const remove = $('<button type="button" class="btn btn-outline-danger btn-sm"></button>').attr('aria-label', "<?= esc(lang('Stock_documents.remove_line'), 'js') ?>").append('<span class="bi bi-x" aria-hidden="true"></span>');
 
-            row.append($('<td></td>').append(name, id), $('<td></td>').append(quantity));
+            const onHand = $('<td class="text-end ltr-input" dir="ltr"></td>').text('-');
+            const after = $('<td class="text-end ltr-input" dir="ltr"></td>').text('-');
+            const cells = [$('<td></td>').append(name, id), onHand, $('<td></td>').append(quantity)];
+
+            if (! editing) {
+                cells.push(after);
+            }
+
+            row.append(cells);
+            row.data({onHand: onHand, after: after, id: id, quantity: quantity});
 
             if (withCost) {
                 row.append($('<td></td>').append($('<input type="text" class="form-control form-control-sm ltr-input text-end" dir="ltr" inputmode="decimal" autocomplete="off">').attr({name: 'lines[' + index + '][unit_cost]', 'aria-label': "<?= esc(lang('Stock_documents.unit_cost'), 'js') ?>"}).val(line.cost || '')));
@@ -155,11 +203,17 @@ $party    = $type === StockPermitType::Add ? 'supplier' : ($type === StockPermit
                 select: function(event, ui) {
                     id.val(ui.item.value);
                     name.val(ui.item.label);
+                    refreshBalance(row);
 
                     return false;
                 }
             }).on('input', function() {
                 id.val('');
+                refreshBalance(row);
+            });
+
+            quantity.on('input', function() {
+                showAfter(row);
             });
 
             remove.on('click', function() {
@@ -167,12 +221,21 @@ $party    = $type === StockPermitType::Add ? 'supplier' : ($type === StockPermit
             });
         };
 
+        $('#location_id').on('change', function() {
+            $('#permit_lines_body tr').each(function() {
+                refreshBalance($(this));
+            });
+        });
+
         $('#permit_add_line').on('click', function() {
             addLine({});
         });
 
         if (existing.length > 0) {
-            existing.forEach(addLine);
+            existing.forEach(function(line) {
+                addLine(line);
+                refreshBalance($('#permit_lines_body tr').last());
+            });
         } else {
             addLine({});
         }

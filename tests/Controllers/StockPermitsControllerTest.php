@@ -458,6 +458,34 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->assertSame(403, $this->get('/stock_documents/items')->response()->getStatusCode());
     }
 
+    public function testGetItems_ShowsWhatIsOnHandInTheLocationAskedForOnlyWhereTheEmployeeMayUseIt(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $other  = $this->stocked('4', '50');
+        $closed = $this->anotherLocation('Closed warehouse');
+        $this->addPermit($itemId, '2', '25');
+
+        $empty = $this->openLocation('Shelf two', $this->actAsKeeper());
+
+        $own = json_decode($this->get('/stock_documents/items?item_id=' . $itemId . '&location_id=' . self::LOCATION_ID)->getJSON(), true);
+
+        $this->assertSame([$itemId], array_column($own, 'value'), 'a single item is asked for by its id');
+        $this->assertSame('12.000', $own[0]['on_hand']);
+
+        $none = json_decode($this->get('/stock_documents/items?item_id=' . $other . '&location_id=' . $closed)->getJSON(), true);
+
+        $this->assertCount(1, $none);
+        $this->assertArrayNotHasKey('on_hand', $none[0], 'a location the employee may not use gives no figure');
+
+        $without = json_decode($this->get('/stock_documents/items?item_id=' . $other)->getJSON(), true);
+
+        $this->assertArrayNotHasKey('on_hand', $without[0]);
+
+        $elsewhere = json_decode($this->get('/stock_documents/items?item_id=' . $itemId . '&location_id=' . $empty)->getJSON(), true);
+
+        $this->assertSame('0.000', $elsewhere[0]['on_hand'], 'nothing there');
+    }
+
     public function testGetParties_FindsSuppliersAndCustomersByNameForWhoMayManagePermits(): void
     {
         $this->actAsKeeper();

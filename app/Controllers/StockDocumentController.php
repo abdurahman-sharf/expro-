@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Libraries\Stock\StockDocumentSettings;
 use App\Libraries\Stock\StockPermissions;
+use App\Libraries\Stock\StockShelves;
 use App\Models\Stock_location;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Database;
@@ -78,15 +79,30 @@ abstract class StockDocumentController extends AccountingController
             ->select('item_id, name, item_number')
             ->where(['deleted' => 0, 'stock_type' => HAS_STOCK]);
 
-        $term = trim((string) $this->request->getGet('term'));
+        $term   = trim((string) $this->request->getGet('term'));
+        $itemId = (int) $this->request->getGet('item_id');
 
         if ($term !== '') {
             $builder->groupStart()->like('name', $term)->orLike('item_number', $term)->groupEnd();
         }
 
-        $rows = $builder->orderBy('name', 'ASC')->limit(self::LOOKUP_LIMIT)->get()->getResult();
+        if ($itemId > 0) {
+            $builder->where('item_id', $itemId);
+        }
 
-        return $this->response->setJSON(array_map(static fn (object $row): array => ['value' => (int) $row->item_id, 'label' => $row->name . ($row->item_number !== null && $row->item_number !== '' ? ' (' . $row->item_number . ')' : '')], $rows));
+        $rows       = $builder->orderBy('name', 'ASC')->limit(self::LOOKUP_LIMIT)->get()->getResult();
+        $locationId = (int) $this->request->getGet('location_id');
+        $shelves    = $locationId > 0 && array_key_exists($locationId, $this->ownLocations()) ? new StockShelves() : null;
+
+        return $this->response->setJSON(array_map(static function (object $row) use ($shelves, $locationId): array {
+            $found = ['value' => (int) $row->item_id, 'label' => $row->name . ($row->item_number !== null && $row->item_number !== '' ? ' (' . $row->item_number . ')' : '')];
+
+            if ($shelves !== null) {
+                $found['on_hand'] = $shelves->onHand((int) $row->item_id, $locationId);
+            }
+
+            return $found;
+        }, $rows));
     }
 
     /**
