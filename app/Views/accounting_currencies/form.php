@@ -5,9 +5,8 @@ use App\Libraries\Accounting\CurrencyCatalog;
 
 /**
  * @var Currency|null $currency
- * @var bool $in_use
+ * @var bool          $in_use
  */
-
 $isNew = $currency === null;
 ?>
 

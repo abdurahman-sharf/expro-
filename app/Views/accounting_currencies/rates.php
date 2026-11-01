@@ -4,11 +4,10 @@ use App\Libraries\Accounting\Currency;
 
 /**
  * @var Currency $currency
- * @var string $table_headers
- * @var bool $can_manage
- * @var array $config
+ * @var string   $table_headers
+ * @var bool     $can_manage
+ * @var array    $config
  */
-
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
 

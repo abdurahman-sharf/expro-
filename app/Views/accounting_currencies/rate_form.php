@@ -3,11 +3,10 @@
 use App\Libraries\Accounting\Currency;
 
 /**
- * @var Currency $currency
+ * @var Currency    $currency
  * @var object|null $rate
- * @var string $today
+ * @var string      $today
  */
-
 $isNew = $rate === null;
 ?>
 

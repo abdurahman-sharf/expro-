@@ -789,7 +789,7 @@ class TreasuryTransfersTest extends CIUnitTestCase
         $loss = $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager, '99.00');
         $gain = $this->transfers->transfer($this->main, $dollars, '100.00', '2026-10-21', '', $this->manager, '27.00');
 
-        $this->assertSame([(int) $this->treasuries->accountOf($dollars) . ':371.25:0.00', $this->accountId('fx_loss') . ':3.75:0.00', (int) $this->treasuries->accountOf($this->main) . ':0.00:375.00'], $this->transferLines($loss));
+        $this->assertSame([(int) $this->treasuries->accountOf($dollars) . ':371.25:0.00', (int) $this->treasuries->accountOf($this->main) . ':0.00:375.00', $this->accountId('fx_loss') . ':3.75:0.00'], $this->transferLines($loss));
         $this->assertSame([(int) $this->treasuries->accountOf($dollars) . ':101.25:0.00', (int) $this->treasuries->accountOf($this->main) . ':0.00:100.00', $this->accountId('fx_gain') . ':0.00:1.25'], $this->transferLines($gain));
     }
 

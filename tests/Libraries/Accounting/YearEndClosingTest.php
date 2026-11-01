@@ -980,7 +980,7 @@ final class YearEndClosingTest extends CIUnitTestCase
     public function testApprove_RollsBackTheBranchesAlreadyWrittenWhenALaterOneFails(): void
     {
         $this->twoBranchYear();
-        $rent = $this->customAccount('54', '5410', 'Rent');
+        $rent = $this->customAccount('54', '5411', 'Rent');
         $this->postOn('2025-07-10', $this->second, [[$rent, '80.00', '0'], [$this->accountId('cash'), '0', '80.00']]);
         $this->closePeriods();
         $preview = $this->service->preview(null, $this->yearId(), $this->employee);
