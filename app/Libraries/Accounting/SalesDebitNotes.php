@@ -8,6 +8,7 @@ use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
+use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use DateTimeImmutable;
@@ -238,13 +239,30 @@ final class SalesDebitNotes
      */
     public function search(array $filters, ?int $employeeId, int $limit = 25, int $offset = 0): array
     {
+        $total = $this->searched($filters, $employeeId)->countAllResults();
+        $rows  = $this->searched($filters, $employeeId)
+            ->select("n.*, b.code AS branch_code, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS customer_name, d.number AS document_number", false)
+            ->orderBy('n.note_date', 'DESC')
+            ->orderBy('n.debit_note_id', 'DESC')
+            ->limit(max(1, $limit), max(0, $offset))
+            ->get()
+            ->getResult();
+
+        return ['total' => $total, 'rows' => $rows];
+    }
+
+    /**
+     * @param array{status?: string, customer_id?: int, from?: string, to?: string, search?: string} $filters
+     */
+    private function searched(array $filters, ?int $employeeId): BaseBuilder
+    {
+        $branchIds = $this->branches->allowedBranchIds($employeeId);
+
         $builder = $this->db->table('sales_debit_notes n')
             ->join('branches b', 'b.branch_id = n.branch_id')
             ->join('people p', 'p.person_id = n.customer_id', 'left')
             ->join('document_numbers d', "d.doc_type = '" . DocumentType::SalesDebitNote->value . "' AND d.source_table = 'sales_debit_notes' AND d.source_id = n.debit_note_id", 'left')
             ->where('n.company_id', CompanyContext::id());
-
-        $branchIds = $this->branches->allowedBranchIds($employeeId);
 
         if ($branchIds !== null) {
             $branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('n.branch_id', $branchIds);
@@ -269,23 +287,13 @@ final class SalesDebitNotes
         $search = trim((string) ($filters['search'] ?? ''));
 
         if ($search !== '') {
-            $like = $this->db->escapeLikeString($search);
             $builder->groupStart()
                 ->like('d.number', $search)
-                ->orWhere("CONCAT(p.first_name, ' ', p.last_name) LIKE '%{$like}%'", null, false)
+                ->orLike("CONCAT(p.first_name, ' ', p.last_name)", $search)
                 ->groupEnd();
         }
 
-        $total = (clone $builder)->countAllResults();
-        $rows  = $builder
-            ->select("n.*, b.code AS branch_code, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS customer_name, d.number AS document_number", false)
-            ->orderBy('n.note_date', 'DESC')
-            ->orderBy('n.debit_note_id', 'DESC')
-            ->limit(max(1, $limit), max(0, $offset))
-            ->get()
-            ->getResult();
-
-        return ['total' => $total, 'rows' => $rows];
+        return $builder;
     }
 
     /**

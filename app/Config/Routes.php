@@ -142,7 +142,7 @@ $routes->group('accounting_debit_notes', static function (RouteCollection $route
     $routes->get('/', 'AccountingDebitNotes::getIndex');
     $routes->get('form', 'AccountingDebitNotes::getForm');
     $routes->get('customers', 'AccountingDebitNotes::getCustomers');
-    $routes->post('save', 'AccountingDebitNotes::postSave');
+    $routes->post('save', 'AccountingDebitNotes::postSaveNote');
     $routes->get('reverse_form/(:num)', 'AccountingDebitNotes::getReverseForm/$1');
     $routes->post('reverse/(:num)', 'AccountingDebitNotes::postReverse/$1');
 });

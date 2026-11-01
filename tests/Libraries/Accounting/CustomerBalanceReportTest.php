@@ -13,6 +13,7 @@ use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\ReportPeriod;
+use App\Libraries\Accounting\SalesDebitNotes;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -56,6 +57,8 @@ class CustomerBalanceReportTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'sales_debit_note')->delete();
+        $this->accountingDb()->table('app_config')->where('key', 'accounting_debit_note')->delete();
         $this->stopSelling();
 
         parent::tearDown();
@@ -97,6 +100,42 @@ class CustomerBalanceReportTest extends CIUnitTestCase
         $this->assertTrue($table->rows[0]->adds());
         $this->assertFalse($table->hasOther());
         $this->assertTies();
+    }
+
+    public function testBuild_PutsASalesDebitNoteUnderSalesAndTakesItOutAgainWhenItIsReversed(): void
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $clerk   = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+        $notes   = new SalesDebitNotes();
+        $invoice = $this->invoiceOf('500.00');
+        $note    = $notes->create(['customer_id' => $this->customerId, 'date' => date('Y-m-d'), 'amount' => '100', 'tax_percent' => '15'], $clerk);
+
+        $row = $this->rowOf($this->report(date('Y-m-d')), $this->customerId);
+
+        $this->assertSame(['before' => '0.0000', 'sales' => '615.0000', 'returns' => '0.0000', 'net_sales' => '615.0000', 'payments' => '0.0000', 'settlements' => '0.0000', 'other' => '0.0000', 'balance' => '615.0000'], $row);
+        $this->assertSame($this->balance($this->customerAccount()), bcadd($row['balance'], '0', 2));
+        $this->assertGreaterThan(0, $invoice);
+
+        $notes->reverse($note, 'by mistake', $clerk);
+
+        $row = $this->rowOf($this->report(date('Y-m-d')), $this->customerId);
+
+        $this->assertSame(['500.0000', '500.0000'], [$row['sales'], $row['balance']]);
+        $this->assertTies();
+    }
+
+    public function testBuild_CarriesADebitNoteOfAnEarlierPeriodIntoTheBalanceBefore(): void
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $clerk = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+
+        (new SalesDebitNotes())->create(['customer_id' => $this->customerId, 'date' => $this->daysAgo(30), 'amount' => '80'], $clerk);
+
+        $row = $this->rowOf($this->report($this->daysAgo(10)), $this->customerId);
+
+        $this->assertSame(['80.0000', '0.0000', '80.0000'], [$row['before'], $row['sales'], $row['balance']]);
     }
 
     public function testBuild_PutsARefundInvoiceUnderReturnsAndACreditNoteUnderSettlements(): void

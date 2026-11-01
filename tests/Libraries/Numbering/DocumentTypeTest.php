@@ -60,4 +60,24 @@ class DocumentTypeTest extends CIUnitTestCase
             $this->assertNotSame($type->labelKey(), lang($type->labelKey()), $type->value);
         }
     }
+
+    public function testSalesDebitNote_HasATableOfItsOwnAndFiveDigitsAndShowsItsIdInFiveDigitsUntilItHasANumber(): void
+    {
+        $type = DocumentType::SalesDebitNote;
+
+        $this->assertSame(['sales_debit_notes' => 'debit_note_id'], $type->sources());
+        $this->assertSame($type->sources(), $type->bareIdSources());
+        $this->assertNull($type->numberColumn());
+        $this->assertSame(5, $type->defaultPadding());
+        $this->assertSame('00007', $type->fallback(7));
+        $this->assertSame('123456', $type->fallback(123456));
+        $this->assertNotSame(DocumentType::DebitNote->value, $type->value, 'the sales debit note is not the debit note of purchases');
+    }
+
+    public function testDefaultPadding_IsZeroForEveryKindButTheSalesDebitNote(): void
+    {
+        foreach (DocumentType::cases() as $type) {
+            $this->assertSame($type === DocumentType::SalesDebitNote ? 5 : 0, $type->defaultPadding(), $type->value);
+        }
+    }
 }

@@ -81,7 +81,7 @@ class AccountingDebitNotes extends AccountingController
         return $this->response->setJSON(array_map(static fn (object $row): array => ['value' => (int) $row->person_id, 'label' => $row->name], $rows));
     }
 
-    public function postSave(): ResponseInterface
+    public function postSaveNote(): ResponseInterface
     {
         return $this->attempt(function (): array {
             $id = $this->notes->create([
