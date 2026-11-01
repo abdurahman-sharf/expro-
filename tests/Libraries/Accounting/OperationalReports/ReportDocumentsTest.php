@@ -246,4 +246,40 @@ class ReportDocumentsTest extends CIUnitTestCase
 
         $this->accountingDb()->table('app_config')->where('key', 'accounting_debit_note')->delete();
     }
+    public function testRead_LeavesOutADocumentWhoseJournalWasReversedWhileItsSaleStaysCompleted(): void
+    {
+        $sale    = $this->invoiceOf('10', $this->customerId);
+        $journal = $this->accountingDb()->table('accounting_journals')->select('journal_id')->where(['source_type' => 'sale', 'source_id' => $sale, 'entry_type' => 'revenue'])->get()->getRow();
+
+        $this->assertCount(1, $this->read());
+
+        (new JournalService())->reverseAutomatic((int) $journal->journal_id, date('Y-m-d'), 'Taken back', null);
+
+        $this->assertSame([], $this->read());
+    }
+
+    public function testRead_CountsOnlyAPaymentWhoseJournalWasNotReversed(): void
+    {
+        $invoice = $this->invoiceOf('100', $this->customerId, [$this->payment(lang('Sales.cash'), '60')]);
+        $journal = $this->accountingDb()->table('accounting_journals')->select('journal_id')->where(['source_type' => 'sale_payment', 'status' => 'posted'])->get()->getRow();
+
+        $this->assertSame('60.0000', $this->read()[0]->paid());
+
+        (new JournalService())->reverseAutomatic((int) $journal->journal_id, date('Y-m-d'), 'Taken back', null);
+
+        $this->assertSame('0.0000', $this->read()[0]->paid());
+        $this->assertGreaterThan(0, $invoice);
+    }
+
+    public function testRead_ReadsOnlyTheDocumentsFromTheFirstDay(): void
+    {
+        $this->invoiceDated('10', date('Y-m-d', strtotime('-10 days')), null, $this->customerId);
+        $this->invoiceOf('20', $this->customerId);
+
+        $totals = static fn (array $documents): array => array_map(static fn ($document): string => $document->total, $documents);
+
+        $this->assertSame(['10.0000', '20.0000'], $totals($this->read()));
+        $this->assertSame(['20.0000'], $totals($this->read(null, date('Y-m-d'))));
+        $this->assertSame([], $this->read(null, date('Y-m-d', strtotime('+1 day')), date('Y-m-d', strtotime('+2 days'))));
+    }
 }

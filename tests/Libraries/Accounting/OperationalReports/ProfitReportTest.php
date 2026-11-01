@@ -244,4 +244,20 @@ class ProfitReportTest extends CIUnitTestCase
         $this->assertSame(['1.0000', '10.0000', '30.0000', '20.0000'], [$rows[0]['quantity'], $rows[0]['cost'], $rows[0]['sale_price'], $rows[0]['profit']]);
         $this->assertTrue($table->ties());
     }
+    public function testBuild_ReadsOnlyTheMovementsThatStandAfterASaleWasCancelledAndCompletedAgain(): void
+    {
+        $item = $this->item('10');
+        $sale = $this->save([$this->line($item, 0, '2', '30', '10')], [], [$this->payment(lang('Sales.cash'), '60')], SALE_TYPE_POS, $this->customerId);
+
+        $this->assertTrue($this->sales->delete($sale, false, true, $this->employeeId));
+        $this->sales->restore_list([$sale], $this->employeeId);
+
+        $this->assertSame($sale, $this->save([$this->line($item, 0, '1', '30', '10')], [], [$this->payment(lang('Sales.cash'), '30')], SALE_TYPE_POS, $this->customerId, true, null, COMPLETED, $sale));
+
+        $table = $this->table();
+
+        $this->assertSame(['10.0000', '20.0000'], [$table->total['cost'], $table->total['profit']]);
+        $this->assertSame(1, $table->documents);
+        $this->assertTrue($table->ties());
+    }
 }

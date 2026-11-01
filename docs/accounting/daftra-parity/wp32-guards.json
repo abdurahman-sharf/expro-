@@ -380,8 +380,8 @@
     "replace": "$join         = ['j.source_type = ?', 'j.entry_type = ?', \"(j.status = ? OR j.status = 'reversed')\"];\n        $joinBindings = [SalePostingBuilder::SOURCE_SALE",
     "tests": [
       "--filter",
-      "LeavesOutADocumentThatWasCancelled",
-      "tests/Libraries/Accounting/OperationalReports/RevenueReportTest.php"
+      "LeavesOutADocumentWhoseJournalWasReversed",
+      "tests/Libraries/Accounting/OperationalReports/ReportDocumentsTest.php"
     ]
   },
   {
@@ -402,7 +402,7 @@
     "replace": "j ON j.source_type = ? AND j.source_id = p.payment_id AND (j.status = ? OR j.status = 'reversed')",
     "tests": [
       "--filter",
-      "CountsOnlyThePaymentsWhoseJournalsStand",
+      "CountsOnlyAPaymentWhoseJournalWasNotReversed",
       "tests/Libraries/Accounting/OperationalReports/ReportDocumentsTest.php"
     ]
   },
@@ -490,7 +490,7 @@
     "replace": "$where[]    = '1 = ?';\n            $bindings[] = 1;\n        }\n\n        if ($customerId !== null) {\n            $where[]    = 's.customer_id = ?';",
     "tests": [
       "--filter",
-      "ReadsOnlyTheBranches",
+      "ReadsOnlyTheDocumentsFromTheFirstDay",
       "tests/Libraries/Accounting/OperationalReports/ReportDocumentsTest.php"
     ]
   },
@@ -737,43 +737,32 @@
     ]
   },
   {
-    "name": "W32-G68 a movement is read only in the branches of the scope",
-    "file": "app/Libraries/Accounting/OperationalReports/ProfitMovements.php",
-    "find": "'e.branch_id IN (' . implode(',', array_map('intval', $scope->ids)) . ')']",
-    "replace": "'1 = 1']",
-    "tests": [
-      "--filter",
-      "ReadsOnlyTheBranchesOfTheScope",
-      "tests/Libraries/Accounting/OperationalReports/ProfitReportTest.php"
-    ]
-  },
-  {
-    "name": "W32-G69 a movement that was taken back is not read",
+    "name": "W32-G68 a movement that was taken back is not read",
     "file": "app/Libraries/Accounting/OperationalReports/ProfitMovements.php",
     "find": "'r.entry_id IS NULL'",
     "replace": "'1 = 1'",
     "tests": [
       "--filter",
-      "LeavesOutTheMovementsOfASaleThatWasCancelled",
+      "AfterASaleWasCancelledAndCompletedAgain",
       "tests/Libraries/Accounting/OperationalReports/ProfitReportTest.php"
     ]
   },
   {
-    "name": "W32-G70 only the movements that were posted are read",
+    "name": "W32-G69 only the movements that were posted are read",
     "file": "app/Libraries/Accounting/OperationalReports/ProfitMovements.php",
     "find": "\"e.kind = 'posting'\"",
     "replace": "'1 = 1'",
     "tests": [
       "--filter",
-      "LeavesOutTheMovementsOfASaleThatWasCancelled",
+      "AfterASaleWasCancelledAndCompletedAgain",
       "tests/Libraries/Accounting/OperationalReports/ProfitReportTest.php"
     ]
   },
   {
-    "name": "W32-G71 the cost of the books is read in the branches of the scope",
+    "name": "W32-G70 the cost of the books is read in the branches of the scope",
     "file": "app/Libraries/Accounting/OperationalReports/ProfitMovements.php",
     "find": "AND j.branch_id IN (' . implode(',', array_map('intval', $scope->ids)) . \") AND {$where}\"",
-    "replace": "AND 1 = 1 AND {$where}\"",
+    "replace": "AND 1 = 1 AND ' . \"{$where}\"",
     "tests": [
       "--filter",
       "ReadsOnlyTheBranchesOfTheScope",
@@ -781,7 +770,7 @@
     ]
   },
   {
-    "name": "W32-G72 the cost of the books is the debit of the accounts of expense",
+    "name": "W32-G71 the cost of the books is the debit of the accounts of expense",
     "file": "app/Libraries/Accounting/OperationalReports/ProfitMovements.php",
     "find": "$bindings = [SalePostingBuilder::SOURCE_SALE, JournalEntryType::Cogs->value, 'posted', 'expense', $to];",
     "replace": "$bindings = [SalePostingBuilder::SOURCE_SALE, JournalEntryType::Cogs->value, 'posted', 'asset', $to];",
@@ -792,7 +781,7 @@
     ]
   },
   {
-    "name": "W32-G73 the cost of the books is read from the journals that stand",
+    "name": "W32-G72 the cost of the books is read from the journals that stand",
     "file": "app/Libraries/Accounting/OperationalReports/ProfitMovements.php",
     "find": "$bindings = [SalePostingBuilder::SOURCE_SALE, JournalEntryType::Cogs->value, 'posted', 'expense', $to];",
     "replace": "$bindings = [SalePostingBuilder::SOURCE_SALE, JournalEntryType::Cogs->value, 'reversed', 'expense', $to];",
@@ -803,7 +792,7 @@
     ]
   },
   {
-    "name": "W32-G74 only the units that moved are priced when some came back before the delivery",
+    "name": "W32-G73 only the units that moved are priced when some came back before the delivery",
     "file": "app/Libraries/Accounting/OperationalReports/ProfitMovements.php",
     "find": "$share  = bccomp($sold, '0', 3) === 0 || bccomp($moved, $sold, 3) >= 0 ? '1' : bcdiv($moved, $sold, 8);",
     "replace": "$share  = '1';",
@@ -814,7 +803,7 @@
     ]
   },
   {
-    "name": "W32-G75 a report is limited to the employee asked for",
+    "name": "W32-G74 a report is limited to the employee asked for",
     "file": "app/Libraries/Accounting/OperationalReports/ProfitMovements.php",
     "find": "($employeeId !== null && $document->employeeId !== $employeeId)",
     "replace": "(false)",
@@ -825,7 +814,7 @@
     ]
   },
   {
-    "name": "W32-G76 a return costs what the sale took back cost",
+    "name": "W32-G75 a return costs what the sale took back cost",
     "file": "app/Libraries/Accounting/OperationalReports/ProfitMovements.php",
     "find": "cost: Amounts::negate(bcadd((string) $movement->value, '0', SaleAmounts::SCALE)),",
     "replace": "cost: bcadd((string) $movement->value, '0', SaleAmounts::SCALE),",
@@ -836,7 +825,7 @@
     ]
   },
   {
-    "name": "W32-G77 the profit is the value less the cost",
+    "name": "W32-G76 the profit is the value less the cost",
     "file": "app/Libraries/Accounting/OperationalReports/ProfitRow.php",
     "find": "return Amounts::sub($this->value(), $this->cost);",
     "replace": "return $this->value();",
@@ -847,7 +836,7 @@
     ]
   },
   {
-    "name": "W32-G78 the cost of the profit report is checked against the books",
+    "name": "W32-G77 the cost of the profit report is checked against the books",
     "file": "app/Libraries/Accounting/OperationalReports/ProfitReport.php",
     "find": "ties: $filtered ? [] : [new TieCheck('Accounting_operational_reports.tie_profit_cost', $total['cost'], $this->movements->ledgerCost($scope, $from, $to))],",
     "replace": "ties: [],",
@@ -858,7 +847,7 @@
     ]
   },
   {
-    "name": "W32-G79 the profit to sales is over the net sales",
+    "name": "W32-G78 the profit to sales is over the net sales",
     "file": "app/Libraries/Accounting/OperationalReports/ItemProfitReport.php",
     "find": "'profit_to_sales' => Amounts::percent($figures['profit'], $figures['net_value']),",
     "replace": "'profit_to_sales' => Amounts::percent($figures['profit'], $figures['sales_value']),",
@@ -869,7 +858,7 @@
     ]
   },
   {
-    "name": "W32-G80 the returns of an item are the value of what came back",
+    "name": "W32-G79 the returns of an item are the value of what came back",
     "file": "app/Libraries/Accounting/OperationalReports/ItemProfitReport.php",
     "find": "$returnsValue    = Amounts::negate(Amounts::sum(array_map(static fn (ProfitRow $row): string => $row->value(), $returns)));",
     "replace": "$returnsValue    = Amounts::sum(array_map(static fn (ProfitRow $row): string => $row->value(), $returns));",
@@ -880,7 +869,7 @@
     ]
   },
   {
-    "name": "W32-G81 the share of the total is a hundred",
+    "name": "W32-G80 the share of the total is a hundred",
     "file": "app/Libraries/Accounting/OperationalReports/ItemProfitReport.php",
     "find": "'profit_share'    => Amounts::isZero($totalProfit) ? '0.00' : Amounts::percent($figures['profit'], $totalProfit),",
     "replace": "'profit_share'    => '0.00',",
@@ -891,7 +880,7 @@
     ]
   },
   {
-    "name": "W32-G82 a payment is read only in the branches of the scope",
+    "name": "W32-G81 a payment is read only in the branches of the scope",
     "file": "app/Libraries/Accounting/OperationalReports/PaymentRows.php",
     "find": "'j.branch_id IN (' . implode(',', array_map('intval', $scope->ids)) . ')'];",
     "replace": "'1 = 1'];",
@@ -902,7 +891,7 @@
     ]
   },
   {
-    "name": "W32-G83 the rounding of a sale is not a payment",
+    "name": "W32-G82 the rounding of a sale is not a payment",
     "file": "app/Libraries/Accounting/OperationalReports/PaymentRows.php",
     "find": "'p.cash_adjustment = 0'",
     "replace": "'1 = 1'",
@@ -913,29 +902,29 @@
     ]
   },
   {
-    "name": "W32-G84 a payment taken off the sale is not read",
+    "name": "W32-G83 a payment taken off the sale is not read",
     "file": "app/Libraries/Accounting/OperationalReports/PaymentRows.php",
     "find": "j ON j.source_type = ? AND j.source_id = p.payment_id AND {$standing}",
     "replace": "j ON j.source_type = ? AND j.source_id = p.payment_id AND (j.status = ? OR j.status = 'reversed')",
     "tests": [
       "--filter",
-      "LeavesOutAPaymentThatWasTakenOff",
-      "tests/Libraries/Accounting/OperationalReports/PaymentsReportTest.php"
+      "LeavesOutAPaymentWhoseJournalWasReversed",
+      "tests/Libraries/Accounting/OperationalReports/PaymentRowsTest.php"
     ]
   },
   {
-    "name": "W32-G85 a payment into an account that is no treasury is read",
+    "name": "W32-G84 a payment into an account that is no treasury is read",
     "file": "app/Libraries/Accounting/OperationalReports/PaymentRows.php",
     "find": "(COALESCE(a.entity_type, '') = '",
     "replace": "(a.entity_type = '",
     "tests": [
       "--filter",
-      "ShowsAPaymentIntoTheDefaultCashAccount",
-      "tests/Libraries/Accounting/OperationalReports/PaymentsReportTest.php"
+      "ReadsAPaymentIntoTheDefaultCashAccount",
+      "tests/Libraries/Accounting/OperationalReports/PaymentRowsTest.php"
     ]
   },
   {
-    "name": "W32-G86 a payment is limited to the method asked for",
+    "name": "W32-G85 a payment is limited to the method asked for",
     "file": "app/Libraries/Accounting/OperationalReports/PaymentRows.php",
     "find": "if ($methodKey !== '' && $method !== $methodKey) {",
     "replace": "if (false) {",
@@ -946,7 +935,7 @@
     ]
   },
   {
-    "name": "W32-G87 a payment is limited to the account asked for",
+    "name": "W32-G86 a payment is limited to the account asked for",
     "file": "app/Libraries/Accounting/OperationalReports/PaymentRows.php",
     "find": "if ($moneyAccountId !== null && $account !== $moneyAccountId) {",
     "replace": "if (false) {",
@@ -957,7 +946,7 @@
     ]
   },
   {
-    "name": "W32-G88 a payment is limited to the customer asked for",
+    "name": "W32-G87 a payment is limited to the customer asked for",
     "file": "app/Libraries/Accounting/OperationalReports/PaymentRows.php",
     "find": "foreach ([['s.customer_id', $customerId], ['s.employee_id', $userId], ['p.employee_id', $collectorId]] as [$column, $value]) {",
     "replace": "foreach ([['s.customer_id', null], ['s.employee_id', $userId], ['p.employee_id', $collectorId]] as [$column, $value]) {",
@@ -968,7 +957,7 @@
     ]
   },
   {
-    "name": "W32-G89 the payments are checked against the accounts the money went into",
+    "name": "W32-G88 the payments are checked against the accounts the money went into",
     "file": "app/Libraries/Accounting/OperationalReports/PaymentsReport.php",
     "find": "Amounts::sum(array_map(static fn (PaymentRow $payment): string => $payment->ledgerMoney, $payments))",
     "replace": "'0'",
@@ -979,7 +968,7 @@
     ]
   },
   {
-    "name": "W32-G90 an advance is read only in the branches of the scope",
+    "name": "W32-G89 an advance is read only in the branches of the scope",
     "file": "app/Libraries/Accounting/OperationalReports/AdvancePaymentsReport.php",
     "find": "->whereIn('a.branch_id', $scope->ids)",
     "replace": "->where('1 = 1', null, false)",
@@ -990,7 +979,7 @@
     ]
   },
   {
-    "name": "W32-G91 an advance that was cancelled is not read",
+    "name": "W32-G90 an advance that was cancelled is not read",
     "file": "app/Libraries/Accounting/OperationalReports/AdvancePaymentsReport.php",
     "find": "->where('a.status', 'completed')",
     "replace": "->where('1 = 1', null, false)",
@@ -1001,7 +990,7 @@
     ]
   },
   {
-    "name": "W32-G92 an advance is limited to the state asked for",
+    "name": "W32-G91 an advance is limited to the state asked for",
     "file": "app/Libraries/Accounting/OperationalReports/AdvancePaymentsReport.php",
     "find": "if (($state === 'open' && Amounts::isZero($left)) || ($state === 'spent' && ! Amounts::isZero($left))) {",
     "replace": "if (false) {",
@@ -1012,7 +1001,7 @@
     ]
   },
   {
-    "name": "W32-G93 the net after returns is the total less the returns and not less the payments",
+    "name": "W32-G92 the net after returns is the total less the returns and not less the payments",
     "file": "app/Libraries/Accounting/OperationalReports/NetPositionReport.php",
     "find": "'net'      => Amounts::add($invoice->total, $returns),",
     "replace": "'net'      => Amounts::sub($invoice->total, $invoice->paid()),",
@@ -1023,7 +1012,7 @@
     ]
   },
   {
-    "name": "W32-G94 a credit note with no invoice can be left out",
+    "name": "W32-G93 a credit note with no invoice can be left out",
     "file": "app/Libraries/Accounting/OperationalReports/NetPositionReport.php",
     "find": "$orphans = $hideCredits || $states !== [] ? [] :",
     "replace": "$orphans = $states !== [] ? [] :",
@@ -1034,7 +1023,7 @@
     ]
   },
   {
-    "name": "W32-G95 the net of an invoice is read against the ledger of the customer",
+    "name": "W32-G94 the net of an invoice is read against the ledger of the customer",
     "file": "app/Libraries/Accounting/OperationalReports/NetPositionReport.php",
     "find": "$ledgerNet    = Amounts::add($ledgerNet, $figures === null ? Amounts::ZERO : Amounts::sub($figures->total, $figures->returned));",
     "replace": "$ledgerNet    = Amounts::add($ledgerNet, $figures === null ? Amounts::ZERO : $figures->total);",
@@ -1045,7 +1034,7 @@
     ]
   },
   {
-    "name": "W32-G96 an invoice is told by a state of return",
+    "name": "W32-G95 an invoice is told by a state of return",
     "file": "app/Libraries/Accounting/OperationalReports/NetPositionReport.php",
     "find": "|| ($return === ReturnState::Partial && in_array('partial_return', $states, true));",
     "replace": "|| false;",
@@ -1056,7 +1045,7 @@
     ]
   },
   {
-    "name": "W32-G97 the payments are nested under their invoice in detail",
+    "name": "W32-G96 the payments are nested under their invoice in detail",
     "file": "app/Libraries/Accounting/OperationalReports/NetPositionReport.php",
     "find": "$nested  = $details ? $this->nested($invoices) : [];",
     "replace": "$nested  = [];",
@@ -1067,7 +1056,7 @@
     ]
   },
   {
-    "name": "W32-G98 an invoice with no return is not listed",
+    "name": "W32-G97 an invoice with no return is not listed",
     "file": "app/Libraries/Accounting/OperationalReports/CrossReferenceReport.php",
     "find": "if ($listed !== []) {",
     "replace": "if (true) {",
@@ -1078,7 +1067,7 @@
     ]
   },
   {
-    "name": "W32-G99 a return is limited to its kind",
+    "name": "W32-G98 a return is limited to its kind",
     "file": "app/Libraries/Accounting/OperationalReports/CrossReferenceReport.php",
     "find": "static fn (ReportDocument $return): bool => $kind === null || $return->kind === $kind",
     "replace": "static fn (ReportDocument $return): bool => true",
@@ -1089,7 +1078,7 @@
     ]
   },
   {
-    "name": "W32-G100 what was taken back is read against the ledger of the customer",
+    "name": "W32-G99 what was taken back is read against the ledger of the customer",
     "file": "app/Libraries/Accounting/OperationalReports/CrossReferenceReport.php",
     "find": "$held     = Amounts::add($held, $figures === null ? Amounts::ZERO : $figures->returned);",
     "replace": "$held     = Amounts::add($held, $figures === null ? Amounts::ZERO : $figures->total);",
@@ -1100,7 +1089,7 @@
     ]
   },
   {
-    "name": "W32-G101 the operational reports are offered only to the module of the financial reports",
+    "name": "W32-G100 the operational reports are offered only to the module of the financial reports",
     "file": "app/Helpers/report_helper.php",
     "find": "if (! in_array('accounting_reports', $permissionIds, true)) {\n        return [];\n    }\n\n    $accountingOn ??=",
     "replace": "if (false) {\n        return [];\n    }\n\n    $accountingOn ??=",
@@ -1111,7 +1100,7 @@
     ]
   },
   {
-    "name": "W32-G102 the operational reports are offered only while accounting is on",
+    "name": "W32-G101 the operational reports are offered only while accounting is on",
     "file": "app/Helpers/report_helper.php",
     "find": "if (! $accountingOn) {\n        return [];\n    }\n\n    $groups = ['reports_sales'",
     "replace": "if (false) {\n        return [];\n    }\n\n    $groups = ['reports_sales'",
@@ -1122,7 +1111,7 @@
     ]
   },
   {
-    "name": "W32-G103 a link opens the first grouping the person may read",
+    "name": "W32-G102 a link opens the first grouping the person may read",
     "file": "app/Helpers/report_helper.php",
     "find": "if (in_array($permission, $permissionIds, true)) {\n                    $links[] =",
     "replace": "if (true) {\n                    $links[] =",

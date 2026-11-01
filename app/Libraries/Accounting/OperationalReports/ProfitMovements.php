@@ -37,7 +37,7 @@ final class ProfitMovements
             return [];
         }
 
-        $movements = $this->movements($scope, $from, $to, $itemId);
+        $movements = $this->movements($from, $to, $itemId);
 
         if ($movements === []) {
             return [];
@@ -98,10 +98,10 @@ final class ProfitMovements
     /**
      * @return list<object>
      */
-    private function movements(ReportScope $scope, ?string $from, string $to, ?int $itemId): array
+    private function movements(?string $from, string $to, ?int $itemId): array
     {
         $entries  = $this->db->prefixTable('accounting_stock_entries');
-        $where    = ['e.source_type = ?', 'e.entry_type = ?', "e.kind = 'posting'", 'r.entry_id IS NULL', 'e.entry_date <= ?', 'e.branch_id IN (' . implode(',', array_map('intval', $scope->ids)) . ')'];
+        $where    = ['e.source_type = ?', 'e.entry_type = ?', "e.kind = 'posting'", 'r.entry_id IS NULL', 'e.entry_date <= ?'];
         $bindings = [SalePostingBuilder::SOURCE_SALE, JournalEntryType::Cogs->value, $to];
 
         if ($from !== null) {
@@ -117,7 +117,7 @@ final class ProfitMovements
         return $this->db->query(
             "SELECT e.source_id AS sale_id, e.item_id, e.entry_date, SUM(e.quantity) AS quantity, SUM(e.value) AS value
              FROM {$entries} e
-             LEFT JOIN {$entries} r ON r.source_type = e.source_type AND r.source_id = e.source_id AND r.entry_type = e.entry_type AND r.revision = e.revision AND r.line_no = e.line_no AND r.kind = 'reversal'
+             LEFT JOIN {$entries} r ON r.source_type = e.source_type AND r.source_id = e.source_id AND r.entry_type = e.entry_type AND r.revision = e.revision AND r.line_no = e.line_no AND r.kind = 'reversal' AND r.entry_id <> e.entry_id
              WHERE " . implode(' AND ', $where) . '
              GROUP BY e.source_id, e.item_id, e.entry_date
              ORDER BY e.entry_date ASC, e.source_id ASC, e.item_id ASC',
