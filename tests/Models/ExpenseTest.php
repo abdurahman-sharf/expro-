@@ -495,7 +495,7 @@ class ExpenseTest extends CIUnitTestCase
 
         $expenseId = $this->storeExpense();
 
-        $this->closeThrough('2026-10-31');
+        $this->closeThrough(date('Y-m-d'));
 
         $this->assertFalse($this->expenses->delete_list([$expenseId], $this->clerkId));
         $this->assertSame(PostingError::PeriodClosed, $this->expenses->accountingFailure()->error);

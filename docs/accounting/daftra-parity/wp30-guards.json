@@ -200,8 +200,8 @@
   {
     "name": "G19 a record scope of an employee is all or own",
     "file": "app/Libraries/Roles/RoleService.php",
-    "find": "if (! in_array($scope, RecordScope::SCOPES, true)) {\n            throw new RoleException(RoleError::InvalidScope, 'A record scope is all or own.');\n        }\n\n        if ($this->db",
-    "replace": "if (false) {\n            throw new RoleException(RoleError::InvalidScope, 'A record scope is all or own.');\n        }\n\n        if ($this->db",
+    "find": "if (! in_array($scope, RecordScope::SCOPES, true)) {",
+    "replace": "if (false) {",
     "tests": [
       "--filter",
       "SetRecordScope_Requires",
@@ -367,8 +367,8 @@
   {
     "name": "G34 a role never makes anyone an administrator",
     "file": "app/Models/Employee.php",
-    "find": "if (!$this->has_grant($module, $person_id, true)) {",
-    "replace": "if (!$this->has_grant($module, $person_id)) {",
+    "find": "if (! $this->has_grant($module, $person_id, true)) {",
+    "replace": "if (! $this->has_grant($module, $person_id)) {",
     "tests": [
       "--filter",
       "IsAdmin",
@@ -707,8 +707,8 @@
   {
     "name": "G66 a list of sales with another employee sale is not cancelled",
     "file": "app/Models/Sale.php",
-    "find": "foreach ($sale_ids as $sale_id) {\n            if ($this->outsideRecordScope((int) $sale_id, $employee_id)) {\n                $this->accountingFailure = null;",
-    "replace": "foreach ([] as $sale_id) {\n            if ($this->outsideRecordScope((int) $sale_id, $employee_id)) {\n                $this->accountingFailure = null;",
+    "find": "foreach ($sale_ids as $saleId) {\n            if ($this->outsideRecordScope((int) $saleId, $employee_id)) {\n                $this->accountingFailure = null;",
+    "replace": "foreach ([] as $saleId) {\n            if ($this->outsideRecordScope((int) $saleId, $employee_id)) {\n                $this->accountingFailure = null;",
     "tests": [
       "--filter",
       "OwnRecords|AnotherEmployee|SeesEverything|SeesTheirOwn|OutsideRecordScope",
@@ -718,8 +718,8 @@
   {
     "name": "G67 a list of sales with another employee sale is not restored",
     "file": "app/Models/Sale.php",
-    "find": "foreach ($sale_ids as $sale_id) {\n            if ($this->outsideRecordScope((int) $sale_id, $employee_id)) {\n                return false;",
-    "replace": "foreach ([] as $sale_id) {\n            if ($this->outsideRecordScope((int) $sale_id, $employee_id)) {\n                return false;",
+    "find": "foreach ($sale_ids as $saleId) {\n            if ($this->outsideRecordScope((int) $saleId, $employee_id)) {\n                return false;",
+    "replace": "foreach ([] as $saleId) {\n            if ($this->outsideRecordScope((int) $saleId, $employee_id)) {\n                return false;",
     "tests": [
       "--filter",
       "OwnRecords|AnotherEmployee|SeesEverything|SeesTheirOwn|OutsideRecordScope",
@@ -1048,7 +1048,7 @@
   {
     "name": "G97 an own records employee is told the plain refusal",
     "file": "app/Controllers/Sales.php",
-    "find": "return (new RecordScope())->ownOnly((int)$this->session->get('person_id')) ? lang('Sales.not_authorized') : lang('Sales.branch_not_allowed');",
+    "find": "return (new RecordScope())->ownOnly((int) $this->session->get('person_id')) ? lang('Sales.not_authorized') : lang('Sales.branch_not_allowed');",
     "replace": "return lang('Sales.branch_not_allowed');",
     "tests": [
       "--filter",
@@ -1169,7 +1169,7 @@
   {
     "name": "G108 the collectors are cut to an own records employee",
     "file": "app/Libraries/Accounting/CustomerDocuments.php",
-    "find": "$scope   .= $mine === null ? '' : ' AND p.employee_id = ' . $mine;",
+    "find": "$scope .= $mine === null ? '' : ' AND p.employee_id = ' . $mine;",
     "replace": "",
     "tests": [
       "--filter",
@@ -1367,8 +1367,8 @@
   {
     "name": "G126 the form shows only the direct grants of an employee as ticked modules",
     "file": "app/Controllers/Employees.php",
-    "find": "$module->grant = $this->employee->hasDirectGrant($module->module_id, $person_info->person_id);",
-    "replace": "$module->grant = $this->employee->has_grant($module->module_id, $person_info->person_id);",
+    "find": "$module->grant      = $this->employee->hasDirectGrant($module->module_id, $personInfo->person_id);",
+    "replace": "$module->grant = $this->employee->has_grant($module->module_id, $personInfo->person_id);",
     "tests": [
       "--filter",
       "KeepsWhatARoleGives|DoesNotCopy",
@@ -1378,8 +1378,8 @@
   {
     "name": "G127 the form shows only the direct grants of an employee as ticked permissions",
     "file": "app/Controllers/Employees.php",
-    "find": "$permission->grant = $this->employee->hasDirectGrant($permission->permission_id, $person_info->person_id);",
-    "replace": "$permission->grant = $this->employee->has_grant($permission->permission_id, $person_info->person_id);",
+    "find": "$permission->grant         = $this->employee->hasDirectGrant($permission->permission_id, $personInfo->person_id);",
+    "replace": "$permission->grant = $this->employee->has_grant($permission->permission_id, $personInfo->person_id);",
     "tests": [
       "--filter",
       "KeepsWhatARoleGives|DoesNotCopy",
@@ -1400,8 +1400,8 @@
   {
     "name": "G129 the default location is saved after the employee",
     "file": "app/Controllers/Employees.php",
-    "find": "if ($this->request->getPost('default_location_present') !== null) {",
-    "replace": "if (false) {",
+    "find": "if ($requestedLocation !== null) {\n            (new DefaultLocations())->set(",
+    "replace": "if (false) {\n            (new DefaultLocations())->set(",
     "tests": [
       "--filter",
       "DefaultStockLocation",
@@ -1461,6 +1461,355 @@
       "--filter",
       "NamesThePermissionToManageRoles",
       "tests/Libraries/Accounting/SensitivePermissionsTest.php"
+    ]
+  },
+  {
+    "name": "G135 a return of another employee's sale is refused to an own records employee in the model",
+    "file": "app/Models/Sale.php",
+    "find": "if ($saleType === SALE_TYPE_RETURN && $returnOfSaleId !== null && $this->outsideRecordScope($returnOfSaleId, $employeeId)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RefusesAReturnOfAnotherEmployeesSale",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G136 a receipt number of another employee's sale is not valid for an own records employee",
+    "file": "app/Models/Sale.php",
+    "find": "return $this->exists((int) $pieces[1]) && ! $this->outsideRecordScope((int) $pieces[1]);",
+    "replace": "return $this->exists((int) $pieces[1]);",
+    "tests": [
+      "--filter",
+      "IsValidReceipt",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G137 an invoice number of another employee's sale is not found for an own records employee",
+    "file": "app/Models/Sale.php",
+    "find": "if ($saleInfo->getNumRows() > 0 && ! $this->outsideRecordScope((int) $saleInfo->getRow()->sale_id)) {",
+    "replace": "if ($saleInfo->getNumRows() > 0) {",
+    "tests": [
+      "--filter",
+      "IsValidReceipt",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G138 the suspended sales of a selected customer are cut to an own records employee",
+    "file": "app/Models/Sale.php",
+    "find": "' AND customer_id = ' . $customer_id . $mineOnly);",
+    "replace": "' AND customer_id = ' . $customer_id);",
+    "tests": [
+      "--filter",
+      "ForTheSelectedCustomerToo",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G139 the return origin of another employee's sale answers an own records employee as a missing one",
+    "file": "app/Controllers/Sales.php",
+    "find": "if ($this->sale->outsideRecordScope($saleId, (int) $this->session->get('person_id'))) {\n            return $this->scopeMessage();\n        }\n\n        $origin = $this->sale->getSummary($saleId);",
+    "replace": "$origin = $this->sale->getSummary($saleId);",
+    "tests": [
+      "--filter",
+      "testPostSetReturnOrigin_AnswersAnOwnRecordsEmployee",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G140 the register in return mode checks the branch of the sale it takes back",
+    "file": "app/Controllers/Sales.php",
+    "find": "if ($this->outsideBranchScope($originId)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testPostAdd_",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G141 the roles for the treasury scope are none before the migration of the roles has run",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "if (! RoleTables::exist($this->db, 'roles', 'role_permissions', 'employee_roles')) {\n            return [];\n        }\n\n        return $this->db->table('roles r')",
+    "replace": "return $this->db->table('roles r')",
+    "tests": [
+      "--filter",
+      "BeforeTheMigration",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G142 the employee form has no roles tab before the migration of the roles has run",
+    "file": "app/Controllers/Employees.php",
+    "find": "if (! RoleTables::complete(Database::connect())) {\n            return null;\n        }\n\n        return [",
+    "replace": "return [",
+    "tests": [
+      "--filter",
+      "BeforeTheMigration",
+      "tests/Controllers/EmployeesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G143 the roles tab link of the employee form is shown only when the tab exists",
+    "file": "app/Views/employees/form.php",
+    "find": "<?php if ($roles_tab !== null): ?>\n            <li class=\"nav-item\" role=\"presentation\">",
+    "replace": "<?php if (true): ?>\n            <li class=\"nav-item\" role=\"presentation\">",
+    "tests": [
+      "--filter",
+      "BeforeTheMigration",
+      "tests/Controllers/EmployeesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G144 the roles tab pane of the employee form is shown only when the tab exists",
+    "file": "app/Views/employees/form.php",
+    "find": "<?php if ($roles_tab !== null): ?>\n        <div class=\"tab-pane fade\" id=\"employee_roles_info\"",
+    "replace": "<?php if (true): ?>\n        <div class=\"tab-pane fade\" id=\"employee_roles_info\"",
+    "tests": [
+      "--filter",
+      "BeforeTheMigration",
+      "tests/Controllers/EmployeesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G145 the role grants ask again whether the tables exist once flushed",
+    "file": "app/Libraries/Roles/RoleGrants.php",
+    "find": "            $this->memo      = [];\n            $this->available = null;\n",
+    "replace": "            $this->memo      = [];\n",
+    "tests": [
+      "--filter",
+      "AsksAgain",
+      "tests/Libraries/Roles/RoleGrantsTest.php"
+    ]
+  },
+  {
+    "name": "G146 the record scope asks again whether the tables exist once flushed",
+    "file": "app/Libraries/Roles/RecordScope.php",
+    "find": "            $this->memo      = [];\n            $this->available = null;\n",
+    "replace": "            $this->memo      = [];\n",
+    "tests": [
+      "--filter",
+      "AsksAgain",
+      "tests/Libraries/Roles/RecordScopeTest.php"
+    ]
+  },
+  {
+    "name": "G147 the default location is none before the migration of the roles has run",
+    "file": "app/Libraries/Roles/DefaultLocations.php",
+    "find": "if ($personId < 1 || ! RoleTables::exist($this->db, 'employee_default_locations')) {",
+    "replace": "if ($personId < 1) {",
+    "tests": [
+      "--filter",
+      "BeforeTheMigration",
+      "tests/Libraries/Roles/DefaultLocationsTest.php"
+    ]
+  },
+  {
+    "name": "G148 deleting an employee does not touch the tables of roles before the migration has run",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "if ($ids === [] || ! RoleTables::exist($this->db, 'employee_roles', 'employee_record_scopes')) {",
+    "replace": "if ($ids === []) {",
+    "tests": [
+      "--filter",
+      "BeforeTheMigration",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G149 a new stock location permission does not touch the roles before the migration has run",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "if (! RoleTables::exist($this->db, 'role_permissions')) {\n            return;\n        }\n\n        $this->db->query(",
+    "replace": "$this->db->query(",
+    "tests": [
+      "--filter",
+      "BeforeTheMigration",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G150 a roles scope of a treasury allows nobody before the migration of the roles has run",
+    "file": "app/Libraries/Accounting/TreasuryScopes.php",
+    "find": "if ($roleIds === [] || ! RoleTables::exist($this->db, 'employee_roles', 'roles')) {",
+    "replace": "if ($roleIds === []) {",
+    "tests": [
+      "--filter",
+      "BeforeTheMigration",
+      "tests/Libraries/Accounting/TreasuryScopesTest.php"
+    ]
+  },
+  {
+    "name": "G151 the roles and the record scope are checked before an employee is saved",
+    "file": "app/Controllers/Employees.php",
+    "find": "            $this->roles->checkAssignment($targetId, $requestedRoles['roles'], $requestedRoles['scope'], $actorId);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "SavesNothingOf|ChangesNothingOf",
+      "tests/Controllers/EmployeesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G152 the default location is checked before an employee is saved",
+    "file": "app/Controllers/Employees.php",
+    "find": "            (new DefaultLocations())->check($requestedLocation['locationId']);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "SavesNothingOf|ChangesNothingOf",
+      "tests/Controllers/EmployeesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G153 checking an assignment needs the permission to manage roles",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "public function checkAssignment(?int $personId, array $roleIds, string $scope, ?int $actorId): void\n    {\n        $this->requireManage($actorId);\n",
+    "replace": "public function checkAssignment(?int $personId, array $roleIds, string $scope, ?int $actorId): void\n    {\n",
+    "tests": [
+      "--filter",
+      "CheckAssignment",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G154 checking an assignment refuses a role that does not exist",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "        $wanted = $this->existingRoleIds($roleIds);\n        $before = $personId === null",
+    "replace": "        $wanted = array_map('intval', $roleIds);\n        $before = $personId === null",
+    "tests": [
+      "--filter",
+      "CheckAssignment",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G155 an employee not yet saved holds no role when an assignment is checked",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "$before = $personId === null ? [] : $this->roleIdsOf($personId);",
+    "replace": "$before = [];",
+    "tests": [
+      "--filter",
+      "CheckAssignment",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G156 checking an assignment refuses a permission the actor does not hold",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "        $this->assertMayGrant($actorId, $this->permissionsOfRoles(array_values(array_diff($wanted, $before))));\n        $this->assertRecordScope($scope);",
+    "replace": "        $this->assertRecordScope($scope);",
+    "tests": [
+      "--filter",
+      "CheckAssignment",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G157 checking an assignment refuses an unknown record scope",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "        $this->assertMayGrant($actorId, $this->permissionsOfRoles(array_values(array_diff($wanted, $before))));\n        $this->assertRecordScope($scope);",
+    "replace": "        $this->assertMayGrant($actorId, $this->permissionsOfRoles(array_values(array_diff($wanted, $before))));",
+    "tests": [
+      "--filter",
+      "CheckAssignment",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G158 checking a default location refuses a location that does not exist",
+    "file": "app/Libraries/Roles/DefaultLocations.php",
+    "find": "if ($locationId !== null && $this->db->table('stock_locations')->where(['location_id' => $locationId, 'deleted' => 0])->countAllResults() === 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testCheck_|SavesNothingOf",
+      "tests/Libraries/Roles/DefaultLocationsTest.php"
+    ]
+  },
+  {
+    "name": "G159 the permission catalog leaves out the permission that is the module itself",
+    "file": "app/Libraries/Roles/PermissionCatalog.php",
+    "find": "            ->where('p.permission_id !=', 'p.module_id', false)\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Roles/PermissionCatalogTest.php"
+    ]
+  },
+  {
+    "name": "G160 the permission catalog keeps the permissions of a module in the order of their names",
+    "file": "app/Libraries/Roles/PermissionCatalog.php",
+    "find": "->orderBy('p.permission_id', 'ASC')",
+    "replace": "->orderBy('p.permission_id', 'DESC')",
+    "tests": [
+      "tests/Libraries/Roles/PermissionCatalogTest.php"
+    ]
+  },
+  {
+    "name": "G161 the permission catalog never lists the branch scope permissions",
+    "file": "app/Libraries/Roles/PermissionCatalog.php",
+    "find": "if (in_array($permission->permission_id, [BranchGuard::ALL_BRANCHES, BranchGuard::SCOPE_MANAGE], true)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Roles/PermissionCatalogTest.php"
+    ]
+  },
+  {
+    "name": "G162 the permission catalog marks the sensitive permissions",
+    "file": "app/Libraries/Roles/PermissionCatalog.php",
+    "find": "'sensitive'     => in_array($permission->permission_id, AccountingGuard::SENSITIVE, true),",
+    "replace": "'sensitive'     => false,",
+    "tests": [
+      "tests/Libraries/Roles/PermissionCatalogTest.php"
+    ]
+  },
+  {
+    "name": "G163 the permission catalog lists the modules in the order of the menu",
+    "file": "app/Libraries/Roles/PermissionCatalog.php",
+    "find": "$this->db->table('modules')->orderBy('sort', 'ASC')",
+    "replace": "$this->db->table('modules')->orderBy('module_id', 'ASC')",
+    "tests": [
+      "tests/Libraries/Roles/PermissionCatalogTest.php"
+    ]
+  },
+  {
+    "name": "G164 the permission catalog does not offer a module that is a forbidden permission",
+    "file": "app/Libraries/Roles/PermissionCatalog.php",
+    "find": "'selectable'  => ! in_array($module->module_id, RoleGrants::forbidden(), true),",
+    "replace": "'selectable'  => true,",
+    "tests": [
+      "tests/Libraries/Roles/PermissionCatalogTest.php"
+    ]
+  },
+  {
+    "name": "G165 the permission catalog names a permission with no language key after its id",
+    "file": "app/Libraries/Roles/PermissionCatalog.php",
+    "find": "return $label === '' || $label === $key ? ucwords(str_replace('_', ' ', $exploded[1] ?? $permissionId)) : $label;",
+    "replace": "return $label;",
+    "tests": [
+      "tests/Libraries/Roles/PermissionCatalogTest.php"
+    ]
+  },
+  {
+    "name": "G166 the register starts only in a stock location the employee may sell from (sales screen tests)",
+    "file": "app/Models/Stock_location.php",
+    "find": "if ($own !== null && $this->is_allowed_location($own, $module_id, $byBranch)) {",
+    "replace": "if ($own !== null) {",
+    "tests": [
+      "--filter",
+      "testGetIndex_Starts",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G167 the receiving screen starts only in a stock location the employee may receive into (receiving screen tests)",
+    "file": "app/Models/Stock_location.php",
+    "find": "if ($own !== null && $this->is_allowed_location($own, $module_id, $byBranch)) {",
+    "replace": "if ($own !== null) {",
+    "tests": [
+      "--filter",
+      "testGetIndex_Starts",
+      "tests/Controllers/ReceivingsControllerTest.php"
     ]
   }
 ]
