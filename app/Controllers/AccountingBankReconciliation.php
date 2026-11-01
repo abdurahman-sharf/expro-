@@ -53,12 +53,12 @@ class AccountingBankReconciliation extends AccountingController
             $unmatched  = $this->bank->lines($id, $this->employeeId(), 'unmatched', limit: 1)['total'];
             $closings   = array_values(array_filter($this->bank->closings($id, $this->employeeId()), static fn (object $closing): bool => $closing->status === 'closed'));
             $accounts[] = [
-                'treasury'       => $treasury,
-                'bank'           => $this->bankName($treasury),
-                'lacks_details'  => TreasuryService::lacksBankDetails($treasury),
-                'balance'        => $this->formatAmount($this->treasuries->position($id)->balance),
-                'unmatched'      => $unmatched,
-                'closed_through' => $closings === [] ? '' : $this->formatDate((string) $closings[0]->closed_through),
+                'treasury'      => $treasury,
+                'bank'          => $this->bankName($treasury),
+                'lacksDetails'  => TreasuryService::lacksBankDetails($treasury),
+                'balance'       => $this->formatAmount($this->treasuries->position($id)->balance),
+                'unmatched'     => $unmatched,
+                'closedThrough' => $closings === [] ? '' : $this->formatDate((string) $closings[0]->closed_through),
             ];
         }
 
@@ -80,19 +80,19 @@ class AccountingBankReconciliation extends AccountingController
         }
 
         return view('accounting_bank/account', [
-            'treasury'      => $treasury,
-            'bank'          => $this->bankName($treasury),
-            'lacks_details' => TreasuryService::lacksBankDetails($treasury),
-            'balance'       => $this->formatAmount($this->treasuries->position($treasuryId)->balance),
-            'statements'    => $this->bank->statements($treasuryId, $this->employeeId()),
-            'closings'      => $closings,
-            'latest'        => $latest,
-            'window'        => $this->bank->windowDays(),
-            'window_min'    => BankMatchSettings::MIN,
-            'window_max'    => BankMatchSettings::MAX,
-            'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'          => fn (?string $value): string => $this->formatDate($value),
-            'when'          => fn (?string $value): string => $this->formatDateTime($value),
+            'treasury'     => $treasury,
+            'bank'         => $this->bankName($treasury),
+            'lacksDetails' => TreasuryService::lacksBankDetails($treasury),
+            'balance'      => $this->formatAmount($this->treasuries->position($treasuryId)->balance),
+            'statements'   => $this->bank->statements($treasuryId, $this->employeeId()),
+            'closings'     => $closings,
+            'latest'       => $latest,
+            'window'       => $this->bank->windowDays(),
+            'windowMin'    => BankMatchSettings::MIN,
+            'windowMax'    => BankMatchSettings::MAX,
+            'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'         => fn (?string $value): string => $this->formatDate($value),
+            'when'         => fn (?string $value): string => $this->formatDateTime($value),
         ]);
     }
 
@@ -101,12 +101,12 @@ class AccountingBankReconciliation extends AccountingController
         $treasury = $this->visible($treasuryId);
 
         return view('accounting_bank/import', [
-            'treasury'    => $treasury,
-            'max_mb'      => StatementParser::MAX_BYTES / 1048576,
-            'max_rows'    => StatementParser::MAX_ROWS,
-            'delimiters'  => array_keys(StatementMapping::DELIMITERS),
-            'date_orders' => StatementMapping::DATE_ORDERS,
-            'max_column'  => StatementMapping::MAX_COLUMN,
+            'treasury'   => $treasury,
+            'maxMb'      => StatementParser::MAX_BYTES / 1048576,
+            'maxRows'    => StatementParser::MAX_ROWS,
+            'delimiters' => array_keys(StatementMapping::DELIMITERS),
+            'dateOrders' => StatementMapping::DATE_ORDERS,
+            'maxColumn'  => StatementMapping::MAX_COLUMN,
         ]);
     }
 
@@ -189,12 +189,12 @@ class AccountingBankReconciliation extends AccountingController
         $treasury = $this->visible($treasuryId);
 
         return view('accounting_bank/matches', [
-            'treasury'      => $treasury,
-            'matches'       => $this->bank->matches($treasuryId, $this->employeeId()),
-            'journal_links' => $this->can('accounting_journals'),
-            'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'          => fn (?string $value): string => $this->formatDate($value),
-            'number'        => fn (object $line): string => $this->displayNumber((string) $line->series, (string) $line->number),
+            'treasury'     => $treasury,
+            'matches'      => $this->bank->matches($treasuryId, $this->employeeId()),
+            'journalLinks' => $this->can('accounting_journals'),
+            'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'         => fn (?string $value): string => $this->formatDate($value),
+            'number'       => fn (object $line): string => $this->displayNumber((string) $line->series, (string) $line->number),
         ]);
     }
 
@@ -209,15 +209,15 @@ class AccountingBankReconciliation extends AccountingController
         }
 
         return view('accounting_bank/match', [
-            'treasury'      => $treasury,
-            'line'          => $result['line'],
-            'candidates'    => $result['lines'],
-            'more'          => $result['more'],
-            'window'        => $this->bank->windowDays(),
-            'journal_links' => $this->can('accounting_journals'),
-            'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'          => fn (?string $value): string => $this->formatDate($value),
-            'number'        => fn (object $candidate): string => $this->displayNumber((string) $candidate->series, (string) $candidate->number),
+            'treasury'     => $treasury,
+            'line'         => $result['line'],
+            'candidates'   => $result['lines'],
+            'more'         => $result['more'],
+            'window'       => $this->bank->windowDays(),
+            'journalLinks' => $this->can('accounting_journals'),
+            'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'         => fn (?string $value): string => $this->formatDate($value),
+            'number'       => fn (object $candidate): string => $this->displayNumber((string) $candidate->series, (string) $candidate->number),
         ]);
     }
 
@@ -255,13 +255,13 @@ class AccountingBankReconciliation extends AccountingController
         $treasury = $this->visible($treasuryId);
 
         return view('accounting_bank/suggestions', [
-            'treasury'      => $treasury,
-            'suggestions'   => $this->bank->suggestions($treasuryId, $this->employeeId()),
-            'window'        => $this->bank->windowDays(),
-            'journal_links' => $this->can('accounting_journals'),
-            'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'          => fn (?string $value): string => $this->formatDate($value),
-            'number'        => fn (object $candidate): string => $this->displayNumber((string) $candidate->series, (string) $candidate->number),
+            'treasury'     => $treasury,
+            'suggestions'  => $this->bank->suggestions($treasuryId, $this->employeeId()),
+            'window'       => $this->bank->windowDays(),
+            'journalLinks' => $this->can('accounting_journals'),
+            'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'         => fn (?string $value): string => $this->formatDate($value),
+            'number'       => fn (object $candidate): string => $this->displayNumber((string) $candidate->series, (string) $candidate->number),
         ]);
     }
 
@@ -285,16 +285,16 @@ class AccountingBankReconciliation extends AccountingController
         }
 
         return view('accounting_bank/report', [
-            'treasury'      => $treasury,
-            'figures'       => $figures,
-            'as_of'         => $asOf,
-            'balance_input' => $balance,
-            'error'         => $error,
-            'journal_links' => $this->can('accounting_journals'),
-            'list_limit'    => ReconciliationReport::LIST_LIMIT,
-            'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'          => fn (?string $value): string => $this->formatDate($value),
-            'number'        => fn (object $line): string => $this->displayNumber((string) $line->series, (string) $line->number),
+            'treasury'     => $treasury,
+            'figures'      => $figures,
+            'asOf'         => $asOf,
+            'balanceInput' => $balance,
+            'error'        => $error,
+            'journalLinks' => $this->can('accounting_journals'),
+            'listLimit'    => ReconciliationReport::LIST_LIMIT,
+            'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'         => fn (?string $value): string => $this->formatDate($value),
+            'number'       => fn (object $line): string => $this->displayNumber((string) $line->series, (string) $line->number),
         ]);
     }
 

@@ -2,7 +2,7 @@
 /**
  * @var object       $treasury
  * @var list<object> $matches
- * @var bool         $journal_links
+ * @var bool         $journalLinks
  * @var Closure      $amount
  * @var Closure      $date
  * @var Closure      $number
@@ -67,7 +67,7 @@ $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                                 <?php foreach ($match->journal_lines as $line): ?>
                                     <div>
                                         <?php $label = esc($number($line)); ?>
-                                        <?= $journal_links ? '<a href="' . esc(base_url('accounting_journals/view/' . (int) $line->journal_id), 'attr') . '">' . $label . '</a>' : $label ?>
+                                        <?= $journalLinks ? '<a href="' . esc(base_url('accounting_journals/view/' . (int) $line->journal_id), 'attr') . '">' . $label . '</a>' : $label ?>
                                         · <?= esc($date((string) $line->journal_date)) ?> · <?= $amount((string) $line->amount) ?>
                                         <?php if ($line->status === 'reversed'): ?><span class="badge text-bg-secondary"><?= lang('Accounting.state_reversed') ?></span><?php endif; ?>
                                     </div>

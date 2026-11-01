@@ -1,18 +1,18 @@
 <?php
 /**
  * @var object       $treasury
- * @var float|int    $max_mb
- * @var int          $max_rows
+ * @var float|int    $maxMb
+ * @var int          $maxRows
  * @var list<string> $delimiters
- * @var list<string> $date_orders
- * @var int          $max_column
+ * @var list<string> $dateOrders
+ * @var int          $maxColumn
  */
 $id    = (int) $treasury->treasury_id;
 $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
-$field = static function (string $name, string $label, int $default, bool $required) use ($max_column): string {
+$field = static function (string $name, string $label, int $default, bool $required) use ($maxColumn): string {
     $options = $required ? '' : '<option value="">' . esc(lang('Accounting_bank.column_none')) . '</option>';
 
-    for ($column = 1; $column <= $max_column; $column++) {
+    for ($column = 1; $column <= $maxColumn; $column++) {
         $options .= '<option value="' . $column . '"' . ($column === $default ? ' selected' : '') . '>' . $column . '</option>';
     }
 
@@ -58,7 +58,7 @@ $field = static function (string $name, string $label, int $default, bool $requi
 
 <div class="container-fluid py-3" id="bank_import">
     <h1 class="h4"><?= lang('Accounting_bank.import_title', [esc($treasury->name)]) ?></h1>
-    <p class="text-body-secondary"><?= lang('Accounting_bank.import_note', [$max_mb, $max_rows]) ?></p>
+    <p class="text-body-secondary"><?= lang('Accounting_bank.import_note', [$maxMb, $maxRows]) ?></p>
 
     <?= form_open_multipart('accounting_treasuries/bank/' . $id . '/import', ['id' => 'bank_import_form', 'class' => 'app-form']) ?>
         <div class="row g-3 mb-3">
@@ -84,7 +84,7 @@ $field = static function (string $name, string $label, int $default, bool $requi
             <div class="col-sm-6 col-md-4">
                 <label class="form-label" for="date_order"><?= lang('Accounting_bank.date_order') ?></label>
                 <select class="form-select form-select-sm" name="date_order" id="date_order">
-                    <?php foreach ($date_orders as $order): ?>
+                    <?php foreach ($dateOrders as $order): ?>
                         <option value="<?= esc($order, 'attr') ?>"><?= lang('Accounting_bank.date_order_' . $order) ?></option>
                     <?php endforeach; ?>
                 </select>

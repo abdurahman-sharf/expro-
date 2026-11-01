@@ -2,11 +2,11 @@
 /**
  * @var object                $treasury
  * @var ReconciliationFigures $figures
- * @var string                $as_of
- * @var string                $balance_input
+ * @var string                $asOf
+ * @var string                $balanceInput
  * @var string                $error
- * @var bool                  $journal_links
- * @var int                   $list_limit
+ * @var bool                  $journalLinks
+ * @var int                   $listLimit
  * @var Closure               $amount
  * @var Closure               $date
  * @var Closure               $number
@@ -16,10 +16,10 @@ use App\Libraries\Accounting\Bank\ReconciliationFigures;
 
 $id      = (int) $treasury->treasury_id;
 $flags   = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
-$journal = static function (object $line) use ($journal_links, $number): string {
+$journal = static function (object $line) use ($journalLinks, $number): string {
     $label = esc($number($line));
 
-    return $journal_links ? '<a href="' . esc(base_url('accounting_journals/view/' . (int) $line->journal_id), 'attr') . '">' . $label . '</a>' : $label;
+    return $journalLinks ? '<a href="' . esc(base_url('accounting_journals/view/' . (int) $line->journal_id), 'attr') . '">' . $label . '</a>' : $label;
 };
 ?>
 
@@ -58,11 +58,11 @@ $journal = static function (object $line) use ($journal_links, $number): string 
     <form method="get" class="row g-2 align-items-end mb-3 print_hide" id="bank_report_form">
         <div class="col-auto">
             <label class="form-label" for="as_of"><?= lang('Accounting_bank.as_of') ?></label>
-            <input type="date" class="form-control form-control-sm" name="as_of" id="as_of" value="<?= esc($as_of, 'attr') ?>">
+            <input type="date" class="form-control form-control-sm" name="as_of" id="as_of" value="<?= esc($asOf, 'attr') ?>">
         </div>
         <div class="col-auto">
             <label class="form-label" for="statement_balance"><?= lang('Accounting_bank.statement_balance_on_date') ?></label>
-            <input type="text" class="form-control form-control-sm" dir="ltr" name="statement_balance" id="statement_balance" inputmode="decimal" autocomplete="off" value="<?= esc($balance_input, 'attr') ?>">
+            <input type="text" class="form-control form-control-sm" dir="ltr" name="statement_balance" id="statement_balance" inputmode="decimal" autocomplete="off" value="<?= esc($balanceInput, 'attr') ?>">
         </div>
         <div class="col-auto"><button type="submit" class="btn btn-outline-primary btn-sm"><?= lang('Accounting_bank.show') ?></button></div>
     </form>
@@ -121,9 +121,9 @@ $journal = static function (object $line) use ($journal_links, $number): string 
 
     <?php if ($figures->reconciled()): ?>
         <form id="bank_close_form" class="print_hide mb-4">
-            <input type="hidden" name="through" value="<?= esc($as_of, 'attr') ?>">
+            <input type="hidden" name="through" value="<?= esc($asOf, 'attr') ?>">
             <input type="hidden" name="statement_balance" value="<?= esc((string) $figures->statementBalance, 'attr') ?>">
-            <button type="submit" class="btn btn-primary btn-sm" id="bank_close_submit"><span class="bi bi-lock" aria-hidden="true">&nbsp;</span><?= lang('Accounting_bank.close_reconciliation', [esc($date($as_of))]) ?></button>
+            <button type="submit" class="btn btn-primary btn-sm" id="bank_close_submit"><span class="bi bi-lock" aria-hidden="true">&nbsp;</span><?= lang('Accounting_bank.close_reconciliation', [esc($date($asOf))]) ?></button>
             <span class="small text-body-secondary"><?= lang('Accounting_bank.close_note') ?></span>
         </form>
     <?php endif; ?>
@@ -174,8 +174,8 @@ $journal = static function (object $line) use ($journal_links, $number): string 
         </div>
     <?php endif; ?>
 
-    <?php if (max($figures->unmatchedStatement['count'], $figures->outstandingBook['count'], $figures->carriedBook['count']) > $list_limit): ?>
-        <p class="small text-body-secondary"><?= lang('Accounting_bank.list_limit', [$list_limit]) ?></p>
+    <?php if (max($figures->unmatchedStatement['count'], $figures->outstandingBook['count'], $figures->carriedBook['count']) > $listLimit): ?>
+        <p class="small text-body-secondary"><?= lang('Accounting_bank.list_limit', [$listLimit]) ?></p>
     <?php endif; ?>
 </div>
 

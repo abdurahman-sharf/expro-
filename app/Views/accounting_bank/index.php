@@ -38,7 +38,7 @@
                         <tr data-treasury-id="<?= (int) $treasury->treasury_id ?>">
                             <td>
                                 <?= esc($treasury->name) ?>
-                                <?php if ($account['lacks_details']): ?>
+                                <?php if ($account['lacksDetails']): ?>
                                     <div><span class="badge text-bg-warning bank-details-missing" title="<?= esc(lang('Accounting_treasuries.bank_details_missing_hint'), 'attr') ?>"><?= lang('Accounting_treasuries.bank_details_missing') ?></span></div>
                                 <?php endif; ?>
                             </td>
@@ -51,7 +51,7 @@
                             <td><?= esc($treasury->branch_code) ?></td>
                             <td><bdi dir="ltr"><?= esc($account['balance']) ?></bdi></td>
                             <td><?= (int) $account['unmatched'] ?></td>
-                            <td><?= esc($account['closed_through']) ?></td>
+                            <td><?= esc($account['closedThrough']) ?></td>
                             <td class="text-end"><a class="btn btn-outline-primary btn-sm" href="<?= esc(base_url('accounting_treasuries/bank/' . (int) $treasury->treasury_id), 'attr') ?>"><?= lang('Accounting_bank.open') ?></a></td>
                         </tr>
                     <?php endforeach; ?>

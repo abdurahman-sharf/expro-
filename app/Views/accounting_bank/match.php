@@ -5,7 +5,7 @@
  * @var list<object> $candidates
  * @var bool         $more
  * @var int          $window
- * @var bool         $journal_links
+ * @var bool         $journalLinks
  * @var Closure      $amount
  * @var Closure      $date
  * @var Closure      $number
@@ -104,7 +104,7 @@ $flags   = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                                 <td><?= esc($date((string) $candidate->journal_date)) ?></td>
                                 <td>
                                     <?php $label = esc($number($candidate)); ?>
-                                    <?= $journal_links ? '<a href="' . esc(base_url('accounting_journals/view/' . (int) $candidate->journal_id), 'attr') . '">' . $label . '</a>' : $label ?>
+                                    <?= $journalLinks ? '<a href="' . esc(base_url('accounting_journals/view/' . (int) $candidate->journal_id), 'attr') . '">' . $label . '</a>' : $label ?>
                                     <?php if ($candidate->status === 'reversed'): ?><span class="badge text-bg-secondary"><?= lang('Accounting.state_reversed') ?></span><?php endif; ?>
                                 </td>
                                 <td><?= esc($candidate->description) ?></td>

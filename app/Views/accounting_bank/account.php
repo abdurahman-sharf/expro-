@@ -2,14 +2,14 @@
 /**
  * @var object       $treasury
  * @var string       $bank
- * @var bool         $lacks_details
+ * @var bool         $lacksDetails
  * @var string       $balance
  * @var list<object> $statements
  * @var list<object> $closings
  * @var int|null     $latest
  * @var int          $window
- * @var int          $window_min
- * @var int          $window_max
+ * @var int          $windowMin
+ * @var int          $windowMax
  * @var Closure      $amount
  * @var Closure      $date
  * @var Closure      $when
@@ -73,7 +73,7 @@ $base = base_url('accounting_treasuries/bank/' . $id);
             <?php if (trim((string) ($treasury->account_number ?? '')) !== ''): ?>
                 · <bdi dir="ltr"><?= esc($treasury->account_number) ?></bdi>
             <?php endif; ?>
-            <?php if ($lacks_details): ?>
+            <?php if ($lacksDetails): ?>
                 <span class="badge text-bg-warning bank-details-missing"><?= lang('Accounting_treasuries.bank_details_missing') ?></span>
             <?php endif; ?>
         </dd>
@@ -164,7 +164,7 @@ $base = base_url('accounting_treasuries/bank/' . $id);
     <form id="bank_window_form" class="row g-2 align-items-end mb-2">
         <div class="col-auto">
             <label class="form-label" for="bank_window_days"><?= lang('Accounting_bank.window_days') ?></label>
-            <input type="number" class="form-control form-control-sm" id="bank_window_days" name="days" min="<?= (int) $window_min ?>" max="<?= (int) $window_max ?>" value="<?= (int) $window ?>">
+            <input type="number" class="form-control form-control-sm" id="bank_window_days" name="days" min="<?= (int) $windowMin ?>" max="<?= (int) $windowMax ?>" value="<?= (int) $window ?>">
         </div>
         <div class="col-auto"><button type="submit" class="btn btn-outline-primary btn-sm"><?= lang('Common.submit') ?></button></div>
     </form>

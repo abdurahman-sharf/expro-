@@ -3,7 +3,7 @@
  * @var object                                                                  $treasury
  * @var list<array{line: object, candidates: list<object>, confidence: string}> $suggestions
  * @var int                                                                     $window
- * @var bool                                                                    $journal_links
+ * @var bool                                                                    $journalLinks
  * @var Closure                                                                 $amount
  * @var Closure                                                                 $date
  * @var Closure                                                                 $number
@@ -62,7 +62,7 @@ $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                         <li class="list-group-item d-flex flex-wrap gap-2 align-items-center">
                             <?= esc($date((string) $candidate->journal_date)) ?>
                             <?php $label = esc($number($candidate)); ?>
-                            <?= $journal_links ? '<a href="' . esc(base_url('accounting_journals/view/' . (int) $candidate->journal_id), 'attr') . '">' . $label . '</a>' : $label ?>
+                            <?= $journalLinks ? '<a href="' . esc(base_url('accounting_journals/view/' . (int) $candidate->journal_id), 'attr') . '">' . $label . '</a>' : $label ?>
                             <span><?= esc($candidate->description) ?></span>
                             <?php if ($candidate->hint === 'reference'): ?><span class="badge text-bg-primary"><?= lang('Accounting_bank.hint_reference') ?></span><?php endif; ?>
                             <?php if ($candidate->hint === 'description'): ?><span class="badge text-bg-info"><?= lang('Accounting_bank.hint_description') ?></span><?php endif; ?>

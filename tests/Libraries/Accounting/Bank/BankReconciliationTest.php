@@ -243,7 +243,10 @@ class BankReconciliationTest extends CIUnitTestCase
         $this->importStatement($this->statementText($twice));
 
         $this->assertSame(2, $this->lineCount());
-        $this->assertSame(ImportResult::DUPLICATE_LINES, $this->importStatement($this->statementText([...$twice, ['2026-03-06', 'Other', '1.00', '', 'O']]), name: 'again.csv')->status === ImportResult::IMPORTED ? ImportResult::DUPLICATE_LINES : 'unexpected');
+
+        $again = $this->importStatement($this->statementText([...$twice, ['2026-03-06', 'Other', '1.00', '', 'O']]), name: 'again.csv');
+
+        $this->assertSame([ImportResult::IMPORTED, 3, 1, 2], [$again->status, $again->rowCount, $again->imported, $again->duplicates]);
         $this->assertSame(3, $this->lineCount());
 
         $third = $this->importStatement($this->statementText([...$twice, ['2026-03-05', 'Card fee', '', '1.50', 'FEE']]), name: 'three.csv');
@@ -1371,5 +1374,49 @@ class BankReconciliationTest extends CIUnitTestCase
 
         $this->assertCount(6, $all['lines']);
         $this->assertFalse($all['more']);
+    }
+
+    public function testReport_LeavesADraftJournalOutOfTheBalanceTheOpenLinesTheSuggestionsAndTheChoiceList(): void
+    {
+        $posted  = $this->bookLine('100.00', '2026-03-10', 'Posted deposit');
+        $account = (int) $this->bankTreasuries->accountOf($this->bankId);
+        $draft   = (new JournalService())->saveDraft(['date' => '2026-03-10', 'description' => 'Draft deposit', 'lines' => [
+            ['account_id' => $account, 'debit' => '77.00', 'credit' => ''],
+            ['account_id' => $this->accountId('opening_balance'), 'debit' => '', 'credit' => '77.00'],
+        ]], null);
+        $this->importStatement($this->statementText([['2026-03-10', 'Draft amount', '77.00', '', 'D']]));
+
+        $report = $this->bank->report($this->bankId, '2026-03-31', null, $this->bankClerk);
+        $choice = $this->bank->linesToMatch($this->bankId, $this->statementLineId('Draft amount'), $this->bankClerk);
+        $ids    = static fn (array $lines): array => array_map(static fn (object $line): int => (int) $line->line_id, $lines);
+
+        $this->assertSame('100.0000', $report->bookBalance);
+        $this->assertSame($this->bankTreasuries->position($this->bankId)->balance, $report->bookBalance);
+        $this->assertSame([$posted], $ids($report->bookLines));
+        $this->assertSame(1, $report->outstandingBook['count']);
+        $this->assertSame([$posted], $ids($choice['lines']));
+        $this->assertSame([], $this->bank->suggestions($this->bankId, $this->bankClerk));
+        $this->assertNotSame($posted, $this->lineOf($draft, $account));
+    }
+
+    public function testImport_KeepsTheChecksumAndTheKnownLinesPerBankAccount(): void
+    {
+        $second = $this->openBank();
+        $fee    = ['2026-03-01', 'Monthly fee', '', '5.00', 'FEE'];
+
+        $first = $this->importStatement($this->statementText([$fee]));
+        $same  = $this->importStatement($this->statementText([$fee]), $second);
+
+        $this->assertSame([ImportResult::IMPORTED, ImportResult::IMPORTED], [$first->status, $same->status]);
+
+        $wider = $this->importStatement($this->statementText([$fee, ['2026-03-02', 'Transfer', '10.00', '', 'T']]), $this->openBank());
+
+        $this->assertSame([2, 0], [$wider->imported, $wider->duplicates]);
+
+        $overlap = $this->importStatement($this->statementText([$fee, ['2026-03-03', 'Interest', '1.00', '', 'I']]), $second);
+
+        $this->assertSame([1, 1], [$overlap->imported, $overlap->duplicates]);
+        $this->assertSame([1, 2], [$this->lineCount(), $this->lineCount($second)]);
+        $this->assertSame(1, $this->accountingDb()->table('bank_statements')->where('treasury_id', $this->bankId)->countAllResults());
     }
 }

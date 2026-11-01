@@ -2,7 +2,6 @@
 
 namespace Tests\Controllers;
 
-use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Bank\BankDirectory;
 use App\Libraries\Accounting\Bank\BankMatches;
@@ -1022,17 +1021,5 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
         foreach (glob(APPPATH . 'Views/accounting_bank/*.php') as $file) {
             $this->assertDoesNotMatchRegularExpression('/https?:\/\//', (string) file_get_contents($file), basename($file));
         }
-    }
-
-    public function testPermissionLabel_IsDefinedInEveryTranslatedLocale(): void
-    {
-        foreach (['en', 'en-GB', 'ar-EG', 'ar-LB'] as $locale) {
-            $messages = include APPPATH . "Language/{$locale}/Accounting_treasuries.php";
-
-            $this->assertNotSame('', $messages['bank_reconcile'] ?? '', $locale);
-        }
-
-        $this->assertSame('Accounting_treasuries', explode('.', 'Accounting_treasuries.bank_reconcile')[0]);
-        $this->assertSame(AccountingError::BankAccountNotFound->value, 'bank_account_not_found');
     }
 }

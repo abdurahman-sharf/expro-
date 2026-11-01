@@ -7,7 +7,7 @@
  * @var list<object>                                                       $staff
  * @var list<object>                                                       $scope_branches
  * @var list<array{code: string, country: string, en: string, ar: string}> $directory
- * @var string                                                             $selected_bank
+ * @var string                                                             $selectedBank
  */
 
 use App\Libraries\Accounting\TreasuryScopes;
@@ -51,13 +51,13 @@ $isBank = ! $isNew && $treasury->kind === TreasuryService::BANK;
                     <select name="bank_code" id="bank_code" class="form-select form-select-sm">
                         <option value=""><?= lang('Accounting_treasuries.bank_other') ?></option>
                         <?php foreach ($directory as $bank): ?>
-                            <option value="<?= esc($bank['code'], 'attr') ?>" data-country="<?= esc($bank['country'], 'attr') ?>"<?= $selected_bank === $bank['code'] ? ' selected' : '' ?>><?= esc($bank['en'] . ' - ' . $bank['ar']) ?></option>
+                            <option value="<?= esc($bank['code'], 'attr') ?>" data-country="<?= esc($bank['country'], 'attr') ?>"<?= $selectedBank === $bank['code'] ? ' selected' : '' ?>><?= esc($bank['en'] . ' - ' . $bank['ar']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
             </div>
 
-            <div class="field bank-field bank-name-field"<?= $isBank && $selected_bank === '' || ! $isBank ? '' : ' hidden' ?>>
+            <div class="field bank-field bank-name-field"<?= $isBank && $selectedBank === '' || ! $isBank ? '' : ' hidden' ?>>
                 <?= form_label(lang('Accounting_treasuries.bank_name'), 'bank_name', ['class' => 'form-label text-danger required']) ?>
                 <div class="field-control">
                     <input type="text" name="bank_name" id="bank_name" class="form-control form-control-sm" maxlength="120" value="<?= esc($isNew ? '' : (string) ($treasury->bank_name ?? ''), 'attr') ?>">

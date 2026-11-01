@@ -41,7 +41,7 @@ class AccountingTreasuries extends AccountingController
         return view('accounting_treasuries/manage', [
             'table_headers' => transform_headers($this->headers(), true, true),
             'can_manage'    => $this->can(AccountingGuard::TREASURIES_MANAGE),
-            'can_reconcile' => $this->can(AccountingGuard::BANK_RECONCILE),
+            'canReconcile'  => $this->can(AccountingGuard::BANK_RECONCILE),
             'scope_notice'  => $this->scopeNoticeNeeded(),
         ]);
     }
@@ -111,7 +111,7 @@ class AccountingTreasuries extends AccountingController
                 TreasuryScopes::WITHDRAW => $this->scopes->scopeOf((int) $treasury->treasury_id, TreasuryScopes::WITHDRAW),
             ],
             'directory'      => BankDirectory::search(),
-            'selected_bank'  => $treasury === null || $treasury->kind !== TreasuryService::BANK ? '' : (string) (($treasury->bank_code ?? '') !== '' ? $treasury->bank_code : (BankDirectory::codeOfName((string) $treasury->bank_name) ?? '')),
+            'selectedBank'   => $treasury === null || $treasury->kind !== TreasuryService::BANK ? '' : (string) (($treasury->bank_code ?? '') !== '' ? $treasury->bank_code : (BankDirectory::codeOfName((string) $treasury->bank_name) ?? '')),
             'staff'          => $this->treasuries->employees(),
             'scope_branches' => array_values(array_filter((new BranchService())->all(), static fn (object $branch): bool => (int) $branch->active === 1)),
         ]);
