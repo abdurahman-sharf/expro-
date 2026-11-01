@@ -172,7 +172,7 @@ final class ExpensePosting
     public function document(int $expenseId, ?int $assumedBranchId = null): ?ExpenseDocument
     {
         $row = $this->db->table('expenses e')
-            ->select('e.expense_id, e.date, e.amount, e.tax_amount, e.payment_type, e.treasury_id, e.treasury_branch_id, e.branch_id, e.deleted, c.account_id')
+            ->select('e.expense_id, e.date, e.amount, e.tax_amount, e.payment_type, e.treasury_id, e.treasury_branch_id, e.branch_id, e.deleted, e.currency_code, c.account_id')
             ->join('expense_categories c', 'c.expense_category_id = e.expense_category_id', 'left')
             ->where('e.expense_id', $expenseId)
             ->get()
@@ -180,6 +180,10 @@ final class ExpensePosting
 
         if ($row === null || ($row->branch_id === null && $assumedBranchId === null)) {
             return null;
+        }
+
+        if ($row->currency_code !== null) {
+            throw new PostingException(PostingError::FxNotSupported, 'An expense in a foreign currency is not supported yet, so it is not posted.', ['what' => 'expense', 'expense_id' => $expenseId]);
         }
 
         return new ExpenseDocument(

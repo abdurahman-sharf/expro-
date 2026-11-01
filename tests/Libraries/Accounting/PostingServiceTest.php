@@ -1480,7 +1480,7 @@ class PostingServiceTest extends CIUnitTestCase
         $this->assertPostingRefused(PostingError::ForeignRateMismatch, fn () => $this->service->post($this->foreignDraft(base: '380.0000')));
     }
 
-    public function testPost_AcceptsTheFewUnitsOfRoundingTheBalancingLineTakes(): void
+    public function testPost_AcceptsTheFewUnitsOfRoundingOfAForeignJournalTheBalancingLineTakes(): void
     {
         (new Currencies())->setActive('USD', true);
 
@@ -1513,6 +1513,20 @@ class PostingServiceTest extends CIUnitTestCase
         $lines = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $reversal)->orderBy('line_no')->get()->getResult();
         $this->assertSame(['100.0000', 'USD', '375.0000'], [$lines[0]->foreign_amount, $lines[0]->currency_code, $lines[0]->credit]);
         $this->assertSame(['USD', '3.75000000'], [$this->accountingDb()->table('accounting_journals')->where('journal_id', $reversal)->get()->getRow()->currency_code, $this->accountingDb()->table('accounting_journals')->where('journal_id', $reversal)->get()->getRow()->exchange_rate]);
+    }
+
+    public function testPost_RejectsALineInAnotherCurrencyThanTheForeignJournalItIsIn(): void
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->setActive('EUR', true);
+
+        $draft = new JournalDraft(date: '2026-10-21', lines: [
+            new JournalLineDraft($this->accountId('cash'), debit: '375.00', foreignAmount: '100.00', currencyCode: 'USD'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '375.00', foreignAmount: '100.00', currencyCode: 'EUR'),
+        ], sourceType: 'sale', sourceId: 1, employeeId: 1, currencyCode: 'USD', exchangeRate: '3.75');
+
+        $this->assertPostingRefused(PostingError::ForeignRateMismatch, fn () => $this->service->post($draft));
     }
 
     public function testPost_AcceptsALineInAnotherCurrencyInAJournalInTheBaseCurrency(): void

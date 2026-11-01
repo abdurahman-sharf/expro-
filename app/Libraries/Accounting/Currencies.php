@@ -18,9 +18,10 @@ final class Currencies
 {
     use RunsInTransaction;
 
-    private const CODE_PATTERN = '/^[A-Z]{3}$/';
-    private const NAME_MAX     = 100;
-    private const USED_BY      = [
+    public const DOCUMENT_DECIMALS = 2;
+    private const CODE_PATTERN     = '/^[A-Z]{3}$/';
+    private const NAME_MAX         = 100;
+    private const USED_BY          = [
         ['sales', 'currency_code'],
         ['sales_payments', 'currency_code'],
         ['receivings', 'currency_code'],
@@ -158,7 +159,8 @@ final class Currencies
     /**
      * The currency of a document dated on a day: null for the base currency, and otherwise the code with
      * the rate of the latest day on or before the date of the document. A rate typed by hand takes the
-     * place of the one of the table, and changing money by hand needs the permission to manage currencies.
+     * place of the one of the table, and changing money by hand needs the permission to manage currencies. A currency
+     * of three decimals is refused: the columns that hold the prices, the discounts and the payments of documents keep two.
      *
      * @throws AccountingException
      */
@@ -169,6 +171,10 @@ final class Currencies
         }
 
         $currency = $this->requireForeign($code);
+
+        if ($currency->decimals > self::DOCUMENT_DECIMALS) {
+            throw new AccountingException(AccountingError::ForeignDecimalsUnsupported, "A document in {$code} is not supported yet: the prices and the payments of documents are kept in two decimals.", ['code' => $code]);
+        }
 
         if ($typedRate !== null && trim($typedRate) !== '') {
             $this->guard->require(AccountingGuard::CURRENCIES_MANAGE, $employeeId);

@@ -49,7 +49,7 @@ final class SupplierBalanceReport
                         CASE
                             WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? AND r.receiving_type = ? THEN 'settlements'
                             WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? THEN 'sales'
-                            WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) IN (?, ?, ?, ?) THEN 'payments'
+                            WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) IN (?, ?, ?, ?, ?) THEN 'payments'
                             ELSE 'other'
                         END AS kind
                  FROM {$accounts} a
@@ -64,7 +64,7 @@ final class SupplierBalanceReport
             [
                 $from, $from, $from, $from, $from, $from,
                 ReceivingPostingBuilder::SOURCE_PURCHASE, ReceivingType::Return->value, ReceivingPostingBuilder::SOURCE_PURCHASE,
-                ReceivingPostingBuilder::SOURCE_PAYMENT, ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, SupplierAdvances::SOURCE, CreditRefunds::SUPPLIER_SOURCE,
+                ReceivingPostingBuilder::SOURCE_PAYMENT, ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, SupplierAdvances::SOURCE, CreditRefunds::SUPPLIER_SOURCE,
                 JournalStatus::Posted->value, JournalStatus::Reversed->value, $period->to,
                 ReceivingPostingBuilder::SOURCE_PURCHASE,
                 EntityAccountService::SUPPLIER,

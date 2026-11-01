@@ -28,4 +28,22 @@ final readonly class DocumentCurrency
     {
         return Money::toBase($amount, $this->rate, $baseDecimals);
     }
+
+    /**
+     * Whether a change asked of a document leaves its currency and its rate as they are: what the change does
+     * not name stays what it was.
+     *
+     * @param array<string, ?string> $changes The currency_code and the currency_rate asked for, when they are.
+     */
+    public static function unchanged(?self $stored, array $changes): bool
+    {
+        $code = array_key_exists('currency_code', $changes) ? $changes['currency_code'] : $stored?->code;
+        $rate = array_key_exists('currency_rate', $changes) ? $changes['currency_rate'] : $stored?->rate;
+
+        if ($stored === null) {
+            return $code === null && $rate === null;
+        }
+
+        return $code === $stored->code && $rate !== null && bccomp($rate, $stored->rate, 8) === 0;
+    }
 }

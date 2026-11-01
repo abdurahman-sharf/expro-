@@ -254,7 +254,7 @@ final class SalePosting
         $sale = $this->loader->load($saleId, false);
 
         $currencyChanged = $posted && (array_key_exists('currency_code', $changes) || array_key_exists('currency_rate', $changes))
-            && ($sale === null || ($changes['currency_code'] ?? $sale->currency?->code) !== $sale->currency?->code || (isset($changes['currency_rate']) ? bccomp($changes['currency_rate'], $sale->currency?->rate ?? '0', 8) !== 0 : false));
+            && ($sale === null || ! DocumentCurrency::unchanged($sale->currency, array_intersect_key($changes, ['currency_code' => 1, 'currency_rate' => 1])));
 
         if ($currencyChanged) {
             throw new AccountingException(AccountingError::DocumentCurrencyLocked, 'The currency and the rate of a sale that has been posted cannot change. Reverse it and enter it again, or correct it with a credit note.', ['sale_id' => $saleId]);

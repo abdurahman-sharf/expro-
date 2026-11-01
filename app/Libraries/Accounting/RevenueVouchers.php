@@ -220,7 +220,7 @@ final class RevenueVouchers
     public function document(int $revenueId): ?RevenueDocument
     {
         $row = $this->db->table('revenues r')
-            ->select('r.revenue_id, r.date, r.amount, r.tax_amount, r.payment_type, r.account_id, r.treasury_id, r.treasury_branch_id, r.branch_id, r.deleted, c.account_id AS category_account_id')
+            ->select('r.revenue_id, r.date, r.amount, r.tax_amount, r.payment_type, r.account_id, r.treasury_id, r.treasury_branch_id, r.branch_id, r.deleted, r.currency_code, c.account_id AS category_account_id')
             ->join('revenue_categories c', 'c.revenue_category_id = r.revenue_category_id', 'left')
             ->where('r.revenue_id', $revenueId)
             ->get()
@@ -228,6 +228,10 @@ final class RevenueVouchers
 
         if ($row === null) {
             return null;
+        }
+
+        if ($row->currency_code !== null) {
+            throw new PostingException(PostingError::FxNotSupported, 'A receipt voucher in a foreign currency is not supported yet, so it is not posted.', ['what' => 'revenue', 'revenue_id' => $revenueId]);
         }
 
         return new RevenueDocument(

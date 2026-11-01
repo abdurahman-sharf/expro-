@@ -303,12 +303,16 @@ final class SupplierLedger
                  UNION ALL
                  SELECT p.receiving_id, p.payment_id AS source_id, ? AS source_type
                  FROM ' . $this->db->prefixTable('receivings_payments') . ' p
+                 JOIN ' . $this->db->prefixTable('receivings') . ' r ON r.receiving_id = p.receiving_id AND r.supplier_id = ?
+                 UNION ALL
+                 SELECT p.receiving_id, p.payment_id AS source_id, ? AS source_type
+                 FROM ' . $this->db->prefixTable('receivings_payments') . ' p
                  JOIN ' . $this->db->prefixTable('receivings') . " r ON r.receiving_id = p.receiving_id AND r.supplier_id = ?
              ) t
              JOIN {$journals} j ON j.source_type = t.source_type AND j.source_id = t.source_id AND {$standing}
              JOIN {$lines} l ON l.journal_id = j.journal_id AND l.account_id = ?
              GROUP BY t.receiving_id",
-            [ReceivingPostingBuilder::SOURCE_PAYMENT, $supplierId, ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $supplierId, ...$standingBindings, $accountId],
+            [ReceivingPostingBuilder::SOURCE_PAYMENT, $supplierId, ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $supplierId, ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, $supplierId, ...$standingBindings, $accountId],
         )->getResult();
 
         $paid = [];

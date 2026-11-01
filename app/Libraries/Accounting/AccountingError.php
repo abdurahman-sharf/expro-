@@ -365,4 +365,5 @@ enum AccountingError: string
     case TreasuryCurrencyLocked     = 'treasury_currency_locked';
     case TransferAmountRequired     = 'transfer_amount_required';
     case FxJournalLocked            = 'fx_journal_locked';
+    case ForeignDecimalsUnsupported = 'foreign_decimals_unsupported';
 }

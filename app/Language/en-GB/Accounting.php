@@ -300,6 +300,8 @@ return [
     'error_fiscal_year_range'                    => 'The end date must not be before the start date.',
     'error_fiscal_year_too_long'                 => 'A fiscal year cannot be longer than {0} days.',
     'error_foreign_currency_unsupported'         => 'This kind of document cannot be in a foreign currency yet. It stays in the base currency.',
+    'error_foreign_decimals_unsupported'         => 'A document in a currency of three decimals is not supported yet: the prices and the payments of documents are kept in two decimals.',
+    'error_fx_journal_locked'                    => 'A journal in a foreign currency, and the journal of an exchange difference, are taken back with the document or the payment they belong to.',
     'error_has_active_children'                  => 'The account has active sub-accounts. Deactivate them first.',
     'error_has_children'                         => 'The account has sub-accounts.',
     'error_header_charges_invalid'               => 'The adjustment or the shipping cannot be accepted: the amounts, the tax rate or the choice of address are not valid.',

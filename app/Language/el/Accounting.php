@@ -300,6 +300,8 @@ return [
     'error_fiscal_year_range'                    => '',
     'error_fiscal_year_too_long'                 => '',
     'error_foreign_currency_unsupported'         => '',
+    'error_foreign_decimals_unsupported'         => '',
+    'error_fx_journal_locked'                    => '',
     'error_has_active_children'                  => '',
     'error_has_children'                         => '',
     'error_header_charges_invalid'               => '',

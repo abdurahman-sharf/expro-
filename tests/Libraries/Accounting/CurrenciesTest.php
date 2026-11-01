@@ -177,11 +177,15 @@ class CurrenciesTest extends CIUnitTestCase
 
         $this->currencies->update('JPY', ['name_en' => 'Yen', 'decimals' => '2'], $manager);
 
-        $this->assertSame('Yen', $this->accountingDb()->table('accounting_currencies')->where('currency_code', 'JPY')->get()->getRow()->name_en);
-        $this->assertSame(2, $this->currencies->decimalsOf('JPY'));
+        try {
+            $this->assertSame('Yen', $this->accountingDb()->table('accounting_currencies')->where('currency_code', 'JPY')->get()->getRow()->name_en);
+            $this->assertSame(2, $this->currencies->decimalsOf('JPY'));
 
-        $update = $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'currency')->where('action', 'updated')->get()->getRow();
-        $this->assertSame(['name_en' => 'Japanese Yen', 'decimals' => '0'], json_decode($update->details, true)['before']);
+            $update = $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'currency')->where('action', 'updated')->get()->getRow();
+            $this->assertSame(['name_en' => 'Japanese Yen', 'decimals' => '0'], json_decode($update->details, true)['before']);
+        } finally {
+            $this->accountingDb()->table('accounting_currencies')->where('currency_code', 'JPY')->update(['name_en' => 'Japanese Yen', 'decimals' => 0]);
+        }
     }
 
     public function testUpdate_RejectsNewDecimalsOnceADocumentUsedTheCurrency(): void
@@ -279,6 +283,17 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertSame('3.71230000', $typed->rate);
         $this->assertRefused(AccountingError::PermissionDenied, fn () => $this->currencies->documentCurrency('USD', '2026-10-27', '3.7123', $this->employeeWithGrants([])));
         $this->assertRefused(AccountingError::RateInvalid, fn () => $this->currencies->documentCurrency('USD', '2026-10-27', '-3', $this->manager()));
+    }
+
+    public function testDocumentCurrency_RefusesACurrencyOfThreeDecimalsAndAcceptsOneOfNone(): void
+    {
+        $this->currencies->setActive('KWD', true);
+        $this->currencies->setActive('JPY', true);
+        $this->currencies->rates()->add(['currency_code' => 'KWD', 'rate' => '12.04917', 'effective_date' => '2026-10-01']);
+        $this->currencies->rates()->add(['currency_code' => 'JPY', 'rate' => '0.02376', 'effective_date' => '2026-10-01']);
+
+        $this->assertRefused(AccountingError::ForeignDecimalsUnsupported, fn () => $this->currencies->documentCurrency('KWD', '2026-10-27'));
+        $this->assertSame(0, $this->currencies->documentCurrency('JPY', '2026-10-27')->decimals);
     }
 
     public function testStored_ReadsBackWhatADocumentCarriesAndIgnoresTheBase(): void

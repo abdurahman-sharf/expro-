@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Accounting;
 
+use Closure;
+
 /**
  * The journals a saved purchase needs, as drafts, with the stock movements that give them their
  * stock lines. It writes nothing. Whatever it cannot decide with certainty it refuses with a
@@ -16,6 +18,14 @@ namespace App\Libraries\Accounting;
  * journals, one in each branch, that meet in the accounts between branches: the branch it leaves
  * debits what the other branches owe it and credits the stock it gave up, and the branch it goes to
  * debits the stock it received and credits what it owes the other branches.
+ *
+ * A purchase in a foreign currency is built in the amounts of its own currency and converted line by line
+ * to the base at the rate captured for it, the rounding falling on the largest cost, and the stock of
+ * every location is worth in the base what its line is worth, so that the stock books tie as they do
+ * in the base currency. What is paid on it later is posted at the rate of the day of the payment, with the
+ * exchange difference as a journal of its own tied to the payment. A return of a foreign purchase gives the
+ * goods back at what they are worth in stock, in the base, and takes the supplier's balance down by what
+ * the supplier gives back at the rate of the purchase it comes from. A transfer is never in a foreign currency.
  */
 final class ReceivingPostingBuilder
 {
@@ -28,9 +38,13 @@ final class ReceivingPostingBuilder
     public const SOURCE_TRANSFER_RECEIPT = 'stock_transfer_receipt';
     private const SCALE                  = ReceivingAmounts::SCALE;
 
+    /**
+     * @param (Closure(): int)|null $baseDecimals The decimals the base currency is kept in, asked only when a foreign purchase needs them.
+     */
     public function __construct(
         private readonly RoutingResolver $resolver,
         private readonly StockLedger $ledger,
+        private readonly ?Closure $baseDecimals = null,
     ) {
     }
 
@@ -53,6 +67,10 @@ final class ReceivingPostingBuilder
     public function purchase(ReceivingDocument $purchase, int $revision, ?int $employeeId = null): StockPostingPlan
     {
         $this->assertPostable($purchase);
+
+        if ($purchase->currency !== null && $purchase->type === ReceivingType::Requisition) {
+            throw new PostingException(PostingError::FxNotSupported, 'A transfer of stock is never in a foreign currency.', ['what' => 'stock_transfer', 'receiving_id' => $purchase->receivingId]);
+        }
 
         return match ($purchase->type) {
             ReceivingType::Receive     => $this->receive($purchase, $revision, $employeeId),
@@ -92,7 +110,7 @@ final class ReceivingPostingBuilder
             ? [new JournalLineDraft($supplier, debit: $total), new JournalLineDraft($account, credit: $total)]
             : [new JournalLineDraft($account, debit: $total), new JournalLineDraft($supplier, credit: $total)];
 
-        return new JournalDraft(
+        $draft = new JournalDraft(
             date: $purchase->savedOn ?? $purchase->date,
             lines: $lines,
             sourceType: self::SOURCE_PAYMENT,
@@ -104,6 +122,8 @@ final class ReceivingPostingBuilder
             branchId: $purchase->branchId,
             entryType: JournalEntryType::General,
         );
+
+        return $purchase->currency === null ? $draft : ForeignConversion::toBase($draft, $purchase->currency, $this->baseDecimalsOf(), 0);
     }
 
     /**
@@ -146,7 +166,7 @@ final class ReceivingPostingBuilder
             ? [new JournalLineDraft($supplier, debit: $magnitude), new JournalLineDraft($account, credit: $magnitude)]
             : [new JournalLineDraft($account, debit: $magnitude), new JournalLineDraft($supplier, credit: $magnitude)];
 
-        return new JournalDraft(
+        $draft = new JournalDraft(
             date: $payment->date,
             lines: $lines,
             sourceType: self::SOURCE_SUPPLIER_PAYMENT,
@@ -158,6 +178,138 @@ final class ReceivingPostingBuilder
             branchId: $purchase->branchId,
             entryType: JournalEntryType::General,
         );
+
+        return $purchase->currency === null ? $draft : ForeignConversion::toBase($draft, $this->currencyOfPayment($purchase, $payment), $this->baseDecimalsOf(), 0);
+    }
+
+    /**
+     * The journal of what a payment of a foreign purchase leaves over: the supplier's balance falls by what
+     * the payments so far come to in the currency of the purchase at the rate of the purchase, less what the
+     * earlier ones took, while the money moved at the rate of the day of the payment. The supplier's balance
+     * falling by more than the money paid is a gain, and by less a loss. Null when the two agree.
+     *
+     * @throws PostingException
+     */
+    public function supplierPaymentDifference(ReceivingDocument $purchase, SupplierPayment $payment, int $revision, ?int $employeeId = null): ?JournalDraft
+    {
+        if ($purchase->currency === null || $purchase->supplierId === null) {
+            return null;
+        }
+
+        $net = $this->bookedNet($payment);
+
+        if ($net === null) {
+            return null;
+        }
+
+        $current  = $this->currencyOfPayment($purchase, $payment);
+        $decimals = $this->baseDecimalsOf();
+        $before   = $this->paidAtOnce($purchase);
+
+        foreach ($purchase->payments as $earlier) {
+            if ($earlier->paymentId >= $payment->paymentId) {
+                break;
+            }
+
+            $amount = $this->bookedNet($earlier);
+
+            if ($amount !== null) {
+                $before = bcadd($before, $amount, self::SCALE);
+            }
+        }
+
+        $after      = bcadd($before, $net, self::SCALE);
+        $settled    = bcsub(Money::toBase($after, $purchase->currency->rate, $decimals), Money::toBase($before, $purchase->currency->rate, $decimals), self::SCALE);
+        $difference = bcsub($settled, Money::toBase($net, $current->rate, $decimals), self::SCALE);
+
+        if (bccomp($difference, '0', self::SCALE) === 0) {
+            return null;
+        }
+
+        $supplier  = $this->required(RoutingKey::Suppliers, $purchase->supplierId);
+        $magnitude = SaleAmounts::absolute($difference);
+        $lines     = bccomp($difference, '0', self::SCALE) > 0
+            ? [new JournalLineDraft($supplier, debit: $magnitude), new JournalLineDraft($this->fxAccount(RoutingKey::FxGain), credit: $magnitude)]
+            : [new JournalLineDraft($this->fxAccount(RoutingKey::FxLoss), debit: $magnitude), new JournalLineDraft($supplier, credit: $magnitude)];
+
+        return new JournalDraft(
+            date: $payment->date,
+            lines: $lines,
+            sourceType: self::SOURCE_SUPPLIER_FX,
+            sourceId: $payment->paymentId,
+            revision: $revision,
+            origin: JournalOrigin::System,
+            employeeId: $employeeId,
+            description: 'Exchange difference of payment #' . $payment->paymentId . ' of purchase #' . $purchase->receivingId,
+            branchId: $purchase->branchId,
+            entryType: JournalEntryType::General,
+        );
+    }
+
+    /**
+     * What a payment moves in the currency of its purchase with the sign of the money, or null when it
+     * books nothing.
+     *
+     * @return numeric-string|null
+     *
+     * @throws PostingException
+     */
+    private function bookedNet(SupplierPayment $payment): ?string
+    {
+        if (! $payment->status->posts() || $this->paymentAccount($payment->type, $payment->treasuryId) === null) {
+            return null;
+        }
+
+        return bccomp($payment->amount, '0', self::SCALE) === 0 ? null : bcadd($payment->amount, '0', self::SCALE);
+    }
+
+    /**
+     * What the purchase was paid at the moment it was saved, which settles it at its own rate.
+     *
+     * @return numeric-string
+     */
+    private function paidAtOnce(ReceivingDocument $purchase): string
+    {
+        if ($purchase->type !== ReceivingType::Receive || $purchase->paymentType === null || $this->paymentAccount($purchase->paymentType, $purchase->treasuryId) === null) {
+            return '0';
+        }
+
+        return $this->totals($purchase)['total'];
+    }
+
+    /**
+     * @throws PostingException
+     */
+    private function currencyOfPayment(ReceivingDocument $purchase, SupplierPayment $payment): DocumentCurrency
+    {
+        if ($purchase->currency === null || $payment->rate === null) {
+            throw new PostingException(PostingError::ForeignRateMismatch, 'The payment of a purchase in a foreign currency has no rate.', ['payment_id' => $payment->paymentId]);
+        }
+
+        return new DocumentCurrency($purchase->currency->code, $payment->rate, $purchase->currency->decimals);
+    }
+
+    private function baseDecimalsOf(): int
+    {
+        return $this->baseDecimals === null ? 2 : ($this->baseDecimals)();
+    }
+
+    /**
+     * @throws PostingException
+     */
+    private function fxAccount(RoutingKey $key): int
+    {
+        try {
+            $account = $this->resolver->accountFor($key);
+        } catch (PostingException $failure) {
+            throw new PostingException(PostingError::FxAccountsMissing, "The routing of {$key->value} has no usable account, so the exchange difference cannot be posted.", ['routing_key' => $key->value], $failure);
+        }
+
+        if ($account === null) {
+            throw new PostingException(PostingError::FxAccountsMissing, "The routing of {$key->value} has no account, so the exchange difference cannot be posted.", ['routing_key' => $key->value]);
+        }
+
+        return $account;
     }
 
     /**
@@ -168,7 +320,7 @@ final class ReceivingPostingBuilder
      */
     public function totals(ReceivingDocument $purchase): array
     {
-        return ReceivingAmounts::totals($purchase->lines);
+        return ReceivingAmounts::totals($purchase->lines, $purchase->currency?->decimals ?? 2);
     }
 
     /**
@@ -234,7 +386,81 @@ final class ReceivingPostingBuilder
             $lines[] = new JournalLineDraft($this->creditor($purchase), credit: $totals['total']);
         }
 
-        return new StockPostingPlan($this->draft($purchase, $lines, $revision, $employeeId, 'Purchase #'), $movements);
+        $draft = $this->draft($purchase, $lines, $revision, $employeeId, 'Purchase #');
+
+        if ($purchase->currency === null || $draft === null) {
+            return new StockPostingPlan($draft, $movements);
+        }
+
+        $balancing = 0;
+        $largest   = '0';
+
+        foreach ($draft->lines as $index => $line) {
+            if (bccomp($line->debit, $largest, self::SCALE) > 0) {
+                $largest   = $line->debit;
+                $balancing = $index;
+            }
+        }
+
+        $converted = ForeignConversion::toBase($draft, $purchase->currency, $this->baseDecimalsOf(), $balancing);
+
+        return new StockPostingPlan($converted, $this->movementsInBase($movements, $converted, $purchase->currency));
+    }
+
+    /**
+     * The stock movements of a foreign purchase worth what their line of the journal is worth in the base:
+     * each at what it comes to at the rate, and the few units of rounding on the largest of its location, so
+     * that the movements of a location add up to its line and the stock books tie.
+     *
+     * @param list<StockMovement> $movements In the currency of the purchase.
+     *
+     * @return list<StockMovement>
+     *
+     * @throws PostingException
+     */
+    private function movementsInBase(array $movements, JournalDraft $converted, DocumentCurrency $currency): array
+    {
+        $decimals   = $this->baseDecimalsOf();
+        $byLocation = [];
+
+        foreach ($movements as $index => $movement) {
+            $byLocation[$movement->locationId][] = $index;
+        }
+
+        $values = [];
+
+        foreach ($byLocation as $locationId => $indexes) {
+            $account = $this->required(RoutingKey::StockLocations, $locationId);
+            $line    = '0';
+            $sum     = '0';
+            $largest = $indexes[0];
+
+            foreach ($converted->lines as $each) {
+                if ($each->accountId === $account) {
+                    $line = bcadd($line, $each->debit, self::SCALE);
+                }
+            }
+
+            foreach ($indexes as $index) {
+                $values[$index] = Money::toBase($movements[$index]->value, $currency->rate, $decimals);
+                $sum            = bcadd($sum, $values[$index], self::SCALE);
+
+                if (bccomp($movements[$index]->value, $movements[$largest]->value, self::SCALE) > 0) {
+                    $largest = $index;
+                }
+            }
+
+            $values[$largest] = bcadd($values[$largest], bcsub($line, $sum, self::SCALE), self::SCALE);
+
+            if (bccomp($values[$largest], '0', self::SCALE) < 0) {
+                throw new PostingException(PostingError::ForeignRoundingTooBig, 'The stock of a location would come to less than nothing in the base currency.', ['location_id' => $locationId]);
+            }
+        }
+
+        return array_map(
+            static fn (int $index): StockMovement => new StockMovement($movements[$index]->itemId, $movements[$index]->locationId, $movements[$index]->quantity, bcadd($values[$index], '0', self::SCALE)),
+            array_keys($movements),
+        );
     }
 
     /**
@@ -263,15 +489,19 @@ final class ReceivingPostingBuilder
             $inventory                     = bcadd($inventory, $value, self::SCALE);
         }
 
-        $difference = bcsub(bcsub($totals['total'], $inventory, self::SCALE), $totals['tax'], self::SCALE);
+        $foreign    = $purchase->currency;
+        $decimals   = $foreign === null ? 2 : $this->baseDecimalsOf();
+        $total      = $foreign === null ? $totals['total'] : Money::toBase($totals['total'], $foreign->rate, $decimals);
+        $tax        = $foreign === null ? $totals['tax'] : Money::toBase($totals['tax'], $foreign->rate, $decimals);
+        $difference = bcsub(bcsub($total, $inventory, self::SCALE), $tax, self::SCALE);
         $lines      = [];
 
         if (bccomp($totals['total'], '0', self::SCALE) > 0) {
-            $lines[] = new JournalLineDraft($this->creditor($purchase), debit: $totals['total']);
+            $lines[] = new JournalLineDraft($this->creditor($purchase), debit: $total, foreignAmount: $foreign === null ? null : bcadd($totals['total'], '0', self::SCALE), currencyCode: $foreign?->code);
         }
 
         if (bccomp($totals['tax'], '0', self::SCALE) > 0) {
-            $lines[] = new JournalLineDraft($this->required(RoutingKey::TaxInput), credit: $totals['tax']);
+            $lines[] = new JournalLineDraft($this->required(RoutingKey::TaxInput), credit: $tax, foreignAmount: $foreign === null ? null : bcadd($totals['tax'], '0', self::SCALE), currencyCode: $foreign?->code);
         }
 
         foreach ($byLocation as $locationId => $amount) {

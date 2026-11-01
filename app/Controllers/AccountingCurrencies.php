@@ -216,9 +216,9 @@ class AccountingCurrencies extends AccountingController
     {
         return [
             ['effective_date' => lang('Accounting_currencies.effective_date'), 'sortable' => false],
-            ['rate'           => lang('Accounting_currencies.rate'), 'sortable' => false, 'escape' => false],
-            ['note'           => lang('Accounting_currencies.note'), 'sortable' => false, 'escape' => false],
-            ['entered_name'   => lang('Accounting_currencies.entered_by'), 'sortable' => false, 'escape' => false],
+            ['rate'         => lang('Accounting_currencies.rate'), 'sortable' => false, 'escape' => false],
+            ['note'         => lang('Accounting_currencies.note'), 'sortable' => false, 'escape' => false],
+            ['entered_name' => lang('Accounting_currencies.entered_by'), 'sortable' => false, 'escape' => false],
         ];
     }
 

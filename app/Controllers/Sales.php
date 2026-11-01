@@ -9,6 +9,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\CreditSource;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\DraftInvoice;
@@ -591,6 +592,76 @@ class Sales extends Secure_Controller
         $this->sale_lib->empty_payments();
 
         return $this->reload();
+    }
+
+    /**
+     * Chooses the currency of the sale in the register: a foreign currency that is switched on and has a rate,
+     * or the base currency. The choice is made while the cart is empty, because the prices in it are in the
+     * currency chosen, and a return takes the currency of the sale it comes from. Used in app/Views/sales/register.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postSetCurrency(): ResponseInterface|string
+    {
+        $code = strtoupper(trim((string) $this->request->getPost('currency_code')));
+
+        if (!(new AccountingSettings())->isEnabled()) {
+            return $this->reload(['error' => lang('Sales.not_authorized')]);
+        }
+
+        if ($this->sale_lib->is_return_mode()) {
+            return $this->reload(['error' => lang('Sales.currency_return_mode')]);
+        }
+
+        if ($this->sale_lib->get_cart() !== []) {
+            return $this->reload(['error' => lang('Sales.currency_cart_not_empty')]);
+        }
+
+        $currencies = new Currencies();
+
+        if ($code === '' || $currencies->isBase($code)) {
+            $this->sale_lib->clearCurrency();
+
+            return $this->reload();
+        }
+
+        try {
+            $currencies->documentCurrency($code, date('Y-m-d'));
+        } catch (AccountingException $refusal) {
+            return $this->reload(['error' => AccountingMessage::of($refusal)]);
+        }
+
+        $this->sale_lib->setCurrency($code);
+        $this->sale_lib->empty_payments();
+
+        return $this->reload();
+    }
+
+    /**
+     * The currencies the register offers, or null when it offers none: the books are off, the sale is a
+     * return, or no foreign currency is switched on.
+     *
+     * @return array{options: array<string, string>, selected: string}|null
+     */
+    private function currencySelector(): ?array
+    {
+        if (!(new AccountingSettings())->isEnabled() || $this->sale_lib->is_return_mode()) {
+            return null;
+        }
+
+        $currencies = new Currencies();
+        $arabic     = str_starts_with($this->request->getLocale(), 'ar');
+        $options    = [];
+
+        foreach ($currencies->all(true) as $currency) {
+            if ($currency->decimals > Currencies::DOCUMENT_DECIMALS) {
+                continue;
+            }
+
+            $options[$currency->code] = $currency->code . ' - ' . ($arabic ? $currency->nameAr : $currency->nameEn);
+        }
+
+        return count($options) < 2 ? null : ['options' => $options, 'selected' => $this->sale_lib->getCurrency() ?? $currencies->baseCode()];
     }
 
     /**
@@ -1520,6 +1591,8 @@ class Sales extends Secure_Controller
      */
     public function postComplete(): string    // TODO: this function is huge.  Probably should be refactored.
     {
+        $this->sale->useCurrency($this->sale_lib->getCurrency());
+
         $saleId = $this->sale_lib->get_sale_id();
         $data = [];
         $data['dinner_table'] = $this->sale_lib->get_dinner_table();
@@ -2692,6 +2765,8 @@ class Sales extends Secure_Controller
         $data['can_override_return']   = $this->mayOverrideReturn();
         $data['return_override']       = $this->sale_lib->getReturnOverride();
         $data['priceListSelector']     = $this->priceListSelector();
+        $data['currencySelector']      = $this->currencySelector();
+        $data['has_cart_items']        = $this->sale_lib->get_cart() !== [];
 
         $data['pos_mode'] = $data['mode'] == 'sale' || $data['mode'] == 'return';
 

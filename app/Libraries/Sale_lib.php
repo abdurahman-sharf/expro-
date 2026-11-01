@@ -2,6 +2,8 @@
 
 namespace app\Libraries;
 
+use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountPlan;
@@ -1190,6 +1192,45 @@ class Sale_lib
     }
 
     /**
+     * The foreign currency this sale is in, or null when it is in the base currency. The choice is made before
+     * the first item is added: the prices of the items are the prices of the catalog converted at the rate of the
+     * day to the decimals of the currency, and a price typed by hand is already in the currency.
+     */
+    public function getCurrency(): ?string
+    {
+        $code = $this->session->get('sales_currency');
+
+        return $code === null || $code === '' ? null : (string) $code;
+    }
+
+    public function setCurrency(string $code): void
+    {
+        $this->session->set('sales_currency', $code);
+    }
+
+    public function clearCurrency(): void
+    {
+        $this->session->remove('sales_currency');
+    }
+
+    /**
+     * A price of the catalog in the currency of the sale, rounded to the decimals of the currency, or the price
+     * as it is when the sale is in the base currency or the price was typed.
+     */
+    private function priceInCurrency(string|float|int $price, string $priceSource): string|float|int
+    {
+        $code = $this->getCurrency();
+
+        if ($code === null || $priceSource === 'override') {
+            return $price;
+        }
+
+        $currency = (new Currencies())->documentCurrency($code, date('Y-m-d'));
+
+        return $currency === null ? $price : Money::fromBase((string) $price, $currency->rate, $currency->decimals);
+    }
+
+    /**
      * The price list picked on this sale when the setting lets a sale change its list: 0 when the
      * sale was picked to be priced from no list at all, null when nothing was picked.
      */
@@ -1518,6 +1559,10 @@ class Sale_lib
                 $price = $listPrice;
                 $priceSource = 'list';
             }
+        }
+
+        if ($price_mode == PRICE_MODE_STANDARD) {
+            $price = $this->priceInCurrency($price, $priceSource);
         }
 
         if ($price_mode == PRICE_MODE_KIT) {
@@ -1992,6 +2037,7 @@ class Sale_lib
         $this->clearInvoiceDiscount();
         $this->clearHeaderCharges();
         $this->clearPriceListChoice();
+        $this->clearCurrency();
         $this->clear_quote_number();
         $this->clear_work_order_number();
         $this->clear_sale_type();

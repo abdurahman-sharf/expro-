@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\JournalLineDraft;
@@ -738,5 +739,168 @@ class TreasuryTransfersTest extends CIUnitTestCase
         ], 'what a transfer allows');
         $this->assertSame('reversed', $this->accountingDb()->table('accounting_journals')->where('journal_id', $original->journal_id)->get()->getRow()->status);
         $this->assertSame('0.0000', $this->balanceOf($this->drawer));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Treasuries that hold a foreign currency
+    // ---------------------------------------------------------------------------------------
+
+    private function dollarBox(string $name = 'Dollar box'): int
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+
+        if ($currencies->rates()->rateOn('USD', '2026-10-21') === null) {
+            $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2020-01-01']);
+        }
+
+        return $this->treasuries->create(['name' => $name, 'kind' => 'cash', 'currency_code' => 'USD'], $this->manager);
+    }
+
+    /**
+     * @return list<string> "account:debit:credit" of the lines of the journal of a transfer.
+     */
+    private function transferLines(int $transferId): array
+    {
+        $journal = $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'treasury_transfer', 'source_id' => $transferId])->get()->getRow();
+
+        return array_map(static fn (object $line): string => $line->account_id . ':' . bcadd($line->debit, '0', 2) . ':' . bcadd($line->credit, '0', 2), $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journal->journal_id)->orderBy('line_no')->get()->getResult());
+    }
+
+    public function testTransfer_MovesTheBaseIntoATreasuryOfDollarsWithBothAmountsAndNoDifferenceAtTheRateOfTheDay(): void
+    {
+        $dollars = $this->dollarBox();
+
+        $id = $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager, '100.00');
+
+        $this->assertSame([(int) $this->treasuries->accountOf($dollars) . ':375.00:0.00', (int) $this->treasuries->accountOf($this->main) . ':0.00:375.00'], $this->transferLines($id));
+        $this->assertSame('100.0000', $this->treasuries->position($dollars)->foreignBalance);
+        $this->assertSame('375.0000', $this->treasuries->position($dollars)->balance);
+        $this->assertSame('125.0000', $this->treasuries->position($this->main)->balance);
+
+        $row = $this->accountingDb()->table('treasury_transfers')->where('transfer_id', $id)->get()->getRow();
+        $this->assertSame([null, 'USD', '100.0000'], [$row->from_currency, $row->to_currency, $row->to_amount]);
+    }
+
+    public function testTransfer_PostsTheExchangeDifferenceBetweenTheTwoAmountsAsALineOfTheSameJournal(): void
+    {
+        $dollars = $this->dollarBox();
+
+        $loss = $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager, '99.00');
+        $gain = $this->transfers->transfer($this->main, $dollars, '100.00', '2026-10-21', '', $this->manager, '27.00');
+
+        $this->assertSame([(int) $this->treasuries->accountOf($dollars) . ':371.25:0.00', $this->accountId('fx_loss') . ':3.75:0.00', (int) $this->treasuries->accountOf($this->main) . ':0.00:375.00'], $this->transferLines($loss));
+        $this->assertSame([(int) $this->treasuries->accountOf($dollars) . ':101.25:0.00', (int) $this->treasuries->accountOf($this->main) . ':0.00:100.00', $this->accountId('fx_gain') . ':0.00:1.25'], $this->transferLines($gain));
+    }
+
+    public function testTransfer_MovesDollarsOutOfATreasuryOfDollarsIntoTheBase(): void
+    {
+        $dollars = $this->dollarBox();
+        $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager, '100.00');
+
+        $id = $this->transfers->transfer($dollars, $this->drawer, '40.00', '2026-10-21', '', $this->manager, '150.00');
+
+        $this->assertSame([(int) $this->treasuries->accountOf($this->drawer) . ':150.00:0.00', (int) $this->treasuries->accountOf($dollars) . ':0.00:150.00'], $this->transferLines($id));
+        $this->assertSame('60.0000', $this->treasuries->position($dollars)->foreignBalance);
+        $this->assertSame('225.0000', $this->treasuries->position($dollars)->balance);
+    }
+
+    public function testTransfer_MovesDollarsBetweenTwoTreasuriesOfDollarsAsAJournalInDollars(): void
+    {
+        $first  = $this->dollarBox();
+        $second = $this->dollarBox('Second dollar box');
+        $this->transfers->transfer($this->main, $first, '375.00', '2026-10-21', '', $this->manager, '100.00');
+
+        $id = $this->transfers->transfer($first, $second, '30.00', '2026-10-21', '', $this->manager);
+
+        $this->assertSame([(int) $this->treasuries->accountOf($second) . ':112.50:0.00', (int) $this->treasuries->accountOf($first) . ':0.00:112.50'], $this->transferLines($id));
+        $this->assertSame(['USD', '3.75000000'], [$this->accountingDb()->table('accounting_journals')->where(['source_type' => 'treasury_transfer', 'source_id' => $id])->get()->getRow()->currency_code, $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'treasury_transfer', 'source_id' => $id])->get()->getRow()->exchange_rate]);
+        $this->assertSame('70.0000', $this->treasuries->position($first)->foreignBalance);
+        $this->assertSame('30.0000', $this->treasuries->position($second)->foreignBalance);
+    }
+
+    public function testTransfer_RequiresTheAmountThatArrivesWhenTheCurrenciesDiffer(): void
+    {
+        $dollars = $this->dollarBox();
+
+        try {
+            $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager);
+            $this->fail('A transfer between currencies needs both amounts.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::TransferAmountRequired, $exception->error);
+        }
+
+        $this->assertSame(0, $this->accountingDb()->table('treasury_transfers')->where('to_treasury_id', $dollars)->countAllResults());
+    }
+
+    public function testTransfer_RefusesADifferentAmountOutAndInWhenThereIsOneCurrency(): void
+    {
+        $dollars = $this->dollarBox();
+        $second  = $this->dollarBox('Second dollar box');
+
+        foreach ([[$this->main, $this->drawer], [$dollars, $second]] as [$from, $to]) {
+            try {
+                $this->transfers->transfer($from, $to, '10.00', '2026-10-21', '', $this->manager, '9.00');
+                $this->fail('One currency takes the same amount out and in.');
+            } catch (AccountingException $exception) {
+                $this->assertSame(AccountingError::TransferAmountInvalid, $exception->error);
+            }
+        }
+    }
+
+    public function testTransfer_RefusesWhenTheCurrencyHasNoRateOnTheDay(): void
+    {
+        $dollars = $this->dollarBox();
+        $this->accountingDb()->table('accounting_currency_rates')->truncate();
+
+        try {
+            $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager, '100.00');
+            $this->fail('A transfer needs the rate of the day.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::RateMissing, $exception->error);
+        }
+
+        $this->assertSame('0.0000', $this->treasuries->position($dollars)->balance);
+    }
+
+    public function testTransfer_RefusesATransferBetweenBranchesInAForeignCurrencyAndChangesNothing(): void
+    {
+        $dollars = $this->dollarBox();
+        $branch  = $this->createBranch('B2');
+        $other   = $this->treasuries->create(['name' => 'Branch drawer', 'kind' => 'cash', 'branch_id' => $branch], $this->manager);
+
+        $this->manager = $this->employeeWithGrants([AccountingGuard::TREASURIES_MANAGE]);
+
+        try {
+            $this->transfers->transfer($other, $dollars, '375.00', '2026-10-21', '', $this->manager, '100.00');
+            $this->fail('A transfer between branches is never in a foreign currency.');
+        } catch (PostingException $exception) {
+            $this->assertSame(PostingError::FxNotSupported, $exception->error);
+        }
+
+        $this->assertSame('0.0000', $this->treasuries->position($dollars)->balance);
+    }
+
+    public function testCancel_TakesBackATransferInDollarsWithBothAmounts(): void
+    {
+        $dollars = $this->dollarBox();
+        $id      = $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager, '99.00');
+
+        $this->transfers->cancel($id, 'a mistake', $this->manager);
+
+        $this->assertSame('0.0000', $this->treasuries->position($dollars)->foreignBalance);
+        $this->assertSame('0.0000', $this->treasuries->position($dollars)->balance);
+        $this->assertSame('500.0000', $this->treasuries->position($this->main)->balance);
+        $this->assertSame('0.00', $this->balance($this->accountId('fx_loss')));
+    }
+
+    public function testTransfer_LeavesATransferBetweenTwoTreasuriesOfTheBaseAsItWas(): void
+    {
+        $id = $this->transfers->transfer($this->main, $this->drawer, '100.00', '2026-10-21', '', $this->manager);
+
+        $this->assertSame([(int) $this->treasuries->accountOf($this->drawer) . ':100.00:0.00', (int) $this->treasuries->accountOf($this->main) . ':0.00:100.00'], $this->transferLines($id));
+
+        $row = $this->accountingDb()->table('treasury_transfers')->where('transfer_id', $id)->get()->getRow();
+        $this->assertSame([null, null, null], [$row->from_currency, $row->to_currency, $row->to_amount]);
     }
 }

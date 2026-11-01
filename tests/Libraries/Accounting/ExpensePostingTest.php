@@ -1893,4 +1893,22 @@ class ExpensePostingTest extends CIUnitTestCase
         $this->assertEquals($before, (new ExpensePosting())->journalsOf($expenseId));
         $this->assertCount(1, $before);
     }
+
+    public function testSync_RefusesAnExpenseInAForeignCurrencyWithANamedRefusalAndPostsNothingOfIt(): void
+    {
+        $expenseId = $this->saveExpense($this->expenseData('230.00', '30.00'));
+        $journals  = $this->postedJournals($expenseId);
+
+        $this->accountingDb()->table('expenses')->where('expense_id', $expenseId)->update(['currency_code' => 'USD', 'currency_rate' => '3.75']);
+
+        try {
+            (new ExpensePosting())->sync($expenseId, null);
+            $this->fail('An expense in a foreign currency was not refused.');
+        } catch (PostingException $exception) {
+            $this->assertSame(PostingError::FxNotSupported, $exception->error);
+            $this->assertSame('expense', $exception->context['what']);
+        }
+
+        $this->assertSame($journals, $this->postedJournals($expenseId));
+    }
 }

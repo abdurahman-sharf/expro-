@@ -3,6 +3,8 @@
 namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\Currency;
 use App\Libraries\Accounting\Bank\BankDirectory;
 use App\Libraries\Accounting\Bank\BankMatches;
 use App\Libraries\Accounting\TreasuryScopes;
@@ -111,6 +113,8 @@ class AccountingTreasuries extends AccountingController
                 TreasuryScopes::DEPOSIT  => $this->scopes->scopeOf((int) $treasury->treasury_id, TreasuryScopes::DEPOSIT),
                 TreasuryScopes::WITHDRAW => $this->scopes->scopeOf((int) $treasury->treasury_id, TreasuryScopes::WITHDRAW),
             ],
+            'currencies'     => array_values(array_filter((new Currencies())->all(true), fn (Currency $currency): bool => ! (new Currencies())->isBase($currency->code))),
+            'currency_fixed' => $treasury !== null && ((int) $treasury->is_main === 1 || $this->treasuries->hasHistory((int) $treasury->treasury_id)),
             'directory'      => BankDirectory::search(),
             'selectedBank'   => $treasury === null || $treasury->kind !== TreasuryService::BANK ? '' : (string) (($treasury->bank_code ?? '') !== '' ? $treasury->bank_code : (BankDirectory::codeOfName((string) $treasury->bank_name) ?? '')),
             'staff'          => $this->treasuries->employees(),
@@ -131,6 +135,10 @@ class AccountingTreasuries extends AccountingController
                 'description'    => (string) $this->request->getPost('description'),
                 'branch_id'      => (int) $this->request->getPost('branch_id'),
             ];
+
+            if ($this->request->getPost('currency_code') !== null) {
+                $input['currency_code'] = (string) $this->request->getPost('currency_code');
+            }
 
             foreach ([TreasuryScopes::DEPOSIT, TreasuryScopes::WITHDRAW] as $direction) {
                 if ($this->request->getPost($direction . '_scope') !== null) {
@@ -246,6 +254,7 @@ class AccountingTreasuries extends AccountingController
                 trim((string) $this->request->getPost('transfer_date')),
                 (string) $this->request->getPost('note'),
                 $this->employeeId(),
+                (string) $this->request->getPost('to_amount'),
             );
 
             return ['success' => true, 'message' => lang('Accounting_treasuries.transfer_done'), 'id' => $id];

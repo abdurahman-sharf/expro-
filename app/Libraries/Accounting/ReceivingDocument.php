@@ -5,7 +5,9 @@ namespace App\Libraries\Accounting;
 /**
  * A saved purchase, with what posting needs to know about it. Its date is the day its journals
  * take: the date typed on the invoice, or else the day it was saved. A return carries the purchase
- * it takes goods back from, because it can only give back what that purchase brought in.
+ * it takes goods back from, because it can only give back what that purchase brought in. A purchase in a
+ * foreign currency carries the currency and the rate it was captured at, and every amount of its lines is in
+ * that currency; one without them is in the base currency.
  */
 final readonly class ReceivingDocument
 {
@@ -31,6 +33,7 @@ final readonly class ReceivingDocument
         public ?int $toBranchId = null,
         public array $branchCodes = [],
         public ?string $savedOn = null,
+        public ?DocumentCurrency $currency = null,
     ) {
     }
 }

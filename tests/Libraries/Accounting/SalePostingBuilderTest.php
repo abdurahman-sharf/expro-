@@ -1605,4 +1605,23 @@ class SalePostingBuilderTest extends CIUnitTestCase
 
         $this->assertSame([$this->accountId('fx_loss') . ':0.50:0.00', $this->customerAccount() . ':0.00:0.50'], $this->shape($draft));
     }
+
+    public function testInvoice_RoundsTheDiscountOfAZeroDecimalCurrencyToWholeUnitsBeforeTheTotal(): void
+    {
+        $sale  = $this->sale([$this->line('3', '1234.5', discount: '10')], currency: $this->foreign('JPY', '0.02376000', 0));
+        $draft = $this->builder->invoice($sale, 1);
+
+        $this->assertSame('3334.0000', $draft->lines[0]->foreignAmount, 'The discount of 370.35 is 370, so the 3,333.5 left is 3,334');
+        $this->assertSame([$this->customerAccount() . ':79.22:0.00', $this->accountId('sales_revenue') . ':0.00:79.22'], $this->shape($draft));
+    }
+
+    public function testPaymentDifference_RefusesWhenTheRoutingOfExchangeGainsIsCancelled(): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'fx.gain')->update(['routing_type' => 'cancelled']);
+        $sale = $this->sale([$this->line('1', '100')], [$this->foreignPayment(3, '100.00', '3.90000000')], currency: $this->foreign());
+
+        $failure = $this->failureOf(fn () => $this->builder->paymentDifference($sale, $sale->payments[0], 1));
+
+        $this->assertSame(PostingError::FxAccountsMissing, $failure->error);
+    }
 }

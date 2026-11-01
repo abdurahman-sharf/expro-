@@ -75,6 +75,7 @@ return [
     'failure_time'                   => 'Time',
     'failures_desc'                  => 'Documents whose journal could not be posted. The document was rolled back with it, so nothing is saved halfway.',
     'filters'                        => 'Journal filters',
+    'foreign_amount'                 => 'Foreign amount',
     'history'                        => 'History',
     'journal_posted'                 => 'Journal {0} was posted.',
     'journal_reversed'               => 'Reversal journal {0} was posted and the original journal is now reversed.',

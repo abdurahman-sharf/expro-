@@ -21,7 +21,7 @@ final class ReceivingLoader
     public function load(int $receivingId, bool $withOrigin = true): ?ReceivingDocument
     {
         $receiving = $this->db->table('receivings')
-            ->select('receiving_id, receiving_time, invoice_date, receiving_type, supplier_id, branch_id, to_branch_id, payment_type, return_of_receiving_id, treasury_id')
+            ->select('receiving_id, receiving_time, invoice_date, receiving_type, supplier_id, branch_id, to_branch_id, payment_type, return_of_receiving_id, treasury_id, currency_code, currency_rate')
             ->where('receiving_id', $receivingId)
             ->get()
             ->getRow();
@@ -48,6 +48,7 @@ final class ReceivingLoader
             toBranchId: $receiving->to_branch_id === null ? null : (int) $receiving->to_branch_id,
             branchCodes: $this->branchCodes((int) $receiving->branch_id, $receiving->to_branch_id === null ? null : (int) $receiving->to_branch_id),
             savedOn: $savedOn,
+            currency: (new Currencies($this->db))->stored($receiving->currency_code, $receiving->currency_rate),
         );
     }
 
@@ -77,7 +78,7 @@ final class ReceivingLoader
         $payments = [];
 
         foreach ($this->db->table('receivings_payments')
-            ->select('payment_id, payment_type, payment_amount, payment_time, payment_date, payment_status, treasury_id, treasury_branch_id')
+            ->select('payment_id, payment_type, payment_amount, payment_time, payment_date, payment_status, treasury_id, treasury_branch_id, currency_rate')
             ->where('receiving_id', $receivingId)
             ->orderBy('payment_id', 'ASC')
             ->get()
@@ -90,6 +91,7 @@ final class ReceivingLoader
                 status: PaymentStatus::fromStored($row->payment_status),
                 treasuryId: $row->treasury_id === null ? null : (int) $row->treasury_id,
                 treasuryBranchId: $row->treasury_branch_id === null ? null : (int) $row->treasury_branch_id,
+                rate: $row->currency_rate === null ? null : bcadd((string) $row->currency_rate, '0', 8),
             );
         }
 

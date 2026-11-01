@@ -53,6 +53,9 @@ final class CustomerDocuments
      * @param list<int>|null                                                                                                                                                        $branchIds
      * @param int|null                                                                                                                                                              $viewerId  The reader, who sees only the payments they collected when they see their own records only. The employee of the session when not given.
      *
+     * The amount of the list is the money of the payments in the base currency, and each row carries its own amount in
+     * the currency of its document with the rate it was taken at.
+     *
      * @return array{total: int, amount: numeric-string, posted: numeric-string, rows: list<object>}
      */
     public function payments(array $filters, string $sort, string $order, int $limit, int $offset, ?array $branchIds, ?int $viewerId = null): array
@@ -76,8 +79,11 @@ final class CustomerDocuments
         $posted   = "COALESCE((SELECT SUM(j.total_debit) FROM {$journals} j WHERE j.source_type = ? AND j.source_id = p.payment_id AND j.status = ?), 0)";
         $joinBind = [DocumentType::CustomerPayment->value];
 
+        $decimals = (new Currencies($this->db))->baseDecimals();
+        $netBase  = "IF(p.currency_rate IS NULL, p.payment_amount - p.cash_refund, ROUND((p.payment_amount - p.cash_refund) * p.currency_rate, {$decimals}))";
+
         $totals = $this->db->query(
-            "SELECT COUNT(*) AS found, COALESCE(SUM(p.payment_amount - p.cash_refund), 0) AS amount, COALESCE(SUM(SIGN(p.payment_amount - p.cash_refund) * {$posted}), 0) AS posted
+            "SELECT COUNT(*) AS found, COALESCE(SUM({$netBase}), 0) AS amount, COALESCE(SUM(SIGN(p.payment_amount - p.cash_refund) * {$posted}), 0) AS posted
              {$joins} WHERE {$where}",
             [SalePostingBuilder::SOURCE_PAYMENT, JournalStatus::Posted->value, ...$joinBind, ...$bindings],
         )->getRow();
@@ -90,7 +96,7 @@ final class CustomerDocuments
                     TRIM(CONCAT(COALESCE(cp.first_name, ''), ' ', COALESCE(cp.last_name, ''))) AS customer_name,
                     TRIM(CONCAT(COALESCE(ep.first_name, ''), ' ', COALESCE(ep.last_name, ''))) AS employee_name,
                     t.name AS treasury_name, b.code AS branch_code, b.name AS branch_name, n.number AS document_number,
-                    (p.payment_amount - p.cash_refund) AS amount, SIGN(p.payment_amount - p.cash_refund) * {$posted} AS posted
+                    (p.payment_amount - p.cash_refund) AS amount, {$netBase} AS amount_base, p.currency_rate, s.currency_code, SIGN(p.payment_amount - p.cash_refund) * {$posted} AS posted
              {$joins} WHERE {$where}
              ORDER BY {$column} {$way}, p.payment_id {$way} LIMIT " . max(1, $limit) . ' OFFSET ' . max(0, $offset),
             [SalePostingBuilder::SOURCE_PAYMENT, JournalStatus::Posted->value, ...$joinBind, ...$bindings],

@@ -39,7 +39,7 @@ final class ReceivingPosting
         $this->ledger   = new StockLedger($this->db);
         $this->settings = new AccountingSettings($this->db);
         $this->periods  = new PeriodGuard($this->db);
-        $this->builder  = new ReceivingPostingBuilder(new RoutingResolver($this->db), $this->ledger);
+        $this->builder  = new ReceivingPostingBuilder(new RoutingResolver($this->db), $this->ledger, fn (): int => (new Currencies($this->db))->baseDecimals());
 
         $this->crossBranch = new CrossBranchPayments($this->db);
     }
@@ -97,6 +97,8 @@ final class ReceivingPosting
         }
 
         $this->transactional(function () use ($purchase, $employeeId): void {
+            $purchase = $this->withRates($purchase);
+
             foreach ($purchase->payments as $payment) {
                 $this->postSupplierPayment($purchase, $payment, $employeeId);
             }
@@ -130,6 +132,12 @@ final class ReceivingPosting
 
             $this->reverse($active, $employeeId, 'Payment removed');
         }
+
+        $difference = $this->activeJournal(ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, $paymentId, JournalEntryType::General);
+
+        if ($difference !== null) {
+            $this->reverse($difference, $employeeId, 'Payment removed');
+        }
     }
 
     /**
@@ -154,6 +162,12 @@ final class ReceivingPosting
 
                 if ($journal !== null) {
                     $later[] = $journal;
+                }
+
+                $difference = $this->activeJournal(ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, $paymentId, JournalEntryType::General);
+
+                if ($difference !== null) {
+                    $later[] = $difference;
                 }
             }
 
@@ -251,7 +265,7 @@ final class ReceivingPosting
      * its journal stands or not, because the journal takes that day. Only the changes named are
      * compared.
      *
-     * @param array{supplier_id?: ?int, date?: string, invoice_date?: string} $changes
+     * @param array{supplier_id?: ?int, date?: string, invoice_date?: string, currency_code?: ?string, currency_rate?: ?string} $changes
      *
      * @throws AccountingException
      */
@@ -268,6 +282,13 @@ final class ReceivingPosting
         }
 
         $purchase = $this->loader->load($receivingId, false);
+
+        $currencyChanged = $posted && (array_key_exists('currency_code', $changes) || array_key_exists('currency_rate', $changes))
+            && ($purchase === null || ! DocumentCurrency::unchanged($purchase->currency, array_intersect_key($changes, ['currency_code' => 1, 'currency_rate' => 1])));
+
+        if ($currencyChanged) {
+            throw new AccountingException(AccountingError::DocumentCurrencyLocked, 'The currency and the rate of a purchase that has been posted cannot change. Reverse it and enter it again, or correct it with a return.', ['receiving_id' => $receivingId]);
+        }
 
         $supplierChanged = $posted && array_key_exists('supplier_id', $changes) && ($purchase === null || $purchase->supplierId !== $changes['supplier_id']);
         $dateChanged     = $posted && array_key_exists('date', $changes) && ($purchase === null || $purchase->savedOn !== $changes['date']);
@@ -298,7 +319,7 @@ final class ReceivingPosting
 
         if ($paymentIds !== []) {
             $builder->orGroupStart()
-                ->whereIn('source_type', [ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, ...CrossBranchPayments::companionsOf(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT)])
+                ->whereIn('source_type', [ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, ...CrossBranchPayments::companionsOf(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT)])
                 ->whereIn('source_id', $paymentIds)
                 ->groupEnd();
         }
@@ -390,10 +411,88 @@ final class ReceivingPosting
     }
 
     /**
+     * The journal of a payment made against a purchase, and the exchange difference that goes with it
+     * when the purchase is in a foreign currency.
+     *
      * @throws AccountingException|PostingException
      */
     private function postSupplierPayment(ReceivingDocument $purchase, SupplierPayment $payment, ?int $employeeId): void
     {
+        $this->postSupplierPaymentJournal($purchase, $payment, $employeeId);
+        $this->postExchangeDifference($purchase, $payment, $employeeId);
+    }
+
+    /**
+     * Brings the exchange difference of a payment in line with what the payments of the purchase say it is
+     * now: posted when there is none, left when it holds, and taken back and posted again when an earlier
+     * payment changed what this one settles.
+     *
+     * @throws AccountingException|PostingException
+     */
+    private function postExchangeDifference(ReceivingDocument $purchase, SupplierPayment $payment, ?int $employeeId): void
+    {
+        if ($purchase->currency === null) {
+            return;
+        }
+
+        $active = $this->activeJournal(ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, $payment->paymentId, JournalEntryType::General);
+        $draft  = $this->builder->supplierPaymentDifference($purchase, $payment, $this->nextRevision(ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, $payment->paymentId), $employeeId);
+
+        if ($active !== null) {
+            if ($draft !== null && $this->holds($active, $draft)) {
+                return;
+            }
+
+            $this->reverse($active, $employeeId, 'Payment #' . $payment->paymentId . ' changed');
+        }
+
+        if ($draft !== null) {
+            $this->posting->post($draft);
+        }
+    }
+
+    /**
+     * The purchase with the rate of every payment of a foreign purchase that has none yet: the rate of the
+     * latest day on or before the day of the payment, written on the payment so that it is never taken again.
+     *
+     * @throws AccountingException
+     */
+    private function withRates(ReceivingDocument $purchase): ReceivingDocument
+    {
+        if ($purchase->currency === null) {
+            return $purchase;
+        }
+
+        $currencies = new Currencies($this->db);
+        $captured   = false;
+
+        foreach ($purchase->payments as $payment) {
+            if ($payment->rate !== null || ! $payment->status->posts()) {
+                continue;
+            }
+
+            $rate = $currencies->rates()->rateOn($purchase->currency->code, $payment->date);
+
+            if ($rate === null) {
+                throw new AccountingException(AccountingError::RateMissing, "Currency {$purchase->currency->code} has no rate on or before {$payment->date}.", ['code' => $purchase->currency->code, 'date' => $payment->date]);
+            }
+
+            $this->db->table('receivings_payments')->where('payment_id', $payment->paymentId)->where('currency_rate', null)->update(['currency_code' => $purchase->currency->code, 'currency_rate' => $rate]);
+            $captured = true;
+        }
+
+        return $captured ? ($this->loader->load($purchase->receivingId, false) ?? $purchase) : $purchase;
+    }
+
+    /**
+     * @throws AccountingException|PostingException
+     */
+    private function postSupplierPaymentJournal(ReceivingDocument $purchase, SupplierPayment $payment, ?int $employeeId): void
+    {
+        if ($purchase->currency !== null && $payment->treasuryBranchId !== null && $payment->treasuryBranchId !== $purchase->branchId) {
+            throw new PostingException(PostingError::FxNotSupported, 'A payment of a purchase in a foreign currency cannot come out of a treasury of another branch yet.', ['what' => 'cross_branch', 'payment_id' => $payment->paymentId]);
+        }
+
         $active = $this->activeJournal(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $payment->paymentId, JournalEntryType::General);
         $draft  = $this->builder->supplierPayment($purchase, $payment, $this->nextRevision(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $payment->paymentId), $employeeId);
         $drafts = $draft === null ? [] : $this->crossBranch->drafts($draft, $payment->treasuryId, $payment->treasuryBranchId);

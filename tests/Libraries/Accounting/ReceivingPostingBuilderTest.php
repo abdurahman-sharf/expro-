@@ -2,6 +2,9 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\DocumentCurrency;
+use App\Libraries\Accounting\SupplierPayment;
+use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\PostingError;
@@ -79,7 +82,7 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
     /**
      * @param list<ReceivingLine> $lines
      */
-    private function purchase(array $lines, ReceivingType $type = ReceivingType::Receive, ?string $payment = null, ?int $supplierId = -1, ?ReceivingDocument $origin = null, ?int $toBranchId = null): ReceivingDocument
+    private function purchase(array $lines, ReceivingType $type = ReceivingType::Receive, ?string $payment = null, ?int $supplierId = -1, ?ReceivingDocument $origin = null, ?int $toBranchId = null, ?DocumentCurrency $currency = null, array $payments = []): ReceivingDocument
     {
         return new ReceivingDocument(
             receivingId: 7,
@@ -91,9 +94,21 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
             returnOfReceivingId: $origin?->receivingId,
             lines: $lines,
             origin: $origin,
+            payments: $payments,
             toBranchId: $toBranchId,
             branchCodes: $toBranchId === null ? [] : [1 => 'MAIN', $toBranchId => 'JED'],
+            currency: $currency,
         );
+    }
+
+    private function dollars(string $rate = '3.75000000'): DocumentCurrency
+    {
+        return new DocumentCurrency('USD', $rate, 2);
+    }
+
+    private function supplierPayment(int $id, string $amount, ?string $rate): SupplierPayment
+    {
+        return new SupplierPayment($id, lang('Sales.cash'), $amount, '2026-10-24', PaymentStatus::Completed, null, null, $rate);
     }
 
     /**
@@ -630,5 +645,151 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         $totals = $this->builder->totals($this->purchase([$this->line('1', '0.70', '15'), $this->line('1', '9.00', itemId: 2)]));
 
         $this->assertSame(['net' => '9.7000', 'tax' => '0.1050', 'total' => '9.81'], $totals);
+    }
+
+    public function testPurchase_ConvertsAPurchaseInDollarsToTheBaseAndWorthsTheStockWhatItsLineIsWorth(): void
+    {
+        $purchase = $this->purchase([$this->line('2', '50.00', itemId: 1), $this->line('3', '33.33', itemId: 2), $this->line('1', '20.00', itemId: 3, stock: false)], currency: $this->dollars());
+
+        $plan = $this->builder->purchase($purchase, 1);
+
+        $this->assertSame([
+            $this->stockAccount($this->warehouse) . ':749.9600:0.0000',
+            $this->accountId('cogs') . ':75.0000:0.0000',
+            $this->supplierAccount() . ':0.0000:824.9600',
+        ], array_map(static fn ($line): string => $line->accountId . ':' . bcadd($line->debit, '0', 4) . ':' . bcadd($line->credit, '0', 4), $plan->journal->lines));
+        $this->assertSame(['USD', '3.75000000'], [$plan->journal->currencyCode, $plan->journal->exchangeRate]);
+    }
+
+    public function testPurchase_KeepsTheMovementsOfALocationAddingUpToItsLineInTheBase(): void
+    {
+        $purchase = $this->purchase([$this->line('1', '33.33', itemId: 1), $this->line('1', '33.33', itemId: 2), $this->line('1', '33.34', itemId: 3)], currency: $this->dollars('1.00500000'));
+
+        $plan  = $this->builder->purchase($purchase, 1);
+        $stock = $this->stockAccount($this->warehouse);
+        $line  = '0';
+
+        foreach ($plan->journal->lines as $each) {
+            if ($each->accountId === $stock) {
+                $line = $each->debit;
+            }
+        }
+
+        $sum = array_reduce($plan->movements, static fn (string $carry, StockMovement $movement): string => bcadd($carry, $movement->value, 4), '0');
+
+        $this->assertSame(bcadd($line, '0', 4), $sum);
+        $this->assertCount(3, $plan->movements);
+    }
+
+    public function testPurchase_KeepsThePurchaseOfABaseSupplierWithoutForeignAmounts(): void
+    {
+        $plan = $this->builder->purchase($this->purchase([$this->line('2', '50.00')]), 1);
+
+        $this->assertSame('', $plan->journal->currencyCode);
+        $this->assertSame([null, null], [$plan->journal->lines[0]->foreignAmount, $plan->journal->lines[0]->currencyCode]);
+    }
+
+    public function testPurchase_RefusesTheTransferOfStockInAForeignCurrency(): void
+    {
+        $failure = $this->failureOf(fn () => $this->builder->purchase($this->purchase([$this->line('-1', '10.00', location: $this->warehouse), $this->line('1', '10.00', location: $this->shop)], ReceivingType::Requisition, currency: $this->dollars()), 1));
+
+        $this->assertSame(PostingError::FxNotSupported, $failure->error);
+    }
+
+    public function testPurchase_GivesBackTheGoodsAtTheirStockValueAndTheSupplierBalanceAtTheRateOfThePurchase(): void
+    {
+        $origin = $this->origin([$this->line('4', '25.00')]);
+        $return = $this->purchase([$this->line('-2', '25.00')], ReceivingType::Return, origin: $origin, currency: $this->dollars());
+
+        $plan = $this->builder->purchase($return, 1);
+
+        $this->assertSame($this->supplierAccount(), $plan->journal->lines[0]->accountId);
+        $this->assertSame('187.5000', bcadd($plan->journal->lines[0]->debit, '0', 4));
+        $this->assertSame(['50.0000', 'USD'], [$plan->journal->lines[0]->foreignAmount, $plan->journal->lines[0]->currencyCode]);
+        $this->assertSame('', $plan->journal->currencyCode, 'The journal of the return is kept in the base: the goods leave at their cost');
+    }
+
+    public function testPayment_PostsThePaymentAtOnceAtTheRateOfThePurchase(): void
+    {
+        $purchase = $this->purchase([$this->line('2', '50.00')], payment: lang('Sales.cash'), currency: $this->dollars());
+
+        $draft = $this->builder->payment($purchase, 1, 5);
+
+        $this->assertSame([$this->supplierAccount() . ':375.0000:0.0000', $this->accountId('cash') . ':0.0000:375.0000'], $this->shape($draft));
+        $this->assertSame(['USD', '3.75000000'], [$draft->currencyCode, $draft->exchangeRate]);
+    }
+
+    public function testSupplierPayment_PostsTheMoneyAtTheRateOfThePaymentWithTheForeignAmountOnBothLines(): void
+    {
+        $payment  = $this->supplierPayment(3, '200.00', '3.60000000');
+        $purchase = $this->purchase([$this->line('4', '50.00')], currency: $this->dollars(), payments: [$payment]);
+
+        $draft = $this->builder->supplierPayment($purchase, $payment, 1);
+
+        $this->assertSame([$this->supplierAccount() . ':720.0000:0.0000', $this->accountId('cash') . ':0.0000:720.0000'], $this->shape($draft));
+        $this->assertSame(['200.0000', 'USD'], [$draft->lines[0]->foreignAmount, $draft->lines[0]->currencyCode]);
+        $this->assertSame('3.60000000', $draft->exchangeRate);
+    }
+
+    public function testSupplierPaymentDifference_PostsTheObservedGainOfThirtyWhenTheDollarCostsLess(): void
+    {
+        $payment  = $this->supplierPayment(3, '200.00', '3.60000000');
+        $purchase = $this->purchase([$this->line('4', '50.00')], currency: $this->dollars(), payments: [$payment]);
+
+        $draft = $this->builder->supplierPaymentDifference($purchase, $payment, 1, 5);
+
+        $this->assertSame([$this->supplierAccount() . ':30.0000:0.0000', $this->accountId('fx_gain') . ':0.0000:30.0000'], $this->shape($draft));
+        $this->assertSame('supplier_payment_fx', $draft->sourceType);
+        $this->assertSame(3, $draft->sourceId);
+    }
+
+    public function testSupplierPaymentDifference_PostsTheLossWhenTheDollarCostsMore(): void
+    {
+        $payment  = $this->supplierPayment(3, '200.00', '3.90000000');
+        $purchase = $this->purchase([$this->line('4', '50.00')], currency: $this->dollars(), payments: [$payment]);
+
+        $draft = $this->builder->supplierPaymentDifference($purchase, $payment, 1);
+
+        $this->assertSame([$this->accountId('fx_loss') . ':30.0000:0.0000', $this->supplierAccount() . ':0.0000:30.0000'], $this->shape($draft));
+    }
+
+    public function testSupplierPaymentDifference_IsNothingForABasePurchaseOrAPaymentAtTheRateOfThePurchase(): void
+    {
+        $payment = $this->supplierPayment(3, '200.00', '3.75000000');
+        $foreign = $this->purchase([$this->line('4', '50.00')], currency: $this->dollars(), payments: [$payment]);
+        $base    = $this->purchase([$this->line('4', '50.00')], payments: [$this->supplierPayment(4, '200.00', null)]);
+
+        $this->assertNull($this->builder->supplierPaymentDifference($foreign, $payment, 1));
+        $this->assertNull($this->builder->supplierPaymentDifference($base, $base->payments[0], 1));
+    }
+
+    public function testSupplierPaymentDifference_SettlesThePurchaseToTheCentAcrossPartPayments(): void
+    {
+        $payments = [$this->supplierPayment(1, '100.00', '3.75000000'), $this->supplierPayment(2, '100.00', '3.60000000'), $this->supplierPayment(3, '68.33', '3.90000000')];
+        $purchase = $this->purchase([$this->line('1', '268.33')], currency: $this->dollars(), payments: $payments);
+
+        $this->assertNull($this->builder->supplierPaymentDifference($purchase, $payments[0], 1));
+        $this->assertSame([$this->supplierAccount() . ':15.0000:0.0000', $this->accountId('fx_gain') . ':0.0000:15.0000'], $this->shape($this->builder->supplierPaymentDifference($purchase, $payments[1], 1)));
+        $this->assertSame([$this->accountId('fx_loss') . ':10.2500:0.0000', $this->supplierAccount() . ':0.0000:10.2500'], $this->shape($this->builder->supplierPaymentDifference($purchase, $payments[2], 1)));
+    }
+
+    public function testSupplierPayment_RefusesAPaymentThatHasNoRate(): void
+    {
+        $payment  = $this->supplierPayment(3, '200.00', null);
+        $purchase = $this->purchase([$this->line('4', '50.00')], currency: $this->dollars(), payments: [$payment]);
+
+        $failure = $this->failureOf(fn () => $this->builder->supplierPayment($purchase, $payment, 1));
+
+        $this->assertSame(PostingError::ForeignRateMismatch, $failure->error);
+    }
+
+    public function testSupplierPaymentDifference_CountsWhatWasPaidAtOnceAmongThePaymentsOfThePurchase(): void
+    {
+        $refund   = $this->supplierPayment(3, '-50.00', '3.60000000');
+        $purchase = $this->purchase([$this->line('4', '50.00')], payment: lang('Sales.cash'), currency: $this->dollars(), payments: [$refund]);
+
+        $draft = $this->builder->supplierPaymentDifference($purchase, $refund, 1);
+
+        $this->assertSame([$this->accountId('fx_loss') . ':7.5000:0.0000', $this->supplierAccount() . ':0.0000:7.5000'], $this->shape($draft));
     }
 }

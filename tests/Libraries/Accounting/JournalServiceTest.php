@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountLedger;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\ChequeSources;
@@ -512,6 +513,35 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertSame('0.0000', $reversalLines[0]->debit);
         $this->assertSame('75.0000', $reversalLines[0]->credit);
         $this->assertSame('75.0000', $reversalLines[1]->debit);
+    }
+
+    public function testReverse_RefusesToTakeBackByHandAJournalInAForeignCurrencyAndTheJournalOfAnExchangeDifference(): void
+    {
+        (new Currencies())->setActive('USD', true);
+        $posting = new PostingService();
+
+        $foreign = $posting->post(new JournalDraft(date: '2026-10-21', lines: [
+            new JournalLineDraft($this->accountId('cash'), debit: '375.00', foreignAmount: '100.00', currencyCode: 'USD'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '375.00', foreignAmount: '100.00', currencyCode: 'USD'),
+        ], sourceType: 'sale', sourceId: 91, employeeId: 1, currencyCode: 'USD', exchangeRate: '3.75'))->journalId;
+
+        $difference = $posting->post(new JournalDraft(date: '2026-10-21', lines: [
+            new JournalLineDraft($this->accountId('cash'), debit: '15.00'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '15.00'),
+        ], sourceType: 'sale_payment_fx', sourceId: 92, employeeId: 1, currencyCode: 'SAR'))->journalId;
+
+        foreach ([$foreign, $difference] as $journalId) {
+            try {
+                $this->service->reverse($journalId, '2026-10-30', 'by hand');
+                $this->fail('The journal was taken back by hand.');
+            } catch (AccountingException $exception) {
+                $this->assertSame(AccountingError::FxJournalLocked, $exception->error);
+            }
+
+            $this->assertSame('posted', $this->journal($journalId)->status);
+        }
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id IS NOT NULL', null, false)->countAllResults());
     }
 
     public function testReverse_RejectsADraftAndAJournalThatIsAlreadyReversed(): void

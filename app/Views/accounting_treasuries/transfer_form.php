@@ -19,7 +19,7 @@
                         <select name="<?= $name ?>" id="<?= $name ?>" class="form-select form-select-sm">
                             <option value=""></option>
                             <?php foreach ($treasuries as $treasury): ?>
-                                <option value="<?= (int) $treasury->treasury_id ?>" data-branch="<?= (int) $treasury->branch_id ?>"><?= esc($treasury->name . ' (' . $treasury->branch_code . ')') ?></option>
+                                <option value="<?= (int) $treasury->treasury_id ?>" data-branch="<?= (int) $treasury->branch_id ?>" data-currency="<?= esc((string) ($treasury->currency_code ?? ''), 'attr') ?>"><?= esc($treasury->name . ' (' . $treasury->branch_code . ')') ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -34,6 +34,14 @@
                 <?= form_label(lang('Accounting_treasuries.amount'), 'amount', ['class' => 'form-label text-danger required']) ?>
                 <div class="field-control">
                     <input type="text" name="amount" id="amount" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="decimal" autocomplete="off">
+                </div>
+            </div>
+
+            <div class="field" id="to_amount_field" hidden>
+                <?= form_label(lang('Accounting_treasuries.to_amount'), 'to_amount', ['class' => 'form-label text-danger required']) ?>
+                <div class="field-control">
+                    <input type="text" name="to_amount" id="to_amount" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="decimal" autocomplete="off" disabled>
+                    <div class="form-text"><?= esc(lang('Accounting_treasuries.to_amount_hint')) ?></div>
                 </div>
             </div>
 
@@ -67,7 +75,17 @@
             $('#between_note').prop('hidden', from === undefined || to === undefined || from === to);
         };
 
+        const showToAmount = function() {
+            const from = $('#from_treasury_id option:selected').data('currency');
+            const to = $('#to_treasury_id option:selected').data('currency');
+            const differ = from !== undefined && to !== undefined && String(from) !== String(to);
+
+            $('#to_amount_field').prop('hidden', !differ);
+            $('#to_amount').prop('disabled', !differ);
+        };
+
         $('#from_treasury_id, #to_treasury_id').on('change', showBetweenNote);
+        $('#from_treasury_id, #to_treasury_id').on('change', showToAmount);
 
         $('#transfer_form').validate($.extend({
             submitHandler: function(form) {

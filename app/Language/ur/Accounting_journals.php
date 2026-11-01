@@ -75,6 +75,7 @@ return [
     'failure_time'                   => '',
     'failures_desc'                  => '',
     'filters'                        => '',
+    'foreign_amount'                 => '',
     'history'                        => '',
     'journal_posted'                 => '',
     'journal_reversed'               => '',

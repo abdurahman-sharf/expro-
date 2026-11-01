@@ -67,10 +67,10 @@ final class Money
      */
     public static function format(string $amount, int $decimals, ?string $code = null): string
     {
-        $rounded  = self::round($amount, $decimals);
-        $negative = str_starts_with($rounded, '-');
+        $rounded            = self::round($amount, $decimals);
+        $negative           = str_starts_with($rounded, '-');
         [$whole, $fraction] = array_pad(explode('.', ltrim($rounded, '-'), 2), 2, '');
-        $text     = preg_replace('/\B(?=(\d{3})+(?!\d))/', ',', $whole);
+        $text               = preg_replace('/\B(?=(\d{3})+(?!\d))/', ',', $whole);
 
         return ($negative ? '-' : '') . $text . ($decimals > 0 ? '.' . $fraction : '') . ($code === null ? '' : ' ' . $code);
     }

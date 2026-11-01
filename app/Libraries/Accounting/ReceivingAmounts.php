@@ -95,10 +95,11 @@ final class ReceivingAmounts
      * kept to two decimals while the tax is not rounded, as in the reference system.
      *
      * @param list<ReceivingLine> $lines
+     * @param int                 $decimals The decimals the total is kept in: two, or those of the currency of a foreign purchase.
      *
      * @return array{net: numeric-string, tax: numeric-string, total: numeric-string}
      */
-    public static function totals(array $lines): array
+    public static function totals(array $lines, int $decimals = 2): array
     {
         $net = '0';
         $tax = '0';
@@ -108,6 +109,6 @@ final class ReceivingAmounts
             $tax = bcadd($tax, self::tax($line), self::SCALE);
         }
 
-        return ['net' => $net, 'tax' => $tax, 'total' => SaleAmounts::round(bcadd($net, $tax, self::SCALE), 2)];
+        return ['net' => $net, 'tax' => $tax, 'total' => SaleAmounts::round(bcadd($net, $tax, self::SCALE), $decimals)];
     }
 }

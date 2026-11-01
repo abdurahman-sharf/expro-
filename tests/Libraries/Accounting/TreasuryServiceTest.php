@@ -5,10 +5,13 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PaymentType;
+use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
@@ -1205,5 +1208,154 @@ class TreasuryServiceTest extends CIUnitTestCase
 
         $this->assertCount(1, $lines);
         $this->assertSame((int) $this->treasuries->accountOf($id), (int) $this->accountingDb()->table('accounting_journal_lines')->where('line_id', $lines[0])->get()->getRow()->account_id);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // A treasury that holds a foreign currency
+    // ---------------------------------------------------------------------------------------
+
+    private function dollarBox(string $name = 'Dollar box'): int
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+
+        if ($currencies->rates()->rateOn('USD', '2026-10-21') === null) {
+            $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2020-01-01']);
+        }
+
+        return $this->treasuries->create(['name' => $name, 'kind' => 'cash', 'currency_code' => 'USD'], $this->manager());
+    }
+
+    private function putDollars(int $treasuryId, string $dollars, string $rate = '3.75000000'): void
+    {
+        $base = bcmul($dollars, $rate, 2);
+
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-10-21',
+            lines: [
+                new JournalLineDraft((int) $this->treasuries->accountOf($treasuryId), debit: $base, foreignAmount: $dollars, currencyCode: 'USD'),
+                new JournalLineDraft($this->accountId('opening_balance'), credit: $base, foreignAmount: $dollars, currencyCode: 'USD'),
+            ],
+            sourceType: 'opening',
+            sourceId: random_int(1000, 9999),
+            currencyCode: 'USD',
+            exchangeRate: $rate,
+        ));
+    }
+
+    public function testCreate_AcceptsAForeignCurrencyAndTakesTheBaseCurrencyAsNone(): void
+    {
+        $dollars = $this->dollarBox();
+        $base    = $this->treasuries->create(['name' => 'Riyal box', 'kind' => 'cash', 'currency_code' => 'SAR'], $this->manager());
+        $none    = $this->treasuries->create(['name' => 'Plain box', 'kind' => 'bank', 'bank_name' => 'Riyad Bank', 'account_number' => '3500000009'], $this->manager());
+
+        $this->assertSame('USD', $this->treasuries->find($dollars)->currency_code);
+        $this->assertNull($this->treasuries->find($base)->currency_code);
+        $this->assertNull($this->treasuries->find($none)->currency_code);
+        $this->assertSame('USD', json_decode($this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'treasury', 'entity_id' => $dollars, 'action' => 'created'])->get()->getRow()->details, true)['currency']);
+    }
+
+    public function testCreate_RejectsACurrencyThatIsUnknownOrSwitchedOff(): void
+    {
+        $this->assertSame(AccountingError::CurrencyNotFound, $this->refusal(fn () => $this->treasuries->create(['name' => 'Odd box', 'kind' => 'cash', 'currency_code' => 'QQQ'], $this->manager()))->error);
+        $this->assertSame(AccountingError::CurrencyInactive, $this->refusal(fn () => $this->treasuries->create(['name' => 'Odd box', 'kind' => 'cash', 'currency_code' => 'EUR'], $this->manager()))->error);
+        $this->assertSame(0, $this->accountingDb()->table('treasuries')->where('name', 'Odd box')->countAllResults());
+    }
+
+    public function testUpdate_ChangesTheCurrencyOfATreasuryThatNothingUsedAndWritesItToTheAuditLog(): void
+    {
+        $this->dollarBox('Anchor box');
+        $treasury = $this->treasuries->create(['name' => 'Spare box', 'kind' => 'cash'], $this->manager());
+
+        $this->treasuries->update($treasury, ['name' => 'Spare box', 'kind' => 'cash', 'currency_code' => 'USD'], $this->manager());
+
+        $this->assertSame('USD', $this->treasuries->find($treasury)->currency_code);
+
+        $audit = json_decode($this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'treasury', 'entity_id' => $treasury, 'action' => 'updated'])->get()->getRow()->details, true);
+        $this->assertSame([null, 'USD'], [$audit['before']['currency'], $audit['after']['currency']]);
+    }
+
+    public function testUpdate_RefusesToChangeTheCurrencyOfATreasuryThatHasBeenUsedAndOfTheMainOne(): void
+    {
+        $box = $this->dollarBox();
+        $this->putDollars($box, '100.00');
+
+        $this->assertSame(AccountingError::TreasuryCurrencyLocked, $this->refusal(fn () => $this->treasuries->update($box, ['name' => 'Dollar box', 'kind' => 'cash', 'currency_code' => ''], $this->manager()))->error);
+        $this->assertSame('USD', $this->treasuries->find($box)->currency_code);
+
+        $main = $this->treasuries->ensureMain();
+
+        $this->assertSame(AccountingError::TreasuryCurrencyLocked, $this->refusal(fn () => $this->treasuries->update($main, ['name' => $this->treasuries->find($main)->name, 'kind' => 'cash', 'currency_code' => 'USD'], $this->manager()))->error);
+
+        $this->treasuries->update($box, ['name' => 'Dollar box', 'kind' => 'cash', 'currency_code' => 'USD', 'description' => 'same currency, new text'], $this->manager());
+        $this->assertSame('USD', $this->treasuries->find($box)->currency_code);
+    }
+
+    public function testUpdate_KeepsTheCurrencyWhenTheFormDoesNotSendIt(): void
+    {
+        $box = $this->dollarBox();
+        $this->putDollars($box, '100.00');
+
+        $this->treasuries->update($box, ['name' => 'Dollar box', 'kind' => 'cash', 'description' => 'renamed by an old form'], $this->manager());
+
+        $this->assertSame('USD', $this->treasuries->find($box)->currency_code);
+    }
+
+    public function testPosition_KeepsTheBalanceInTheCurrencyOfTheTreasuryAndInTheBaseAndTheBaseStillEqualsTheAccount(): void
+    {
+        $box = $this->dollarBox();
+        $this->putDollars($box, '100.00');
+        $this->putDollars($box, '40.00', '3.60000000');
+
+        $position = $this->treasuries->position($box);
+
+        $this->assertSame('USD', $position->currencyCode);
+        $this->assertSame('140.0000', $position->foreignBalance);
+        $this->assertSame('519.0000', $position->balance);
+        $this->assertSame(bcadd($position->balance, '0', 2), $this->balance((int) $position->accountId));
+    }
+
+    public function testPosition_HasNoForeignBalanceForATreasuryInTheBaseCurrency(): void
+    {
+        $position = $this->treasuries->position($this->treasuries->ensureMain());
+
+        $this->assertNull($position->currencyCode);
+        $this->assertNull($position->foreignBalance);
+    }
+
+    public function testPost_RefusesALineOnAForeignTreasuryThatHasNoAmountInItsCurrencyAndOneInAnotherCurrency(): void
+    {
+        $box = $this->dollarBox();
+        (new Currencies())->setActive('EUR', true);
+        (new Currencies())->rates()->add(['currency_code' => 'EUR', 'rate' => '4.10', 'effective_date' => '2020-01-01']);
+        $account = (int) $this->treasuries->accountOf($box);
+
+        $base = new JournalDraft(date: '2026-10-21', lines: [new JournalLineDraft($account, debit: '10.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '10.00')], sourceType: 'opening', sourceId: 4001, currencyCode: 'SAR');
+        $euro = new JournalDraft(date: '2026-10-21', lines: [new JournalLineDraft($account, debit: '41.00', foreignAmount: '10.00', currencyCode: 'EUR'), new JournalLineDraft($this->accountId('opening_balance'), credit: '41.00', foreignAmount: '10.00', currencyCode: 'EUR')], sourceType: 'opening', sourceId: 4002, currencyCode: 'EUR', exchangeRate: '4.10');
+
+        foreach ([$base, $euro] as $draft) {
+            try {
+                (new PostingService())->post($draft);
+                $this->fail('A line on a treasury of dollars took something else.');
+            } catch (PostingException $exception) {
+                $this->assertSame(PostingError::TreasuryCurrency, $exception->error);
+            }
+        }
+
+        $this->assertSame('0.0000', $this->treasuries->position($box)->balance);
+    }
+
+    public function testPost_AcceptsAForeignPaymentIntoATreasuryOfTheBaseCurrency(): void
+    {
+        $main = $this->treasuries->ensureMain();
+        (new Currencies())->setActive('USD', true);
+
+        $result = (new PostingService())->post(new JournalDraft(date: '2026-10-21', lines: [
+            new JournalLineDraft((int) $this->treasuries->accountOf($main), debit: '375.00', foreignAmount: '100.00', currencyCode: 'USD'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '375.00', foreignAmount: '100.00', currencyCode: 'USD'),
+        ], sourceType: 'sale', sourceId: 4003, currencyCode: 'USD', exchangeRate: '3.75'));
+
+        $this->assertTrue($result->created);
+        $this->assertSame('375.0000', $this->treasuries->position($main)->balance);
     }
 }
