@@ -7,6 +7,7 @@ use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RevenuePostingBuilder;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -69,7 +70,9 @@ final class CashDocumentRows
             }
         }
 
-        $accountId = $expense ? 'c.account_id' : 'COALESCE(d.account_id, c.account_id)';
+        $default   = $this->db->table('accounting_routing')->select('account_id')->where('company_id', CompanyContext::id())->where('routing_key', ($expense ? RoutingKey::ExpensesDefault : RoutingKey::RevenuesDefault)->value)->get()->getRow();
+        $fallback  = $default === null ? 'NULL' : (string) (int) $default->account_id;
+        $accountId = $expense ? "COALESCE(c.account_id, {$fallback})" : "COALESCE(d.account_id, c.account_id, {$fallback})";
         $vendor    = $expense ? "COALESCE(NULLIF(s.company_name, ''), TRIM(CONCAT(COALESCE(sp.first_name, ''), ' ', COALESCE(sp.last_name, ''))))" : "''";
         $vendorSql = $expense ? ' LEFT JOIN ' . $this->db->prefixTable('suppliers') . ' s ON s.person_id = d.supplier_id LEFT JOIN ' . $this->db->prefixTable('people') . ' sp ON sp.person_id = d.supplier_id' : '';
 

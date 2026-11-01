@@ -33,6 +33,7 @@ final class ChartReport implements FamilyReport
         $exclude  = $input->choice('exclude', ['none', 'customers', 'suppliers', 'both'], 'none');
         $order    = $input->choice('order', ['asc', 'desc'], 'asc');
         $balances = $input->flag('balances');
+        $held     = $balances ? $this->balances($input) : [];
 
         $builder = $this->db->table('accounting_accounts a')
             ->select('a.account_id, a.code, a.name, a.normal_balance, a.is_group, a.entity_type, a.active')
@@ -58,7 +59,6 @@ final class ChartReport implements FamilyReport
             $builder->groupStart()->where('a.entity_type IS NULL', null, false)->orWhereNotIn('a.entity_type', $excluded)->groupEnd();
         }
 
-        $held = $balances ? $this->balances($input) : [];
         $rows = [];
 
         foreach ($builder->get()->getResult() as $account) {

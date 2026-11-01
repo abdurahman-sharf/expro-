@@ -76,6 +76,8 @@ final class JournalLines
             return null;
         }
 
+        $accounts = $accountId !== null && $accountId > 0 ? $this->subtree($accountId) : [];
+
         $builder = $this->db->table('accounting_journal_lines l')
             ->join('accounting_journals j', 'j.journal_id = l.journal_id')
             ->join('accounting_journals o', 'o.journal_id = j.reverses_journal_id', 'left')
@@ -93,8 +95,8 @@ final class JournalLines
             $builder->groupStart()->where('j.source_type', $source)->orWhere('o.source_type', $source)->groupEnd();
         }
 
-        if ($accountId !== null && $accountId > 0) {
-            $builder->whereIn('l.account_id', $this->subtree($accountId));
+        if ($accounts !== []) {
+            $builder->whereIn('l.account_id', $accounts);
         }
 
         if ($owner !== null) {
