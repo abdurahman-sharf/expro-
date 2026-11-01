@@ -24,12 +24,14 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityFixture;
 
 class SalePostingBuilderTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ItemFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -541,7 +543,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
 
     public function testInvoice_RefusesARowSavedWithATypePostingDoesNotApply(): void
     {
-        $this->setRouting(RoutingKey::Customers, RoutingType::MainPerEntity);
+        $this->setRouting(RoutingKey::Customers, RoutingType::PerItem);
 
         $failure = $this->failureOf(fn () => $this->builder->invoice($this->sale([$this->line('1', '50')]), 1));
 
@@ -564,6 +566,332 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $failure = $this->failureOf(fn () => $this->builder->invoice($this->sale([$this->line('1', '50')], customerId: $other), 1));
 
         $this->assertSame(PostingError::EntityAccountMissing, $failure->error);
+    }
+
+    /**
+     * @return array{int, int, int} Two items that name an account of their own, and one that names none, as sale lines of an invoice.
+     */
+    private function itemsOfTwoAccountsAndOneWithout(): array
+    {
+        $first  = $this->createTestItem();
+        $second = $this->createTestItem();
+        $plain  = $this->createTestItem();
+
+        $this->nameAccount($first, RoutingKey::SalesRevenue, $this->customAccount('41', '4101', 'First revenue'));
+        $this->nameAccount($second, RoutingKey::SalesRevenue, $this->customAccount('41', '4102', 'Second revenue'));
+
+        return [$first, $second, $plain];
+    }
+
+    private function nameAccount(int $itemId, RoutingKey $key, int $accountId): void
+    {
+        $this->accountingDb()->table('item_routing_accounts')->replace(['item_id' => $itemId, 'routing_key' => $key->value, 'account_id' => $accountId]);
+    }
+
+    /**
+     * @return list<string> The descriptions of the lines, in order.
+     */
+    private function notes(JournalDraft $draft): array
+    {
+        return array_map(static fn ($line): string => (string) $line->description, $draft->lines);
+    }
+
+    public function testInvoice_PostsTheRevenueOfEachItemToTheAccountItNames(): void
+    {
+        [$first, $second, $plain] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $sale = $this->sale([
+            $this->line('4', '75', '10', PERCENT, added: '40.50', itemId: $first),
+            $this->line('2', '220', added: '66.00', itemId: $second),
+            $this->line('1', '100', itemId: $plain),
+        ]);
+
+        $draft = $this->builder->invoice($sale, 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':916.50:0.00',
+                $this->accountIdByCode('4101') . ':0.00:270.00',
+                $this->accountIdByCode('4102') . ':0.00:440.00',
+                $this->accountId('sales_revenue') . ':0.00:100.00',
+                $this->accountId('tax_output') . ':0.00:106.50',
+            ],
+            $this->shape($draft),
+        );
+    }
+
+    public function testInvoice_PostsAPerItemRowWithNoItemAccountsAsTheAutomaticRowWouldAndSaysSo(): void
+    {
+        $plain = $this->createTestItem();
+        $sale  = $this->sale([$this->line('4', '75', '10', PERCENT, added: '40.50', itemId: $plain), $this->line('2', '220', added: '66.00', itemId: $plain)]);
+
+        $automatic = $this->builder->invoice($sale, 1);
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+        $perItem = $this->builder->invoice($sale, 1);
+
+        $this->assertSame($this->shape($automatic), $this->shape($perItem));
+        $this->assertSame(['', '', ''], $this->notes($automatic));
+        $this->assertSame(['', SalePostingBuilder::FALLBACK_NOTE, ''], $this->notes($perItem));
+    }
+
+    public function testInvoice_MarksOnlyTheLinesOfTheItemsThatNameNoAccountAsTheAccountOfTheRow(): void
+    {
+        [$first, , $plain] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $draft = $this->builder->invoice($this->sale([$this->line('1', '50', itemId: $first), $this->line('1', '30', itemId: $plain)]), 1);
+
+        $this->assertSame(['', '', SalePostingBuilder::FALLBACK_NOTE], $this->notes($draft));
+    }
+
+    public function testInvoice_PutsTheItemsOfOneAccountInOneLine(): void
+    {
+        [$first, , $plain] = $this->itemsOfTwoAccountsAndOneWithout();
+        $other             = $this->createTestItem();
+        $this->nameAccount($other, RoutingKey::SalesRevenue, $this->accountIdByCode('4101'));
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $draft = $this->builder->invoice($this->sale([
+            $this->line('1', '50', itemId: $first),
+            $this->line('1', '30', itemId: $plain),
+            $this->line('2', '10', itemId: $other),
+            $this->line('1', '5', itemId: $plain),
+        ]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':105.00:0.00',
+                $this->accountIdByCode('4101') . ':0.00:70.00',
+                $this->accountId('sales_revenue') . ':0.00:35.00',
+            ],
+            $this->shape($draft),
+        );
+    }
+
+    public function testInvoice_KeepsTheLinesOfAnItemThatNamesTheAccountOfTheRowApartFromTheOnesThatNamedNothing(): void
+    {
+        $named = $this->createTestItem();
+        $plain = $this->createTestItem();
+        $this->nameAccount($named, RoutingKey::SalesRevenue, $this->accountId('sales_revenue'));
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $draft = $this->builder->invoice($this->sale([$this->line('1', '50', itemId: $named), $this->line('1', '30', itemId: $plain)]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':80.00:0.00',
+                $this->accountId('sales_revenue') . ':0.00:50.00',
+                $this->accountId('sales_revenue') . ':0.00:30.00',
+            ],
+            $this->shape($draft),
+        );
+        $this->assertSame(['', '', SalePostingBuilder::FALLBACK_NOTE], $this->notes($draft));
+    }
+
+    public function testInvoice_PutsWhatTheRoundingOfTheTotalLeavesOnTheLargestPartSoThePartsAddUpToTheGoods(): void
+    {
+        $first  = $this->createTestItem();
+        $second = $this->createTestItem();
+        $this->nameAccount($first, RoutingKey::SalesRevenue, $this->customAccount('41', '4101', 'First revenue'));
+        $this->nameAccount($second, RoutingKey::SalesRevenue, $this->customAccount('41', '4102', 'Second revenue'));
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $draft = $this->builder->invoice($this->sale([$this->line('1', '0.35', added: '0.05', itemId: $first), $this->line('1', '0.35', added: '0.055', itemId: $second)]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':0.8100:0.0000',
+                $this->accountIdByCode('4101') . ':0.0000:0.3550',
+                $this->accountIdByCode('4102') . ':0.0000:0.3500',
+                $this->accountId('tax_output') . ':0.0000:0.1050',
+            ],
+            $this->shape($draft, 4),
+        );
+    }
+
+    public function testInvoice_SharesTheGoodsThatTheDiscountAccountLeavesWholeAndPostsTheDiscountApart(): void
+    {
+        [$first, $second] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+        $this->setRouting(RoutingKey::SalesDiscount, RoutingType::Auto);
+
+        $draft = $this->builder->invoice($this->sale([$this->line('4', '75', '10', PERCENT, itemId: $first), $this->line('2', '220', itemId: $second)]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':710.00:0.00',
+                $this->accountId('sales_discount') . ':30.00:0.00',
+                $this->accountIdByCode('4101') . ':0.00:300.00',
+                $this->accountIdByCode('4102') . ':0.00:440.00',
+            ],
+            $this->shape($draft),
+        );
+    }
+
+    public function testInvoice_TakesTheShareOfTheDiscountOnTheWholeInvoiceOffTheLineThatCarriedIt(): void
+    {
+        [$first, $second] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $draft = $this->builder->invoice($this->sale([$this->line('1', '100', itemId: $first, share: '10'), $this->line('1', '100', itemId: $second, share: '30')]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':160.00:0.00',
+                $this->accountIdByCode('4101') . ':0.00:90.00',
+                $this->accountIdByCode('4102') . ':0.00:70.00',
+            ],
+            $this->shape($draft),
+        );
+    }
+
+    public function testInvoice_TakesTheTaxThatWasInsideThePriceOffTheLineBeforeItIsPosted(): void
+    {
+        [$first, $second] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $draft = $this->builder->invoice($this->sale([$this->line('1', '115', included: '15', itemId: $first), $this->line('1', '230', included: '30', itemId: $second)]), 1);
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':345.00:0.00',
+                $this->accountIdByCode('4101') . ':0.00:100.00',
+                $this->accountIdByCode('4102') . ':0.00:200.00',
+                $this->accountId('tax_output') . ':0.00:45.00',
+            ],
+            $this->shape($draft),
+        );
+    }
+
+    public function testInvoice_PostsAReturnToTheReturnsAccountOfTheItemOnTheDebitSide(): void
+    {
+        [$first, , $plain] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->nameAccount($first, RoutingKey::SalesReturns, $this->customAccount('41', '4103', 'First returns'));
+        $this->nameAccount($plain, RoutingKey::SalesRevenue, $this->accountIdByCode('4101'));
+        $this->setRouting(RoutingKey::SalesReturns, RoutingType::PerItem);
+        $origin = $this->sale([$this->line('2', '50', itemId: $first), $this->line('1', '30', itemId: $plain)]);
+        $return = $this->sale([$this->line('-2', '50', itemId: $first), $this->line('-1', '30', itemId: $plain)], type: SALE_TYPE_RETURN, origin: $origin);
+
+        $draft = $this->builder->invoice($return, 1);
+
+        $this->assertSame(
+            [
+                $this->accountIdByCode('4103') . ':100.00:0.00',
+                $this->accountId('sales_returns') . ':30.00:0.00',
+                $this->customerAccount() . ':0.00:130.00',
+            ],
+            $this->shape($draft),
+        );
+        $this->assertSame(['', SalePostingBuilder::FALLBACK_NOTE, ''], $this->notes($draft));
+    }
+
+    public function testInvoice_LeavesAReturnOnTheReturnsRowWhileOnlyTheRevenueRowIsPerItem(): void
+    {
+        [$first] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+        $origin = $this->sale([$this->line('2', '50', itemId: $first)]);
+        $return = $this->sale([$this->line('-2', '50', itemId: $first)], type: SALE_TYPE_RETURN, origin: $origin);
+
+        $this->assertSame([$this->accountId('sales_returns') . ':100.00:0.00', $this->customerAccount() . ':0.00:100.00'], $this->shape($this->builder->invoice($return, 1)));
+    }
+
+    public function testInvoice_RefusesAnAccountAnItemNamesThatCannotTakeEntriesAnyMore(): void
+    {
+        [$first] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+        $this->accountingDb()->table('accounting_accounts')->where('code', '4101')->update(['active' => 0]);
+
+        $failure = $this->failureOf(fn () => $this->builder->invoice($this->sale([$this->line('1', '50', itemId: $first)]), 1));
+
+        $this->assertSame(PostingError::ItemAccountUnusable, $failure->error);
+        $this->assertSame($first, $failure->context['item_id']);
+    }
+
+    public function testInvoice_RefusesGoodsTooSmallToBeSharedOverTheAccountsOfItsItems(): void
+    {
+        [$first, $second, $plain] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $sale = $this->sale([$this->line('1', '100', itemId: $first), $this->line('1', '100', itemId: $second), $this->line('1', '10', itemId: $plain, share: '200')]);
+
+        $failure = $this->failureOf(fn () => $this->builder->invoice($sale, 1));
+
+        $this->assertSame(PostingError::SaleNotPostable, $failure->error);
+        $this->assertSame('sales.revenue', $failure->context['routing_key']);
+    }
+
+    public function testInvoice_IgnoresTheAccountsOfItemsWhileTheRowIsAutomatic(): void
+    {
+        [$first] = $this->itemsOfTwoAccountsAndOneWithout();
+
+        $draft = $this->builder->invoice($this->sale([$this->line('1', '50', itemId: $first)]), 1);
+
+        $this->assertSame([$this->customerAccount() . ':50.00:0.00', $this->accountId('sales_revenue') . ':0.00:50.00'], $this->shape($draft));
+        $this->assertSame(['', ''], $this->notes($draft));
+    }
+
+    public function testInvoice_StillRefusesARevenueRowThatIsCancelledWhenItemsNameAccounts(): void
+    {
+        [$first] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::Cancelled);
+
+        $failure = $this->failureOf(fn () => $this->builder->invoice($this->sale([$this->line('1', '50', itemId: $first)]), 1));
+
+        $this->assertSame(PostingError::RoutingRowCancelled, $failure->error);
+    }
+
+    public function testInvoice_PostsTheCustomerOfAMainPerEntityRowToTheAccountOfTheCustomer(): void
+    {
+        $automatic = $this->builder->invoice($this->sale([$this->line('1', '50')]), 1);
+        $this->setRouting(RoutingKey::Customers, RoutingType::MainPerEntity);
+        $perEntity = $this->builder->invoice($this->sale([$this->line('1', '50')]), 1);
+
+        $this->assertSame($this->shape($automatic), $this->shape($perEntity));
+        $this->assertSame($this->customerAccount() . ':50.00:0.00', $this->shape($perEntity)[0]);
+    }
+
+    public function testInvoice_RefusesACustomerWithoutAnAccountOnAMainPerEntityRow(): void
+    {
+        $this->setRouting(RoutingKey::Customers, RoutingType::MainPerEntity);
+        $other = $this->insertCustomer('No', 'Account');
+
+        $failure = $this->failureOf(fn () => $this->builder->invoice($this->sale([$this->line('1', '50')], customerId: $other), 1));
+
+        $this->assertSame(PostingError::EntityAccountMissing, $failure->error);
+    }
+
+    public function testPayment_PostsTheCustomerOfAMainPerEntityRowToTheAccountOfTheCustomer(): void
+    {
+        $this->setRouting(RoutingKey::Customers, RoutingType::MainPerEntity);
+        $sale = $this->sale([$this->line('1', '50')], [$this->payment('Cash', '50.00')]);
+
+        $draft = $this->builder->payment($sale, $sale->payments[0], 1);
+
+        $this->assertSame([$this->accountId('cash') . ':50.00:0.00', $this->customerAccount() . ':0.00:50.00'], $this->shape($draft));
+    }
+
+    public function testCost_IsTheSameWhenTheRevenueRowIsPerItem(): void
+    {
+        [$first, $second] = $this->itemsOfTwoAccountsAndOneWithout();
+        $sale             = $this->sale([$this->line('4', '75', cost: '40', itemId: $first), $this->line('2', '220', cost: '120', itemId: $second)]);
+
+        $automatic = $this->shape($this->builder->cost($sale, 1));
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $this->assertSame($automatic, $this->shape($this->builder->cost($sale, 1)));
+        $this->assertSame([$this->accountId('cogs') . ':400.00:0.00', $this->locationAccount() . ':0.00:400.00'], $automatic);
+    }
+
+    public function testCost_StillRefusesTheStockRowSetToPerItemBecauseItsTiesAreKeptByLocation(): void
+    {
+        [$first] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->setRouting(RoutingKey::StockLocations, RoutingType::PerItem);
+
+        $failure = $this->failureOf(fn () => $this->builder->cost($this->sale([$this->line('1', '100', cost: '40', itemId: $first)]), 1));
+
+        $this->assertSame(PostingError::RoutingTypeUnsupported, $failure->error);
+        $this->assertSame('inventory.locations', $failure->context['routing_key']);
     }
 
     public function testCost_DebitsCostOfSalesAndCreditsTheStockOfTheLocation(): void
