@@ -117,18 +117,18 @@ class Sale extends Model
     /**
      * Get sale info
      */
-    public function get_info(int $sale_id): ResultInterface
+    public function get_info(int $saleId): ResultInterface
     {
-        $this->create_temp_table(['sale_id' => $sale_id]);
+        $this->create_temp_table(['sale_id' => $saleId]);
 
         $decimals = totals_decimals();
-        $sales_tax = 'IFNULL(SUM(sales_items_taxes.sales_tax), 0)';
-        $cash_adjustment = 'IFNULL(SUM(payments.sale_cash_adjustment), 0)';
-        $sale_price = 'CASE WHEN sales_items.discount_type = ' . PERCENT
+        $salesTax = 'IFNULL(SUM(sales_items_taxes.sales_tax), 0)';
+        $cashAdjustment = 'IFNULL(SUM(payments.sale_cash_adjustment), 0)';
+        $salePrice = 'CASE WHEN sales_items.discount_type = ' . PERCENT
             . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, $decimals) "
             . 'ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END - ' . InvoiceDiscount::sqlShare('sales_items');
 
-        $sale_total = "ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment";
+        $saleTotal = "ROUND(SUM($salePrice), $decimals) + $salesTax + $cashAdjustment";
 
         $sql = 'sales.sale_id AS sale_id,
                 MAX(DATE(sales.sale_time)) AS sale_date,
@@ -150,9 +150,9 @@ class Sale extends Model
                 MAX(IFnull(payments.sale_cash_adjustment, 0)) AS cash_adjustment,
                 MAX(IFnull(payments.sale_cash_refund, 0)) AS cash_refund,
                 ' . "
-                $sale_total AS amount_due,
+                $saleTotal AS amount_due,
                 MAX(IFnull(payments.sale_payment_amount, 0)) AS amount_tendered,
-                (MAX(payments.sale_payment_amount)) - ($sale_total) AS change_due,
+                (MAX(payments.sale_payment_amount)) - ($saleTotal) AS change_due,
                 " . '
                 MAX(payments.payment_type) AS payment_type,
                 MAX(payments.reference_code) AS reference_code';
@@ -170,7 +170,7 @@ class Sale extends Model
             'LEFT OUTER'
         );
 
-        $builder->where('sales.sale_id', $sale_id);
+        $builder->where('sales.sale_id', $saleId);
 
         $builder->groupBy('sales.sale_id, payments.reference_code');
         $builder->orderBy('sales.sale_time', 'asc');
@@ -1798,28 +1798,28 @@ class Sale extends Model
      * of VAT tax which becomes a price component.  VAT taxes must still be reported
      * as a separate tax entry on the invoice.
      */
-    public function save_sales_items_taxes(int $sale_id, array $sales_item_taxes): void
+    public function save_sales_items_taxes(int $saleId, array $salesItemTaxes): void
     {
         $builder = $this->db->table('sales_items_taxes');
 
-        foreach ($sales_item_taxes as $line => $tax_item) {
-            $sales_items_taxes = [
-                'sale_id'           => $sale_id,
-                'item_id'           => $tax_item['item_id'],
-                'line'              => $tax_item['line'],
-                'name'              => $tax_item['name'],
-                'percent'           => $tax_item['percent'],
-                'tax_type'          => $tax_item['tax_type'],
-                'rounding_code'     => $tax_item['rounding_code'],
-                'cascade_sequence'  => $tax_item['cascade_sequence'],
-                'item_tax_amount'   => $tax_item['item_tax_amount'],
-                'sales_tax_code_id' => $tax_item['sales_tax_code_id'],
-                'tax_category_id'   => $tax_item['tax_category_id'],
-                'jurisdiction_id'   => $tax_item['jurisdiction_id'],
-                'liability_account_id' => $tax_item['liability_account_id'] ?? null,
+        foreach ($salesItemTaxes as $line => $taxItem) {
+            $salesItemsTaxes = [
+                'sale_id'              => $saleId,
+                'item_id'              => $taxItem['item_id'],
+                'line'                 => $taxItem['line'],
+                'name'                 => $taxItem['name'],
+                'percent'              => $taxItem['percent'],
+                'tax_type'             => $taxItem['tax_type'],
+                'rounding_code'        => $taxItem['rounding_code'],
+                'cascade_sequence'     => $taxItem['cascade_sequence'],
+                'item_tax_amount'      => $taxItem['item_tax_amount'],
+                'sales_tax_code_id'    => $taxItem['sales_tax_code_id'],
+                'tax_category_id'      => $taxItem['tax_category_id'],
+                'jurisdiction_id'      => $taxItem['jurisdiction_id'],
+                'liability_account_id' => $taxItem['liability_account_id'] ?? null,
             ];
 
-            $builder->insert($sales_items_taxes);
+            $builder->insert($salesItemsTaxes);
         }
     }
 
@@ -1840,15 +1840,16 @@ class Sale extends Model
     /**
      * Return the taxes applied to a sale for a particular item
      */
-    public function get_sales_item_taxes(int $sale_id, int $item_id): array
+    public function get_sales_item_taxes(int $saleId, int $itemId): array
     {
-        $builder = $this->db->table('sales_items_taxes');
-        $builder->distinct();
-        $builder->select('item_id, name, percent, tax_type, liability_account_id');
-        $builder->where('sale_id', $sale_id);
-        $builder->where('item_id', $item_id);
+        $builder = $this->db->table('sales_items_taxes AS taxes');
+        $builder->select('taxes.item_id, taxes.name, taxes.percent, taxes.tax_type, taxes.liability_account_id, SUM(taxes.item_tax_amount) AS item_tax_amount, SUM(items.quantity_purchased) AS sold_quantity');
+        $builder->join('sales_items AS items', 'items.sale_id = taxes.sale_id AND items.item_id = taxes.item_id AND items.line = taxes.line', 'left');
+        $builder->where('taxes.sale_id', $saleId);
+        $builder->where('taxes.item_id', $itemId);
+        $builder->groupBy('taxes.item_id, taxes.name, taxes.percent, taxes.tax_type, taxes.liability_account_id');
+        $builder->orderBy('MIN(taxes.line), taxes.name, taxes.percent', '', false);
 
-        // Return an array of taxes for an item
         return $builder->get()->getResultArray();
     }
 
@@ -2271,19 +2272,19 @@ class Sale extends Model
 
         $decimals = totals_decimals();
 
-        $sale_price = 'CASE WHEN sales_items.discount_type = ' . PERCENT
+        $salePrice = 'CASE WHEN sales_items.discount_type = ' . PERCENT
             . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, $decimals) "
             . 'ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END - ' . InvoiceDiscount::sqlShare('sales_items');
 
-        $sale_cost = 'SUM(sales_items.item_cost_price * sales_items.quantity_purchased)';
+        $saleCost = 'SUM(sales_items.item_cost_price * sales_items.quantity_purchased)';
 
         $tax = 'IFNULL(SUM(sales_items_taxes.tax), 0)';
-        $sales_tax = 'IFNULL(SUM(sales_items_taxes.sales_tax), 0)';
-        $internal_tax = 'IFNULL(SUM(sales_items_taxes.internal_tax), 0)';
-        $cash_adjustment = 'IFNULL(SUM(payments.sale_cash_adjustment), 0)';
+        $salesTax = 'IFNULL(SUM(sales_items_taxes.sales_tax), 0)';
+        $internalTax = 'IFNULL(SUM(sales_items_taxes.internal_tax), 0)';
+        $cashAdjustment = 'IFNULL(SUM(payments.sale_cash_adjustment), 0)';
 
-        $sale_subtotal = "ROUND(SUM($sale_price), $decimals) - $internal_tax + $cash_adjustment";
-        $sale_total = "ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment";
+        $saleSubtotal = "ROUND(SUM($salePrice), $decimals) - $internalTax + $cashAdjustment";
+        $saleTotal = "ROUND(SUM($salePrice), $decimals) + $salesTax + $cashAdjustment";
 
         // Create a temporary table to contain all the sum of taxes per sale item
         $sql = 'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_items_taxes_temp') .
@@ -2364,11 +2365,11 @@ class Sale extends Model
                     MAX(payments.payment_type) AS payment_type,
                     MAX(payments.sale_payment_amount) AS sale_payment_amount,
                     ' . "
-                    $sale_subtotal AS subtotal,
+                    $saleSubtotal AS subtotal,
                     $tax AS tax,
-                    $sale_total AS total,
-                    $sale_cost AS cost,
-                    ($sale_subtotal - $sale_cost) AS profit
+                    $saleTotal AS total,
+                    $saleCost AS cost,
+                    ($saleSubtotal - $saleCost) AS profit
                     " . '
                 FROM ' . $this->db->prefixTable('sales_items') . ' AS sales_items
                 INNER JOIN ' . $this->db->prefixTable('sales') . ' AS sales

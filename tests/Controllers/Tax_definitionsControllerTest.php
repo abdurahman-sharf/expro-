@@ -75,7 +75,7 @@ final class Tax_definitionsControllerTest extends CIUnitTestCase
         return json_decode($this->post($url, $data)->getJSON(), true);
     }
 
-    public function testGetIndexShowsTheListToWhoeverHoldsTheTaxesModuleWhetherAccountingIsOnOrOff(): void
+    public function testGetIndex_ShowsTheListToWhoeverHoldsTheTaxesModuleWhetherAccountingIsOnOrOff(): void
     {
         foreach (['0', '1'] as $accounting) {
             $this->setConfigValue('accounting_enabled', $accounting);
@@ -88,14 +88,14 @@ final class Tax_definitionsControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testGetIndexRedirectsAUserWithoutTheTaxesModule(): void
+    public function testGetIndex_RedirectsAUserWithoutTheTaxesModule(): void
     {
         $this->actAsWith(['receipt_vouchers']);
 
         $this->get('/tax_definitions')->assertRedirect();
     }
 
-    public function testGetSearchListsTheTaxesWithTheirModesAndAccountsAndFiltersThem(): void
+    public function testGetSearch_ListsTheTaxesWithTheirModesAndAccountsAndFiltersThem(): void
     {
         $this->actAsWith(['taxes']);
 
@@ -116,7 +116,7 @@ final class Tax_definitionsControllerTest extends CIUnitTestCase
         $this->assertSame(['Service'], array_column($service['rows'], 'tax_name'));
     }
 
-    public function testGetViewOffersTheAccountsOnlyToWhoMayChangeTheRouting(): void
+    public function testGetView_OffersTheAccountsOnlyToWhoMayChangeTheRouting(): void
     {
         $this->customAccount('215', '215003', 'Tax on services');
 
@@ -137,7 +137,7 @@ final class Tax_definitionsControllerTest extends CIUnitTestCase
         $open->assertSee(lang('Tax_definitions.mode_included'));
     }
 
-    public function testGetViewKeepsTheNameOfASavedTaxFromBeingEdited(): void
+    public function testGetView_KeepsTheNameOfASavedTaxFromBeingEdited(): void
     {
         $id = (new TaxDefinitions())->save(['tax_name' => 'VAT'], null, $this->router);
 
@@ -146,7 +146,7 @@ final class Tax_definitionsControllerTest extends CIUnitTestCase
         $this->get('/tax_definitions/view/' . $id)->assertSee('readonly');
     }
 
-    public function testPostSaveSavesAndChangesATaxAndSaysInWordsWhyItRefuses(): void
+    public function testPostSave_SavesAndChangesATaxAndSaysInWordsWhyItRefuses(): void
     {
         $this->actAsWith(['taxes']);
 
@@ -174,7 +174,7 @@ final class Tax_definitionsControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_tax_mode_invalid'), $bad['message']);
     }
 
-    public function testPostSaveRejectsAnAccountWithoutThePermissionToChangeTheRouting(): void
+    public function testPostSave_RejectsAnAccountWithoutThePermissionToChangeTheRouting(): void
     {
         $account = $this->customAccount('215', '215003', 'Tax on services');
 
@@ -191,7 +191,7 @@ final class Tax_definitionsControllerTest extends CIUnitTestCase
         $this->assertTrue($this->postJson('/tax_definitions/save', ['tax_name' => 'Service', 'account_id' => $account])['success']);
     }
 
-    public function testPostSaveRejectsAnAccountThatCannotTakeATax(): void
+    public function testPostSave_RejectsAnAccountThatCannotTakeATax(): void
     {
         $this->actAsWith(['taxes', AccountingGuard::ROUTING_MANAGE]);
 
@@ -201,7 +201,7 @@ final class Tax_definitionsControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_tax_liability_account_invalid'), $refused['message']);
     }
 
-    public function testPostSaveKeepsTheAccountOfATaxWhenTheFormDoesNotSendOne(): void
+    public function testPostSave_KeepsTheAccountOfATaxWhenTheFormDoesNotSendOne(): void
     {
         $account = $this->customAccount('215', '215003', 'Tax on services');
 
@@ -213,7 +213,7 @@ final class Tax_definitionsControllerTest extends CIUnitTestCase
         $this->assertSame($account, (int) (new TaxDefinitions())->find($added['id'])->liability_account_id);
     }
 
-    public function testPostSaveIsNotFoundForATaxThatDoesNotExistAndIsNeverReachedByALink(): void
+    public function testPostSave_IsNotFoundForATaxThatDoesNotExistAndIsNeverReachedByALink(): void
     {
         $this->actAsWith(['taxes']);
 
@@ -233,7 +233,7 @@ final class Tax_definitionsControllerTest extends CIUnitTestCase
         $this->post('/tax_definitions/save/99999', ['tax_name' => 'VAT']);
     }
 
-    public function testPostDeleteDeletesTheTaxesAndAGetNeverDoes(): void
+    public function testPostDelete_DeletesTheTaxesAndAGetNeverDoes(): void
     {
         $this->actAsWith(['taxes']);
 
@@ -256,7 +256,26 @@ final class Tax_definitionsControllerTest extends CIUnitTestCase
         $this->assertSame($personId, (int) $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => TaxDefinitions::ENTITY, 'entity_id' => $id, 'action' => 'deleted'])->get()->getRow()->employee_id, 'the audit names who deleted the tax');
     }
 
-    public function testGetRowShowsOneTaxAndIsNotFoundForADeletedOne(): void
+    public function testPostDelete_RejectsATaxThatHasAnAccountWithoutThePermissionToChangeTheRouting(): void
+    {
+        $account = $this->customAccount('215', '215003', 'Tax on services');
+        $id      = (new TaxDefinitions())->save(['tax_name' => 'Service', 'account_id' => $account], null, $this->router);
+
+        $this->actAsWith(['taxes']);
+
+        $refused = $this->postJson('/tax_definitions/delete', ['ids' => [(string) $id]]);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $refused['message']);
+        $this->assertSame($account, (int) (new TaxDefinitions())->find($id)->liability_account_id);
+
+        $this->actAsWith(['taxes', AccountingGuard::ROUTING_MANAGE]);
+
+        $this->assertTrue($this->postJson('/tax_definitions/delete', ['ids' => [(string) $id]])['success']);
+        $this->assertNull((new TaxDefinitions())->find($id));
+    }
+
+    public function testGetRow_ShowsOneTaxAndIsNotFoundForADeletedOne(): void
     {
         $this->actAsWith(['taxes']);
 

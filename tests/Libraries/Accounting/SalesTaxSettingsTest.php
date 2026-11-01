@@ -55,7 +55,7 @@ final class SalesTaxSettingsTest extends CIUnitTestCase
     }
 
     #[DataProvider('storedValueProvider')]
-    public function testDefaultIncludedReadsTheKeyTheShopHasAlwaysUsed(string $stored, bool $expected): void
+    public function testDefaultIncluded_ReadsTheKeyTheShopHasAlwaysUsed(string $stored, bool $expected): void
     {
         $this->setConfigValue(SalesTaxSettings::INCLUDED_KEY, $stored);
 
@@ -63,7 +63,7 @@ final class SalesTaxSettingsTest extends CIUnitTestCase
     }
 
     #[DataProvider('storedValueProvider')]
-    public function testRequireTaxOneReadsItsKeyAndIsOffByDefault(string $stored, bool $expected): void
+    public function testRequireTaxOne_ReadsItsKeyAndIsOffByDefault(string $stored, bool $expected): void
     {
         $this->setConfigValue(SalesTaxSettings::TAX_ONE_KEY, $stored);
 
@@ -82,7 +82,7 @@ final class SalesTaxSettingsTest extends CIUnitTestCase
         return ['one' => ['1', true], 'zero' => ['0', false], 'empty' => ['', false]];
     }
 
-    public function testUpdateSavesBothSettingsAndAuditsWhatWasAndWhatBecame(): void
+    public function testUpdate_SavesBothSettingsAndAuditsWhatWasAndWhatBecame(): void
     {
         $changes = (new SalesTaxSettings())->update([SalesTaxSettings::INCLUDED_KEY => true, SalesTaxSettings::TAX_ONE_KEY => true], 1);
 
@@ -99,7 +99,7 @@ final class SalesTaxSettingsTest extends CIUnitTestCase
         $this->assertSame([SalesTaxSettings::INCLUDED_KEY => true, SalesTaxSettings::TAX_ONE_KEY => true], $details['after']);
     }
 
-    public function testUpdateWritesNothingWhenTheValuesStayAsTheyWere(): void
+    public function testUpdate_WritesNothingWhenTheValuesStayAsTheyWere(): void
     {
         $settings = new SalesTaxSettings();
 
@@ -112,7 +112,7 @@ final class SalesTaxSettingsTest extends CIUnitTestCase
         $this->assertSame(1, $this->audited());
     }
 
-    public function testUpdateLeavesTheSettingTheInputDoesNotNameAlone(): void
+    public function testUpdate_LeavesTheSettingTheInputDoesNotNameAlone(): void
     {
         $settings = new SalesTaxSettings();
 
@@ -128,7 +128,7 @@ final class SalesTaxSettingsTest extends CIUnitTestCase
         $this->assertTrue($settings->requireTaxOne());
     }
 
-    public function testUpdateAuditsOnlyTheSettingThatChanged(): void
+    public function testUpdate_AuditsOnlyTheSettingThatChanged(): void
     {
         $settings = new SalesTaxSettings();
 
@@ -143,7 +143,7 @@ final class SalesTaxSettingsTest extends CIUnitTestCase
         $this->assertSame([SalesTaxSettings::TAX_ONE_KEY => true], $second['after']);
     }
 
-    public function testLineWithoutTaxFindsTheFirstLineThatHasNoTax(): void
+    public function testLineWithoutTax_FindsTheFirstLineThatHasNoTax(): void
     {
         $items = [0 => ['item_id' => 3, 'line' => 1], 1 => ['item_id' => 4, 'line' => 2], 2 => ['item_id' => 5, 'line' => 3]];
         $taxes = [['item_id' => 3, 'line' => 1], ['item_id' => 5, 'line' => 3]];
@@ -151,7 +151,7 @@ final class SalesTaxSettingsTest extends CIUnitTestCase
         $this->assertSame(2, SalesTaxSettings::lineWithoutTax($items, $taxes));
     }
 
-    public function testLineWithoutTaxAnswersNothingWhenEveryLineHasATax(): void
+    public function testLineWithoutTax_AnswersNothingWhenEveryLineHasATax(): void
     {
         $items = [0 => ['item_id' => 3, 'line' => 1], 1 => ['item_id' => 3, 'line' => 2]];
         $taxes = [['item_id' => 3, 'line' => 1, 'item_tax_amount' => '0'], ['item_id' => 3, 'line' => 2, 'item_tax_amount' => '5.00'], ['item_id' => 3, 'line' => 2, 'item_tax_amount' => '1.00']];
@@ -159,7 +159,7 @@ final class SalesTaxSettingsTest extends CIUnitTestCase
         $this->assertNull(SalesTaxSettings::lineWithoutTax($items, $taxes), 'a tax of nothing is still a tax');
     }
 
-    public function testLineWithoutTaxTellsTheLinesOfOneItemApart(): void
+    public function testLineWithoutTax_TellsTheLinesOfOneItemApart(): void
     {
         $items = [0 => ['item_id' => 3, 'line' => 1], 1 => ['item_id' => 3, 'line' => 2]];
 

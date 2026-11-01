@@ -109,7 +109,7 @@ final class PerTaxInclusiveMigrationTest extends CIUnitTestCase
         return $this->save([$this->line($item, 0, '1', '100')], [$this->taxRow($item, 0, 'VAT', '15.0000', 0, '13.0435'), $this->taxRow($item, 0, 'Service', '5.0000', 1, '4.35')], [], SALE_TYPE_POS);
     }
 
-    public function testUpCreatesTheTaxListAndTheColumnOfTheAccountAWholeTaxRowIsSavedWith(): void
+    public function testUp_CreatesTheTaxListAndTheColumnOfTheAccountAWholeTaxRowIsSavedWith(): void
     {
         $this->assertTrue($this->hasTable('tax_definitions'));
         $this->assertSame(['type' => 'tinyint(1)', 'nullable' => 'YES', 'default' => null], $this->column('tax_definitions', 'tax_included'));
@@ -118,7 +118,7 @@ final class PerTaxInclusiveMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->hasIndex('sales_items_taxes', 'sales_items_taxes_liability'));
     }
 
-    public function testUpKeepsTheNameOfATaxUniqueWhateverItsCase(): void
+    public function testUp_KeepsTheNameOfATaxUniqueWhateverItsCase(): void
     {
         $this->accountingDb()->table('tax_definitions')->insert(['tax_name' => 'VAT']);
 
@@ -127,7 +127,7 @@ final class PerTaxInclusiveMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('tax_definitions')->insert(['tax_name' => 'vat']);
     }
 
-    public function testUpSetsTheRequirementOfATaxOffAndNeverMovesItBack(): void
+    public function testUp_SetsTheRequirementOfATaxOffAndNeverMovesItBack(): void
     {
         $this->assertSame('0', model(Appconfig::class)->get_value('require_tax_1', 'missing'));
 
@@ -140,7 +140,7 @@ final class PerTaxInclusiveMigrationTest extends CIUnitTestCase
         $this->setConfigValue('require_tax_1', '0');
     }
 
-    public function testUpIsSafeToRunAgain(): void
+    public function testUp_IsSafeToRunAgain(): void
     {
         (new PerTaxInclusive())->up();
         (new PerTaxInclusive())->up();
@@ -150,7 +150,7 @@ final class PerTaxInclusiveMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->hasIndex('sales_items_taxes', 'sales_items_taxes_liability'));
     }
 
-    public function testUpFinishesWhatWasStoppedHalfWay(): void
+    public function testUp_FinishesWhatWasStoppedHalfWay(): void
     {
         $taxes = $this->accountingDb()->prefixTable('sales_items_taxes');
 
@@ -163,7 +163,7 @@ final class PerTaxInclusiveMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->hasIndex('sales_items_taxes', 'sales_items_taxes_liability'));
     }
 
-    public function testUpLeavesEveryTaxRowOfASaleAndWhatTheSaleCameToExactlyAsTheyWere(): void
+    public function testUp_LeavesEveryTaxRowOfASaleAndWhatTheSaleCameToExactlyAsTheyWere(): void
     {
         $saleId    = $this->mixedSale();
         $rows      = $this->taxRowsOf($saleId);
@@ -184,7 +184,7 @@ final class PerTaxInclusiveMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('sales_items_taxes')->where('sale_id', $saleId)->where('liability_account_id IS NOT NULL', null, false)->countAllResults());
     }
 
-    public function testDownRefusesOnceATaxRowOfASaleHoldsAnAccountAndChangesNothing(): void
+    public function testDown_RefusesOnceATaxRowOfASaleHoldsAnAccountAndChangesNothing(): void
     {
         $account = $this->customAccount('215', '215003', 'Tax on services');
         $item    = $this->item('0', false);
@@ -202,7 +202,7 @@ final class PerTaxInclusiveMigrationTest extends CIUnitTestCase
         $this->assertSame((string) $account, (string) $this->accountingDb()->table('sales_items_taxes')->where('sale_id', $saleId)->get()->getRow()->liability_account_id);
     }
 
-    public function testDownRemovesTheTaxListTheColumnAndTheIndexWhenNoRowHoldsAnAccountAndTakingItDownAgainChangesNothing(): void
+    public function testDown_RemovesTheTaxListTheColumnAndTheIndexWhenNoRowHoldsAnAccountAndTakingItDownAgainChangesNothing(): void
     {
         $migration = new PerTaxInclusive();
 

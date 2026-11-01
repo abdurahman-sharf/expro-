@@ -1906,23 +1906,23 @@ class Sale_lib
     }
 
     /**
-     * @param int $item_id
+     * @param int $itemId
      * @param string $quantity
      * @param string $price
      * @param string $discount
-     * @param int $discount_type
-     * @param bool $include_discount
+     * @param int $discountType
+     * @param bool $includeDiscount
      * @return string
      */
-    public function get_item_total_tax_exclusive(int $item_id, string $quantity, string $price, string $discount, int $discount_type, bool $include_discount = false, string $invoiceDiscountShare = '0'): string
+    public function get_item_total_tax_exclusive(int $itemId, string $quantity, string $price, string $discount, int $discountType, bool $includeDiscount = false, string $invoiceDiscountShare = '0'): string
     {
-        $itemTotal = $this->get_item_total($quantity, $price, $discount, $discount_type, $include_discount, $invoiceDiscountShare);
+        $itemTotal = $this->get_item_total($quantity, $price, $discount, $discountType, $includeDiscount, $invoiceDiscountShare);
 
         if ($this->config['use_destination_based_tax'] ?? false) {
             return $itemTotal;
         }
 
-        foreach ($this->taxLib()->taxesOfItem($item_id, $quantity, $price, $discount, $discount_type, $invoiceDiscountShare) as $tax) {
+        foreach ($this->taxLib()->taxesOfItem($itemId, $quantity, $price, $discount, $discountType, $invoiceDiscountShare) as $tax) {
             if ($tax['type'] === Tax_lib::TAX_TYPE_INCLUDED) {
                 $itemTotal = bcsub($itemTotal, $tax['amount']);
             }
@@ -2024,41 +2024,41 @@ class Sale_lib
      * @param string $quantity
      * @param string $price
      * @param string $discount
-     * @param int $discount_type
-     * @param string $tax_percentage
+     * @param int $discountType
+     * @param string $taxPercentage
      * @return string
      */
-    public function get_item_tax(string $quantity, string $price, string $discount, int $discount_type, string $tax_percentage, string $invoiceDiscountShare = '0', ?bool $included = null): string
+    public function get_item_tax(string $quantity, string $price, string $discount, int $discountType, string $taxPercentage, string $invoiceDiscountShare = '0', ?bool $included = null): string
     {
-        $itemTotal = $this->get_item_total($quantity, $price, $discount, $discount_type, true, $invoiceDiscountShare);
+        $itemTotal = $this->get_item_total($quantity, $price, $discount, $discountType, true, $invoiceDiscountShare);
 
         if ($included ?? $this->config['tax_included']) {
-            $taxFraction = bcdiv(bcadd('100', $tax_percentage), '100');
+            $taxFraction = bcdiv(bcadd('100', $taxPercentage), '100');
             $priceTaxExcl = bcdiv($itemTotal, $taxFraction);
 
             return bcsub($itemTotal, $priceTaxExcl);
         }
 
-        $taxFraction = bcdiv($tax_percentage, '100');
+        $taxFraction = bcdiv($taxPercentage, '100');
 
         return bcmul($itemTotal, $taxFraction);
     }
 
     /**
-     * @param bool $include_discount
-     * @param bool $exclude_tax
+     * @param bool $includeDiscount
+     * @param bool $excludeTax
      * @return string
      */
-    public function calculate_subtotal(bool $include_discount = false, bool $exclude_tax = false): string
+    public function calculate_subtotal(bool $includeDiscount = false, bool $excludeTax = false): string
     {
         $subtotal = '0.0';
         foreach ($this->get_cart() as $item) {
-            $invoiceDiscountShare = $include_discount ? ($item['invoice_discount_share'] ?? '0') : '0';
+            $invoiceDiscountShare = $includeDiscount ? ($item['invoice_discount_share'] ?? '0') : '0';
 
-            if ($exclude_tax) {
-                $subtotal = bcadd($subtotal, $this->get_item_total_tax_exclusive($item['item_id'], $item['quantity'], $item['price'], $item['discount'], $item['discount_type'], $include_discount, $invoiceDiscountShare));
+            if ($excludeTax) {
+                $subtotal = bcadd($subtotal, $this->get_item_total_tax_exclusive($item['item_id'], $item['quantity'], $item['price'], $item['discount'], $item['discount_type'], $includeDiscount, $invoiceDiscountShare));
             } else {
-                $subtotal = bcadd($subtotal, $this->get_item_total($item['quantity'], $item['price'], $item['discount'], $item['discount_type'], $include_discount, $invoiceDiscountShare));
+                $subtotal = bcadd($subtotal, $this->get_item_total($item['quantity'], $item['price'], $item['discount'], $item['discount_type'], $includeDiscount, $invoiceDiscountShare));
             }
         }
 
@@ -2067,14 +2067,14 @@ class Sale_lib
 
     /**
      * Calculates the total sales amount with the default option to include cash rounding
-     * @param bool $include_cash_rounding
+     * @param bool $includeCashRounding
      * @return string
      */
-    public function get_total(bool $include_cash_rounding = true): string
+    public function get_total(bool $includeCashRounding = true): string
     {
         $total = $this->calculate_subtotal(true);
 
-        $cash_mode = $this->session->get('cash_mode');
+        $cashMode = $this->session->get('cash_mode');
 
         $cart = $this->get_cart();
 
@@ -2084,7 +2084,7 @@ class Sale_lib
             }
         }
 
-        if ($include_cash_rounding && $cash_mode) {
+        if ($includeCashRounding && $cashMode) {
             $total = $this->check_for_cash_rounding($total);
         }
 

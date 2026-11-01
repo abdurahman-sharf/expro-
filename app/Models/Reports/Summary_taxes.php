@@ -41,26 +41,26 @@ class Summary_taxes extends Summary_report
     public function getData(array $inputs): array
     {
         $decimals = totals_decimals();
-        $db_prefix = $this->db->getPrefix();
+        $dbPrefix = $this->db->getPrefix();
 
-        $sale_amount = '(CASE WHEN ' . $db_prefix . 'sales_items.discount_type = ' . PERCENT
-            . " THEN " . $db_prefix . "sales_items.quantity_purchased * " . $db_prefix . "sales_items.item_unit_price - ROUND(" . $db_prefix . "sales_items.quantity_purchased * " . $db_prefix . "sales_items.item_unit_price * " . $db_prefix . "sales_items.discount / 100, $decimals)"
-            . ' ELSE ' . $db_prefix . 'sales_items.quantity_purchased * (' . $db_prefix . "sales_items.item_unit_price - " . $db_prefix . "sales_items.discount) END - " . InvoiceDiscount::sqlShare($db_prefix . 'sales_items') . ")";
+        $saleAmount = '(CASE WHEN ' . $dbPrefix . 'sales_items.discount_type = ' . PERCENT
+            . " THEN " . $dbPrefix . "sales_items.quantity_purchased * " . $dbPrefix . "sales_items.item_unit_price - ROUND(" . $dbPrefix . "sales_items.quantity_purchased * " . $dbPrefix . "sales_items.item_unit_price * " . $dbPrefix . "sales_items.discount / 100, $decimals)"
+            . ' ELSE ' . $dbPrefix . 'sales_items.quantity_purchased * (' . $dbPrefix . "sales_items.item_unit_price - " . $dbPrefix . "sales_items.discount) END - " . InvoiceDiscount::sqlShare($dbPrefix . 'sales_items') . ")";
 
-        $sale_tax = "IFNULL(" . $db_prefix . "sales_items_taxes.item_tax_amount, 0)";
+        $saleTax = "IFNULL(" . $dbPrefix . "sales_items_taxes.item_tax_amount, 0)";
 
-        $sale_subtotal = "(CASE WHEN " . $db_prefix . "sales_items_taxes.tax_type = 0 THEN ROUND($sale_amount - $sale_tax, $decimals) ELSE ROUND($sale_amount, $decimals) END)";
-        $sale_tax_rounded = "ROUND($sale_tax, $decimals)";
-        $sale_total = "($sale_subtotal + $sale_tax_rounded)";
+        $saleSubtotal = "(CASE WHEN " . $dbPrefix . "sales_items_taxes.tax_type = 0 THEN ROUND($saleAmount - $saleTax, $decimals) ELSE ROUND($saleAmount, $decimals) END)";
+        $saleTaxRounded = "ROUND($saleTax, $decimals)";
+        $saleTotal = "($saleSubtotal + $saleTaxRounded)";
 
         $subqueryBuilder = $this->db->table('sales_items');
         $subqueryBuilder->select(
             "name AS name, "
             . "CONCAT(IFNULL(ROUND(percent, $decimals), 0), '%') AS percent, "
             . "sales.sale_id AS sale_id, "
-            . "$sale_subtotal AS subtotal, "
-            . "$sale_tax_rounded AS tax, "
-            . "$sale_total AS total"
+            . "$saleSubtotal AS subtotal, "
+            . "$saleTaxRounded AS tax, "
+            . "$saleTotal AS total"
         );
 
         $subqueryBuilder->join('sales', 'sales_items.sale_id = sales.sale_id', 'inner');
@@ -74,7 +74,7 @@ class Summary_taxes extends Summary_report
 
         if (empty($this->config['date_or_time_format'])) {
             $subqueryBuilder->where(
-                'DATE(' . $db_prefix . 'sales.sale_time) BETWEEN ' . $this->db->escape($inputs['start_date'])
+                'DATE(' . $dbPrefix . 'sales.sale_time) BETWEEN ' . $this->db->escape($inputs['start_date'])
                 . ' AND ' . $this->db->escape($inputs['end_date'])
             );
         } else {

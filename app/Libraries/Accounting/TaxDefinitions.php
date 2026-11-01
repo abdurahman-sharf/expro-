@@ -105,7 +105,12 @@ final class TaxDefinitions
     }
 
     /**
+     * Deleting a tax that has an account of its own takes that account away from it, which is the same
+     * routing change as choosing none, and asks for the same permission and every branch.
+     *
      * @param list<int> $definitionIds
+     *
+     * @throws AccountingException|BranchException
      */
     public function delete(array $definitionIds, ?int $employeeId = null): void
     {
@@ -116,7 +121,14 @@ final class TaxDefinitions
         }
 
         $this->transactional(function () use ($ids, $employeeId): void {
-            foreach ($this->db->table('tax_definitions')->whereIn('tax_definition_id', $ids)->get()->getResult() as $row) {
+            $rows = $this->db->table('tax_definitions')->whereIn('tax_definition_id', $ids)->get()->getResult();
+
+            if (array_filter($rows, static fn (object $row): bool => $row->liability_account_id !== null) !== []) {
+                $this->guard->require(AccountingGuard::ROUTING_MANAGE, $employeeId);
+                $this->branches->requireCompanyScope($employeeId);
+            }
+
+            foreach ($rows as $row) {
                 $this->audit->write(self::ENTITY, (int) $row->tax_definition_id, 'deleted', $employeeId, JournalOrigin::User, [
                     'name'     => $row->tax_name,
                     'included' => $row->tax_included === null ? null : (int) $row->tax_included === 1,
@@ -168,17 +180,23 @@ final class TaxDefinitions
 
     /**
      * The accounts a tax can be credited to, in code order: active accounts of liability that take
-     * entries and are not kept for another purpose than the tax collected.
+     * entries and are not kept for another purpose than the tax collected: not a reserved account, not
+     * the sub-account of a customer, a supplier or a stock location, and not the target of the routing
+     * of another key.
      *
      * @return list<object>
      */
     public function accountOptions(): array
     {
+        $routed = '(SELECT account_id FROM ' . $this->db->prefixTable('accounting_routing') . ' WHERE account_id IS NOT NULL AND routing_key <> ' . $this->db->escape(RoutingKey::TaxOutput->value) . ')';
+
         return $this->db->table('accounting_accounts')
             ->select('account_id, code, name')
             ->where('account_type', AccountType::Liability->value)
             ->where('is_group', 0)
             ->where('active', 1)
+            ->where('entity_type IS NULL', null, false)
+            ->where("account_id NOT IN {$routed}", null, false)
             ->groupStart()->where('system_key IS NULL', null, false)->orWhere('system_key', RoutingKey::TaxOutput->defaultSystemKey())->groupEnd()
             ->orderBy('code', 'ASC')
             ->get()

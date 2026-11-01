@@ -30,7 +30,7 @@ class Tax_lib
     private Tax $tax;
     private Tax_category $tax_category;
     private Tax_code $tax_code;
-    private Tax_definition $tax_definition;
+    private Tax_definition $taxDefinition;
     private Tax_jurisdiction $tax_jurisdiction;
     private array $config;
 
@@ -44,7 +44,7 @@ class Tax_lib
         $this->tax = model(Tax::class);
         $this->tax_category = model(Tax_category::class);
         $this->tax_code = model(Tax_code::class);
-        $this->tax_definition = model(Tax_definition::class);
+        $this->taxDefinition = model(Tax_definition::class);
         $this->tax_jurisdiction = model(Tax_jurisdiction::class);
         $this->config = config(OSPOS::class)->settings;
     }
@@ -89,7 +89,7 @@ class Tax_lib
      * saved sale, and of the return that takes goods back from a sale, are the ones that sale was saved
      * with, mode and account included, and not what the tax list says today.
      */
-    public function get_taxes(array &$cart, int $sale_id = -1, ?int $customerId = null, ?string $registerMode = null): array    // TODO: Replace -1 with constant.
+    public function get_taxes(array &$cart, int $saleId = -1, ?int $customerId = null, ?string $registerMode = null): array    // TODO: Replace -1 with constant.
     {
         $registerModeUsed = $registerMode ?? $this->sale_lib->get_mode();
         $taxDecimals = tax_decimals();
@@ -100,7 +100,7 @@ class Tax_lib
 
         // Charge sales tax if customer is not selected (walk-in) or customer is flagged as taxable
         if ($customerIdUsed == -1 || $customerInfo->taxable) {    // TODO: Replace -1 with constant.
-            $storedSale = $this->storedSource($sale_id, $registerMode);
+            $storedSale = $this->storedSource($saleId, $registerMode);
             $taxInfoByLine = [];
             $definitions = [];
 
@@ -112,7 +112,7 @@ class Tax_lib
                 }
 
                 if ($storedSale === null) {
-                    $definitions = $this->tax_definition->forNames(array_column(array_merge([], ...array_values($taxInfoByLine)), 'name'));
+                    $definitions = $this->taxDefinition->forNames(array_column(array_merge([], ...array_values($taxInfoByLine)), 'name'));
                 }
             }
 
@@ -181,7 +181,7 @@ class Tax_lib
         $taxInfo = $this->item_taxes->get_info($itemId);
         $item = ['quantity' => $quantity, 'price' => $price, 'discount' => $discount, 'discount_type' => $discountType, 'invoice_discount_share' => $invoiceDiscountShare];
 
-        return $this->lineTaxes($item, $taxInfo, $this->tax_definition->forNames(array_column($taxInfo, 'name')), tax_decimals());
+        return $this->lineTaxes($item, $taxInfo, $this->taxDefinition->forNames(array_column($taxInfo, 'name')), tax_decimals());
     }
 
     /**
@@ -189,7 +189,8 @@ class Tax_lib
      * is taken out of it, and what is left is the net the taxes that are added are worked out on,
      * so that two taxes on a line are each charged on the same net. When only one tax is inside the
      * price it is taken out as it always was; when several are, the net is the price less the sum of
-     * their rates over that sum plus a hundred, and each is charged on the net.
+     * their rates over that sum plus a hundred, and each is charged on the net, unless the rows are
+     * those of a saved sale, whose amounts are kept for the units of the line.
      *
      * @param array<string, mixed>                                          $item
      * @param list<array<string, mixed>>                                    $taxInfo     The tax rows of the item: the item's own, or those a sale was saved with.
@@ -211,6 +212,8 @@ class Tax_lib
                 'account'  => $this->liabilityAccount($info, $definitions),
                 'amount'   => '0',
                 'basis'    => $total,
+                'saved'    => $info['item_tax_amount'] ?? null,
+                'sold'     => $info['sold_quantity'] ?? null,
             ];
         }
 
@@ -222,17 +225,10 @@ class Tax_lib
             $rows[$index]['amount'] = $this->get_included_tax($item['quantity'], $item['price'], $item['discount'], $item['discount_type'], $rows[$index]['percent'], $taxDecimals, Rounding_mode::HALF_UP, $share);
             $net = bcsub($total, $rows[$index]['amount']);
         } elseif (count($includedRows) > 1) {
-            $rates = '0';
-
-            foreach ($includedRows as $index) {
-                $rates = bcadd($rates, $rows[$index]['percent']);
-            }
-
-            $net = bcsub($total, bcdiv(bcmul($total, $rates), bcadd($rates, '100')));
-
-            foreach ($includedRows as $index) {
-                $rows[$index]['amount'] = bcmul($net, bcdiv($rows[$index]['percent'], '100'));
-            }
+            $quantity = (string) $item['quantity'];
+            $net      = $this->savedAmountsOf($rows, $includedRows, $quantity)
+                ? $this->takeSavedOut($rows, $includedRows, $quantity, $total)
+                : $this->takeSeveralOut($rows, $includedRows, $total);
         }
 
         $taxes = [];
@@ -254,6 +250,69 @@ class Tax_lib
         }
 
         return $taxes;
+    }
+
+    /**
+     * Whether every one of these rows carries what the sale it comes from charged for the item, and the
+     * units the sale sold of it, so that the amounts of a saved document can be taken from it.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @param list<int>                  $indexes
+     */
+    private function savedAmountsOf(array $rows, array $indexes, string $quantity): bool
+    {
+        foreach ($indexes as $index) {
+            if ($rows[$index]['saved'] === null || $rows[$index]['sold'] === null || bccomp((string) $rows[$index]['sold'], '0') === 0) {
+                return false;
+            }
+        }
+
+        return bccomp($quantity, '0') !== 0;
+    }
+
+    /**
+     * What the taxes inside the price were when the sale was saved, for the units of this line: a sale
+     * saved before the taxes were taken out together took each of them out of the whole price, and the
+     * document that gives its goods back, or prints it again, must show what that sale charged and not
+     * what the arithmetic of today would make of the price.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @param list<int>                  $indexes
+     */
+    private function takeSavedOut(array &$rows, array $indexes, string $quantity, string $total): string
+    {
+        $taken = '0';
+
+        foreach ($indexes as $index) {
+            $rows[$index]['amount'] = bcdiv(bcmul((string) $rows[$index]['saved'], $quantity, 8), (string) $rows[$index]['sold'], 4);
+            $taken                  = bcadd($taken, $rows[$index]['amount']);
+        }
+
+        return bcsub($total, $taken);
+    }
+
+    /**
+     * The net of a price with several taxes inside it: the price less the sum of their rates over that
+     * sum plus a hundred, each tax charged on that net.
+     *
+     * @param list<array<string, mixed>> $rows
+     * @param list<int>                  $indexes
+     */
+    private function takeSeveralOut(array &$rows, array $indexes, string $total): string
+    {
+        $rates = '0';
+
+        foreach ($indexes as $index) {
+            $rates = bcadd($rates, $rows[$index]['percent']);
+        }
+
+        $net = bcsub($total, bcdiv(bcmul($total, $rates), bcadd($rates, '100')));
+
+        foreach ($indexes as $index) {
+            $rows[$index]['amount'] = bcmul($net, bcdiv($rows[$index]['percent'], '100'));
+        }
+
+        return $net;
     }
 
     /**
@@ -323,31 +382,31 @@ class Tax_lib
     /**
      * Updates the sales_tax array which is later saved to the `sales_taxes` table and used for printing taxes on receipts and invoices
      */
-    public function update_taxes(array &$taxes, string $tax_type, string $tax_group, string $tax_rate, string $tax_basis, string $item_tax_amount, int $tax_group_sequence, int $rounding_code, int $sale_id, string $name = '', ?int $tax_code_id = null, ?int $jurisdiction_id = null, ?int $tax_category_id = null): void
+    public function update_taxes(array &$taxes, string $taxType, string $taxGroup, string $taxRate, string $taxBasis, string $itemTaxAmount, int $taxGroupSequence, int $roundingCode, int $saleId, string $name = '', ?int $taxCodeId = null, ?int $jurisdictionId = null, ?int $taxCategoryId = null): void
     {
-        $tax_group_index = $this->clean('X' . (float)$tax_rate . '% ' . $tax_group);    // TODO: Not sure we should be casting to a float here.  The clean() function takes a string, so it just gets converted back to a string and there's risk of inaccuracies in the value displayed.
+        $taxGroupIndex = $this->clean('X' . (float)$taxRate . '% ' . $taxGroup);    // TODO: Not sure we should be casting to a float here.  The clean() function takes a string, so it just gets converted back to a string and there's risk of inaccuracies in the value displayed.
 
-        if (isset($taxes[$tax_group_index]) && (string) $taxes[$tax_group_index]['tax_type'] !== $tax_type) {
-            $tax_group_index .= '-' . $tax_type;
+        if (isset($taxes[$taxGroupIndex]) && (string) $taxes[$taxGroupIndex]['tax_type'] !== $taxType) {
+            $taxGroupIndex .= '-' . $taxType;
         }
 
-        if (!array_key_exists($tax_group_index, $taxes)) {
-            $insertkey = $tax_group_index;    // TODO: this variable does not follow naming conventions.
+        if (!array_key_exists($taxGroupIndex, $taxes)) {
+            $insertKey = $taxGroupIndex;
 
             $tax = [
-                $insertkey => [
-                    'sale_id'           => $sale_id,
-                    'tax_type'          => $tax_type,
-                    'tax_group'         => $tax_group,
-                    'sale_tax_basis'    => $tax_basis,
-                    'sale_tax_amount'   => $item_tax_amount,
-                    'print_sequence'    => $tax_group_sequence,
+                $insertKey => [
+                    'sale_id'           => $saleId,
+                    'tax_type'          => $taxType,
+                    'tax_group'         => $taxGroup,
+                    'sale_tax_basis'    => $taxBasis,
+                    'sale_tax_amount'   => $itemTaxAmount,
+                    'print_sequence'    => $taxGroupSequence,
                     'name'              => $name,
-                    'tax_rate'          => $tax_rate,
-                    'sales_tax_code_id' => $tax_code_id,
-                    'jurisdiction_id'   => $jurisdiction_id,
-                    'tax_category_id'   => $tax_category_id,
-                    'rounding_code'     => $rounding_code
+                    'tax_rate'          => $taxRate,
+                    'sales_tax_code_id' => $taxCodeId,
+                    'jurisdiction_id'   => $jurisdictionId,
+                    'tax_category_id'   => $taxCategoryId,
+                    'rounding_code'     => $roundingCode
                 ]
             ];
 
@@ -356,8 +415,8 @@ class Tax_lib
         } else {
             // Important: the sales amounts are accumulated for the group at the maximum configurable scale value of 4
             // but the scale will in reality be the scale specified by the tax_decimal configuration value  used for sales_items_taxes
-            $taxes[$tax_group_index]['sale_tax_basis'] = bcadd($taxes[$tax_group_index]['sale_tax_basis'], $tax_basis, 4);
-            $taxes[$tax_group_index]['sale_tax_amount'] = bcadd($taxes[$tax_group_index]['sale_tax_amount'], $item_tax_amount, 4);
+            $taxes[$taxGroupIndex]['sale_tax_basis'] = bcadd($taxes[$taxGroupIndex]['sale_tax_basis'], $taxBasis, 4);
+            $taxes[$taxGroupIndex]['sale_tax_amount'] = bcadd($taxes[$taxGroupIndex]['sale_tax_amount'], $itemTaxAmount, 4);
         }
     }
 
@@ -395,36 +454,36 @@ class Tax_lib
             array_multisort($sort['print_sequence'], SORT_ASC, $taxes);
         }
 
-        foreach ($taxes as $row_number => $sales_tax) {
+        foreach ($taxes as $rowNumber => $salesTax) {
             // A tax that is inside the price is rounded to tax decimals, one that is added to currency_decimals
             $included = $this->config['use_destination_based_tax']
                 ? (bool) $this->config['tax_included']
-                : (string) $sales_tax['tax_type'] === Tax_lib::TAX_TYPE_INCLUDED;
+                : (string) $salesTax['tax_type'] === Tax_lib::TAX_TYPE_INCLUDED;
             $decimals = $included ? tax_decimals() : totals_decimals();
 
-            $tax_amount = $sales_tax['sale_tax_amount'];
-            $rounding_code = $sales_tax['rounding_code'];
-            $rounded_tax_amount = $tax_amount;
+            $taxAmount = $salesTax['sale_tax_amount'];
+            $roundingCode = $salesTax['rounding_code'];
+            $roundedTaxAmount = $taxAmount;
 
-            if ($rounding_code == Rounding_mode::HALF_UP) {    // TODO: this block needs to be converted to a switch statement
-                $rounded_tax_amount = round($tax_amount, $decimals, PHP_ROUND_HALF_UP);
-            } elseif ($rounding_code == Rounding_mode::HALF_DOWN) {
-                $rounded_tax_amount = round($tax_amount, $decimals, PHP_ROUND_HALF_DOWN);
-            } elseif ($rounding_code == Rounding_mode::HALF_EVEN) {
-                $rounded_tax_amount = round($tax_amount, $decimals, PHP_ROUND_HALF_EVEN);
-            } elseif ($rounding_code == Rounding_mode::HALF_ODD) {
-                $rounded_tax_amount = round($tax_amount, $decimals, PHP_ROUND_HALF_UP);
-            } elseif ($rounding_code == Rounding_mode::ROUND_UP) {
+            if ($roundingCode == Rounding_mode::HALF_UP) {    // TODO: this block needs to be converted to a switch statement
+                $roundedTaxAmount = round($taxAmount, $decimals, PHP_ROUND_HALF_UP);
+            } elseif ($roundingCode == Rounding_mode::HALF_DOWN) {
+                $roundedTaxAmount = round($taxAmount, $decimals, PHP_ROUND_HALF_DOWN);
+            } elseif ($roundingCode == Rounding_mode::HALF_EVEN) {
+                $roundedTaxAmount = round($taxAmount, $decimals, PHP_ROUND_HALF_EVEN);
+            } elseif ($roundingCode == Rounding_mode::HALF_ODD) {
+                $roundedTaxAmount = round($taxAmount, $decimals, PHP_ROUND_HALF_UP);
+            } elseif ($roundingCode == Rounding_mode::ROUND_UP) {
                 $fig = (int)str_pad('1', $decimals, '0');
-                $rounded_tax_amount = ceil($tax_amount * $fig) / $fig;
-            } elseif ($rounding_code == Rounding_mode::ROUND_DOWN) {
+                $roundedTaxAmount = ceil($taxAmount * $fig) / $fig;
+            } elseif ($roundingCode == Rounding_mode::ROUND_DOWN) {
                 $fig = (int)str_pad('1', $decimals, '0');
-                $rounded_tax_amount = floor($tax_amount * $fig) / $fig;
-            } elseif ($rounding_code == Rounding_mode::HALF_FIVE) {
-                $rounded_tax_amount = round($tax_amount / 5) * 5;
+                $roundedTaxAmount = floor($taxAmount * $fig) / $fig;
+            } elseif ($roundingCode == Rounding_mode::HALF_FIVE) {
+                $roundedTaxAmount = round($taxAmount / 5) * 5;
             }
 
-            $taxes[$row_number]['sale_tax_amount'] = $rounded_tax_amount;
+            $taxes[$rowNumber]['sale_tax_amount'] = $roundedTaxAmount;
         }
     }
 

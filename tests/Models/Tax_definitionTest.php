@@ -47,7 +47,7 @@ final class Tax_definitionTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testForNamesAnswersWhatTheListSaysAboutEachNameAndLeavesOutTheOthers(): void
+    public function testForNames_AnswersWhatTheListSaysAboutEachNameAndLeavesOutTheOthers(): void
     {
         $taxes   = new TaxDefinitions();
         $router  = $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE]);
@@ -69,13 +69,13 @@ final class Tax_definitionTest extends CIUnitTestCase
         );
     }
 
-    public function testForNamesAsksNothingOfTheDatabaseWhenThereAreNoNames(): void
+    public function testForNames_AsksNothingOfTheDatabaseWhenThereAreNoNames(): void
     {
         $this->assertSame([], (new Tax_definition())->forNames([]));
         $this->assertSame([], (new Tax_definition())->forNames(['', '  ']));
     }
 
-    public function testKeyIgnoresTheCaseAndTheSpacesAroundAName(): void
+    public function testKey_IgnoresTheCaseAndTheSpacesAroundAName(): void
     {
         $this->assertSame(Tax_definition::key('VAT'), Tax_definition::key('  vat '));
         $this->assertNotSame(Tax_definition::key('VAT'), Tax_definition::key('VAT 2'));

@@ -1494,4 +1494,27 @@ class SaleTest extends CIUnitTestCase
         $this->assertSame(['1', '0'], array_map('strval', array_column($rows, 'tax_type')));
         $this->assertSame([null, null], array_column($rows, 'liability_account_id'));
     }
+
+    public function testGetSalesItemTaxes_SumsTheAmountsAndTheUnitsOfAnItemOverTheLinesOfTheSale(): void
+    {
+        [$saleId, $items] = $this->saveTaxed([['VAT', '15', 0, '13.0435'], ['Service', '5', 1, '4.35']]);
+
+        $db     = Database::connect();
+        $itemId = (int) $items[0]['item_id'];
+        $first  = (array) $db->table('sales_items')->where(['sale_id' => $saleId, 'item_id' => $itemId])->get()->getRow();
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $db->table('sales_items')->insert([...$first, 'line' => 5, 'quantity_purchased' => '3.000']);
+        $db->table('sales_items_taxes')->insertBatch([
+            ['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 5, 'name' => 'VAT', 'percent' => '15.0000', 'tax_type' => 0, 'item_tax_amount' => '39.1304'],
+            ['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 5, 'name' => 'Service', 'percent' => '5.0000', 'tax_type' => 1, 'item_tax_amount' => '13.05'],
+        ]);
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+
+        $rows = model(Sale::class)->get_sales_item_taxes($saleId, $itemId);
+
+        $this->assertSame(['Service', 'VAT'], array_column($rows, 'name'));
+        $this->assertSame(['17.4000', '52.1739'], array_map(static fn (array $row): string => bcadd((string) $row['item_tax_amount'], '0', 4), $rows));
+        $this->assertSame(['4.000', '4.000'], array_map(static fn (array $row): string => bcadd((string) $row['sold_quantity'], '0', 3), $rows));
+    }
 }

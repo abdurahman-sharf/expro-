@@ -271,8 +271,6 @@ class Tax_libTest extends CIUnitTestCase
 
         $this->assertSame(['13.0435', '4.3478'], $this->amounts($taxes[1]));
         $this->assertSame([Tax_lib::TAX_TYPE_INCLUDED, Tax_lib::TAX_TYPE_EXCLUDED], array_column($taxes[1], 'tax_type'));
-        $this->assertSame('104.3478', bcadd('100', $this->amounts($taxes[1])[1], 4), 'the price and the tax that is added come to the line total of the page script');
-        $this->assertSame('86.9565', bcsub('100', $this->amounts($taxes[1])[0], 4), 'the net is the price less the tax inside it');
     }
 
     public function testGetTaxes_ChargesTheAddedTaxOfAMixedLineOnTheNetAndNotOnThePrice(): void
@@ -301,7 +299,15 @@ class Tax_libTest extends CIUnitTestCase
         $taxes = $this->taxLib(false, false, ['inclusive' => ['included' => true, 'account' => null]], [['name' => 'Inclusive', 'percent' => '10']], [], 4)->get_taxes($cart);
 
         $this->assertSame('9.09', bcadd($this->amounts($taxes[1])[0], '0', 2), 'T-03 of batch C: the tax is 9.09');
-        $this->assertSame('90.91', number_format(round(100 - (float) $this->amounts($taxes[1])[0], 2), 2, '.', ''), 'and what is left of the price is 90.91');
+    }
+
+    public function testLineTaxes_LeavesTheNetOfAnIncludedTenPercentOnALineOfOneHundredAsTheBasisOfAnAddedTax(): void
+    {
+        $item  = ['quantity' => '1', 'price' => '100', 'discount' => '0', 'discount_type' => PERCENT];
+        $taxes = $this->taxLib(false)->lineTaxes($item, [['name' => 'Inclusive', 'percent' => '10'], ['name' => 'Added', 'percent' => '0']], ['inclusive' => ['included' => true, 'account' => null]], 4);
+
+        $this->assertSame('100.00', number_format((float) $taxes[0]['basis'], 2, '.', ''), 'the tax inside the price keeps the price as its basis');
+        $this->assertSame('90.91', number_format((float) $taxes[1]['basis'], 2, '.', ''), 'T-03 of batch C: what is left of the price is 90.91');
     }
 
     public function testGetTaxes_FollowsTheDefaultModeForATaxTheListDoesNotHold(): void
@@ -417,6 +423,88 @@ class Tax_libTest extends CIUnitTestCase
         $this->assertCount(2, $taxes[0]);
         $this->assertSame([Tax_lib::TAX_TYPE_INCLUDED, Tax_lib::TAX_TYPE_EXCLUDED], array_values(array_map(static fn (array $group): string => (string) $group['tax_type'], $taxes[0])));
         $this->assertSame(['15.00', '15.00'], array_values(array_map(static fn (array $group): string => number_format((float) $group['sale_tax_amount'], 2, '.', ''), $taxes[0])));
+    }
+
+    /**
+     * The rows a sale saved before the taxes were taken out of the price together: 10% and 5% inside a
+     * price of 115 were taken out of the whole price one after the other.
+     *
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function savedWithTwoTaxesInsideThePrice(string $soldQuantity = '1', string $vat = '10.4545', string $levy = '5.4762'): array
+    {
+        return [3 => [
+            ['item_id' => 3, 'name' => 'VAT', 'percent' => '10', 'tax_type' => '0', 'liability_account_id' => null, 'item_tax_amount' => $vat, 'sold_quantity' => $soldQuantity],
+            ['item_id' => 3, 'name' => 'Levy', 'percent' => '5', 'tax_type' => '0', 'liability_account_id' => null, 'item_tax_amount' => $levy, 'sold_quantity' => $soldQuantity],
+        ]];
+    }
+
+    public function testGetTaxes_KeepsTheAmountsASaleSavedForSeveralTaxesInsideThePriceWhenItIsPrintedAgain(): void
+    {
+        $cart  = $this->lineOf('115');
+        $taxes = $this->taxLib(true, false, [], [['name' => 'VAT', 'percent' => '10'], ['name' => 'Levy', 'percent' => '5']], $this->savedWithTwoTaxesInsideThePrice(), 4)->get_taxes($cart, 12);
+
+        $this->assertSame(['10.4545', '5.4762'], $this->amounts($taxes[1]), 'not the 10 and 5 the arithmetic of today would make of the price');
+        $this->assertSame(['10.4545', '5.4762'], array_values(array_map(static fn (array $group): string => bcadd((string) $group['sale_tax_amount'], '0', 4), $taxes[0])));
+    }
+
+    public function testGetTaxes_GivesBackExactlyWhatASaleSavedForSeveralTaxesInsideThePriceWhenItsWholeIsReturned(): void
+    {
+        session()->set('sales_mode', 'return');
+        session()->set('sales_return_origin', 12);
+
+        $taxLib = $this->taxLib(true, false, [], [['name' => 'VAT', 'percent' => '10'], ['name' => 'Levy', 'percent' => '5']], $this->savedWithTwoTaxesInsideThePrice(), 4);
+        $cart   = [1 => ['item_id' => 3, 'line' => 1, 'quantity' => '-1', 'price' => '115', 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null]];
+        $taxes  = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['-10.4545', '-5.4762'], $this->amounts($taxes[1]));
+        $this->assertSame([Tax_lib::TAX_TYPE_INCLUDED, Tax_lib::TAX_TYPE_INCLUDED], array_column($taxes[1], 'tax_type'));
+    }
+
+    public function testGetTaxes_GivesBackTheShareOfWhatASaleSavedForSeveralTaxesInsideThePriceThatTheReturnedUnitsAre(): void
+    {
+        session()->set('sales_mode', 'return');
+        session()->set('sales_return_origin', 12);
+
+        $taxLib = $this->taxLib(true, false, [], [['name' => 'VAT', 'percent' => '10'], ['name' => 'Levy', 'percent' => '5']], $this->savedWithTwoTaxesInsideThePrice('4', '41.8182', '21.9048'), 4);
+        $cart   = [1 => ['item_id' => 3, 'line' => 1, 'quantity' => '-1', 'price' => '115', 'discount' => '0', 'discount_type' => PERCENT, 'tax_category_id' => null]];
+        $taxes  = $taxLib->get_taxes($cart);
+
+        $this->assertSame(['-10.4545', '-5.4762'], $this->amounts($taxes[1]), 'a quarter of what the four units were charged');
+    }
+
+    public function testGetTaxes_WorksSeveralTaxesInsideThePriceOfASaleThatSavedNoAmountsWithTheArithmeticOfToday(): void
+    {
+        $saved = $this->savedWithTwoTaxesInsideThePrice();
+
+        foreach (array_keys($saved[3]) as $index) {
+            unset($saved[3][$index]['item_tax_amount']);
+        }
+
+        $cart  = $this->lineOf('115');
+        $taxes = $this->taxLib(true, false, [], [], $saved, 4)->get_taxes($cart, 12);
+
+        $this->assertSame(['10.0000', '5.0000'], $this->amounts($taxes[1]));
+    }
+
+    public function testGetTaxes_WorksSeveralTaxesInsideThePriceOfASaleWhoseUnitsAreUnknownWithTheArithmeticOfToday(): void
+    {
+        $cart  = $this->lineOf('115');
+        $taxes = $this->taxLib(true, false, [], [], $this->savedWithTwoTaxesInsideThePrice('0'), 4)->get_taxes($cart, 12);
+
+        $this->assertSame(['10.0000', '5.0000'], $this->amounts($taxes[1]));
+    }
+
+    public function testGetTaxes_ChargesTheTaxThatIsAddedToASavedLineOnWhatIsLeftAfterTheTaxesItSavedInsideThePrice(): void
+    {
+        $saved      = $this->savedWithTwoTaxesInsideThePrice();
+        $saved[3][] = ['item_id' => 3, 'name' => 'Service', 'percent' => '10', 'tax_type' => '1', 'liability_account_id' => null, 'item_tax_amount' => '9.9069', 'sold_quantity' => '1'];
+        $cart       = $this->lineOf('115');
+        $taxes      = $this->taxLib(false, false, [], [], $saved, 4)->get_taxes($cart, 12);
+        $service    = array_values($taxes[0])[2];
+
+        $this->assertSame('99.0693', bcadd((string) $service['sale_tax_basis'], '0', 4), 'the price less the 15.9307 that was saved inside it');
+        $this->assertSame('9.9069', $this->amounts($taxes[1])[2]);
     }
 
     public function testRoundTaxes_RoundsATaxInsideThePriceToTaxDecimalsAndAnAddedOneToTheCurrency(): void
