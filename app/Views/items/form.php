@@ -246,7 +246,7 @@ $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_in
                             'inputmode' => 'decimal',
                             'dir'       => 'ltr',
                             'onClick'   => 'this.select();',
-                            'value'     => to_currency_no_money($item_info->minimum_price ?? 0)
+                            'value'     => to_currency_exact((string) ($item_info->minimum_price ?? 0))
                         ]) ?>
                     </div>
                     <p class="form-text mb-0"><?= lang('Items.minimum_price_hint') ?></p>

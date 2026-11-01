@@ -410,6 +410,32 @@ function to_currency_no_money(?string $number): string
 }
 
 /**
+ * An amount with the decimals it has, from the currency decimals up to four, so that a price shown
+ * in a form and typed back is the price that was stored.
+ *
+ * @param string|null $number
+ * @return string
+ */
+function to_currency_exact(?string $number): string
+{
+    if (!isset($number)) {
+        return '';
+    }
+
+    $config = config(OSPOS::class)->settings;
+    $decimals = (int) ($config['currency_decimals'] ?? 2);
+    $fmt = new NumberFormatter(numberFormatterLocale($config['number_locale']), NumberFormatter::DECIMAL);
+    $fmt->setAttribute(NumberFormatter::MIN_FRACTION_DIGITS, $decimals);
+    $fmt->setAttribute(NumberFormatter::MAX_FRACTION_DIGITS, max($decimals, 4));
+
+    if (empty($config['thousands_separator'])) {
+        $fmt->setTextAttribute(NumberFormatter::GROUPING_SEPARATOR_SYMBOL, '');
+    }
+
+    return $fmt->format((float) $number);
+}
+
+/**
  * @param string|null $number
  * @return string
  */

@@ -4,7 +4,9 @@ namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\ItemPurchaseTax;
+use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Barcode_lib;
@@ -519,7 +521,7 @@ class Items extends Secure_Controller
             $prices = $itemId === NEW_ENTRY ? [] : $this->priceList->pricesOfItem($itemId);
 
             foreach ($this->priceList->allLists() as $list) {
-                $rows[] = ['id' => (int) $list->price_list_id, 'name' => $list->name, 'active' => (int) $list->status === 1, 'price' => isset($prices[(int) $list->price_list_id]) ? to_currency_no_money($prices[(int) $list->price_list_id]) : ''];
+                $rows[] = ['id' => (int) $list->price_list_id, 'name' => $list->name, 'active' => (int) $list->status === 1, 'price' => isset($prices[(int) $list->price_list_id]) ? to_currency_exact($prices[(int) $list->price_list_id]) : ''];
             }
         }
 
@@ -1025,8 +1027,9 @@ class Items extends Secure_Controller
         $db = db_connect();
         $db->transBegin();
 
-        $success = $this->item->save_value($itemData, $itemId);
-        $newItem = false;
+        $boundsBefore = $this->priceBoundsOf($itemId);
+        $success      = $this->item->save_value($itemData, $itemId);
+        $newItem      = false;
 
         if ($success) {
             if ($itemId === NEW_ENTRY) {
@@ -1096,6 +1099,10 @@ class Items extends Secure_Controller
 
             $success = $success && $this->saveItemAttributes($itemId);
             $success = $success && $this->saveListPrices($itemId);
+
+            if ($success) {
+                $this->auditPriceBounds($itemId, $boundsBefore, $itemData, (int) $employeeId);
+            }
         }
 
         // Check all success conditions before committing
@@ -1111,6 +1118,42 @@ class Items extends Secure_Controller
         $message = $uploadSuccess ? lang('Items.error_adding_updating') . ' ' . $itemData['name'] . $this->adjustmentFailureNote() : strip_tags($uploadData['error']);
 
         return $this->response->setJSON(['success' => false, 'message' => $message, 'id' => $itemId]);
+    }
+
+    /**
+     * @return array{minimum_price: string, max_discount_percent: ?string} What the item holds now, and what a new item starts with.
+     */
+    private function priceBoundsOf(int $itemId): array
+    {
+        $info = $itemId === NEW_ENTRY ? null : $this->item->get_info($itemId);
+
+        return [
+            'minimum_price'        => bcadd((string) ($info->minimum_price ?? '0'), '0', 4),
+            'max_discount_percent' => isset($info->max_discount_percent) ? bcadd((string) $info->max_discount_percent, '0', 2) : null,
+        ];
+    }
+
+    /**
+     * Writes down a change of the minimum price or of the highest discount of an item, in the
+     * transaction that saves the item: these bound what a sale may do, so whoever changes them leaves
+     * a trace even though no sale has yet been made at the new bound.
+     *
+     * @param array{minimum_price: string, max_discount_percent: ?string} $before
+     * @param array<string, mixed>                                        $itemData
+     */
+    private function auditPriceBounds(int $itemId, array $before, array $itemData, int $employeeId): void
+    {
+        $changes = [];
+
+        foreach (array_intersect_key($itemData, $before) as $field => $value) {
+            if ($value !== $before[$field]) {
+                $changes[$field] = ['from' => $before[$field], 'to' => $value];
+            }
+        }
+
+        if ($changes !== []) {
+            (new AuditLog())->write('item', $itemId, 'item_price_bounds_changed', $employeeId, JournalOrigin::User, $changes);
+        }
     }
 
     /**

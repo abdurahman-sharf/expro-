@@ -2380,7 +2380,7 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $db->table('price_list_items')->where('price_list_id >', 0)->delete();
         $db->table('price_lists')->where('price_list_id >', 0)->delete();
-        $db->table('accounting_audit_log')->where('entity_type', 'price_list')->delete();
+        $db->table('accounting_audit_log')->whereIn('entity_type', ['price_list', 'item'])->delete();
     }
 
     private function employeeOfItemsAnd(string ...$extra): int
@@ -2422,6 +2422,22 @@ class ItemsControllerTest extends CIUnitTestCase
         $page->assertSee('name="max_discount_percent"');
         $page->assertSee('value="9.00"');
         $page->assertSee('20.00%');
+
+        $this->resetItemControls();
+    }
+
+    public function testGetView_LeavesTheHighestDiscountOfANewItemEmptyAndSavesItAsTheShopCeiling(): void
+    {
+        $this->setConfigValue(SalesControlSettings::MAX_DISCOUNT_ON, '1');
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $this->assertMatchesRegularExpression('/<input[^>]*name="max_discount_percent"[^>]*value=""/', $this->get('/items/view')->getBody());
+
+        $postData = $this->baseItemPostData() + ['tax_names' => ['VAT']];
+        $result   = json_decode($this->post('/items/save', $postData + ['max_discount_percent' => ''])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertNull($this->itemRow((int) $result['id'])->max_discount_percent);
 
         $this->resetItemControls();
     }
@@ -2474,6 +2490,53 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $this->assertSame('0.0000', $row->minimum_price, 'an empty minimum is no minimum');
         $this->assertNull($row->max_discount_percent, 'an empty highest discount follows the shop');
+
+        $this->resetItemControls();
+    }
+
+    public function testPostSave_WritesDownWhoChangedTheMinimumPriceOrTheHighestDiscountOfAnItemAndFromWhatToWhat(): void
+    {
+        $this->setConfigValue(SalesControlSettings::MINIMUM_PRICE, '1');
+        $this->setConfigValue(SalesControlSettings::MAX_DISCOUNT_ON, '1');
+
+        $employee = $this->createItemsEmployee();
+
+        $this->loginAsItemsEmployee($employee);
+
+        $postData = $this->baseItemPostData() + ['tax_names' => ['VAT']];
+        $created  = json_decode($this->post('/items/save', $postData + ['minimum_price' => '10', 'max_discount_percent' => '5'])->getJSON(), true);
+        $itemId   = (int) $created['id'];
+
+        $entries = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item', 'action' => 'item_price_bounds_changed'])->get()->getResult();
+
+        $this->assertCount(1, $entries, 'a new item with a minimum and a ceiling is written down too');
+        $this->assertSame(['minimum_price' => ['from' => '0.0000', 'to' => '10.0000'], 'max_discount_percent' => ['from' => null, 'to' => '5.00']], json_decode($entries[0]->details, true));
+
+        $this->post('/items/save/' . $itemId, $postData + ['minimum_price' => '0', 'max_discount_percent' => '100']);
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item', 'action' => 'item_price_bounds_changed'])->orderBy('audit_id', 'DESC')->get()->getRow();
+
+        $this->assertSame([$itemId, $employee], [(int) $entry->entity_id, (int) $entry->employee_id]);
+        $this->assertSame(['minimum_price' => ['from' => '10.0000', 'to' => '0.0000'], 'max_discount_percent' => ['from' => '5.00', 'to' => '100.00']], json_decode($entry->details, true));
+
+        $this->resetItemControls();
+    }
+
+    public function testPostSave_WritesNothingDownWhenTheMinimumPriceAndTheHighestDiscountStayAsTheyWere(): void
+    {
+        $this->setConfigValue(SalesControlSettings::MINIMUM_PRICE, '1');
+        $this->setConfigValue(SalesControlSettings::MAX_DISCOUNT_ON, '1');
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData = $this->baseItemPostData() + ['tax_names' => ['VAT']];
+        $created  = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        $this->assertTrue($created['success']);
+
+        $this->post('/items/save/' . $created['id'], $postData + ['minimum_price' => '0.00', 'max_discount_percent' => '']);
+        $this->post('/items/save/' . $created['id'], $postData + ['name' => 'Renamed']);
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'item_price_bounds_changed')->countAllResults());
 
         $this->resetItemControls();
     }
@@ -2549,6 +2612,37 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $this->assertSame($employee, (int) $entry->employee_id);
         $this->assertSame($itemId, (int) json_decode($entry->details, true)['item_id']);
+
+        $this->resetItemControls();
+    }
+
+    public function testPostSave_KeepsAListPriceAndAMinimumPriceOfThreeDecimalsWhenTheFormIsSavedAsItWasShown(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->setConfigValue(SalesControlSettings::MINIMUM_PRICE, '1');
+
+        $lists  = model(Price_list::class);
+        $listId = $lists->saveList('Wholesale', true, null, null);
+        $itemId = $this->createTestItem();
+
+        $lists->saveItemPrices($itemId, [$listId => '0.1250'], null);
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['minimum_price' => '0.0750']);
+        $this->accountingDb()->table('accounting_audit_log')->where('action', 'price_list_prices_changed')->delete();
+        $this->loginAsItemsEmployee($this->employeeOfItemsAnd('price_lists'));
+
+        $page = $this->get('/items/view/' . $itemId);
+
+        $page->assertSee('name="price_list_prices[' . $listId . ']"');
+        $this->assertMatchesRegularExpression('/<input[^>]*name="price_list_prices\[' . $listId . '\]"[^>]*value="0\.125"/', $page->getBody());
+        $this->assertMatchesRegularExpression('/<input[^>]*name="minimum_price"[^>]*value="0\.075"/', $page->getBody());
+
+        $postData = $this->baseItemPostData() + ['tax_names' => ['VAT']];
+        $result   = json_decode($this->post('/items/save/' . $itemId, $postData + ['price_list_prices' => [(string) $listId => '0.125'], 'minimum_price' => '0.075'])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('0.1250', $this->accountingDb()->table('price_list_items')->where(['price_list_id' => $listId, 'item_id' => $itemId])->get()->getRow()->price);
+        $this->assertSame('0.0750', $this->itemRow($itemId)->minimum_price);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'price_list_prices_changed')->countAllResults());
 
         $this->resetItemControls();
     }

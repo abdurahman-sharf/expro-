@@ -650,7 +650,11 @@ class Item extends Model
             return $query->getRow();
         }
 
-        return $this->getEmptyObject('items');
+        $empty = $this->getEmptyObject('items');
+
+        $empty->max_discount_percent = null;
+
+        return $empty;
     }
 
     /**

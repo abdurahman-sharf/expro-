@@ -713,4 +713,12 @@ class ItemTest extends CIUnitTestCase
         $this->assertSame('12.5000', $info->minimum_price);
         $this->assertSame('7.50', $info->max_discount_percent);
     }
+
+    public function testGetInfo_GivesAnItemThatDoesNotExistNoHighestDiscountOfItsOwnSoThatTheShopCeilingApplies(): void
+    {
+        $info = model(Item::class)->get_info(NEW_ENTRY);
+
+        $this->assertNull($info->max_discount_percent);
+        $this->assertSame(0, $info->unit_price);
+    }
 }
