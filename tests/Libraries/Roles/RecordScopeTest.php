@@ -75,11 +75,28 @@ final class RecordScopeTest extends CIUnitTestCase
         $this->assertFalse($this->scope->ownOnly($this->employeeWithRoles([$this->createRole(['sales'], 'all')])));
     }
 
-    public function testOwnOnly_IgnoresAnInactiveRoleOfTheirOwnRecords(): void
+    public function testOwnOnly_KeepsNarrowingByAnInactiveRoleOfTheirOwnRecords(): void
     {
         $employee = $this->employeeWithRoles([$this->createRole(['sales'], 'own', false)]);
 
-        $this->assertFalse($this->scope->ownOnly($employee));
+        $this->assertTrue($this->scope->ownOnly($employee));
+    }
+
+    public function testOwnOnly_StaysNarrowWhenTheRoleOfTheirOwnRecordsIsDeactivated(): void
+    {
+        $name     = 'Deactivated ' . uniqid();
+        $role     = $this->createRole(['sales'], 'own', true, $name);
+        $employee = $this->employeeWithRoles([$role]);
+
+        $this->assertTrue($this->scope->ownOnly($employee));
+
+        (new RoleService())->update($role, ['name' => $name, 'record_scope' => 'own', 'active' => 0], null);
+
+        $this->assertTrue($this->scope->ownOnly($employee), 'Taking a role out of use never gives its holders more records');
+
+        (new RoleService())->update($role, ['name' => $name, 'record_scope' => 'all', 'active' => 0], null);
+
+        $this->assertFalse($this->scope->ownOnly($employee), 'The administrator lifts the restriction on purpose');
     }
 
     public function testOwnOnly_TakesTheNarrowestOfSeveralRolesAndOfTheEmployeeThemselves(): void

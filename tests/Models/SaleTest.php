@@ -13,6 +13,7 @@ use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\OSPOS;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\FailedQueryConnectionTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -1305,6 +1306,31 @@ class SaleTest extends CIUnitTestCase
         return $saleId;
     }
 
+    private function invoiceOfEmployee(int $employeeId, int $itemId, ?string $invoiceNumber = null): int
+    {
+        $status = COMPLETED;
+        $items  = $this->buildCartLine($itemId, 5, 5.00);
+        $taxes  = [[], []];
+        $saleId = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $employeeId, 'invoice', $invoiceNumber, null, null, SALE_TYPE_INVOICE, [], null, $taxes, true);
+
+        $this->assertGreaterThan(0, $saleId);
+
+        return $saleId;
+    }
+
+    private function suspendedSaleOfCustomer(int $employeeId, int $customerId): int
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $items  = $this->buildCartLine($itemId, 1, 10.00);
+        $taxes  = [[], []];
+        $status = SUSPENDED;
+        $saleId = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, $customerId, $employeeId, 'suspended', null, null, null, SALE_TYPE_POS, [], null, $taxes, true);
+
+        $this->assertGreaterThan(0, $saleId);
+
+        return $saleId;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -1581,6 +1607,97 @@ class SaleTest extends CIUnitTestCase
 
         $this->assertNull($sale->getDocumentHeader($theirs, $own));
         $this->assertNotNull($sale->getDocumentHeader($theirs, $this->createEmployee()));
+    }
+
+    public function testSaveValue_RefusesAReturnOfAnotherEmployeesSaleForAnOwnRecordsEmployeeOnly(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $theirs = $this->invoiceOfEmployee($this->createEmployee(), $itemId);
+        $mine   = $this->invoiceOfEmployee($own, $itemId);
+        $before = $this->countSalesRows();
+
+        $this->assertSame(NEW_ENTRY, $this->saveCreditNote($theirs, $itemId, 1, $own));
+        $this->assertSame($before, $this->countSalesRows(), 'Nothing was stored for the return');
+        $this->assertGreaterThan(0, $this->saveCreditNote($mine, $itemId, 1, $own));
+        $this->assertGreaterThan(0, $this->saveCreditNote($theirs, $itemId, 1, $this->createEmployee()));
+    }
+
+    public function testIsValidReceipt_AcceptsTheSaleOfAnOwnRecordsEmployeeAndRejectsAnotherEmployeesLikeOneThatDoesNotExist(): void
+    {
+        $own       = $this->ownRecordsEmployee();
+        $itemId    = $this->createTestItem(HAS_NO_STOCK);
+        $mine      = $this->invoiceOfEmployee($own, $itemId);
+        $theirs    = $this->invoiceOfEmployee($this->createEmployee(), $itemId);
+        $sale      = model(Sale::class);
+        $settings  = config(OSPOS::class)->settings;
+
+        $_SESSION['person_id'] = $own;
+
+        try {
+            $receipt = 'POS ' . $mine;
+            $this->assertTrue($sale->isValidReceipt($receipt));
+
+            $receipt = 'POS ' . $theirs;
+            $this->assertFalse($sale->isValidReceipt($receipt));
+
+            $receipt = 'POS 999999';
+            $this->assertFalse($sale->isValidReceipt($receipt));
+
+            $_SESSION['person_id'] = $this->createEmployee();
+
+            $receipt = 'POS ' . $theirs;
+            $this->assertTrue($sale->isValidReceipt($receipt), 'Whoever sees everything finds the sale');
+        } finally {
+            unset($_SESSION['person_id']);
+            config(OSPOS::class)->settings = $settings;
+        }
+    }
+
+    public function testIsValidReceipt_FindsAnInvoiceNumberOnlyAmongTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        $own      = $this->ownRecordsEmployee();
+        $itemId   = $this->createTestItem(HAS_NO_STOCK);
+        $mineNo   = $this->freshPrefix() . 'A';
+        $theirsNo = $this->freshPrefix() . 'B';
+        $mine     = $this->invoiceOfEmployee($own, $itemId, $mineNo);
+        $theirs   = $this->invoiceOfEmployee($this->createEmployee(), $itemId, $theirsNo);
+        $sale     = model(Sale::class);
+        $settings = config(OSPOS::class)->settings;
+
+        config(OSPOS::class)->settings['invoice_enable'] = 1;
+        $_SESSION['person_id']                           = $own;
+
+        try {
+            $term = $mineNo;
+            $this->assertTrue($sale->isValidReceipt($term));
+            $this->assertSame('POS ' . $mine, $term);
+
+            $term = $theirsNo;
+            $this->assertFalse($sale->isValidReceipt($term));
+            $this->assertSame($theirsNo, $term, 'The id of the other employee\'s sale is not given away');
+
+            $_SESSION['person_id'] = $this->createEmployee();
+
+            $term = $theirsNo;
+            $this->assertTrue($sale->isValidReceipt($term));
+            $this->assertSame('POS ' . $theirs, $term);
+        } finally {
+            unset($_SESSION['person_id']);
+            config(OSPOS::class)->settings = $settings;
+        }
+    }
+
+    public function testGetAllSuspended_ListsOnlyTheSuspendedSalesOfAnOwnRecordsEmployeeForTheSelectedCustomerToo(): void
+    {
+        $own      = $this->ownRecordsEmployee();
+        $customer = $this->createCustomerWithPoints(0);
+        $mine     = $this->suspendedSaleOfCustomer($own, $customer);
+        $theirs   = $this->suspendedSaleOfCustomer($this->createEmployee(), $customer);
+        $sale     = model(Sale::class);
+
+        $this->assertSame([$mine], array_map('intval', array_column($sale->get_all_suspended($customer, $own), 'sale_id')));
+        $this->assertEqualsCanonicalizing([$mine, $theirs], array_map('intval', array_column($sale->get_all_suspended($customer, $this->createEmployee()), 'sale_id')));
     }
 
     public function testOutsideRecordScope_TreatsASaleThatDoesNotExistLikeAnotherEmployeesForAnOwnRecordsEmployeeOnly(): void

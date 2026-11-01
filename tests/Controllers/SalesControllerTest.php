@@ -5582,6 +5582,89 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Sales.not_authorized'), $this->jsonOf($response)['message']);
     }
 
+    public function testPostAdd_RefusesToTakeBackTheSaleOfAnotherEmployeeInReturnModeForAnOwnRecordsEmployeeOnly(): void
+    {
+        $invoice  = $this->postedInvoice();
+        $own      = $this->ownRecordsSupervisor();
+        $everyone = $this->everyRecordSupervisor();
+
+        $this->loginAs($own);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return']));
+
+        $foreign = $this->post('/sales/add', ['item' => 'POS ' . $invoice['saleId']]);
+        $missing = $this->post('/sales/add', ['item' => 'POS 999999']);
+
+        $foreign->assertSee(lang('Sales.unable_to_add_item'));
+        $missing->assertSee(lang('Sales.unable_to_add_item'));
+        $this->assertNull(Services::session()->get('sales_return_origin'));
+        $this->assertSame([], array_values(Services::session()->get('sales_cart') ?? []), 'Nothing of the other sale reached the cart');
+        $this->assertSame((string) -1, (string) (Services::session()->get('sales_customer') ?? -1));
+
+        $this->loginAs($everyone);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return']));
+        $this->post('/sales/add', ['item' => 'POS ' . $invoice['saleId']]);
+
+        $this->assertSame($invoice['saleId'], Services::session()->get('sales_return_origin'));
+        $this->assertNotEmpty(Services::session()->get('sales_cart'));
+    }
+
+    public function testPostAdd_RefusesToTakeBackASaleOfABranchTheEmployeeDoesNotWorkInInReturnMode(): void
+    {
+        $invoice      = $this->postedInvoice();
+        $branchId     = $this->createSecondBranch();
+        $supervisorId = $this->createBranchLimitedSupervisor($branchId);
+
+        $this->grantStockLocationIn($branchId, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return']));
+
+        $this->post('/sales/add', ['item' => 'POS ' . $invoice['saleId']])->assertSee(lang('Sales.branch_not_allowed'));
+
+        $this->assertNull(Services::session()->get('sales_return_origin'));
+        $this->assertSame([], array_values(Services::session()->get('sales_cart') ?? []));
+    }
+
+    public function testPostSetReturnOrigin_AnswersAnOwnRecordsEmployeeTheSameForAnotherEmployeesSaleAndForOneThatDoesNotExist(): void
+    {
+        $own     = $this->ownRecordsSupervisor();
+        $theirs  = $this->createSale($this->everyRecordSupervisor());
+        $mine    = $this->createSale($own);
+        $draft   = $this->createSale($this->everyRecordSupervisor());
+
+        Database::connect()->table('sales')->where('sale_id', $draft)->update(['sale_status' => SUSPENDED]);
+
+        $this->loginAs($own);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return']));
+
+        foreach ([$theirs, $draft, 999999] as $saleId) {
+            $page = $this->post('/sales/setReturnOrigin', ['return_origin' => (string) $saleId]);
+
+            $page->assertSee(lang('Sales.not_authorized'));
+            $page->assertDontSee(lang('Sales.return_origin_invalid'));
+            $this->assertNull(Services::session()->get('sales_return_origin'));
+        }
+
+        $this->post('/sales/setReturnOrigin', ['return_origin' => (string) $mine])->assertStatus(200);
+
+        $this->assertSame($mine, Services::session()->get('sales_return_origin'));
+    }
+
+    public function testGetItemSearch_SuggestsTheReceiptOfASaleOnlyToAnEmployeeWhoMaySeeIt(): void
+    {
+        $own    = $this->ownRecordsSupervisor();
+        $theirs = $this->createSale($this->everyRecordSupervisor());
+
+        $this->loginAs($own);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return']));
+
+        $this->assertNotContains('POS ' . $theirs, $this->jsonOf($this->get('/sales/itemSearch?term=POS%20' . $theirs)));
+
+        $this->loginAs($this->everyRecordSupervisor());
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return']));
+
+        $this->assertContains('POS ' . $theirs, $this->jsonOf($this->get('/sales/itemSearch?term=POS%20' . $theirs)));
+    }
+
     public function testGetIndex_StartsTheRegisterInTheDefaultStockLocationOfTheEmployee(): void
     {
         $personId = $this->createCashierEmployee();

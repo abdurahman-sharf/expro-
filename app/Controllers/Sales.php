@@ -1108,7 +1108,13 @@ class Sales extends Secure_Controller
         $item_location = $this->sale_lib->get_sale_location();
 
         if ($mode == 'return' && $this->sale->isValidReceipt($item_id_or_number_or_item_kit_or_receipt)) {
-            $this->sale_lib->return_entire_sale($item_id_or_number_or_item_kit_or_receipt);
+            $originId = (int)(explode(' ', trim($item_id_or_number_or_item_kit_or_receipt))[1] ?? 0);
+
+            if ($this->outsideBranchScope($originId)) {
+                $data['error'] = $this->scopeMessage();
+            } else {
+                $this->sale_lib->return_entire_sale($item_id_or_number_or_item_kit_or_receipt);
+            }
         } elseif ($this->item_kit->is_valid_item_kit($item_id_or_number_or_item_kit_or_receipt)) {
             // Add kit item to order if one is assigned
             $pieces = explode(' ', $item_id_or_number_or_item_kit_or_receipt);
@@ -2203,6 +2209,10 @@ class Sales extends Secure_Controller
 
     private function returnOriginProblem(int $saleId, ReturnDocument $document): ?string
     {
+        if ($this->sale->outsideRecordScope($saleId, (int)$this->session->get('person_id'))) {
+            return $this->scopeMessage();
+        }
+
         $origin = $this->sale->getSummary($saleId);
 
         if ($origin === null || (int) $origin->sale_status !== COMPLETED || (int) $origin->sale_type === SALE_TYPE_RETURN) {

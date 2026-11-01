@@ -10,9 +10,10 @@ use Config\Database;
  * Whether an employee sees every record of the document families (sales, purchases, expenses and
  * the payments of customers and suppliers) or only the ones they created, and what that cuts. A
  * record is the employee's own when the employee column of the document names them. The scope is
- * "own" when the employee is set to see their own records only or when any active role they hold
- * is, so the narrowest wins: a role can never widen what an employee was narrowed to. Whoever
- * holds no scope, and the books acting without an employee, see everything, as it always was.
+ * "own" when the employee is set to see their own records only or when any role they hold is, active
+ * or not, so the narrowest wins: a role can never widen what an employee was narrowed to, and
+ * deactivating a role never widens its holders. Whoever holds no scope, and the books acting
+ * without an employee, see everything, as it always was.
  */
 final class RecordScope
 {
@@ -114,7 +115,7 @@ final class RecordScope
         }
 
         return $this->db->table('employee_roles er')
-            ->join('roles r', 'r.role_id = er.role_id AND r.active = 1')
+            ->join('roles r', 'r.role_id = er.role_id')
             ->where(['er.person_id' => $employeeId, 'r.record_scope' => self::OWN])
             ->countAllResults() > 0;
     }

@@ -517,11 +517,11 @@ class Sale extends Model
             $pieces = explode(' ', trim($receiptSaleId));
 
             if (count($pieces) == 2 && strtoupper($pieces[0]) === 'POS' && ctype_digit($pieces[1])) {
-                return $this->exists((int)$pieces[1]);
+                return $this->exists((int)$pieces[1]) && !$this->outsideRecordScope((int)$pieces[1]);
             } elseif ($config['invoice_enable']) {
                 $saleInfo = $this->get_sale_by_invoice_number($receiptSaleId);
 
-                if ($saleInfo->getNumRows() > 0) {
+                if ($saleInfo->getNumRows() > 0 && !$this->outsideRecordScope((int)$saleInfo->getRow()->sale_id)) {
                     $receiptSaleId = 'POS ' . $saleInfo->getRow()->sale_id;
 
                     return true;
@@ -982,6 +982,10 @@ class Sale extends Model
         ?string $returnOverrideReason = null,
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         if ($saleId !== NEW_ENTRY && $this->outsideRecordScope($saleId, $employeeId)) {
+            return NEW_ENTRY;
+        }
+
+        if ($saleType === SALE_TYPE_RETURN && $returnOfSaleId !== null && $this->outsideRecordScope($returnOfSaleId, $employeeId)) {
             return NEW_ENTRY;
         }
 

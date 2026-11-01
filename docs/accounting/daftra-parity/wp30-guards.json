@@ -548,11 +548,13 @@
     ]
   },
   {
-    "name": "G51 an inactive role of their own records narrows nobody",
+    "name": "G51 an inactive role of their own records keeps narrowing its holders",
     "file": "app/Libraries/Roles/RecordScope.php",
-    "find": "->join('roles r', 'r.role_id = er.role_id AND r.active = 1')",
-    "replace": "->join('roles r', 'r.role_id = er.role_id')",
+    "find": "->join('roles r', 'r.role_id = er.role_id')",
+    "replace": "->join('roles r', 'r.role_id = er.role_id AND r.active = 1')",
     "tests": [
+      "--filter",
+      "InactiveRole|Deactivated",
       "tests/Libraries/Roles/RecordScopeTest.php"
     ]
   },
