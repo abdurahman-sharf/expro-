@@ -15,7 +15,6 @@ use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Throwable;
-use Throwable;
 
 /**
  * @internal
