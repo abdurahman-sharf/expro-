@@ -116,6 +116,7 @@ $actionLabel = static function (string $action): string {
                 <option value="revenue"><?= lang('Accounting.entity_revenue') ?></option>
                 <option value="revenue_category"><?= lang('Accounting.entity_revenue_category') ?></option>
                 <option value="tax_definition"><?= lang('Accounting.entity_tax_definition') ?></option>
+                <option value="item"><?= lang('Accounting.entity_item') ?></option>
             </select>
         </div>
         <div class="acc-filter">

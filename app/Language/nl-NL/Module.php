@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'OSPOS database bijwerken.',
     'office'                       => 'Kantoor',
     'office_desc'                  => 'Kantoor menu modules weergeven.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Leveringen',

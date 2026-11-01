@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'ALSAN Məlumat Bazasıni Yenilə.',
     'office'                       => 'Ofis',
     'office_desc'                  => 'Ofis menyusu siyahısı modulları.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Qəbul Edilənlər',

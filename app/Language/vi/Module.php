@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'Cập nhật cơ sở dữ liệu OSPOS.',
     'office'                       => 'Văn phòng',
     'office_desc'                  => 'Liệt kê các mô đun văn phòng.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Nhập hàng',

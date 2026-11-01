@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'ปรับปรุงฐานข้อมูล OSPOS',
     'office'                       => 'สำนักงาน',
     'office_desc'                  => 'แสดงรายการเมนูโมดูลสำนักงาน',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'สินค้าเข้า',

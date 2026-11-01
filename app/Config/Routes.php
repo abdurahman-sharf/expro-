@@ -57,6 +57,7 @@ $routes->group('branches', static function (RouteCollection $routes): void {
 $routes->group('accounting_settings', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingSetup::getIndex');
     $routes->post('save', 'AccountingSetup::postSaveSettings');
+    $routes->post('save_controls', 'AccountingSetup::postSaveControls');
     $routes->post('first_year', 'AccountingSetup::postFirstYear');
     $routes->post('enable', 'AccountingSetup::postEnable');
     $routes->post('disable', 'AccountingSetup::postDisable');
@@ -178,6 +179,18 @@ $routes->group('tax_definitions', static function (RouteCollection $routes): voi
     $routes->post('save', 'Tax_definitions::postSave');
     $routes->post('save/(:num)', 'Tax_definitions::postSave/$1');
     $routes->post('delete', 'Tax_definitions::postDelete');
+});
+
+$routes->group('price_lists', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Price_lists::getIndex');
+    $routes->get('search', 'Price_lists::getSearch');
+    $routes->get('row/(:num)', 'Price_lists::getRow/$1');
+    $routes->get('view', 'Price_lists::getView');
+    $routes->get('view/(:num)', 'Price_lists::getView/$1');
+    $routes->post('save', 'Price_lists::postSave');
+    $routes->post('save/(:num)', 'Price_lists::postSave/$1');
+    $routes->post('status/(:num)/(:num)', 'Price_lists::postStatus/$1/$2');
+    $routes->post('delete', 'Price_lists::postDelete');
 });
 
 $routes->group('accounting_reports', static function (RouteCollection $routes): void {

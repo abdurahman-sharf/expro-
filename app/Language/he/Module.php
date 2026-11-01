@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'עדכון מסד הנתונים של OSPOS.',
     'office'                       => 'משרד',
     'office_desc'                  => 'רשימת תפריטי מודל המשרד.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'קליטה \\ החזרה',

@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'Aktualizovat databázi OSPOS.',
     'office'                       => 'Správa',
     'office_desc'                  => 'Seznam modulů pro správu.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Příjem zboží',

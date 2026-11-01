@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => '',
     'office'                       => '',
     'office_desc'                  => '',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Primka',

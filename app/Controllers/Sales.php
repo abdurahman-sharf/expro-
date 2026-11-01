@@ -31,6 +31,8 @@ use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pdf_lib;
+use App\Libraries\Pricing\PriceControls;
+use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\Sale_lib;
 use App\Libraries\ShippingTaxOption;
 use App\Libraries\Tax_lib;
@@ -43,6 +45,7 @@ use App\Models\Giftcard;
 use App\Models\Inventory;
 use App\Models\Item;
 use App\Models\Item_kit;
+use App\Models\Price_list;
 use App\Models\Sale;
 use App\Models\Stock_location;
 use App\Models\Tokens\Token_invoice_count;
@@ -70,6 +73,7 @@ class Sales extends Secure_Controller
     protected Employee $employee;
     private Item $item;
     private Item_kit $item_kit;
+    private Price_list $priceList;
     private Sale $sale;
     private Stock_location $stock_location;
     private array $config;
@@ -90,6 +94,7 @@ class Sales extends Secure_Controller
         $this->sale = model(Sale::class);
         $this->item = model(Item::class);
         $this->item_kit = model(Item_kit::class);
+        $this->priceList = model(Price_list::class);
         $this->stock_location = model(Stock_location::class);
         $this->customer_rewards = model(Customer_rewards::class);
         $this->dinner_table = model(Dinner_table::class);
@@ -302,6 +307,8 @@ class Sales extends Secure_Controller
             if ($discount != '') {
                 $this->sale_lib->apply_customer_discount($discount, $discount_type);
             }
+
+            $this->sale_lib->repriceFromList();
         }
 
         return $this->reload();
@@ -550,6 +557,62 @@ class Sales extends Secure_Controller
         $rows['has'] = bccomp($rows['shipping'], '0', 4) !== 0 || bccomp($rows['adjustment'], '0', 4) !== 0;
 
         return $rows;
+    }
+
+    /**
+     * Changes the price list a sale is priced from, when the shop lets a sale change its list. The
+     * lines that were not typed over are priced again from it. Used in app/Views/sales/register.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postSetPriceList(): ResponseInterface|string
+    {
+        $settings = new SalesControlSettings();
+
+        if (!$settings->priceListsEnabled() || !$settings->changePriceListOnInvoice() || !$this->mayChangePriceList()) {
+            return $this->reload(['error' => lang('Sales.not_authorized')]);
+        }
+
+        $listId = (int) $this->request->getPost('price_list_id');
+
+        if ($listId !== 0 && !$this->priceList->isActive($listId)) {
+            return $this->reload(['error' => lang('Sales.price_list_inactive')]);
+        }
+
+        $this->sale_lib->setPriceListChoice($listId);
+
+        $this->sale_lib->repriceFromList();
+        $this->sale_lib->empty_payments();
+
+        return $this->reload();
+    }
+
+    /**
+     * The lists a sale may be priced from, for the employee who may change them, or null when the
+     * register offers no choice.
+     *
+     * @return array{options: array<int, string>, selected: int}|null
+     */
+    private function priceListSelector(): ?array
+    {
+        $settings = new SalesControlSettings();
+
+        if (!$settings->priceListsEnabled() || !$settings->changePriceListOnInvoice() || !$this->mayChangePriceList() || $this->sale_lib->is_return_mode()) {
+            return null;
+        }
+
+        $options = [0 => lang('Sales.price_list_none')];
+
+        foreach ($this->priceList->allLists(true) as $list) {
+            $options[(int) $list->price_list_id] = esc($list->name);
+        }
+
+        return ['options' => $options, 'selected' => $this->sale_lib->effectivePriceListId() ?? 0];
+    }
+
+    private function mayChangePriceList(): bool
+    {
+        return $this->employee->has_grant('sales_change_price', (int) $this->employee->get_logged_in_employee_info()->person_id);
     }
 
     /**
@@ -1193,6 +1256,7 @@ class Sales extends Secure_Controller
     public function postAdd(): ResponseInterface|string
     {
         $data = [];
+        $cartBefore = $this->sale_lib->get_cart();
 
         $discount = $this->config['default_sales_discount'];
         $discount_type = $this->config['default_sales_discount_type'];
@@ -1261,7 +1325,50 @@ class Sales extends Secure_Controller
             }
         }
 
+        $priceProblem = $this->refusedLinePrices($cartBefore);
+
+        if ($priceProblem !== null) {
+            unset($data['warning']);
+            $data['error'] = $priceProblem;
+        }
+
         return $this->reload($data);
+    }
+
+    /**
+     * Takes back the lines the register just added or changed when one of them sells under the
+     * minimum price of its item or gives more discount than is allowed, unless the employee may
+     * override prices. A quote, a work order and a return are not held to these controls.
+     *
+     * @param array<int|string, array<string, mixed>> $cartBefore
+     *
+     * @return string|null The refusal in words, or null when the lines stand.
+     */
+    private function refusedLinePrices(array $cartBefore): ?string
+    {
+        if ($this->sale_lib->is_return_mode() || $this->sale_lib->is_quote_mode() || $this->sale_lib->is_work_order_mode()) {
+            return null;
+        }
+
+        $priceFields = static fn (array $line): array => [$line['price'], $line['quantity'], $line['discount'], $line['discount_type']];
+        $changed = [];
+
+        foreach ($this->sale_lib->get_cart() as $key => $line) {
+            if (!isset($cartBefore[$key]) || $priceFields($cartBefore[$key]) !== $priceFields($line)) {
+                $changed[$key] = $line;
+            }
+        }
+
+        $controls = new PriceControls();
+        $violations = $controls->violationsOf($changed);
+
+        if ($violations === [] || $controls->mayOverride((int) $this->employee->get_logged_in_employee_info()->person_id)) {
+            return null;
+        }
+
+        $this->sale_lib->set_cart($cartBefore);
+
+        return AccountingMessage::of($violations[0]->toException());
     }
 
     /**
@@ -1333,7 +1440,17 @@ class Sales extends Secure_Controller
                 ? parse_decimals($this->request->getPost('discounted_total') ?? '')
                 : null;
 
+            $cartBefore = $this->sale_lib->get_cart();
+
             $this->sale_lib->edit_item($line, $description, $serialnumber, $quantity, $discount, $discount_type, $price, $discounted_total);
+
+            $priceProblem = $this->refusedLinePrices($cartBefore);
+
+            if ($priceProblem !== null) {
+                $data['error'] = $priceProblem;
+
+                return $this->reload($data);
+            }
 
             $this->sale_lib->empty_payments();
 
@@ -1377,6 +1494,7 @@ class Sales extends Secure_Controller
         $this->sale_lib->clear_invoice_number();
         $this->sale_lib->clear_quote_number();
         $this->sale_lib->remove_customer();
+        $this->sale_lib->repriceFromList();
 
         return $this->reload();
     }
@@ -1535,7 +1653,7 @@ class Sales extends Secure_Controller
                 $invoiceView = $invoiceType;
 
                 // Save the data to the sales table
-                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource(), headerCharges: $this->sale_lib->getHeaderCharges());
+                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource(), headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
                 $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
                 // Resort and filter cart lines for printing
@@ -1597,7 +1715,7 @@ class Sales extends Secure_Controller
                 $data['sale_status'] = SUSPENDED;
                 $saleType = SALE_TYPE_WORK_ORDER;
 
-                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount, headerCharges: $this->sale_lib->getHeaderCharges());
+                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
 
                 if ($data['sale_id_num'] === INSUFFICIENT_GIFTCARD_BALANCE) {
                     $data['error_message'] = lang('Sales.insufficient_giftcard_balance');
@@ -1645,7 +1763,7 @@ class Sales extends Secure_Controller
                 $data['sale_status'] = SUSPENDED;
                 $saleType = SALE_TYPE_QUOTE;
 
-                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount, headerCharges: $this->sale_lib->getHeaderCharges());
+                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
 
                 if ($data['sale_id_num'] === INSUFFICIENT_GIFTCARD_BALANCE) {
                     $data['error_message'] = lang('Sales.insufficient_giftcard_balance');
@@ -1685,7 +1803,7 @@ class Sales extends Secure_Controller
                 $saleType = SALE_TYPE_POS;
             }
 
-            $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount, $this->sale_lib->getReturnDocument(), returnOverrideReason: $this->sale_lib->getReturnOverride(), headerCharges: $this->sale_lib->getHeaderCharges());
+            $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount, $this->sale_lib->getReturnDocument(), returnOverrideReason: $this->sale_lib->getReturnOverride(), headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
 
             $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
@@ -2542,6 +2660,7 @@ class Sales extends Secure_Controller
         $data['return_document']       = $this->sale_lib->getReturnDocument()->value;
         $data['can_override_return']   = $this->mayOverrideReturn();
         $data['return_override']       = $this->sale_lib->getReturnOverride();
+        $data['priceListSelector']     = $this->priceListSelector();
 
         $data['pos_mode'] = $data['mode'] == 'sale' || $data['mode'] == 'return';
 
@@ -3058,7 +3177,7 @@ class Sales extends Secure_Controller
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 
-        $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms(), $saleType === SALE_TYPE_QUOTE ? QuoteStatus::Draft : null, $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null, headerCharges: $this->sale_lib->getHeaderCharges());
+        $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms(), $saleType === SALE_TYPE_QUOTE ? QuoteStatus::Draft : null, $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
 
         if ($saleIdNum === INSUFFICIENT_GIFTCARD_BALANCE) {
             $data['error'] = lang('Sales.insufficient_giftcard_balance');

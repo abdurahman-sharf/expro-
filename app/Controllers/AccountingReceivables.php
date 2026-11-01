@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AgedLedgerTable;
+use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerBalanceReport;
@@ -21,6 +22,7 @@ use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchService;
+use App\Libraries\Pricing\SalesControlSettings;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
@@ -124,11 +126,26 @@ class AccountingReceivables extends AccountingController
             'refunds'         => $this->refunds->forParty($customerId),
             'can_manage'      => $this->can(AccountingGuard::RECEIVABLES_MANAGE),
             'can_refund'      => $this->can(AccountingGuard::RECEIVABLES_REFUND),
+            'creditTerms'     => $this->creditTermsShown($customerId),
             'amount'          => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'            => fn (string $value): string => $this->formatDate($value),
             'debit_note_of'   => static fn (int $key): string => (new SalesDebitNotes())->numberOf((int) SalesDebitNotes::idOfKey($key)),
             'debit_note_number' => static fn (int $debitNoteId): string => (new SalesDebitNotes())->numberOf($debitNoteId),
         ]);
+    }
+
+    /**
+     * The credit limit and the credit days of a customer for the head of the statement, each shown
+     * only while its control is on.
+     *
+     * @return array{limit: string|null, days: int|null}
+     */
+    private function creditTermsShown(int $customerId): array
+    {
+        $settings = new SalesControlSettings();
+        $terms    = (new CreditLimit())->termsOf($customerId);
+
+        return ['limit' => $settings->creditLimitEnabled() ? $terms['limit'] : null, 'days' => $settings->creditPeriodEnabled() ? $terms['days'] : null];
     }
 
     public function getOpeningForm(int $customerId): string

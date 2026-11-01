@@ -3,10 +3,13 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Pricing\SalesControlSettings;
+use App\Models\Price_list;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -500,5 +503,439 @@ class CustomersControllerTest extends CIUnitTestCase
 
         $this->assertTrue($edited['success']);
         $this->assertNull($this->openingOf((int) $created['id']));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // WP36: the price list, the credit limit and the credit days of a customer
+    // ---------------------------------------------------------------------------------------
+
+    private function resetCustomerControls(): void
+    {
+        $db = $this->accountingDb();
+
+        foreach ([SalesControlSettings::PRICE_LISTS, SalesControlSettings::CREDIT_LIMIT, SalesControlSettings::CREDIT_PERIOD] as $key) {
+            $this->setConfigValue($key, '0');
+        }
+
+        $db->table('customers')->update(['price_list_id' => null, 'credit_limit' => 0, 'credit_period_days' => 0]);
+        $db->table('price_lists')->where('price_list_id >', 0)->delete();
+        $db->table('accounting_audit_log')->whereIn('action', ['customer_price_list_changed', 'customer_credit_changed'])->delete();
+    }
+
+    /**
+     * @param list<string> $permissions
+     */
+    private function actAsEmployeeWith(array $permissions): int
+    {
+        $personId = $this->employeeWithGrants(['customers', ...$permissions]);
+
+        $this->withSession(['person_id' => $personId, 'menu_group' => 'office']);
+
+        return $personId;
+    }
+
+    public function testGetView_OffersNoPricingAndCreditSectionWhileTheirControlsAreOff(): void
+    {
+        $customerId = $this->insertCustomer();
+
+        $page = $this->get('/customers/view/' . $customerId);
+
+        $page->assertDontSee('id="customer_pricing_section"');
+        $page->assertDontSee('name="credit_limit"');
+        $page->assertDontSee('name="price_list_id"');
+    }
+
+    public function testGetView_OffersThePriceListsAndLocksTheChoiceForAnEmployeeWithoutThePriceListsModule(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $lists      = model(Price_list::class);
+        $active     = $lists->saveList('Wholesale', true, null, null);
+        $retired    = $lists->saveList('Retired', false, null, null);
+        $customerId = $this->insertCustomer();
+
+        $this->actAsEmployeeWith(['price_lists']);
+
+        $page = $this->get('/customers/view/' . $customerId);
+
+        $page->assertSee('id="customer_pricing_section"');
+        $page->assertSee('<option value="' . $active . '"');
+        $page->assertDontSee('<option value="' . $retired . '"');
+        $this->assertDoesNotMatchRegularExpression('/<select name="price_list_id"[^>]*disabled/', $page->getBody());
+
+        $this->actAsEmployeeWith([]);
+
+        $this->assertMatchesRegularExpression('/<select name="price_list_id"[^>]*disabled/', $this->get('/customers/view/' . $customerId)->getBody());
+
+        $this->resetCustomerControls();
+    }
+
+    public function testGetView_ShowsTheNameOfAListAsTextAndNeverAsMarkup(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        model(Price_list::class)->saveList('<b>Gold</b> & <i>VIP</i>', true, null, null);
+        $this->actAsEmployeeWith(['price_lists']);
+
+        $body = $this->get('/customers/view/' . $this->insertCustomer())->getBody();
+
+        $this->assertStringContainsString('&lt;b&gt;Gold&lt;/b&gt; &amp; &lt;i&gt;VIP&lt;/i&gt;', $body);
+        $this->assertStringNotContainsString('<b>Gold</b>', $body);
+
+        $this->resetCustomerControls();
+    }
+
+    public function testGetView_ShowsAnInactiveListTheCustomerStillHolds(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $lists      = model(Price_list::class);
+        $retired    = $lists->saveList('Retired', true, null, null);
+        $customerId = $this->insertCustomer();
+
+        $lists->assignTo($customerId, $retired, null);
+        $lists->setStatus($retired, false, null);
+        $this->actAsEmployeeWith(['price_lists']);
+
+        $page = $this->get('/customers/view/' . $customerId);
+
+        $this->assertStringContainsString('<option value="' . $retired . '" selected>Retired (' . lang('Price_lists.inactive') . ')</option>', $page->getBody());
+
+        $this->resetCustomerControls();
+    }
+
+    public function testGetView_OffersTheCreditFieldsOnlyWhileAccountingAndTheirControlsAreOnAndLocksThemForWhoMayNotManageReceivables(): void
+    {
+        $customerId = $this->insertCustomer();
+
+        $this->accountingDb()->table('customers')->where('person_id', $customerId)->update(['credit_limit' => '750.5', 'credit_period_days' => 45]);
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_PERIOD, '1');
+
+        $this->actAsEmployeeWith([AccountingGuard::RECEIVABLES_MANAGE]);
+        $this->get('/customers/view/' . $customerId)->assertDontSee('name="credit_limit"');
+
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $page = $this->get('/customers/view/' . $customerId);
+
+        $page->assertSee('name="credit_limit"');
+        $page->assertSee('value="750.50"');
+        $page->assertSee('value="45"');
+        $this->assertDoesNotMatchRegularExpression('/<input[^>]*name="credit_limit"[^>]*disabled/', $page->getBody());
+
+        $this->actAsEmployeeWith([]);
+
+        $this->assertMatchesRegularExpression('/<input[^>]*name="credit_limit"[^>]*disabled/', $this->get('/customers/view/' . $customerId)->getBody());
+
+        $this->resetCustomerControls();
+    }
+
+    public function testGetView_ShowsTheLimitWithoutTheDaysWhenOnlyTheLimitControlIsOn(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+        $this->actAsEmployeeWith([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        $page = $this->get('/customers/view/' . $this->insertCustomer());
+
+        $page->assertSee('name="credit_limit"');
+        $page->assertDontSee('name="credit_period_days"');
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_AssignsAPriceListWritesItAndTakesItAwayAgain(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $listId   = model(Price_list::class)->saveList('Wholesale', true, null, null);
+        $employee = $this->actAsEmployeeWith(['price_lists']);
+
+        $result = $this->save(['price_list_id' => (string) $listId]);
+
+        $this->assertTrue($result['success']);
+
+        $customerId = (int) $result['id'];
+
+        $this->assertSame($listId, model(Price_list::class)->assignedTo($customerId));
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where('action', 'customer_price_list_changed')->get()->getRow();
+
+        $this->assertSame($customerId, (int) $entry->entity_id);
+        $this->assertSame($employee, (int) $entry->employee_id);
+
+        $this->assertTrue($this->save(['price_list_id' => '0'], $customerId)['success']);
+        $this->assertNull(model(Price_list::class)->assignedTo($customerId));
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_KeepsTheListOfACustomerWhenTheFormDoesNotSendOne(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $listId     = model(Price_list::class)->saveList('Wholesale', true, null, null);
+        $customerId = $this->insertCustomer();
+
+        model(Price_list::class)->assignTo($customerId, $listId, null);
+        $this->actAsEmployeeWith(['price_lists']);
+
+        $this->assertTrue($this->save([], $customerId)['success']);
+        $this->assertSame($listId, model(Price_list::class)->assignedTo($customerId));
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_DoesNotAssignAListForAnEmployeeWithoutThePriceListsModuleOrWhileTheListsAreOff(): void
+    {
+        $listId = model(Price_list::class)->saveList('Wholesale', true, null, null);
+
+        $this->actAsEmployeeWith(['price_lists']);
+
+        $off = $this->save(['price_list_id' => (string) $listId]);
+
+        $this->assertNull(model(Price_list::class)->assignedTo((int) $off['id']), 'the price lists are off');
+
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->actAsEmployeeWith([]);
+
+        $without = $this->save(['price_list_id' => (string) $listId]);
+
+        $this->assertTrue($without['success']);
+        $this->assertNull(model(Price_list::class)->assignedTo((int) $without['id']));
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_SaysWhyAListThatIsNotActiveWasRefused(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $listId = model(Price_list::class)->saveList('Retired', false, null, null);
+
+        $this->actAsEmployeeWith(['price_lists']);
+
+        $result = $this->save(['price_list_id' => (string) $listId]);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_price_list_inactive'), $result['message']);
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_SavesTheCreditLimitAndTheDaysForWhoMayManageReceivablesAndWritesThem(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_PERIOD, '1');
+
+        $employee = $this->actAsEmployeeWith([AccountingGuard::RECEIVABLES_MANAGE]);
+        $result   = $this->save(['credit_limit' => '1250.75', 'credit_period_days' => '30']);
+
+        $this->assertTrue($result['success']);
+
+        $customerId = (int) $result['id'];
+
+        $this->assertSame(['limit' => '1250.7500', 'days' => 30], (new CreditLimit())->termsOf($customerId));
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where('action', 'customer_credit_changed')->get()->getRow();
+
+        $this->assertSame($customerId, (int) $entry->entity_id);
+        $this->assertSame($employee, (int) $entry->employee_id);
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_KeepsTheDaysWhenOnlyTheLimitControlIsOn(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $customerId = $this->insertCustomer();
+
+        $this->accountingDb()->table('customers')->where('person_id', $customerId)->update(['credit_limit' => '10', 'credit_period_days' => 12]);
+        $this->actAsEmployeeWith([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        $this->assertTrue($this->save(['credit_limit' => '99', 'credit_period_days' => '77'], $customerId)['success']);
+        $this->assertSame(['limit' => '99.0000', 'days' => 12], (new CreditLimit())->termsOf($customerId));
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_KeepsTheLimitWhenOnlyTheDaysControlIsOn(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_PERIOD, '1');
+
+        $customerId = $this->insertCustomer();
+
+        $this->accountingDb()->table('customers')->where('person_id', $customerId)->update(['credit_limit' => '10', 'credit_period_days' => 12]);
+        $this->actAsEmployeeWith([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        $this->assertTrue($this->save(['credit_limit' => '99', 'credit_period_days' => '77'], $customerId)['success']);
+        $this->assertSame(['limit' => '10.0000', 'days' => 77], (new CreditLimit())->termsOf($customerId));
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_DoesNotChangeTheCreditTermsForAnEmployeeWhoMayNotManageReceivables(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $customerId = $this->insertCustomer();
+
+        $this->accountingDb()->table('customers')->where('person_id', $customerId)->update(['credit_limit' => '10']);
+        $this->actAsEmployeeWith([]);
+
+        $this->assertTrue($this->save(['credit_limit' => '99999'], $customerId)['success']);
+        $this->assertSame('10.0000', (new CreditLimit())->termsOf($customerId)['limit']);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'customer_credit_changed')->countAllResults());
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_DoesNotChangeTheCreditTermsForAnEmployeeLimitedToSomeBranches(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $customerId = $this->insertCustomer();
+        $limited    = $this->employeeWithGrants(['customers', AccountingGuard::RECEIVABLES_MANAGE], [1]);
+
+        $this->withSession(['person_id' => $limited, 'menu_group' => 'office']);
+
+        $this->assertTrue($this->save(['credit_limit' => '5'], $customerId)['success']);
+        $this->assertSame('0.0000', (new CreditLimit())->termsOf($customerId)['limit'], 'the limit holds for the whole company, so a branch employee does not set it');
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_DoesNotChangeTheCreditTermsWhileAccountingIsOffOrTheirControlIsOff(): void
+    {
+        $customerId = $this->insertCustomer();
+
+        $this->actAsEmployeeWith([AccountingGuard::RECEIVABLES_MANAGE]);
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $this->assertTrue($this->save(['credit_limit' => '5'], $customerId)['success']);
+        $this->assertSame('0.0000', (new CreditLimit())->termsOf($customerId)['limit'], 'accounting is off');
+
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '0');
+
+        $this->assertTrue($this->save(['credit_limit' => '5'], $customerId)['success']);
+        $this->assertSame('0.0000', (new CreditLimit())->termsOf($customerId)['limit'], 'the control is off');
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_SaysWhyCreditTermsThatAreNotNumbersWereRefused(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_PERIOD, '1');
+
+        $customerId = $this->insertCustomer();
+
+        $this->actAsEmployeeWith([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        foreach ([['credit_limit' => '-5'], ['credit_limit' => 'big'], ['credit_period_days' => '-1'], ['credit_period_days' => '70000']] as $invalid) {
+            $result = $this->save($invalid, $customerId);
+
+            $this->assertFalse($result['success'], json_encode($invalid));
+            $this->assertSame(lang('Accounting.error_credit_terms_invalid'), $result['message']);
+        }
+
+        $this->assertSame(['limit' => '0.0000', 'days' => 0], (new CreditLimit())->termsOf($customerId));
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_SavesNoNewCustomerAndEntersNoOpeningBalanceWhenTheCreditTermsAreRefused(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_PERIOD, '1');
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers', AccountingGuard::OPENING_MANAGE, AccountingGuard::RECEIVABLES_MANAGE]), 'menu_group' => 'office']);
+
+        $customers = $this->countRows('customers');
+        $people    = $this->countRows('people');
+
+        foreach ([['credit_limit' => '-100'], ['credit_limit' => 'abc'], ['credit_period_days' => '70000'], ['credit_period_days' => 'abc']] as $invalid) {
+            $result = $this->save(['opening_side' => 'owes_us', 'opening_amount' => '5000.00', 'opening_date' => date('Y-m-d'), ...$invalid]);
+
+            $this->assertFalse($result['success'], json_encode($invalid));
+            $this->assertSame(lang('Accounting.error_credit_terms_invalid'), $result['message']);
+            $this->assertSame(NEW_ENTRY, $result['id']);
+        }
+
+        $this->assertSame([$customers, $people, 0], [$this->countRows('customers'), $this->countRows('people'), $this->countRows('customer_openings')]);
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_SavesNoNewCustomerWhenTheListTheFormNamesIsNotActive(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $listId = model(Price_list::class)->saveList('Retired', false, null, null);
+
+        $this->actAsEmployeeWith(['price_lists']);
+
+        $customers = $this->countRows('customers');
+        $result    = $this->save(['price_list_id' => (string) $listId]);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_price_list_inactive'), $result['message']);
+        $this->assertSame($customers, $this->countRows('customers'));
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_ChangesNothingOfACustomerThatExistsWhenTheCreditTermsAreRefused(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $customerId = $this->insertCustomer('Omar', 'Khaled');
+
+        $this->actAsEmployeeWith([AccountingGuard::RECEIVABLES_MANAGE]);
+
+        $result = $this->save(['first_name' => 'Changed', 'credit_limit' => 'big'], $customerId);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('Omar', $this->accountingDb()->table('people')->where('person_id', $customerId)->get()->getRow()->first_name);
+
+        $this->resetCustomerControls();
+    }
+
+    public function testPostSave_SavesTheCustomerAndTheOpeningBalanceAndSaysWhyTheListWasNotGivenWhenItWasDeactivatedWhileTheCustomerWasSaved(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        $listId = model(Price_list::class)->saveList('Racing', true, null, null);
+
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers', 'price_lists', AccountingGuard::OPENING_MANAGE]), 'menu_group' => 'office']);
+
+        $db      = $this->accountingDb();
+        $trigger = $db->prefixTable('wp36_deactivate_list');
+
+        $db->query('CREATE TRIGGER ' . $trigger . ' AFTER INSERT ON ' . $db->prefixTable('customers') . ' FOR EACH ROW UPDATE ' . $db->prefixTable('price_lists') . ' SET status = 0');
+
+        try {
+            $result = $this->save(['price_list_id' => (string) $listId, 'opening_side' => 'owes_us', 'opening_amount' => '300.00', 'opening_date' => date('Y-m-d')]);
+        } finally {
+            $db->query('DROP TRIGGER IF EXISTS ' . $trigger);
+        }
+
+        $this->assertTrue($result['success'], 'the customer is saved, and the form says what was left out');
+        $this->assertStringContainsString(lang('Customers.pricing_not_saved', [lang('Accounting.error_price_list_inactive')]), $result['message']);
+        $this->assertNull(model(Price_list::class)->assignedTo((int) $result['id']));
+        $this->assertSame('300.0000', $this->openingOf((int) $result['id'])?->amount, 'the opening balance is entered all the same');
+
+        $this->resetCustomerControls();
     }
 }

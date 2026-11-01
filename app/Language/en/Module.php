@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'Update the database.',
     'office'                       => 'Office',
     'office_desc'                  => 'List office menu modules.',
+    'price_lists'                  => 'Price lists',
+    'price_lists_desc'             => 'Named lists that price the items for the customers who hold them',
     'receipt_vouchers'             => 'Receipt vouchers',
     'receipt_vouchers_desc'        => 'Money received into a treasury that is not a sale, with its tax',
     'receivings'                   => 'Receivings',

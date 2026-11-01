@@ -3,6 +3,7 @@
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\OSPOS;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class LocaleHelperTest extends CIUnitTestCase
 {
@@ -134,5 +135,52 @@ class LocaleHelperTest extends CIUnitTestCase
     public function testDateformatFlatpickr_KeepsTwentyFourHourTokens(): void
     {
         $this->assertSame('Y-m-d H:i', dateformatFlatpickr('Y-m-d H:i'));
+    }
+
+    private function useNumbers(int $currencyDecimals): void
+    {
+        $config           = new OSPOS();
+        $config->settings = ['dateformat' => 'Y-m-d', 'number_locale' => 'en_US', 'currency_symbol' => '$', 'currency_decimals' => $currencyDecimals, 'thousands_separator' => '1'];
+        Factories::injectMock('config', OSPOS::class, $config);
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: int, 2: string}>
+     */
+    public static function exactAmountProvider(): array
+    {
+        return [
+            'whole price keeps the currency decimals'    => ['9.0000', 2, '9.00'],
+            'one decimal is padded to the currency ones' => ['0.1000', 2, '0.10'],
+            'a third decimal is kept'                    => ['0.1250', 2, '0.125'],
+            'four decimals are kept'                     => ['12.3456', 2, '12.3456'],
+            'more currency decimals than the price has'  => ['1.5', 3, '1.500'],
+            'currency decimals above four are not cut'   => ['1.5', 5, '1.50000'],
+            'thousands are grouped'                      => ['1234.5678', 2, '1,234.5678'],
+        ];
+    }
+
+    #[DataProvider('exactAmountProvider')]
+    public function testToCurrencyExact_ShowsTheDecimalsAPriceHasWithTheCurrencyDecimalsAsMinimum(string $amount, int $decimals, string $expected): void
+    {
+        $this->useNumbers($decimals);
+
+        $this->assertSame($expected, to_currency_exact($amount));
+    }
+
+    public function testToCurrencyExact_ShowsNothingForNothing(): void
+    {
+        $this->useNumbers(2);
+
+        $this->assertSame('', to_currency_exact(null));
+    }
+
+    public function testToCurrencyExact_GivesBackAPriceThatParseDecimalsReadsAsTheSamePrice(): void
+    {
+        $this->useNumbers(2);
+
+        foreach (['0.1250', '9.0000', '12.3456', '1234.5000'] as $stored) {
+            $this->assertSame($stored, number_format((float) parse_decimals(to_currency_exact($stored)), 4, '.', ''), $stored);
+        }
     }
 }

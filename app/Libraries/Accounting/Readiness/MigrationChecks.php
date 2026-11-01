@@ -40,6 +40,7 @@ final class MigrationChecks extends CheckGroup
         'PerTaxInclusive'                  => [self::HEAVY, 'adds sales_items_taxes.liability_account_id (a nullable column and its index on a large table) and creates the tax list; down() refuses once a tax row holds an account'],
         'InvoiceHeaderCharges'             => [self::DATA, 'adds seven nullable columns to sales and opens the adjustments and shipping accounts of an existing chart with their routing rows (the adjustments row moves off discounts allowed when nobody had changed it)'],
         'SalesDebitNotes'                  => [self::HEAVY, 'creates sales_debit_notes and adds customer_credit_applications.debit_note_id, widening the one-target rule of an application from two kinds of target to three, which rebuilds that table'],
+        'PricingAndCreditControls'         => [self::HEAVY, 'adds nullable or neutral columns to customers (price list, credit limit, credit days), sales (price list) and items (minimum price, highest discount); creates price_lists and price_list_items'],
         'ChequesAndRevenues'               => [self::DATA, 'opens the leaf accounts of notes receivable, notes payable, funds under collection and deposit fees in an existing chart and points four routing rows at them'],
     ];
 

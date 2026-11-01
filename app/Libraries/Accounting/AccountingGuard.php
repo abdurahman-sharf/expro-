@@ -30,6 +30,8 @@ final class AccountingGuard
     public const RECEIVABLES_MANAGE  = 'acc_receivables_manage';
     public const RECEIVABLES_REFUND  = 'acc_receivables_refund';
     public const RETURN_OVERRIDE     = 'sales_return_override';
+    public const PRICE_OVERRIDE      = 'sales_price_override';
+    public const CREDIT_OVERRIDE     = 'sales_credit_override';
     public const INTERBRANCH_SETTLE  = 'acc_interbranch_settle';
     public const YEAR_END_CLOSE      = 'acc_year_end_close';
     public const CHEQUES_MANAGE      = 'acc_cheques_manage';
@@ -53,6 +55,8 @@ final class AccountingGuard
         self::RECEIVABLES_MANAGE,
         self::RECEIVABLES_REFUND,
         self::RETURN_OVERRIDE,
+        self::PRICE_OVERRIDE,
+        self::CREDIT_OVERRIDE,
         self::INTERBRANCH_SETTLE,
         self::YEAR_END_CLOSE,
         self::BACKFILL_MANAGE,

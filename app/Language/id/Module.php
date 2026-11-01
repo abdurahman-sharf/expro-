@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'Perbaharui basis data OSPOS.',
     'office'                       => 'Kantor',
     'office_desc'                  => 'Daftar modul menu Kantor.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Penerimaan',

@@ -22,7 +22,18 @@
  * @var int $selected_low_sell_item_id
  * @var string $controller_name
  * @var array $config
+ * @var bool $minimumPriceEnabled
+ * @var bool $maxDiscountEnabled
+ * @var list<array{id: int, name: string, active: bool, price: string}> $priceListRows
  */
+
+use App\Models\Item;
+
+$minimumPriceEnabled ??= false;
+$maxDiscountEnabled  ??= false;
+$priceListRows       ??= [];
+
+$margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_info->cost_price);
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
@@ -215,6 +226,70 @@
                 </div>
             </div>
         </div>
+
+        <?php if ($minimumPriceEnabled): ?>
+            <div class="field" id="item_margin_field">
+                <?= form_label(lang('Items.margin'), 'item_margin', ['class' => 'form-label']) ?>
+                <div class="field-control">
+                    <span id="item_margin" dir="ltr"><?= $margin === null ? '' : esc($margin) . '%' ?></span>
+                </div>
+            </div>
+
+            <div class="field">
+                <?= form_label(lang('Items.minimum_price'), 'minimum_price', ['class' => 'form-label']) ?>
+                <div class="field-control">
+                    <div class="input-group input-group-sm">
+                        <?= form_input([
+                            'name'      => 'minimum_price',
+                            'id'        => 'minimum_price',
+                            'class'     => 'form-control form-control-sm',
+                            'inputmode' => 'decimal',
+                            'dir'       => 'ltr',
+                            'onClick'   => 'this.select();',
+                            'value'     => to_currency_exact((string) ($item_info->minimum_price ?? 0))
+                        ]) ?>
+                    </div>
+                    <p class="form-text mb-0"><?= lang('Items.minimum_price_hint') ?></p>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($maxDiscountEnabled): ?>
+            <div class="field">
+                <?= form_label(lang('Items.max_discount_percent'), 'max_discount_percent', ['class' => 'form-label']) ?>
+                <div class="field-control">
+                    <div class="input-group input-group-sm">
+                        <?= form_input([
+                            'name'      => 'max_discount_percent',
+                            'id'        => 'max_discount_percent',
+                            'class'     => 'form-control form-control-sm',
+                            'inputmode' => 'decimal',
+                            'dir'       => 'ltr',
+                            'value'     => ($item_info->max_discount_percent ?? null) === null ? '' : to_decimals($item_info->max_discount_percent)
+                        ]) ?>
+                        <span class="input-group-text"><b>%</b></span>
+                    </div>
+                    <p class="form-text mb-0"><?= lang('Items.max_discount_hint') ?></p>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php foreach ($priceListRows as $row): ?>
+            <div class="field price-list-price">
+                <?= form_label(esc($row['name']) . ($row['active'] ? '' : ' (' . lang('Price_lists.inactive') . ')'), 'price_list_price_' . $row['id'], ['class' => 'form-label']) ?>
+                <div class="field-control">
+                    <?= form_input([
+                        'name'        => 'price_list_prices[' . $row['id'] . ']',
+                        'id'          => 'price_list_price_' . $row['id'],
+                        'class'       => 'form-control form-control-sm',
+                        'inputmode'   => 'decimal',
+                        'dir'         => 'ltr',
+                        'placeholder' => lang('Price_lists.price_placeholder'),
+                        'value'       => $row['price']
+                    ]) ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
 
         <?php if (!$use_destination_based_tax) { ?>
             <div class="field">
@@ -636,3 +711,18 @@
         init_validation();
     });
 </script>
+
+<?php if ($minimumPriceEnabled): ?>
+<script type="text/javascript">
+    $(document).ready(function() {
+        const showMargin = function() {
+            const price = parseFloat(String($('#unit_price').val()).replace(',', '.'));
+            const cost = parseFloat(String($('#cost_price').val()).replace(',', '.'));
+
+            $('#item_margin').text(price > 0 && !isNaN(cost) ? (((price - cost) / price) * 100).toFixed(2) + '%' : '');
+        };
+
+        $('#unit_price, #cost_price').on('keyup change', showMargin);
+    });
+</script>
+<?php endif; ?>

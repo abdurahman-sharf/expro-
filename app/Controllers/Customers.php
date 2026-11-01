@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Mailchimp_lib;
@@ -13,9 +14,10 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
-
+use App\Libraries\Pricing\SalesControlSettings;
 use App\Models\Customer;
 use App\Models\Customer_rewards;
+use App\Models\Price_list;
 use App\Models\Tax_code;
 use CodeIgniter\HTTP\DownloadResponse;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -29,6 +31,7 @@ class Customers extends Persons
     private Mailchimp_lib $mailchimp_lib;
     private Customer_rewards $customer_rewards;
     private Customer $customer;
+    private Price_list $priceList;
     private Tax_code $tax_code;
     private array $config;
 
@@ -38,6 +41,7 @@ class Customers extends Persons
         $this->mailchimp_lib = new Mailchimp_lib();
         $this->customer_rewards = model(Customer_rewards::class);
         $this->customer = model(Customer::class);
+        $this->priceList = model(Price_list::class);
         $this->tax_code = model(Tax_code::class);
         $this->config = config(OSPOS::class)->settings;
 
@@ -189,6 +193,8 @@ class Customers extends Persons
         $data['packages'] = $packages;
         $data['selected_package'] = $info->package_id;
 
+        $data = [...$data, ...$this->pricingFormData($info)];
+
         $data['use_destination_based_tax'] = $this->config['use_destination_based_tax'];
         $data['opening_offered']           = $customerId == NEW_ENTRY && $this->openingOffered();
         $data['opening_today']             = date('Y-m-d');
@@ -297,7 +303,16 @@ class Customers extends Persons
             return $this->response->setJSON(['success' => false, 'message' => lang('Customers.account_number_duplicate'), 'id' => NEW_ENTRY]);
         }
 
+        $pricingRefusal = $this->refusalOfPricing((int) $customerId);
+
+        if ($pricingRefusal !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $pricingRefusal, 'id' => NEW_ENTRY]);
+        }
+
         if ($this->customer->save_customer($personData, $customerData, $customerId)) {
+            $notSaved    = $this->saveCustomerPricing((int) ($customerData['person_id'] ?? $customerId));
+            $pricingNote = $notSaved === null ? '' : ' ' . lang('Customers.pricing_not_saved', [$notSaved]);
+
             // Save customer to Mailchimp selected list    // TODO: addOrUpdateMember should be refactored. Potentially pass an array or object instead of 6 parameters.
             $mailchimpStatus = $this->request->getPost('mailchimp_status');
             $this->mailchimp_lib->addOrUpdateMember(
@@ -315,13 +330,13 @@ class Customers extends Persons
 
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Customers.successful_adding') . ' ' . $firstName . ' ' . $lastName . ($notEntered === null ? '' : ' ' . lang('Customers.opening_not_entered', [$notEntered])),
+                    'message' => lang('Customers.successful_adding') . ' ' . $firstName . ' ' . $lastName . $pricingNote . ($notEntered === null ? '' : ' ' . lang('Customers.opening_not_entered', [$notEntered])),
                     'id'      => $customerData['person_id']
                 ]);
             } else { // Existing customer
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Customers.successful_updating') . ' ' . $firstName . ' ' . $lastName,
+                    'message' => lang('Customers.successful_updating') . ' ' . $firstName . ' ' . $lastName . $pricingNote,
                     'id'      => $customerId
                 ]);
             }
@@ -332,6 +347,144 @@ class Customers extends Persons
                 'id'      => NEW_ENTRY
             ]);
         }
+    }
+
+    /**
+     * What the form of a customer shows of the price lists and of the credit limit: the lists to
+     * choose from when the price lists are on, and the limit and the days when those controls are on.
+     *
+     * @return array<string, mixed>
+     */
+    private function pricingFormData(object $info): array
+    {
+        $settings   = new SalesControlSettings();
+        $accounting = (new AccountingSettings())->isEnabled();
+        $options    = null;
+        $assigned   = isset($info->price_list_id) ? (int) $info->price_list_id : 0;
+
+        if ($settings->priceListsEnabled()) {
+            $options = [0 => lang('Customers.price_list_none')];
+
+            foreach ($this->priceList->allLists() as $list) {
+                if ((int) $list->status === 1 || (int) $list->price_list_id === $assigned) {
+                    $options[(int) $list->price_list_id] = esc($list->name) . ((int) $list->status === 1 ? '' : ' (' . esc(lang('Price_lists.inactive')) . ')');
+                }
+            }
+        }
+
+        $terms = isset($info->person_id) && (int) $info->person_id > 0 ? (new CreditLimit())->termsOf((int) $info->person_id) : ['limit' => '0.0000', 'days' => 0];
+
+        return [
+            'priceListOptions'   => $options,
+            'priceListSelected'  => $assigned,
+            'canAssignPriceList' => $this->employee->has_grant('price_lists', (int) $this->employee->get_logged_in_employee_info()->person_id),
+            'creditLimitShown'   => $accounting && $settings->creditLimitEnabled(),
+            'creditPeriodShown'  => $accounting && $settings->creditPeriodEnabled(),
+            'creditEditable'     => $this->creditTermsEditable(),
+            'creditLimit'        => $terms['limit'],
+            'creditDays'         => $terms['days'],
+        ];
+    }
+
+    /**
+     * The credit limit and the credit days are set by whoever may manage what customers owe, and only
+     * from every branch, because they hold for the whole company.
+     */
+    private function creditTermsEditable(): bool
+    {
+        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+
+        return (new AccountingSettings())->isEnabled()
+            && $this->employee->has_grant(AccountingGuard::RECEIVABLES_MANAGE, $employeeId)
+            && (new BranchGuard(null, $this->employee))->isUnrestricted($employeeId);
+    }
+
+    /**
+     * The price list and the credit terms the form gave, for whoever may set them. What the form
+     * leaves out, or what the employee may not set, is null and stays as it is.
+     *
+     * @return array{list: ?int, limit: ?string, days: ?string}
+     */
+    private function pricingGiven(): array
+    {
+        $settings   = new SalesControlSettings();
+        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+        $given      = ['list' => null, 'limit' => null, 'days' => null];
+
+        if ($settings->priceListsEnabled() && $this->request->getPost('price_list_id') !== null && $this->employee->has_grant('price_lists', $employeeId)) {
+            $given['list'] = (int) $this->request->getPost('price_list_id');
+        }
+
+        if ($this->creditTermsEditable()) {
+            if ($settings->creditLimitEnabled() && $this->request->getPost('credit_limit') !== null) {
+                $given['limit'] = $this->amountOf((string) $this->request->getPost('credit_limit'));
+            }
+
+            if ($settings->creditPeriodEnabled() && $this->request->getPost('credit_period_days') !== null) {
+                $given['days'] = trim((string) $this->request->getPost('credit_period_days'));
+            }
+        }
+
+        return $given;
+    }
+
+    /**
+     * Why the price list or the credit terms of the form cannot be saved, asked before the customer
+     * is saved so that a customer is never saved next to a refusal.
+     */
+    private function refusalOfPricing(int $customerId): ?string
+    {
+        $given = $this->pricingGiven();
+
+        try {
+            $this->priceList->checkAssignable($customerId, $given['list']);
+            (new CreditLimit())->checkTerms($given['limit'], $given['days']);
+        } catch (AccountingException $failure) {
+            return AccountingMessage::of($failure);
+        }
+
+        return null;
+    }
+
+    /**
+     * Saves the price list and the credit terms the form gave. What the books or the lists refuse
+     * after all, when they changed since the form was checked, is returned as the reason.
+     */
+    private function saveCustomerPricing(int $customerId): ?string
+    {
+        $given      = $this->pricingGiven();
+        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+
+        try {
+            if ($given['list'] !== null) {
+                $this->priceList->assignTo($customerId, $given['list'], $employeeId);
+            }
+
+            if ($given['limit'] !== null || $given['days'] !== null) {
+                (new CreditLimit())->saveTerms($customerId, $given['limit'], $given['days'], $employeeId);
+            }
+        } catch (AccountingException $failure) {
+            return AccountingMessage::of($failure);
+        }
+
+        return null;
+    }
+
+    /**
+     * A number typed in the way the shop writes numbers, as the plain number the books read, or the
+     * text itself when it is not a number so that it is refused.
+     */
+    private function amountOf(string $typed): string
+    {
+        $typed = trim($typed);
+
+        if ($typed === '') {
+            return '0';
+        }
+
+        $parsed = parse_decimals($typed);
+
+        return $parsed === false ? $typed : number_format((float) $parsed, 4, '.', '');
     }
 
     /**

@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'پایگاه داده اوسپوس را به روز کنید.',
     'office'                       => 'دفتر',
     'office_desc'                  => 'لیست ماژول های منوی دفتر.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'دریافت',

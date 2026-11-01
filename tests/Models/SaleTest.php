@@ -8,8 +8,10 @@ use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\ShippingTaxOption;
 use App\Models\Appconfig;
+use App\Models\Price_list;
 use App\Models\Sale;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -1611,5 +1613,208 @@ class SaleTest extends CIUnitTestCase
         $this->assertSame(['Service', 'VAT'], array_column($rows, 'name'));
         $this->assertSame(['17.4000', '52.1739'], array_map(static fn (array $row): string => bcadd((string) $row['item_tax_amount'], '0', 4), $rows));
         $this->assertSame(['4.000', '4.000'], array_map(static fn (array $row): string => bcadd((string) $row['sold_quantity'], '0', 3), $rows));
+    }
+
+    // WP36: the controls on prices, held to a sale when it is completed, and the list a sale was priced from
+    // ---------------------------------------------------------------------------------------
+
+    private function resetPriceControls(): void
+    {
+        $db = Database::connect();
+
+        foreach ([SalesControlSettings::MINIMUM_PRICE, SalesControlSettings::MAX_DISCOUNT_ON] as $key) {
+            $db->table('app_config')->replace(['key' => $key, 'value' => '0']);
+        }
+
+        $db->table('app_config')->replace(['key' => SalesControlSettings::MAX_DISCOUNT, 'value' => '']);
+        $db->table('items')->update(['minimum_price' => 0, 'max_discount_percent' => null]);
+        $db->table('accounting_audit_log')->whereIn('action', ['price_override', 'price_refused'])->delete();
+        $db->table('sales')->update(['price_list_id' => null]);
+        $db->table('price_list_items')->where('price_list_id >', 0)->delete();
+        $db->table('price_lists')->where('price_list_id >', 0)->delete();
+    }
+
+    private function controlledItem(string $minimum = '90', ?string $ceiling = null): int
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+
+        Database::connect()->table('items')->where('item_id', $itemId)->update(['minimum_price' => $minimum, 'max_discount_percent' => $ceiling]);
+        Database::connect()->table('app_config')->replace(['key' => SalesControlSettings::MINIMUM_PRICE, 'value' => '1']);
+
+        return $itemId;
+    }
+
+    private function saveControlled(int $itemId, string $price, int $type = SALE_TYPE_INVOICE, int $status = COMPLETED, ?int $employeeId = null, string $discount = '0', ?array $invoiceDiscount = null, string $quantity = '1', int $saleId = NEW_ENTRY, ?int $priceListId = null, ?int $origin = null): int
+    {
+        $items = $this->discountedLines($itemId, $quantity, $price, $discount);
+        $taxes = [[], []];
+
+        return model(Sale::class)->save_value($saleId, $status, $items, NEW_ENTRY, $employeeId ?? $this->createEmployee(), 'controls', null, null, null, $type, [], null, $taxes, true, $origin, $invoiceDiscount, priceListId: $priceListId);
+    }
+
+    private function overrider(): int
+    {
+        return $this->createEmployee(grants: [['permission_id' => 'sales_price_override', 'menu_group' => 'home']]);
+    }
+
+    public function testSaveValue_RefusesALineUnderTheMinimumPriceWithAccountingOffAndSavesNothing(): void
+    {
+        $this->resetPriceControls();
+
+        $itemId = $this->controlledItem();
+        $sales  = $this->countSalesRows();
+        $model  = model(Sale::class);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->saveControlled($itemId, '80'));
+        $this->assertSame(AccountingError::PriceBelowMinimum, $model->accountingFailure()->error);
+        $this->assertSame($sales, $this->countSalesRows());
+        $this->assertSame(1, Database::connect()->table('accounting_audit_log')->where('action', 'price_refused')->countAllResults());
+
+        $this->resetPriceControls();
+    }
+
+    public function testSaveValue_SavesALineAtTheMinimumPriceAndTouchesNoAuditLog(): void
+    {
+        $this->resetPriceControls();
+
+        $this->assertGreaterThan(0, $this->saveControlled($this->controlledItem(), '90'));
+        $this->assertSame(0, Database::connect()->table('accounting_audit_log')->whereIn('action', ['price_refused', 'price_override'])->countAllResults());
+
+        $this->resetPriceControls();
+    }
+
+    public function testSaveValue_LetsAnEmployeeWhoMayOverridePricesSellUnderTheMinimumAndWritesTheLines(): void
+    {
+        $this->resetPriceControls();
+
+        $employee = $this->overrider();
+        $itemId   = $this->controlledItem();
+        $saleId   = $this->saveControlled($itemId, '80', employeeId: $employee);
+
+        $this->assertGreaterThan(0, $saleId);
+
+        $entry = Database::connect()->table('accounting_audit_log')->where('action', 'price_override')->get()->getRow();
+
+        $this->assertSame($saleId, (int) $entry->entity_id);
+        $this->assertSame($employee, (int) $entry->employee_id);
+        $this->assertSame($itemId, (int) json_decode($entry->details, true)['lines'][0]['item_id']);
+
+        $this->resetPriceControls();
+    }
+
+    public function testSaveValue_NeverHoldsASuspendedSaleOrAQuoteToThePriceControls(): void
+    {
+        $this->resetPriceControls();
+
+        $itemId = $this->controlledItem();
+
+        $this->assertGreaterThan(0, $this->saveControlled($itemId, '80', SALE_TYPE_INVOICE, SUSPENDED));
+        $this->assertGreaterThan(0, $this->saveControlled($itemId, '80', SALE_TYPE_QUOTE, SUSPENDED));
+        $this->assertGreaterThan(0, $this->saveControlled($itemId, '80', SALE_TYPE_WORK_ORDER, SUSPENDED));
+        $this->assertSame(0, Database::connect()->table('accounting_audit_log')->where('action', 'price_refused')->countAllResults());
+
+        $this->resetPriceControls();
+    }
+
+    public function testSaveValue_NeverHoldsAReturnToThePriceControls(): void
+    {
+        $this->resetPriceControls();
+
+        $itemId = $this->controlledItem();
+
+        $this->assertGreaterThan(0, $this->saveControlled($itemId, '80', SALE_TYPE_RETURN, COMPLETED, null, '0', null, '-1'));
+        $this->assertGreaterThan(0, $this->saveControlled($itemId, '80', SALE_TYPE_RETURN, COMPLETED, null, '0', null, '1'), 'a return is held to nothing, whatever the sign of its lines');
+
+        $this->resetPriceControls();
+    }
+
+    public function testSaveValue_HoldsAReceiptSaleToThePriceControlsToo(): void
+    {
+        $this->resetPriceControls();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->saveControlled($this->controlledItem(), '80', SALE_TYPE_POS));
+
+        $this->resetPriceControls();
+    }
+
+    public function testSaveValue_AddsTheShareOfTheDiscountOnTheWholeSaleToTheDiscountOfTheLine(): void
+    {
+        $this->resetPriceControls();
+
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+
+        Database::connect()->table('app_config')->replace(['key' => SalesControlSettings::MAX_DISCOUNT_ON, 'value' => '1']);
+        Database::connect()->table('app_config')->replace(['key' => SalesControlSettings::MAX_DISCOUNT, 'value' => '10']);
+
+        $this->assertGreaterThan(0, $this->saveControlled($itemId, '100', invoiceDiscount: ['type' => PERCENT, 'value' => '10']));
+        $this->assertSame(ACCOUNTING_FAILED, $this->saveControlled($itemId, '100', discount: '5', invoiceDiscount: ['type' => PERCENT, 'value' => '10']));
+        $this->assertSame(AccountingError::DiscountAboveCeiling, model(Sale::class)->accountingFailure()->error);
+
+        $this->resetPriceControls();
+    }
+
+    public function testIssueDraft_RefusesADraftThatSellsUnderTheMinimumPriceAndKeepsItAsADraft(): void
+    {
+        $this->resetPriceControls();
+
+        $itemId = $this->controlledItem();
+        $draft  = $this->saveControlled($itemId, '80', SALE_TYPE_INVOICE, SUSPENDED);
+        $model  = model(Sale::class);
+
+        $this->assertSame(ACCOUNTING_FAILED, $model->issueDraft($draft, $this->createEmployee()));
+        $this->assertSame(AccountingError::PriceBelowMinimum, $model->accountingFailure()->error);
+        $this->assertSame((string) SUSPENDED, (string) $this->theSaleRow($draft)['sale_status']);
+
+        $this->assertGreaterThan(0, $model->issueDraft($draft, $this->overrider()));
+        $this->assertSame((string) COMPLETED, (string) $this->theSaleRow($draft)['sale_status']);
+
+        $this->resetPriceControls();
+    }
+
+    public function testSaveValue_StoresThePriceListOfASaleAndKeepsItWhenTheDraftIsIssued(): void
+    {
+        $this->resetPriceControls();
+
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $listId = model(Price_list::class)->saveList('Wholesale', true, null, null);
+        $draft  = $this->saveControlled($itemId, '80', SALE_TYPE_INVOICE, SUSPENDED, priceListId: $listId);
+
+        $this->assertSame($listId, model(Sale::class)->getPriceListId($draft));
+
+        $this->assertGreaterThan(0, model(Sale::class)->issueDraft($draft, $this->createEmployee()));
+        $this->assertSame($listId, model(Sale::class)->getPriceListId($draft), 'issuing the draft keeps the list it was priced from');
+        $this->assertSame('80.00', Database::connect()->table('sales_items')->where('sale_id', $draft)->get()->getRow()->item_unit_price);
+
+        $this->resetPriceControls();
+    }
+
+    public function testSaveValue_StoresNoPriceListForASaleWithNoneAndForAReturn(): void
+    {
+        $this->resetPriceControls();
+
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $listId = model(Price_list::class)->saveList('Wholesale', true, null, null);
+        $plain  = $this->saveControlled($itemId, '80');
+        $return = $this->saveControlled($itemId, '80', SALE_TYPE_RETURN, COMPLETED, null, '0', null, '-1', priceListId: $listId);
+
+        $this->assertNull(model(Sale::class)->getPriceListId($plain));
+        $this->assertNull(model(Sale::class)->getPriceListId($return), 'a return is not priced from a list');
+
+        $this->resetPriceControls();
+    }
+
+    public function testSaveValue_ClearsThePriceListWhenASuspendedSaleIsKeptAgainWithNone(): void
+    {
+        $this->resetPriceControls();
+
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $listId = model(Price_list::class)->saveList('Wholesale', true, null, null);
+        $draft  = $this->saveControlled($itemId, '80', SALE_TYPE_INVOICE, SUSPENDED, priceListId: $listId);
+
+        $this->saveControlled($itemId, '80', SALE_TYPE_INVOICE, SUSPENDED, saleId: $draft, priceListId: null);
+
+        $this->assertNull(model(Sale::class)->getPriceListId($draft));
+
+        $this->resetPriceControls();
     }
 }

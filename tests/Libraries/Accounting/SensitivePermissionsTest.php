@@ -90,6 +90,8 @@ class SensitivePermissionsTest extends CIUnitTestCase
                 AccountingGuard::RECEIVABLES_MANAGE,
                 AccountingGuard::RECEIVABLES_REFUND,
                 AccountingGuard::RETURN_OVERRIDE,
+                AccountingGuard::PRICE_OVERRIDE,
+                AccountingGuard::CREDIT_OVERRIDE,
                 AccountingGuard::INTERBRANCH_SETTLE,
                 AccountingGuard::YEAR_END_CLOSE,
                 AccountingGuard::BACKFILL_MANAGE,

@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
+use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CustomerLock;
 use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\Accounting\InvoiceTiming;
@@ -36,6 +37,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Pricing\PriceControls;
 use App\Libraries\ShippingTaxOption;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
@@ -682,6 +684,9 @@ class Sale extends Model
 
         unset($updateData['invoice_date'], $updateData['payment_terms_days'], $updateData['due_date'], $updateData['changed_by']);
 
+        $customerId = null;
+        $openBefore = null;
+
         $this->db->transStart();
 
         try {
@@ -704,6 +709,13 @@ class Sale extends Model
 
                 if ($hasTerms) {
                     $updateData += $this->paymentTermsChange((int) $saleId, $typedTerms, $this->employeeOfEdit($saleData));
+                }
+
+                $customerId = $this->customerOf((int) $saleId);
+                $credit     = new CreditLimit($this->db);
+
+                if ($customerId !== null && ! empty($saleData['payments']) && $credit->watches($customerId)) {
+                    $openBefore = $credit->openOf($customerId, (int) $saleId);
                 }
             }
 
@@ -784,10 +796,25 @@ class Sale extends Model
                 }
 
                 $accounting?->syncPayments((int) $saleId, isset($employeeId) ? (int) $employeeId : null);
+
+                if ($openBefore !== null) {
+                    $creditRefusal = $this->creditRefusalOf((int) $saleId, $customerId, (int) $this->employeeOfEdit($saleData), (int) $this->getBranchId((int) $saleId), $openBefore);
+
+                    if ($creditRefusal !== null) {
+                        throw $creditRefusal;
+                    }
+                }
             }
         } catch (Throwable $exception) {
             $this->db->transRollback();
-            $this->recordAccountingFailure((int) $saleId, $this->asAccountingFailure($exception, (int) $saleId), $this->employeeOfPayments($saleData), $this->getBranchId((int) $saleId));
+
+            $failure = $this->asAccountingFailure($exception, (int) $saleId);
+
+            $this->recordAccountingFailure((int) $saleId, $failure, $this->employeeOfPayments($saleData), $this->getBranchId((int) $saleId));
+
+            if ($failure instanceof AccountingException && in_array($failure->error, [AccountingError::CreditLimitExceeded, AccountingError::CreditPeriodExceeded], true)) {
+                (new CreditLimit($this->db))->recordRefusal((int) $customerId, (int) $this->getBranchId((int) $saleId), $this->employeeOfEdit($saleData), $failure);
+            }
 
             return false;
         }
@@ -964,12 +991,13 @@ class Sale extends Model
         ?string $draftFingerprint = null,
         ?string $returnOverrideReason = null,
         ?HeaderCharges $headerCharges = null,
+        ?int $priceListId = null,
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         try {
             return (new CustomerLock($this->db))->run(
                 $customerId,
-                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges): int {
-                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges);
+                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges, $priceListId): int {
+                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges, $priceListId);
                 },
             );
         } catch (AccountingException $busy) {
@@ -1008,6 +1036,7 @@ class Sale extends Model
         ?string $draftFingerprint,
         ?string $returnOverrideReason,
         ?HeaderCharges $headerCharges,
+        ?int $priceListId,
     ): int {
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
@@ -1076,6 +1105,7 @@ class Sale extends Model
             'shipping_tax_option'  => null,
             'shipping_tax_percent' => null,
             'shipping_tax_amount'  => null,
+            'price_list_id'        => $saleType === SALE_TYPE_RETURN ? null : $priceListId,
             ...$timing,
         ];
 
@@ -1127,6 +1157,16 @@ class Sale extends Model
         $items = $discountPlan->applyTo($items);
         $salesData['invoice_discount_type'] = $discountPlan->type;
         $salesData['invoice_discount'] = $discountPlan->value;
+
+        $priceViolations = $saleStatus == COMPLETED && in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) ? (new PriceControls($this->db))->violationsOf($items) : [];
+
+        if ($priceViolations !== [] && !(new PriceControls($this->db))->mayOverride($employeeId)) {
+            $this->db->transRollback();
+            $this->accountingFailure = $priceViolations[0]->toException();
+            (new PriceControls($this->db))->recordRefusal((int) $salesData['branch_id'], $employeeId, $priceViolations);
+
+            return ACCOUNTING_FAILED;
+        }
 
         if ($saleId != NEW_ENTRY) {
             $this->clear_suspended_sale_detail($saleId);
@@ -1305,6 +1345,10 @@ class Sale extends Model
             (new ReturnOverride($this->db))->record($saleId, (int) $salesData['branch_id'], $employeeId, $overrideReason);
         }
 
+        if ($priceViolations !== []) {
+            (new PriceControls($this->db))->recordOverride($saleId, (int) $salesData['branch_id'], $employeeId, $priceViolations);
+        }
+
         try {
             $this->numberDocuments($saleId, $saleType, $saleStatus == COMPLETED, $invoiceNumber, $quoteNumber, $paymentIds, (int) $salesData['branch_id'], $returnDocument, $salesData['quote_status'] === QuoteStatus::Draft->value);
         } catch (AccountingException $failure) {
@@ -1327,6 +1371,16 @@ class Sale extends Model
             if ($failure !== null) {
                 $this->db->transRollback();
                 $this->recordAccountingFailure($saleId, $failure, $employeeId, (int) $salesData['branch_id']);
+
+                return ACCOUNTING_FAILED;
+            }
+
+            $creditRefusal = $this->creditRefusalOf($saleId, $salesData['customer_id'], $employeeId, (int) $salesData['branch_id']);
+
+            if ($creditRefusal !== null) {
+                $this->db->transRollback();
+                $this->accountingFailure = $creditRefusal;
+                (new CreditLimit($this->db))->recordRefusal((int) $salesData['customer_id'], (int) $salesData['branch_id'], $employeeId, $creditRefusal);
 
                 return ACCOUNTING_FAILED;
             }
@@ -1454,7 +1508,18 @@ class Sale extends Model
             $paymentTerms ?? $issue->paymentTermsDays,
             draftFingerprint: $issue->fingerprint,
             headerCharges: $issue->headerCharges,
+            priceListId: $this->getPriceListId($saleId),
         );
+    }
+
+    /**
+     * The price list a sale was priced from, or null when it was priced from none.
+     */
+    public function getPriceListId(int $saleId): ?int
+    {
+        $row = $this->db->table('sales')->select('price_list_id')->where('sale_id', $saleId)->get()->getRow();
+
+        return $row === null || $row->price_list_id === null ? null : (int) $row->price_list_id;
     }
 
     /**
@@ -1906,6 +1971,36 @@ class Sale extends Model
     }
 
     /**
+     * Whether the sale that was just posted puts its customer over the credit limit or the credit days,
+     * which an employee who holds the permission to override is let through, and the audit log says
+     * so. The books decide what is open: a return is a credit and not an invoice, so it is never
+     * refused, and with accounting off nothing is posted, so nothing is open. An edit of the payments
+     * of an issued invoice is held to the limit only when it left more open on the invoice than
+     * before, which is the open amount it had before the edit.
+     */
+    private function creditRefusalOf(int $saleId, ?int $customerId, int $employeeId, int $branchId, ?string $openBefore = null): ?AccountingException
+    {
+        if ($customerId === null || $customerId <= 0) {
+            return null;
+        }
+
+        $credit  = new CreditLimit($this->db);
+        $refusal = $openBefore === null ? $credit->refusalFor($customerId, $saleId, date('Y-m-d')) : $credit->refusalForEdit($customerId, $saleId, $openBefore, date('Y-m-d'));
+
+        if ($refusal === null) {
+            return null;
+        }
+
+        if ($credit->mayOverride($employeeId)) {
+            $credit->recordOverride($saleId, $branchId, $employeeId, $refusal);
+
+            return null;
+        }
+
+        return $refusal;
+    }
+
+    /**
      * What the books refused is kept as it is. Anything else that went wrong while posting is
      * logged, and stands for a write that failed.
      */
@@ -1928,7 +2023,7 @@ class Sale extends Model
     {
         $this->accountingFailure = $failure;
 
-        $refusal = $failure instanceof AccountingException && in_array($failure->error, [AccountingError::SaleLocked, AccountingError::IssuedDocumentLocked, AccountingError::TreasuryDepositDenied, AccountingError::TreasuryWithdrawDenied, AccountingError::PaymentTermsInvalid], true);
+        $refusal = $failure instanceof AccountingException && in_array($failure->error, [AccountingError::SaleLocked, AccountingError::IssuedDocumentLocked, AccountingError::TreasuryDepositDenied, AccountingError::TreasuryWithdrawDenied, AccountingError::PaymentTermsInvalid, AccountingError::CreditLimitExceeded, AccountingError::CreditPeriodExceeded], true);
 
         if (($failure instanceof PostingException || $failure instanceof AccountingException) && ! $refusal) {
             (new SalePosting($this->db))->recordFailure($saleId, $failure, $employeeId, $branchId);

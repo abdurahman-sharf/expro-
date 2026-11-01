@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'Sasisha kanzidata ya OSPOS.',
     'office'                       => 'Ofisi',
     'office_desc'                  => 'Orodhesha moduli za menyu ya ofisi.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Manunuzi',

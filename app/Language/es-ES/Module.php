@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'Actualizar la base de datos OSPOS.',
     'office'                       => 'Oficina',
     'office_desc'                  => 'Lista modulo de menu oficina.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Recepción',

@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'កែប្រែ OSPOS ទិន្នយ័យ។',
     'office'                       => 'ការិយាល័យ',
     'office_desc'                  => 'បញ្ជីការិយាល័យ។',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'ការទទួល',

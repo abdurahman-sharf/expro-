@@ -8,6 +8,7 @@ use App\Libraries\InvoiceDiscountPlan;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\HeaderCharges;
 use App\Libraries\HeaderChargesProblem;
+use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\ResolvedCharges;
 use App\Libraries\ShippingTaxOption;
 use App\Models\Attribute;
@@ -17,6 +18,7 @@ use App\Models\Item;
 use App\Models\Item_kit_items;
 use App\Models\Item_quantity;
 use App\Models\Item_taxes;
+use App\Models\Price_list;
 use App\Models\Enums\Rounding_mode;
 use App\Models\Sale;
 use CodeIgniter\Session\Session;
@@ -51,6 +53,7 @@ class Sale_lib
     private Item_kit_items $item_kit_items;
     private Item_quantity $item_quantity;
     private Item_taxes $item_taxes;
+    private Price_list $priceList;
     private Sale $sale;
     private Stock_location $stock_location;
     private Session $session;
@@ -71,6 +74,7 @@ class Sale_lib
         $this->item_kit_items = model(Item_kit_items::class);
         $this->item_quantity = model(Item_quantity::class);
         $this->item_taxes = model(Item_taxes::class);
+        $this->priceList = model(Price_list::class);
         $this->sale = model(Sale::class);
         $this->stock_location = model(Stock_location::class);
         $this->config = config(OSPOS::class)->settings;
@@ -1186,6 +1190,74 @@ class Sale_lib
     }
 
     /**
+     * The price list picked on this sale when the setting lets a sale change its list: 0 when the
+     * sale was picked to be priced from no list at all, null when nothing was picked.
+     */
+    public function getPriceListChoice(): ?int
+    {
+        $choice = $this->session->get('sales_price_list');
+
+        return $choice === null ? null : (int) $choice;
+    }
+
+    public function setPriceListChoice(int $priceListId): void
+    {
+        $this->session->set('sales_price_list', $priceListId);
+    }
+
+    public function clearPriceListChoice(): void
+    {
+        $this->session->remove('sales_price_list');
+    }
+
+    /**
+     * The price list that prices the lines of this sale, or null when none does.
+     */
+    public function effectivePriceListId(): ?int
+    {
+        $customerId = $this->session->get('sales_customer');
+
+        return $this->priceList->effectiveListId($customerId ? (int) $customerId : null, $this->getPriceListChoice());
+    }
+
+    /**
+     * Prices the lines again from the list that now applies: a line takes the price of the list, or
+     * the price of its item when the list does not price it. A line whose price was typed, one that
+     * came from a saved sale and one of a kit keep the price they have.
+     */
+    public function repriceFromList(): void
+    {
+        if ($this->is_return_mode() || !(new SalesControlSettings())->priceListsEnabled()) {
+            return;
+        }
+
+        $cart = $this->session->get('sales_cart') ?? [];
+
+        foreach ($cart as $key => $line) {
+            if (!in_array($line['price_source'] ?? '', ['default', 'list'], true)) {
+                continue;
+            }
+
+            $listPrice = $this->listPriceOf((int) $line['item_id']);
+            $price = $listPrice ?? (string) $this->item->get_info((int) $line['item_id'])->unit_price;
+
+            $cart[$key]['price'] = $price;
+            $cart[$key]['price_source'] = $listPrice === null ? 'default' : 'list';
+            $cart[$key]['total'] = $this->get_item_total($line['quantity'], $price, $line['discount'], (int) $line['discount_type']);
+            $cart[$key]['discounted_total'] = $this->get_item_total($line['quantity'], $price, $line['discount'], (int) $line['discount_type'], true);
+        }
+
+        $this->set_cart($cart);
+    }
+
+    private function listPriceOf(int $itemId): ?string
+    {
+        $listId = $this->effectivePriceListId();
+
+        return $listId === null ? null : $this->priceList->priceOf($listId, $itemId);
+    }
+
+    /**
      * @return int
      */
     public function get_customer(): int
@@ -1435,11 +1507,21 @@ class Sale_lib
 
         $price = $item_info->unit_price;
         $cost_price = $item_info->cost_price;
+        $priceSource = 'default';
         if ($price_override != null) {
             $price = $price_override;
+            $priceSource = 'override';
+        } elseif ($price_mode == PRICE_MODE_STANDARD && !$this->is_return_mode()) {
+            $listPrice = $this->listPriceOf((int) $item_info->item_id);
+
+            if ($listPrice !== null) {
+                $price = $listPrice;
+                $priceSource = 'list';
+            }
         }
 
         if ($price_mode == PRICE_MODE_KIT) {
+            $priceSource = 'kit';
             if (!($kit_price_option == PRICE_OPTION_ALL
                 || $kit_price_option == PRICE_OPTION_KIT  && $item_type == ITEM_KIT
                 || $kit_price_option == PRICE_OPTION_KIT_STOCK && $stock_type == HAS_STOCK))    // TODO: === ?
@@ -1547,6 +1629,7 @@ class Sale_lib
                     'discount_type'         => $discount_type,
                     'in_stock'              => $this->item_quantity->get_item_quantity($item_id, $item_location)->quantity,
                     'price'                 => $price,
+                    'price_source'          => $priceSource,
                     'cost_price'            => $cost_price,
                     'total'                 => $total,
                     'discounted_total'      => $discounted_total,
@@ -1659,6 +1742,10 @@ class Sale_lib
 
             if ($discount_type != null) {
                 $line['discount_type'] = $discount_type;
+            }
+
+            if ($price !== null && bccomp($price, (string) $line['price'], 4) !== 0) {
+                $line['price_source'] = 'manual';
             }
 
             $line['price'] = $price;
@@ -1810,6 +1897,12 @@ class Sale_lib
         $this->setReturnDocument($this->sale->getReturnDocument($saleId));
         $this->setQuoteSource($this->sale->getSourceQuote($saleId));
 
+        $storedList = $this->sale->getPriceListId($saleId);
+
+        if ($storedList !== null) {
+            $this->setPriceListChoice($storedList);
+        }
+
         $timing = $this->sale->getInvoiceTiming($saleId);
         $this->setInvoiceDate($timing['invoice_date']);
         $this->setPaymentTerms($timing['payment_terms_days'] === null ? null : (string) $timing['payment_terms_days']);
@@ -1898,6 +1991,7 @@ class Sale_lib
         $this->clearQuoteSource();
         $this->clearInvoiceDiscount();
         $this->clearHeaderCharges();
+        $this->clearPriceListChoice();
         $this->clear_quote_number();
         $this->clear_work_order_number();
         $this->clear_sale_type();

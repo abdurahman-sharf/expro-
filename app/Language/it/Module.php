@@ -67,6 +67,8 @@ return [
     'migrate_desc'                 => 'Aggiorna Database.',
     'office'                       => 'Ufficio',
     'office_desc'                  => 'Elenco Moduli Ufficio.',
+    'price_lists'                  => '',
+    'price_lists_desc'             => '',
     'receipt_vouchers'             => '',
     'receipt_vouchers_desc'        => '',
     'receivings'                   => 'Movimentazioni',

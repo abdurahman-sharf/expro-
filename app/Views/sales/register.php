@@ -51,6 +51,7 @@
  * @var int|null  $return_origin
  * @var bool      $can_override_return
  * @var string|null $return_override
+ * @var array{options: array<int, string>, selected: int}|null $priceListSelector
  * @var string    $return_document
  * @var bool      $email_receipt
  * @var bool      $price_work_orders
@@ -64,6 +65,7 @@
 use App\Models\Employee;
 
 $keyboardShortcuts ??= [];
+$priceListSelector ??= null;
 $sectionName   = ucfirst($controller_name);
 $shortcutLabel = static fn (string $name): string => $keyboardShortcuts[$name]['label'] ?? '';
 $hasCart       = count($cart) > 0;
@@ -183,6 +185,17 @@ $employee        = model(Employee::class);
                     </div>
                 <?= form_close() ?>
             <?php endif; ?>
+        <?php endif; ?>
+
+        <?php if ($priceListSelector !== null): ?>
+            <?= form_open("{$controller_name}/setPriceList", ['id' => 'price_list_form', 'class' => 'app-form card']) ?>
+                <div class="card-body pos-bar">
+                    <div class="pos-field">
+                        <label for="price_list_id" class="pos-label"><?= lang("{$sectionName}.price_list") ?></label>
+                        <?= form_dropdown('price_list_id', $priceListSelector['options'], (string) $priceListSelector['selected'], ['id' => 'price_list_id', 'onchange' => "$('#price_list_form').submit();", 'class' => 'form-select form-select-sm']) ?>
+                    </div>
+                </div>
+            <?= form_close() ?>
         <?php endif; ?>
 
         <?= form_open("{$controller_name}/add", ['id' => 'add_item_form', 'class' => 'app-form card']) ?>
