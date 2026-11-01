@@ -570,6 +570,21 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->resetCustomerControls();
     }
 
+    public function testGetView_ShowsTheNameOfAListAsTextAndNeverAsMarkup(): void
+    {
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+
+        model(Price_list::class)->saveList('<b>Gold</b> & <i>VIP</i>', true, null, null);
+        $this->actAsEmployeeWith(['price_lists']);
+
+        $body = $this->get('/customers/view/' . $this->insertCustomer())->getBody();
+
+        $this->assertStringContainsString('&lt;b&gt;Gold&lt;/b&gt; &amp; &lt;i&gt;VIP&lt;/i&gt;', $body);
+        $this->assertStringNotContainsString('<b>Gold</b>', $body);
+
+        $this->resetCustomerControls();
+    }
+
     public function testGetView_ShowsAnInactiveListTheCustomerStillHolds(): void
     {
         $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');

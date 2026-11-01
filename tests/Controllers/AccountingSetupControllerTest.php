@@ -640,6 +640,21 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $page->assertSee($this->usernameOf($holder));
     }
 
+    public function testGetIndex_ShowsTheNameOfAListInTheDefaultListChoiceAsTextAndNeverAsMarkup(): void
+    {
+        $this->resetSalesControlSettings();
+
+        $this->accountingDb()->table('price_lists')->insert(['name' => '<b>Gold</b> & <i>VIP</i>']);
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $body = $this->get('/accounting_settings')->getBody();
+
+        $this->assertStringContainsString('&lt;b&gt;Gold&lt;/b&gt; &amp; &lt;i&gt;VIP&lt;/i&gt;', $body);
+        $this->assertStringNotContainsString('<b>Gold</b>', $body);
+
+        $this->resetSalesControlSettings();
+    }
+
     public function testPostSaveControls_TurnsTheControlsOnStoresTheirValuesAndWritesWhatChanged(): void
     {
         $this->resetSalesControlSettings();

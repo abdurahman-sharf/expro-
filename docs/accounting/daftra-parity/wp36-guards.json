@@ -1168,6 +1168,39 @@
     ]
   },
   {
+    "name": "G114 the name of a list is text in the choice of the register",
+    "file": "app/Controllers/Sales.php",
+    "find": "$options[(int) $list->price_list_id] = esc($list->name);",
+    "replace": "$options[(int) $list->price_list_id] = $list->name;",
+    "tests": [
+      "--filter",
+      "ShowsTheNameOfAListInTheChoice",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G136 the name of a list is text in the form of the customer",
+    "file": "app/Controllers/Customers.php",
+    "find": "$options[(int) $list->price_list_id] = esc($list->name) . ((int) $list->status === 1 ? '' : ' (' . esc(lang('Price_lists.inactive')) . ')');",
+    "replace": "$options[(int) $list->price_list_id] = $list->name . ((int) $list->status === 1 ? '' : ' (' . lang('Price_lists.inactive') . ')');",
+    "tests": [
+      "--filter",
+      "ShowsTheNameOfAListAsText",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G154 the name of a list is text in the choice of the default list",
+    "file": "app/Views/accounting_settings/manage.php",
+    "find": "array_map(static fn (string $name): string => esc($name), $control_lists)",
+    "replace": "$control_lists",
+    "tests": [
+      "--filter",
+      "ShowsTheNameOfAListInTheDefaultListChoice",
+      "tests/Controllers/AccountingSetupControllerTest.php"
+    ]
+  },
+  {
     "name": "G152 the settings screen saves through the settings class that checks the permission",
     "file": "app/Controllers/AccountingSetup.php",
     "find": "            $this->controls->update($input, $this->employeeId());\n",

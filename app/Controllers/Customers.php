@@ -364,7 +364,7 @@ class Customers extends Persons
 
             foreach ($this->priceList->allLists() as $list) {
                 if ((int) $list->status === 1 || (int) $list->price_list_id === $assigned) {
-                    $options[(int) $list->price_list_id] = $list->name . ((int) $list->status === 1 ? '' : ' (' . lang('Price_lists.inactive') . ')');
+                    $options[(int) $list->price_list_id] = esc($list->name) . ((int) $list->status === 1 ? '' : ' (' . esc(lang('Price_lists.inactive')) . ')');
                 }
             }
         }

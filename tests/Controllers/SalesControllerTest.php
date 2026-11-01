@@ -6227,4 +6227,18 @@ class SalesControllerTest extends CIUnitTestCase
 
         $this->assertSame('85.00', (string) Services::session()->get('sales_cart')[1]['price'], 'a return takes stock back and is held to no minimum, whatever the sign typed on its line');
     }
+
+    public function testGetIndex_ShowsTheNameOfAListInTheChoiceAsTextAndNeverAsMarkup(): void
+    {
+        $setup = $this->registerWithPriceControls(['sales_change_price']);
+
+        $this->pricedList('<b>Gold</b> & <i>VIP</i>', '90', $setup['item']);
+        $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
+        $this->setConfigValue(SalesControlSettings::CHANGE_LIST, '1');
+
+        $body = $this->get('/sales')->getBody();
+
+        $this->assertStringContainsString('&lt;b&gt;Gold&lt;/b&gt; &amp; &lt;i&gt;VIP&lt;/i&gt;', $body);
+        $this->assertStringNotContainsString('<b>Gold</b>', $body);
+    }
 }

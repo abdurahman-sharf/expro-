@@ -224,7 +224,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 <div class="field">
                     <?= form_label(lang('Accounting_settings.control_default_list'), 'control_default_list', ['class' => 'form-label']) ?>
                     <div class="field-control">
-                        <?= form_dropdown('default_list', [0 => lang('Accounting_settings.control_default_list_none')] + $control_lists, (string) ($controls['default_list'] ?? 0), ['class' => 'form-select form-select-sm', 'id' => 'control_default_list'] + ($can_manage ? [] : ['disabled' => 'disabled'])) ?>
+                        <?= form_dropdown('default_list', [0 => lang('Accounting_settings.control_default_list_none')] + array_map(static fn (string $name): string => esc($name), $control_lists), (string) ($controls['default_list'] ?? 0), ['class' => 'form-select form-select-sm', 'id' => 'control_default_list'] + ($can_manage ? [] : ['disabled' => 'disabled'])) ?>
                     </div>
                 </div>
 

@@ -492,7 +492,7 @@ class Sales extends Secure_Controller
         $options = [0 => lang('Sales.price_list_none')];
 
         foreach ($this->priceList->allLists(true) as $list) {
-            $options[(int) $list->price_list_id] = $list->name;
+            $options[(int) $list->price_list_id] = esc($list->name);
         }
 
         return ['options' => $options, 'selected' => $this->sale_lib->effectivePriceListId() ?? 0];
