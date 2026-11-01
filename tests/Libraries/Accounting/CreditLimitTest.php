@@ -350,6 +350,36 @@ final class CreditLimitTest extends CIUnitTestCase
         $this->assertNull($this->credit->refusalFor($this->customerId, $sale, date('Y-m-d')));
     }
 
+    public function testRefusalFor_IgnoresACustomerWithoutCreditDaysWhileTheControlIsOn(): void
+    {
+        $this->giveTerms('0', 0);
+
+        $this->invoiceDated('50.00', $this->daysAgo(120));
+
+        $sale = $this->invoiceOf('10.00');
+
+        $this->turnOn(false, true);
+
+        $this->assertNull($this->credit->refusalFor($this->customerId, $sale, date('Y-m-d')));
+    }
+
+    public function testRefusalFor_HoldsTheSaleToTheOldestOpenInvoiceAndNotToTheNewest(): void
+    {
+        $this->giveTerms('0', 30);
+
+        $this->invoiceDated('50.00', $this->daysAgo(45));
+        $this->invoiceDated('20.00', $this->daysAgo(5));
+
+        $sale = $this->invoiceOf('10.00');
+
+        $this->turnOn(false, true);
+
+        $refusal = $this->credit->refusalFor($this->customerId, $sale, date('Y-m-d'));
+
+        $this->assertSame(AccountingError::CreditPeriodExceeded, $refusal?->error);
+        $this->assertSame(45, $refusal->context['days']);
+    }
+
     public function testRefusalFor_DoesNotHoldTheSaleItselfToTheDays(): void
     {
         $this->giveTerms('0', 30);

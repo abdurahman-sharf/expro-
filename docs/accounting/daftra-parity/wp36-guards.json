@@ -1,0 +1,1170 @@
+[
+  {
+    "name": "G01 a customer exactly at the limit still passes",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "bccomp($open, $terms['limit'], SaleAmounts::SCALE) > 0) {",
+    "replace": "bccomp($open, $terms['limit'], SaleAmounts::SCALE) >= 0) {",
+    "tests": [
+      "--filter",
+      "ExactlyToTheLimit|RefusesASaleThatTakes|AcceptsTheSaleThatFits",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G02 a sale that put nothing on credit is never refused",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "if ($sale === null || bccomp($sale->open(), '0', SaleAmounts::SCALE) <= 0) {",
+    "replace": "if ($sale === null) {",
+    "tests": [
+      "--filter",
+      "NeverRefusesASaleThatPutNothing|CountsWhatIsStillOpen",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G03 a customer without a limit is not held to one",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "$checksLimit  = $settings->creditLimitEnabled() && bccomp($terms['limit'], '0', 4) > 0;",
+    "replace": "$checksLimit  = $settings->creditLimitEnabled();",
+    "tests": [
+      "--filter",
+      "IgnoresACustomerWithoutALimit|ReadsNothingForACustomerWithNoLimit",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G04 the limit is ignored while its control is off",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "$checksLimit  = $settings->creditLimitEnabled() && bccomp(",
+    "replace": "$checksLimit  = bccomp(",
+    "tests": [
+      "--filter",
+      "IgnoresTheLimitWhileTheControlIsOff",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G05 a customer without credit days is not held to a period",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "$checksPeriod = $settings->creditPeriodEnabled() && $terms['days'] > 0;",
+    "replace": "$checksPeriod = $settings->creditPeriodEnabled();",
+    "tests": [
+      "--filter",
+      "IgnoresACustomerWithoutCreditDays",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G06 the days are ignored while their control is off",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "$checksPeriod = $settings->creditPeriodEnabled() && $terms['days'] > 0;",
+    "replace": "$checksPeriod = $terms['days'] > 0;",
+    "tests": [
+      "--filter",
+      "LeavesTheDaysAloneWhileTheirControlIsOff",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G07 an oldest open invoice exactly as old as the days passes",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "if ($age > $terms['days']) {",
+    "replace": "if ($age >= $terms['days']) {",
+    "tests": [
+      "--filter",
+      "ExactlyAsOldAsTheDays|RefusesAnOldestOpenInvoice",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G08 the sale being issued is not held to the days",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "if ($invoice->saleId !== $saleId && bccomp(",
+    "replace": "if (bccomp(",
+    "tests": [
+      "--filter",
+      "DoesNotHoldTheSaleItselfToTheDays",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G09 an invoice that was paid is not the oldest open one",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "bccomp($invoice->open(), '0', SaleAmounts::SCALE) > 0 && ($oldest === null",
+    "replace": "true && ($oldest === null",
+    "tests": [
+      "--filter",
+      "DoesNotCountAnOldInvoiceThatWasPaid",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G10 the days are held to the oldest open invoice and not the newest",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "$invoice->date < $oldest)",
+    "replace": "$invoice->date > $oldest)",
+    "tests": [
+      "--filter",
+      "HoldsTheSaleToTheOldestOpenInvoice",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G11 the override of the credit limit is its own permission",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "AccountingGuard::CREDIT_OVERRIDE, $employeeId",
+    "replace": "AccountingGuard::PRICE_OVERRIDE, $employeeId",
+    "tests": [
+      "--filter",
+      "LetsAnEmployeeWhoMayOverride|DoesNotLetThePermissionToOverridePrices",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G12 an override of the credit limit is written in the audit log",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "        $this->audit->write('sale', $saleId, self::AUDIT_OVERRIDE, $employeeId, JournalOrigin::User, $this->detailsOf($refusal), $branchId);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "LetsAnEmployeeWhoMayOverride",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G13 a refusal over the credit limit is written in the audit log",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "        $this->audit->write('customer', $customerId, self::AUDIT_REFUSED, $employeeId, JournalOrigin::User, $this->detailsOf($refusal), $branchId);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "WritesTheRefusalInTheAuditLog",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G14 credit days are a whole number that fits",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "|| ! ctype_digit($days) || (int) $days > self::DAYS_MAX)",
+    "replace": "|| ! ctype_digit($days))",
+    "tests": [
+      "--filter",
+      "RejectsTermsThat",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G15 a credit limit is a number that is not negative",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "preg_match('/^\\d{1,11}(\\.\\d{1,4})?$/', $limit) !== 1 || ",
+    "replace": "false || ",
+    "tests": [
+      "--filter",
+      "RejectsTermsThat",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G16 terms that did not change write nothing",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "        if (bccomp($before['limit'], $limit, 4) === 0 && $before['days'] === (int) $days) {\n            return;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "WritesNothingWhenNothingChanged",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G17 a change of the credit terms is written in the audit log",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "        $this->audit->write('customer', $customerId, 'customer_credit_changed', $employeeId, JournalOrigin::User, ['before' => $before, 'after' => ['limit' => $limit, 'days' => (int) $days]]);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "StoresTheLimitAndTheDays",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G20 the credit check refuses the sale inside its transaction",
+    "file": "app/Models/Sale.php",
+    "find": "if ($creditRefusal !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "Save_|RefusesTheSaleThat",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G21 a sale with no customer is not held to a limit",
+    "file": "app/Models/Sale.php",
+    "find": "        if ($customerId === null || $customerId <= 0) {\n            return null;\n        }\n\n        $credit  = new CreditLimit($this->db);",
+    "replace": "        $credit  = new CreditLimit($this->db);",
+    "tests": [
+      "--filter",
+      "LeavesASaleWithNoCustomerAlone",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G22 only an employee who may override is let through the credit limit",
+    "file": "app/Models/Sale.php",
+    "find": "if ($credit->mayOverride($employeeId)) {",
+    "replace": "if (true) {",
+    "tests": [
+      "--filter",
+      "Save_RefusesThe|Save_WritesTheRefusal",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G23 a credit override is written in the audit log",
+    "file": "app/Models/Sale.php",
+    "find": "            $credit->recordOverride($saleId, $branchId, $employeeId, $refusal);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "LetsAnEmployeeWhoMayOverride",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G24 a credit refusal is written in the audit log after the rollback",
+    "file": "app/Models/Sale.php",
+    "find": "                (new CreditLimit($this->db))->recordRefusal((int) $salesData['customer_id'], (int) $salesData['branch_id'], $employeeId, $creditRefusal);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "WritesTheRefusalInTheAuditLog",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G25 a line under the controls is refused when the sale is completed",
+    "file": "app/Models/Sale.php",
+    "find": "if ($priceViolations !== [] && !(new PriceControls($this->db))->mayOverride($employeeId)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RefusesALineUnderTheMinimum|HoldsAReceiptSale|AddsTheShareOfTheDiscount|IssueDraft_Refuses",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G26 an employee who may override prices is let through",
+    "file": "app/Models/Sale.php",
+    "find": " && !(new PriceControls($this->db))->mayOverride($employeeId)) {",
+    "replace": ") {",
+    "tests": [
+      "--filter",
+      "LetsAnEmployeeWhoMayOverridePrices|IssueDraft_Refuses",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G27 only a sale and an invoice are held to the price controls",
+    "file": "app/Models/Sale.php",
+    "find": "in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) ? (new PriceControls",
+    "replace": "true ? (new PriceControls",
+    "tests": [
+      "--filter",
+      "NeverHoldsAReturn",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G28 only a completed sale is held to the price controls",
+    "file": "app/Models/Sale.php",
+    "find": "$saleStatus == COMPLETED && in_array($saleType",
+    "replace": "in_array($saleType",
+    "tests": [
+      "--filter",
+      "NeverHoldsASuspendedSale",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G29 a refusal of prices is written in the audit log",
+    "file": "app/Models/Sale.php",
+    "find": "            (new PriceControls($this->db))->recordRefusal((int) $salesData['branch_id'], $employeeId, $priceViolations);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "RefusesALineUnderTheMinimumPriceWithAccountingOff",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G30 a price override is written in the audit log",
+    "file": "app/Models/Sale.php",
+    "find": "        if ($priceViolations !== []) {\n            (new PriceControls($this->db))->recordOverride($saleId, (int) $salesData['branch_id'], $employeeId, $priceViolations);\n        }\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "LetsAnEmployeeWhoMayOverridePricesSell",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G31 a return is not priced from a list",
+    "file": "app/Models/Sale.php",
+    "find": "'price_list_id'     => $saleType === SALE_TYPE_RETURN ? null : $priceListId,",
+    "replace": "'price_list_id'     => $priceListId,",
+    "tests": [
+      "--filter",
+      "StoresNoPriceListForASaleWithNone",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G32 a draft that is issued keeps the list it was priced from",
+    "file": "app/Models/Sale.php",
+    "find": "priceListId: $this->getPriceListId($saleId),",
+    "replace": "priceListId: null,",
+    "tests": [
+      "--filter",
+      "StoresThePriceListOfASale",
+      "tests/Models/SaleTest.php"
+    ]
+  },
+  {
+    "name": "G40 a line selling exactly at the minimum passes",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "bccomp($net, $minimum, 2) < 0",
+    "replace": "bccomp($net, $minimum, 2) <= 0",
+    "tests": [
+      "--filter",
+      "Minimum",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G41 an item with no minimum has none",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "bccomp($minimum, '0', 4) > 0 && bccomp($net",
+    "replace": "bccomp($net",
+    "tests": [
+      "--filter",
+      "IgnoresAnItemWithNoMinimum",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G42 the minimum is ignored while its control is off",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "if ($checkMin && ",
+    "replace": "if (",
+    "tests": [
+      "--filter",
+      "LeavesTheMinimumAloneWhileOnlyTheCeilingIsOn",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G43 a discount exactly at the highest passes",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "bccomp($percent, $ceiling, 2) > 0",
+    "replace": "bccomp($percent, $ceiling, 2) >= 0",
+    "tests": [
+      "--filter",
+      "Discount|Ceiling",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G44 the share of the discount on the whole sale counts",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "$net     = bcsub($net, bcdiv($share, $quantity, 4), 4);",
+    "replace": "$net     = bcsub($net, '0', 4);",
+    "tests": [
+      "--filter",
+      "Share",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G45 a line of no quantity or of stock taken back is left out",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "if ($item === null || bccomp($quantity, '0', 4) <= 0) {",
+    "replace": "if ($item === null) {",
+    "tests": [
+      "--filter",
+      "LeavesOutLines",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G46 the item has its own highest discount",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "if ($item->max_discount_percent !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "OwnHighestDiscount|StrictItemCeiling|HoldsTheItemToItsOwn|AllowsNoDiscountOnAnItem|ExcludedCategoryToItsOwn",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G47 the excluded categories are held to no discount of the shop",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "! in_array((string) $item->category, $exempt, true)",
+    "replace": "true",
+    "tests": [
+      "--filter",
+      "ExcusesTheCategories",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G48 the ceilings are ignored while their control is off",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "        if (! $this->settings->maxDiscountEnabled()) {\n            return null;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "IgnoresTheCeilingsWhileTheirControlIsOff",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G49 the override of prices is its own permission",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "AccountingGuard::PRICE_OVERRIDE, $employeeId",
+    "replace": "AccountingGuard::CREDIT_OVERRIDE, $employeeId",
+    "tests": [
+      "--filter",
+      "MayOverride",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G50 a free line has no discount to count",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "bccomp($price, '0', 4) > 0 ? bcdiv(",
+    "replace": "true ? bcdiv(",
+    "tests": [
+      "--filter",
+      "FreeLine",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G51 an override of prices is written in the audit log",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "        $this->audit->write('sale', $saleId, self::AUDIT_OVERRIDE, $employeeId, JournalOrigin::User, ['lines' => array_map(static fn (PriceViolation $violation): array => $violation->toArray(), $violations)], $branchId);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "RecordOverride",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G52 a refusal of prices is written in the audit log",
+    "file": "app/Libraries/Pricing/PriceControls.php",
+    "find": "        $this->audit->write('sale', null, self::AUDIT_REFUSED, $employeeId, JournalOrigin::User, ['lines' => array_map(static fn (PriceViolation $violation): array => $violation->toArray(), $violations)], $branchId);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "RecordRefusal",
+      "tests/Libraries/Pricing/PriceControlsTest.php"
+    ]
+  },
+  {
+    "name": "G55 a fixed discount is an amount a unit and not a percent",
+    "file": "app/Models/Item.php",
+    "find": "$taken = $discountType === PERCENT ? bcdiv(bcmul($price, $discount, 8), '100', 8) : $discount;",
+    "replace": "$taken = bcdiv(bcmul($price, $discount, 8), '100', 8);",
+    "tests": [
+      "--filter",
+      "PriceAfterDiscount",
+      "tests/Models/ItemTest.php"
+    ]
+  },
+  {
+    "name": "G56 an item with no price has no margin",
+    "file": "app/Models/Item.php",
+    "find": "        if (bccomp($price, '0', 4) <= 0) {\n            return null;\n        }\n\n        return bcdiv(bcmul(bcsub($price, $cost, 6)",
+    "replace": "        return bcdiv(bcmul(bcsub($price, $cost, 6)",
+    "tests": [
+      "--filter",
+      "MarginPercent",
+      "tests/Models/ItemTest.php"
+    ]
+  },
+  {
+    "name": "G60 the settings are changed only by who may change the accounting settings",
+    "file": "app/Libraries/Pricing/SalesControlSettings.php",
+    "find": "        $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "RequiresThePermission|AcceptsTheSystem",
+      "tests/Libraries/Pricing/SalesControlSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G61 the highest discount of the shop is at most 100 percent",
+    "file": "app/Libraries/Pricing/SalesControlSettings.php",
+    "find": " && bccomp($value, '100', 2) <= 0;",
+    "replace": ";",
+    "tests": [
+      "--filter",
+      "RejectsAHighestDiscount|IsPercent|AcceptsTheLimits",
+      "tests/Libraries/Pricing/SalesControlSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G62 the default price list must exist",
+    "file": "app/Libraries/Pricing/SalesControlSettings.php",
+    "find": " || $this->db->table('price_lists')->where('price_list_id', (int) $value)->countAllResults() === 0)",
+    "replace": ")",
+    "tests": [
+      "--filter",
+      "RejectsADefaultListThatDoesNotExist",
+      "tests/Libraries/Pricing/SalesControlSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G63 a category is text of at most 255 characters",
+    "file": "app/Libraries/Pricing/SalesControlSettings.php",
+    "find": " || mb_strlen($category) > self::CATEGORY_MAX)",
+    "replace": ")",
+    "tests": [
+      "--filter",
+      "KeepsTheCategories",
+      "tests/Libraries/Pricing/SalesControlSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G64 a change of the settings is written in the audit log",
+    "file": "app/Libraries/Pricing/SalesControlSettings.php",
+    "find": "        $this->audit->write('settings', null, 'settings_updated', $employeeId, JournalOrigin::User, ['before' => array_intersect_key($before, $changes), 'after' => $changes]);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "StoresWhatWasChanged",
+      "tests/Libraries/Pricing/SalesControlSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G65 settings that did not change write nothing",
+    "file": "app/Libraries/Pricing/SalesControlSettings.php",
+    "find": "        if ($changes === []) {\n            return;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "WritesNothingWhenNothingChanged",
+      "tests/Libraries/Pricing/SalesControlSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G70 the name of a price list is one to 100 characters",
+    "file": "app/Models/Price_list.php",
+    "find": "if ($name === '' || mb_strlen($name) > self::NAME_MAX) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RejectsAnEmptyName",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G71 two price lists never share a name",
+    "file": "app/Models/Price_list.php",
+    "find": "if ($this->db->table('price_lists')->where('name', $name)->where('price_list_id !=', $priceListId ?? 0)->countAllResults() > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RejectsANameAnotherList",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G72 a price list in use is deactivated and never deleted",
+    "file": "app/Models/Price_list.php",
+    "find": "if ((int) $list->customers > 0 || (int) $list->sales > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "DeleteLists_Refuses",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G73 deleting several lists is all or nothing",
+    "file": "app/Models/Price_list.php",
+    "find": "'prices' => (int) $list->items]);\n            }\n        } catch (Throwable $failure) {\n            $this->db->transRollback();\n",
+    "replace": "'prices' => (int) $list->items]);\n            }\n        } catch (Throwable $failure) {\n",
+    "tests": [
+      "--filter",
+      "DeletesNoneWhenOneOfThemIsInUse",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G74 the prices of an item are saved all or nothing",
+    "file": "app/Models/Price_list.php",
+    "find": "'lists' => $changes]);\n            }\n        } catch (Throwable $failure) {\n            $this->db->transRollback();\n",
+    "replace": "'lists' => $changes]);\n            }\n        } catch (Throwable $failure) {\n",
+    "tests": [
+      "--filter",
+      "SavesNothingOfTheRest",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G75 deleting a list takes its prices with it",
+    "file": "app/Models/Price_list.php",
+    "find": "                $this->db->table('price_list_items')->where('price_list_id', $priceListId)->delete();\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "DeletesAnUnusedListWithItsPrices",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G76 a price in a list is a number that is not negative",
+    "file": "app/Models/Price_list.php",
+    "find": "if (preg_match('/^\\d{1,11}(\\.\\d{1,4})?$/', $price) !== 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RejectsAPriceThatIsNotANumber",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G77 a customer who has a list already writes nothing",
+    "file": "app/Models/Price_list.php",
+    "find": "        if ($priceListId === $before) {\n            return;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "WritesNothingWhenTheCustomerHasThatListAlready|RefusesAListThatIsNotActiveButLetsACustomerKeepOne",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G78 a list that is not active is not given to a customer",
+    "file": "app/Models/Price_list.php",
+    "find": "if ((int) $list->status !== 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RefusesAListThatIsNotActiveButLetsACustomerKeepOne",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G79 no list prices anything while the price lists are off",
+    "file": "app/Models/Price_list.php",
+    "find": "        if (! $settings->priceListsEnabled()) {\n            return null;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "PricesNothingWhileThePriceListsAreOff",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G80 a sale changes its list only when the setting lets it",
+    "file": "app/Models/Price_list.php",
+    "find": "if ($chosen !== null && $settings->changePriceListOnInvoice()) {",
+    "replace": "if ($chosen !== null) {",
+    "tests": [
+      "--filter",
+      "TakesTheListChosenOnTheSaleOnlyWhen",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G81 a list that is not active prices nothing",
+    "file": "app/Models/Price_list.php",
+    "find": "if ($candidate !== null && $this->isActive($candidate)) {",
+    "replace": "if ($candidate !== null) {",
+    "tests": [
+      "--filter",
+      "FallsBackWhenTheListOfTheCustomerIsNotActive|TakesTheListChosenOnTheSaleOnlyWhen",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G82 a status that did not change writes nothing",
+    "file": "app/Models/Price_list.php",
+    "find": "        if ((int) $list->status === ($active ? 1 : 0)) {\n            return;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "WritesNothingWhenTheStatusIsAlreadyThat",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G83 a new price list is written in the audit log",
+    "file": "app/Models/Price_list.php",
+    "find": "            $audit->write('price_list', $priceListId, 'price_list_created', $employeeId, JournalOrigin::User, ['name' => $name, 'active' => $active]);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "CreatesAnActiveListAndWritesIt",
+      "tests/Models/Price_listTest.php"
+    ]
+  },
+  {
+    "name": "G90 a line is priced from the list of the customer",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "if ($listPrice !== null) {\n                $price = $listPrice;",
+    "replace": "if (false) {\n                $price = $listPrice;",
+    "tests": [
+      "--filter",
+      "PricesTheLineFromThePriceList",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G91 a return is not priced from a list",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "} elseif ($price_mode == PRICE_MODE_STANDARD && !$this->is_return_mode()) {",
+    "replace": "} elseif ($price_mode == PRICE_MODE_STANDARD) {",
+    "tests": [
+      "--filter",
+      "DoesNotPriceAReturn",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G92 a price that was typed or came from a saved sale is not priced again",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "if (!in_array($line['price_source'] ?? '', ['default', 'list'], true)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "PricesTheLinesAgainFromTheListOfTheCustomerExceptThose",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G93 nothing is priced again while the price lists are off",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "if ($this->is_return_mode() || !(new SalesControlSettings())->priceListsEnabled()) {",
+    "replace": "if ($this->is_return_mode()) {",
+    "tests": [
+      "--filter",
+      "LeavesThePricesAloneWhileThePriceListsAreOff",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G94 a return is not priced again from a list",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "if ($this->is_return_mode() || !(new SalesControlSettings())->priceListsEnabled()) {",
+    "replace": "if (!(new SalesControlSettings())->priceListsEnabled()) {",
+    "tests": [
+      "--filter",
+      "DoesNotPriceAReturn",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G95 a price that was typed is marked so that no list prices it again",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "            if ($price !== null && bccomp($price, (string) $line['price'], 4) !== 0) {\n                $line['price_source'] = 'manual';\n            }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "EditItem_MarksALine",
+      "tests/Libraries/Sale_libTest.php"
+    ]
+  },
+  {
+    "name": "G96 a draft that is taken up again gives the register back its list",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "            $this->setPriceListChoice($storedList);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "GivesTheRegisterBackTheList",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G100 a line that is refused is taken back from the register",
+    "file": "app/Controllers/Sales.php",
+    "find": "        $this->sale_lib->set_cart($cartBefore);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "RefusesAnItemWhosePrice|RefusesAPriceUnderTheMinimum|RefusesADiscountAbove",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G101 an employee who may override prices keeps the line",
+    "file": "app/Controllers/Sales.php",
+    "find": "|| $controls->mayOverride((int) $this->employee->get_logged_in_employee_info()->person_id)) {",
+    "replace": ") {",
+    "tests": [
+      "--filter",
+      "AddsAnItemUnderItsMinimum|AcceptsTheChangeOfAnEmployeeWhoMayOverridePrices",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G102 a return is not held to the controls at the register",
+    "file": "app/Controllers/Sales.php",
+    "find": "if ($this->sale_lib->is_return_mode() || $this->sale_lib->is_quote_mode() || $this->sale_lib->is_work_order_mode()) {",
+    "replace": "if ($this->sale_lib->is_quote_mode() || $this->sale_lib->is_work_order_mode()) {",
+    "tests": [
+      "--filter",
+      "DoesNotHoldAWorkOrderOrAReturn",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G103 a quote is not held to the controls at the register",
+    "file": "app/Controllers/Sales.php",
+    "find": "if ($this->sale_lib->is_return_mode() || $this->sale_lib->is_quote_mode() || $this->sale_lib->is_work_order_mode()) {",
+    "replace": "if ($this->sale_lib->is_return_mode() || $this->sale_lib->is_work_order_mode()) {",
+    "tests": [
+      "--filter",
+      "DoesNotHoldAQuote",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G104 a work order is not held to the controls at the register",
+    "file": "app/Controllers/Sales.php",
+    "find": "if ($this->sale_lib->is_return_mode() || $this->sale_lib->is_quote_mode() || $this->sale_lib->is_work_order_mode()) {",
+    "replace": "if ($this->sale_lib->is_return_mode() || $this->sale_lib->is_quote_mode()) {",
+    "tests": [
+      "--filter",
+      "DoesNotHoldAWorkOrderOrAReturn",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G105 the list of a sale changes only while the price lists are on",
+    "file": "app/Controllers/Sales.php",
+    "find": "if (!$settings->priceListsEnabled() || !$settings->changePriceListOnInvoice() || !$this->mayChangePriceList()) {",
+    "replace": "if (!$settings->changePriceListOnInvoice() || !$this->mayChangePriceList()) {",
+    "tests": [
+      "--filter",
+      "PostSetPriceList_RefusesWhileThePriceListsAreOff",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G106 the list of a sale changes only when the setting lets it",
+    "file": "app/Controllers/Sales.php",
+    "find": "if (!$settings->priceListsEnabled() || !$settings->changePriceListOnInvoice() || !$this->mayChangePriceList()) {",
+    "replace": "if (!$settings->priceListsEnabled() || !$this->mayChangePriceList()) {",
+    "tests": [
+      "--filter",
+      "PostSetPriceList_RefusesWhileTheSettingIsOff",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G107 the list of a sale changes only for who may change prices",
+    "file": "app/Controllers/Sales.php",
+    "find": "if (!$settings->priceListsEnabled() || !$settings->changePriceListOnInvoice() || !$this->mayChangePriceList()) {",
+    "replace": "if (!$settings->priceListsEnabled() || !$settings->changePriceListOnInvoice()) {",
+    "tests": [
+      "--filter",
+      "PostSetPriceList_RefusesAnEmployeeWhoMayNotChangePrices",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G108 a list that is not active is not chosen for a sale",
+    "file": "app/Controllers/Sales.php",
+    "find": "} elseif ($this->priceList->isActive($listId)) {",
+    "replace": "} else {",
+    "tests": [
+      "--filter",
+      "PostSetPriceList_RefusesAListThatIsNotActive",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G109 choosing the customer prices the lines again",
+    "file": "app/Controllers/Sales.php",
+    "find": "                $this->sale_lib->apply_customer_discount($discount, $discount_type);\n            }\n\n            $this->sale_lib->repriceFromList();\n",
+    "replace": "                $this->sale_lib->apply_customer_discount($discount, $discount_type);\n            }\n\n",
+    "tests": [
+      "--filter",
+      "PostSelectCustomer_PricesTheLinesAgain",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G110 taking the customer away prices the lines back",
+    "file": "app/Controllers/Sales.php",
+    "find": "        $this->sale_lib->remove_customer();\n        $this->sale_lib->repriceFromList();\n",
+    "replace": "        $this->sale_lib->remove_customer();\n",
+    "tests": [
+      "--filter",
+      "GetRemoveCustomer_PricesTheLinesBack",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G111 an invoice keeps the list it was priced from",
+    "file": "app/Controllers/Sales.php",
+    "find": "quoteSourceId: $this->sale_lib->getQuoteSource(), priceListId: $this->sale_lib->effectivePriceListId());",
+    "replace": "quoteSourceId: $this->sale_lib->getQuoteSource(), priceListId: null);",
+    "tests": [
+      "--filter",
+      "SavesThePriceListOnTheSale",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G112 a suspended sale keeps the list it was priced from",
+    "file": "app/Controllers/Sales.php",
+    "find": "$saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null, priceListId: $this->sale_lib->effectivePriceListId());",
+    "replace": "$saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null, priceListId: null);",
+    "tests": [
+      "--filter",
+      "PostSuspend_KeepsThePriceList",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G113 the register offers the choice of a list only to who may change prices",
+    "file": "app/Controllers/Sales.php",
+    "find": " || !$this->mayChangePriceList() || $this->sale_lib->is_return_mode()) {",
+    "replace": " || $this->sale_lib->is_return_mode()) {",
+    "tests": [
+      "--filter",
+      "OffersTheChoiceOfAListOnlyWhen",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G120 the prices of the lists are entered only by who holds the module",
+    "file": "app/Controllers/Items.php",
+    "find": " || ! $this->mayEnterListPrices()) {\n            return null;",
+    "replace": ") {\n            return null;",
+    "tests": [
+      "--filter",
+      "IgnoresThePricesOfTheListsFromAnEmployeeWithoutThePriceListsModule",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G121 the prices of the lists are ignored while the lists are off",
+    "file": "app/Controllers/Items.php",
+    "find": "! is_array($posted) || ! (new SalesControlSettings())->priceListsEnabled() || ",
+    "replace": "! is_array($posted) || ",
+    "tests": [
+      "--filter",
+      "IgnoresThePricesOfTheListsWhileThePriceListsAreOff",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G122 a minimum price is a number",
+    "file": "app/Controllers/Items.php",
+    "find": "(parse_decimals($minimum) === false || (float) parse_decimals($minimum) < 0)",
+    "replace": "((float) parse_decimals($minimum) < 0)",
+    "tests": [
+      "--filter",
+      "RefusesAMinimumPriceOrAHighestDiscount",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G123 the minimum price is saved only while its control is on",
+    "file": "app/Controllers/Items.php",
+    "find": "if ($settings->minimumPriceEnabled() && $this->request->getPost('minimum_price') !== null) {",
+    "replace": "if ($this->request->getPost('minimum_price') !== null) {",
+    "tests": [
+      "--filter",
+      "IgnoresTheMinimumPriceAndTheHighestDiscountWhileTheirControlsAreOff",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G124 the highest discount of an item is at most 100",
+    "file": "app/Controllers/Items.php",
+    "find": " || (float) parse_decimals($ceiling) > 100)) {",
+    "replace": ")) {",
+    "tests": [
+      "--filter",
+      "RefusesAMinimumPriceOrAHighestDiscount",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G125 an item is not saved without the prices that came with it",
+    "file": "app/Controllers/Items.php",
+    "find": "$success = $success && $this->saveListPrices($itemId);",
+    "replace": "$this->saveListPrices($itemId);",
+    "tests": [
+      "--filter",
+      "RollsTheItemBack|RefusesAPriceOfAList",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G126 the form offers the prices of the lists only to who holds the module",
+    "file": "app/Controllers/Items.php",
+    "find": "if ($settings->priceListsEnabled() && $this->mayEnterListPrices()) {",
+    "replace": "if ($settings->priceListsEnabled()) {",
+    "tests": [
+      "--filter",
+      "OffersAPriceForEachList",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G130 a list is assigned only by who holds the price lists module",
+    "file": "app/Controllers/Customers.php",
+    "find": " && $this->employee->has_grant('price_lists', $employeeId)) {\n                $this->priceList->assignTo",
+    "replace": ") {\n                $this->priceList->assignTo",
+    "tests": [
+      "--filter",
+      "DoesNotAssignAList",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G131 the credit terms are set only by who manages receivables",
+    "file": "app/Controllers/Customers.php",
+    "find": "            && $this->employee->has_grant(AccountingGuard::RECEIVABLES_MANAGE, $employeeId)\n            && (new BranchGuard",
+    "replace": "            && (new BranchGuard",
+    "tests": [
+      "--filter",
+      "DoesNotChangeTheCreditTermsForAnEmployeeWhoMayNotManageReceivables",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G132 the credit terms are set only from every branch",
+    "file": "app/Controllers/Customers.php",
+    "find": "AccountingGuard::RECEIVABLES_MANAGE, $employeeId)\n            && (new BranchGuard(null, $this->employee))->isUnrestricted($employeeId);",
+    "replace": "AccountingGuard::RECEIVABLES_MANAGE, $employeeId);",
+    "tests": [
+      "--filter",
+      "LimitedToSomeBranches",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G133 the credit terms are set only while accounting is on",
+    "file": "app/Controllers/Customers.php",
+    "find": "        return (new AccountingSettings())->isEnabled()\n            && $this->employee->has_grant(AccountingGuard::RECEIVABLES_MANAGE",
+    "replace": "        return $this->employee->has_grant(AccountingGuard::RECEIVABLES_MANAGE",
+    "tests": [
+      "--filter",
+      "WhileAccountingIsOffOrTheirControlIsOff",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G134 the credit days are saved only while their control is on",
+    "file": "app/Controllers/Customers.php",
+    "find": "$days  = $settings->creditPeriodEnabled() && $this->request->getPost('credit_period_days')",
+    "replace": "$days  = $this->request->getPost('credit_period_days')",
+    "tests": [
+      "--filter",
+      "KeepsTheDaysWhenOnlyTheLimitControlIsOn",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G135 the credit limit is saved only while its control is on",
+    "file": "app/Controllers/Customers.php",
+    "find": "$limit = $settings->creditLimitEnabled() && $this->request->getPost('credit_limit') !== null",
+    "replace": "$limit = $this->request->getPost('credit_limit') !== null",
+    "tests": [
+      "--filter",
+      "WhileAccountingIsOffOrTheirControlIsOff",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G140 the override of prices is a sensitive permission",
+    "file": "app/Libraries/Accounting/AccountingGuard.php",
+    "find": "        self::PRICE_OVERRIDE,\n        self::CREDIT_OVERRIDE,\n",
+    "replace": "        self::CREDIT_OVERRIDE,\n",
+    "tests": [
+      "--filter",
+      "Sensitive|Lists",
+      "tests/Libraries/Accounting/SensitivePermissionsTest.php",
+      "tests/Controllers/AccountingSetupControllerTest.php"
+    ]
+  },
+  {
+    "name": "G141 the override of the credit limit is a sensitive permission",
+    "file": "app/Libraries/Accounting/AccountingGuard.php",
+    "find": "        self::PRICE_OVERRIDE,\n        self::CREDIT_OVERRIDE,\n",
+    "replace": "        self::PRICE_OVERRIDE,\n",
+    "tests": [
+      "--filter",
+      "Sensitive|Lists",
+      "tests/Libraries/Accounting/SensitivePermissionsTest.php",
+      "tests/Controllers/AccountingSetupControllerTest.php"
+    ]
+  },
+  {
+    "name": "G142 the statement shows the credit days only while their control is on",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "'days' => $settings->creditPeriodEnabled() ? $terms['days'] : null",
+    "replace": "'days' => $terms['days']",
+    "tests": [
+      "--filter",
+      "ShowsNoCreditLimitAndNoCreditPeriod|ShowsOnlyTheLimit",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G143 the statement shows the credit limit only while its control is on",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "'limit' => $settings->creditLimitEnabled() ? $terms['limit'] : null",
+    "replace": "'limit' => $terms['limit']",
+    "tests": [
+      "--filter",
+      "ShowsNoCreditLimitAndNoCreditPeriod",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G150 taking the migration down refuses while anything of it is entered",
+    "file": "app/Database/Migrations/20272000000000_PricingAndCreditControls.php",
+    "find": "        $this->refuseWhileEntered();\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "Down_Refuses",
+      "tests/Database/PricingAndCreditControlsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G151 the name of a price list is unique in the database",
+    "file": "app/Database/Migrations/20272000000000_PricingAndCreditControls.php",
+    "find": "                UNIQUE KEY `{$lists}_name` (`name`),\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "CreatesTheListsAndTheirPrices",
+      "tests/Database/PricingAndCreditControlsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G152 the settings screen saves through the settings class that checks the permission",
+    "file": "app/Controllers/AccountingSetup.php",
+    "find": "            $this->controls->update($input, $this->employeeId());\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "PostSaveControls",
+      "tests/Controllers/AccountingSetupControllerTest.php"
+    ]
+  }
+]
