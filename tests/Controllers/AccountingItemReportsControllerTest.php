@@ -150,6 +150,8 @@ class AccountingItemReportsControllerTest extends CIUnitTestCase
         $this->save([$this->line($item, 0, '2', '10', '1')], [], [], SALE_TYPE_POS, $this->customerId);
         $this->reader();
 
+        $this->get(self::SCREEN . '/csv?from=nonsense')->assertStatus(422);
+
         $response = $this->get(self::SCREEN . '/csv?group=item&view=details');
         $body     = $response->response()->getBody();
 

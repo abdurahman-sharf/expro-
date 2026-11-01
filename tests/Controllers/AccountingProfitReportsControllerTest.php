@@ -163,6 +163,8 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
         $this->sell();
         $this->reader();
 
+        $this->get(self::PROFIT . '/csv?from=nonsense')->assertStatus(422);
+
         $rows = $this->csvRows($this->get(self::PROFIT . '/csv?group=item&view=details'));
         $flat = array_merge(...$rows);
 

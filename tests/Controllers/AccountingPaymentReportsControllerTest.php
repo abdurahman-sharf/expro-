@@ -113,6 +113,7 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
         $this->get(self::PAYMENTS . '?show=1')->assertRedirect();
         $this->get(self::PAYMENTS . '/csv')->assertRedirect();
         $this->get(self::ADVANCES)->assertRedirect();
+        $this->get(self::ADVANCES . '/csv')->assertRedirect();
 
         $this->reader(['reports_payments']);
 
@@ -153,6 +154,8 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
     {
         $this->pay();
         $this->reader();
+
+        $this->get(self::PAYMENTS . '/csv?from=nonsense')->assertStatus(422);
 
         $response = $this->get(self::PAYMENTS . '/csv?group=method&view=details');
         $flat     = array_merge(...$this->csvRows($response));

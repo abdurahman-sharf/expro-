@@ -221,4 +221,50 @@ class PaymentsReportTest extends CIUnitTestCase
         $this->assertTrue($table->isEmpty());
         $this->assertSame('0.0000', $table->total['amount']);
     }
+    public function testBuild_ShowsAPaymentIntoTheDefaultCashAccountThatIsNoTreasury(): void
+    {
+        $this->save([$this->line($this->item('0', false), 0, '1', '10')], [], [$this->payment(lang('Sales.cash'), '10')], SALE_TYPE_INVOICE, $this->customerId);
+
+        $table = $this->table(PaymentGroup::Treasury);
+
+        $this->assertSame('10.0000', $table->total['amount']);
+        $this->assertCount(1, $table->blocks[0]->rows);
+        $this->assertTrue($table->ties());
+    }
+
+    public function testBuild_LeavesOutTheRoundingOfASaleToTheCashDifference(): void
+    {
+        $this->save([$this->line($this->item('0', false), 0, '1', '10')], [], [$this->payment(lang('Sales.cash'), '10'), $this->payment(lang('Sales.cash_adjustment'), '0.02', '0', 1)], SALE_TYPE_INVOICE, $this->customerId);
+
+        $table = $this->table(PaymentGroup::Customer, true);
+
+        $this->assertSame('10.0000', $table->total['amount']);
+        $this->assertSame(1, $table->documents);
+    }
+
+    public function testBuild_LeavesOutAPaymentThatWasTakenOffTheSale(): void
+    {
+        $invoice = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [], SALE_TYPE_INVOICE, $this->customerId);
+        $payment = $this->addPayment($invoice, '60');
+
+        $this->assertSame('60.0000', $this->table(PaymentGroup::Customer)->total['amount']);
+
+        $this->removePayment($invoice, $payment);
+
+        $this->assertSame('0.0000', $this->table(PaymentGroup::Customer)->total['amount']);
+    }
+
+    public function testBuild_ReadsOnlyThePaymentsOfTheBranchesOfTheScope(): void
+    {
+        $second = $this->createBranch('PRB', 'Second payments branch');
+        $this->invoiceInBranch(1, '100', [$this->payment(lang('Sales.cash'), '100')], $this->customerId);
+        $this->invoiceInBranch($second, '70', [$this->payment(lang('Sales.cash'), '70')], $this->customerId);
+
+        $report = new PaymentsReport();
+        $of     = static fn (ReportScope $scope): string => $report->build($scope, PaymentGroup::Customer, false, '2020-01-01', date('Y-m-d'))->total['amount'];
+
+        $this->assertSame('170.0000', $of(ReportScope::resolve(null, null)));
+        $this->assertSame('100.0000', $of(ReportScope::resolve([1], null)));
+        $this->assertSame('70.0000', $of(ReportScope::resolve(null, [$second])));
+    }
 }

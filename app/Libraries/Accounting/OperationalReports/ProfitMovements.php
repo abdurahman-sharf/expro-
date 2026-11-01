@@ -55,11 +55,7 @@ final class ProfitMovements
                 continue;
             }
 
-            $row = $this->row($document, $movement, $item);
-
-            if ($row !== null) {
-                $rows[] = $row;
-            }
+            $rows[] = $this->row($document, $movement, $item);
         }
 
         usort($rows, static fn (ProfitRow $a, ProfitRow $b): int => [$a->date, $a->saleId, $a->itemId] <=> [$b->date, $b->saleId, $b->itemId]);
@@ -132,7 +128,7 @@ final class ProfitMovements
     /**
      * @param array{name: string, number: string, category: string} $item
      */
-    private function row(ReportDocument $document, object $movement, array $item): ?ProfitRow
+    private function row(ReportDocument $document, object $movement, array $item): ProfitRow
     {
         $sign     = $document->kind->sign();
         $decimals = totals_decimals();
@@ -142,10 +138,6 @@ final class ProfitMovements
             if ($saleLine->itemId === (int) $movement->item_id && $saleLine->hasStock) {
                 $lines[] = ReportLine::of($saleLine, $sign, $decimals);
             }
-        }
-
-        if ($lines === []) {
-            return null;
         }
 
         $moved  = ltrim((string) $movement->quantity, '-');

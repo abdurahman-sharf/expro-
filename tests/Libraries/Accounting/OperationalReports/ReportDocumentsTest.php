@@ -5,6 +5,9 @@ namespace Tests\Libraries\Accounting\OperationalReports;
 use App\Libraries\Accounting\OperationalReports\DocumentKind;
 use App\Libraries\Accounting\OperationalReports\ReportDocuments;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\SalesDebitNotes;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -161,5 +164,86 @@ class ReportDocumentsTest extends CIUnitTestCase
 
         $this->assertSame([$note], array_map(static fn ($document): int => $document->id, $reader->returnsOf($scope, [$invoice])[$invoice]));
         $this->assertSame([$orphan], array_map(static fn ($document): int => $document->id, $reader->orphanReturns($scope, '2020-01-01', date('Y-m-d'))));
+    }
+    public function testRead_LeavesOutASaleThatIsNotCompletedEvenWhileAJournalStandsForIt(): void
+    {
+        $sale = $this->invoiceOf('10', $this->customerId);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $sale)->update(['sale_status' => SUSPENDED]);
+
+        $this->assertSame([], $this->read());
+    }
+
+    public function testRead_CountsOnlyThePaymentsWhoseJournalsStand(): void
+    {
+        $invoice = $this->invoiceOf('100', $this->customerId);
+        $payment = $this->addPayment($invoice, '60');
+
+        $this->assertSame('60.0000', $this->read()[0]->paid());
+
+        $this->removePayment($invoice, $payment);
+
+        $this->assertSame('0.0000', $this->read()[0]->paid());
+    }
+
+    public function testRead_CountsOnlyTheReturnsWhoseJournalsStand(): void
+    {
+        $invoice = $this->invoiceOf('115', $this->customerId, [$this->payment(lang('Sales.cash'), '115')]);
+        $note    = $this->creditNoteOf($invoice, '30', $this->customerId);
+
+        $this->assertSame('30.0000', $this->read(null, '2020-01-01', null, [DocumentKind::Invoice])[0]->returnedAll());
+
+        $journal = $this->accountingDb()->table('accounting_journals')->select('journal_id')->where(['source_type' => 'sale', 'source_id' => $note, 'entry_type' => 'revenue'])->get()->getRow();
+
+        (new JournalService())->reverseAutomatic((int) $journal->journal_id, date('Y-m-d'), 'Taken back', null);
+
+        $this->assertSame('0.0000', $this->read(null, '2020-01-01', null, [DocumentKind::Invoice])[0]->returnedAll());
+        $this->assertCount(1, $this->read());
+    }
+
+    public function testRead_LeavesOutCreditThatWasReleasedFromAnInvoice(): void
+    {
+        $invoice = $this->invoiceOf('115', $this->customerId, [$this->payment(lang('Sales.cash'), '100')]);
+        $this->creditNoteOf($invoice, '57.50', $this->customerId);
+
+        $this->assertSame('115.0000', $this->read(null, '2020-01-01', null, [DocumentKind::Invoice])[0]->paid());
+
+        $this->accountingDb()->table('customer_credit_applications')->update(['released_at' => date('Y-m-d H:i:s')]);
+
+        $this->assertSame('100.0000', $this->read(null, '2020-01-01', null, [DocumentKind::Invoice])[0]->paid());
+    }
+
+    public function testRead_ReadsOnlyTheKindsAskedFor(): void
+    {
+        $invoice = $this->invoiceOf('115', $this->customerId);
+        $this->creditNoteOf($invoice, '30', $this->customerId);
+        $this->refundInvoiceOf($invoice, '20', $this->customerId);
+
+        $kinds = static fn (array $documents): array => array_map(static fn ($document): string => $document->kind->value, $documents);
+
+        $this->assertSame(['invoice'], $kinds($this->read(null, '2020-01-01', null, [DocumentKind::Invoice])));
+        $this->assertSame(['credit_note'], $kinds($this->read(null, '2020-01-01', null, [DocumentKind::CreditNote])));
+        $this->assertSame(['refund_invoice'], $kinds($this->read(null, '2020-01-01', null, [DocumentKind::RefundInvoice])));
+        $this->assertCount(3, $this->read());
+    }
+    public function testRead_ReadsADebitNoteOfTheBranchesOfTheScopeOnly(): void
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $second = $this->createBranch('DNB', 'Second debit note branch');
+        $clerk  = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+        $notes  = new SalesDebitNotes();
+
+        $notes->create(['customer_id' => $this->customerId, 'date' => date('Y-m-d'), 'amount' => '10', 'branch_id' => 1], $clerk);
+        $notes->create(['customer_id' => $this->customerId, 'date' => date('Y-m-d'), 'amount' => '20', 'branch_id' => $second], $clerk);
+
+        $totals = static fn (array $documents): array => array_map(static fn ($document): string => $document->total, $documents);
+
+        $this->assertSame(['10.0000', '20.0000'], $totals($this->read(null, '2020-01-01', null, [DocumentKind::DebitNote])));
+        $this->assertSame(['10.0000'], $totals($this->read(ReportScope::resolve([1], null), '2020-01-01', null, [DocumentKind::DebitNote])));
+        $this->assertSame(['20.0000'], $totals($this->read(ReportScope::resolve(null, [$second]), '2020-01-01', null, [DocumentKind::DebitNote])));
+        $this->assertSame([], $this->read(ReportScope::resolve(null, []), '2020-01-01', null, [DocumentKind::DebitNote]));
+
+        $this->accountingDb()->table('app_config')->where('key', 'accounting_debit_note')->delete();
     }
 }

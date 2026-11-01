@@ -7,6 +7,8 @@ use App\Libraries\Accounting\OperationalReports\ItemGroup;
 use App\Libraries\Accounting\OperationalReports\ItemSalesReport;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\HeaderCharges;
+use App\Libraries\ShippingTaxOption;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -191,5 +193,44 @@ class ItemSalesReportTest extends CIUnitTestCase
         $this->assertContains('date', $byItem);
         $this->assertNotContains('date', $byDay);
         $this->assertSame(['item', 'unit_price', 'quantity', 'discount', 'tax', 'total'], $sum);
+    }
+    public function testBuild_SplitsTheTaxThatIsInsideThePriceFromTheValue(): void
+    {
+        $this->save([$this->line($this->cream, 0, '1', '115', '40')], [$this->taxRow($this->cream, 0, 'VAT', '15', 0, '15')], [], SALE_TYPE_INVOICE, $this->customerId);
+
+        $row = $this->rowNamed($this->table(), 'Cream');
+
+        $this->assertSame(['15.0000', '115.0000'], [$row['tax'], $row['total']]);
+        $this->assertTrue($this->table()->ties());
+    }
+
+    public function testBuild_CountsTheShareOfTheDiscountOnTheWholeInvoiceInTheDiscountOfTheLine(): void
+    {
+        $cycle = $this->discountedReferenceInvoice();
+        $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, $this->customerId, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+
+        $table = $this->table();
+
+        $this->assertSame('101.0000', $table->total['discount']);
+        $this->assertSame('734.8500', $table->total['total']);
+        $this->assertTrue($table->ties());
+    }
+
+    public function testBuild_TiesTheLinesToTheJournalsWithoutTheHeaderCharges(): void
+    {
+        $this->setConfigValue('accounting_sales_adjustment', '1');
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', '15');
+
+        $cycle = $this->referenceInvoice();
+        $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, $this->customerId, true, null, COMPLETED, NEW_ENTRY, null, headerCharges: new HeaderCharges('Handling', '-10', '20', ShippingTaxOption::Added, '15'));
+
+        $table = $this->table();
+
+        $this->assertSame('816.5000', $table->total['total']);
+        $this->assertTrue($table->ties());
+        $this->assertSame('839.5000', bcadd($table->ties[0]->ledger, '23', 4));
+
+        $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent'])->delete();
     }
 }

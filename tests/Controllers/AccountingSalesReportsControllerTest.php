@@ -278,6 +278,7 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->reader(['accounting_reports', 'reports_sales']);
 
         $this->get(self::CLIENTS . '?show=1')->assertRedirect();
+        $this->get(self::CLIENTS . '/csv')->assertRedirect();
 
         $this->reader(['accounting_reports', 'reports_customers']);
 
@@ -303,6 +304,8 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
     {
         $this->sell();
         $this->reader();
+
+        $this->get(self::CLIENTS . '/csv?from=nonsense')->assertStatus(422);
 
         $rows = $this->csvRows($this->get(self::CLIENTS . '/csv?group=document'));
 

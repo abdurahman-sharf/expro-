@@ -7,6 +7,7 @@ use App\Libraries\Accounting\OperationalReports\AdvancePaymentsReport;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -108,5 +109,21 @@ class AdvancePaymentsReportTest extends CIUnitTestCase
         $table = (new AdvancePaymentsReport())->build(ReportScope::resolve(null, []), '2020-01-01', date('Y-m-d'));
 
         $this->assertTrue($table->isEmpty());
+    }
+    public function testBuild_ReadsOnlyTheAdvancesOfTheBranchesOfTheScope(): void
+    {
+        $second = $this->createBranch('ADB', 'Second advances branch');
+        $drawer = (new TreasuryService())->create(['name' => 'Advance drawer', 'kind' => 'cash', 'branch_id' => $second]);
+        $teller = $this->teller();
+
+        (new CustomerAdvances())->receive($this->customerId, '50', date('Y-m-d'), 'Cash', null, '', '', $teller);
+        (new CustomerAdvances())->receive($this->customerId, '70', date('Y-m-d'), 'Cash', $drawer, '', '', $teller);
+
+        $report = new AdvancePaymentsReport();
+        $of     = static fn (ReportScope $scope): string => $report->build($scope, '2020-01-01', date('Y-m-d'))->total['amount'];
+
+        $this->assertSame('120.0000', $of(ReportScope::resolve(null, null)));
+        $this->assertSame('50.0000', $of(ReportScope::resolve([1], null)));
+        $this->assertSame('70.0000', $of(ReportScope::resolve(null, [$second])));
     }
 }

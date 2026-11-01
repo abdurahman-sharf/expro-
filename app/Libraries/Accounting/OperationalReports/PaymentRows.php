@@ -44,7 +44,7 @@ final class PaymentRows
         [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', null);
         $lines                         = $this->db->prefixTable('accounting_journal_lines');
         $accounts                      = $this->db->prefixTable('accounting_accounts');
-        $receivable                    = "(a.entity_type = '" . EntityAccountService::CUSTOMER . "' OR a.account_id = ?)";
+        $receivable                    = "(COALESCE(a.entity_type, '') = '" . EntityAccountService::CUSTOMER . "' OR a.account_id = ?)";
 
         $where    = ['p.cash_adjustment = 0', 'j.journal_date <= ?', 'j.branch_id IN (' . implode(',', array_map('intval', $scope->ids)) . ')'];
         $bindings = [$to];

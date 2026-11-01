@@ -188,4 +188,60 @@ class ProfitReportTest extends CIUnitTestCase
         $this->assertTrue($table->isEmpty());
         $this->assertSame('0.0000', $table->total['profit']);
     }
+    public function testBuild_ReadsOnlyTheBranchesOfTheScopeAndTiesTheCostOfThem(): void
+    {
+        $second = $this->createBranch('PFB', 'Second profit branch');
+        $first  = $this->item('10');
+        $other  = $this->item('20');
+
+        $this->save([$this->line($first, 0, '1', '30', '10')], [], [], SALE_TYPE_POS, $this->customerId);
+        $store = $this->branchLocation($second);
+
+        $this->save([$this->line($other, 0, '1', '50', '20', '0', PERCENT, $store)], [], [], SALE_TYPE_POS, $this->customerId);
+
+        $report = new ProfitReport();
+        $of     = static fn (ReportScope $scope): ReportTable => $report->build($scope, ItemGroup::Item, false, '2020-01-01', date('Y-m-d'));
+
+        $this->assertSame('50.0000', $of(ReportScope::resolve(null, null))->total['profit']);
+        $this->assertSame('20.0000', $of(ReportScope::resolve([1], null))->total['profit']);
+        $this->assertSame('30.0000', $of(ReportScope::resolve(null, [$second]))->total['profit']);
+        $this->assertTrue($of(ReportScope::resolve([1], null))->ties());
+        $this->assertSame('10.0000', $of(ReportScope::resolve([1], null))->ties[0]->ledger);
+
+        $this->accountingDb()->table('item_quantities')->where('location_id', $store)->delete();
+        $this->accountingDb()->table('inventory')->where('trans_location', $store)->delete();
+    }
+
+    public function testBuild_LeavesOutTheMovementsOfASaleThatWasCancelled(): void
+    {
+        $item = $this->item('10');
+        $kept = $this->save([$this->line($item, 0, '1', '30', '10')], [], [], SALE_TYPE_POS, $this->customerId);
+        $gone = $this->save([$this->line($item, 0, '2', '30', '10')], [], [], SALE_TYPE_POS, $this->customerId);
+
+        $this->assertSame('30.0000', $this->table()->total['cost']);
+        $this->assertTrue($this->sales->delete($gone, false, true, $this->employeeId));
+
+        $table = $this->table();
+
+        $this->assertSame('10.0000', $table->total['cost']);
+        $this->assertSame('20.0000', $table->total['profit']);
+        $this->assertTrue($table->ties());
+        $this->assertGreaterThan(0, $kept);
+    }
+
+    public function testBuild_CountsOnlyTheUnitsThatMovedWhenSomeOfThemCameBackBeforeTheDelivery(): void
+    {
+        $item    = $this->item('10');
+        $invoice = $this->save([$this->line($item, 0, '2', '30', '10')], [], [], SALE_TYPE_INVOICE, $this->customerId, false);
+        $this->save([$this->line($item, 0, '-1', '30', '10')], [], [], SALE_TYPE_RETURN, $this->customerId, true, $invoice);
+
+        $this->assertGreaterThan(0, $this->sales->confirm_delivery($invoice, $this->employeeId));
+
+        $table = $this->table();
+        $rows  = $this->rows($table);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(['1.0000', '10.0000', '30.0000', '20.0000'], [$rows[0]['quantity'], $rows[0]['cost'], $rows[0]['sale_price'], $rows[0]['profit']]);
+        $this->assertTrue($table->ties());
+    }
 }
