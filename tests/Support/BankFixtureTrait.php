@@ -114,4 +114,51 @@ trait BankFixtureTrait
     {
         return (int) $this->accountingDb()->table('bank_statement_lines')->where(['treasury_id' => $treasuryId ?? $this->bankId, 'description' => $description])->get()->getRow()->line_id;
     }
+
+    /**
+     * Runs the action while a second request, a process of its own, holds the row of the bank account
+     * and then commits the statements. The action starts at once and so waits for the lock, which is
+     * what two requests that overlap do.
+     *
+     * @param list<string> $statements What the other request commits before it lets go.
+     */
+    protected function whileAnotherRequestCommits(array $statements, callable $action, ?int $treasuryId = null, int $holdMilliseconds = 1200): void
+    {
+        $db  = $this->accountingDb();
+        $job = json_encode([
+            'hostname'   => $db->hostname,
+            'username'   => $db->username,
+            'password'   => $db->password,
+            'database'   => $db->database,
+            'port'       => (int) ($db->port ?: 3306),
+            'lock'       => 'SELECT treasury_id FROM ' . $db->prefixTable('treasuries') . ' WHERE treasury_id = ' . ($treasuryId ?? $this->bankId) . ' FOR UPDATE',
+            'hold'       => $holdMilliseconds,
+            'statements' => $statements,
+        ], JSON_THROW_ON_ERROR);
+
+        $process = proc_open([PHP_BINARY, __DIR__ . '/bank_lock_holder.php', $job], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+
+        $this->assertIsResource($process);
+
+        try {
+            $read   = [$pipes[1]];
+            $write  = null;
+            $except = null;
+
+            $this->assertSame(1, stream_select($read, $write, $except, 10), 'The other request did not take the bank account.');
+            $this->assertSame("locked\n", fgets($pipes[1]));
+
+            $action();
+        } finally {
+            $output = (string) stream_get_contents($pipes[1]);
+            $errors = (string) stream_get_contents($pipes[2]);
+
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+
+            $exit = proc_close($process);
+        }
+
+        $this->assertSame([0, "committed\n"], [$exit, $output], $errors);
+    }
 }

@@ -39,24 +39,26 @@ final class BankAccess
 
     /**
      * The bank account, after the permission and the scope are checked. With $lock the row of the
-     * treasury is locked, which is what serialises every change of the statements of one account.
+     * treasury is locked, which is what serialises every change of the statements of one account. The
+     * lock comes before anything is read: the snapshot a transaction reads from starts at its first
+     * plain read, so whatever is read after a wait for the lock is what its holder committed.
      *
      * @throws AccountingException
      */
     public function bankAccount(int $treasuryId, ?int $employeeId, bool $lock = false): object
     {
+        if ($lock) {
+            $table = $this->db->prefixTable('treasuries');
+
+            LockedRead::row($this->db, "SELECT treasury_id FROM {$table} WHERE company_id = ? AND treasury_id = ? FOR UPDATE", [CompanyContext::id(), $treasuryId]);
+        }
+
         $this->requirePermission($employeeId);
 
         $treasury = $this->treasuries->find($treasuryId);
 
         if ($treasury === null || ! $this->canSee($treasury, $employeeId)) {
             throw new AccountingException(AccountingError::BankAccountNotFound, "Bank account {$treasuryId} does not exist.", ['treasury_id' => $treasuryId]);
-        }
-
-        if ($lock) {
-            $table = $this->db->prefixTable('treasuries');
-
-            LockedRead::row($this->db, "SELECT treasury_id FROM {$table} WHERE company_id = ? AND treasury_id = ? FOR UPDATE", [CompanyContext::id(), $treasuryId]);
         }
 
         return $treasury;

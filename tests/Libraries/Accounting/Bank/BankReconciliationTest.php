@@ -971,6 +971,135 @@ class BankReconciliationTest extends CIUnitTestCase
         $this->assertSame(1, $this->lineCount());
     }
 
+    private function branchOfTheBank(): int
+    {
+        return (int) $this->bankTreasuries->find($this->bankId)->branch_id;
+    }
+
+    private function closingSql(string $through): string
+    {
+        return 'INSERT INTO ' . $this->accountingDb()->prefixTable('bank_reconciliations') . ' (company_id, branch_id, treasury_id, closed_through, statement_balance, book_balance, difference, match_count, status) VALUES (1, ' . $this->branchOfTheBank() . ', ' . $this->bankId . ", '{$through}', 0, 0, 0, 0, 'closed')";
+    }
+
+    private function matchSql(int $statementLine, int $journalLine, string $amount): array
+    {
+        $db = $this->accountingDb();
+
+        return [
+            'INSERT INTO ' . $db->prefixTable('bank_matches') . ' (company_id, branch_id, treasury_id, statement_line_id, amount, method) VALUES (1, ' . $this->branchOfTheBank() . ', ' . $this->bankId . ", {$statementLine}, {$amount}, 'manual')",
+            'INSERT INTO ' . $db->prefixTable('bank_match_lines') . " (match_id, journal_line_id, amount) VALUES (LAST_INSERT_ID(), {$journalLine}, {$amount})",
+        ];
+    }
+
+    public function testImport_RefusesALineInsideAClosingThatWasCommittedWhileItWaitedForTheBankAccount(): void
+    {
+        $this->importStatement($this->statementText([['2026-03-01', 'First', '10.00', '', 'A']]));
+
+        $this->whileAnotherRequestCommits([$this->closingSql('2026-03-31')], function (): void {
+            $this->assertSame(AccountingError::BankStatementClosedRange, $this->refusal(fn () => $this->importStatement($this->statementText([['2026-03-20', 'Inside', '20.00', '', 'B']])))->error);
+        });
+
+        $this->assertSame(1, $this->lineCount());
+    }
+
+    public function testMatch_RefusesAMatchInsideAClosingThatWasCommittedWhileItWaitedForTheBankAccount(): void
+    {
+        $journalLine = $this->bookLine('100.00', '2026-03-10');
+        $this->importStatement($this->statementText([['2026-03-10', 'Deposit A', '100.00', '', 'A']]));
+        $statement = $this->statementLineId('Deposit A');
+
+        $this->whileAnotherRequestCommits([$this->closingSql('2026-03-31')], function () use ($statement, $journalLine): void {
+            $this->assertSame(AccountingError::BankMatchClosedRange, $this->refusal(fn () => $this->bank->match($this->bankId, $statement, [$journalLine], $this->bankClerk))->error);
+        });
+
+        $this->assertSame(0, $this->accountingDb()->table('bank_matches')->countAllResults());
+    }
+
+    public function testUnmatch_RefusesAMatchThatAClosingHeldWhileItWaitedForTheBankAccount(): void
+    {
+        [, , $matchId] = $this->matchedDeposit();
+        $db            = $this->accountingDb();
+
+        $this->whileAnotherRequestCommits([
+            $this->closingSql('2026-03-31'),
+            'UPDATE ' . $db->prefixTable('bank_matches') . ' SET reconciliation_id = LAST_INSERT_ID() WHERE match_id = ' . $matchId,
+        ], function () use ($matchId): void {
+            $this->assertSame(AccountingError::BankMatchLocked, $this->refusal(fn () => $this->bank->unmatch($this->bankId, $matchId, $this->bankClerk))->error);
+        });
+
+        $this->assertSame(1, $db->table('bank_matches')->countAllResults());
+    }
+
+    public function testClose_HoldsAMatchThatWasCommittedWhileItWaitedForTheBankAccount(): void
+    {
+        $this->bookLine('1000.00', '2026-01-15');
+        $this->bookLine('200.00', '2026-03-01');
+        $fee = $this->bookLine('-50.00', '2026-03-05', 'Bank fee');
+        $this->importStatement($this->statementText([['2026-03-02', 'Customer A transfer', '200.00', '', 'INV-1'], ['2026-03-05', 'Bank fee', '', '50.00', 'FEE-3']]));
+        $this->bank->match($this->bankId, $this->statementLineId('Customer A transfer'), [(int) $this->accountingDb()->table('accounting_journal_lines')->where('debit', '200.0000')->get()->getRow()->line_id], $this->bankClerk);
+
+        $closing = 0;
+
+        $this->whileAnotherRequestCommits($this->matchSql($this->statementLineId('Bank fee'), $fee, '-50.0000'), function () use (&$closing): void {
+            $closing = $this->bank->close($this->bankId, '2026-03-31', '1150.00', $this->bankClerk);
+        });
+
+        $this->assertSame(2, (int) $this->accountingDb()->table('bank_reconciliations')->where('reconciliation_id', $closing)->get()->getRow()->match_count);
+        $this->assertSame([$closing, $closing], array_map('intval', array_column($this->accountingDb()->table('bank_matches')->orderBy('match_id')->get()->getResultArray(), 'reconciliation_id')));
+    }
+
+    public function testClose_RefusesTheDateOfAClosingThatWasCommittedWhileItWaitedForTheBankAccount(): void
+    {
+        $this->reconciliationScenario();
+
+        $this->whileAnotherRequestCommits([$this->closingSql('2026-03-31')], function (): void {
+            $refusal = $this->refusal(fn () => $this->bank->close($this->bankId, '2026-03-31', '1150.00', $this->bankClerk));
+
+            $this->assertSame(AccountingError::BankReconciliationDateInvalid, $refusal->error);
+            $this->assertSame('2026-03-31', $refusal->context['until']);
+        });
+
+        $this->assertSame(1, $this->accountingDb()->table('bank_reconciliations')->countAllResults());
+    }
+
+    public function testReopen_RefusesAClosingThatWasReopenedWhileItWaitedForTheBankAccount(): void
+    {
+        $this->reconciliationScenario();
+        $closing = $this->bank->close($this->bankId, '2026-03-31', '1150.00', $this->bankClerk);
+        $db      = $this->accountingDb();
+
+        $this->whileAnotherRequestCommits([
+            'UPDATE ' . $db->prefixTable('bank_matches') . ' SET reconciliation_id = NULL WHERE reconciliation_id = ' . $closing,
+            'UPDATE ' . $db->prefixTable('bank_reconciliations') . " SET status = 'reopened', reopen_reason = 'First' WHERE reconciliation_id = " . $closing,
+        ], function () use ($closing): void {
+            $this->assertSame(AccountingError::BankReconciliationReopened, $this->refusal(fn () => $this->bank->reopen($closing, 'Second', $this->bankClerk))->error);
+        });
+
+        $this->assertSame('First', $db->table('bank_reconciliations')->get()->getRow()->reopen_reason);
+        $this->assertSame(0, $db->table('accounting_audit_log')->where('action', 'bank_reconciliation_reopened')->countAllResults());
+    }
+
+    public function testUnmatch_IsRefusedToWhoMayNotSeeTheAccountWithoutWaitingForTheLock(): void
+    {
+        [, , $matchId] = $this->matchedDeposit();
+        $second        = $this->createBranch('B2', 'Second branch');
+        $outsider      = $this->employeeWithGrants([AccountingGuard::BANK_RECONCILE], [$second]);
+        $other         = $this->holdTheBank($this->bankId);
+
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $this->assertSame(AccountingError::BankAccountNotFound, $this->refusal(fn () => $this->bank->unmatch($this->bankId, $matchId, $outsider))->error);
+            $this->assertSame(AccountingError::PermissionDenied, $this->refusal(fn () => $this->bank->unmatch($this->bankId, $matchId, $this->employeeWithGrants([])))->error);
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+        }
+
+        $this->assertSame(1, $this->accountingDb()->table('bank_matches')->countAllResults());
+    }
+
     public function testOperations_LookAtTheAccountBeforeTheyLookAtWhatTheyWereGiven(): void
     {
         $second   = $this->createBranch('B2', 'Second branch');
