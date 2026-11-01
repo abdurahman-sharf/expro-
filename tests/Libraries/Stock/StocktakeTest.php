@@ -1,0 +1,676 @@
+<?php
+
+namespace Tests\Libraries\Stock;
+
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Stock\StockPermit;
+use App\Libraries\Stock\StockPermissions;
+use App\Libraries\Stock\StockPermitSources;
+use App\Libraries\Stock\Stocktake;
+use CodeIgniter\Test\CIUnitTestCase;
+use CodeIgniter\Test\DatabaseTestTrait;
+use Config\Database;
+use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
+use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
+use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\ShelfFixtureTrait;
+use Tests\Support\StockDocumentFixtureTrait;
+
+/**
+ * The stocktake: the quantities it freezes when the count starts, the counts entered against them, and
+ * the approval that posts what was found over and short as stock adjustments, with the shelves, the
+ * books, the permissions, the branches and the closed periods that go with it, and its cancellation.
+ */
+class StocktakeTest extends CIUnitTestCase
+{
+    use DatabaseTestTrait;
+    use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
+    use EmployeeFixtureTrait;
+    use ItemFixtureTrait;
+    use PurchaseAccountingFixtureTrait;
+    use SaleAccountingFixtureTrait;
+    use ShelfFixtureTrait;
+    use StockDocumentFixtureTrait;
+
+    protected $migrate     = true;
+    protected $migrateOnce = true;
+    protected $refresh     = false;
+    protected $namespace   = null;
+
+    private Stocktake $takes;
+
+    public static function setUpBeforeClass(): void
+    {
+        $seeder = Database::seeder('tests');
+        $seeder->call('TestDatabaseBootstrapSeeder');
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->startStockDocuments();
+        $this->takes = new Stocktake();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->stopStockDocuments();
+        $this->stopBuying();
+
+        parent::tearDown();
+    }
+
+    /**
+     * @param list<int> $itemIds
+     */
+    private function start(array $itemIds, array $more = []): int
+    {
+        return $this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d'), 'item_ids' => $itemIds, ...$more], $this->keeperId);
+    }
+
+    /**
+     * @param array<int, string> $counted
+     */
+    private function countAll(int $stocktakeId, array $counted): void
+    {
+        $this->takes->count($stocktakeId, $counted, $this->keeperId);
+    }
+
+    private function refusedWith(AccountingError $error, callable $action): void
+    {
+        try {
+            $action();
+            $this->fail('The change should have been refused with ' . $error->value . '.');
+        } catch (AccountingException $exception) {
+            $this->assertSame($error, $exception->error);
+        }
+    }
+
+    public function testCreate_FreezesWhatTheSystemHoldsOfEachItemListedAtTheMomentTheCountStarts(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first, $second]);
+
+        $this->assertSame(['10.000', '4.000'], array_map(static fn (object $line): string => bcadd((string) $line->system_quantity, '0', 3), $this->orderedLines($stocktakeId, [$first, $second])));
+
+        $this->assertGreaterThan(0, (new StockPermit())->create(['type' => 'issue', 'date' => date('Y-m-d'), 'location_id' => self::LOCATION_ID, 'lines' => [['item_id' => $first, 'quantity' => '3']]], $this->keeperId));
+
+        $this->assertSame('10.000', bcadd((string) $this->orderedLines($stocktakeId, [$first])[0]->system_quantity, '0', 3), 'what was frozen stays frozen when the shelf moves');
+        $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
+        $this->assertSame($this->keeperId, (int) $this->takes->find($stocktakeId)->created_by);
+    }
+
+    /**
+     * @param list<int> $itemIds
+     *
+     * @return list<object>
+     */
+    private function orderedLines(int $stocktakeId, array $itemIds): array
+    {
+        $lines = [];
+
+        foreach ($this->takes->lines($stocktakeId) as $line) {
+            $lines[(int) $line->item_id] = $line;
+        }
+
+        return array_map(static fn (int $itemId): object => $lines[$itemId], $itemIds);
+    }
+
+    public function testCreate_ListsEveryStockItemOfTheLocationWhenAskedToCountThemAll(): void
+    {
+        $this->emptyShelves();
+
+        try {
+            $first   = $this->stocked('10', '50');
+            $second  = $this->item('5.00');
+            $service = $this->item('1.00', false);
+            $this->putOnShelf($second, '3');
+            $this->putOnShelf($service, '9');
+
+            $stocktakeId = $this->takes->create(['location_id' => self::LOCATION_ID, 'all_items' => true], $this->keeperId);
+            $listed      = array_map(static fn (object $line): int => (int) $line->item_id, $this->takes->lines($stocktakeId));
+
+            $this->assertEqualsCanonicalizing([$first, $second], $listed, 'every stock item with a shelf here, and no item that keeps no stock');
+        } finally {
+            $this->restoreShelves();
+        }
+    }
+
+    public function testCreate_AllowsAnEmptySheetAndAddItemsFreezesWhatTheSystemHoldsWhenTheyAreAdded(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([]);
+
+        $this->assertSame([], $this->takes->lines($stocktakeId));
+
+        $this->takes->addItems($stocktakeId, [$first], $this->keeperId);
+        $this->assertGreaterThan(0, (new StockPermit())->create(['type' => 'issue', 'date' => date('Y-m-d'), 'location_id' => self::LOCATION_ID, 'lines' => [['item_id' => $second, 'quantity' => '1']]], $this->keeperId));
+        $this->takes->addItems($stocktakeId, [$first, $second], $this->keeperId);
+
+        $this->assertSame(['10.000', '3.000'], array_map(static fn (object $line): string => bcadd((string) $line->system_quantity, '0', 3), $this->orderedLines($stocktakeId, [$first, $second])), 'an item listed already keeps what it froze, a new one freezes what is there now');
+    }
+
+    public function testCreate_GivesOneStocktakeToALocationForADayWhileItStands(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $second = $this->openLocation();
+
+        $first = $this->start([$itemId]);
+
+        $this->refusedWith(AccountingError::StocktakeExists, fn () => $this->start([$itemId]));
+        $this->assertGreaterThan(0, $this->takes->create(['location_id' => $second, 'date' => date('Y-m-d')], $this->keeperId), 'another location may be counted the same day');
+        $this->assertGreaterThan(0, $this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d', strtotime('-1 day'))], $this->keeperId), 'the same location another day');
+
+        $this->takes->cancel($first, 'started by mistake', $this->keeperId);
+
+        $this->assertGreaterThan(0, $this->start([$itemId]), 'a cancelled stocktake frees its day');
+    }
+
+    public function testCreate_ARefusedSecondStocktakeLeavesTheFirstAsItWas(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $first  = $this->start([$itemId]);
+
+        $this->refusedWith(AccountingError::StocktakeExists, fn () => $this->start([$itemId]));
+
+        $this->assertSame(1, $this->countRows('stocktakes'));
+        $this->assertSame(1, $this->countRows('stocktake_lines'));
+        $this->assertSame('counting', $this->takes->find($first)->status);
+    }
+
+    public function testCreate_RequiresThePermissionTheLocationAndTheBranch(): void
+    {
+        $other  = $this->createBranch();
+        $itemId = $this->stocked('10', '50');
+
+        $this->refusedWith(AccountingError::PermissionDenied, fn () => $this->takes->create(['location_id' => self::LOCATION_ID, 'item_ids' => [$itemId]], $this->keeper(null, [StockPermissions::MODULE, 'items_stock'])));
+        $this->refusedWith(AccountingError::StockLocationDenied, fn () => $this->takes->create(['location_id' => self::LOCATION_ID, 'item_ids' => [$itemId]], $this->keeper(null, [StockPermissions::STOCKTAKE_MANAGE])));
+
+        try {
+            $this->takes->create(['location_id' => self::LOCATION_ID, 'item_ids' => [$itemId]], $this->keeper([$other]));
+            $this->fail('An employee of another branch must be refused.');
+        } catch (BranchException) {
+            $this->assertSame(0, $this->countRows('stocktakes'));
+        }
+    }
+
+    public function testCreate_RefusesWhatIsNotAValidCount(): void
+    {
+        $itemId  = $this->stocked('10', '50');
+        $service = $this->item('1.00', false);
+
+        $this->refusedWith(AccountingError::InvalidDate, fn () => $this->start([$itemId], ['date' => '2026-02-31']));
+        $this->refusedWith(AccountingError::InvalidDate, fn () => $this->start([$itemId], ['date' => date('Y-m-d', strtotime('+1 day'))]));
+        $this->refusedWith(AccountingError::StockPermitNoteTooLong, fn () => $this->start([$itemId], ['note' => str_repeat('x', 501)]));
+        $this->refusedWith(AccountingError::StocktakeLinesInvalid, fn () => $this->start([$service]));
+        $this->refusedWith(AccountingError::StocktakeLinesInvalid, fn () => $this->start([999999]));
+        $this->refusedWith(AccountingError::StockPermitLocationInvalid, fn () => $this->takes->create(['location_id' => 999999], $this->keeperId));
+        $this->assertSame(0, $this->countRows('stocktakes'));
+    }
+
+    public function testCount_EntersWhatWasCountedAndTakesBackAQuantityWhenItIsEmptied(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first, $second]);
+
+        $this->countAll($stocktakeId, [$first => '8', $second => '4.5']);
+
+        $this->assertSame(['8.000', '4.500'], array_map(static fn (object $line): string => bcadd((string) $line->counted_quantity, '0', 3), $this->orderedLines($stocktakeId, [$first, $second])));
+
+        $this->countAll($stocktakeId, [$first => '']);
+
+        $this->assertNull($this->orderedLines($stocktakeId, [$first])[0]->counted_quantity);
+    }
+
+    public function testCount_RefusesAQuantityThatIsNotANumberOfZeroOrMoreAndAnItemNotOnTheSheet(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first]);
+
+        foreach (['-1', 'abc', '1.0001', '1e3'] as $bad) {
+            $this->refusedWith(AccountingError::StocktakeLinesInvalid, fn () => $this->countAll($stocktakeId, [$first => $bad]));
+        }
+
+        $this->refusedWith(AccountingError::StocktakeLinesInvalid, fn () => $this->countAll($stocktakeId, [$second => '1']));
+        $this->assertNull($this->orderedLines($stocktakeId, [$first])[0]->counted_quantity);
+        $this->assertGreaterThan(0, bccomp('1', '0'));
+        $this->countAll($stocktakeId, [$first => '0']);
+        $this->assertSame('0.000', bcadd((string) $this->orderedLines($stocktakeId, [$first])[0]->counted_quantity, '0', 3), 'a count of nothing is a count');
+    }
+
+    public function testRemoveItem_TakesAnItemOffTheSheetWhileItIsBeingCounted(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first, $second]);
+
+        $this->takes->removeItem($stocktakeId, $second, $this->keeperId);
+
+        $this->assertSame([$first], array_map(static fn (object $line): int => (int) $line->item_id, $this->takes->lines($stocktakeId)));
+    }
+
+    public function testAddItemsAndCountAndRemoveItem_AreRefusedOnceTheStocktakeIsApprovedOrCancelled(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $approved = $this->start([$itemId]);
+        $this->countAll($approved, [$itemId => '10']);
+        $this->takes->approve($approved, $this->keeperId);
+
+        $this->refusedWith(AccountingError::StocktakeNotCounting, fn () => $this->takes->addItems($approved, [$itemId], $this->keeperId));
+        $this->refusedWith(AccountingError::StocktakeNotCounting, fn () => $this->countAll($approved, [$itemId => '1']));
+        $this->refusedWith(AccountingError::StocktakeNotCounting, fn () => $this->takes->removeItem($approved, $itemId, $this->keeperId));
+        $this->refusedWith(AccountingError::StocktakeNotCounting, fn () => $this->takes->approve($approved, $this->keeperId));
+        $this->refusedWith(AccountingError::StocktakeNotFound, fn () => $this->countAll(999999, [$itemId => '1']));
+    }
+
+    public function testApprove_PostsWhatWasFoundOverAndShortAsOneJournalAtTheAverageAndMovesTheShelves(): void
+    {
+        $short = $this->stocked('10', '50');
+        $over  = $this->stocked('5', '20');
+        $other = $this->stocked('7', '30');
+
+        $stocktakeId = $this->start([$short, $over]);
+
+        $this->countAll($stocktakeId, [$short => '8', $over => '7']);
+        $this->takes->approve($stocktakeId, $this->keeperId);
+
+        $journals = $this->journalsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId);
+
+        $this->assertCount(1, $journals);
+        $this->assertSame([$this->stockAccount() . ':40.00:0.00', $this->accountId('cogs') . ':0.00:40.00', $this->accountId('cogs') . ':100.00:0.00', $this->stockAccount() . ':0.00:100.00'], $this->linesOfJournal((int) $journals[0]->journal_id));
+        $this->assertSame('Stocktake #STKT ' . $stocktakeId, $journals[0]->description);
+        $this->assertSame(date('Y-m-d'), $journals[0]->journal_date);
+        $this->assertSame(['8.000', '7.000', '7.000'], [$this->onHand($short), $this->onHand($over), $this->onHand($other)], 'only the items listed change');
+        $this->assertSame(['quantity' => '8.000', 'value' => '400.00'], $this->stockOf($short));
+        $this->assertSame(['quantity' => '7.000', 'value' => '140.00'], $this->stockOf($over));
+        $this->assertSame(['quantity' => '7.000', 'value' => '210.00'], $this->stockOf($other));
+        $this->assertCount(2, $this->movementsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId));
+        $this->assertBooksTie();
+
+        $row = $this->takes->find($stocktakeId);
+
+        $this->assertSame('approved', $row->status);
+        $this->assertSame($this->keeperId, (int) $row->approved_by);
+        $this->assertSame(1, (int) $row->booked);
+
+        $lines = $this->orderedLines($stocktakeId, [$short, $over]);
+
+        $this->assertSame(['-2.000', '2.000'], array_map(static fn (object $line): string => bcadd((string) $line->difference, '0', 3), $lines));
+        $this->assertSame(['50.000000', '20.000000'], array_map(static fn (object $line): string => bcadd((string) $line->unit_cost, '0', 6), $lines), 'what a unit was worth is kept on the line');
+    }
+
+    public function testApprove_ValuesBothTheGainAndTheLossAtTheAverageOfTheLocationNowAndLeavesTheAverageAlone(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '70')]));
+
+        $loss = $this->start([$itemId]);
+        $this->countAll($loss, [$itemId => '18']);
+        $this->takes->approve($loss, $this->keeperId);
+
+        $this->assertSame(['quantity' => '18.000', 'value' => '1080.00'], $this->stockOf($itemId), 'two units short at the average of 60');
+
+        $gain = $this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d', strtotime('-1 day')), 'item_ids' => [$itemId]], $this->keeperId);
+        $this->countAll($gain, [$itemId => '20']);
+        $this->takes->approve($gain, $this->keeperId);
+
+        $this->assertSame(['quantity' => '20.000', 'value' => '1200.00'], $this->stockOf($itemId), 'two units over at the same average');
+        $this->assertBooksTie();
+    }
+
+    public function testApprove_KeepsWhatWasSoldOrBoughtAfterTheCountStartedCounted(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->assertGreaterThan(0, (new StockPermit())->create(['type' => 'issue', 'date' => date('Y-m-d'), 'location_id' => self::LOCATION_ID, 'lines' => [['item_id' => $itemId, 'quantity' => '3']]], $this->keeperId));
+
+        $this->countAll($stocktakeId, [$itemId => '8']);
+        $this->takes->approve($stocktakeId, $this->keeperId);
+
+        $this->assertSame('5.000', $this->onHand($itemId), 'ten at the start, two short, three issued since: five');
+        $this->assertBooksTie();
+    }
+
+    public function testApprove_IsRefusedWhenTheShortfallIsMoreThanTheShelfHoldsNowAndChangesNothing(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->assertGreaterThan(0, (new StockPermit())->create(['type' => 'issue', 'date' => date('Y-m-d'), 'location_id' => self::LOCATION_ID, 'lines' => [['item_id' => $itemId, 'quantity' => '7']]], $this->keeperId));
+
+        $this->countAll($stocktakeId, [$itemId => '1']);
+
+        $journals = $this->countRows('accounting_journals');
+
+        $this->refusedWith(AccountingError::PurchaseStockWouldGoNegative, fn () => $this->takes->approve($stocktakeId, $this->keeperId));
+
+        $this->assertSame('3.000', $this->onHand($itemId));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
+    }
+
+    public function testApprove_AFindingOfNothingPostsNoJournalAndMovesNoStock(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '10']);
+
+        $journals = $this->countRows('accounting_journals');
+
+        $this->takes->approve($stocktakeId, $this->keeperId);
+
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame([], $this->movementsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId));
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('approved', $this->takes->find($stocktakeId)->status);
+        $this->assertSame('0.000', bcadd((string) $this->orderedLines($stocktakeId, [$itemId])[0]->difference, '0', 3));
+    }
+
+    public function testApprove_AnItemThatCostsNothingMovesTheShelfAndPostsNoJournal(): void
+    {
+        $itemId = $this->item('0.00');
+        $this->putOnShelf($itemId, '5');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '3']);
+        $this->takes->approve($stocktakeId, $this->keeperId);
+
+        $this->assertSame([], $this->journalsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId));
+        $this->assertSame('3.000', $this->onHand($itemId));
+        $this->assertCount(1, $this->movementsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId));
+    }
+
+    public function testApprove_WithAccountingOffMovesTheShelvesAndPostsNothing(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '8']);
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $journals = $this->countRows('accounting_journals');
+
+        $this->takes->approve($stocktakeId, $this->keeperId);
+
+        $this->assertSame('8.000', $this->onHand($itemId));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame(0, (int) $this->takes->find($stocktakeId)->booked);
+
+        $this->takes->cancel($stocktakeId, 'recount', $this->keeperId);
+
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+    }
+
+    public function testApprove_IsRefusedInAClosedPeriodAndTheStocktakeKeepsCounting(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '8']);
+        $this->closeThrough(date('Y-m-d'));
+
+        try {
+            $this->takes->approve($stocktakeId, $this->keeperId);
+            $this->fail('A stocktake cannot be posted into a closed period.');
+        } catch (PostingException $exception) {
+            $this->assertSame(PostingError::PeriodClosed, $exception->error);
+        }
+
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
+        $this->assertSame([], $this->movementsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId));
+        $this->assertSame(1, $this->countRows('accounting_posting_failures'));
+    }
+
+    public function testApprove_RequiresThePermissionToApproveAndTheLocationAndTheBranch(): void
+    {
+        $other  = $this->createBranch();
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '8']);
+
+        $this->refusedWith(AccountingError::PermissionDenied, fn () => $this->takes->approve($stocktakeId, $this->keeper(null, [StockPermissions::MODULE, StockPermissions::STOCKTAKE_MANAGE, 'items_stock'])));
+        $this->refusedWith(AccountingError::StockLocationDenied, fn () => $this->takes->approve($stocktakeId, $this->keeper(null, [StockPermissions::STOCKTAKE_APPROVE])));
+
+        try {
+            $this->takes->approve($stocktakeId, $this->keeper([$other]));
+            $this->fail('An employee of another branch must be refused.');
+        } catch (BranchException) {
+            $this->assertSame('10.000', $this->onHand($itemId));
+            $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
+        }
+    }
+
+    public function testApprove_NeedsEveryListedItemCountedAndAtLeastOneItem(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first, $second]);
+
+        $this->countAll($stocktakeId, [$first => '8']);
+        $this->refusedWith(AccountingError::StocktakeNotCounted, fn () => $this->takes->approve($stocktakeId, $this->keeperId));
+
+        $this->assertSame('10.000', $this->onHand($first), 'nothing was changed by the refusal');
+        $this->refusedWith(AccountingError::StocktakeNothingToApprove, fn () => $this->takes->approve($this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d', strtotime('-1 day'))], $this->keeperId), $this->keeperId));
+    }
+
+    public function testApprove_WritesTheAuditLogAndTwoApprovalsAtTheSameMomentApproveOnce(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '8']);
+
+        [$first, $second] = $this->raceTwoProcesses('approveStocktake', [(string) $stocktakeId, (string) $this->keeperId], [(string) $stocktakeId, (string) $this->keeperId]);
+
+        $this->assertSame(1, (int) $first + (int) $second);
+        $this->assertSame('8.000', $this->onHand($itemId));
+        $this->assertCount(1, $this->journalsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'stocktake', 'entity_id' => $stocktakeId, 'action' => 'stocktake_approved'])->countAllResults());
+        $this->assertBooksTie();
+    }
+
+    public function testCancel_DiscardsACountThatIsStillBeingMadeWithoutAnyEffect(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '2']);
+
+        $journals = $this->countRows('accounting_journals');
+
+        $this->takes->cancel($stocktakeId, 'wrong day', $this->keeperId);
+
+        $row = $this->takes->find($stocktakeId);
+
+        $this->assertSame('cancelled', $row->status);
+        $this->assertSame('wrong day', $row->cancel_reason);
+        $this->assertNull($row->slot);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertCount(1, $this->takes->lines($stocktakeId), 'nothing is deleted');
+    }
+
+    public function testCancel_ReversesAnApprovedStocktakeItsJournalItsMovementsAndTheShelves(): void
+    {
+        $short = $this->stocked('10', '50');
+        $over  = $this->stocked('5', '20');
+
+        $stocktakeId = $this->start([$short, $over]);
+
+        $this->countAll($stocktakeId, [$short => '8', $over => '7']);
+        $this->takes->approve($stocktakeId, $this->keeperId);
+        $this->takes->cancel($stocktakeId, 'counted the wrong shelf', $this->keeperId);
+
+        $journal  = $this->journalsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId)[0];
+        $reversal = $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $journal->journal_id)->get()->getRow();
+
+        $this->assertSame('reversed', $journal->status);
+        $this->assertNotNull($reversal);
+        $this->assertSame(['10.000', '5.000'], [$this->onHand($short), $this->onHand($over)]);
+        $this->assertSame(['quantity' => '10.000', 'value' => '500.00'], $this->stockOf($short));
+        $this->assertSame(['quantity' => '5.000', 'value' => '100.00'], $this->stockOf($over));
+        $this->assertSame(['posting', 'posting', 'reversal', 'reversal'], array_map(static fn (object $entry): string => $entry->kind, $this->movementsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId)));
+        $this->assertSame('cancelled', $this->takes->find($stocktakeId)->status);
+        $this->assertBooksTie();
+    }
+
+    public function testCancel_IsRefusedWhenTheUnitsFoundOverHaveGoneSinceAndChangesNothing(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '12']);
+        $this->takes->approve($stocktakeId, $this->keeperId);
+
+        $this->assertGreaterThan(0, (new StockPermit())->create(['type' => 'issue', 'date' => date('Y-m-d'), 'location_id' => self::LOCATION_ID, 'lines' => [['item_id' => $itemId, 'quantity' => '11']]], $this->keeperId));
+
+        $journals = $this->countRows('accounting_journals');
+
+        $this->refusedWith(AccountingError::PurchaseStockWouldGoNegative, fn () => $this->takes->cancel($stocktakeId, 'too late', $this->keeperId));
+
+        $this->assertSame('1.000', $this->onHand($itemId));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame('approved', $this->takes->find($stocktakeId)->status);
+    }
+
+    public function testCancel_IsRefusedWhenTheDayItWouldBeReversedOnIsClosedAndChangesNothing(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '8']);
+        $this->takes->approve($stocktakeId, $this->keeperId);
+        $this->closeThrough(date('Y-m-d'));
+
+        try {
+            $this->takes->cancel($stocktakeId, 'late', $this->keeperId);
+            $this->fail('A stocktake cannot be reversed into a closed period.');
+        } catch (PostingException $exception) {
+            $this->assertSame(PostingError::PeriodClosed, $exception->error);
+        }
+
+        $this->assertSame('posted', $this->journalsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId)[0]->status);
+        $this->assertSame('8.000', $this->onHand($itemId));
+        $this->assertSame('approved', $this->takes->find($stocktakeId)->status);
+        $this->assertBooksTie();
+    }
+
+    public function testCancel_RequiresThePermissionThatFitsTheStateAndRefusesWhatIsCancelledOrMissingOrWithoutAReason(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $counting = $this->start([$itemId]);
+        $approved = $this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d', strtotime('-1 day')), 'item_ids' => [$itemId]], $this->keeperId);
+
+        $this->countAll($approved, [$itemId => '9']);
+        $this->takes->approve($approved, $this->keeperId);
+
+        $manager  = $this->keeper(null, [StockPermissions::STOCKTAKE_MANAGE, 'items_stock']);
+        $approver = $this->keeper(null, [StockPermissions::STOCKTAKE_APPROVE, 'items_stock']);
+
+        $this->refusedWith(AccountingError::PermissionDenied, fn () => $this->takes->cancel($approved, 'no', $manager));
+        $this->refusedWith(AccountingError::PermissionDenied, fn () => $this->takes->cancel($counting, 'no', $approver));
+        $this->refusedWith(AccountingError::ReasonRequired, fn () => $this->takes->cancel($counting, ' ', $this->keeperId));
+
+        $this->takes->cancel($counting, 'by the manager', $manager);
+        $this->takes->cancel($approved, 'by the approver', $approver);
+
+        $this->refusedWith(AccountingError::StocktakeCancelled, fn () => $this->takes->cancel($counting, 'again', $this->keeperId));
+        $this->refusedWith(AccountingError::StocktakeNotFound, fn () => $this->takes->cancel(999999, 'none', $this->keeperId));
+        $this->assertSame('10.000', $this->onHand($itemId));
+    }
+
+    public function testNumbering_NumbersAStocktakeWithItsOwnSequenceAndShowsTheKindAndTheIdWhileItIsOff(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $plain = $this->start([$itemId]);
+
+        $this->assertSame('STKT ' . $plain, $this->takes->numberOf($plain));
+        $this->assertNull($this->takes->peekNumber());
+
+        $this->numberWith(DocumentType::Stocktake, 'CNT-', 4);
+
+        $numbered = $this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d', strtotime('-1 day'))], $this->keeperId);
+
+        $this->assertSame('CNT-0001', $this->takes->numberOf($numbered));
+        $this->assertSame('CNT-0002', $this->takes->peekNumber());
+        $this->assertSame('CNT-0001', $this->takes->find($numbered)->document_number);
+    }
+
+    public function testSearch_FiltersByStatusLocationDateAndNumberAndShowsOnlyTheBranchesOfTheEmployee(): void
+    {
+        $other  = $this->createBranch();
+        $store  = $this->locationOfBranch($other, 'Branch store');
+        $this->allowLocation($store, $this->keeperId);
+        $itemId = $this->stocked('10', '50');
+        $this->numberWith(DocumentType::Stocktake, 'CNT-', 3);
+
+        $old       = $this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d', strtotime('-5 days')), 'note' => 'year end'], $this->keeperId);
+        $current   = $this->start([$itemId]);
+        $ofOther   = $this->takes->create(['location_id' => $store, 'date' => date('Y-m-d')], $this->keeperId);
+        $this->takes->cancel($old, 'x', $this->keeperId);
+
+        $ids = static fn (array $result): array => array_map(static fn (object $row): int => (int) $row->stocktake_id, $result['rows']);
+
+        $this->assertSame([$ofOther, $current, $old], $ids($this->takes->search([], $this->keeperId)));
+        $this->assertSame([$old], $ids($this->takes->search(['status' => 'cancelled'], $this->keeperId)));
+        $this->assertSame([$ofOther], $ids($this->takes->search(['location_id' => $store], $this->keeperId)));
+        $this->assertSame([$old], $ids($this->takes->search(['to' => date('Y-m-d', strtotime('-4 days'))], $this->keeperId)));
+        $this->assertSame([$old], $ids($this->takes->search(['search' => 'year'], $this->keeperId)));
+        $this->assertSame([$current], $ids($this->takes->search(['search' => 'CNT-002'], $this->keeperId)));
+        $this->assertSame([$current, $old], $ids($this->takes->search([], $this->keeper([1]))));
+        $this->assertSame([$ofOther], $ids($this->takes->search([], $this->keeper([$other]))));
+        $this->assertSame([], $this->takes->search([], $this->keeper([]))['rows']);
+        $this->assertSame(3, $this->takes->search([], $this->keeperId)['total']);
+    }
+
+    public function testApprove_LeavesTheQuantityAdjustmentsOfTheItemScreensAlone(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '8']);
+        $this->takes->approve($stocktakeId, $this->keeperId);
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->countAllResults());
+    }
+}

@@ -18,6 +18,7 @@ use App\Libraries\Accounting\OpeningStockResult;
 use App\Libraries\Accounting\OpeningStockStatus;
 use App\Libraries\Accounting\YearEndClosing;
 use App\Libraries\Stock\StockPermit;
+use App\Libraries\Stock\StockRequest;
 use App\Libraries\Stock\Stocktake;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -222,6 +223,15 @@ $result = match ($method) {
     'cancelPermit' => (static function (array $args): bool {
         try {
             (new StockPermit())->cancel((int) $args[0], 'race', (int) $args[1]);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    })($args),
+    'fulfilRequest' => (static function (array $args): bool {
+        try {
+            (new StockRequest())->fulfil((int) $args[0], (int) $args[1]);
 
             return true;
         } catch (Throwable) {
