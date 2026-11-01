@@ -476,6 +476,10 @@ class Sales extends Secure_Controller
             $option,
         );
 
+        if (!$this->mayGiveHeaderCharges($charges, $this->sale_lib->is_return_mode())) {
+            return $this->reload(['error' => lang('Sales.not_authorized')]);
+        }
+
         $this->sale_lib->setHeaderCharges($charges);
 
         $cart = $this->sale_lib->get_cart();
@@ -512,6 +516,11 @@ class Sales extends Secure_Controller
         $lines  = [(string) ($data['customer'] ?? ''), (string) ($second ? ($data['customer_second_address'] ?? '') : ($data['customer_address'] ?? '')), $second ? '' : (string) ($data['customer_location'] ?? '')];
 
         return trim(implode("\n", array_filter(array_map('trim', $lines), static fn (string $line): bool => $line !== '')));
+    }
+
+    private function mayGiveHeaderCharges(HeaderCharges $charges, bool $creditNote): bool
+    {
+        return !$charges->givesAway($creditNote) || $this->mayGiveInvoiceDiscount();
     }
 
     private function headerChargesAllowed(): bool
@@ -886,7 +895,7 @@ class Sales extends Secure_Controller
 
         $personId = (int) $this->session->get('person_id');
 
-        if ((new DraftInvoice())->carriesInvoiceDiscount($saleId) && !$this->mayGiveInvoiceDiscount()) {
+        if (((new DraftInvoice())->carriesInvoiceDiscount($saleId) || $this->sale->getHeaderCharges($saleId)->givesAway(false)) && !$this->mayGiveInvoiceDiscount()) {
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized'), 'id' => $saleId]);
         }
 
@@ -1395,7 +1404,7 @@ class Sales extends Secure_Controller
 
         $invoiceDiscount = $this->registerInvoiceDiscount();
 
-        if ($invoiceDiscount !== null && !$this->mayGiveInvoiceDiscount()) {
+        if (($invoiceDiscount !== null && !$this->mayGiveInvoiceDiscount()) || !$this->mayGiveHeaderCharges($this->sale_lib->getHeaderCharges(), $this->sale_lib->is_return_mode())) {
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 
@@ -3045,7 +3054,7 @@ class Sales extends Secure_Controller
 
         $invoiceDiscount = $this->registerInvoiceDiscount();
 
-        if ($invoiceDiscount !== null && !$this->mayGiveInvoiceDiscount()) {
+        if (($invoiceDiscount !== null && !$this->mayGiveInvoiceDiscount()) || !$this->mayGiveHeaderCharges($this->sale_lib->getHeaderCharges(), $this->sale_lib->is_return_mode())) {
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 

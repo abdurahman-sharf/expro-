@@ -133,4 +133,25 @@ class HeaderChargesTest extends CIUnitTestCase
         $this->assertFalse(HeaderCharges::none()->hasAdjustment());
         $this->assertFalse(HeaderCharges::none()->hasShipping());
     }
+
+    public function testGivesAway_SaysANegativeAdjustmentOnAnInvoiceIsADiscount(): void
+    {
+        $this->assertTrue((new HeaderCharges('Fee', '-0.01'))->givesAway(false));
+        $this->assertFalse((new HeaderCharges('Fee', '5', '20'))->givesAway(false), 'a charge that adds to the invoice gives nothing away');
+        $this->assertFalse(HeaderCharges::none()->givesAway(false));
+    }
+
+    public function testGivesAway_SaysShippingAndAPositiveAdjustmentOnACreditNoteAddToTheCredit(): void
+    {
+        $this->assertTrue((new HeaderCharges('Fee', '5'))->givesAway(true));
+        $this->assertTrue((new HeaderCharges(shipping: '0.01'))->givesAway(true));
+        $this->assertFalse((new HeaderCharges('Fee', '-5'))->givesAway(true), 'a negative adjustment takes from the credit');
+        $this->assertFalse(HeaderCharges::none()->givesAway(true));
+    }
+
+    public function testGivesAway_IgnoresTextThatIsNotANumberBecauseTheProblemRefusesItAnyway(): void
+    {
+        $this->assertFalse((new HeaderCharges('Fee', 'x', 'y'))->givesAway(false));
+        $this->assertFalse((new HeaderCharges('Fee', 'x', 'y'))->givesAway(true));
+    }
 }

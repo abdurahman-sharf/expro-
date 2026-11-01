@@ -18,6 +18,7 @@ use App\Libraries\Accounting\SaleDocumentList;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\HeaderCharges;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
@@ -2906,9 +2907,9 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sale', 'entity_id' => $saleId, 'action' => 'invoice_discount_given'])->countAllResults());
     }
 
-    protected function registerForHeaderCharges(string $mode = 'sale_invoice', bool $adjustment = true, bool $shipping = true, string $shippingTax = '15'): int
+    protected function registerForHeaderCharges(string $mode = 'sale_invoice', bool $adjustment = true, bool $shipping = true, string $shippingTax = '15', bool $mayDiscount = true): int
     {
-        $supervisorId = $this->registerWithTheDiscountGrant(false);
+        $supervisorId = $this->registerWithTheDiscountGrant($mayDiscount);
 
         $this->setConfigValue('accounting_sales_adjustment', $adjustment ? '1' : '0');
         $this->setConfigValue('accounting_sales_shipping', $shipping ? '1' : '0');
@@ -3127,6 +3128,125 @@ class SalesControllerTest extends CIUnitTestCase
         $response->assertSee('Handling fee');
         $response->assertSee(lang('Sales.shipping'));
         $this->assertNull(Services::session()->get('sales_header_charges'), 'the register forgets the charges of a sale that was made');
+    }
+
+    public function testPostSetHeaderCharges_RefusesANegativeAdjustmentToAnEmployeeWithoutTheDiscountPermissionAndSetsNothing(): void
+    {
+        $this->registerForHeaderCharges(mayDiscount: false);
+
+        $response = $this->post('/sales/setHeaderCharges', ['adjustment_label' => 'Fee', 'adjustment' => '-10']);
+
+        $response->assertSee(lang('Sales.not_authorized'));
+        $this->assertNull(Services::session()->get('sales_header_charges'));
+    }
+
+    public function testPostSetHeaderCharges_AcceptsAPositiveAdjustmentAndShippingOnAnInvoiceWithoutTheDiscountPermission(): void
+    {
+        $this->registerForHeaderCharges(mayDiscount: false);
+
+        $this->post('/sales/setHeaderCharges', ['adjustment_label' => 'Fee', 'adjustment' => '10', 'shipping' => '20']);
+
+        $this->assertSame('10', Services::session()->get('sales_header_charges')['adjustment']);
+        $this->assertSame('20', Services::session()->get('sales_header_charges')['shipping']);
+    }
+
+    public function testPostSetHeaderCharges_RefusesShippingAndAPositiveAdjustmentOnACreditNoteToAnEmployeeWithoutTheDiscountPermission(): void
+    {
+        foreach ([['shipping' => '20'], ['adjustment' => '50']] as $posted) {
+            $this->registerForHeaderCharges('return', mayDiscount: false);
+
+            $response = $this->post('/sales/setHeaderCharges', $posted);
+
+            $response->assertSee(lang('Sales.not_authorized'));
+            $this->assertNull(Services::session()->get('sales_header_charges'));
+        }
+    }
+
+    public function testPostSetHeaderCharges_AcceptsANegativeAdjustmentOnACreditNoteWithoutTheDiscountPermissionBecauseItTakesFromTheCredit(): void
+    {
+        $this->registerForHeaderCharges('return', mayDiscount: false);
+
+        $this->post('/sales/setHeaderCharges', ['adjustment' => '-5']);
+
+        $this->assertSame('-5', Services::session()->get('sales_header_charges')['adjustment']);
+    }
+
+    public function testPostSetHeaderCharges_AcceptsEveryChargeOnAnInvoiceAndACreditNoteFromAnEmployeeWithTheDiscountPermission(): void
+    {
+        foreach (['sale_invoice', 'return'] as $mode) {
+            $this->registerForHeaderCharges($mode);
+
+            $this->post('/sales/setHeaderCharges', ['adjustment' => $mode === 'return' ? '5' : '-5', 'shipping' => '20']);
+
+            $this->assertSame('20', Services::session()->get('sales_header_charges')['shipping'], $mode);
+        }
+    }
+
+    public function testPostSetHeaderCharges_LetsAnEmployeeWithoutThePermissionTakeAnAdjustmentThatGivesAwayOffTheRegister(): void
+    {
+        $this->registerForHeaderCharges(mayDiscount: false);
+        $this->withSession(array_merge($this->session, ['sales_header_charges' => ['adjustment_label' => 'Old', 'adjustment' => '-1', 'shipping' => '0', 'shipping_tax_option' => 'none', 'shipping_tax_percent' => '0', 'shipping_options' => null]]));
+
+        $this->post('/sales/setHeaderCharges', ['adjustment' => '', 'shipping' => '']);
+
+        $this->assertNull(Services::session()->get('sales_header_charges'));
+    }
+
+    /**
+     * @return array<string, array{string, string, array<string, mixed>}>
+     */
+    public static function chargesThatGiveAwayProvider(): array
+    {
+        return [
+            'an invoice completed with a negative adjustment'  => ['sale_invoice', '/sales/complete', ['adjustment_label' => 'Fee', 'adjustment' => '-10', 'shipping' => '0']],
+            'an invoice suspended with a negative adjustment'  => ['sale_invoice', '/sales/suspend', ['adjustment_label' => 'Fee', 'adjustment' => '-10', 'shipping' => '0']],
+            'a quote completed with a negative adjustment'     => ['sale_quote', '/sales/complete', ['adjustment_label' => 'Fee', 'adjustment' => '-10', 'shipping' => '0']],
+            'a credit note completed with shipping'            => ['return', '/sales/complete', ['adjustment_label' => '', 'adjustment' => '0', 'shipping' => '20']],
+            'a credit note suspended with a positive adjustment' => ['return', '/sales/suspend', ['adjustment_label' => 'Fee', 'adjustment' => '50', 'shipping' => '0']],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $charges
+     */
+    #[DataProvider('chargesThatGiveAwayProvider')]
+    public function testPostComplete_RefusesAnEmployeeWithoutTheDiscountPermissionAChargeThatGivesAwayWhicheverRegisterSavesItAndSavesNothing(string $mode, string $uri, array $charges): void
+    {
+        $this->registerForHeaderCharges($mode, mayDiscount: false);
+        $this->withSession(array_merge($this->session, ['sales_header_charges' => [...$charges, 'shipping_tax_option' => 'none', 'shipping_tax_percent' => '0', 'shipping_options' => null]]));
+
+        $sales = $this->countSales();
+
+        $response = $this->post($uri);
+
+        $response->assertSee(lang('Sales.not_authorized'));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertCount(1, Services::session()->get('sales_cart'));
+    }
+
+    public function testPostIssue_RefusesAnEmployeeWithoutTheDiscountPermissionADraftWhoseAdjustmentIsADiscountAndKeepsItSuspended(): void
+    {
+        $this->supervisorForDocuments();
+        $this->setConfigValue('accounting_sales_adjustment', '1');
+
+        $draft = $this->save($this->taxedLines(), [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, headerCharges: new HeaderCharges('Fee', '-10'));
+
+        $answer = $this->jsonOf($this->post('/sales/issue/' . $draft));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Sales.not_authorized'), $answer['message']);
+        $this->assertSame(SUSPENDED, $this->saleStatusOf($draft));
+    }
+
+    public function testPostIssue_IssuesADraftWhoseAdjustmentIsADiscountForAnEmployeeWithTheDiscountPermission(): void
+    {
+        $this->supervisorForDocuments(['sales_invoice_discount']);
+        $this->setConfigValue('accounting_sales_adjustment', '1');
+
+        $draft = $this->save($this->taxedLines(), [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, headerCharges: new HeaderCharges('Fee', '-10'));
+
+        $this->assertTrue($this->jsonOf($this->post('/sales/issue/' . $draft))['success']);
+        $this->assertSame(COMPLETED, $this->saleStatusOf($draft));
     }
 
     public function testPostComplete_RefusesChargesWhoseSettingWasTurnedOffMeanwhileAndSavesNothing(): void

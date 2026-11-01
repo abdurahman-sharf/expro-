@@ -51,6 +51,22 @@ final readonly class HeaderCharges
     }
 
     /**
+     * Whether the charges take money from what the customer pays on an invoice or a quote (a negative
+     * adjustment, which is a discount on the whole document) or add money to what a credit note gives back
+     * (a positive adjustment or any shipping), so that whoever types them gives something away.
+     */
+    public function givesAway(bool $creditNote): bool
+    {
+        $adjustment = bccomp($this->safe($this->adjustment), '0', self::WORK);
+
+        if ($creditNote) {
+            return $adjustment > 0 || bccomp($this->safe($this->shipping), '0', self::WORK) > 0;
+        }
+
+        return $adjustment < 0;
+    }
+
+    /**
      * Why the charges cannot be accepted on a document whose lines, with their added tax, come to the
      * running total (negative for a return), or null.
      */
