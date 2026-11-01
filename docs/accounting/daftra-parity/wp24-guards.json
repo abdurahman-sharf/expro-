@@ -120,7 +120,9 @@
   "find": "if ((int) $account->company_id !== CompanyContext::id()) {",
   "replace": "if (false) {",
   "tests": [
-   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+   "--filter",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "tests/Libraries/Accounting/RoutingResolverTest.php"
   ]
  },
  {

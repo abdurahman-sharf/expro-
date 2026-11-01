@@ -170,6 +170,15 @@ final class ItemRoutingAccountsTest extends CIUnitTestCase
         $this->assertSame([], $this->auditRows());
     }
 
+    public function testSave_RelyOnAPermissionThatIsSensitiveAndNotGrantedWithTheOthers(): void
+    {
+        $holder = $this->employeeWithGrants([...$this->allAccountingPermissions(), 'accounting_routing']);
+
+        $this->assertContains(AccountingGuard::ROUTING_MANAGE, AccountingGuard::SENSITIVE);
+        $this->assertFalse((new AccountingGuard())->has(AccountingGuard::ROUTING_MANAGE, $holder));
+        $this->assertTrue((new AccountingGuard())->has(AccountingGuard::ROUTING_MANAGE, $this->manager));
+    }
+
     public function testSave_RequiresEveryBranch(): void
     {
         $limited = $this->employeeWithGrants([AccountingGuard::ROUTING_MANAGE], [1]);

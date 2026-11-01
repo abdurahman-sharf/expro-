@@ -6766,6 +6766,57 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertContains($this->accountId('sales_revenue') . ':0.00:710.00', $third['lines']);
     }
 
+    public function testSaveValue_RefusesAPerItemSaleInAClosedPeriodWithoutLeavingAnyOfIt(): void
+    {
+        $cycle = $this->perItemCycle();
+        $this->closeThrough(date('Y-m-d'));
+
+        $sales = $this->countSales();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes']));
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testDelete_MirrorsAPerItemSaleOfAClosedPeriodOnTheDayOfTheCancellation(): void
+    {
+        $cycle    = $this->perItemCycle();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS);
+        $original = $this->standing($saleId, 'revenue')[0];
+
+        $this->accountingDb()->table('accounting_journals')->whereIn('journal_id', array_column($this->journals($saleId), 'id'))->update(['journal_date' => '2026-03-10']);
+        $this->closeThrough('2026-06-30');
+        $this->nameItemAccount($cycle['cream'], RoutingKey::SalesRevenue, $this->customAccount('41', '4102', 'Moved revenue'));
+
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+
+        $reversal = $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $original['id'])->get()->getRow();
+        $mirror   = static fn (string $line): string => implode(':', [explode(':', $line)[0], explode(':', $line)[2], explode(':', $line)[1]]);
+
+        $this->assertSame(date('Y-m-d'), $reversal->journal_date);
+        $this->assertSame(array_map($mirror, $original['lines']), $this->reversalLinesOf($original['id']));
+        $this->assertSame('0.00', $this->balance($cycle['creamAccount']));
+    }
+
+    public function testSaveValue_PostsAPerItemSaleOfASecondBranchInThatBranchWithTheAccountOfTheItem(): void
+    {
+        $branchId = $this->createBranch('B2', 'Second branch');
+        $location = $this->branchLocation($branchId);
+        $itemId   = $this->item('0', false);
+        $account  = $this->customAccount('41', '4101', 'Item revenue');
+
+        $this->nameItemAccount($itemId, RoutingKey::SalesRevenue, $account);
+        $this->routeRow(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $saleId  = $this->save([$this->line($itemId, 0, '1', '100', '0', '0', PERCENT, $location)]);
+        $journal = $this->standing($saleId, 'revenue')[0];
+        $branch  = $this->accountingDb()->table('accounting_journals')->select('branch_id')->where('journal_id', $journal['id'])->get()->getRow()->branch_id;
+
+        $this->assertSame($branchId, (int) $branch);
+        $this->assertContains($account . ':0.00:100.00', $journal['lines']);
+    }
+
     public function testDelete_ReversesAPerItemSaleToTheZeroBalanceOfEveryAccountItTouched(): void
     {
         $cycle  = $this->perItemCycle();
