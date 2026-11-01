@@ -159,6 +159,42 @@ $routes->group('accounting_debit_notes', static function (RouteCollection $route
     $routes->post('reverse/(:num)', 'AccountingDebitNotes::postReverse/$1');
 });
 
+$routes->group('stock_documents', static function (RouteCollection $routes): void {
+    $routes->get('/', 'StockPermits::getIndex');
+    $routes->get('permits', 'StockPermits::getIndex');
+    $routes->get('permits/form/(:segment)', 'StockPermits::getForm/$1');
+    $routes->get('permits/edit/(:num)', 'StockPermits::getEditForm/$1');
+    $routes->get('permits/view/(:num)', 'StockPermits::getDocument/$1');
+    $routes->get('permits/cancel_form/(:num)', 'StockPermits::getCancelForm/$1');
+    $routes->get('items', 'StockPermits::getItems');
+    $routes->get('parties', 'StockPermits::getParties');
+    $routes->post('permits/save', 'StockPermits::postSavePermit');
+    $routes->post('permits/update/(:num)', 'StockPermits::postUpdate/$1');
+    $routes->post('permits/cancel/(:num)', 'StockPermits::postCancel/$1');
+    $routes->post('permits/settings', 'StockPermits::postSettings');
+
+    $routes->get('stocktakes', 'Stocktakes::getIndex');
+    $routes->get('stocktakes/form', 'Stocktakes::getForm');
+    $routes->get('stocktakes/view/(:num)', 'Stocktakes::getDocument/$1');
+    $routes->get('stocktakes/sheet/(:num)', 'Stocktakes::getSheet/$1');
+    $routes->get('stocktakes/cancel_form/(:num)', 'Stocktakes::getCancelForm/$1');
+    $routes->post('stocktakes/save', 'Stocktakes::postSaveStocktake');
+    $routes->post('stocktakes/count/(:num)', 'Stocktakes::postCount/$1');
+    $routes->post('stocktakes/add_items/(:num)', 'Stocktakes::postAddItems/$1');
+    $routes->post('stocktakes/remove_item/(:num)', 'Stocktakes::postRemoveItem/$1');
+    $routes->post('stocktakes/approve/(:num)', 'Stocktakes::postApprove/$1');
+    $routes->post('stocktakes/cancel/(:num)', 'Stocktakes::postCancel/$1');
+
+    $routes->get('requests', 'StockRequests::getIndex');
+    $routes->get('requests/form', 'StockRequests::getForm');
+    $routes->get('requests/view/(:num)', 'StockRequests::getDocument/$1');
+    $routes->get('requests/cancel_form/(:num)', 'StockRequests::getCancelForm/$1');
+    $routes->post('requests/save', 'StockRequests::postSaveRequest');
+    $routes->post('requests/approve/(:num)', 'StockRequests::postApprove/$1');
+    $routes->post('requests/fulfil/(:num)', 'StockRequests::postFulfil/$1');
+    $routes->post('requests/cancel/(:num)', 'StockRequests::postCancel/$1');
+});
+
 $routes->group('receipt_vouchers', static function (RouteCollection $routes): void {
     $routes->get('/', 'Receipt_vouchers::getIndex');
     $routes->get('search', 'Receipt_vouchers::getSearch');

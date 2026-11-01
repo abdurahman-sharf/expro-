@@ -384,6 +384,23 @@ final class StockPermit
         return $builder;
     }
 
+    /**
+     * The journals a permit has posted, oldest first, those it took back included.
+     *
+     * @return list<object>
+     */
+    public function journals(int $permitId): array
+    {
+        return $this->db->table('accounting_journals')
+            ->select('journal_id, number, journal_date, status, source_type, revision, total_debit')
+            ->where('company_id', CompanyContext::id())
+            ->whereIn('source_type', [StockPermitSources::PERMIT, StockPermitSources::TRANSFER, StockPermitSources::TRANSFER_RECEIPT])
+            ->where('source_id', $permitId)
+            ->orderBy('journal_id', 'ASC')
+            ->get()
+            ->getResult();
+    }
+
     private function numberedAs(): string
     {
         return implode(', ', array_map(fn (StockPermitType $type): string => $this->db->escape($type->documentType()->value), StockPermitType::cases()));

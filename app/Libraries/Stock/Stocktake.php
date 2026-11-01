@@ -450,6 +450,22 @@ final class Stocktake
         return $builder;
     }
 
+    /**
+     * The journal an approved stocktake posted, and the one that took it back.
+     *
+     * @return list<object>
+     */
+    public function journals(int $stocktakeId): array
+    {
+        return $this->db->table('accounting_journals')
+            ->select('journal_id, number, journal_date, status, source_type, revision, total_debit')
+            ->where('company_id', CompanyContext::id())
+            ->where(['source_type' => StockPermitSources::STOCKTAKE, 'source_id' => $stocktakeId])
+            ->orderBy('journal_id', 'ASC')
+            ->get()
+            ->getResult();
+    }
+
     public function numberOf(int $stocktakeId): string
     {
         return $this->numbering->label(DocumentType::Stocktake, 'stocktakes', $stocktakeId);
