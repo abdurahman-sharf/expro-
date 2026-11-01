@@ -224,9 +224,12 @@ final class Stocktake
 
         $ownsTransaction = $this->db->transDepth === 0;
         $branchId        = null;
+        $items           = $this->itemsOnCount($stocktakeId);
 
         try {
-            $this->transactional(function () use ($stocktakeId, $employeeId, &$branchId): void {
+            $this->transactional(function () use ($stocktakeId, $employeeId, $items, &$branchId): void {
+                $this->shelves->lockItems($items);
+
                 $stocktake = $this->counting($stocktakeId, $employeeId);
                 $branchId  = (int) $stocktake->branch_id;
                 $lines     = $this->lines($stocktakeId);
@@ -245,7 +248,7 @@ final class Stocktake
                     $differences[(int) $line->item_id] = bcsub((string) $line->counted_quantity, (string) $line->system_quantity, 3);
                 }
 
-                $this->shelves->lockItems(array_keys($differences));
+                $this->assertLocked($items, array_keys($differences));
 
                 $deltas = [];
 
@@ -316,7 +319,11 @@ final class Stocktake
     {
         $reason = $this->reason($reason);
 
-        $this->transactional(function () use ($stocktakeId, $reason, $employeeId): void {
+        $items = $this->itemsOnCount($stocktakeId);
+
+        $this->transactional(function () use ($stocktakeId, $reason, $employeeId, $items): void {
+            $this->shelves->lockItems($items);
+
             $table      = $this->db->prefixTable('stocktakes');
             $stocktake  = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE stocktake_id = ? AND company_id = ? FOR UPDATE", [$stocktakeId, CompanyContext::id()]);
 
@@ -334,7 +341,7 @@ final class Stocktake
             $this->access->assertMayChange((int) $stocktake->location_id, $employeeId);
 
             if ($approved) {
-                $this->takeBack($stocktake, $reason, $employeeId);
+                $this->takeBack($stocktake, $reason, $employeeId, $items);
             }
 
             $this->db->table('stocktakes')->where('stocktake_id', $stocktakeId)->update([
@@ -541,9 +548,11 @@ final class Stocktake
      * Reverses an approved stocktake: its journal and movements and the shelves, which are refused
      * when the units found over have gone since.
      *
+     * @param list<int> $locked The items that were locked for the change.
+     *
      * @throws AccountingException|PostingException
      */
-    private function takeBack(object $stocktake, string $reason, int $employeeId): void
+    private function takeBack(object $stocktake, string $reason, int $employeeId, array $locked): void
     {
         $stocktakeId = (int) $stocktake->stocktake_id;
         $lines       = $this->lines($stocktakeId);
@@ -555,7 +564,7 @@ final class Stocktake
             }
         }
 
-        $this->shelves->lockItems(array_map(static fn (object $line): int => (int) $line->item_id, $lines));
+        $this->assertLocked($locked, array_map(static fn (object $line): int => (int) $line->item_id, $lines));
         $this->shelves->assertStays($deltas);
 
         $journal = $this->db->table('accounting_journals')
@@ -573,6 +582,33 @@ final class Stocktake
 
         $this->ledger->reverseSource(StockPermitSources::STOCKTAKE, $stocktakeId, JournalEntryType::General, $date, $reversal);
         $this->shelves->move($deltas, self::COMMENT . $stocktakeId . ' reversed', $employeeId);
+    }
+
+    /**
+     * The items listed on a count, read before the transaction that locks them, so that what the books
+     * say about them is what has been committed when the lock is had.
+     *
+     * @return list<int>
+     */
+    private function itemsOnCount(int $stocktakeId): array
+    {
+        return array_map('intval', array_column($this->db->table('stocktake_lines')->select('item_id')->where('stocktake_id', $stocktakeId)->get()->getResultArray(), 'item_id'));
+    }
+
+    /**
+     * What was locked must hold the items listed now: a count whose items changed between the read and
+     * the lock is asked to be approved again.
+     *
+     * @param list<int> $locked
+     * @param list<int> $needed
+     *
+     * @throws AccountingException
+     */
+    private function assertLocked(array $locked, array $needed): void
+    {
+        if (array_diff(array_map('intval', $needed), $locked) !== []) {
+            throw new AccountingException(AccountingError::WriteFailed, 'The stocktake was changed by someone else while this change was prepared.');
+        }
     }
 
     private function dayOfReversal(int $branchId, string $date): string

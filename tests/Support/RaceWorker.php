@@ -17,6 +17,8 @@ use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\OpeningStockResult;
 use App\Libraries\Accounting\OpeningStockStatus;
 use App\Libraries\Accounting\YearEndClosing;
+use App\Libraries\Stock\StockPermit;
+use App\Libraries\Stock\Stocktake;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use Config\Database;
@@ -197,6 +199,38 @@ $result = match ($method) {
     'backfillCreate' => (static function (array $args): bool {
         try {
             (new BackfillService())->create(['name' => 'Race ' . uniqid(), 'from' => (string) $args[0], 'to' => (string) $args[1]], (int) $args[2]);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    })($args),
+    'issuePermit' => (static function (array $args): bool {
+        try {
+            (new StockPermit())->create([
+                'type'        => 'issue',
+                'date'        => date('Y-m-d'),
+                'location_id' => 1,
+                'lines'       => [['item_id' => (int) $args[0], 'quantity' => (string) $args[1]]],
+            ], (int) $args[2]);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    })($args),
+    'cancelPermit' => (static function (array $args): bool {
+        try {
+            (new StockPermit())->cancel((int) $args[0], 'race', (int) $args[1]);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    })($args),
+    'approveStocktake' => (static function (array $args): bool {
+        try {
+            (new Stocktake())->approve((int) $args[0], (int) $args[1]);
 
             return true;
         } catch (Throwable) {

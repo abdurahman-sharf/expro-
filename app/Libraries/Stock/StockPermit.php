@@ -177,9 +177,12 @@ final class StockPermit
         $ownsTransaction = $this->db->transDepth === 0;
         $type            = null;
         $branchId        = null;
+        $items           = [...$this->itemsOf($permitId), ...$this->itemsTyped($input['lines'] ?? [])];
 
         try {
-            $this->transactional(function () use ($permitId, $input, $employeeId, &$type, &$branchId): void {
+            $this->transactional(function () use ($permitId, $input, $employeeId, $items, &$type, &$branchId): void {
+                $this->shelves->lockItems($items);
+
                 $permit   = $this->standing($permitId);
                 $type     = StockPermitType::from((string) $permit->permit_type);
                 $branchId = (int) $permit->branch_id;
@@ -193,10 +196,10 @@ final class StockPermit
                     'customer_id'    => array_key_exists('customer_id', $input) ? $input['customer_id'] : $permit->customer_id,
                     'account_id'     => array_key_exists('account_id', $input) ? $input['account_id'] : $permit->account_id,
                     'note'           => $input['note'] ?? (string) $permit->note,
-                    'lines'          => $input['lines'],
+                    'lines'          => $input['lines'] ?? [],
                 ], $employeeId);
 
-                $this->shelves->lockItems([...array_column($data['lines'], 'item_id'), ...array_map(static fn (StockPermitLine $line): int => $line->itemId, $before->lines)]);
+                $this->assertLocked($items, [...array_column($data['lines'], 'item_id'), ...array_map(static fn (StockPermitLine $line): int => $line->itemId, $before->lines)]);
                 $this->shelves->assertStays([...$this->deltas($before, -1), ...$this->deltas($this->documentFrom($permitId, $data, $before->label), 1)]);
 
                 if ($this->follows($data['date'])) {
@@ -251,15 +254,20 @@ final class StockPermit
 
         $reason = $this->reason($reason);
 
-        $this->transactional(function () use ($permitId, $reason, $employeeId): void {
+        $items = $this->itemsOf($permitId);
+
+        $this->transactional(function () use ($permitId, $reason, $employeeId, $items): void {
+            $this->shelves->lockItems($items);
+
             $permit   = $this->standing($permitId);
             $document = $this->documentOf($permit);
+
+            $this->assertLocked($items, array_map(static fn (StockPermitLine $line): int => $line->itemId, $document->lines));
 
             foreach (array_filter([$document->locationId, $document->toLocationId]) as $locationId) {
                 $this->access->assertMayChange($locationId, $employeeId);
             }
 
-            $this->shelves->lockItems(array_map(static fn (StockPermitLine $line): int => $line->itemId, $document->lines));
             $this->shelves->assertStays($this->deltas($document, -1));
             $this->takeBack($permit, $document, $reason, $employeeId);
 
@@ -596,6 +604,42 @@ final class StockPermit
         }
 
         return $reason;
+    }
+
+    /**
+     * The items on the lines of a permit, read before the transaction that locks them. Items are locked
+     * before anything else is read in it, so that what the books say about them is what has been
+     * committed when the lock is had.
+     *
+     * @return list<int>
+     */
+    private function itemsOf(int $permitId): array
+    {
+        return array_map('intval', array_column($this->db->table('stock_permit_lines')->select('item_id')->where('permit_id', $permitId)->get()->getResultArray(), 'item_id'));
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function itemsTyped(mixed $lines): array
+    {
+        return is_array($lines) ? array_values(array_filter(array_map(static fn (mixed $line): int => is_array($line) ? (int) ($line['item_id'] ?? 0) : 0, $lines), static fn (int $itemId): bool => $itemId > 0)) : [];
+    }
+
+    /**
+     * What was locked must hold the items the document has now: a permit corrected between the read
+     * and the lock changes them, and the change is asked to be made again.
+     *
+     * @param list<int> $locked
+     * @param list<int> $needed
+     *
+     * @throws AccountingException
+     */
+    private function assertLocked(array $locked, array $needed): void
+    {
+        if (array_diff(array_map('intval', $needed), $locked) !== []) {
+            throw new AccountingException(AccountingError::WriteFailed, 'The permit was changed by someone else while this change was prepared.');
+        }
     }
 
     /**

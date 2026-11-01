@@ -145,7 +145,11 @@ final class StockRequest
         $this->guard->require(StockPermissions::REQUESTS_APPROVE, $employeeId);
         $this->assertOn();
 
-        return $this->transactional(function () use ($requestId, $employeeId): int {
+        $items = array_map(static fn (object $line): int => (int) $line->item_id, $this->lines($requestId));
+
+        return $this->transactional(function () use ($requestId, $employeeId, $items): int {
+            (new StockShelves($this->db))->lockItems($items);
+
             $request = $this->standing($requestId, 'approved');
 
             $this->branches->requireBranch((int) $request->from_branch_id, $employeeId);
