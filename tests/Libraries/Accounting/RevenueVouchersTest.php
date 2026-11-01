@@ -550,11 +550,11 @@ class RevenueVouchersTest extends CIUnitTestCase
     {
         $case = $this->referenceCase('T-44', 'revenue_voucher', 'a-revenue-voucher-with-tax-in-a-category', 'differs');
 
-        $category = $this->revenueCategory('Income category', $this->customAccount('42', '4204', 'Income category account'));
+        $category = $this->revenueCategory('Income category', $this->customAccount('42', '4290', 'Income category account'));
         $chosen   = $this->customAccount('42', '4212', 'Chosen account');
         $roles    = [
             'treasury'   => $this->treasuryAccount(),
-            'income'     => $this->accountIdByCode('4204'),
+            'income'     => $this->accountIdByCode('4290'),
             'tax_output' => $this->accountId('tax_output'),
         ];
 

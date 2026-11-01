@@ -34,6 +34,7 @@ class AccountingSetup extends AccountingController
         AccountingGuard::INTERBRANCH_SETTLE => 'Accounting_treasuries.interbranch_settle',
         AccountingGuard::YEAR_END_CLOSE     => 'Accounting_periods.year_end_close',
         AccountingGuard::BACKFILL_MANAGE    => 'Accounting_periods.backfill_manage',
+        AccountingGuard::ROLES_MANAGE       => 'Roles.roles_manage',
     ];
 
     private AccountingSettings $settings;

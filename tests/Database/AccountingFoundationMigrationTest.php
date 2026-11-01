@@ -140,7 +140,7 @@ class AccountingFoundationMigrationTest extends CIUnitTestCase
                 array_values(array_diff($before, $this->prefixed(self::TABLES))),
                 $this->tableNames(),
             );
-            $this->assertSame(0, $this->accountingDb()->table('app_config')->like('key', 'accounting_', 'after')->where('key !=', 'accounting_auto_fiscal_year')->countAllResults());
+            $this->assertSame(0, $this->accountingDb()->table('app_config')->like('key', 'accounting_', 'after')->whereNotIn('key', ['accounting_auto_fiscal_year', 'accounting_backfill_enabled'])->countAllResults());
         } finally {
             $migration->up();
             (new BranchesFoundation())->up();

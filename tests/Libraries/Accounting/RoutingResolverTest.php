@@ -250,6 +250,7 @@ class RoutingResolverTest extends CIUnitTestCase
             'Libraries/Accounting/OpeningBalanceService.php',
             'Libraries/Accounting/RoutingResolver.php',
             'Libraries/Accounting/RoutingService.php',
+            'Libraries/Accounting/TaxDefinitions.php',
             'Libraries/Accounting/TaxReport.php',
         ];
         $found = [];
