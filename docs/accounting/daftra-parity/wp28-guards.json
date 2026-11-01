@@ -1123,6 +1123,28 @@
   ]
  },
  {
+  "name": "K03 the customer balance report counts the exchange difference under payments",
+  "file": "app/Libraries/Accounting/CustomerBalanceReport.php",
+  "find": "SalePostingBuilder::SOURCE_PAYMENT, SalePostingBuilder::SOURCE_PAYMENT_FX, CustomerAdvances::SOURCE",
+  "replace": "SalePostingBuilder::SOURCE_PAYMENT, SalePostingBuilder::SOURCE_PAYMENT, CustomerAdvances::SOURCE",
+  "tests": [
+   "--filter",
+   "Exchange",
+   "tests/Libraries/Accounting/CustomerBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "K04 the supplier balance report counts the exchange difference under payments",
+  "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
+  "find": "ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, SupplierAdvances::SOURCE",
+  "replace": "ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, SupplierAdvances::SOURCE",
+  "tests": [
+   "--filter",
+   "Exchange",
+   "tests/Libraries/Accounting/SupplierBalanceReportTest.php"
+  ]
+ },
+ {
   "name": "U01 the form of a currency is for who manages currencies",
   "file": "app/Controllers/AccountingCurrencies.php",
   "find": "if (! $this->canManage(AccountingGuard::CURRENCIES_MANAGE)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $currency = $code === ''",

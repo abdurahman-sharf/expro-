@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\BalanceTable;
 use App\Libraries\Accounting\CreditRefunds;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerBalanceReport;
 use App\Libraries\Accounting\CustomerOpening;
@@ -369,5 +370,26 @@ class CustomerBalanceReportTest extends CIUnitTestCase
         $row   = $this->rowOf($table, $this->customerId);
 
         $this->assertSame(['payments' => '0.0000', 'other' => '0.0000', 'balance' => '0.0000'], array_intersect_key($row, array_flip(['payments', 'other', 'balance'])));
+    }
+
+    public function testBuild_CountsTheExchangeDifferenceOfAForeignPaymentUnderPaymentsAndTheyReconcile(): void
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => $this->daysAgo(30)]);
+
+        $this->sales->useCurrency('USD');
+        $invoice = $this->invoiceOf('100.00');
+
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.60', 'effective_date' => date('Y-m-d')]);
+        $this->addPayment($invoice, '100.00');
+
+        $table = $this->report(date('Y-m-d'));
+        $row   = $this->rowOf($table, $this->customerId);
+
+        $this->assertSame(['sales' => '375.0000', 'payments' => '375.0000', 'other' => '0.0000', 'balance' => '0.0000'], array_intersect_key($row, array_flip(['sales', 'payments', 'other', 'balance'])));
+        $this->assertTrue($table->rows[0]->adds());
+        $this->assertFalse($table->hasOther());
+        $this->assertTies();
     }
 }
