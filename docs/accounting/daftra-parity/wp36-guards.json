@@ -24,8 +24,8 @@
   {
     "name": "G03 a customer without a limit is not held to one",
     "file": "app/Libraries/Accounting/CreditLimit.php",
-    "find": "$checksLimit  = $settings->creditLimitEnabled() && bccomp($terms['limit'], '0', 4) > 0;",
-    "replace": "$checksLimit  = $settings->creditLimitEnabled();",
+    "find": "            $settings->creditLimitEnabled() && bccomp($terms['limit'], '0', 4) > 0,",
+    "replace": "            $settings->creditLimitEnabled(),",
     "tests": [
       "--filter",
       "IgnoresACustomerWithoutALimit|ReadsNothingForACustomerWithNoLimit",
@@ -35,8 +35,8 @@
   {
     "name": "G04 the limit is ignored while its control is off",
     "file": "app/Libraries/Accounting/CreditLimit.php",
-    "find": "$checksLimit  = $settings->creditLimitEnabled() && bccomp(",
-    "replace": "$checksLimit  = bccomp(",
+    "find": "            $settings->creditLimitEnabled() && bccomp($terms['limit'], '0', 4) > 0,",
+    "replace": "            bccomp($terms['limit'], '0', 4) > 0,",
     "tests": [
       "--filter",
       "IgnoresTheLimitWhileTheControlIsOff|IgnoresTheLimitWhileOnlyTheControlOfTheDaysIsOn",
@@ -46,8 +46,8 @@
   {
     "name": "G05 a customer without credit days is not held to a period",
     "file": "app/Libraries/Accounting/CreditLimit.php",
-    "find": "$checksPeriod = $settings->creditPeriodEnabled() && $terms['days'] > 0;",
-    "replace": "$checksPeriod = $settings->creditPeriodEnabled();",
+    "find": "            $settings->creditPeriodEnabled() && $terms['days'] > 0,",
+    "replace": "            $settings->creditPeriodEnabled(),",
     "tests": [
       "--filter",
       "IgnoresACustomerWithoutCreditDays",
@@ -57,8 +57,8 @@
   {
     "name": "G06 the days are ignored while their control is off",
     "file": "app/Libraries/Accounting/CreditLimit.php",
-    "find": "$checksPeriod = $settings->creditPeriodEnabled() && $terms['days'] > 0;",
-    "replace": "$checksPeriod = $terms['days'] > 0;",
+    "find": "            $settings->creditPeriodEnabled() && $terms['days'] > 0,",
+    "replace": "            $terms['days'] > 0,",
     "tests": [
       "--filter",
       "LeavesTheDaysAloneWhileTheirControlIsOff",
@@ -1373,6 +1373,105 @@
     "tests": [
       "--filter",
       "KeepsThePriceOfALineTakenFromASavedDraft",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G170 an edit of the payments of an issued invoice is held to the credit limit",
+    "file": "app/Models/Sale.php",
+    "find": "if ($customerId !== null && ! empty($saleData['payments']) && $credit->watches($customerId)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testUpdate_",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G171 an edit that left no more open on the invoice is never refused",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "if (bccomp($this->openOf($customerId, $saleId), $openBefore, SaleAmounts::SCALE) <= 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "AcceptsAnEditThatLeavesWhatIsOpen|RefusalForEdit",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G172 the edit is held to what it left open and not to what the customer owed before",
+    "file": "app/Models/Sale.php",
+    "find": "$refusal = $openBefore === null ? $credit->refusalFor($customerId, $saleId, date('Y-m-d')) : $credit->refusalForEdit($customerId, $saleId, $openBefore, date('Y-m-d'));",
+    "replace": "$refusal = $credit->refusalFor($customerId, $saleId, date('Y-m-d'));",
+    "tests": [
+      "--filter",
+      "AcceptsAnEditThatLeavesWhatIsOpen",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G173 a refused edit is written in the audit log after it was taken back",
+    "file": "app/Models/Sale.php",
+    "find": "                (new CreditLimit($this->db))->recordRefusal((int) $customerId, (int) $this->getBranchId((int) $saleId), $this->employeeOfEdit($saleData), $failure);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testUpdate_RefusesTakingTheOnlyPayment",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G174 the refusal of an edit is not recorded as a failure of the books",
+    "file": "app/Models/Sale.php",
+    "find": "AccountingError::PaymentTermsInvalid, AccountingError::CreditLimitExceeded, AccountingError::CreditPeriodExceeded], true);",
+    "replace": "AccountingError::PaymentTermsInvalid], true);",
+    "tests": [
+      "--filter",
+      "testUpdate_DoesNotRecordTheRefusal",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G175 an edit that the limit refuses is taken back",
+    "file": "app/Models/Sale.php",
+    "find": "                    if ($creditRefusal !== null) {\n                        throw $creditRefusal;\n                    }\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testUpdate_Refuses",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G176 only a customer held to a limit or to days is read before an edit",
+    "file": "app/Libraries/Accounting/CreditLimit.php",
+    "find": "        return $checksLimit || $checksPeriod;\n    }\n\n    /**\n     * What an invoice has open",
+    "replace": "        return true;\n    }\n\n    /**\n     * What an invoice has open",
+    "tests": [
+      "--filter",
+      "testWatches_",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G177 the employee who edits is the one who may override the limit",
+    "file": "app/Models/Sale.php",
+    "find": "(int) $this->employeeOfEdit($saleData), (int) $this->getBranchId((int) $saleId), $openBefore);",
+    "replace": "0, (int) $this->getBranchId((int) $saleId), $openBefore);",
+    "tests": [
+      "--filter",
+      "testUpdate_LetsAnEmployeeWhoMayOverride",
+      "tests/Libraries/Accounting/CreditLimitTest.php"
+    ]
+  },
+  {
+    "name": "G178 the screen shows the refusal of an edit and keeps the payment",
+    "file": "app/Models/Sale.php",
+    "find": "                    if ($creditRefusal !== null) {\n                        throw $creditRefusal;\n                    }\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testPostSave_RefusesTakingAPaymentAway",
       "tests/Controllers/SalesControllerTest.php"
     ]
   }

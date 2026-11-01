@@ -90,16 +90,7 @@ final class CreditLimit
      */
     public function refusalFor(int $customerId, int $saleId, string $today): ?AccountingException
     {
-        $settings = new SalesControlSettings($this->db);
-
-        if (! $settings->creditLimitEnabled() && ! $settings->creditPeriodEnabled()) {
-            return null;
-        }
-
-        $terms = $this->termsOf($customerId);
-
-        $checksLimit  = $settings->creditLimitEnabled() && bccomp($terms['limit'], '0', 4) > 0;
-        $checksPeriod = $settings->creditPeriodEnabled() && $terms['days'] > 0;
+        [$terms, $checksLimit, $checksPeriod] = $this->checksOf($customerId);
 
         if (! $checksLimit && ! $checksPeriod) {
             return null;
@@ -147,6 +138,42 @@ final class CreditLimit
         return null;
     }
 
+    /**
+     * Whether a sale of the customer is held to a limit or to days, which is when what the sale
+     * leaves open is worth reading before an edit.
+     */
+    public function watches(int $customerId): bool
+    {
+        [, $checksLimit, $checksPeriod] = $this->checksOf($customerId);
+
+        return $checksLimit || $checksPeriod;
+    }
+
+    /**
+     * What an invoice has open in the books, 0 for a sale that is not an issued invoice.
+     */
+    public function openOf(int $customerId, int $saleId): string
+    {
+        $invoice = (new CustomerLedger($this->db))->position($customerId)->invoice($saleId);
+
+        return $invoice === null ? '0' : $invoice->open();
+    }
+
+    /**
+     * Why an edit of the payments of an issued invoice may not stand, or null: the edit left no
+     * more open on the invoice than it had, or the customer is still within the limit and the
+     * days. Taking a payment away or lowering it is a sale on credit made after the sale, and the
+     * limit holds for it as it holds at issue.
+     */
+    public function refusalForEdit(int $customerId, int $saleId, string $openBefore, string $today): ?AccountingException
+    {
+        if (bccomp($this->openOf($customerId, $saleId), $openBefore, SaleAmounts::SCALE) <= 0) {
+            return null;
+        }
+
+        return $this->refusalFor($customerId, $saleId, $today);
+    }
+
     public function mayOverride(?int $employeeId): bool
     {
         return $this->guard->has(AccountingGuard::CREDIT_OVERRIDE, $employeeId);
@@ -168,6 +195,21 @@ final class CreditLimit
     public function recordRefusal(int $customerId, ?int $branchId, ?int $employeeId, AccountingException $refusal): void
     {
         $this->audit->write('customer', $customerId, self::AUDIT_REFUSED, $employeeId, JournalOrigin::User, $this->detailsOf($refusal), $branchId);
+    }
+
+    /**
+     * @return array{0: array{limit: string, days: int}, 1: bool, 2: bool} The terms of the customer, and whether the limit and the days are checked for the customer.
+     */
+    private function checksOf(int $customerId): array
+    {
+        $settings = new SalesControlSettings($this->db);
+        $terms    = $this->termsOf($customerId);
+
+        return [
+            $terms,
+            $settings->creditLimitEnabled() && bccomp($terms['limit'], '0', 4) > 0,
+            $settings->creditPeriodEnabled() && $terms['days'] > 0,
+        ];
     }
 
     /**

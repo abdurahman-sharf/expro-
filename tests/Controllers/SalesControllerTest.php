@@ -6111,6 +6111,50 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->auditEntries('credit_limit_refused'));
     }
 
+    public function testPostSave_RefusesTakingAPaymentAwayThatTakesTheCustomerOverTheCreditLimitAndKeepsThePayment(): void
+    {
+        $invoice   = $this->postedInvoice();
+        $open      = bcadd($this->position()->open(), '0', 2);
+        $paymentId = $this->addPayment($invoice['saleId'], $open, 'Cash');
+        $row       = $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow();
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['credit_limit' => '50']);
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $supervisor = $this->createBranchLimitedSupervisor(1);
+
+        $this->loginAs($supervisor);
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], $this->savedPayment($row, ['payment_amount_0' => '0.00'])));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_credit_limit_exceeded', ['Omar Khaled', '50.00', $open]), $result['message']);
+        $this->assertSame(1, $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->countAllResults());
+        $this->assertSame($supervisor, (int) $this->lastAudit('credit_limit_refused')['employee_id']);
+    }
+
+    public function testPostSave_LetsAnEmployeeWhoMayOverrideTheCreditLimitTakeAPaymentAwayAndWritesIt(): void
+    {
+        $invoice   = $this->postedInvoice();
+        $open      = bcadd($this->position()->open(), '0', 2);
+        $paymentId = $this->addPayment($invoice['saleId'], $open, 'Cash');
+        $row       = $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow();
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['credit_limit' => '50']);
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $supervisor = $this->createBranchLimitedSupervisor(1, [AccountingGuard::CREDIT_OVERRIDE]);
+
+        $this->loginAs($supervisor);
+
+        $this->assertTrue($this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], $this->savedPayment($row, ['payment_amount_0' => '0.00'])))['success']);
+
+        $entry = $this->lastAudit('credit_limit_override');
+
+        $this->assertSame([$invoice['saleId'], $supervisor], [(int) $entry['entity_id'], (int) $entry['employee_id']]);
+        $this->assertSame(0, $this->auditEntries('credit_limit_refused'));
+    }
+
     public function testPostComplete_DoesNotHoldASaleThatIsPaidAtTheRegisterToTheCreditLimit(): void
     {
         $this->registerWithPriceControls(price: '100.00', mode: 'sale');

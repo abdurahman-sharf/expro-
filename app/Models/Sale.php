@@ -654,6 +654,9 @@ class Sale extends Model
 
         unset($updateData['invoice_date'], $updateData['payment_terms_days'], $updateData['due_date'], $updateData['changed_by']);
 
+        $customerId = null;
+        $openBefore = null;
+
         $this->db->transStart();
 
         try {
@@ -676,6 +679,13 @@ class Sale extends Model
 
                 if ($hasTerms) {
                     $updateData += $this->paymentTermsChange((int) $saleId, $typedTerms, $this->employeeOfEdit($saleData));
+                }
+
+                $customerId = $this->customerOf((int) $saleId);
+                $credit     = new CreditLimit($this->db);
+
+                if ($customerId !== null && ! empty($saleData['payments']) && $credit->watches($customerId)) {
+                    $openBefore = $credit->openOf($customerId, (int) $saleId);
                 }
             }
 
@@ -756,10 +766,25 @@ class Sale extends Model
                 }
 
                 $accounting?->syncPayments((int) $saleId, isset($employeeId) ? (int) $employeeId : null);
+
+                if ($openBefore !== null) {
+                    $creditRefusal = $this->creditRefusalOf((int) $saleId, $customerId, (int) $this->employeeOfEdit($saleData), (int) $this->getBranchId((int) $saleId), $openBefore);
+
+                    if ($creditRefusal !== null) {
+                        throw $creditRefusal;
+                    }
+                }
             }
         } catch (Throwable $exception) {
             $this->db->transRollback();
-            $this->recordAccountingFailure((int) $saleId, $this->asAccountingFailure($exception, (int) $saleId), $this->employeeOfPayments($saleData), $this->getBranchId((int) $saleId));
+
+            $failure = $this->asAccountingFailure($exception, (int) $saleId);
+
+            $this->recordAccountingFailure((int) $saleId, $failure, $this->employeeOfPayments($saleData), $this->getBranchId((int) $saleId));
+
+            if ($failure instanceof AccountingException && in_array($failure->error, [AccountingError::CreditLimitExceeded, AccountingError::CreditPeriodExceeded], true)) {
+                (new CreditLimit($this->db))->recordRefusal((int) $customerId, (int) $this->getBranchId((int) $saleId), $this->employeeOfEdit($saleData), $failure);
+            }
 
             return false;
         }
@@ -1760,16 +1785,18 @@ class Sale extends Model
      * Whether the sale that was just posted puts its customer over the credit limit or the credit days,
      * which an employee who holds the permission to override is let through, and the audit log says
      * so. The books decide what is open: a return is a credit and not an invoice, so it is never
-     * refused, and with accounting off nothing is posted, so nothing is open.
+     * refused, and with accounting off nothing is posted, so nothing is open. An edit of the payments
+     * of an issued invoice is held to the limit only when it left more open on the invoice than
+     * before, which is the open amount it had before the edit.
      */
-    private function creditRefusalOf(int $saleId, ?int $customerId, int $employeeId, int $branchId): ?AccountingException
+    private function creditRefusalOf(int $saleId, ?int $customerId, int $employeeId, int $branchId, ?string $openBefore = null): ?AccountingException
     {
         if ($customerId === null || $customerId <= 0) {
             return null;
         }
 
         $credit  = new CreditLimit($this->db);
-        $refusal = $credit->refusalFor($customerId, $saleId, date('Y-m-d'));
+        $refusal = $openBefore === null ? $credit->refusalFor($customerId, $saleId, date('Y-m-d')) : $credit->refusalForEdit($customerId, $saleId, $openBefore, date('Y-m-d'));
 
         if ($refusal === null) {
             return null;
@@ -1807,7 +1834,7 @@ class Sale extends Model
     {
         $this->accountingFailure = $failure;
 
-        $refusal = $failure instanceof AccountingException && in_array($failure->error, [AccountingError::SaleLocked, AccountingError::IssuedDocumentLocked, AccountingError::TreasuryDepositDenied, AccountingError::TreasuryWithdrawDenied, AccountingError::PaymentTermsInvalid], true);
+        $refusal = $failure instanceof AccountingException && in_array($failure->error, [AccountingError::SaleLocked, AccountingError::IssuedDocumentLocked, AccountingError::TreasuryDepositDenied, AccountingError::TreasuryWithdrawDenied, AccountingError::PaymentTermsInvalid, AccountingError::CreditLimitExceeded, AccountingError::CreditPeriodExceeded], true);
 
         if (($failure instanceof PostingException || $failure instanceof AccountingException) && ! $refusal) {
             (new SalePosting($this->db))->recordFailure($saleId, $failure, $employeeId, $branchId);
