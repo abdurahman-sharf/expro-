@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'accounting_account_default'         => 'Account of the routing row',
+    'accounting_account_not_used'        => 'The routing row is not set to per item, so this account is kept but not used.',
+    'accounting_account_sales_returns'   => 'Sales returns account',
+    'accounting_account_sales_revenue'   => 'Sales revenue account',
+    'accounting_accounts_hint'           => 'Where the revenue of the sales of this item, and the returns of them, are posted when the routing row is set to per item. An item without an account of its own goes to the account of the routing row.',
+    'accounting_accounts_title'          => 'Accounting',
     'add_minus'                          => 'Inventory to add or subtract.',
     'allow_alt_description'              => 'Allow Alternate Description',
     'amount_entry'                       => 'Amount Entry',

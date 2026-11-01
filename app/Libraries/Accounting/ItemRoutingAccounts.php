@@ -40,7 +40,7 @@ final class ItemRoutingAccounts
      */
     public function ofItem(int $itemId): array
     {
-        $rows = $this->builder()->where('i.item_id', $itemId)->get()->getResult();
+        $rows  = $this->builder()->where('i.item_id', $itemId)->get()->getResult();
         $byKey = [];
 
         foreach ($rows as $row) {
@@ -309,9 +309,9 @@ final class ItemRoutingAccounts
     }
 
     /**
-     * @return int|null|false The account, null for an empty value, which clears it, and false for a value that is not an account.
+     * @return false|int|null The account, null for an empty value, which clears it, and false for a value that is not an account.
      */
-    private function accountId(mixed $value): int|false|null
+    private function accountId(mixed $value): false|int|null
     {
         if ($value === null || (is_scalar($value) && trim((string) $value) === '')) {
             return null;

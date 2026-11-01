@@ -150,12 +150,55 @@ class RoutingKeyTest extends CIUnitTestCase
     public function testApplies_RefusesAutomaticOnlyOnThePurchaseAdjustmentBecauseNothingFeedsIt(): void
     {
         foreach (RoutingKey::cases() as $key) {
-            foreach (RoutingType::cases() as $type) {
-                $settlement = $key === RoutingKey::PurchaseAdjustment && $type === RoutingType::Auto;
+            $settlement = $key === RoutingKey::PurchaseAdjustment;
 
-                $this->assertSame(! $settlement && $type->isImplemented(), $key->applies($type), "{$key->value} {$type->value}");
-            }
+            $this->assertSame(! $settlement, $key->applies(RoutingType::Auto), $key->value);
+            $this->assertTrue($key->applies(RoutingType::Cancelled), $key->value);
         }
+    }
+
+    public function testPerItemKeys_AreTheRevenueAndTheReturnsRowsOnly(): void
+    {
+        $this->assertSame([RoutingKey::SalesRevenue, RoutingKey::SalesReturns], RoutingKey::perItemKeys());
+
+        foreach (RoutingKey::cases() as $key) {
+            $this->assertSame(in_array($key, [RoutingKey::SalesRevenue, RoutingKey::SalesReturns], true), $key->takesItemAccounts(), $key->value);
+        }
+    }
+
+    public function testPerItemKeys_AreRowsTheReferenceSystemOffersTheTypeOnAndTakeRevenueAccounts(): void
+    {
+        foreach (RoutingKey::perItemKeys() as $key) {
+            $this->assertContains(RoutingType::PerItem, $key->allowedTypes(), $key->value);
+            $this->assertSame([AccountType::Revenue], $key->allowedAccountTypes(), $key->value);
+        }
+    }
+
+    public function testPerItemKeys_LeaveOutTheStockRowAndTheCostOfSalesRowWhoseTiesAreKeptByLocation(): void
+    {
+        $this->assertFalse(RoutingKey::StockLocations->takesItemAccounts());
+        $this->assertFalse(RoutingKey::CostOfGoodsSold->takesItemAccounts());
+        $this->assertFalse(RoutingKey::StockLocations->applies(RoutingType::PerItem));
+        $this->assertFalse(RoutingKey::CostOfGoodsSold->applies(RoutingType::PerItem));
+        $this->assertNotContains(RoutingType::PerItem, RoutingKey::CostOfGoodsSold->allowedTypes());
+    }
+
+    public function testApplies_AppliesPerItemOnTheRowsThatTakeItemAccountsOnly(): void
+    {
+        foreach (RoutingKey::cases() as $key) {
+            $this->assertSame($key->takesItemAccounts(), $key->applies(RoutingType::PerItem), $key->value);
+        }
+    }
+
+    public function testApplies_AppliesMainPerEntityOnTheEntityRowsOnly(): void
+    {
+        foreach (RoutingKey::cases() as $key) {
+            $this->assertSame($key->isEntity(), $key->applies(RoutingType::MainPerEntity), $key->value);
+        }
+
+        $offered = array_filter(RoutingKey::cases(), static fn (RoutingKey $key): bool => in_array(RoutingType::MainPerEntity, $key->allowedTypes(), true));
+
+        $this->assertSame([RoutingKey::Customers], array_values($offered));
     }
 
     public function testCounterCustomers_IsAnAssetAccountOfItsOwnWithTheOnlyTypeThatPostsIt(): void

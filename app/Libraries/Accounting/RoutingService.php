@@ -42,6 +42,7 @@ final class RoutingService
         $routes   = $this->routes();
         $defaults = $this->defaultAccounts();
         $required = $this->requiredPaymentTypes();
+        $named    = (new ItemRoutingAccounts($this->db))->counts();
         $items    = [];
 
         foreach (RoutingKey::GROUPS as $group) {
@@ -58,6 +59,7 @@ final class RoutingService
                     locked: false,
                     allowedTypes: array_map(static fn (AccountType $type): string => $type->value, $key->allowedAccountTypes()),
                     routingKey: $key,
+                    itemAccounts: $key->takesItemAccounts() ? ($named[$key->value] ?? 0) : null,
                 );
             }
         }
@@ -254,7 +256,8 @@ final class RoutingService
 
     /**
      * What stops accounting from being turned on: a payment type in use with no usable account,
-     * and a stock location sold from that belongs to no active branch.
+     * a stock location sold from that belongs to no active branch, and an account an item names for
+     * a row set to per item that cannot take entries.
      *
      * @return list<ReadinessIssue>
      */
@@ -276,6 +279,12 @@ final class RoutingService
 
         foreach ($this->soldFromLocationsWithoutBranch() as $name) {
             $issues[] = new ReadinessIssue(ReadinessCode::StockLocationWithoutBranch, $name);
+        }
+
+        $unusable = $this->unusableItemAccounts();
+
+        if ($unusable > 0) {
+            $issues[] = new ReadinessIssue(ReadinessCode::ItemAccountInvalid, (string) $unusable);
         }
 
         return $issues;
@@ -389,7 +398,7 @@ final class RoutingService
     /**
      * @param list<string> $allowedTypes
      */
-    private function item(string $key, string $group, string $label, ?object $route, ?object $default, bool $required, bool $locked, array $allowedTypes, ?string $lockedTo = null, ?RoutingKey $routingKey = null, bool $entityAccount = false): RoutingItem
+    private function item(string $key, string $group, string $label, ?object $route, ?object $default, bool $required, bool $locked, array $allowedTypes, ?string $lockedTo = null, ?RoutingKey $routingKey = null, bool $entityAccount = false, ?int $itemAccounts = null): RoutingItem
     {
         $mapped = $route !== null && $route->account_id !== null;
         $type   = $routingKey === null ? RoutingType::Auto : $this->currentType($routingKey, $route);
@@ -426,6 +435,7 @@ final class RoutingService
             routingTypes: $routingKey === null ? [] : array_map(static fn (RoutingType $routingType): string => $routingType->value, $routingKey->allowedTypes()),
             isEntity: $entity,
             cancelMeansNone: $routingKey?->cancelMeansNone() ?? false,
+            itemAccounts: $itemAccounts,
         );
     }
 
@@ -538,6 +548,26 @@ final class RoutingService
         }
 
         return $labels;
+    }
+
+    /**
+     * How many accounts items name that cannot take entries, on the rows that are set to use them: a
+     * sale of one of those items would stop.
+     */
+    private function unusableItemAccounts(): int
+    {
+        $routes = $this->routes();
+        $count  = 0;
+
+        foreach ((new ItemRoutingAccounts($this->db))->problems() as $problem) {
+            $key = RoutingKey::tryFrom($problem['routing_key']);
+
+            if ($key !== null && $this->currentType($key, $routes[$key->value] ?? null) === RoutingType::PerItem) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     /**

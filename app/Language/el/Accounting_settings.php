@@ -64,6 +64,7 @@ return [
     'readiness_cashups_unposted'               => '',
     'readiness_entity_accounts_missing'        => '',
     'readiness_expenses_unposted'              => '',
+    'readiness_item_account_invalid'           => '',
     'readiness_no_accounts'                    => '',
     'readiness_no_fiscal_year'                 => '',
     'readiness_notices_title'                  => '',

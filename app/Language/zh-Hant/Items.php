@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'accounting_account_default'         => '',
+    'accounting_account_not_used'        => '',
+    'accounting_account_sales_returns'   => '',
+    'accounting_account_sales_revenue'   => '',
+    'accounting_accounts_hint'           => '',
+    'accounting_accounts_title'          => '',
     'add_minus'                          => '增/減庫存.',
     'allow_alt_description'              => '允許ALT描述',
     'amount_entry'                       => '金額輸入',

@@ -64,6 +64,7 @@ return [
     'readiness_cashups_unposted'               => 'يوجد {0} من إقفالات الصندوق خارج الدفاتر ولن تُرحَّل قبل مرحلة الترحيل الرجعي.',
     'readiness_entity_accounts_missing'        => 'لم تُفتح بعد {0} من حسابات العملاء أو الموردين أو مواقع المخزون. نفّذ الأمر "php spark accounting:fill_accounts".',
     'readiness_expenses_unposted'              => 'يوجد {0} من المصروفات خارج الدفاتر ولن تُرحَّل قبل مرحلة الترحيل الرجعي.',
+    'readiness_item_account_invalid'           => '{0} من الأصناف تحدد لمبيعاتها حسابًا معطّلًا أو مجموعة أو محجوزًا. صحّحها من نموذج الصنف قبل تفعيل المحاسبة.',
     'readiness_no_accounts'                    => 'دليل الحسابات فارغ.',
     'readiness_no_fiscal_year'                 => 'أنشئ سنة مالية.',
     'readiness_notices_title'                  => 'للعلم (لا تمنع التفعيل):',

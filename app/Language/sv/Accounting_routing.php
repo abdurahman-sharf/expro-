@@ -65,6 +65,7 @@ return [
     'payment_wallet'                => '',
     'payments_desc'                 => '',
     'payments_title'                => '',
+    'per_item_note'                 => '',
     'permission_note'               => '',
     'purchases_desc'                => '',
     'purchases_title'               => '',
