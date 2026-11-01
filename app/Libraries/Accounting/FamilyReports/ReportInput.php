@@ -11,13 +11,15 @@ final readonly class ReportInput
     public const PAGE_SIZE = 100;
 
     /**
-     * @param array<string, mixed> $query What the request carries; anything that is not a single text is read as nothing.
+     * @param array<string, mixed> $query        What the request carries; anything that is not a single text is read as nothing.
+     * @param int|null             $journalOwner The employee whose journals alone may be read, when the reader may not read everyone's.
      */
     public function __construct(
         public ReportScope $scope,
         public ?int $viewerId,
         public array $query,
         public string $today,
+        public ?int $journalOwner = null,
     ) {
     }
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
 use CodeIgniter\Router\RouteCollection;
 
 /** @var RouteCollection $routes */
@@ -214,6 +215,11 @@ $routes->group('accounting_reports', static function (RouteCollection $routes): 
     $routes->get('inventory_valuation/csv', 'AccountingInventoryReports::getCsv');
     $routes->get('tax', 'AccountingTaxReports::getIndex');
     $routes->get('tax/csv', 'AccountingTaxReports::getCsv');
+
+    foreach (FamilyReportCatalog::keys() as $familyKey) {
+        $routes->get($familyKey, 'AccountingFamilyReports::getShow/' . $familyKey);
+        $routes->get($familyKey . '/csv', 'AccountingFamilyReports::getCsv/' . $familyKey);
+    }
 });
 
 $routes->group('accounting_statements', static function (RouteCollection $routes): void {

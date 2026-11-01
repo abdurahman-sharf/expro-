@@ -367,6 +367,7 @@ return [
     'error_refund_party_missing'                 => '',
     'error_report_account_missing'               => '',
     'error_report_period_invalid'                => '',
+    'error_report_too_large'                     => '',
     'error_report_too_many_periods'              => '',
     'error_revenue_account_invalid'              => '',
     'error_revenue_account_required'             => '',

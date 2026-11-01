@@ -367,6 +367,7 @@ return [
     'error_refund_party_missing'                 => 'هذا العميل أو المورد غير موجود.',
     'error_report_account_missing'               => 'هذا الحساب غير موجود.',
     'error_report_period_invalid'                => 'بداية الفترة أحدث من نهايتها.',
+    'error_report_too_large'                     => 'المدى يحتوي فترات أكثر مما يمكن للتقرير عرضه. ضيّق المدى.',
     'error_report_too_many_periods'              => 'المدى يضم أكثر من {0} عمودًا. اختر ربع سنوي أو سنوي، أو مدى أقصر.',
     'error_revenue_account_invalid'              => 'هذا الحساب لا يقبل سندات القبض: اختر حساب إيراد فعّالًا يقبل القيد.',
     'error_revenue_account_required'             => 'تشترط الإعدادات حسابًا لكل سند قبض: اختر حسابًا أو تصنيفًا له حساب.',
