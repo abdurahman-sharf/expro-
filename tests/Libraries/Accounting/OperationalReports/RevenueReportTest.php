@@ -296,4 +296,17 @@ class RevenueReportTest extends CIUnitTestCase
         $this->assertSame(4, $table->documents);
         $this->assertTrue($table->ties());
     }
+    public function testBuild_EqualsTheAccountOfSalesTheAccountOfTaxAndTheAccountOfTheCustomer(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, $this->customerId);
+
+        $table = $this->table(RevenueGroup::Customer, false, notTaxed: true);
+
+        $this->assertSame('710.0000', $table->total['not_taxed']);
+        $this->assertSame('-710.00', $this->balance($this->accountId('sales_revenue')));
+        $this->assertSame('-106.50', $this->balance($this->accountId('tax_output')));
+        $this->assertSame('816.50', $this->balance($this->customerAccount()));
+        $this->assertSame('816.5000', $table->total['total']);
+    }
 }
