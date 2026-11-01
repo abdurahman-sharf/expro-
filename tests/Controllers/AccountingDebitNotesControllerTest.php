@@ -231,6 +231,17 @@ class AccountingDebitNotesControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('sales_debit_notes'));
     }
 
+    public function testPostSave_SaysInWordsWhyAnAmountOfLessThanHalfACentIsRefusedInsteadOfFailing(): void
+    {
+        $this->actAsWith(['accounting_debit_notes', AccountingGuard::DEBIT_NOTES_MANAGE]);
+
+        $answer = $this->postJson('/accounting_debit_notes/save', ['customer_id' => (string) $this->customerId, 'note_date' => date('Y-m-d'), 'amount' => '0.004', 'tax_percent' => '0']);
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.error_debit_note_amount_invalid'), $answer['message']);
+        $this->assertSame(0, $this->countRows('sales_debit_notes'));
+    }
+
     public function testPostSave_RefusesAnEmployeeWithoutTheManagePermissionEvenIfTheyHoldTheModule(): void
     {
         $this->actAsWith(['accounting_debit_notes']);

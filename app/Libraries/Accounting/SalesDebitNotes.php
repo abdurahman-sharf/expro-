@@ -35,6 +35,7 @@ final class SalesDebitNotes
     public const KEY_BASE       = 1_000_000_000;
     public const NOTE_MAX       = 500;
     public const REASON_MAX     = 255;
+    private const TOTAL_MAX     = '99999999999.9999';
     private const ENTITY        = 'sales_debit_note';
     private const AMOUNT        = '/^\d{1,11}(\.\d{1,4})?$/';
     private const PERCENT       = '/^\d{1,3}(\.\d{1,4})?$/';
@@ -428,6 +429,10 @@ final class SalesDebitNotes
         $amount = bcadd($amount, '0', SaleAmounts::SCALE);
         $tax    = SaleAmounts::round(bcmul($amount, bcdiv($percent, '100', 8), 8), SaleAmounts::SCALE);
         $split  = InvoiceRounding::split($amount, $tax);
+
+        if (bccomp($split['total'], '0', SaleAmounts::SCALE) <= 0 || bccomp($split['total'], self::TOTAL_MAX, SaleAmounts::SCALE) > 0) {
+            throw new AccountingException(AccountingError::DebitNoteAmountInvalid, 'The amount with its tax must come to at least one cent and fit the books.', ['total' => $split['total']]);
+        }
 
         return ['amount' => $amount, 'percent' => bcadd($percent, '0', SaleAmounts::SCALE), 'tax' => $split['tax'], 'total' => $split['total'], 'revenue' => $split['revenue']];
     }

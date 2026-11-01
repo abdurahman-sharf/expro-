@@ -159,7 +159,7 @@ return [
     'error_customer_opening_reversed'            => 'This opening balance is already cancelled, or has nothing posted.',
     'error_customer_opening_side_invalid'        => 'An opening balance is owed either by the customer or to them.',
     'error_debit_note_account_invalid'           => 'The account of the note must be an open revenue or expense account that belongs to no customer, supplier, stock location or treasury.',
-    'error_debit_note_amount_invalid'            => 'The amount of a debit note must be more than zero, with at most four decimals.',
+    'error_debit_note_amount_invalid'            => 'The amount of a debit note with its tax must come to at least one cent and less than 100 billion, with at most four decimals.',
     'error_debit_note_customer_missing'          => 'This customer does not exist.',
     'error_debit_note_not_found'                 => 'This debit note does not exist.',
     'error_debit_note_note_too_long'             => 'The note is longer than {0} characters.',

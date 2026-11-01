@@ -4,18 +4,22 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\RevenueVouchers;
 use App\Libraries\Accounting\RoutingKey;
+use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\Accounting\TaxAccountFigures;
 use App\Libraries\Accounting\TaxBasis;
 use App\Libraries\Accounting\TaxReport;
 use App\Libraries\Accounting\TaxReportResult;
 use App\Libraries\Accounting\TaxSection;
 use App\Libraries\Accounting\TrialBalance;
+use App\Libraries\HeaderCharges;
+use App\Libraries\ShippingTaxOption;
 use CodeIgniter\Database\Query;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -445,6 +449,112 @@ class TaxReportTest extends CIUnitTestCase
         $this->assertSame(['15', '5'], array_map(static fn ($row): string => $row->rate, $rows), 'The highest rate first');
         $this->assertSame(['100.0000', '15.0000', 1], [$rows[0]->base, $rows[0]->tax, $rows[0]->documents]);
         $this->assertSame(['100.0000', '5.0000', 1], [$rows[1]->base, $rows[1]->tax, $rows[1]->documents]);
+    }
+
+    private function turnOnShipping(string $percent = '15'): void
+    {
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', $percent);
+    }
+
+    public function testBuild_MatchesAnInvoiceWhoseShippingIsTaxedAndCountsTheShippingInItsBaseAndRate(): void
+    {
+        $this->turnOnShipping();
+
+        $service = $this->item('0', false);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($service, 0, '1', '100.00')], [$this->tax($service, 0, '15.00')], headerCharges: new HeaderCharges(shipping: '20', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15')));
+
+        $report = $this->report();
+        $rows   = $report->section(TaxSection::SalesInvoices)->rates;
+
+        $this->assertSame(['base' => '120.0000', 'tax' => '18.0000', 'documents' => 1], $this->figures($report, TaxSection::SalesInvoices));
+        $this->assertSame(['120.0000', '18.0000', 1], [$rows[0]->base, $rows[0]->tax, $rows[0]->documents]);
+        $this->assertSame(0, $report->unmatchedDocuments);
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_MatchesAnInvoiceOfFreeGoodsWithTaxedShipping(): void
+    {
+        $this->turnOnShipping();
+
+        $service = $this->item('0', false);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($service, 0, '1', '0')], [], headerCharges: new HeaderCharges(shipping: '20', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15')));
+
+        $report = $this->report();
+
+        $this->assertSame(['base' => '20.0000', 'tax' => '3.0000', 'documents' => 1], $this->figures($report, TaxSection::SalesInvoices));
+        $this->assertSame(0, $report->unmatchedDocuments);
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_MatchesACreditNoteWhoseShippingIsTaxedInThePartOfReturns(): void
+    {
+        $this->turnOnShipping();
+
+        $invoice = $this->sell('1000.00', '150.00');
+        $service = $this->item('0', false);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($service, 0, '-1', '100.00')], [$this->tax($service, 0, '-15.00')], [], SALE_TYPE_RETURN, -1, true, $invoice, headerCharges: new HeaderCharges(shipping: '20', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15')));
+
+        $report = $this->report();
+
+        $this->assertSame(['base' => '-120.0000', 'tax' => '-18.0000', 'documents' => 1], $this->figures($report, TaxSection::SalesReturns));
+        $this->assertSame(0, $report->unmatchedDocuments);
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_ShowsTheOutputTaxOfASalesDebitNoteAmongTheSalesInvoicesWithItsBaseAndRate(): void
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $clerk = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+
+        (new SalesDebitNotes())->create(['customer_id' => $this->customerId, 'date' => date('Y-m-d'), 'amount' => '1000', 'tax_percent' => '15'], $clerk);
+
+        $report = $this->report();
+        $rows   = $report->section(TaxSection::SalesInvoices)->rates;
+
+        $this->assertSame(['base' => '1000.0000', 'tax' => '150.0000', 'documents' => 1], $this->figures($report, TaxSection::SalesInvoices));
+        $this->assertSame(['15', '1000.0000', '150.0000', 1], [$rows[0]->rate, $rows[0]->base, $rows[0]->tax, $rows[0]->documents]);
+        $this->assertSame('150.0000', $report->output());
+        $this->assertSame(0, $report->unmatchedDocuments);
+        $this->assertSame(0, $this->accountOf($report, '215001')->otherJournals);
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_NetsASalesDebitNoteThatWasTakenBackToNothing(): void
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $clerk = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+        $notes = new SalesDebitNotes();
+        $id    = $notes->create(['customer_id' => $this->customerId, 'date' => date('Y-m-d'), 'amount' => '1000', 'tax_percent' => '15'], $clerk);
+
+        $notes->reverse($id, 'raised by mistake', $clerk);
+
+        $report = $this->report();
+
+        $this->assertSame(['base' => '0.0000', 'tax' => '0.0000', 'documents' => 0], $this->figures($report, TaxSection::SalesInvoices));
+        $this->assertSame('0.0000', $report->net());
+        $this->assertSame(0, $report->unmatchedDocuments);
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_AddsTheTaxOfADebitNoteToTheTaxOfTheInvoicesInWhatIsPayable(): void
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $clerk = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+
+        $this->sell('100.00', '15.00');
+        (new SalesDebitNotes())->create(['customer_id' => $this->customerId, 'date' => date('Y-m-d'), 'amount' => '200', 'tax_percent' => '15'], $clerk);
+
+        $report = $this->report();
+
+        $this->assertSame(['base' => '300.0000', 'tax' => '45.0000', 'documents' => 2], $this->figures($report, TaxSection::SalesInvoices));
+        $this->assertSame('45.0000', $report->net());
     }
 
     public function testBuild_SplitsAPurchaseByTheRateOfItsLines(): void

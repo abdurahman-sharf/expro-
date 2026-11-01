@@ -6,9 +6,12 @@ use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\TaxDocument;
 use App\Libraries\Accounting\TaxDocuments;
 use App\Libraries\Accounting\TaxSection;
+use App\Libraries\HeaderCharges;
+use App\Libraries\ShippingTaxOption;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
@@ -177,6 +180,98 @@ class TaxDocumentsTest extends CIUnitTestCase
 
         $this->assertSame(['200.0000', '22.0000'], [$document->base, $document->tax], 'Each line counts once in the document');
         $this->assertEquals(['15' => ['base' => '100.0000', 'tax' => '15.0000'], '2.5' => ['base' => '100.0000', 'tax' => '2.0000'], '5' => ['base' => '100.0000', 'tax' => '5.0000']], $document->rates, 'The order of the rows is not the order of the rates', 0.0);
+    }
+
+    private function turnOnShipping(string $percent = '15'): void
+    {
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $this->setConfigValue('accounting_shipping_tax_percent', $percent);
+    }
+
+    public function testSales_CountsTheShippingAndItsTaxInTheBaseTheTaxAndTheRateOfTheInvoice(): void
+    {
+        $this->turnOnShipping();
+
+        $service = $this->item('0', false);
+        $saleId  = $this->save([$this->line($service, 0, '1', '100.00')], [$this->tax($service, 0, '15.00')], headerCharges: new HeaderCharges(shipping: '20', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+
+        $document = $this->sale($saleId);
+
+        $this->assertSame(['120.0000', '18.0000'], [$document->base, $document->tax]);
+        $this->assertSame(['15' => ['base' => '120.0000', 'tax' => '18.0000']], $document->rates);
+        $this->assertFalse($document->discounted);
+    }
+
+    public function testSales_SplitsTheShippingTaxIntoItsOwnRateWhenItIsNotTheRateOfTheLines(): void
+    {
+        $this->turnOnShipping('5');
+
+        $service = $this->item('0', false);
+        $saleId  = $this->save([$this->line($service, 0, '1', '100.00')], [$this->tax($service, 0, '15.00')], headerCharges: new HeaderCharges(shipping: '40', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '5'));
+
+        $document = $this->sale($saleId);
+
+        $this->assertSame(['140.0000', '17.0000'], [$document->base, $document->tax]);
+        $this->assertEquals(['15' => ['base' => '100.0000', 'tax' => '15.0000'], '5' => ['base' => '40.0000', 'tax' => '2.0000']], $document->rates, '', 0.0);
+    }
+
+    public function testSales_TakesTheTaxInsideTheShippingOffItsBaseWhenThePricesIncludeTax(): void
+    {
+        $this->turnOnShipping();
+
+        $settings = config(OSPOS::class)->settings;
+        config(OSPOS::class)->settings['tax_included'] = '1';
+
+        try {
+            $service = $this->item('0', false);
+            $saleId  = $this->save([$this->line($service, 0, '1', '115.00')], [[...$this->tax($service, 0, '15.00'), 'tax_type' => 0]], headerCharges: new HeaderCharges(shipping: '115', shippingTaxOption: ShippingTaxOption::Included, shippingTaxPercent: '15'));
+        } finally {
+            config(OSPOS::class)->settings = $settings;
+        }
+
+        $this->assertGreaterThan(0, $saleId);
+
+        $document = $this->sale($saleId);
+
+        $this->assertSame(['200.0000', '30.0000'], [$document->base, $document->tax], '100 of a price of 115 and 100 of a shipping of 115, with 15 inside each');
+    }
+
+    public function testSales_CountsTheTaxOnTheShippingOfAnInvoiceWhoseGoodsAreFree(): void
+    {
+        $this->turnOnShipping();
+
+        $service = $this->item('0', false);
+        $saleId  = $this->save([$this->line($service, 0, '1', '0')], [], headerCharges: new HeaderCharges(shipping: '20', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+
+        $document = $this->sale($saleId);
+
+        $this->assertSame(['20.0000', '3.0000'], [$document->base, $document->tax]);
+    }
+
+    public function testSales_LeavesTheBaseAloneWhenTheShippingCarriesNoTax(): void
+    {
+        $this->turnOnShipping();
+
+        $service = $this->item('0', false);
+        $saleId  = $this->save([$this->line($service, 0, '1', '100.00')], [$this->tax($service, 0, '15.00')], headerCharges: new HeaderCharges(shipping: '20'));
+
+        $document = $this->sale($saleId);
+
+        $this->assertSame(['100.0000', '15.0000'], [$document->base, $document->tax], 'shipping without tax is not part of what the report counts');
+    }
+
+    public function testSales_GivesACreditNoteTheTaxOnItsShippingWithoutASign(): void
+    {
+        $this->turnOnShipping();
+
+        $invoice = $this->sell('1000.00', '150.00');
+        $service = $this->item('0', false);
+        $return  = $this->save([$this->line($service, 0, '-1', '100.00')], [$this->tax($service, 0, '-15.00')], [], SALE_TYPE_RETURN, -1, true, $invoice, headerCharges: new HeaderCharges(shipping: '20', shippingTaxOption: ShippingTaxOption::Added, shippingTaxPercent: '15'));
+
+        $document = $this->sale($return);
+
+        $this->assertSame(TaxSection::SalesReturns, $document->section);
+        $this->assertSame(['120.0000', '18.0000'], [$document->base, $document->tax]);
     }
 
     public function testSales_LeavesOutAQuoteAWorkOrderASuspendedSaleAndASaleThatIsNotThere(): void

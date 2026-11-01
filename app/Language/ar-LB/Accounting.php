@@ -159,7 +159,7 @@ return [
     'error_customer_opening_reversed'            => 'هذا الرصيد الافتتاحي ملغى من قبل أو لا قيد مرحَّلًا له.',
     'error_customer_opening_side_invalid'        => 'الرصيد الافتتاحي إما على العميل أو للعميل.',
     'error_debit_note_account_invalid'           => 'يجب أن يكون حساب الإشعار حساب إيراد أو مصروف مفتوحًا لا يخص عميلًا ولا موردًا ولا موقع مخزون ولا خزينة.',
-    'error_debit_note_amount_invalid'            => 'يجب أن يكون مبلغ الإشعار المدين أكبر من صفر بأربع منازل عشرية على الأكثر.',
+    'error_debit_note_amount_invalid'            => 'يجب أن يبلغ مبلغ الإشعار المدين مع ضريبته أصغر وحدة نقدية (0.01) على الأقل وأقل من مئة مليار، بأربع منازل عشرية على الأكثر.',
     'error_debit_note_customer_missing'          => 'هذا العميل غير موجود.',
     'error_debit_note_not_found'                 => 'هذا الإشعار المدين غير موجود.',
     'error_debit_note_note_too_long'             => 'الملاحظة أطول من {0} حرفًا.',

@@ -231,6 +231,9 @@ class SalesDebitNotesTest extends CIUnitTestCase
             'a negative amount'         => [['amount' => '-5'], AccountingError::DebitNoteAmountInvalid],
             'an amount that is text'    => [['amount' => 'ten'], AccountingError::DebitNoteAmountInvalid],
             'too many decimals'         => [['amount' => '1.00001'], AccountingError::DebitNoteAmountInvalid],
+            'less than half a cent'     => [['amount' => '0.004', 'tax_percent' => '0'], AccountingError::DebitNoteAmountInvalid],
+            'less than half a cent with its tax' => [['amount' => '0.0024', 'tax_percent' => '100'], AccountingError::DebitNoteAmountInvalid],
+            'a total beyond the books'  => [['amount' => '99999999999.9999', 'tax_percent' => '100'], AccountingError::DebitNoteAmountInvalid],
             'a tax above 100'           => [['tax_percent' => '100.01'], AccountingError::DebitNoteTaxInvalid],
             'a negative tax'            => [['tax_percent' => '-1'], AccountingError::DebitNoteTaxInvalid],
             'a tax that is text'        => [['tax_percent' => 'x'], AccountingError::DebitNoteTaxInvalid],
@@ -299,16 +302,54 @@ class SalesDebitNotesTest extends CIUnitTestCase
         $this->assertSame((string) $other, (string) $this->accountingDb()->table('accounting_journals')->where(['source_type' => SalesDebitNotes::SOURCE, 'source_id' => $id])->get()->getRow()->branch_id);
     }
 
-    public function testCreate_RefusesANoteWhoseRoutingRowIsCancelled(): void
+    public function testCreate_RefusesANoteWhoseRevenueRoutingRowIsCancelledWithTheNamedFailureAndLeavesNothing(): void
     {
-        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.discount')->update(['routing_type' => 'cancelled']);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.revenue')->update(['routing_type' => 'cancelled']);
+
+        $failure = $this->refusal(fn () => $this->raise());
+
+        $this->assertInstanceOf(PostingException::class, $failure);
+        $this->assertSame(PostingError::RoutingRowCancelled, $failure->error);
+        $this->assertSame('sales.revenue', $failure->context['routing_key']);
+        $this->assertSame(0, $this->countRows('sales_debit_notes'));
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testCreate_RefusesATaxedNoteWhoseOutputTaxAccountIsMissingAndLeavesNothing(): void
+    {
         $this->accountingDb()->table('accounting_routing')->where('routing_key', 'tax.output')->update(['account_id' => null]);
 
         $failure = $this->refusal(fn () => $this->raise(['tax_percent' => '15']));
 
         $this->assertInstanceOf(PostingException::class, $failure);
+        $this->assertSame(PostingError::RoutingAccountUnusable, $failure->error);
         $this->assertSame(0, $this->countRows('sales_debit_notes'));
         $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testCreate_PostsANoteThatNamesItsAccountWhileTheRevenueRoutingRowIsCancelled(): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.revenue')->update(['routing_type' => 'cancelled']);
+
+        $account = $this->accountId('sales_adjustment');
+        $id      = $this->raise(['account_id' => $account]);
+
+        $this->assertSame([$this->customerAccount() . '=100.00/0.00', $account . '=0.00/100.00'], $this->linesOf($id));
+    }
+
+    public function testCreate_AcceptsAnAmountThatRoundsToTheSmallestUnitAndPostsIt(): void
+    {
+        $id = $this->raise(['amount' => '0.005', 'tax_percent' => '0']);
+
+        $this->assertSame([$this->customerAccount() . '=0.0100/0.0000', $this->accountId('sales_revenue') . '=0.0000/0.0100'], $this->linesOf($id, 4));
+        $this->assertSame('0.0100', bcadd($this->noteRow($id)->total, '0', 4));
+    }
+
+    public function testCreate_AcceptsTheLargestTotalTheBooksHold(): void
+    {
+        $id = $this->raise(['amount' => '99999999999.99', 'tax_percent' => '0']);
+
+        $this->assertSame('99999999999.9900', bcadd($this->noteRow($id)->total, '0', 4));
     }
 
     public function testCreate_NumbersTheNoteInFiveDigitsUntilTheCompanyConfiguresItsSequence(): void
