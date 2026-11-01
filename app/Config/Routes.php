@@ -54,6 +54,17 @@ $routes->group('branches', static function (RouteCollection $routes): void {
     $routes->post('delete/(:num)', 'Branches::postDeleteBranch/$1');
 });
 
+$routes->group('roles', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Roles::getIndex');
+    $routes->get('search', 'Roles::getSearch');
+    $routes->get('row/(:num)', 'Roles::getRow/$1');
+    $routes->get('view', 'Roles::getView');
+    $routes->get('view/(:segment)', 'Roles::getView/$1');
+    $routes->post('save', 'Roles::postSave');
+    $routes->post('save/(:segment)', 'Roles::postSave/$1');
+    $routes->post('delete/(:num)', 'Roles::postDeleteRole/$1');
+});
+
 $routes->group('accounting_settings', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingSetup::getIndex');
     $routes->post('save', 'AccountingSetup::postSaveSettings');

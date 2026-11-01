@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => 'Toon en genereer rapporten.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Kassa',
     'sales_desc'                   => 'Verwerk aankopen en retours.',
     'suppliers'                    => 'Leveranciers',

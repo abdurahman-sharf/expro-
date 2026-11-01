@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => 'Riportok megtekintése és generálása',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Értékesítés',
     'sales_desc'                   => 'Termékek értékesítése és visszavétele',
     'suppliers'                    => 'Beszállítók',

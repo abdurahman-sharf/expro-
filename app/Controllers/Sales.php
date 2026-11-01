@@ -33,6 +33,7 @@ use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pdf_lib;
 use App\Libraries\Pricing\PriceControls;
 use App\Libraries\Pricing\SalesControlSettings;
+use App\Libraries\Roles\RecordScope;
 use App\Libraries\Sale_lib;
 use App\Libraries\ShippingTaxOption;
 use App\Libraries\Tax_lib;
@@ -192,6 +193,11 @@ class Sales extends Secure_Controller
         }
 
         $saleInfo = $this->sale->get_info($rowId)->getRow();
+
+        if ($saleInfo === null) {
+            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
+
         $dataRow = getSaleDataRow($saleInfo);
 
         return $this->response->setJSON($dataRow);
@@ -821,7 +827,7 @@ class Sales extends Secure_Controller
     public function postConfirmDelivery(int $saleId = NEW_ENTRY): ResponseInterface
     {
         if ($this->outsideBranchScope($saleId)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
         }
 
         $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
@@ -850,7 +856,7 @@ class Sales extends Secure_Controller
         }
 
         if ($this->outsideBranchScope($saleId)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
         }
 
         return null;
@@ -877,8 +883,8 @@ class Sales extends Secure_Controller
         $only      = is_string($raw) && preg_match('/^-?[0-9]$/', $raw) === 1 ? QuoteStatus::tryFrom((int) $raw) : null;
 
         return view('sales/documents', [
-            'drafts'       => $lists->drafts($branchIds),
-            'quotes'       => $lists->quotes($branchIds, $only),
+            'drafts'       => $lists->drafts($branchIds, $personId),
+            'quotes'       => $lists->quotes($branchIds, $only, $personId),
             'quote_filter' => $only,
             'statuses'     => QuoteStatus::cases(),
             'show_branch'  => $guard->seesBranches($personId),
@@ -1280,7 +1286,13 @@ class Sales extends Secure_Controller
         $item_location = $this->sale_lib->get_sale_location();
 
         if ($mode == 'return' && $this->sale->isValidReceipt($item_id_or_number_or_item_kit_or_receipt)) {
-            $this->sale_lib->return_entire_sale($item_id_or_number_or_item_kit_or_receipt);
+            $originId = (int) (explode(' ', trim($item_id_or_number_or_item_kit_or_receipt))[1] ?? 0);
+
+            if ($this->outsideBranchScope($originId)) {
+                $data['error'] = $this->scopeMessage();
+            } else {
+                $this->sale_lib->return_entire_sale($item_id_or_number_or_item_kit_or_receipt);
+            }
         } elseif ($this->item_kit->is_valid_item_kit($item_id_or_number_or_item_kit_or_receipt)) {
             // Add kit item to order if one is assigned
             $pieces = explode(' ', $item_id_or_number_or_item_kit_or_receipt);
@@ -2259,7 +2271,7 @@ class Sales extends Secure_Controller
     private function prepareReturnOf(int $saleId, ReturnDocument $document): ResponseInterface
     {
         if ($this->outsideBranchScope($saleId)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
         }
 
         $problem = $this->returnOriginProblem($saleId, $document);
@@ -2434,6 +2446,10 @@ class Sales extends Secure_Controller
 
     private function returnOriginProblem(int $saleId, ReturnDocument $document): ?string
     {
+        if ($this->sale->outsideRecordScope($saleId, (int) $this->session->get('person_id'))) {
+            return $this->scopeMessage();
+        }
+
         $origin = $this->sale->getSummary($saleId);
 
         if ($origin === null || (int) $origin->sale_status !== COMPLETED || (int) $origin->sale_type === SALE_TYPE_RETURN) {
@@ -2445,7 +2461,7 @@ class Sales extends Secure_Controller
         }
 
         if ($this->outsideBranchScope($saleId)) {
-            return lang('Sales.branch_not_allowed');
+            return $this->scopeMessage();
         }
 
         return null;
@@ -2507,7 +2523,9 @@ class Sales extends Secure_Controller
     }
 
     /**
-     * Whether any of the sales belongs to a branch the employee does not work in.
+     * Whether any of the sales belongs to a branch the employee does not work in, or to another
+     * employee when the employee sees their own records only. For such an employee a sale that
+     * does not exist is outside as well, so that they cannot tell the two apart.
      */
     private function outsideBranchScope(int ...$saleIds): bool
     {
@@ -2515,6 +2533,10 @@ class Sales extends Secure_Controller
         $personId = (int)$this->session->get('person_id');
 
         foreach ($saleIds as $saleId) {
+            if ($this->sale->outsideRecordScope($saleId, $personId)) {
+                return true;
+            }
+
             $branchId = $this->sale->getBranchId($saleId);
 
             if ($branchId !== null && !$guard->canAccess($branchId, $personId)) {
@@ -2523,6 +2545,15 @@ class Sales extends Secure_Controller
         }
 
         return false;
+    }
+
+    /**
+     * What an employee is told when a sale is outside their reach: for one who sees their own
+     * records only the plain refusal, that says nothing of whether the sale exists.
+     */
+    private function scopeMessage(): string
+    {
+        return (new RecordScope())->ownOnly((int) $this->session->get('person_id')) ? lang('Sales.not_authorized') : lang('Sales.branch_not_allowed');
     }
 
     /**
@@ -2889,7 +2920,7 @@ class Sales extends Secure_Controller
             $sale_ids = $sale_id == NEW_ENTRY ? $this->request->getPost('ids', FILTER_SANITIZE_NUMBER_INT) : [$sale_id];
 
             if ($this->outsideBranchScope(...array_map('intval', (array) $sale_ids))) {
-                return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
+                return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
             }
 
             if ($this->sale->delete_list($sale_ids, $employee_id, $update_inventory)) {
@@ -2922,7 +2953,7 @@ class Sales extends Secure_Controller
             $sale_ids = $sale_id == NEW_ENTRY ? $this->request->getPost('ids', FILTER_SANITIZE_NUMBER_INT) : [$sale_id];
 
             if ($this->outsideBranchScope(...array_map('intval', (array) $sale_ids))) {
-                return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
+                return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
             }
 
             if ($this->sale->restore_list($sale_ids, $employee_id, $update_inventory)) {
@@ -2953,7 +2984,7 @@ class Sales extends Secure_Controller
         }
 
         if ($this->outsideBranchScope($saleId)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.branch_not_allowed')]);
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
         }
 
         $newdate = $this->request->getPost('date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
@@ -3233,7 +3264,7 @@ class Sales extends Secure_Controller
         $saleId = $this->request->getPost('suspended_sale_id', FILTER_SANITIZE_NUMBER_INT);
 
         if ($saleId > 0 && $this->outsideBranchScope((int) $saleId)) {
-            return $this->reload(['error' => lang('Sales.branch_not_allowed')]);
+            return $this->reload(['error' => $this->scopeMessage()]);
         }
 
         if ($saleId > 0 && (new QuoteLifecycle())->statusOf((int) $saleId)?->isLocked() === true) {

@@ -4,6 +4,7 @@ namespace App\Libraries\Accounting;
 
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\CompanyContext;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -39,12 +40,13 @@ final class SupplierPaymentList
     /**
      * @param list<int>|null       $branchIds Null reads every branch, none reads nothing.
      * @param array<string, mixed> $filters   search, date_from, date_to, supplier_id, payment_type, status, treasury_id, employee_id and kind; anything that is not what a filter takes is left out.
+     * @param int|null             $viewerId  The reader, who sees only the payments they made when they see their own records only. The employee of the session when not given.
      *
      * @return array{total: int, rows: list<object>}
      */
-    public function search(?array $branchIds, array $filters = [], string $sort = 'date', string $order = 'desc', int $limit = 25, int $offset = 0): array
+    public function search(?array $branchIds, array $filters = [], string $sort = 'date', string $order = 'desc', int $limit = 25, int $offset = 0, ?int $viewerId = null): array
     {
-        [$where, $bindings] = $this->conditions($branchIds, $filters);
+        [$where, $bindings] = $this->conditions($branchIds, $filters, $viewerId);
 
         $from  = $this->from();
         $total = (int) $this->db->query("SELECT COUNT(*) AS found {$from['sql']} {$where}", [...$from['bindings'], ...$bindings])->getRow()->found;
@@ -93,9 +95,9 @@ final class SupplierPaymentList
      *
      * @return list<object{employee_id: int, name: string}>
      */
-    public function payers(?array $branchIds): array
+    public function payers(?array $branchIds, ?int $viewerId = null): array
     {
-        [$where, $bindings] = $this->conditions($branchIds, []);
+        [$where, $bindings] = $this->conditions($branchIds, [], $viewerId);
 
         $from = $this->from();
         $rows = $this->db->query(
@@ -157,10 +159,16 @@ final class SupplierPaymentList
      *
      * @return array{string, list<int|string>}
      */
-    private function conditions(?array $branchIds, array $filters): array
+    private function conditions(?array $branchIds, array $filters, ?int $viewerId): array
     {
         $where    = [];
         $bindings = [];
+        $mine     = (new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());
+
+        if ($mine !== null) {
+            $where[]    = 'd.employee_id = ?';
+            $bindings[] = $mine;
+        }
 
         if ($branchIds !== null) {
             $ids     = array_values(array_unique(array_map('intval', $branchIds)));

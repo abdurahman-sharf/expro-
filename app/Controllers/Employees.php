@@ -8,9 +8,16 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\BranchService;
 use App\Libraries\Organization\EmployeeBranchService;
+use App\Libraries\Roles\DefaultLocations;
+use App\Libraries\Roles\RecordScope;
+use App\Libraries\Roles\RoleException;
+use App\Libraries\Roles\RoleService;
+use App\Libraries\Roles\RoleTables;
 use App\Models\Module;
+use App\Models\Stock_location;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Database;
 use Config\Services;
 
 /**
@@ -23,6 +30,7 @@ class Employees extends Persons
 {
     private EmployeeBranchService $branchScopes;
     private SensitivePermissions $sensitivePermissions;
+    private RoleService $roles;
 
     public function __construct()
     {
@@ -31,6 +39,7 @@ class Employees extends Persons
         $this->module               = model('Module');
         $this->branchScopes         = new EmployeeBranchService(null, new BranchGuard(null, $this->employee));
         $this->sensitivePermissions = new SensitivePermissions();
+        $this->roles                = new RoleService(null, $this->employee);
     }
 
     /**
@@ -87,23 +96,23 @@ class Employees extends Persons
      */
     public function getView(int $employee_id = NEW_ENTRY): string
     {
-        $person_info = $this->employee->get_info($employee_id);
-        $current_user = $this->employee->get_logged_in_employee_info();
+        $personInfo  = $this->employee->get_info($employee_id);
+        $currentUser = $this->employee->get_logged_in_employee_info();
 
-        if ($employee_id != NEW_ENTRY && !$this->employee->canModifyEmployee($person_info->person_id, $current_user->person_id)) {
+        if ($employee_id != NEW_ENTRY && ! $this->employee->canModifyEmployee($personInfo->person_id, $currentUser->person_id)) {
             throw new RedirectException('no_access/employees/employees');
         }
 
-        foreach (get_object_vars($person_info) as $property => $value) {
-            $person_info->$property = $value;
+        foreach (get_object_vars($personInfo) as $property => $value) {
+            $personInfo->$property = $value;
         }
-        $data['person_info'] = $person_info;
+        $data['person_info'] = $personInfo;
         $data['employee_id'] = $employee_id;
 
         $modules = [];
         foreach ($this->module->get_all_modules()->getResult() as $module) {
-            $module->grant = $this->employee->has_grant($module->module_id, $person_info->person_id);
-            $module->menu_group = $this->employee->get_menu_group($module->module_id, $person_info->person_id);
+            $module->grant      = $this->employee->hasDirectGrant($module->module_id, $personInfo->person_id);
+            $module->menu_group = $this->employee->get_menu_group($module->module_id, $personInfo->person_id);
 
             $modules[] = $module;
         }
@@ -116,14 +125,15 @@ class Employees extends Persons
             }
 
             $permission->permission_id = str_replace(' ', '_', $permission->permission_id);
-            $permission->grant = $this->employee->has_grant($permission->permission_id, $person_info->person_id);
+            $permission->grant         = $this->employee->hasDirectGrant($permission->permission_id, $personInfo->person_id);
 
             $permissions[] = $permission;
         }
         $data['all_subpermissions']    = $permissions;
         $data['sensitive_permissions'] = AccountingGuard::SENSITIVE;
-        $data['is_admin']              = $this->employee->isAdmin($current_user->person_id);
-        $data['branch_tab']            = $this->branchTab($employee_id, $current_user->person_id);
+        $data['is_admin']              = $this->employee->isAdmin($currentUser->person_id);
+        $data['branch_tab']            = $this->branchTab($employee_id, $currentUser->person_id);
+        $data['roles_tab']             = $this->rolesTab($employee_id == NEW_ENTRY ? 0 : (int) $employee_id, (int) $currentUser->person_id);
 
         return view('employees/form', $data);
     }
@@ -197,9 +207,17 @@ class Employees extends Persons
             }
         }
 
-        $targetId       = $employeeId == NEW_ENTRY ? null : (int) $employeeId;
-        $previousScope  = $targetId === null ? null : $this->branchScopes->scopeOf($targetId);
-        $requestedScope = $this->requestedBranchScope($currentUser->person_id, $targetId);
+        $targetId          = $employeeId == NEW_ENTRY ? null : (int) $employeeId;
+        $previousScope     = $targetId === null ? null : $this->branchScopes->scopeOf($targetId);
+        $requestedScope    = $this->requestedBranchScope($currentUser->person_id, $targetId);
+        $requestedRoles    = $this->requestedRoles((int) $currentUser->person_id);
+        $requestedLocation = $this->requestedDefaultLocation();
+
+        try {
+            $this->checkRolesAndDefaults((int) $currentUser->person_id, $targetId, $requestedRoles, $requestedLocation);
+        } catch (RoleException $exception) {
+            return $this->roleRefusal($exception, $employeeId);
+        }
 
         if ($requestedScope !== null) {
             try {
@@ -288,6 +306,12 @@ class Employees extends Persons
                 ]);
             }
 
+            try {
+                $this->applyRolesAndDefaults((int) $currentUser->person_id, (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $requestedRoles, $requestedLocation);
+            } catch (RoleException $exception) {
+                return $this->roleRefusal($exception, $employeeId);
+            }
+
             // New employee
             if ($employeeId == NEW_ENTRY) {
                 return $this->response->setJSON([
@@ -326,7 +350,7 @@ class Employees extends Persons
 
         if ($employeeId != NEW_ENTRY) {
             $currentGrantIds = array_values(array_diff(
-                array_column($this->employee->get_employee_grants($employeeId), 'permission_id'),
+                array_column($this->employee->getDirectGrants($employeeId), 'permission_id'),
                 [BranchGuard::ALL_BRANCHES],
             ));
 
@@ -351,6 +375,119 @@ class Employees extends Persons
         sort($submittedGrantIds);
 
         return $currentGrantIds !== $submittedGrantIds;
+    }
+
+    /**
+     * What the roles and records tab of the form shows: the roles there are, the ones the employee
+     * holds, the records they see, and the stock location they start in. Null before the migration
+     * of the roles has run, when the form carries no such tab.
+     *
+     * @return array{roles: list<object>, held: list<int>, can_manage: bool, record_scope: string, locations: list<object>, default_location_id: ?int, role_permissions: array<string, list<string>>}|null
+     */
+    private function rolesTab(int $targetId, int $actorId): ?array
+    {
+        if (! RoleTables::complete(Database::connect())) {
+            return null;
+        }
+
+        return [
+            'roles'               => $this->roles->all(),
+            'held'                => $targetId === 0 ? [] : $this->roles->roleIdsOf($targetId),
+            'can_manage'          => $this->employee->has_grant(AccountingGuard::ROLES_MANAGE, $actorId),
+            'record_scope'        => $targetId === 0 ? RecordScope::ALL : $this->roles->recordScopeOf($targetId),
+            'locations'           => model(Stock_location::class)->get_all()->getResult(),
+            'default_location_id' => $targetId === 0 ? null : (new DefaultLocations())->of($targetId),
+            'role_permissions'    => $targetId === 0 ? [] : $this->roles->rolePermissionsOf($targetId),
+        ];
+    }
+
+    /**
+     * The roles and the records the form asked for, null when the form carried none, the actor may
+     * not manage roles or grants may not be changed.
+     *
+     * @return array{roles: list<int|string>, scope: string}|null
+     */
+    private function requestedRoles(int $actorId): ?array
+    {
+        if ($this->request->getPost('roles_present') === null
+            || ! $this->employee->has_grant(AccountingGuard::ROLES_MANAGE, $actorId)
+            || filter_var(getenv('DISALLOW_GRANT_CHANGE'), FILTER_VALIDATE_BOOLEAN)) {
+            return null;
+        }
+
+        $roleIds = $this->request->getPost('role_ids');
+
+        return [
+            'roles' => is_array($roleIds) ? array_values($roleIds) : [],
+            'scope' => (string) ($this->request->getPost('record_scope') ?? RecordScope::ALL),
+        ];
+    }
+
+    /**
+     * The stock location the form asked to start the employee in, null when the form carried none.
+     * A location of null takes the default away.
+     *
+     * @return array{locationId: ?int}|null
+     */
+    private function requestedDefaultLocation(): ?array
+    {
+        if ($this->request->getPost('default_location_present') === null) {
+            return null;
+        }
+
+        $locationId = (int) $this->request->getPost('default_location_id');
+
+        return ['locationId' => $locationId > 0 ? $locationId : null];
+    }
+
+    /**
+     * What saving the roles, the records and the stock location would refuse, asked before the
+     * employee is saved so that a refusal leaves nothing behind.
+     *
+     * @param array{roles: list<int|string>, scope: string}|null $requestedRoles
+     * @param array{locationId: ?int}|null                       $requestedLocation
+     *
+     * @throws RoleException
+     */
+    private function checkRolesAndDefaults(int $actorId, ?int $targetId, ?array $requestedRoles, ?array $requestedLocation): void
+    {
+        if ($requestedRoles !== null) {
+            $this->roles->checkAssignment($targetId, $requestedRoles['roles'], $requestedRoles['scope'], $actorId);
+        }
+
+        if ($requestedLocation !== null) {
+            (new DefaultLocations())->check($requestedLocation['locationId']);
+        }
+    }
+
+    /**
+     * Saves the roles, the records and the stock location of an employee, after the employee was
+     * saved.
+     *
+     * @param array{roles: list<int|string>, scope: string}|null $requestedRoles
+     * @param array{locationId: ?int}|null                       $requestedLocation
+     *
+     * @throws RoleException
+     */
+    private function applyRolesAndDefaults(int $actorId, int $personId, ?array $requestedRoles, ?array $requestedLocation): void
+    {
+        if ($requestedRoles !== null) {
+            $this->roles->assign($personId, $requestedRoles['roles'], $actorId);
+            $this->roles->setRecordScope($personId, $requestedRoles['scope'], $actorId);
+        }
+
+        if ($requestedLocation !== null) {
+            (new DefaultLocations())->set($personId, $requestedLocation['locationId'], $actorId, $this->employee);
+        }
+    }
+
+    private function roleRefusal(RoleException $exception, int|string $employeeId): ResponseInterface
+    {
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => lang('Roles.error_' . $exception->error->value, array_values(array_map('strval', array_intersect_key($exception->context, array_flip(['permission', 'name']))))),
+            'id'      => $employeeId,
+        ]);
     }
 
     /**

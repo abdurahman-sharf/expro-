@@ -4,6 +4,9 @@ namespace App\Models;
 
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\DefaultLocations;
+use App\Libraries\Roles\RoleGrants;
+use App\Libraries\Roles\RoleService;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -68,10 +71,10 @@ class Stock_location extends Model
     public function get_undeleted_all(string $module_id = 'items', bool $byBranch = false): ResultInterface
     {
         $branchIds = $this->employeeBranchIds($byBranch);
+        $roleHeld  = $this->heldThroughRoles();
         $builder = $this->db->table('stock_locations');
         $builder->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id');
-        $builder->join('grants AS grants', 'grants.permission_id = permissions.permission_id');
-        $builder->where('person_id', $this->session->get('person_id'));
+        $this->limitToHeld($builder, $roleHeld);
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('deleted', 0);
         $this->limitToBranches($builder, $branchIds);
@@ -122,10 +125,10 @@ class Stock_location extends Model
     public function is_allowed_location(int $location_id, string $module_id = 'items', bool $byBranch = false): bool
     {
         $branchIds = $this->employeeBranchIds($byBranch);
+        $roleHeld  = $this->heldThroughRoles();
         $builder = $this->db->table('stock_locations');
         $builder->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id');
-        $builder->join('grants AS grants', 'grants.permission_id = permissions.permission_id');
-        $builder->where('person_id', $this->session->get('person_id'));
+        $this->limitToHeld($builder, $roleHeld);
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('stock_locations.location_id', $location_id);
         $builder->where('deleted', 0);
@@ -140,11 +143,17 @@ class Stock_location extends Model
      */
     public function get_default_location_id(string $module_id = 'items', bool $byBranch = false): int
     {
+        $own = in_array($module_id, ['sales', 'receivings'], true) ? (new DefaultLocations($this->db))->of((int) $this->session->get('person_id')) : null;
+
+        if ($own !== null && $this->is_allowed_location($own, $module_id, $byBranch)) {
+            return $own;
+        }
+
         $branchIds = $this->employeeBranchIds($byBranch);
+        $roleHeld  = $this->heldThroughRoles();
         $builder = $this->db->table('stock_locations');
         $builder->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id');
-        $builder->join('grants AS grants', 'grants.permission_id = permissions.permission_id');
-        $builder->where('person_id', $this->session->get('person_id'));
+        $this->limitToHeld($builder, $roleHeld);
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('deleted', 0);
         $this->limitToBranches($builder, $branchIds);
@@ -165,6 +174,38 @@ class Stock_location extends Model
     private function employeeBranchIds(bool $byBranch): ?array
     {
         return $byBranch ? (new BranchGuard($this->db))->allowedBranchIds((int) $this->session->get('person_id')) : null;
+    }
+
+    /**
+     * The permissions the roles of the employee give. Read before the query is built, because
+     * reading them runs queries of their own on the same connection.
+     *
+     * @return list<string>
+     */
+    private function heldThroughRoles(): array
+    {
+        return (new RoleGrants($this->db))->idsFor((int) $this->session->get('person_id'));
+    }
+
+    /**
+     * Keeps the permissions of locations that the employee holds, through their own grants or
+     * through their roles.
+     *
+     * @param list<string> $heldThroughRoles
+     */
+    private function limitToHeld(BaseBuilder $builder, array $heldThroughRoles): void
+    {
+        $personId = (int) $this->session->get('person_id');
+
+        $builder->join('grants AS grants', 'grants.permission_id = permissions.permission_id AND grants.person_id = ' . $personId, 'left');
+        $builder->groupStart();
+        $builder->where('person_id', $personId);
+
+        if ($heldThroughRoles !== []) {
+            $builder->orWhereIn('permissions.permission_id', $heldThroughRoles);
+        }
+
+        $builder->groupEnd();
     }
 
     /**
@@ -303,6 +344,8 @@ class Stock_location extends Model
 
             $builder->insert($grants_data);
         }
+
+        (new RoleService($this->db))->carryLocationPermission($module, $permission_id);
     }
 
     /**

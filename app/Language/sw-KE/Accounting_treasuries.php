@@ -90,6 +90,8 @@ return [
     'scope_line_withdraw' => '',
     'scope_members_required' => '',
     'scope_note' => '',
+    'scope_roles' => '',
+    'scope_roles_count' => '',
     'scope_staff' => '',
     'scope_staff_count' => '',
     'scope_title' => '',

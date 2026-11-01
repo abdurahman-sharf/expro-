@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => 'הצג וצור דוחות.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'מכירות',
     'sales_desc'                   => 'תהליך מכירות והחזרות.',
     'suppliers'                    => 'ספקים',

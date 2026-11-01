@@ -12,6 +12,7 @@ use App\Libraries\Accounting\PostingException;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use Config\OSPOS;
@@ -42,6 +43,30 @@ class Expense extends Model
         'treasury_id'
     ];
     private ?Throwable $accountingFailure = null;
+    private ?RecordScope $recordScope     = null;
+
+    /**
+     * The expenses an employee who sees their own records only may not open, change or delete are
+     * the ones another employee made, and the ones that do not exist, which they cannot tell apart.
+     */
+    public function outsideRecordScope(int $expenseId, ?int $viewerId = null): bool
+    {
+        $viewer = $viewerId ?? RecordScope::sessionEmployee();
+        $scope  = $this->recordScope ??= new RecordScope($this->db);
+
+        if (! $scope->ownOnly($viewer)) {
+            return false;
+        }
+
+        $row = $this->db->table('expenses')->select('employee_id')->where('expense_id', $expenseId)->get()->getRow();
+
+        return ! $scope->allows($viewer, $row?->employee_id);
+    }
+
+    private function viewerCut(?int $viewerId): ?int
+    {
+        return ($this->recordScope ??= new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());
+    }
 
     /**
      * Why the last change to an expense was refused by the books, or null when it was not.
@@ -91,10 +116,16 @@ class Expense extends Model
      * @param array $expense_ids
      * @return ResultInterface
      */
-    public function get_multiple_info(array $expense_ids): ResultInterface
+    public function get_multiple_info(array $expense_ids, ?int $viewerId = null): ResultInterface
     {
+        $cut     = $this->viewerCut($viewerId);
         $builder = $this->db->table('expenses');
         $builder->whereIn('expenses.expense_id', $expense_ids);
+
+        if ($cut !== null) {
+            $builder->where('expenses.employee_id', $cut);
+        }
+
         $builder->orderBy('expense_id', 'asc');
 
         return $builder->get();
@@ -103,9 +134,9 @@ class Expense extends Model
     /**
      * Gets rows
      */
-    public function get_found_rows(string $search, array $filters): int
+    public function get_found_rows(string $search, array $filters, ?int $viewerId = null): int
     {
-        return $this->search($search, $filters, 0, 0, 'expense_id', 'asc', true);
+        return $this->search($search, $filters, 0, 0, 'expense_id', 'asc', true, $viewerId);
     }
 
     /**
@@ -120,7 +151,7 @@ class Expense extends Model
      * @param bool|null $count_only
      * @return ResultInterface|false|string
      */
-    public function search(string $search, array $filters, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'expense_id', ?string $order = 'asc', ?bool $count_only = false): false|string|ResultInterface
+    public function search(string $search, array $filters, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'expense_id', ?string $order = 'asc', ?bool $count_only = false, ?int $viewerId = null): false|string|ResultInterface
     {
         // Set default values
         if ($rows == null) $rows = 0;
@@ -129,9 +160,10 @@ class Expense extends Model
         if ($order == null) $order = 'asc';
         if ($count_only == null) $count_only = false;
 
-        $config = config(OSPOS::class)->settings;
+        $cut          = $this->viewerCut($viewerId);
+        $config       = config(OSPOS::class)->settings;
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
-        $builder = $this->db->table('expenses AS expenses');
+        $builder      = $this->db->table('expenses AS expenses');
 
         // get_found_rows case
         if ($count_only) {
@@ -171,6 +203,10 @@ class Expense extends Model
         $builder->groupEnd();
 
         $builder->where('expenses.deleted', $filters['is_deleted']);
+
+        if ($cut !== null) {
+            $builder->where('expenses.employee_id', $cut);
+        }
 
         if (empty($config['date_or_time_format'])) {
             $builder->where('DATE_FORMAT(expenses.date, "%Y-%m-%d") BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date']));
@@ -223,10 +259,11 @@ class Expense extends Model
     /**
      * Gets information about a particular expense
      */
-    public function get_info(int $expense_id): object
+    public function get_info(int $expense_id, ?int $viewerId = null): object
     {
+        $cut          = $this->viewerCut($viewerId);
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
-        $builder = $this->db->table('expenses AS expenses');
+        $builder      = $this->db->table('expenses AS expenses');
         $builder->select('
             expenses.expense_id AS expense_id,
             expenses.date AS date,
@@ -252,6 +289,10 @@ class Expense extends Model
         $builder->join('expense_categories AS expense_categories', 'expense_categories.expense_category_id = expenses.expense_category_id', 'LEFT');
         $builder->join('suppliers AS suppliers', 'suppliers.person_id = expenses.supplier_id', 'LEFT');
         $builder->where('expense_id', $expense_id);
+
+        if ($cut !== null) {
+            $builder->where('expenses.employee_id', $cut);
+        }
 
         if ($accountingOn) {
             $builder->select($this->ledgerState('expenses') . ' AS ledger_state', false);
@@ -315,6 +356,10 @@ class Expense extends Model
     public function save_value(array &$expenseData, int $expenseId = NEW_ENTRY, ?int $actorId = null): bool
     {
         $this->accountingFailure = null;
+
+        if ($expenseId !== NEW_ENTRY && $this->outsideRecordScope($expenseId, $actorId)) {
+            return false;
+        }
 
         if (! (new AccountingSettings($this->db))->isEnabled()) {
             unset($expenseData['treasury_id'], $expenseData['branch_id'], $expenseData['expense_branch_id'], $expenseData['treasury_branch_id']);
@@ -414,6 +459,12 @@ class Expense extends Model
     {
         $this->accountingFailure = null;
 
+        foreach ($expenseIds as $expenseId) {
+            if ($this->outsideRecordScope((int) $expenseId, $actorId)) {
+                return false;
+            }
+        }
+
         if (! (new AccountingSettings($this->db))->isEnabled()) {
             return $this->deleteRows($expenseIds);
         }
@@ -476,14 +527,19 @@ class Expense extends Model
     /**
      * Gets the payment summary for the expenses (expenses/manage) view
      */
-    public function get_payments_summary(string $search, array $filters): array    // TODO: $search is passed but never used in the function
+    public function get_payments_summary(string $search, array $filters, ?int $viewerId = null): array    // TODO: $search is passed but never used in the function
     {
+        $cut    = $this->viewerCut($viewerId);
         $config = config(OSPOS::class)->settings;
 
         // get payment summary
         $builder = $this->db->table('expenses');
         $builder->select('payment_type, COUNT(amount) AS count, SUM(amount) AS amount');
         $builder->where('deleted', $filters['is_deleted']);
+
+        if ($cut !== null) {
+            $builder->where('expenses.employee_id', $cut);
+        }
 
         if (empty($config['date_or_time_format'])) {
             $builder->where('DATE_FORMAT(date, "%Y-%m-%d") BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date']));
@@ -527,10 +583,15 @@ class Expense extends Model
     /**
      * Gets the expense payment
      */
-    public function get_expense_payment(int $expense_id): ResultInterface
+    public function get_expense_payment(int $expense_id, ?int $viewerId = null): ResultInterface
     {
+        $cut     = $this->viewerCut($viewerId);
         $builder = $this->db->table('expenses');
         $builder->where('expense_id', $expense_id);
+
+        if ($cut !== null) {
+            $builder->where('expenses.employee_id', $cut);
+        }
 
         return $builder->get();
     }

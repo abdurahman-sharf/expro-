@@ -8,6 +8,7 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Organization\BranchService;
+use App\Libraries\Roles\RoleService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
@@ -99,6 +100,7 @@ class AccountingTreasuries extends AccountingController
                 TreasuryScopes::WITHDRAW => $this->scopes->scopeOf((int) $treasury->treasury_id, TreasuryScopes::WITHDRAW),
             ],
             'staff'          => $this->treasuries->employees(),
+            'scope_roles'    => array_values(array_filter((new RoleService())->all(), static fn (object $role): bool => (int) $role->active === 1)),
             'scope_branches' => array_values(array_filter((new BranchService())->all(), static fn (object $branch): bool => (int) $branch->active === 1)),
         ]);
     }
@@ -403,6 +405,7 @@ class AccountingTreasuries extends AccountingController
     {
         return match ($scope['mode']) {
             TreasuryScopes::STAFF    => lang('Accounting_treasuries.scope_staff_count', [count($scope['members'])]),
+            TreasuryScopes::ROLES    => lang('Accounting_treasuries.scope_roles_count', [count($scope['members'])]),
             TreasuryScopes::BRANCHES => lang('Accounting_treasuries.scope_branches_count', [count($scope['members'])]),
             default                  => lang('Accounting_treasuries.scope_all'),
         };

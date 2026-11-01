@@ -22,6 +22,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use App\Libraries\Roles\RoleService;
 
 /**
  * Paying a customer back the credit they hold and being paid back the credit held with a supplier: a
@@ -910,5 +911,19 @@ class CreditRefundsTest extends CIUnitTestCase
 
         $this->assertSame(AccountingError::WriteFailed, $this->refusal(fn () => $this->supplierRefund('60.00', $treasurer, null, null, 'supplier-form-4'))->error);
         $this->assertSame(1, $this->countRows('supplier_credit_refunds'));
+    }
+
+    public function testCancel_RefusesAnotherEmployeesRefundAsOneThatDoesNotExistForAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $this->advance();
+
+        $refund = $this->refund('50.00');
+        $second = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::RECEIVABLES_REFUND, AccountingGuard::TREASURIES_MANAGE]);
+
+        (new RoleService())->setRecordScope($second, 'own', null);
+
+        $this->assertSame(AccountingError::RefundNotFound, $this->refusal(fn () => $this->refunds->cancel($refund, 'by a stranger', $second))->error);
+        $this->assertNull($this->refunds->branchOf($refund, $second));
+        $this->assertNotNull($this->refunds->branchOf($refund, $this->clerk));
     }
 }

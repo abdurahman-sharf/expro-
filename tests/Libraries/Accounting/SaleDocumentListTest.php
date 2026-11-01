@@ -12,6 +12,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use App\Libraries\Roles\RoleService;
 
 /**
  * The two lists of the documents that wait: draft invoices and quotes, what each is called, what it
@@ -284,5 +285,29 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->list->quotes(null);
 
         $this->assertSame($before, $this->accountingDb()->table('sales')->get()->getResultArray());
+    }
+
+    public function testDraftsAndQuotes_ListOnlyTheDocumentsAnEmployeeWhoSeesTheirOwnRecordsMade(): void
+    {
+        $draft    = $this->inBranch(1);
+        $quote    = $this->inBranch(1, 'quote');
+        $other    = $this->createEmployee();
+        $previous = $this->employeeId;
+
+        $this->employeeId = $other;
+
+        try {
+            $theirDraft = $this->inBranch(1);
+            $theirQuote = $this->inBranch(1, 'quote');
+        } finally {
+            $this->employeeId = $previous;
+        }
+
+        (new RoleService())->setRecordScope($other, 'own', null);
+
+        $this->assertSame([$theirDraft], $this->ids($this->list->drafts(null, $other)));
+        $this->assertSame([$theirQuote], $this->ids($this->list->quotes(null, null, $other)));
+        $this->assertEqualsCanonicalizing([$draft, $theirDraft], $this->ids($this->list->drafts(null, $previous)));
+        $this->assertEqualsCanonicalizing([$quote, $theirQuote], $this->ids($this->list->quotes(null, null, $previous)));
     }
 }

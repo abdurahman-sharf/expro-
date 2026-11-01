@@ -12,13 +12,17 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\EmployeeBranchService;
 use App\Models\Module;
+use App\Libraries\Roles\DefaultLocations;
+use App\Libraries\Roles\RoleService;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 
 class EmployeesControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use FeatureTestTrait;
     use EmployeeFixtureTrait;
+    use RoleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -442,6 +446,24 @@ class EmployeesControllerTest extends CIUnitTestCase
         $response->assertSee('grant_org_branches_manage');
         $response->assertSee('grant_org_scope_manage');
         $response->assertDontSee('grant_org_all_branches');
+    }
+
+    public function testGetView_OpensTheFormWithoutTheRolesTabBeforeTheMigrationHasCreatedTheTables(): void
+    {
+        $this->loginAsAdmin();
+
+        $this->withoutRoleTables(function (): void {
+            foreach (['/employees/view/-1', '/employees/view/1'] as $url) {
+                $response = $this->get($url);
+
+                $response->assertStatus(200);
+                $response->assertSeeElement('#permission_select_all');
+                $response->assertDontSee('employee_roles_info');
+                $response->assertDontSee('default_location_id');
+            }
+        });
+
+        $this->get('/employees/view/-1')->assertSee('employee_roles_info');
     }
 
     public function testGetView_HidesTheBranchesTabWhileThereIsOneBranch(): void
@@ -964,5 +986,289 @@ class EmployeesControllerTest extends CIUnitTestCase
 
         $this->assertSame([], $this->auditedPermissions($target, 'permission_revoked'));
         $this->assertSame([], $this->auditedPermissions($target, 'permission_granted'));
+    }
+
+    private function rolesAdministratorLoggedIn(): int
+    {
+        $administrator = $this->rolesAdministrator();
+
+        $this->loginAsNonAdmin($administrator);
+
+        return $administrator;
+    }
+
+    public function testGetView_ShowsTheRolesAndTheDefaultLocationOnATabAndLetsAManagerOfRolesChooseThem(): void
+    {
+        $role = $this->createRole(['sales'], 'own', true, 'Cashiers ' . uniqid());
+        $this->rolesAdministratorLoggedIn();
+
+        $response = $this->get('/employees/view/-1');
+
+        $response->assertSee('employee_roles_info');
+        $response->assertSee('name="role_ids[]"');
+        $response->assertSee('id="role_' . $role . '"');
+        $response->assertSee('name="record_scope"');
+        $response->assertSee('name="default_location_id"');
+        $response->assertSee('name="roles_present"');
+    }
+
+    public function testGetView_ShowsNoRoleChoiceToAnEmployeeWhoMayNotManageRolesButStillTheDefaultLocation(): void
+    {
+        $this->createRole(['sales'], 'all', true, 'Hidden ' . uniqid());
+        $this->loginAsNonAdmin($this->sensitiveHolder());
+
+        $response = $this->get('/employees/view/-1');
+
+        $response->assertDontSee('name="role_ids[]"');
+        $response->assertDontSee('name="roles_present"');
+        $response->assertSee('name="default_location_id"');
+    }
+
+    public function testGetView_KeepsWhatARoleGivesOffTheDirectGrantsOfTheFormAndNamesTheRole(): void
+    {
+        $role     = $this->createRole(['items', 'sales_delete'], 'all', true, 'Stockists ' . uniqid());
+        $employee = $this->employeeWithRoles([$role], ['employees']);
+
+        $this->loginAsAdmin();
+
+        $html = $this->get('/employees/view/' . $employee)->getBody();
+
+        $this->assertStringContainsString('checked', $this->checkboxTag($html, 'grant_employees'), 'A direct grant stays ticked');
+        $this->assertStringNotContainsString('checked', $this->checkboxTag($html, 'grant_items'), 'A module that a role gives is not copied into the form');
+        $this->assertStringNotContainsString('checked', $this->checkboxTag($html, 'grant_sales_delete'), 'A permission that a role gives is not copied into the form');
+        $this->assertStringContainsString(esc(lang('Roles.via_role', [(new RoleService())->find($role)->name])), $html);
+    }
+
+    private function checkboxTag(string $html, string $id): string
+    {
+        $this->assertSame(1, preg_match('/<input[^>]*id="' . preg_quote($id, '/') . '"[^>]*>/', $html, $found), "The form has no input {$id}");
+
+        return $found[0];
+    }
+
+    public function testPostSave_DoesNotCopyWhatARoleGivesIntoTheDirectGrantsOfTheEmployee(): void
+    {
+        $role     = $this->createRole(['items'], 'all', true, 'Stockists ' . uniqid());
+        $employee = $this->employeeWithRoles([$role], ['employees']);
+
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $employee, $this->formFor('nocopy' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(['employees'], array_column(model(Employee::class)->getDirectGrants($employee), 'permission_id'));
+        $this->assertTrue(model(Employee::class)->has_grant('items', $employee), 'The role still gives it');
+    }
+
+    public function testPostSave_GivesTheRolesAndTheRecordScopeAChosenByAManagerOfRolesAndAuditsThem(): void
+    {
+        $role   = $this->createRole(['sales'], 'all', true, 'Cashiers ' . uniqid());
+        $target = $this->createNonAdminEmployee();
+        $actor  = $this->rolesAdministratorLoggedIn();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('roleful' . uniqid(), [
+            'grant_employees' => 'employees',
+            'roles_present'   => '1',
+            'role_ids'        => [(string) $role],
+            'record_scope'    => 'own',
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([$role], (new RoleService())->roleIdsOf($target));
+        $this->assertSame('own', (new RoleService())->recordScopeOf($target));
+        $this->assertTrue(model(Employee::class)->has_grant('sales', $target));
+
+        $entry = $this->db->table('accounting_audit_log')->where(['entity_type' => 'employee', 'entity_id' => $target, 'action' => 'employee_roles_changed'])->get()->getRow();
+
+        $this->assertSame((string) $actor, (string) $entry->employee_id);
+    }
+
+    public function testPostSave_RemovesTheRolesOfAnEmployeeWhenTheManagerOfRolesTicksNone(): void
+    {
+        $role   = $this->createRole(['sales'], 'all', true, 'Cashiers ' . uniqid());
+        $target = $this->employeeWithRoles([$role], ['employees']);
+
+        $this->rolesAdministratorLoggedIn();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('unrole' . uniqid(), ['grant_employees' => 'employees', 'roles_present' => '1', 'record_scope' => 'all']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([], (new RoleService())->roleIdsOf($target));
+    }
+
+    public function testPostSave_IgnoresTheRolesTickedByAnEditorWhoMayNotManageRoles(): void
+    {
+        $role   = $this->createRole(['sales'], 'all', true, 'Cashiers ' . uniqid());
+        $target = $this->createNonAdminEmployee();
+
+        $this->loginAsNonAdmin($this->sensitiveHolder());
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('norole' . uniqid(), [
+            'grant_employees' => 'employees',
+            'roles_present'   => '1',
+            'role_ids'        => [(string) $role],
+            'record_scope'    => 'own',
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([], (new RoleService())->roleIdsOf($target));
+        $this->assertSame('all', (new RoleService())->recordScopeOf($target));
+    }
+
+    public function testPostSave_IgnoresTheRolesWhenGrantsMayNotBeChanged(): void
+    {
+        $role   = $this->createRole(['sales'], 'all', true, 'Cashiers ' . uniqid());
+        $target = $this->createNonAdminEmployee();
+
+        $this->rolesAdministratorLoggedIn();
+        putenv('DISALLOW_GRANT_CHANGE=true');
+
+        try {
+            $this->post('/employees/save/' . $target, $this->formFor('frozen' . uniqid(), ['grant_employees' => 'employees', 'grant_customers' => 'customers', 'grant_sales' => 'sales', 'roles_present' => '1', 'role_ids' => [(string) $role]]));
+        } finally {
+            putenv('DISALLOW_GRANT_CHANGE=false');
+        }
+
+        $this->assertSame([], (new RoleService())->roleIdsOf($target));
+    }
+
+    public function testPostSave_RefusesARoleWhosePermissionsTheEditorWhoManagesRolesDoesNotHold(): void
+    {
+        $role    = $this->createRole(['sales', 'items'], 'all', true, 'Wide ' . uniqid());
+        $target  = $this->createNonAdminEmployee();
+        $manager = $this->rolesManager(['employees', 'sales']);
+
+        $this->loginAsNonAdmin($manager);
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('wide' . uniqid(), ['grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => [(string) $role]]))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Roles.error_cannot_grant', ['items']), $result['message']);
+        $this->assertSame([], (new RoleService())->roleIdsOf($target));
+    }
+
+    public function testPostSave_RefusesARoleThatDoesNotExistAndNamesTheError(): void
+    {
+        $target = $this->createNonAdminEmployee();
+
+        $this->rolesAdministratorLoggedIn();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('ghost' . uniqid(), ['grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => ['999999']]))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Roles.error_not_found'), $result['message']);
+    }
+
+    public function testPostSave_SavesNothingOfANewEmployeeWhenTheRoleTickedCannotBeGivenByTheEditor(): void
+    {
+        $role     = $this->createRole(['sales', 'items'], 'all', true, 'Wide ' . uniqid());
+        $manager  = $this->rolesManager(['employees', 'sales']);
+        $username = 'unsaved' . uniqid();
+        $before   = $this->db->table('employees')->countAllResults();
+
+        $this->loginAsNonAdmin($manager);
+
+        $result = json_decode($this->post('/employees/save/-1', $this->formFor($username, ['grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => [(string) $role]]))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Roles.error_cannot_grant', ['items']), $result['message']);
+        $this->assertSame($before, $this->db->table('employees')->countAllResults(), 'No employee was added');
+        $this->assertSame(0, $this->db->table('employees')->where('username', $username)->countAllResults());
+        $this->assertSame(0, $this->db->table('people')->where('email', $username . '@test.com')->countAllResults(), 'No person was added');
+    }
+
+    public function testPostSave_ChangesNothingOfAnEmployeeWhenTheRoleTickedDoesNotExist(): void
+    {
+        $target = $this->createNonAdminEmployee();
+        $before = $this->db->table('people')->where('person_id', $target)->get()->getRowArray();
+        $grants = array_column(model(Employee::class)->getDirectGrants($target), 'permission_id');
+
+        $this->rolesAdministratorLoggedIn();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('ghost' . uniqid(), ['first_name' => 'Renamed', 'grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => ['999999']]))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame($before, $this->db->table('people')->where('person_id', $target)->get()->getRowArray(), 'The name and the rest of the person stay as they were');
+        $this->assertSame($grants, array_column(model(Employee::class)->getDirectGrants($target), 'permission_id'), 'The grants stay as they were');
+    }
+
+    public function testPostSave_SavesNothingOfANewEmployeeWhenTheDefaultLocationDoesNotExistOrTheScopeIsUnknown(): void
+    {
+        $role    = $this->createRole(['sales'], 'all', true, 'Cashiers ' . uniqid());
+        $locator = 'nodepot' . uniqid();
+        $scoped  = 'noscope' . uniqid();
+
+        $this->rolesAdministratorLoggedIn();
+
+        $before = $this->db->table('employees')->countAllResults();
+
+        $location = json_decode($this->post('/employees/save/-1', $this->formFor($locator, ['grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => '999999']))->getJSON(), true);
+        $scope    = json_decode($this->post('/employees/save/-1', $this->formFor($scoped, ['grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => [(string) $role], 'record_scope' => 'nobody']))->getJSON(), true);
+
+        $this->assertFalse($location['success']);
+        $this->assertSame(lang('Roles.error_location_not_found'), $location['message']);
+        $this->assertFalse($scope['success']);
+        $this->assertSame(lang('Roles.error_invalid_scope'), $scope['message']);
+        $this->assertSame($before, $this->db->table('employees')->countAllResults(), 'No employee was added');
+    }
+
+    public function testPostSave_SetsTheDefaultStockLocationOfTheEmployeeForWhoeverEditsEmployees(): void
+    {
+        $target = $this->createNonAdminEmployee();
+
+        $this->db->table('stock_locations')->insert(['location_name' => 'Default depot ' . uniqid()]);
+
+        $location = (int) $this->db->insertID();
+
+        $this->loginAsNonAdmin($this->sensitiveHolder());
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('depot' . uniqid(), ['grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => (string) $location]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame($location, (new DefaultLocations())->of($target));
+
+        $this->post('/employees/save/' . $target, $this->formFor('depot2' . uniqid(), ['grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => '0']));
+
+        $this->assertNull((new DefaultLocations())->of($target));
+    }
+
+    public function testPostSave_RefusesALocationThatDoesNotExistAsTheDefaultOfAnEmployee(): void
+    {
+        $target = $this->createNonAdminEmployee();
+
+        $this->loginAsNonAdmin($this->sensitiveHolder());
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('nodepot' . uniqid(), ['grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => '999999']))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Roles.error_location_not_found'), $result['message']);
+    }
+
+    public function testPostDelete_ReleasesTheRolesOfTheEmployeesThatAreDeleted(): void
+    {
+        $role   = $this->createRole(['sales'], 'all', true, 'Cashiers ' . uniqid());
+        $target = $this->employeeWithRoles([$role], ['employees']);
+
+        $this->loginAsAdmin();
+
+        $this->assertTrue(json_decode($this->post('/employees/delete', ['ids' => [(string) $target]])->getJSON(), true)['success']);
+        $this->assertSame([], (new RoleService())->roleIdsOf($target));
+    }
+
+    public function testPostSave_AcceptsTheSameDirectGrantsWhileGrantsMayNotBeChangedForAnEmployeeWhoHoldsARole(): void
+    {
+        $role     = $this->createRole(['items', 'customers'], 'all', true, 'Stockists ' . uniqid());
+        $employee = $this->employeeWithRoles([$role], ['employees']);
+
+        $this->loginAsAdmin();
+        putenv('DISALLOW_GRANT_CHANGE=true');
+
+        try {
+            $result = json_decode($this->post('/employees/save/' . $employee, $this->formFor('frozenrole' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+        } finally {
+            putenv('DISALLOW_GRANT_CHANGE=false');
+        }
+
+        $this->assertTrue($result['success'], 'What a role gives is not a change of the grants of the employee');
     }
 }

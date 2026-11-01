@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => 'Visa och generera rapporter.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Försäljning',
     'sales_desc'                   => 'Process Försäljning och Returer.',
     'suppliers'                    => 'Leverantörer',

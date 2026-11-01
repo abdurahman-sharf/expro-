@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => 'Slouží pro zobrazení a tvorbu sestav.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Prodej',
     'sales_desc'                   => 'Slouží ke prodeji a vrácení položek.',
     'suppliers'                    => 'Dodavatelé',

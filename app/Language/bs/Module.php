@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => 'Pogledajte i generišite izvještaje.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Prodaja',
     'sales_desc'                   => 'Obrada prodaje i povrata.',
     'suppliers'                    => 'Dobavljači',

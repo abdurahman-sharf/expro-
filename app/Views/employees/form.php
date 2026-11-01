@@ -8,6 +8,7 @@
  * @var bool $is_admin
  * @var int $employee_id
  * @var array{scope: array{all: bool, branch_ids: list<int>, default_branch_id: ?int}, branches: list<object>, can_all: bool, locked: bool, hidden: bool}|null $branch_tab
+ * @var array{roles: list<object>, held: list<int>, can_manage: bool, record_scope: string, locations: list<object>, default_location_id: ?int, role_permissions: array<string, list<string>>}|null $roles_tab
  */
 ?>
 
@@ -28,6 +29,11 @@
         <?php if ($branch_tab !== null): ?>
             <li class="nav-item" role="presentation">
                 <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="employee_branch_info" href="#employee_branch_info"><?= lang('Branches.employee_tab') ?></a>
+            </li>
+        <?php endif; ?>
+        <?php if ($roles_tab !== null): ?>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="employee_roles_info" href="#employee_roles_info"><?= lang('Roles.employee_tab') ?></a>
             </li>
         <?php endif; ?>
     </ul>
@@ -140,6 +146,9 @@
                                 <label class="form-check-label" for="grant_<?= esc($module->module_id) ?>">
                                     <span class="perm-title"><?= lang("Module.$module->module_id") ?></span>
                                     <span class="perm-note"><?= lang("Module.$module->module_id" . '_desc') ?></span>
+                                    <?php if (isset($roles_tab['role_permissions'][$module->module_id])): ?>
+                                        <span class="badge text-bg-info"><?= esc(lang('Roles.via_role', [implode(', ', $roles_tab['role_permissions'][$module->module_id])])) ?></span>
+                                    <?php endif; ?>
                                 </label>
                             </div>
                             <?php
@@ -190,6 +199,9 @@
                                                 <?php if ($sensitive) { ?>
                                                     <span class="badge text-bg-warning"><?= lang('Employees.sensitive_permission') ?></span>
                                                 <?php } ?>
+                                                <?php if (isset($roles_tab['role_permissions'][$permission->permission_id])): ?>
+                                                    <span class="badge text-bg-info"><?= esc(lang('Roles.via_role', [implode(', ', $roles_tab['role_permissions'][$permission->permission_id])])) ?></span>
+                                                <?php endif; ?>
                                             </label>
                                         </li>
                                     <?php } ?>
@@ -252,6 +264,64 @@
                     <?php endif; ?>
                 </fieldset>
             </div>
+        <?php endif; ?>
+
+        <?php if ($roles_tab !== null): ?>
+        <div class="tab-pane fade" id="employee_roles_info" role="tabpanel">
+            <fieldset>
+                <div class="form-grid">
+                    <?php if ($roles_tab['can_manage']): ?>
+                        <input type="hidden" name="roles_present" value="1">
+
+                        <fieldset class="field span-all">
+                            <legend class="form-label"><?= lang('Roles.employee_roles') ?></legend>
+                            <p class="form-text"><?= lang('Roles.employee_roles_help') ?></p>
+                            <?php if ($roles_tab['roles'] === []): ?>
+                                <p class="text-secondary"><?= lang('Roles.none_yet') ?></p>
+                            <?php endif; ?>
+                            <?php foreach ($roles_tab['roles'] as $role): ?>
+                                <?php $roleId = (int) $role->role_id; ?>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" name="role_ids[]" id="role_<?= $roleId ?>" value="<?= $roleId ?>"<?= in_array($roleId, $roles_tab['held'], true) ? ' checked' : '' ?>>
+                                    <label class="form-check-label" for="role_<?= $roleId ?>">
+                                        <?= esc($role->name) ?>
+                                        <?php if ((int) $role->active === 0): ?>
+                                            <span class="badge text-bg-secondary"><?= lang('Roles.inactive') ?></span>
+                                        <?php endif; ?>
+                                        <?php if ($role->record_scope === 'own'): ?>
+                                            <span class="badge text-bg-light"><?= lang('Roles.scope_own') ?></span>
+                                        <?php endif; ?>
+                                    </label>
+                                </div>
+                            <?php endforeach; ?>
+                        </fieldset>
+
+                        <fieldset class="field span-all">
+                            <legend class="form-label"><?= lang('Roles.employee_record_scope') ?></legend>
+                            <p class="form-text"><?= lang('Roles.scope_help') ?></p>
+                            <?php foreach (['all', 'own'] as $option): ?>
+                                <div class="form-check">
+                                    <input type="radio" class="form-check-input" name="record_scope" id="employee_record_scope_<?= $option ?>" value="<?= $option ?>"<?= $roles_tab['record_scope'] === $option ? ' checked' : '' ?>>
+                                    <label class="form-check-label" for="employee_record_scope_<?= $option ?>"><?= lang('Roles.scope_' . $option) ?></label>
+                                </div>
+                            <?php endforeach; ?>
+                        </fieldset>
+                    <?php endif; ?>
+
+                    <div class="field span-all">
+                        <input type="hidden" name="default_location_present" value="1">
+                        <?= form_label(lang('Roles.default_location'), 'default_location_id', ['class' => 'form-label']) ?>
+                        <select name="default_location_id" id="default_location_id" class="form-select form-select-sm">
+                            <option value="0"><?= lang('Roles.default_location_none') ?></option>
+                            <?php foreach ($roles_tab['locations'] as $location): ?>
+                                <option value="<?= (int) $location->location_id ?>"<?= $roles_tab['default_location_id'] === (int) $location->location_id ? ' selected' : '' ?>><?= esc($location->location_name) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="form-text"><?= lang('Roles.default_location_help') ?></p>
+                    </div>
+                </div>
+            </fieldset>
+        </div>
         <?php endif; ?>
     </div>
 

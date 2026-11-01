@@ -11,6 +11,7 @@ use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Roles\RoleService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -20,6 +21,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
@@ -32,6 +34,7 @@ class TreasuryScopesTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
+    use RoleFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
@@ -129,23 +132,108 @@ class TreasuryScopesTest extends CIUnitTestCase
     }
 
     /**
-     * The reference system also offers roles, and the application has no roles to offer, so that
-     * scope is refused here and the scopes that are kept are the others.
-     *
      * @param array<string, mixed> $case
      */
     #[DataProvider('referenceScopeKinds')]
-    public function testValidated_DiffersFromTheReferenceSystemByHavingNoScopeOfRoles(array $case): void
+    public function testValidated_MatchesTheReferenceSystemInOfferingTheScopeOfRoles(array $case): void
     {
-        $this->assertSame('differs', $case['classification']);
+        $this->assertSame('exact', $case['classification']);
         $this->assertContains('roles', $case['reference']['scopes']);
+        $this->assertSame($case['reference']['scopes'], TreasuryScopes::MODES);
         $this->assertSame($case['expected']['scopes'], TreasuryScopes::MODES);
 
-        foreach ($case['expected']['refused'] as $kind) {
-            $this->assertSame(AccountingError::TreasuryScopeInvalid, $this->refusal(fn () => $this->scopes->validated(['deposit_scope' => $kind, 'deposit_members' => [1]]))->error, $kind);
-        }
+        $role = $this->createRole(['accounting_treasuries']);
 
-        $this->assertSame(array_values(array_diff($case['reference']['scopes'], $case['expected']['refused'])), $case['expected']['scopes']);
+        foreach (TreasuryScopes::MODES as $kind) {
+            $input = $kind === 'all' ? ['deposit_scope' => $kind] : ['deposit_scope' => $kind, 'deposit_members' => [$kind === 'roles' ? $role : ($kind === 'staff' ? $this->employeeWithGrants([]) : $this->createBranch('R' . substr(uniqid(), -6)))]];
+
+            $this->assertSame($kind, $this->scopes->validated($input)['deposit']['mode'], $kind);
+        }
+    }
+
+    public function testValidated_AcceptsARoleThatCarriesTheTreasuryPermissionAndRefusesOneThatDoesNotExist(): void
+    {
+        $role = $this->createRole(['accounting_treasuries']);
+
+        $this->assertSame(['deposit' => ['mode' => 'roles', 'members' => [$role]]], $this->scopes->validated(['deposit_scope' => 'roles', 'deposit_members' => [(string) $role]]));
+        $this->assertSame(AccountingError::TreasuryScopeInvalid, $this->refusal(fn () => $this->scopes->validated(['deposit_scope' => 'roles', 'deposit_members' => [$role, 999999]]))->error);
+        $this->assertSame(AccountingError::TreasuryScopeInvalid, $this->refusal(fn () => $this->scopes->validated(['withdraw_scope' => 'roles', 'withdraw_members' => []]))->error);
+    }
+
+    public function testApply_StoresTheRolesOfAScopeAndAuditsTheChange(): void
+    {
+        $first  = $this->createRole(['accounting_treasuries']);
+        $second = $this->createRole(['sales']);
+        $id     = $this->drawer(['deposit_scope' => 'roles', 'deposit_members' => [$second, $first]]);
+
+        $this->assertSame(['mode' => 'roles', 'members' => [$first, $second], 'exists' => true], $this->scopes->scopeOf($id, TreasuryScopes::DEPOSIT));
+        $this->assertSame(['mode' => 'all', 'members' => [], 'exists' => true], $this->scopes->scopeOf($id, TreasuryScopes::WITHDRAW));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'treasury', 'entity_id' => $id, 'action' => 'scope_changed'])->countAllResults());
+    }
+
+    public function testAllows_LetsTheEmployeesWhoHoldARoleOfTheScopeUseTheTreasuryAndNobodyElse(): void
+    {
+        $role   = $this->createRole(['accounting_treasuries']);
+        $holder = $this->employeeWithRoles([$role]);
+        $other  = $this->employeeWithRoles([$this->createRole(['sales'])]);
+        $none   = $this->employeeWithGrants([]);
+        $id     = $this->drawer(['deposit_scope' => 'roles', 'deposit_members' => [$role], 'withdraw_scope' => 'roles', 'withdraw_members' => [$role]]);
+
+        foreach ([TreasuryScopes::DEPOSIT, TreasuryScopes::WITHDRAW] as $direction) {
+            $this->assertTrue($this->scopes->allows($id, $direction, $holder), $direction);
+            $this->assertFalse($this->scopes->allows($id, $direction, $other), $direction);
+            $this->assertFalse($this->scopes->allows($id, $direction, $none), $direction);
+            $this->assertTrue($this->scopes->allows($id, $direction, null), 'The books act without an employee');
+        }
+    }
+
+    public function testAllows_FollowsTheRolesAnEmployeeIsGivenAndLosesAndThoseThatGoInactive(): void
+    {
+        $role     = $this->createRole(['accounting_treasuries']);
+        $employee = $this->employeeWithGrants([]);
+        $id       = $this->drawer(['deposit_scope' => 'roles', 'deposit_members' => [$role]]);
+
+        $this->assertFalse($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
+
+        (new RoleService())->assign($employee, [$role], null);
+
+        $this->assertTrue($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
+
+        (new RoleService())->update($role, ['name' => 'Gone quiet ' . uniqid(), 'active' => false], null);
+
+        $this->assertFalse($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee), 'An inactive role gives nobody the treasury');
+
+        (new RoleService())->update($role, ['name' => 'Back again ' . uniqid(), 'active' => true], null);
+        (new RoleService())->assign($employee, [], null);
+
+        $this->assertFalse($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
+    }
+
+    public function testAllows_RefusesEveryoneForARolesScopeAndDoesNotFailBeforeTheMigrationHasCreatedTheTables(): void
+    {
+        $role     = $this->createRole(['accounting_treasuries']);
+        $employee = $this->employeeWithRoles([$role]);
+        $id       = $this->drawer(['deposit_scope' => 'roles', 'deposit_members' => [$role]]);
+
+        $this->assertTrue($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
+
+        $this->withoutRoleTables(function () use ($id, $employee): void {
+            $this->assertFalse($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
+            $this->assertTrue($this->scopes->allows($id, TreasuryScopes::DEPOSIT, null), 'The books act without an employee');
+        });
+
+        $this->assertTrue($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
+    }
+
+    public function testAllows_RefusesAnEmployeeWhoHoldsTheRoleOnlyAfterTheyWereDeleted(): void
+    {
+        $role     = $this->createRole(['accounting_treasuries']);
+        $employee = $this->employeeWithRoles([$role]);
+        $id       = $this->drawer(['deposit_scope' => 'roles', 'deposit_members' => [$role]]);
+
+        $this->accountingDb()->table('employees')->where('person_id', $employee)->update(['deleted' => 1]);
+
+        $this->assertFalse($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $employee));
     }
 
     public function testAllows_AlwaysLetsTheBooksActWithoutAnEmployee(): void
@@ -216,7 +304,7 @@ class TreasuryScopesTest extends CIUnitTestCase
     {
         $id = $this->drawer();
 
-        $this->accountingDb()->table('treasuries')->where('treasury_id', $id)->update(['deposit_scope' => 'roles']);
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $id)->update(['deposit_scope' => 'groups']);
 
         $this->assertFalse($this->scopes->allows($id, TreasuryScopes::DEPOSIT, $this->employeeWithGrants([])));
     }
@@ -615,7 +703,9 @@ class TreasuryScopesTest extends CIUnitTestCase
     public static function invalidScopes(): array
     {
         return [
-            'a scope that is not known'        => [['deposit_scope' => 'roles', 'deposit_members' => [1]]],
+            'a scope that is not known'        => [['deposit_scope' => 'groups', 'deposit_members' => [1]]],
+            'roles without any'                => [['deposit_scope' => 'roles', 'deposit_members' => []]],
+            'a role that does not exist'       => [['deposit_scope' => 'roles', 'deposit_members' => [999999]]],
             'a scope that is not text'         => [['deposit_scope' => ['all']]],
             'employees without any'            => [['deposit_scope' => 'staff', 'deposit_members' => []]],
             'employees left out'               => [['withdraw_scope' => 'staff']],

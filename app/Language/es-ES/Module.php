@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => 'Ver y generar Reportes.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Ventas',
     'sales_desc'                   => 'Procesar Ventas y Devoluciones.',
     'suppliers'                    => 'Proveedores',

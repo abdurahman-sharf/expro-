@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => 'Anzeigen und Erstellen von Berichten.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Verkauf',
     'sales_desc'                   => 'Bearbeitung von Verkäufen und Retouren.',
     'suppliers'                    => 'Lieferanten',

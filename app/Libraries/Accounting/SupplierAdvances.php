@@ -7,6 +7,7 @@ use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use DateTimeImmutable;
@@ -200,9 +201,9 @@ final class SupplierAdvances
         $this->guard->require(AccountingGuard::PAYABLES_MANAGE, $employeeId);
 
         $reason = $this->reason($reason);
-        $row    = $this->db->table('supplier_advances')->select('supplier_id')->where(['company_id' => CompanyContext::id(), 'advance_id' => $advanceId])->get()->getRow();
+        $row    = $this->db->table('supplier_advances')->select('supplier_id, created_by')->where(['company_id' => CompanyContext::id(), 'advance_id' => $advanceId])->get()->getRow();
 
-        if ($row === null) {
+        if ($row === null || ! (new RecordScope($this->db))->allows($employeeId, $row->created_by)) {
             throw new AccountingException(AccountingError::AdvanceNotFound, "Advance {$advanceId} does not exist.", ['advance_id' => $advanceId]);
         }
 
@@ -249,9 +250,9 @@ final class SupplierAdvances
         $this->guard->require(AccountingGuard::PAYABLES_MANAGE, $employeeId);
 
         $reason  = $this->reason($reason);
-        $opening = $this->db->table('receivings')->select('supplier_id, branch_id')->where(['receiving_id' => $receivingId, 'receiving_type' => self::OPENING_TYPE])->get()->getRow();
+        $opening = $this->db->table('receivings')->select('supplier_id, branch_id, employee_id')->where(['receiving_id' => $receivingId, 'receiving_type' => self::OPENING_TYPE])->get()->getRow();
 
-        if ($opening === null) {
+        if ($opening === null || ! (new RecordScope($this->db))->allows($employeeId, $opening->employee_id)) {
             throw new AccountingException(AccountingError::OpeningNotFound, "Opening balance {$receivingId} does not exist.", ['receiving_id' => $receivingId]);
         }
 
@@ -288,13 +289,13 @@ final class SupplierAdvances
     /**
      * The branch an advance or an opening balance belongs to, or null when there is no such one.
      */
-    public function branchOf(string $what, int $id): ?int
+    public function branchOf(string $what, int $id, ?int $viewerId = null): ?int
     {
         $row = $what === self::SOURCE
-            ? $this->db->table('supplier_advances')->select('branch_id')->where('advance_id', $id)->get()->getRow()
-            : $this->db->table('receivings')->select('branch_id')->where(['receiving_id' => $id, 'receiving_type' => self::OPENING_TYPE])->get()->getRow();
+            ? $this->db->table('supplier_advances')->select('branch_id, created_by AS maker')->where('advance_id', $id)->get()->getRow()
+            : $this->db->table('receivings')->select('branch_id, employee_id AS maker')->where(['receiving_id' => $id, 'receiving_type' => self::OPENING_TYPE])->get()->getRow();
 
-        return $row === null ? null : (int) $row->branch_id;
+        return $row === null || ! (new RecordScope($this->db))->allows($viewerId ?? RecordScope::sessionEmployee(), $row->maker) ? null : (int) $row->branch_id;
     }
 
     /**

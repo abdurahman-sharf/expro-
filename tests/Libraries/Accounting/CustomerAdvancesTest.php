@@ -23,6 +23,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityCaseTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use App\Libraries\Roles\RoleService;
 
 /**
  * Money a customer pays with no invoice behind it: one journal that debits the treasury and credits
@@ -749,5 +750,30 @@ class CustomerAdvancesTest extends CIUnitTestCase
 
         $this->assertSame('20.00', $this->freeCredit());
         $this->assertTies();
+    }
+
+    public function testCancel_RefusesAnotherEmployeesAdvanceAsOneThatDoesNotExistForAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $advance = $this->receive();
+        $second  = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::TREASURIES_MANAGE]);
+
+        (new RoleService())->setRecordScope($second, 'own', null);
+
+        $this->assertSame(AccountingError::AdvanceNotFound, $this->refusal(fn () => $this->advances->cancel($advance, 'by a stranger', $second))->error);
+        $this->assertNull($this->advances->branchOf($advance, $second), 'The form of the cancellation is not there for another employee advance');
+        $this->assertNotNull($this->advances->branchOf($advance, $this->clerk));
+        $this->assertNotSame('cancelled', (string) $this->accountingDb()->table('customer_advances')->select('status')->where('advance_id', $advance)->get()->getRow()->status);
+    }
+
+    public function testCancel_CancelsTheOwnAdvanceOfAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $second  = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::TREASURIES_MANAGE]);
+        $advance = $this->receive('100.00', null, null, $second);
+
+        (new RoleService())->setRecordScope($second, 'own', null);
+
+        $this->advances->cancel($advance, 'entered twice', $second);
+
+        $this->assertSame('cancelled', (string) $this->accountingDb()->table('customer_advances')->select('status')->where('advance_id', $advance)->get()->getRow()->status);
     }
 }

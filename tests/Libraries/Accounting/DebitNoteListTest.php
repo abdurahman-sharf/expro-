@@ -17,6 +17,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use App\Libraries\Roles\RoleService;
 
 /**
  * The returns of goods to suppliers as debit notes: their number, the purchase they take goods
@@ -558,5 +559,26 @@ class DebitNoteListTest extends CIUnitTestCase
     public function testStateOf_TellsWhereADebitNoteStandsAgainstWhatTheSupplierIsOwed(string $amount, string $credit, string $applied, string $state): void
     {
         $this->assertSame($state, DebitNoteList::stateOf($amount, $credit, $applied));
+    }
+
+    public function testSearch_ListsOnlyTheDebitNotesAnEmployeeWhoSeesTheirOwnRecordsMade(): void
+    {
+        $purchase = $this->purchaseOf('300.00');
+        $mine     = $this->debitNoteOf($purchase, '50.00');
+        $other    = $this->createEmployee();
+        $previous = $this->employeeId;
+
+        $this->employeeId = $other;
+
+        try {
+            $theirs = $this->debitNoteOf($this->purchaseOf('300.00'), '40.00');
+        } finally {
+            $this->employeeId = $previous;
+        }
+
+        (new RoleService())->setRecordScope($other, 'own', null);
+
+        $this->assertSame([$theirs], $this->idsOf($this->notes->search(null, [], 'date', 'desc', 100, 0, $other)['rows']));
+        $this->assertEqualsCanonicalizing([$mine, $theirs], array_intersect($this->idsOf($this->notes->search(null, [], 'date', 'desc', 100, 0, $previous)['rows']), [$mine, $theirs]));
     }
 }

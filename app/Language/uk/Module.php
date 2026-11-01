@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => 'Перегляд та створення звітів.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Продажі',
     'sales_desc'                   => 'Процес продажу та повернення.',
     'suppliers'                    => 'Постачальники',

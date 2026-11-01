@@ -4,6 +4,8 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\SensitivePermissions;
+use App\Libraries\Roles\RoleGrants;
+use App\Models\Employee;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -63,6 +65,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
             AccountingGuard::INTERBRANCH_SETTLE,
             AccountingGuard::YEAR_END_CLOSE,
             AccountingGuard::BACKFILL_MANAGE,
+            AccountingGuard::ROLES_MANAGE,
         ];
 
         foreach ($sensitive as $permissionId) {
@@ -95,6 +98,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
                 AccountingGuard::INTERBRANCH_SETTLE,
                 AccountingGuard::YEAR_END_CLOSE,
                 AccountingGuard::BACKFILL_MANAGE,
+                AccountingGuard::ROLES_MANAGE,
             ],
             AccountingGuard::SENSITIVE,
         );
@@ -203,5 +207,29 @@ class SensitivePermissionsTest extends CIUnitTestCase
 
         $this->assertSame([AccountingGuard::TREASURIES_MANAGE, AccountingGuard::PAYABLES_MANAGE], $this->service->heldBy($manager));
         $this->assertSame([AccountingGuard::TREASURIES_MANAGE, AccountingGuard::PAYABLES_MANAGE], $this->holdersById()[$manager]['permissions']);
+    }
+
+    public function testIsSensitive_NamesThePermissionToManageRolesSoOnlyAnAdministratorHandsItOut(): void
+    {
+        $this->assertSame('acc_roles_manage', AccountingGuard::ROLES_MANAGE);
+        $this->assertTrue(SensitivePermissions::isSensitive(AccountingGuard::ROLES_MANAGE));
+        $this->assertSame(1, $this->accountingDb()->table('permissions')->where(['permission_id' => AccountingGuard::ROLES_MANAGE, 'module_id' => 'roles'])->countAllResults(), 'The migration registers it');
+        $this->assertSame(0, $this->accountingDb()->table('grants')->where('permission_id', AccountingGuard::ROLES_MANAGE)->countAllResults(), 'The migration grants it to nobody');
+    }
+
+    public function testHeldBy_DoesNotCountWhatARoleGivesBecauseARoleNeverHoldsASensitivePermission(): void
+    {
+        $this->accountingDb()->table('roles')->insert(['name' => 'Sneaky ' . uniqid()]);
+
+        $roleId   = (int) $this->accountingDb()->insertID();
+        $employee = $this->employeeWithGrants([AccountingGuard::JOURNALS_POST]);
+
+        $this->accountingDb()->table('role_permissions')->insert(['role_id' => $roleId, 'permission_id' => AccountingGuard::PERIODS_CLOSE]);
+        $this->accountingDb()->table('employee_roles')->insert(['person_id' => $employee, 'role_id' => $roleId]);
+        RoleGrants::flush();
+
+        $this->assertSame([], $this->service->heldBy($employee));
+        $this->assertFalse(model(Employee::class)->has_grant(AccountingGuard::PERIODS_CLOSE, $employee));
+        $this->assertArrayNotHasKey($employee, $this->holdersById());
     }
 }

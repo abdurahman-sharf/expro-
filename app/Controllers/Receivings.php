@@ -25,6 +25,7 @@ use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Receiving_lib;
+use App\Libraries\Roles\RecordScope;
 use App\Libraries\Token_lib;
 use App\Models\Inventory;
 use App\Models\Item;
@@ -278,7 +279,7 @@ class Receivings extends Secure_Controller
         }
 
         if ($this->outsideBranchScope($receivingId)) {
-            return $this->response->setJSON(['success' => false, 'message' => lang('Receivings.branch_not_allowed')]);
+            return $this->response->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
         }
 
         $origin = $this->receiving->get_info($receivingId)->getRowArray();
@@ -353,7 +354,7 @@ class Receivings extends Secure_Controller
 
         if ($mode === 'return' && $this->receiving->is_valid_receipt($item_id_or_number_or_item_kit_or_receipt)) {
             if ($this->outsideBranchScope($this->receivingIdOf($item_id_or_number_or_item_kit_or_receipt))) {
-                $data['error'] = lang('Receivings.branch_not_allowed');
+                $data['error'] = $this->scopeMessage();
             } else {
                 $this->receiving_lib->return_entire_receiving($item_id_or_number_or_item_kit_or_receipt);
             }
@@ -539,7 +540,7 @@ class Receivings extends Secure_Controller
         $receiving_ids = $receiving_id == -1 ? $this->request->getPost('ids', FILTER_SANITIZE_NUMBER_INT) : [$receiving_id];    // TODO: Replace -1 with constant
 
         if ($this->outsideBranchScope(...array_map('intval', (array) $receiving_ids))) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.branch_not_allowed')]);
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
         }
 
         if ($this->receiving->delete_list($receiving_ids, $employee_id, $update_inventory)) {    // TODO: Likely need to surround this block of code in a try-catch to catch the ReflectionException
@@ -583,7 +584,7 @@ class Receivings extends Secure_Controller
         $origin = $this->receiving_lib->get_return_origin();
 
         if ($problem === null && $origin !== null && $this->outsideBranchScope($origin)) {
-            $problem = lang('Receivings.branch_not_allowed');
+            $problem = $this->scopeMessage();
         }
 
         if ($problem !== null) {
@@ -842,7 +843,7 @@ class Receivings extends Secure_Controller
     public function postSave(int $receiving_id = -1): ResponseInterface    // TODO: Replace -1 with a constant
     {
         if ($this->outsideBranchScope($receiving_id)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.branch_not_allowed')]);
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
         }
 
         $newdate = $this->request->getPost('date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);    // TODO: newdate does not follow naming conventions
@@ -910,7 +911,7 @@ class Receivings extends Secure_Controller
     public function postSaveLines(int $receivingId = -1): ResponseInterface
     {
         if ($this->outsideBranchScope($receivingId)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.branch_not_allowed')]);
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
         }
 
         if (! $this->mayCorrectLocationsOf($this->receiving->get_receiving_items($receivingId)->getResultArray())) {
@@ -1047,7 +1048,7 @@ class Receivings extends Secure_Controller
     public function postDebitNote(int $receivingId = NEW_ENTRY): ResponseInterface
     {
         if ($this->outsideBranchScope($receivingId)) {
-            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Receivings.branch_not_allowed')]);
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
         }
 
         $origin = $this->receiving->get_info($receivingId)->getRowArray();
@@ -1331,6 +1332,10 @@ class Receivings extends Secure_Controller
         $personId = (int) $this->session->get('person_id');
 
         foreach ($receivingIds as $receivingId) {
+            if ($this->receiving->outsideRecordScope($receivingId, $personId)) {
+                return true;
+            }
+
             foreach ($this->receiving->getBranchIds($receivingId) as $branchId) {
                 if (! $guard->canAccess($branchId, $personId)) {
                     return true;
@@ -1342,6 +1347,15 @@ class Receivings extends Secure_Controller
     }
 
     /**
+     * What an employee is told when a receiving is outside their reach: for one who sees their own
+     * records only the plain refusal, that says nothing of whether the receiving exists.
+     */
+    private function scopeMessage(): string
+    {
+        return (new RecordScope())->ownOnly((int) $this->session->get('person_id')) ? lang('Roles.record_unavailable') : lang('Receivings.branch_not_allowed');
+    }
+
+    /**
      * Whether the employee works in none of the branches of a receiving: the employees of either
      * branch of a transfer between branches may look at it.
      */
@@ -1349,6 +1363,10 @@ class Receivings extends Secure_Controller
     {
         $guard    = new BranchGuard();
         $personId = (int) $this->session->get('person_id');
+
+        if ($this->receiving->outsideRecordScope($receivingId, $personId)) {
+            return true;
+        }
 
         foreach ($this->receiving->getBranchIds($receivingId) as $branchId) {
             if ($guard->canAccess($branchId, $personId)) {

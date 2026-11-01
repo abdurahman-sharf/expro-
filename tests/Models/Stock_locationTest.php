@@ -3,6 +3,8 @@
 namespace Tests\Models;
 
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Roles\DefaultLocations;
+use App\Libraries\Roles\RoleService;
 use App\Models\Stock_location;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -214,5 +216,80 @@ class Stock_locationTest extends CIUnitTestCase
         $depot    = $this->createLocation('depot', $branch, $personId);
 
         $this->assertSame($depot, (int) (new Stock_location())->get_default_location_id('sales', true));
+    }
+
+    public function testGetDefaultLocationId_PreselectsTheDefaultLocationOfTheEmployeeForTheRegisterAndTheReceivingScreen(): void
+    {
+        $personId = $this->salesEmployee();
+        $first    = $this->createLocation('first depot', 1, $personId);
+        $second   = $this->createLocation('second depot', 1, $personId);
+        $model    = new Stock_location();
+
+        $this->accountingDb()->table('permissions')->insert(['permission_id' => 'receivings_second depot', 'module_id' => 'receivings', 'location_id' => $second]);
+        $this->accountingDb()->table('grants')->insert(['permission_id' => 'receivings_second depot', 'person_id' => $personId, 'menu_group' => 'home']);
+
+        (new DefaultLocations())->set($personId, $second, null);
+
+        $this->assertSame($second, (int) $model->get_default_location_id('sales', true));
+        $this->assertSame($second, (int) $model->get_default_location_id('receivings', true));
+        $this->assertNotSame($second, (int) $model->get_default_location_id('items'), 'The items screens start where they always did');
+        $this->assertContains($first, array_keys($model->get_allowed_locations('sales')), 'The default grants nothing and takes nothing away');
+    }
+
+    public function testGetDefaultLocationId_BehavesAsBeforeForAnEmployeeWithoutADefaultOrWhoMayNotUseIt(): void
+    {
+        $personId = $this->salesEmployee();
+        $granted  = $this->createLocation('granted depot', 1, $personId);
+        $model    = new Stock_location();
+        $before   = (int) $model->get_default_location_id('sales', true);
+
+        $this->accountingDb()->table('stock_locations')->insert(['location_name' => 'closed depot', 'deleted' => 0, 'branch_id' => 1]);
+
+        $closed = (int) $this->accountingDb()->insertID();
+
+        $this->createdLocations[] = $closed;
+
+        (new DefaultLocations())->set($personId, $closed, null);
+
+        $this->assertSame($before, (int) $model->get_default_location_id('sales', true), 'A default the employee holds no permission for is not preselected');
+
+        (new DefaultLocations())->set($personId, null, null);
+
+        $this->assertSame($before, (int) $model->get_default_location_id('sales', true));
+        $this->assertContains($granted, array_keys($model->get_allowed_locations('sales')));
+    }
+
+    public function testGetAllowedLocations_OffersTheLocationsThePermissionsOfARoleGive(): void
+    {
+        $holder = $this->createEmployee();
+        $depot  = $this->createLocation('role depot', 1, $holder);
+
+        $this->accountingDb()->table('grants')->where('person_id', $holder)->delete();
+
+        $roleId = (new RoleService())->create(['name' => 'Depot sellers ' . uniqid(), 'permissions' => ['sales', 'sales_role depot']], null);
+
+        (new RoleService())->assign($holder, [$roleId], null);
+        session()->set('person_id', $holder);
+
+        $model = new Stock_location();
+
+        $this->assertSame([$depot => 'role depot'], $model->get_allowed_locations('sales'));
+        $this->assertTrue($model->is_allowed_location($depot, 'sales'));
+        $this->assertSame($depot, (int) $model->get_default_location_id('sales'));
+        $this->assertSame([], $model->get_allowed_locations('items'), 'The role gives nothing else');
+    }
+
+    public function testSaveValue_GivesTheNewLocationToTheRolesThatHoldTheModule(): void
+    {
+        $holder = (new RoleService())->create(['name' => 'Module holders ' . uniqid(), 'permissions' => ['sales']], null);
+        $other  = (new RoleService())->create(['name' => 'Others ' . uniqid(), 'permissions' => ['items']], null);
+        $name   = 'carried depot ' . uniqid();
+
+        $this->saveLocation($name);
+
+        $permission = 'sales_' . str_replace(' ', '_', $name);
+
+        $this->assertContains($permission, (new RoleService())->permissionsOf($holder));
+        $this->assertNotContains($permission, (new RoleService())->permissionsOf($other));
     }
 }

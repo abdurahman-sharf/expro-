@@ -7,7 +7,9 @@ use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchGuard;
 use App\Models\Expense;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -16,6 +18,7 @@ use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 
 /**
  * The expense screens with accounting on and off: what a saved expense puts in the books, the
@@ -31,6 +34,7 @@ class ExpensesControllerTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
+    use RoleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -863,5 +867,125 @@ class ExpensesControllerTest extends CIUnitTestCase
 
         $this->assertTrue($result['success']);
         $this->assertSame([null, null, null], [$row->branch_id, $row->treasury_id, $row->treasury_branch_id]);
+    }
+
+    private function actAsOwnRecordsClerk(): int
+    {
+        $personId = $this->employeeWithRoles([$this->createRole([], 'own')], ['expenses', 'expenses_categories', BranchGuard::ALL_BRANCHES]);
+
+        $this->withSession(['person_id' => $personId, 'menu_group' => 'home']);
+
+        return $personId;
+    }
+
+    private function actAsEveryRecordClerk(): int
+    {
+        $personId = $this->employeeWithRoles([$this->createRole([], 'all')], ['expenses', 'expenses_categories', BranchGuard::ALL_BRANCHES]);
+
+        $this->withSession(['person_id' => $personId, 'menu_group' => 'home']);
+
+        return $personId;
+    }
+
+    public function testGetSearch_ListsOnlyTheExpensesOfAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $everyone = $this->actAsEveryRecordClerk();
+        $theirs   = (int) $this->save($this->form(['amount' => '55.00', 'tax_amount' => '0']))['id'];
+        $own      = $this->actAsOwnRecordsClerk();
+        $mine     = (int) $this->save($this->form(['amount' => '44.00', 'tax_amount' => '0']))['id'];
+
+        $this->assertSame((string) $own, (string) $this->accountingDb()->table('expenses')->select('employee_id')->where('expense_id', $mine)->get()->getRow()->employee_id);
+        $this->assertSame((string) $everyone, (string) $this->accountingDb()->table('expenses')->select('employee_id')->where('expense_id', $theirs)->get()->getRow()->employee_id);
+
+        $ids = array_filter(array_column($this->rowsOfTheList(), 'expense_id'), static fn (string $id): bool => $id !== '-');
+
+        $this->assertSame([(string) $mine], array_values($ids));
+
+        $this->withSession(['person_id' => $everyone, 'menu_group' => 'home']);
+
+        $ids = array_column($this->rowsOfTheList(), 'expense_id');
+
+        $this->assertContains((string) $mine, $ids);
+        $this->assertContains((string) $theirs, $ids);
+    }
+
+    public function testGetRowAndGetView_ReadAnotherEmployeesExpenseLikeOneThatDoesNotExist(): void
+    {
+        $this->actAsEveryRecordClerk();
+
+        $theirs = (int) $this->save($this->form())['id'];
+
+        $this->actAsOwnRecordsClerk();
+
+        $foreign = $this->get('/expenses/row/' . $theirs);
+        $missing = $this->get('/expenses/row/999999');
+
+        $foreign->assertStatus(404);
+        $this->assertSame(json_decode($missing->getJSON(), true), json_decode($foreign->getJSON(), true));
+
+        foreach ([$theirs, 999999] as $id) {
+            try {
+                $this->get('/expenses/view/' . $id);
+                $this->fail('The form of an expense was shown to an employee who sees their own records only.');
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function testGetViewAndGetRow_OpenTheOwnExpenseOfAnOwnRecordsEmployeeAndAnyOneForAnEmployeeWhoSeesEverything(): void
+    {
+        $own  = $this->actAsOwnRecordsClerk();
+        $mine = (int) $this->save($this->form())['id'];
+
+        $this->get('/expenses/view/' . $mine)->assertStatus(200);
+        $this->get('/expenses/row/' . $mine)->assertStatus(200);
+
+        $this->actAsEveryRecordClerk();
+
+        $this->get('/expenses/view/' . $mine)->assertStatus(200);
+        $this->get('/expenses/row/' . $mine)->assertStatus(200);
+        $this->assertGreaterThan(0, $own);
+    }
+
+    public function testPostSave_RefusesAnotherEmployeesExpenseWithTheAnswerOfOneThatDoesNotExist(): void
+    {
+        $this->actAsEveryRecordClerk();
+
+        $theirs = (int) $this->save($this->form(['amount' => '55.00', 'tax_amount' => '0']))['id'];
+
+        $this->actAsOwnRecordsClerk();
+
+        $foreign = $this->save($this->form(['amount' => '99.00', 'tax_amount' => '0']), $theirs);
+        $missing = $this->save($this->form(['amount' => '99.00', 'tax_amount' => '0']), 999999);
+
+        $this->assertFalse($foreign['success']);
+        $this->assertSame($missing, $foreign);
+        $this->assertSame('55.00', (string) $this->accountingDb()->table('expenses')->select('amount')->where('expense_id', $theirs)->get()->getRow()->amount);
+    }
+
+    public function testPostDelete_RefusesAnotherEmployeesExpenseAndLeavesItsJournal(): void
+    {
+        $this->actAsEveryRecordClerk();
+
+        $theirs  = (int) $this->save($this->form(['amount' => '55.00', 'tax_amount' => '0']))['id'];
+        $journal = $this->journalsOfSource('expense', $theirs);
+
+        $this->actAsOwnRecordsClerk();
+
+        $response = json_decode($this->post('/expenses/delete', ['ids' => [(string) $theirs]])->getJSON(), true);
+
+        $this->assertFalse($response['success']);
+        $this->assertSame(0, (int) $this->accountingDb()->table('expenses')->select('deleted')->where('expense_id', $theirs)->get()->getRow()->deleted);
+        $this->assertEquals($journal, $this->journalsOfSource('expense', $theirs));
+    }
+
+    public function testPostDelete_DeletesTheOwnExpenseOfAnOwnRecordsEmployee(): void
+    {
+        $this->actAsOwnRecordsClerk();
+
+        $mine = (int) $this->save($this->form(['amount' => '55.00', 'tax_amount' => '0']))['id'];
+
+        $this->assertTrue(json_decode($this->post('/expenses/delete', ['ids' => [(string) $mine]])->getJSON(), true)['success']);
     }
 }

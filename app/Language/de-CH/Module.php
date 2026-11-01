@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => 'Hinzufügen, Ändern, Löschen und Suchen',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Verkauf',
     'sales_desc'                   => 'Hinzufügen, Ändern, Löschen und Suchen',
     'suppliers'                    => 'Lieferanten',

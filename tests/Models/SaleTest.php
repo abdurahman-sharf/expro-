@@ -21,6 +21,7 @@ use Config\OSPOS;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\FailedQueryConnectionTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 
 /**
  * Regression tests: Sale::save_value() must reject
@@ -33,6 +34,7 @@ class SaleTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use FailedQueryConnectionTrait;
     use ItemFixtureTrait;
+    use RoleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -1816,5 +1818,429 @@ class SaleTest extends CIUnitTestCase
         $this->assertNull(model(Sale::class)->getPriceListId($draft));
 
         $this->resetPriceControls();
+    }
+
+    private function ownRecordsEmployee(): int
+    {
+        return $this->employeeWithRoles([$this->createRole([], 'own')]);
+    }
+
+    private function saleOfEmployee(int $employeeId, int $status = COMPLETED, int $type = SALE_TYPE_POS): int
+    {
+        $itemId     = $this->createTestItem(HAS_NO_STOCK);
+        $items      = $this->buildCartLine($itemId, 1, 10.00);
+        $taxes      = [[], []];
+        $saleStatus = $status;
+        $payments   = $status === COMPLETED ? [$this->cashPayment()] : [];
+        $saleId     = model(Sale::class)->save_value(NEW_ENTRY, $saleStatus, $items, NEW_ENTRY, $employeeId, 'own scope', null, null, null, $type, $payments, null, $taxes, true);
+
+        $this->assertGreaterThan(0, $saleId);
+
+        return $saleId;
+    }
+
+    private function invoiceOfEmployee(int $employeeId, int $itemId, ?string $invoiceNumber = null): int
+    {
+        $status = COMPLETED;
+        $items  = $this->buildCartLine($itemId, 5, 5.00);
+        $taxes  = [[], []];
+        $saleId = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, NEW_ENTRY, $employeeId, 'invoice', $invoiceNumber, null, null, SALE_TYPE_INVOICE, [], null, $taxes, true);
+
+        $this->assertGreaterThan(0, $saleId);
+
+        return $saleId;
+    }
+
+    private function suspendedSaleOfCustomer(int $employeeId, int $customerId): int
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $items  = $this->buildCartLine($itemId, 1, 10.00);
+        $taxes  = [[], []];
+        $status = SUSPENDED;
+        $saleId = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, $customerId, $employeeId, 'suspended', null, null, null, SALE_TYPE_POS, [], null, $taxes, true);
+
+        $this->assertGreaterThan(0, $saleId);
+
+        return $saleId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function listFilters(): array
+    {
+        return [
+            'sale_type'          => 'all',
+            'location_id'        => 'all',
+            'start_date'         => date('Y-m-d', strtotime('-1 day')),
+            'end_date'           => date('Y-m-d', strtotime('+1 day')),
+            'only_cash'          => false,
+            'only_due'           => false,
+            'only_check'         => false,
+            'selected_customer'  => false,
+            'only_creditcard'    => false,
+            'only_debit'         => false,
+            'only_bank_transfer' => false,
+            'only_wallet'        => false,
+            'only_invoices'      => false,
+            'is_valid_receipt'   => false,
+        ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function listedFor(?int $viewerId): array
+    {
+        $this->dropReportTables();
+
+        return array_map(static fn (object $row): int => (int) $row->sale_id, model(Sale::class)->search('', $this->listFilters(), 500, 0, 'sales.sale_id', 'asc', false, $viewerId)->getResult());
+    }
+
+    private function statusOfSale(int $saleId): int
+    {
+        return (int) Database::connect()->table('sales')->select('sale_status')->where('sale_id', $saleId)->get()->getRow()->sale_status;
+    }
+
+    public function testSearch_ListsOnlyTheSalesOfAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $own      = $this->ownRecordsEmployee();
+        $other    = $this->createEmployee();
+        $mine     = [$this->saleOfEmployee($own), $this->saleOfEmployee($own)];
+        $theirs   = $this->saleOfEmployee($other);
+        $everyone = $this->createEmployee();
+
+        $this->assertSame($mine, $this->listedFor($own));
+        $this->assertSame(2, model(Sale::class)->get_found_rows('', $this->listFilters(), $own));
+
+        $seen = $this->listedFor($everyone);
+
+        $this->assertContains($theirs, $seen);
+        $this->assertContains($mine[0], $seen);
+        $this->assertContains($mine[1], $seen);
+    }
+
+    public function testSearch_ListsEverySaleForTheBooksWithoutAnEmployee(): void
+    {
+        $own   = $this->ownRecordsEmployee();
+        $mine  = $this->saleOfEmployee($own);
+        $other = $this->saleOfEmployee($this->createEmployee());
+
+        unset($_SESSION['person_id']);
+
+        $seen = $this->listedFor(null);
+
+        $this->assertContains($mine, $seen);
+        $this->assertContains($other, $seen);
+    }
+
+    public function testSearch_CutsTheListToTheEmployeeOfTheSessionWhenNoViewerIsGiven(): void
+    {
+        $own   = $this->ownRecordsEmployee();
+        $mine  = $this->saleOfEmployee($own);
+        $other = $this->saleOfEmployee($this->createEmployee());
+
+        $_SESSION['person_id'] = $own;
+
+        $seen = $this->listedFor(null);
+
+        $this->assertSame([$mine], $seen);
+        $this->assertNotContains($other, $seen);
+    }
+
+    public function testGetPaymentsSummary_AddsUpOnlyThePaymentsOfTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        $own = $this->ownRecordsEmployee();
+
+        $this->saleOfEmployee($own);
+        $this->saleOfEmployee($this->createEmployee());
+
+        $summary = model(Sale::class)->getPaymentsSummary('', $this->listFilters(), $own);
+
+        $this->assertSame(1, array_sum(array_column($summary, 'count')));
+        $this->assertEquals(10.00, array_sum(array_column($summary, 'payment_amount')));
+    }
+
+    public function testGetInfo_ReturnsNothingForAnotherEmployeesSaleAndThePlainRowForTheirOwnAndForAnEmployeeWhoSeesEverything(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $other  = $this->createEmployee();
+        $mine   = $this->saleOfEmployee($own);
+        $theirs = $this->saleOfEmployee($other);
+        $sale   = model(Sale::class);
+
+        $this->assertSame(1, $sale->get_info($mine, $own)->getNumRows());
+        $this->assertSame(0, $sale->get_info($theirs, $own)->getNumRows(), 'Another employee sale reads as one that does not exist');
+        $this->assertSame(0, $sale->get_info(999999, $own)->getNumRows());
+        $this->assertSame(1, $sale->get_info($theirs, $this->createEmployee())->getNumRows());
+        $this->assertSame(1, $sale->get_info($theirs, $other)->getNumRows());
+    }
+
+    public function testGetInfo_ReadsTheEmployeeOfTheSessionWhenNoViewerIsGiven(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $theirs = $this->saleOfEmployee($this->createEmployee());
+
+        $_SESSION['person_id'] = $own;
+
+        $this->assertSame(0, model(Sale::class)->get_info($theirs)->getNumRows());
+
+        unset($_SESSION['person_id']);
+
+        $this->assertSame(1, model(Sale::class)->get_info($theirs)->getNumRows());
+    }
+
+    public function testUpdate_RefusesAnotherEmployeesSaleAndChangesNothing(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $theirs = $this->saleOfEmployee($this->createEmployee());
+        $sale   = model(Sale::class);
+
+        $this->assertFalse($sale->update($theirs, ['comment' => 'changed by a stranger', 'changed_by' => $own]));
+        $this->assertSame('own scope', Database::connect()->table('sales')->select('comment')->where('sale_id', $theirs)->get()->getRow()->comment);
+        $this->assertNull($sale->accountingFailure(), 'The refusal is not told apart from one for a sale that does not exist');
+        $this->assertFalse($sale->update(999999, ['comment' => 'nothing', 'changed_by' => $own]));
+    }
+
+    public function testUpdate_ChangesTheSaleOfTheOwnRecordsEmployeeAndOfAnEmployeeWhoSeesEverything(): void
+    {
+        $own   = $this->ownRecordsEmployee();
+        $mine  = $this->saleOfEmployee($own);
+        $sale  = model(Sale::class);
+        $other = $this->saleOfEmployee($this->createEmployee());
+
+        $this->assertTrue($sale->update($mine, ['comment' => 'mine, changed', 'changed_by' => $own]));
+        $this->assertTrue($sale->update($other, ['comment' => 'theirs, changed by an employee who sees everything', 'changed_by' => $this->createEmployee()]));
+        $this->assertSame('mine, changed', Database::connect()->table('sales')->select('comment')->where('sale_id', $mine)->get()->getRow()->comment);
+    }
+
+    public function testDelete_RefusesAnotherEmployeesSaleLikeOneThatDoesNotExist(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $theirs = $this->saleOfEmployee($this->createEmployee());
+        $sale   = model(Sale::class);
+
+        $this->assertFalse($sale->delete($theirs, false, true, $own));
+        $this->assertSame(COMPLETED, $this->statusOfSale($theirs));
+        $this->assertNull($sale->accountingFailure());
+        $this->assertFalse($sale->delete(999999, false, true, $own));
+    }
+
+    public function testDelete_CancelsTheOwnSaleOfAnOwnRecordsEmployeeAndAnyOneForAnEmployeeWhoSeesEverything(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $mine   = $this->saleOfEmployee($own);
+        $theirs = $this->saleOfEmployee($this->createEmployee());
+        $sale   = model(Sale::class);
+
+        $this->assertTrue($sale->delete($mine, false, true, $own));
+        $this->assertSame(CANCELED, $this->statusOfSale($mine));
+        $this->assertTrue($sale->delete($theirs, false, true, $this->createEmployee()));
+        $this->assertSame(CANCELED, $this->statusOfSale($theirs));
+    }
+
+    public function testDeleteList_RefusesTheWholeListWhenOneSaleIsAnotherEmployees(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $mine   = $this->saleOfEmployee($own);
+        $theirs = $this->saleOfEmployee($this->createEmployee());
+
+        $this->assertFalse(model(Sale::class)->delete_list([$mine, $theirs], $own));
+        $this->assertSame(COMPLETED, $this->statusOfSale($mine), 'Nothing of a refused list is cancelled');
+        $this->assertSame(COMPLETED, $this->statusOfSale($theirs));
+    }
+
+    public function testRestoreList_RefusesTheWholeListWhenOneSaleIsAnotherEmployees(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $mine   = $this->saleOfEmployee($own);
+        $theirs = $this->saleOfEmployee($this->createEmployee());
+
+        $this->assertFalse(model(Sale::class)->restore_list([$mine, $theirs], $own));
+        $this->assertSame(COMPLETED, $this->statusOfSale($mine));
+        $this->assertTrue(model(Sale::class)->restore_list([$mine], $own));
+        $this->assertSame(SUSPENDED, $this->statusOfSale($mine));
+    }
+
+    public function testConfirmDelivery_RefusesAnotherEmployeesInvoice(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $theirs = $this->saleOfEmployee($this->createEmployee(), COMPLETED, SALE_TYPE_INVOICE);
+
+        $this->assertSame(NEW_ENTRY, model(Sale::class)->confirm_delivery($theirs, $own));
+    }
+
+    public function testSaveValue_RefusesToCompleteAnotherEmployeesSuspendedSale(): void
+    {
+        $own       = $this->ownRecordsEmployee();
+        $suspended = $this->saleOfEmployee($this->createEmployee(), SUSPENDED);
+        $itemId    = $this->createTestItem(HAS_NO_STOCK);
+        $items     = $this->buildCartLine($itemId, 1, 10.00);
+        $taxes     = [[], []];
+        $status    = COMPLETED;
+
+        $this->assertSame(NEW_ENTRY, model(Sale::class)->save_value($suspended, $status, $items, NEW_ENTRY, $own, 'taken over', null, null, null, SALE_TYPE_POS, [$this->cashPayment()], null, $taxes, true));
+        $this->assertSame(SUSPENDED, $this->statusOfSale($suspended));
+    }
+
+    public function testGetAllSuspended_ListsOnlyTheSuspendedSalesOfAnOwnRecordsEmployee(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $mine   = $this->saleOfEmployee($own, SUSPENDED);
+        $theirs = $this->saleOfEmployee($this->createEmployee(), SUSPENDED);
+        $sale   = model(Sale::class);
+        $listed = array_map('intval', array_column($sale->get_all_suspended(NEW_ENTRY, $own), 'sale_id'));
+
+        $this->assertSame([$mine], $listed);
+        $this->assertContains($theirs, array_map('intval', array_column($sale->get_all_suspended(NEW_ENTRY, $this->createEmployee()), 'sale_id')));
+    }
+
+    public function testGetSuspendedSaleInfo_ReturnsNothingForAnotherEmployeesSuspendedSale(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $theirs = $this->saleOfEmployee($this->createEmployee(), SUSPENDED);
+        $mine   = $this->saleOfEmployee($own, SUSPENDED);
+        $sale   = model(Sale::class);
+
+        $this->assertSame(0, $sale->get_suspended_sale_info($theirs, $own)->getNumRows());
+        $this->assertSame(1, $sale->get_suspended_sale_info($mine, $own)->getNumRows());
+        $this->assertSame(1, $sale->get_suspended_sale_info($theirs, $this->createEmployee())->getNumRows());
+    }
+
+    public function testDeleteSuspendedSale_RefusesAnotherEmployeesSuspendedSaleForTheEmployeeOfTheSession(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $theirs = $this->saleOfEmployee($this->createEmployee(), SUSPENDED);
+        $sale   = model(Sale::class);
+
+        $_SESSION['person_id'] = $own;
+
+        $this->assertFalse($sale->delete_suspended_sale($theirs));
+        $this->assertFalse($sale->clear_suspended_sale_detail($theirs));
+        $this->assertSame(SUSPENDED, $this->statusOfSale($theirs));
+        $this->assertSame(1, Database::connect()->table('sales_items')->where('sale_id', $theirs)->countAllResults(), 'The lines of the sale are still there');
+    }
+
+    public function testIssueDraft_RefusesAnotherEmployeesDraftAsIfItWereNoDraft(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $theirs = $this->saleOfEmployee($this->createEmployee(), SUSPENDED, SALE_TYPE_INVOICE);
+        $sale   = model(Sale::class);
+
+        $this->assertSame(ACCOUNTING_FAILED, $sale->issueDraft($theirs, $own));
+        $this->assertSame(AccountingError::DraftNotFound, $sale->accountingFailure()->error);
+        $this->assertSame(SUSPENDED, $this->statusOfSale($theirs));
+    }
+
+    public function testGetDocumentHeader_ReturnsNothingForAnotherEmployeesDraftOrQuote(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $theirs = $this->saleOfEmployee($this->createEmployee(), SUSPENDED, SALE_TYPE_QUOTE);
+        $sale   = model(Sale::class);
+
+        $this->assertNull($sale->getDocumentHeader($theirs, $own));
+        $this->assertNotNull($sale->getDocumentHeader($theirs, $this->createEmployee()));
+    }
+
+    public function testSaveValue_RefusesAReturnOfAnotherEmployeesSaleForAnOwnRecordsEmployeeOnly(): void
+    {
+        $own    = $this->ownRecordsEmployee();
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $theirs = $this->invoiceOfEmployee($this->createEmployee(), $itemId);
+        $mine   = $this->invoiceOfEmployee($own, $itemId);
+        $before = $this->countSalesRows();
+
+        $this->assertSame(NEW_ENTRY, $this->saveCreditNote($theirs, $itemId, 1, $own));
+        $this->assertSame($before, $this->countSalesRows(), 'Nothing was stored for the return');
+        $this->assertGreaterThan(0, $this->saveCreditNote($mine, $itemId, 1, $own));
+        $this->assertGreaterThan(0, $this->saveCreditNote($theirs, $itemId, 1, $this->createEmployee()));
+    }
+
+    public function testIsValidReceipt_AcceptsTheSaleOfAnOwnRecordsEmployeeAndRejectsAnotherEmployeesLikeOneThatDoesNotExist(): void
+    {
+        $own       = $this->ownRecordsEmployee();
+        $itemId    = $this->createTestItem(HAS_NO_STOCK);
+        $mine      = $this->invoiceOfEmployee($own, $itemId);
+        $theirs    = $this->invoiceOfEmployee($this->createEmployee(), $itemId);
+        $sale      = model(Sale::class);
+        $settings  = config(OSPOS::class)->settings;
+
+        $_SESSION['person_id'] = $own;
+
+        try {
+            $receipt = 'POS ' . $mine;
+            $this->assertTrue($sale->isValidReceipt($receipt));
+
+            $receipt = 'POS ' . $theirs;
+            $this->assertFalse($sale->isValidReceipt($receipt));
+
+            $receipt = 'POS 999999';
+            $this->assertFalse($sale->isValidReceipt($receipt));
+
+            $_SESSION['person_id'] = $this->createEmployee();
+
+            $receipt = 'POS ' . $theirs;
+            $this->assertTrue($sale->isValidReceipt($receipt), 'Whoever sees everything finds the sale');
+        } finally {
+            unset($_SESSION['person_id']);
+            config(OSPOS::class)->settings = $settings;
+        }
+    }
+
+    public function testIsValidReceipt_FindsAnInvoiceNumberOnlyAmongTheSalesAnOwnRecordsEmployeeMade(): void
+    {
+        $own      = $this->ownRecordsEmployee();
+        $itemId   = $this->createTestItem(HAS_NO_STOCK);
+        $mineNo   = $this->freshPrefix() . 'A';
+        $theirsNo = $this->freshPrefix() . 'B';
+        $mine     = $this->invoiceOfEmployee($own, $itemId, $mineNo);
+        $theirs   = $this->invoiceOfEmployee($this->createEmployee(), $itemId, $theirsNo);
+        $sale     = model(Sale::class);
+        $settings = config(OSPOS::class)->settings;
+
+        config(OSPOS::class)->settings['invoice_enable'] = 1;
+        $_SESSION['person_id']                           = $own;
+
+        try {
+            $term = $mineNo;
+            $this->assertTrue($sale->isValidReceipt($term));
+            $this->assertSame('POS ' . $mine, $term);
+
+            $term = $theirsNo;
+            $this->assertFalse($sale->isValidReceipt($term));
+            $this->assertSame($theirsNo, $term, 'The id of the other employee\'s sale is not given away');
+
+            $_SESSION['person_id'] = $this->createEmployee();
+
+            $term = $theirsNo;
+            $this->assertTrue($sale->isValidReceipt($term));
+            $this->assertSame('POS ' . $theirs, $term);
+        } finally {
+            unset($_SESSION['person_id']);
+            config(OSPOS::class)->settings = $settings;
+        }
+    }
+
+    public function testGetAllSuspended_ListsOnlyTheSuspendedSalesOfAnOwnRecordsEmployeeForTheSelectedCustomerToo(): void
+    {
+        $own      = $this->ownRecordsEmployee();
+        $customer = $this->createCustomerWithPoints(0);
+        $mine     = $this->suspendedSaleOfCustomer($own, $customer);
+        $theirs   = $this->suspendedSaleOfCustomer($this->createEmployee(), $customer);
+        $sale     = model(Sale::class);
+
+        $this->assertSame([$mine], array_map('intval', array_column($sale->get_all_suspended($customer, $own), 'sale_id')));
+        $this->assertEqualsCanonicalizing([$mine, $theirs], array_map('intval', array_column($sale->get_all_suspended($customer, $this->createEmployee()), 'sale_id')));
+    }
+
+    public function testOutsideRecordScope_TreatsASaleThatDoesNotExistLikeAnotherEmployeesForAnOwnRecordsEmployeeOnly(): void
+    {
+        $own   = $this->ownRecordsEmployee();
+        $mine  = $this->saleOfEmployee($own);
+        $sale  = model(Sale::class);
+
+        $this->assertFalse($sale->outsideRecordScope($mine, $own));
+        $this->assertTrue($sale->outsideRecordScope(999999, $own));
+        $this->assertFalse($sale->outsideRecordScope(999999, $this->createEmployee()), 'Whoever sees everything is told nothing new');
     }
 }

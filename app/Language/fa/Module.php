@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => 'مشاهده و تولید گزارشات.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'حراجی',
     'sales_desc'                   => 'فرآیند فروش و بازده.',
     'suppliers'                    => 'تهیه کنندگان',

@@ -3,6 +3,7 @@
 namespace App\Libraries\Accounting;
 
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -50,12 +51,13 @@ final class CustomerDocuments
      *
      * @param array{date_from?: string, date_to?: string, customer_id?: int, customer?: string, way?: string, employee_id?: int, branch_id?: int, status?: string, search?: string} $filters
      * @param list<int>|null                                                                                                                                                        $branchIds
+     * @param int|null                                                                                                                                                              $viewerId  The reader, who sees only the payments they collected when they see their own records only. The employee of the session when not given.
      *
      * @return array{total: int, amount: numeric-string, posted: numeric-string, rows: list<object>}
      */
-    public function payments(array $filters, string $sort, string $order, int $limit, int $offset, ?array $branchIds): array
+    public function payments(array $filters, string $sort, string $order, int $limit, int $offset, ?array $branchIds, ?int $viewerId = null): array
     {
-        [$where, $bindings] = $this->paymentConditions($filters, $branchIds);
+        [$where, $bindings] = $this->paymentConditions($filters, $branchIds, $viewerId);
 
         $payments   = $this->db->prefixTable('sales_payments');
         $sales      = $this->db->prefixTable('sales');
@@ -109,13 +111,15 @@ final class CustomerDocuments
      *
      * @return list<object>
      */
-    public function collectors(?array $branchIds): array
+    public function collectors(?array $branchIds, ?int $viewerId = null): array
     {
         if ($branchIds === []) {
             return [];
         }
 
-        $scope    = $branchIds === null ? '' : ' AND s.branch_id IN (' . implode(',', array_map('intval', $branchIds)) . ')';
+        $scope = $branchIds === null ? '' : ' AND s.branch_id IN (' . implode(',', array_map('intval', $branchIds)) . ')';
+        $mine  = (new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());
+        $scope .= $mine === null ? '' : ' AND p.employee_id = ' . $mine;
         $payments = $this->db->prefixTable('sales_payments');
         $sales    = $this->db->prefixTable('sales');
         $people   = $this->db->prefixTable('people');
@@ -138,9 +142,9 @@ final class CustomerDocuments
      *
      * @return array{total: int, rows: list<array<string, mixed>>}
      */
-    public function returns(array $filters, string $sort, string $order, int $limit, int $offset): array
+    public function returns(array $filters, string $sort, string $order, int $limit, int $offset, ?int $viewerId = null): array
     {
-        [$where, $bindings] = $this->returnConditions($filters);
+        [$where, $bindings] = $this->returnConditions($filters, $viewerId);
 
         $sales    = $this->db->prefixTable('sales');
         $branches = $this->db->prefixTable('branches');
@@ -312,11 +316,17 @@ final class CustomerDocuments
      *
      * @return array{string, list<int|string>}
      */
-    private function paymentConditions(array $filters, ?array $branchIds): array
+    private function paymentConditions(array $filters, ?array $branchIds, ?int $viewerId): array
     {
         $where    = ['s.sale_status = ?', 'p.cash_adjustment = 0'];
         $bindings = [COMPLETED];
-        $dues     = PaymentType::Due->labels();
+        $mine     = (new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());
+
+        if ($mine !== null) {
+            $where[]    = 'p.employee_id = ?';
+            $bindings[] = $mine;
+        }
+        $dues = PaymentType::Due->labels();
 
         if ($dues !== []) {
             $where[]  = 'p.payment_type NOT IN (' . implode(',', array_fill(0, count($dues), '?')) . ')';
@@ -392,10 +402,16 @@ final class CustomerDocuments
      *
      * @return array{string, list<int|string>}
      */
-    private function returnConditions(array $filters): array
+    private function returnConditions(array $filters, ?int $viewerId): array
     {
         $where    = ['s.sale_type = ?', 's.sale_status = ?'];
         $bindings = [SALE_TYPE_RETURN, COMPLETED];
+        $mine     = (new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());
+
+        if ($mine !== null) {
+            $where[]    = 's.employee_id = ?';
+            $bindings[] = $mine;
+        }
 
         if ($this->isDate($filters['date_from'] ?? null)) {
             $where[]    = 's.sale_time >= ?';

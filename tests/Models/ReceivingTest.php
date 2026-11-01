@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\InvoiceDiscount;
+use App\Libraries\Accounting\ReceivingLineEdit;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\TreasuryService;
@@ -22,6 +23,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
@@ -38,6 +40,7 @@ class ReceivingTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use RoleFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -1252,5 +1255,214 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->owed());
         $this->assertSame(0, $this->countRows('receivings_payments'));
         $this->assertSame($date, $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $journals[0]->journal_id)->get()->getRow()->journal_date);
+    }
+
+    private function ownRecordsBuyer(): int
+    {
+        return $this->employeeWithRoles([$this->createRole([], 'own')], [BranchGuard::ALL_BRANCHES]);
+    }
+
+    private function purchaseBy(int $employeeId, string $total = '50.00'): int
+    {
+        $previous         = $this->employeeId;
+        $this->employeeId = $employeeId;
+
+        try {
+            return $this->purchaseOf($total);
+        } finally {
+            $this->employeeId = $previous;
+        }
+    }
+
+    private function commentOfPurchase(int $receivingId): string
+    {
+        return (string) $this->accountingDb()->table('receivings')->select('comment')->where('receiving_id', $receivingId)->get()->getRow()->comment;
+    }
+
+    public function testGetInfo_ReturnsNothingForAnotherEmployeesPurchaseAndTheRowForTheirOwnAndForAnEmployeeWhoSeesEverything(): void
+    {
+        $this->startBuying();
+
+        $own    = $this->ownRecordsBuyer();
+        $other  = $this->createEmployee();
+        $mine   = $this->purchaseBy($own);
+        $theirs = $this->purchaseBy($other);
+
+        $this->assertSame(1, $this->purchases->get_info($mine, $own)->getNumRows());
+        $this->assertSame(0, $this->purchases->get_info($theirs, $own)->getNumRows(), 'Another employee purchase reads as one that does not exist');
+        $this->assertSame(0, $this->purchases->get_info(999999, $own)->getNumRows());
+        $this->assertSame(1, $this->purchases->get_info($theirs, $this->createEmployee())->getNumRows());
+    }
+
+    public function testGetInfo_ReadsTheEmployeeOfTheSessionWhenNoViewerIsGiven(): void
+    {
+        $this->startBuying();
+
+        $own    = $this->ownRecordsBuyer();
+        $theirs = $this->purchaseBy($this->createEmployee());
+
+        $_SESSION['person_id'] = $own;
+
+        try {
+            $this->assertSame(0, $this->purchases->get_info($theirs)->getNumRows());
+        } finally {
+            unset($_SESSION['person_id']);
+        }
+
+        $this->assertSame(1, $this->purchases->get_info($theirs)->getNumRows());
+    }
+
+    public function testGetReceivingByReference_FindsOnlyThePurchasesOfAnOwnRecordsEmployee(): void
+    {
+        $this->startBuying();
+
+        $own    = $this->ownRecordsBuyer();
+        $mine   = $this->purchaseBy($own);
+        $theirs = $this->purchaseBy($this->createEmployee());
+        $db     = $this->accountingDb();
+
+        $db->table('receivings')->where('receiving_id', $mine)->update(['reference' => 'SCOPE-MINE']);
+        $db->table('receivings')->where('receiving_id', $theirs)->update(['reference' => 'SCOPE-THEIRS']);
+
+        $this->assertSame(1, $this->purchases->get_receiving_by_reference('SCOPE-MINE', $own)->getNumRows());
+        $this->assertSame(0, $this->purchases->get_receiving_by_reference('SCOPE-THEIRS', $own)->getNumRows());
+        $this->assertSame(1, $this->purchases->get_receiving_by_reference('SCOPE-THEIRS', $this->createEmployee())->getNumRows());
+    }
+
+    public function testIsValidReceipt_IsFalseForAnotherEmployeesPurchaseOfAnOwnRecordsEmployee(): void
+    {
+        $this->startBuying();
+
+        $own    = $this->ownRecordsBuyer();
+        $theirs = $this->purchaseBy($this->createEmployee());
+
+        $this->assertTrue($this->purchases->is_valid_receipt('RECV ' . $theirs));
+
+        $_SESSION['person_id'] = $own;
+
+        try {
+            $this->assertFalse($this->purchases->is_valid_receipt('RECV ' . $theirs));
+        } finally {
+            unset($_SESSION['person_id']);
+        }
+    }
+
+    public function testUpdate_RefusesAnotherEmployeesPurchaseAndChangesNothing(): void
+    {
+        $this->startBuying();
+
+        $own    = $this->ownRecordsBuyer();
+        $theirs = $this->purchaseBy($this->createEmployee());
+
+        $this->assertFalse($this->purchases->update($theirs, ['comment' => 'changed by a stranger', 'changed_by' => $own]));
+        $this->assertSame('test', $this->commentOfPurchase($theirs));
+        $this->assertNull($this->purchases->accountingFailure(), 'The refusal is not told apart from one for a purchase that does not exist');
+        $this->assertFalse($this->purchases->update(999999, ['comment' => 'nothing', 'changed_by' => $own]));
+    }
+
+    public function testUpdate_ChangesThePurchaseOfTheOwnRecordsEmployeeAndAnyOneForAnEmployeeWhoSeesEverything(): void
+    {
+        $this->startBuying();
+
+        $own   = $this->ownRecordsBuyer();
+        $mine  = $this->purchaseBy($own);
+        $other = $this->purchaseBy($this->createEmployee());
+
+        $this->assertTrue($this->purchases->update($mine, ['comment' => 'mine, changed', 'changed_by' => $own]));
+        $this->assertTrue($this->purchases->update($other, ['comment' => 'theirs, changed', 'changed_by' => $this->createEmployee()]));
+        $this->assertSame('mine, changed', $this->commentOfPurchase($mine));
+        $this->assertSame('theirs, changed', $this->commentOfPurchase($other));
+    }
+
+    public function testUpdateLines_RefusesAnotherEmployeesPurchaseAndKeepsItsLines(): void
+    {
+        $this->startBuying();
+
+        $own    = $this->ownRecordsBuyer();
+        $theirs = $this->purchaseBy($this->createEmployee());
+        $line   = $this->accountingDb()->table('receivings_items')->where('receiving_id', $theirs)->get()->getRow();
+        $edit   = ReceivingLineEdit::changing((int) $line->item_id, (int) $line->line, ['quantity' => '3']);
+
+        $this->assertFalse($this->purchases->updateLines($theirs, [$edit], $own));
+        $this->assertEquals($line->quantity_purchased, $this->accountingDb()->table('receivings_items')->where('receiving_id', $theirs)->get()->getRow()->quantity_purchased);
+        $this->assertTrue($this->purchases->updateLines($theirs, [$edit], $this->employeeWithGrants([])));
+    }
+
+    public function testDeleteValue_RefusesAnotherEmployeesPurchaseAndKeepsItsJournalsAndStock(): void
+    {
+        $this->startBuying();
+
+        $own      = $this->ownRecordsBuyer();
+        $theirs   = $this->purchaseBy($this->createEmployee());
+        $before   = $this->purchaseJournals($theirs);
+        $line     = $this->accountingDb()->table('receivings_items')->where('receiving_id', $theirs)->get()->getRow();
+        $onHand   = $this->onHand((int) $line->item_id);
+
+        $this->assertFalse($this->purchases->delete_value($theirs, $own));
+        $this->assertSame($before, $this->purchaseJournals($theirs), 'No journal of the purchase changed');
+        $this->assertSame($onHand, $this->onHand((int) $line->item_id));
+        $this->assertSame(1, $this->accountingDb()->table('receivings')->where('receiving_id', $theirs)->countAllResults());
+        $this->assertFalse($this->purchases->delete_value(999999, $own));
+    }
+
+    public function testDeleteValue_DeletesThePurchaseOfTheOwnRecordsEmployeeAndAnyOneForAnEmployeeWhoSeesEverything(): void
+    {
+        $this->startBuying();
+
+        $own    = $this->ownRecordsBuyer();
+        $mine   = $this->purchaseBy($own);
+        $theirs = $this->purchaseBy($this->createEmployee());
+
+        $this->assertTrue($this->purchases->delete_value($mine, $own));
+        $this->assertTrue($this->purchases->delete_value($theirs, $this->createEmployee()));
+        $this->assertSame(0, $this->accountingDb()->table('receivings')->whereIn('receiving_id', [$mine, $theirs])->countAllResults());
+    }
+
+    public function testDeleteList_RefusesTheWholeListWhenOnePurchaseIsAnotherEmployees(): void
+    {
+        $this->startBuying();
+
+        $own    = $this->ownRecordsBuyer();
+        $mine   = $this->purchaseBy($own);
+        $theirs = $this->purchaseBy($this->createEmployee());
+
+        $this->assertFalse($this->purchases->delete_list([$mine, $theirs], $own));
+        $this->assertSame(2, $this->accountingDb()->table('receivings')->whereIn('receiving_id', [$mine, $theirs])->countAllResults(), 'Nothing of a refused list is deleted');
+    }
+
+    public function testSaveValue_RefusesAReturnOfAnotherEmployeesPurchaseAndSavesNothing(): void
+    {
+        $this->startBuying();
+
+        $own    = $this->ownRecordsBuyer();
+        $theirs = $this->purchaseBy($this->createEmployee(), '100.00');
+        $line   = $this->accountingDb()->table('receivings_items')->where('receiving_id', $theirs)->get()->getRow();
+        $count  = $this->accountingDb()->table('receivings')->countAllResults();
+
+        $result = $this->purchases->save_value(
+            [$this->purchaseLine((int) $line->item_id, 0, '-1', (string) $line->item_unit_price)],
+            $this->supplierId,
+            $own,
+            'return',
+            'REF-' . uniqid(),
+            lang('Sales.due'),
+            NEW_ENTRY,
+            $theirs,
+        );
+
+        $this->assertSame(-1, $result);
+        $this->assertSame($count, $this->accountingDb()->table('receivings')->countAllResults());
+    }
+
+    public function testOutsideRecordScope_TreatsAPurchaseThatDoesNotExistLikeAnotherEmployeesForAnOwnRecordsEmployeeOnly(): void
+    {
+        $this->startBuying();
+
+        $own  = $this->ownRecordsBuyer();
+        $mine = $this->purchaseBy($own);
+
+        $this->assertFalse($this->purchases->outsideRecordScope($mine, $own));
+        $this->assertTrue($this->purchases->outsideRecordScope(999999, $own));
+        $this->assertFalse($this->purchases->outsideRecordScope(999999, $this->createEmployee()));
     }
 }

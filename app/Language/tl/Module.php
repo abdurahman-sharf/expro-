@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => 'View and generate Reports.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => 'Sales',
     'sales_desc'                   => 'Process Sales and Returns.',
     'suppliers'                    => 'Suppliers',

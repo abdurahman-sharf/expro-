@@ -77,6 +77,8 @@ return [
     'reports_desc'                 => '檢視與產生報表.',
     'revenue_categories'           => '',
     'revenue_categories_desc'      => '',
+    'roles'                        => '',
+    'roles_desc'                   => '',
     'sales'                        => '出貨',
     'sales_desc'                   => '出貨與退貨.',
     'suppliers'                    => '供應商',

@@ -17,6 +17,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use App\Libraries\Roles\RoleService;
 
 /**
  * The payments to suppliers as documents: the ones made against a purchase after it was saved and
@@ -455,5 +456,70 @@ class SupplierPaymentListTest extends CIUnitTestCase
         $this->assertContains($buyer, array_map(static fn (object $payer): int => $payer->employee_id, $payers));
         $this->assertContains($this->clerk, array_map(static fn (object $payer): int => $payer->employee_id, $payers));
         $this->assertSame([], $this->payments->payers([]));
+    }
+
+    private function ownRecordsOnly(int $employeeId): int
+    {
+        (new RoleService())->setRecordScope($employeeId, 'own', null);
+
+        return $employeeId;
+    }
+
+    public function testSearch_ListsOnlyThePaymentsAnEmployeeWhoSeesTheirOwnRecordsMade(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $byBuyer  = $this->payOnDate($purchase, '100.00', $this->daysAgo(2));
+        $byClerk  = $this->advance('50.00', $this->daysAgo(1));
+
+        $clerkSees = $this->payments->search(null, [], 'date', 'desc', 100, 0, $this->ownRecordsOnly($this->clerk))['rows'];
+
+        $this->assertSame(['advance:' . $byClerk], $this->keysOf($clerkSees));
+        $this->assertSame(1, $this->payments->search(null, [], 'date', 'desc', 100, 0, $this->clerk)['total']);
+
+        $everyone = $this->payments->search(null, [], 'date', 'desc', 100, 0, $this->employeeWithGrants([]))['rows'];
+
+        $this->assertEqualsCanonicalizing(['purchase:' . $byBuyer, 'advance:' . $byClerk], $this->keysOf($everyone));
+    }
+
+    public function testSearch_CutsTheListToTheEmployeeOfTheSessionWhenNoViewerIsGiven(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+
+        $this->payOnDate($purchase, '100.00', $this->daysAgo(2));
+
+        $byClerk = $this->advance('50.00', $this->daysAgo(1));
+
+        $this->ownRecordsOnly($this->clerk);
+
+        $_SESSION['person_id'] = $this->clerk;
+
+        try {
+            $this->assertSame(['advance:' . $byClerk], $this->keysOf($this->rows()));
+        } finally {
+            unset($_SESSION['person_id']);
+        }
+    }
+
+    public function testSearch_KeepsTheFilterOfAnotherEmployeeFromWideningTheListOfAnOwnRecordsEmployee(): void
+    {
+        $this->advance('50.00', $this->daysAgo(1));
+
+        $own = $this->ownRecordsOnly($this->clerk);
+
+        $this->assertSame([], $this->payments->search(null, ['employee_id' => (string) $this->employeeId], 'date', 'desc', 100, 0, $own)['rows']);
+        $this->assertCount(1, $this->payments->search(null, ['employee_id' => (string) $own], 'date', 'desc', 100, 0, $own)['rows']);
+    }
+
+    public function testPayers_ListsOnlyTheEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+
+        $this->payOnDate($purchase, '100.00', $this->daysAgo(2));
+        $this->advance('50.00', $this->daysAgo(1));
+
+        $own = $this->ownRecordsOnly($this->clerk);
+
+        $this->assertSame([$own], array_map(static fn (object $payer): int => $payer->employee_id, $this->payments->payers(null, $own)));
+        $this->assertGreaterThanOrEqual(2, count($this->payments->payers(null, $this->employeeWithGrants([]))));
     }
 }

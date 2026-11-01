@@ -15,6 +15,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Expense;
 use App\Models\Expense_category;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\OSPOS;
 use Config\Services;
@@ -109,6 +110,10 @@ class Expenses extends Secure_Controller
      */
     public function getView(int $expenseId = NEW_ENTRY): string
     {
+        if ($expenseId !== NEW_ENTRY && $this->expense->outsideRecordScope($expenseId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
         $data = [];    // TODO: Duplicated code
 
         $data['expenses_info'] = $this->expense->get_info($expenseId);
@@ -170,6 +175,10 @@ class Expenses extends Secure_Controller
      */
     public function getRow(int $row_id): ResponseInterface
     {
+        if ($this->expense->outsideRecordScope($row_id)) {
+            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Roles.record_unavailable')]);
+        }
+
         $expenseInfo = $this->expense->get_info($row_id);
         $dataRow = get_expenses_data_row($expenseInfo, (new DocumentNumbering())->numbers(DocumentType::Expense, 'expenses', [$row_id])[$row_id] ?? null);
 

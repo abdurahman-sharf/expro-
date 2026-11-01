@@ -10,6 +10,7 @@ use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
+use App\Libraries\Roles\RoleError;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -102,6 +103,28 @@ class LanguageFilesTest extends CIUnitTestCase
 
         foreach (['branches_manage', 'scope_manage', 'all_branches'] as $permission) {
             $this->assertNotSame('', $messages[$permission] ?? '', "{$locale} lacks the label of the permission {$permission}");
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testRolesFile_DefinesAMessageForEveryErrorAndLabelsThePermissionAndTheModule(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Roles.php";
+        $module   = include __DIR__ . "/../app/Language/{$locale}/Module.php";
+        $audit    = include __DIR__ . "/../app/Language/{$locale}/Accounting.php";
+
+        foreach (RoleError::cases() as $error) {
+            $this->assertNotSame('', $messages['error_' . $error->value] ?? '', "{$locale} lacks the message for {$error->value}");
+        }
+
+        $this->assertNotSame('', $messages['roles_manage'] ?? '', "{$locale} lacks the label of the permission to manage roles");
+
+        foreach (['roles', 'roles_desc'] as $key) {
+            $this->assertNotSame('', $module[$key] ?? '', "{$locale} lacks the module label {$key}");
+        }
+
+        foreach (['action_role_created', 'action_role_updated', 'action_role_permissions_changed', 'action_role_deleted', 'action_employee_roles_changed', 'action_employee_record_scope_changed', 'action_default_location_set', 'entity_role', 'entity_employee'] as $key) {
+            $this->assertNotSame('', $audit[$key] ?? '', "{$locale} lacks the audit label {$key}");
         }
     }
 
