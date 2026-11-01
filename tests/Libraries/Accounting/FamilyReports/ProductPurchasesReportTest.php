@@ -23,15 +23,6 @@ final class ProductPurchasesReportTest extends FamilyReportTestCase
         $this->report = new ProductPurchasesReport();
     }
 
-    private function named(string $name, string $category = ''): int
-    {
-        $item = $this->item('0.00');
-
-        $this->accountingDb()->table('items')->where('item_id', $item)->update(['name' => $name, 'category' => $category, 'item_number' => 'N-' . $item]);
-
-        return $item;
-    }
-
     public function testBuild_SumsTheQuantityAndTheValuePerItemNetOfReturns(): void
     {
         $cream   = $this->named('Cream', 'Care');

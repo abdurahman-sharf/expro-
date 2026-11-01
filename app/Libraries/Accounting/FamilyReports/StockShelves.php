@@ -38,6 +38,8 @@ final class StockShelves
     }
 
     /**
+     * The items that have a shelf in the locations, empty or not: an item that was never stocked there is not listed.
+     *
      * @param list<int> $locationIds The locations to read, which are the ones of the scope.
      *
      * @return list<object{item_id: int, name: string, item_number: ?string, category: string, reorder_level: string, deleted: bool, quantities: array<int, string>}>
@@ -80,13 +82,16 @@ final class StockShelves
             return [];
         }
 
+        $stocked = [];
+
         foreach ($this->db->table('item_quantities')->select('item_id, location_id, quantity')->whereIn('location_id', $locationIds)->get()->getResult() as $shelf) {
             if (isset($items[(int) $shelf->item_id])) {
                 $items[(int) $shelf->item_id]->quantities[(int) $shelf->location_id] = bcadd((string) $shelf->quantity, '0', 3);
+                $stocked[(int) $shelf->item_id]                                      = true;
             }
         }
 
-        return array_values($items);
+        return array_values(array_intersect_key($items, $stocked));
     }
 
     /**

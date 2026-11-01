@@ -24,11 +24,6 @@ final class SupplierAgedLedgerReportTest extends FamilyReportTestCase
         $this->report = new SupplierAgedLedgerReport();
     }
 
-    private function ago(int $days): string
-    {
-        return date('Y-m-d', strtotime("-{$days} days"));
-    }
-
     public function testBuild_PutsWhatIsOwedInTheBucketOfTheAgeOfEachPurchase(): void
     {
         $this->purchaseDated('100.00', $this->ago(40));

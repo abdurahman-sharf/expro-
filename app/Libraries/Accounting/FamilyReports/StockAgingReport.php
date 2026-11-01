@@ -86,7 +86,7 @@ final class StockAgingReport implements FamilyReport
 
             $onHand   = bcadd($onHand, $units, 3);
             $netSums  = bcadd($netSums, $units, 3);
-            $rows[]   = new ReportRow(['code' => $item['code'], 'name' => $item['name'], 'location' => $item['location'], 'quantity' => $units, ...$buckets, 'age' => $average]);
+            $rows[]   = new ReportRow(['code' => $item['code'], 'name' => $item['name'], 'location' => $item['location'], 'available' => $units, ...$buckets, 'age' => $average]);
         }
 
         $columns = [$this->column('code'), $this->column('name')];
@@ -103,20 +103,19 @@ final class StockAgingReport implements FamilyReport
 
         $columns[] = $this->column('age', ColumnKind::Plain, 'col_average_age');
 
+        $sums  = $this->sums($rows, ['available', ...self::BUCKETS]);
         $grand = new ReportRow(
-            ['name' => $this->text('grand_total'), 'age' => $ages === [] ? '0.0' : SaleAmounts::round(bcdiv(array_reduce($ages, static fn (string $sum, string $age): string => bcadd($sum, $age, 6), '0'), (string) count($ages), 6), 1)],
+            ['name' => $this->text('grand_total'), ...$sums, 'age' => $ages === [] ? '0.0' : SaleAmounts::round(bcdiv(array_reduce($ages, static fn (string $sum, string $age): string => bcadd($sum, $age, 6), '0'), (string) count($ages), 6), 1)],
             null,
             true,
         );
 
-        $reported = $this->sums($rows, ['quantity'])['quantity'];
+        $reported = $sums['available'];
         $book     = '0';
 
         foreach ($nets as $net) {
             $book = bcadd($book, bccomp($net, '0', 3) > 0 ? $net : '0', 3);
         }
-
-        $rows = array_map(static fn (ReportRow $row): ReportRow => new ReportRow([...$row->cells, 'available' => $row->cell('quantity')], $row->url), $rows);
 
         return new ReportTable($this->text('stock_aging_title'), $columns, [new ReportBlock(null, $rows)], $grand, [new TieCheck($this->text('tie_aging_quantity'), $reported, bcadd($book, '0', SaleAmounts::SCALE))], [$this->text('note_aging_rule'), $this->text('note_aging_average')]);
     }

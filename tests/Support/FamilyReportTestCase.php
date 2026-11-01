@@ -22,6 +22,8 @@ abstract class FamilyReportTestCase extends CIUnitTestCase
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
     use FamilyReportFixtureTrait;
+    use ShelfFixtureTrait;
+    use StockBooksFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -66,6 +68,25 @@ abstract class FamilyReportTestCase extends CIUnitTestCase
         $second = $this->buy([$this->purchaseLine($item, 0, '1', '100.00')], $other);
 
         return ['first' => $this->supplierId, 'second' => $other, 'big' => $big, 'small' => $small, 'note' => $note, 'other' => $second, 'item' => $item];
+    }
+
+    protected function named(string $name, string $category = '', string $cost = '0.00'): int
+    {
+        $item = $this->item($cost);
+
+        $this->accountingDb()->table('items')->where('item_id', $item)->update(['name' => $name, 'category' => $category, 'item_number' => 'N-' . $item]);
+
+        return $item;
+    }
+
+    protected function lastBookedSource(): int
+    {
+        return $this->bookedSource;
+    }
+
+    protected function ago(int $days): string
+    {
+        return date('Y-m-d', strtotime("-{$days} days"));
     }
 
     /**
