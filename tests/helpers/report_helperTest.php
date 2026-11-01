@@ -226,4 +226,60 @@ final class report_helperTest extends CIUnitTestCase
             $this->assertStringNotContainsString('accounting_statements', $path);
         }
     }
+    public function testOperationalReportCatalog_OffersEachReportToWhoHoldsTheModuleAndThePermissionOfIt(): void
+    {
+        $paths = $this->operationalPathsFor(['accounting_reports', 'reports_sales', 'reports_payments']);
+
+        $this->assertCount(5, $paths);
+        $this->assertStringEndsWith('accounting_reports/revenue?group=day', $paths[0]);
+        $this->assertStringEndsWith('accounting_reports/net_position', $paths[1]);
+        $this->assertStringEndsWith('accounting_reports/invoice_returns', $paths[2]);
+        $this->assertStringEndsWith('accounting_reports/payments?group=customer', $paths[3]);
+        $this->assertStringEndsWith('accounting_reports/advance_payments', $paths[4]);
+    }
+
+    public function testOperationalReportCatalog_OpensTheFirstGroupingThePersonMayRead(): void
+    {
+        $paths = $this->operationalPathsFor(['accounting_reports', 'reports_customers', 'reports_categories']);
+
+        $this->assertStringEndsWith('accounting_reports/revenue?group=customer', $paths[0]);
+        $this->assertStringEndsWith('accounting_reports/clients_sales', $paths[1]);
+        $this->assertStringEndsWith('accounting_reports/item_sales?group=category', $paths[2]);
+        $this->assertStringEndsWith('accounting_reports/profit?group=category', $paths[3]);
+        $this->assertStringEndsWith('accounting_reports/item_profit?group=category', $paths[4]);
+    }
+
+    public function testOperationalReportCatalog_OffersNothingWithoutTheModuleOrWhileAccountingIsOff(): void
+    {
+        $this->assertSame([], operationalReportCatalog(['reports_sales', 'reports_items', 'reports_payments'], true));
+        $this->assertSame([], operationalReportCatalog(['accounting_reports', 'reports_sales'], false));
+        $this->assertSame([], operationalReportCatalog(['accounting_reports'], true));
+        $this->assertSame([], $this->operationalPathsFor(['accounting_reports', 'accounting_journals', 'reports_taxes']));
+    }
+
+    public function testOperationalReportCatalog_LeavesTheCatalogOfTheOperationalReportsAsItWas(): void
+    {
+        $this->assertCount(4, $this->pathsFor(['accounting_reports']));
+        $this->assertCount(4, $this->pathsFor(['reports_sales']));
+    }
+
+    /**
+     * @param list<string> $permissionIds
+     *
+     * @return list<string>
+     */
+    private function operationalPathsFor(array $permissionIds): array
+    {
+        $paths = [];
+
+        foreach (operationalReportCatalog($permissionIds, true) as $group) {
+            foreach ($group['subjects'] as $subject) {
+                foreach ($subject['links'] as $link) {
+                    $paths[] = $link['path'];
+                }
+            }
+        }
+
+        return $paths;
+    }
 }
