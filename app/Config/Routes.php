@@ -233,6 +233,7 @@ $routes->group('accounting_treasuries', static function (RouteCollection $routes
     $routes->get('search', 'AccountingTreasuries::getSearch');
     $routes->get('row/(:num)', 'AccountingTreasuries::getRow/$1');
     $routes->get('statement/(:num)', 'AccountingTreasuries::getStatement/$1');
+    $routes->get('banks', 'AccountingTreasuries::getBanks');
     $routes->get('view', 'AccountingTreasuries::getView');
     $routes->get('view/(:segment)', 'AccountingTreasuries::getView/$1');
     $routes->post('save', 'AccountingTreasuries::postSave');
@@ -251,6 +252,23 @@ $routes->group('accounting_treasuries', static function (RouteCollection $routes
 
     $routes->get('defaults', 'AccountingTreasuries::getDefaults');
     $routes->post('default/(:num)', 'AccountingTreasuries::postDefault/$1');
+
+    $routes->get('bank', 'AccountingBankReconciliation::getIndex');
+    $routes->get('bank/sample', 'AccountingBankReconciliation::getSample');
+    $routes->get('bank/(:num)', 'AccountingBankReconciliation::getAccount/$1');
+    $routes->get('bank/(:num)/import', 'AccountingBankReconciliation::getImport/$1');
+    $routes->post('bank/(:num)/import', 'AccountingBankReconciliation::postImport/$1');
+    $routes->get('bank/(:num)/lines', 'AccountingBankReconciliation::getLines/$1');
+    $routes->get('bank/(:num)/matches', 'AccountingBankReconciliation::getMatches/$1');
+    $routes->get('bank/(:num)/match/(:num)', 'AccountingBankReconciliation::getMatch/$1/$2');
+    $routes->post('bank/(:num)/match', 'AccountingBankReconciliation::postMatch/$1');
+    $routes->post('bank/(:num)/unmatch/(:num)', 'AccountingBankReconciliation::postUnmatch/$1/$2');
+    $routes->get('bank/(:num)/suggestions', 'AccountingBankReconciliation::getSuggestions/$1');
+    $routes->get('bank/(:num)/report', 'AccountingBankReconciliation::getReport/$1');
+    $routes->post('bank/(:num)/close', 'AccountingBankReconciliation::postClose/$1');
+    $routes->post('bank/reopen/(:num)', 'AccountingBankReconciliation::postReopen/$1');
+    $routes->post('bank/statement_delete/(:num)', 'AccountingBankReconciliation::postDeleteStatement/$1');
+    $routes->post('bank/window', 'AccountingBankReconciliation::postWindow');
 
     $routes->get('inter_branch', 'AccountingInterBranch::getIndex');
     $routes->get('inter_branch/pairs', 'AccountingInterBranch::getPairs');

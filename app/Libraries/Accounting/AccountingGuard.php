@@ -38,6 +38,7 @@ final class AccountingGuard
     public const BACKFILL_MANAGE     = 'acc_backfill_manage';
     public const DEBIT_NOTES_MANAGE  = 'acc_debit_notes_manage';
     public const ROLES_MANAGE        = 'acc_roles_manage';
+    public const BANK_RECONCILE      = 'acc_bank_reconcile';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them

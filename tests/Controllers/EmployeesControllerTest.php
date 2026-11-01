@@ -915,6 +915,18 @@ class EmployeesControllerTest extends CIUnitTestCase
         }
     }
 
+    public function testGetView_ListsTheBankReconcilePermissionByNameAndDoesNotLockItBecauseItMovesNoMoney(): void
+    {
+        $this->loginAsNonAdmin($this->createNonAdminEmployee());
+
+        $html = $this->get('/employees/view/-1')->getBody();
+
+        $this->assertMatchesRegularExpression('/<input[^>]*id="grant_' . AccountingGuard::BANK_RECONCILE . '"/', $html);
+        $this->assertDoesNotMatchRegularExpression('/<input[^>]*id="grant_' . AccountingGuard::BANK_RECONCILE . '"[^>]*sensitive-permission/', $html);
+        $this->assertDoesNotMatchRegularExpression('/<input[^>]*id="grant_' . AccountingGuard::BANK_RECONCILE . '"[^>]*data-locked="1"/', $html);
+        $this->assertStringContainsString(htmlspecialchars(lang('Accounting_treasuries.bank_reconcile'), ENT_QUOTES), $html);
+    }
+
     public function testPostSave_LetsAnAdministratorGrantAndRemoveTheTreasuriesAndPayablesPermissionsAndRecordsBoth(): void
     {
         $target = $this->createNonAdminEmployee();

@@ -42,6 +42,7 @@ final class MigrationChecks extends CheckGroup
         'SalesDebitNotes'                  => [self::HEAVY, 'creates sales_debit_notes and adds customer_credit_applications.debit_note_id, widening the one-target rule of an application from two kinds of target to three, which rebuilds that table'],
         'PricingAndCreditControls'         => [self::HEAVY, 'adds nullable or neutral columns to customers (price list, credit limit, credit days), sales (price list) and items (minimum price, highest discount); creates price_lists and price_list_items'],
         'ChequesAndRevenues'               => [self::DATA, 'opens the leaf accounts of notes receivable, notes payable, funds under collection and deposit fees in an existing chart and points four routing rows at them'],
+        'BankReconciliation'               => [self::HEAVY, 'adds the nullable treasuries.bank_code; creates the bank statement, statement line, match and reconciliation tables, which no existing row refers to'],
     ];
 
     public function run(): array

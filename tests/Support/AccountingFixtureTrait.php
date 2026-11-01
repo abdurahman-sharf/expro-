@@ -42,6 +42,11 @@ trait AccountingFixtureTrait
         $db->query('SET FOREIGN_KEY_CHECKS = 0');
 
         foreach ([
+            'bank_match_lines',
+            'bank_matches',
+            'bank_reconciliations',
+            'bank_statement_lines',
+            'bank_statements',
             'cheque_events',
             'cheques',
             'cheque_books',

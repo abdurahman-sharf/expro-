@@ -93,6 +93,14 @@ class LanguageFilesTest extends CIUnitTestCase
     }
 
     #[DataProvider('translatedLocaleProvider')]
+    public function testTreasuriesFile_LabelsThePermissionToReconcileBankAccounts(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_treasuries.php";
+
+        $this->assertNotSame('', $messages['bank_reconcile'] ?? '', "{$locale} lacks the label of the permission bank_reconcile");
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
     public function testBranchesFile_DefinesAMessageForEveryError(string $locale): void
     {
         $messages = include __DIR__ . "/../app/Language/{$locale}/Branches.php";

@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\Bank\BankDirectory;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
@@ -844,5 +845,160 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
 
         $this->assertFalse($refused['success']);
         $this->assertNull($this->treasuries->defaultFor($employee));
+    }
+
+    public function testGetView_OffersTheBankDirectoryWithBothNamesAndPreselectsTheBankOfTheAccount(): void
+    {
+        $manager = $this->manager();
+        $bank    = $this->treasuries->create(['name' => 'Rajhi', 'kind' => 'bank', 'bank_code' => 'SA_RAJHI', 'account_number' => '1234567890'], $manager);
+
+        $response = $this->get('/accounting_treasuries/view/' . $bank);
+        $body     = $response->getBody();
+
+        $response->assertSee('مصرف الراجحي');
+        $this->assertStringContainsString('name="bank_code"', $body);
+        $this->assertStringContainsString('id="bank_search"', $body);
+        $this->assertStringContainsString('<option value="SA_RAJHI"', $body);
+        $this->assertMatchesRegularExpression('/<option value="SA_RAJHI"[^>]* selected>Al Rajhi Bank - /', $body);
+        $this->assertStringContainsString('<option value="AE_ENBD"', $body);
+        $this->assertMatchesRegularExpression('/class="field bank-field bank-name-field" hidden/', $body);
+        $this->assertStringContainsString(lang('Accounting_treasuries.bank_other'), $body);
+    }
+
+    public function testGetBanks_FindsABankWhateverTheCaseTheArabicMarksAndTheLetterFormsTyped(): void
+    {
+        $this->manager();
+
+        $codes = fn (string $term): array => array_column(json_decode($this->get('/accounting_treasuries/banks?term=' . rawurlencode($term))->getJSON(), true)['rows'], 'code');
+
+        $this->assertContains('SA_ANB', $codes('العربى الوطنى'));
+        $this->assertContains('SA_RIYAD', $codes('بَنك الرياض'));
+        $this->assertContains('SA_RIYAD', $codes('RIYAD  bank'));
+        $this->assertContains('SA_RAJHI', $codes('مصرف الراجحي'));
+        $this->assertSame([], $codes('no such bank anywhere'));
+        $this->assertCount(count(BankDirectory::search()), $codes(''));
+    }
+
+    public function testGetBanks_IsNotFoundToWhoCannotManageTreasuries(): void
+    {
+        $this->actAsWith(['accounting_treasuries']);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_treasuries/banks?term=riyad');
+    }
+
+    public function testGetView_SearchesTheBankDirectoryOnTheServerSoThatItIgnoresTheMarksAndLetterFormsAsTheDirectoryDoes(): void
+    {
+        $manager = $this->manager();
+        $bank    = $this->treasuries->create(['name' => 'Rajhi', 'kind' => 'bank', 'bank_code' => 'SA_RAJHI', 'account_number' => '1234567890'], $manager);
+
+        $body = $this->get('/accounting_treasuries/view/' . $bank)->getBody();
+
+        $this->assertStringContainsString('accounting_treasuries\/banks', $body);
+        $this->assertStringNotContainsString('data-search', $body);
+    }
+
+    public function testGetView_PreselectsTheDirectoryBankOfAnAccountOpenedByHandWhoseNameIsInItAndSavesNothing(): void
+    {
+        $manager = $this->manager();
+        $bank    = $this->treasuries->create(['name' => 'Old Riyad', 'kind' => 'bank', 'bank_name' => 'Riyad Bank', 'account_number' => '1234567890'], $manager);
+        $before  = $this->accountingDb()->table('treasuries')->where('treasury_id', $bank)->get()->getRowArray();
+
+        $body = $this->get('/accounting_treasuries/view/' . $bank)->getBody();
+
+        $this->assertMatchesRegularExpression('/<option value="SA_RIYAD"[^>]* selected>/', $body);
+        $this->assertSame($before, $this->accountingDb()->table('treasuries')->where('treasury_id', $bank)->get()->getRowArray());
+    }
+
+    public function testGetView_ShowsTheNameOfABankOutsideTheDirectoryAndSelectsNoneOfTheList(): void
+    {
+        $manager = $this->manager();
+        $bank    = $this->treasuries->create(['name' => 'Village', 'kind' => 'bank', 'bank_name' => 'Village Savings Bank', 'account_number' => '1234567890'], $manager);
+
+        $body = $this->get('/accounting_treasuries/view/' . $bank)->getBody();
+
+        $this->assertDoesNotMatchRegularExpression('/<option value="[A-Z]{2}_[A-Z0-9]+"[^>]* selected>/', $body);
+        $this->assertDoesNotMatchRegularExpression('/class="field bank-field bank-name-field" hidden/', $body);
+        $this->assertStringContainsString('value="Village Savings Bank"', $body);
+    }
+
+    public function testPostSave_KeepsTheBankPickedFromTheDirectoryAndRefusesACodeThatIsNotIn(): void
+    {
+        $this->manager();
+
+        $added   = json_decode($this->post('/accounting_treasuries/save', ['name' => 'Rajhi', 'kind' => 'bank', 'bank_code' => 'SA_RAJHI', 'bank_name' => '', 'account_number' => '1234567890'])->getJSON(), true);
+        $refused = json_decode($this->post('/accounting_treasuries/save', ['name' => 'Nowhere', 'kind' => 'bank', 'bank_code' => 'XX_NOPE', 'bank_name' => '', 'account_number' => '5555555555'])->getJSON(), true);
+
+        $this->assertTrue($added['success']);
+        $this->assertSame(['SA_RAJHI', 'Al Rajhi Bank'], [$this->treasuries->find($added['id'])->bank_code, $this->treasuries->find($added['id'])->bank_name]);
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_bank_directory_code_invalid', ['XX_NOPE']), $refused['message']);
+    }
+
+    public function testGetSearch_ShowsTheNameOfTheDirectoryBankInTheLanguageInUse(): void
+    {
+        $manager = $this->manager();
+        $this->treasuries->create(['name' => 'Rajhi', 'kind' => 'bank', 'bank_code' => 'SA_RAJHI', 'account_number' => '1234567890'], $manager);
+
+        $english = $this->rowsOf()['rows'][1];
+
+        $this->accountingDb()->table('employees')->where('person_id', $manager)->update(['language_code' => 'ar-EG', 'language' => 'arabic-egypt']);
+
+        $arabic = $this->rowsOf()['rows'][1];
+
+        $this->assertStringContainsString('Al Rajhi Bank', $english['name']);
+        $this->assertStringContainsString('1234567890', $english['name']);
+        $this->assertStringContainsString('مصرف الراجحي', $arabic['name']);
+        $this->assertStringNotContainsString('Al Rajhi Bank', $arabic['name']);
+    }
+
+    public function testGetView_PreselectsTheBankOfTheCodeEvenWhenTheNameKeptWithItWasChanged(): void
+    {
+        $manager = $this->manager();
+        $bank    = $this->treasuries->create(['name' => 'Rajhi', 'kind' => 'bank', 'bank_code' => 'SA_RAJHI', 'account_number' => '1234567890'], $manager);
+
+        $this->accountingDb()->table('treasuries')->where('treasury_id', $bank)->update(['bank_name' => 'Old spelling of the name']);
+
+        $body = $this->get('/accounting_treasuries/view/' . $bank)->getBody();
+
+        $this->assertMatchesRegularExpression('/<option value="SA_RAJHI"[^>]* selected>/', $body);
+        $this->assertMatchesRegularExpression('/class="field bank-field bank-name-field" hidden/', $body);
+    }
+
+    public function testGetIndex_OffersTheLinkToTheBankReconciliationOnlyToWhoMayReconcile(): void
+    {
+        $this->actAsWith(['accounting_treasuries']);
+
+        $this->get('/accounting_treasuries')->assertDontSee('bank_reconciliation_link');
+
+        $this->actAsWith(['accounting_treasuries', AccountingGuard::BANK_RECONCILE]);
+
+        $this->get('/accounting_treasuries')->assertSee('bank_reconciliation_link');
+    }
+
+    public function testGetStatement_FlagsTheLinesMatchedWithABankStatementToWhoMayReconcileOnly(): void
+    {
+        $manager = $this->manager();
+        $bank    = $this->treasuries->create(['name' => 'Rajhi', 'kind' => 'bank', 'bank_code' => 'SA_RAJHI', 'account_number' => '1234567890'], $manager);
+
+        $this->fund($bank, '100.00');
+
+        $line = (int) $this->accountingDb()->table('accounting_journal_lines')->where('account_id', $this->treasuries->accountOf($bank))->get()->getRow()->line_id;
+        $db   = $this->accountingDb();
+
+        $db->table('bank_statements')->insert(['company_id' => 1, 'branch_id' => 1, 'treasury_id' => $bank, 'file_name' => 'x.csv', 'checksum' => str_repeat('a', 64), 'delimiter_name' => 'comma', 'row_count' => 1, 'line_count' => 1, 'date_from' => '2026-10-21', 'date_to' => '2026-10-21']);
+        $statementId = (int) $db->insertID();
+        $db->table('bank_statement_lines')->insert(['statement_id' => $statementId, 'company_id' => 1, 'branch_id' => 1, 'treasury_id' => $bank, 'row_no' => 2, 'line_date' => '2026-10-21', 'amount' => '100.0000', 'dedupe_key' => str_repeat('b', 64)]);
+        $db->table('bank_matches')->insert(['company_id' => 1, 'branch_id' => 1, 'treasury_id' => $bank, 'statement_line_id' => (int) $db->insertID(), 'amount' => '100.0000']);
+        $db->table('bank_match_lines')->insert(['match_id' => (int) $db->insertID(), 'journal_line_id' => $line, 'amount' => '100.0000']);
+
+        $this->actAsWith(['accounting_treasuries']);
+
+        $this->get('/accounting_treasuries/statement/' . $bank)->assertDontSee('bank-matched');
+
+        $this->actAsWith(['accounting_treasuries', AccountingGuard::BANK_RECONCILE]);
+
+        $this->get('/accounting_treasuries/statement/' . $bank)->assertSee('bank-matched');
     }
 }

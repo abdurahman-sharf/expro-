@@ -1,16 +1,16 @@
 <?php
 /**
- * @var object       $treasury
- * @var string       $balance
+ * @var object                     $treasury
+ * @var string                     $balance
  * @var list<array<string, mixed>> $rows
- * @var int          $total_rows
+ * @var int                        $total_rows
  * @var list<array<string, mixed>> $crossings
- * @var string       $lowest
- * @var bool         $journal_links
- * @var Closure      $amount
- * @var Closure      $date
+ * @var string                     $lowest
+ * @var bool                       $journal_links
+ * @var Closure                    $amount
+ * @var array<int, int>            $matched
+ * @var Closure                    $date
  */
-
 $negative = bccomp($balance, '0', 4) < 0;
 
 $source = static function (array $row): string {
@@ -23,12 +23,16 @@ $source = static function (array $row): string {
     return $row['reverses_journal_id'] === null ? $label : $label . ' (' . lang('Accounting.source_reversal') . ')';
 };
 
-$journal = static function (array $row) use ($journal_links): string {
+$journal = static function (array $row) use ($journal_links, $matched): string {
     $number = esc((string) $row['number']);
 
-    return $journal_links
+    $label = $journal_links
         ? '<a href="' . esc(base_url('accounting_journals/view/' . (int) $row['journal_id']), 'attr') . '">' . $number . '</a>'
         : $number;
+
+    return isset($matched[(int) $row['line_id']])
+        ? $label . ' <span class="badge text-bg-success bank-matched" title="' . esc(lang('Accounting_treasuries.bank_matched_hint'), 'attr') . '">' . esc(lang('Accounting_treasuries.bank_matched')) . '</span>'
+        : $label;
 };
 ?>
 

@@ -1,12 +1,14 @@
 <?php
 /**
- * @var object|null                                            $treasury
- * @var list<object>                                           $branches
- * @var array<string, string>                                  $kinds
- * @var array<string, array{mode: string, members: list<int>}> $scopes
- * @var list<object>                                           $staff
- * @var list<object>                                           $scope_roles
- * @var list<object>                                           $scope_branches
+ * @var object|null                                                        $treasury
+ * @var list<object>                                                       $branches
+ * @var array<string, string>                                              $kinds
+ * @var array<string, array{mode: string, members: list<int>}>             $scopes
+ * @var list<object>                                                       $staff
+ * @var list<object>                                                       $scope_roles
+ * @var list<object>                                                       $scope_branches
+ * @var list<array{code: string, country: string, en: string, ar: string}> $directory
+ * @var string                                                             $selectedBank
  */
 
 use App\Libraries\Accounting\TreasuryScopes;
@@ -44,6 +46,19 @@ $isBank = ! $isNew && $treasury->kind === TreasuryService::BANK;
             </div>
 
             <div class="field bank-field"<?= $isBank ? '' : ' hidden' ?>>
+                <?= form_label(lang('Accounting_treasuries.bank_directory'), 'bank_code', ['class' => 'form-label']) ?>
+                <div class="field-control">
+                    <input type="search" id="bank_search" class="form-control form-control-sm mb-1" autocomplete="off" placeholder="<?= esc(lang('Accounting_treasuries.bank_search'), 'attr') ?>" aria-label="<?= esc(lang('Accounting_treasuries.bank_search'), 'attr') ?>">
+                    <select name="bank_code" id="bank_code" class="form-select form-select-sm">
+                        <option value=""><?= lang('Accounting_treasuries.bank_other') ?></option>
+                        <?php foreach ($directory as $bank): ?>
+                            <option value="<?= esc($bank['code'], 'attr') ?>" data-country="<?= esc($bank['country'], 'attr') ?>"<?= $selectedBank === $bank['code'] ? ' selected' : '' ?>><?= esc($bank['en'] . ' - ' . $bank['ar']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+
+            <div class="field bank-field bank-name-field"<?= $isBank && $selectedBank === '' || ! $isBank ? '' : ' hidden' ?>>
                 <?= form_label(lang('Accounting_treasuries.bank_name'), 'bank_name', ['class' => 'form-label text-danger required']) ?>
                 <div class="field-control">
                     <input type="text" name="bank_name" id="bank_name" class="form-control form-control-sm" maxlength="120" value="<?= esc($isNew ? '' : (string) ($treasury->bank_name ?? ''), 'attr') ?>">
@@ -145,8 +160,42 @@ $isBank = ! $isNew && $treasury->kind === TreasuryService::BANK;
             return $('#kind').val() === 'bank';
         };
 
+        const syncBankName = function() {
+            $('.bank-name-field').prop('hidden', !isBank() || $('#bank_code').val() !== '');
+        };
+
         $('#kind').on('change', function() {
             $('.bank-field').prop('hidden', !isBank());
+            syncBankName();
+        });
+
+        $('#bank_code').on('change', syncBankName);
+
+        let searching = null;
+
+        $('#bank_search').on('input', function() {
+            const term = $(this).val();
+
+            clearTimeout(searching);
+
+            searching = setTimeout(function() {
+                $.getJSON(<?= json_encode(base_url('accounting_treasuries/banks'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, {term: term}, function(response) {
+                    const select = $('#bank_code');
+                    const chosen = select.find('option:selected');
+                    const current = chosen.val();
+                    const kept = current === '' ? null : chosen.clone();
+
+                    select.find('option[value!=""]').remove();
+
+                    response.rows.forEach(function(bank) {
+                        select.append($('<option>').val(bank.code).text(bank.en + ' - ' + bank.ar).prop('selected', bank.code === current));
+                    });
+
+                    if (kept !== null && select.find('option').filter(function() { return this.value === current; }).length === 0) {
+                        select.append(kept.prop('selected', true));
+                    }
+                });
+            }, 150);
         });
 
         $('.scope-mode').on('change', function() {
@@ -180,7 +229,7 @@ $isBank = ! $isNew && $treasury->kind === TreasuryService::BANK;
 
             rules: {
                 name: 'required',
-                bank_name: {required: isBank},
+                bank_name: {required: function() { return isBank() && $('#bank_code').val() === ''; }},
                 account_number: {required: isBank},
                 deposit_scope: {scopeMembers: true},
                 withdraw_scope: {scopeMembers: true}

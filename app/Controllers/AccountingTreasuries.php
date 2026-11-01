@@ -3,6 +3,8 @@
 namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\Bank\BankDirectory;
+use App\Libraries\Accounting\Bank\BankMatches;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\InterBranchPosition;
@@ -40,6 +42,7 @@ class AccountingTreasuries extends AccountingController
         return view('accounting_treasuries/manage', [
             'table_headers' => transform_headers($this->headers(), true, true),
             'can_manage'    => $this->can(AccountingGuard::TREASURIES_MANAGE),
+            'canReconcile'  => $this->can(AccountingGuard::BANK_RECONCILE),
             'scope_notice'  => $this->scopeNoticeNeeded(),
         ]);
     }
@@ -71,11 +74,13 @@ class AccountingTreasuries extends AccountingController
         $treasury  = $this->visible($treasuryId);
         $position  = $this->treasuries->position($treasuryId);
         $movements = $this->treasuries->movements($treasuryId);
+        $rows      = array_slice(array_reverse($movements['rows']), 0, self::STATEMENT_ROWS);
 
         return view('accounting_treasuries/statement', [
             'treasury'      => $treasury,
             'balance'       => $position->balance,
-            'rows'          => array_slice(array_reverse($movements['rows']), 0, self::STATEMENT_ROWS),
+            'rows'          => $rows,
+            'matched'       => $treasury->kind === TreasuryService::BANK && $this->can(AccountingGuard::BANK_RECONCILE) ? (new BankMatches())->flagged(array_map(static fn (array $row): int => (int) $row['line_id'], $rows)) : [],
             'total_rows'    => count($movements['rows']),
             'crossings'     => array_reverse($movements['crossings']),
             'lowest'        => $movements['lowest'],
@@ -83,6 +88,13 @@ class AccountingTreasuries extends AccountingController
             'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'          => fn (string $value): string => $this->formatDate($value),
         ]);
+    }
+
+    public function getBanks(): ResponseInterface
+    {
+        $this->requireManage();
+
+        return $this->response->setJSON(['rows' => BankDirectory::search((string) $this->request->getGet('term'))]);
     }
 
     public function getView(int $treasuryId = NEW_ENTRY): string
@@ -99,6 +111,8 @@ class AccountingTreasuries extends AccountingController
                 TreasuryScopes::DEPOSIT  => $this->scopes->scopeOf((int) $treasury->treasury_id, TreasuryScopes::DEPOSIT),
                 TreasuryScopes::WITHDRAW => $this->scopes->scopeOf((int) $treasury->treasury_id, TreasuryScopes::WITHDRAW),
             ],
+            'directory'      => BankDirectory::search(),
+            'selectedBank'   => $treasury === null || $treasury->kind !== TreasuryService::BANK ? '' : (string) (($treasury->bank_code ?? '') !== '' ? $treasury->bank_code : (BankDirectory::codeOfName((string) $treasury->bank_name) ?? '')),
             'staff'          => $this->treasuries->employees(),
             'scope_roles'    => array_values(array_filter((new RoleService())->all(), static fn (object $role): bool => (int) $role->active === 1)),
             'scope_branches' => array_values(array_filter((new BranchService())->all(), static fn (object $branch): bool => (int) $branch->active === 1)),
@@ -111,6 +125,7 @@ class AccountingTreasuries extends AccountingController
             $input = [
                 'name'           => (string) $this->request->getPost('name'),
                 'kind'           => (string) $this->request->getPost('kind'),
+                'bank_code'      => (string) $this->request->getPost('bank_code'),
                 'bank_name'      => (string) $this->request->getPost('bank_name'),
                 'account_number' => (string) $this->request->getPost('account_number'),
                 'description'    => (string) $this->request->getPost('description'),
@@ -380,7 +395,10 @@ class AccountingTreasuries extends AccountingController
             return '<div><span class="badge text-bg-warning" title="' . esc(lang('Accounting_treasuries.bank_details_missing_hint'), 'attr') . '">' . esc(lang('Accounting_treasuries.bank_details_missing')) . '</span></div>';
         }
 
-        return '<div class="small text-body-secondary">' . esc($treasury->bank_name) . ' · <bdi dir="ltr">' . esc($treasury->account_number) . '</bdi></div>';
+        $code = (string) ($treasury->bank_code ?? '');
+        $name = $code === '' ? null : BankDirectory::nameOf($code, service('language')->getLocale());
+
+        return '<div class="small text-body-secondary">' . esc($name ?? $treasury->bank_name) . ' · <bdi dir="ltr">' . esc($treasury->account_number) . '</bdi></div>';
     }
 
     private function scopeLine(object $treasury): string

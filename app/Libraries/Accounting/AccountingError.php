@@ -317,4 +317,34 @@ enum AccountingError: string
     case PriceInvalid          = 'price_invalid';
     case ControlSettingInvalid = 'control_setting_invalid';
     case CreditTermsInvalid    = 'credit_terms_invalid';
+
+    case BankAccountNotFound              = 'bank_account_not_found';
+    case BankStatementEmpty               = 'bank_statement_empty';
+    case BankStatementTooLarge            = 'bank_statement_too_large';
+    case BankStatementEncodingInvalid     = 'bank_statement_encoding_invalid';
+    case BankStatementTooManyRows         = 'bank_statement_too_many_rows';
+    case BankStatementMappingInvalid      = 'bank_statement_mapping_invalid';
+    case BankStatementRowsInvalid         = 'bank_statement_rows_invalid';
+    case BankStatementClosedRange         = 'bank_statement_closed_range';
+    case BankStatementNotFound            = 'bank_statement_not_found';
+    case BankStatementHasMatches          = 'bank_statement_has_matches';
+    case BankLineNotFound                 = 'bank_line_not_found';
+    case BankLineMatched                  = 'bank_line_matched';
+    case BankJournalLinesRequired         = 'bank_journal_lines_required';
+    case BankJournalLineInvalid           = 'bank_journal_line_invalid';
+    case BankJournalLineMatched           = 'bank_journal_line_matched';
+    case BankMatchAmountMismatch          = 'bank_match_amount_mismatch';
+    case BankMatchDirectionMismatch       = 'bank_match_direction_mismatch';
+    case BankMatchNotFound                = 'bank_match_not_found';
+    case BankMatchLocked                  = 'bank_match_locked';
+    case BankMatchClosedRange             = 'bank_match_closed_range';
+    case BankMatchWindowInvalid           = 'bank_match_window_invalid';
+    case BankReconciliationNotFound       = 'bank_reconciliation_not_found';
+    case BankReconciliationDifference     = 'bank_reconciliation_difference';
+    case BankReconciliationDateInvalid    = 'bank_reconciliation_date_invalid';
+    case BankReconciliationDateOutside    = 'bank_reconciliation_date_outside';
+    case BankReconciliationBalanceInvalid = 'bank_reconciliation_balance_invalid';
+    case BankReconciliationNotLatest      = 'bank_reconciliation_not_latest';
+    case BankReconciliationReopened       = 'bank_reconciliation_reopened';
+    case BankDirectoryCodeInvalid         = 'bank_directory_code_invalid';
 }
