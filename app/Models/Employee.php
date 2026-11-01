@@ -511,16 +511,15 @@ class Employee extends Person
      * Whether the grants of the employee themselves hold the permission, whatever their roles give.
      * What the employee form shows and saves, and who counts as an administrator, rests on this.
      */
-    public function hasDirectGrant(?string $permission_id, ?int $person_id): bool
+    public function hasDirectGrant(?string $permissionId, ?int $personId): bool
     {
-        if ($permission_id == null || $person_id == null) {
+        if ($permissionId === null || $personId === null) {
             return false;
         }
 
-        $builder = $this->db->table('grants');
-        $query = $builder->getWhere(['person_id' => $person_id, 'permission_id' => $permission_id], 1);
+        $query = $this->db->table('grants')->getWhere(['person_id' => $personId, 'permission_id' => $permissionId], 1);
 
-        return ($query->getNumRows() == 1);    // TODO: ===
+        return $query->getNumRows() === 1;
     }
 
     /**
@@ -563,12 +562,9 @@ class Employee extends Person
     /**
      * Gets the grants of the employee themselves, without those of their roles
      */
-    public function getDirectGrants(int $person_id): array
+    public function getDirectGrants(int $personId): array
     {
-        $builder = $this->db->table('grants');
-        $builder->where('person_id', $person_id);
-
-        return $builder->get()->getResultArray();
+        return $this->db->table('grants')->where('person_id', $personId)->get()->getResultArray();
     }
 
     /**
@@ -624,7 +620,7 @@ class Employee extends Person
         }
 
         foreach (ADMIN_MODULES as $module) {
-            if (!$this->has_grant($module, $person_id, true)) {
+            if (! $this->has_grant($module, $person_id, true)) {
                 return false;
             }
         }

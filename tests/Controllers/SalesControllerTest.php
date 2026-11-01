@@ -5680,7 +5680,18 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertNotSame($first, (int) Services::session()->get('sales_location'));
     }
 
-    public function testGetIndex_StartsTheRegisterWhereItAlwaysStartedWhenTheEmployeeHasNoDefaultOrMayNotUseIt(): void
+    public function testGetIndex_StartsTheRegisterWhereItAlwaysStartedWhenTheEmployeeHasNoDefault(): void
+    {
+        $personId = $this->createCashierEmployee();
+        $granted  = $this->grantStockLocationIn(1, $personId);
+
+        $this->loginAs($personId);
+        $this->get('/sales')->assertStatus(200);
+
+        $this->assertContains((int) Services::session()->get('sales_location'), [1, $granted], 'The register starts in one of the locations the employee may sell from, as it always did');
+    }
+
+    public function testGetIndex_StartsTheRegisterWhereItAlwaysStartedWhenTheDefaultIsALocationTheEmployeeMayNotUse(): void
     {
         $personId = $this->createCashierEmployee();
         $granted  = $this->grantStockLocationIn(1, $personId);
@@ -5695,6 +5706,6 @@ class SalesControllerTest extends CIUnitTestCase
         $this->get('/sales')->assertStatus(200);
 
         $this->assertNotSame($other, (int) Services::session()->get('sales_location'), 'A location the employee holds no permission for is never preselected');
-        $this->assertGreaterThan(0, $granted);
+        $this->assertContains((int) Services::session()->get('sales_location'), [1, $granted], 'The register starts in one of the locations the employee may sell from, as it always did');
     }
 }

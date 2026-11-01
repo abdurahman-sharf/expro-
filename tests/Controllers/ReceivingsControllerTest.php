@@ -3597,4 +3597,32 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame($second, (int) Services::session()->get('recv_stock_source'));
         $this->assertNotSame($first, (int) Services::session()->get('recv_stock_source'));
     }
+
+    public function testGetIndex_StartsTheReceivingScreenWhereItAlwaysStartedWhenTheEmployeeHasNoDefault(): void
+    {
+        $buyer = $this->buyer();
+        $depot = $this->depotIn(1, $buyer);
+
+        $this->loginAs($buyer);
+        $this->get('/receivings')->assertStatus(200);
+
+        $this->assertContains((int) Services::session()->get('recv_stock_source'), [1, $depot], 'The screen starts in one of the locations the employee may receive into, as it always did');
+    }
+
+    public function testGetIndex_StartsTheReceivingScreenWhereItAlwaysStartedWhenTheDefaultIsALocationTheEmployeeMayNotUse(): void
+    {
+        $buyer = $this->buyer();
+        $other = $this->anotherLocation('no grant ' . uniqid());
+        $depot = $this->depotIn(1, $buyer);
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $other)->update(['branch_id' => 1]);
+
+        (new DefaultLocations())->set($buyer, $other, null);
+
+        $this->loginAs($buyer);
+        $this->get('/receivings')->assertStatus(200);
+
+        $this->assertNotSame($other, (int) Services::session()->get('recv_stock_source'), 'A location the employee holds no permission for is never preselected');
+        $this->assertContains((int) Services::session()->get('recv_stock_source'), [1, $depot], 'The screen starts in one of the locations the employee may receive into, as it always did');
+    }
 }

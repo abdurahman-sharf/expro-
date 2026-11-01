@@ -82,6 +82,21 @@ final class DefaultLocationsTest extends CIUnitTestCase
         $this->assertSame($location, $this->defaults->of($employee));
     }
 
+    public function testCheck_RejectsALocationThatDoesNotExistOrWasDeletedAndAcceptsNoneOrOneThatIsThere(): void
+    {
+        $location = $this->location();
+        $deleted  = $this->location('Closed');
+
+        $this->roleDb()->table('stock_locations')->where('location_id', $deleted)->update(['deleted' => 1]);
+
+        $this->assertSame(RoleError::LocationNotFound, $this->refusal(fn () => $this->defaults->check(999999))->error);
+        $this->assertSame(RoleError::LocationNotFound, $this->refusal(fn () => $this->defaults->check($deleted))->error);
+
+        $this->defaults->check($location);
+        $this->defaults->check(null);
+        $this->addToAssertionCount(1);
+    }
+
     public function testSet_StoresTheLocationOfAnEmployeeAndAuditsTheChange(): void
     {
         $employee = $this->createEmployee();

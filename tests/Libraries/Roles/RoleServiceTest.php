@@ -498,6 +498,38 @@ final class RoleServiceTest extends CIUnitTestCase
         $this->assertSame([$wide, $narrow], $this->roles->roleIdsOf($employee));
     }
 
+    public function testCheckAssignment_RefusesWhatAssignAndSetRecordScopeWouldRefuseAndWritesNothing(): void
+    {
+        $wide     = $this->createRole(['sales', 'items']);
+        $manager  = $this->rolesManager(['sales']);
+        $employee = $this->createEmployee();
+        $audits   = $this->roleDb()->table('accounting_audit_log')->countAllResults();
+
+        $this->assertSame(RoleError::PermissionDenied, $this->refusal(fn () => $this->roles->checkAssignment($employee, [$wide], 'all', $this->createEmployee()))->error);
+        $this->assertSame(RoleError::NotFound, $this->refusal(fn () => $this->roles->checkAssignment($employee, [999999], 'all', $manager))->error);
+        $this->assertSame(RoleError::NotFound, $this->refusal(fn () => $this->roles->checkAssignment(null, ['x'], 'all', $manager))->error);
+        $this->assertSame(RoleError::CannotGrant, $this->refusal(fn () => $this->roles->checkAssignment($employee, [$wide], 'all', $manager))->error);
+        $this->assertSame(RoleError::CannotGrant, $this->refusal(fn () => $this->roles->checkAssignment(null, [$wide], 'all', $manager))->error, 'An employee not yet saved holds no role');
+        $this->assertSame(RoleError::InvalidScope, $this->refusal(fn () => $this->roles->checkAssignment($employee, [], 'nobody', $manager))->error);
+
+        $this->assertSame([], $this->roles->roleIdsOf($employee));
+        $this->assertSame($audits, $this->roleDb()->table('accounting_audit_log')->countAllResults(), 'A check writes nothing');
+    }
+
+    public function testCheckAssignment_AcceptsWhatAnAdministratorOrAnActorWhoHoldsTheRolePermissionsMayGiveAndTheRolesAlreadyHeld(): void
+    {
+        $wide     = $this->createRole(['sales', 'items']);
+        $narrow   = $this->createRole(['sales']);
+        $manager  = $this->rolesManager(['sales']);
+        $employee = $this->employeeWithRoles([$wide]);
+
+        $this->roles->checkAssignment($employee, [$wide, $narrow], 'own', $manager);
+        $this->roles->checkAssignment(null, [$narrow], 'all', $manager);
+        $this->roles->checkAssignment(null, [$wide], 'own', $this->rolesAdministrator());
+        $this->roles->checkAssignment(null, [$wide], 'all', null);
+        $this->addToAssertionCount(1);
+    }
+
     public function testSetRecordScope_StoresOwnForTheEmployeeAndAuditsTheChange(): void
     {
         $manager  = $this->rolesManager();

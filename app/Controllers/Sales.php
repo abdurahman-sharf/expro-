@@ -1108,7 +1108,7 @@ class Sales extends Secure_Controller
         $item_location = $this->sale_lib->get_sale_location();
 
         if ($mode == 'return' && $this->sale->isValidReceipt($item_id_or_number_or_item_kit_or_receipt)) {
-            $originId = (int)(explode(' ', trim($item_id_or_number_or_item_kit_or_receipt))[1] ?? 0);
+            $originId = (int) (explode(' ', trim($item_id_or_number_or_item_kit_or_receipt))[1] ?? 0);
 
             if ($this->outsideBranchScope($originId)) {
                 $data['error'] = $this->scopeMessage();
@@ -2209,7 +2209,7 @@ class Sales extends Secure_Controller
 
     private function returnOriginProblem(int $saleId, ReturnDocument $document): ?string
     {
-        if ($this->sale->outsideRecordScope($saleId, (int)$this->session->get('person_id'))) {
+        if ($this->sale->outsideRecordScope($saleId, (int) $this->session->get('person_id'))) {
             return $this->scopeMessage();
         }
 
@@ -2316,7 +2316,7 @@ class Sales extends Secure_Controller
      */
     private function scopeMessage(): string
     {
-        return (new RecordScope())->ownOnly((int)$this->session->get('person_id')) ? lang('Sales.not_authorized') : lang('Sales.branch_not_allowed');
+        return (new RecordScope())->ownOnly((int) $this->session->get('person_id')) ? lang('Sales.not_authorized') : lang('Sales.branch_not_allowed');
     }
 
     /**

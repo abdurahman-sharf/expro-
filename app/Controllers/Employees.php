@@ -96,23 +96,23 @@ class Employees extends Persons
      */
     public function getView(int $employee_id = NEW_ENTRY): string
     {
-        $person_info = $this->employee->get_info($employee_id);
-        $current_user = $this->employee->get_logged_in_employee_info();
+        $personInfo  = $this->employee->get_info($employee_id);
+        $currentUser = $this->employee->get_logged_in_employee_info();
 
-        if ($employee_id != NEW_ENTRY && !$this->employee->canModifyEmployee($person_info->person_id, $current_user->person_id)) {
+        if ($employee_id != NEW_ENTRY && ! $this->employee->canModifyEmployee($personInfo->person_id, $currentUser->person_id)) {
             throw new RedirectException('no_access/employees/employees');
         }
 
-        foreach (get_object_vars($person_info) as $property => $value) {
-            $person_info->$property = $value;
+        foreach (get_object_vars($personInfo) as $property => $value) {
+            $personInfo->$property = $value;
         }
-        $data['person_info'] = $person_info;
+        $data['person_info'] = $personInfo;
         $data['employee_id'] = $employee_id;
 
         $modules = [];
         foreach ($this->module->get_all_modules()->getResult() as $module) {
-            $module->grant = $this->employee->hasDirectGrant($module->module_id, $person_info->person_id);
-            $module->menu_group = $this->employee->get_menu_group($module->module_id, $person_info->person_id);
+            $module->grant      = $this->employee->hasDirectGrant($module->module_id, $personInfo->person_id);
+            $module->menu_group = $this->employee->get_menu_group($module->module_id, $personInfo->person_id);
 
             $modules[] = $module;
         }
@@ -125,15 +125,15 @@ class Employees extends Persons
             }
 
             $permission->permission_id = str_replace(' ', '_', $permission->permission_id);
-            $permission->grant = $this->employee->hasDirectGrant($permission->permission_id, $person_info->person_id);
+            $permission->grant         = $this->employee->hasDirectGrant($permission->permission_id, $personInfo->person_id);
 
             $permissions[] = $permission;
         }
         $data['all_subpermissions']    = $permissions;
         $data['sensitive_permissions'] = AccountingGuard::SENSITIVE;
-        $data['is_admin']              = $this->employee->isAdmin($current_user->person_id);
-        $data['branch_tab']            = $this->branchTab($employee_id, $current_user->person_id);
-        $data['roles_tab']             = $this->rolesTab($employee_id == NEW_ENTRY ? 0 : (int) $employee_id, (int) $current_user->person_id);
+        $data['is_admin']              = $this->employee->isAdmin($currentUser->person_id);
+        $data['branch_tab']            = $this->branchTab($employee_id, $currentUser->person_id);
+        $data['roles_tab']             = $this->rolesTab($employee_id == NEW_ENTRY ? 0 : (int) $employee_id, (int) $currentUser->person_id);
 
         return view('employees/form', $data);
     }
@@ -207,10 +207,17 @@ class Employees extends Persons
             }
         }
 
-        $targetId       = $employeeId == NEW_ENTRY ? null : (int) $employeeId;
-        $previousScope  = $targetId === null ? null : $this->branchScopes->scopeOf($targetId);
-        $requestedScope = $this->requestedBranchScope($currentUser->person_id, $targetId);
-        $requestedRoles = $this->requestedRoles((int) $currentUser->person_id);
+        $targetId          = $employeeId == NEW_ENTRY ? null : (int) $employeeId;
+        $previousScope     = $targetId === null ? null : $this->branchScopes->scopeOf($targetId);
+        $requestedScope    = $this->requestedBranchScope($currentUser->person_id, $targetId);
+        $requestedRoles    = $this->requestedRoles((int) $currentUser->person_id);
+        $requestedLocation = $this->requestedDefaultLocation();
+
+        try {
+            $this->checkRolesAndDefaults((int) $currentUser->person_id, $targetId, $requestedRoles, $requestedLocation);
+        } catch (RoleException $exception) {
+            return $this->roleRefusal($exception, $employeeId);
+        }
 
         if ($requestedScope !== null) {
             try {
@@ -300,13 +307,9 @@ class Employees extends Persons
             }
 
             try {
-                $this->applyRolesAndDefaults((int) $currentUser->person_id, (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $requestedRoles);
+                $this->applyRolesAndDefaults((int) $currentUser->person_id, (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $requestedRoles, $requestedLocation);
             } catch (RoleException $exception) {
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => lang('Roles.error_' . $exception->error->value, array_values(array_map('strval', array_intersect_key($exception->context, array_flip(['permission', 'name']))))),
-                    'id'      => $employeeId
-                ]);
+                return $this->roleRefusal($exception, $employeeId);
             }
 
             // New employee
@@ -421,25 +424,70 @@ class Employees extends Persons
     }
 
     /**
+     * The stock location the form asked to start the employee in, null when the form carried none.
+     * A location of null takes the default away.
+     *
+     * @return array{locationId: ?int}|null
+     */
+    private function requestedDefaultLocation(): ?array
+    {
+        if ($this->request->getPost('default_location_present') === null) {
+            return null;
+        }
+
+        $locationId = (int) $this->request->getPost('default_location_id');
+
+        return ['locationId' => $locationId > 0 ? $locationId : null];
+    }
+
+    /**
+     * What saving the roles, the records and the stock location would refuse, asked before the
+     * employee is saved so that a refusal leaves nothing behind.
+     *
+     * @param array{roles: list<int|string>, scope: string}|null $requestedRoles
+     * @param array{locationId: ?int}|null                       $requestedLocation
+     *
+     * @throws RoleException
+     */
+    private function checkRolesAndDefaults(int $actorId, ?int $targetId, ?array $requestedRoles, ?array $requestedLocation): void
+    {
+        if ($requestedRoles !== null) {
+            $this->roles->checkAssignment($targetId, $requestedRoles['roles'], $requestedRoles['scope'], $actorId);
+        }
+
+        if ($requestedLocation !== null) {
+            (new DefaultLocations())->check($requestedLocation['locationId']);
+        }
+    }
+
+    /**
      * Saves the roles, the records and the stock location of an employee, after the employee was
      * saved.
      *
      * @param array{roles: list<int|string>, scope: string}|null $requestedRoles
+     * @param array{locationId: ?int}|null                       $requestedLocation
      *
      * @throws RoleException
      */
-    private function applyRolesAndDefaults(int $actorId, int $personId, ?array $requestedRoles): void
+    private function applyRolesAndDefaults(int $actorId, int $personId, ?array $requestedRoles, ?array $requestedLocation): void
     {
         if ($requestedRoles !== null) {
             $this->roles->assign($personId, $requestedRoles['roles'], $actorId);
             $this->roles->setRecordScope($personId, $requestedRoles['scope'], $actorId);
         }
 
-        if ($this->request->getPost('default_location_present') !== null) {
-            $locationId = (int) $this->request->getPost('default_location_id');
-
-            (new DefaultLocations())->set($personId, $locationId > 0 ? $locationId : null, $actorId, $this->employee);
+        if ($requestedLocation !== null) {
+            (new DefaultLocations())->set($personId, $requestedLocation['locationId'], $actorId, $this->employee);
         }
+    }
+
+    private function roleRefusal(RoleException $exception, int|string $employeeId): ResponseInterface
+    {
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => lang('Roles.error_' . $exception->error->value, array_values(array_map('strval', array_intersect_key($exception->context, array_flip(['permission', 'name']))))),
+            'id'      => $employeeId,
+        ]);
     }
 
     /**

@@ -1159,6 +1159,59 @@ class EmployeesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Roles.error_not_found'), $result['message']);
     }
 
+    public function testPostSave_SavesNothingOfANewEmployeeWhenTheRoleTickedCannotBeGivenByTheEditor(): void
+    {
+        $role     = $this->createRole(['sales', 'items'], 'all', true, 'Wide ' . uniqid());
+        $manager  = $this->rolesManager(['employees', 'sales']);
+        $username = 'unsaved' . uniqid();
+        $before   = $this->db->table('employees')->countAllResults();
+
+        $this->loginAsNonAdmin($manager);
+
+        $result = json_decode($this->post('/employees/save/-1', $this->formFor($username, ['grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => [(string) $role]]))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Roles.error_cannot_grant', ['items']), $result['message']);
+        $this->assertSame($before, $this->db->table('employees')->countAllResults(), 'No employee was added');
+        $this->assertSame(0, $this->db->table('employees')->where('username', $username)->countAllResults());
+        $this->assertSame(0, $this->db->table('people')->where('email', $username . '@test.com')->countAllResults(), 'No person was added');
+    }
+
+    public function testPostSave_ChangesNothingOfAnEmployeeWhenTheRoleTickedDoesNotExist(): void
+    {
+        $target = $this->createNonAdminEmployee();
+        $before = $this->db->table('people')->where('person_id', $target)->get()->getRowArray();
+        $grants = array_column(model(Employee::class)->getDirectGrants($target), 'permission_id');
+
+        $this->rolesAdministratorLoggedIn();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('ghost' . uniqid(), ['first_name' => 'Renamed', 'grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => ['999999']]))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame($before, $this->db->table('people')->where('person_id', $target)->get()->getRowArray(), 'The name and the rest of the person stay as they were');
+        $this->assertSame($grants, array_column(model(Employee::class)->getDirectGrants($target), 'permission_id'), 'The grants stay as they were');
+    }
+
+    public function testPostSave_SavesNothingOfANewEmployeeWhenTheDefaultLocationDoesNotExistOrTheScopeIsUnknown(): void
+    {
+        $role    = $this->createRole(['sales'], 'all', true, 'Cashiers ' . uniqid());
+        $locator = 'nodepot' . uniqid();
+        $scoped  = 'noscope' . uniqid();
+
+        $this->rolesAdministratorLoggedIn();
+
+        $before = $this->db->table('employees')->countAllResults();
+
+        $location = json_decode($this->post('/employees/save/-1', $this->formFor($locator, ['grant_employees' => 'employees', 'default_location_present' => '1', 'default_location_id' => '999999']))->getJSON(), true);
+        $scope    = json_decode($this->post('/employees/save/-1', $this->formFor($scoped, ['grant_employees' => 'employees', 'roles_present' => '1', 'role_ids' => [(string) $role], 'record_scope' => 'nobody']))->getJSON(), true);
+
+        $this->assertFalse($location['success']);
+        $this->assertSame(lang('Roles.error_location_not_found'), $location['message']);
+        $this->assertFalse($scope['success']);
+        $this->assertSame(lang('Roles.error_invalid_scope'), $scope['message']);
+        $this->assertSame($before, $this->db->table('employees')->countAllResults(), 'No employee was added');
+    }
+
     public function testPostSave_SetsTheDefaultStockLocationOfTheEmployeeForWhoeverEditsEmployees(): void
     {
         $target = $this->createNonAdminEmployee();

@@ -309,7 +309,7 @@ return [
     'error_treasury_is_main'                     => 'The main treasury cannot be deactivated or deleted.',
     'error_treasury_name_taken'                  => 'Another treasury already has the name {0}.',
     'error_treasury_not_found'                   => 'This treasury does not exist.',
-    'error_treasury_scope_invalid'               => 'Who may deposit or withdraw is everybody, a list of employees or a list of branches, and a list names at least one that exists.',
+    'error_treasury_scope_invalid'               => 'Who may deposit or withdraw is everybody, a list of employees, a list of roles or a list of branches, and a list names at least one that exists.',
     'error_treasury_withdraw_denied'             => 'You are not allowed to withdraw from the treasury {0}.',
     'error_write_failed'                         => 'The change could not be saved and nothing was changed.',
     'error_year_end_already_closed'              => 'The year {0} is already closed for these branches. Take the closing back first to close it again.',

@@ -160,10 +160,10 @@ class Expense extends Model
         if ($order == null) $order = 'asc';
         if ($count_only == null) $count_only = false;
 
-        $cut = $this->viewerCut($viewerId);
-        $config = config(OSPOS::class)->settings;
+        $cut          = $this->viewerCut($viewerId);
+        $config       = config(OSPOS::class)->settings;
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
-        $builder = $this->db->table('expenses AS expenses');
+        $builder      = $this->db->table('expenses AS expenses');
 
         // get_found_rows case
         if ($count_only) {
@@ -261,9 +261,9 @@ class Expense extends Model
      */
     public function get_info(int $expense_id, ?int $viewerId = null): object
     {
-        $cut = $this->viewerCut($viewerId);
+        $cut          = $this->viewerCut($viewerId);
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
-        $builder = $this->db->table('expenses AS expenses');
+        $builder      = $this->db->table('expenses AS expenses');
         $builder->select('
             expenses.expense_id AS expense_id,
             expenses.date AS date,

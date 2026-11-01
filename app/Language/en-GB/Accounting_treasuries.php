@@ -88,7 +88,7 @@ return [
     'scope_deposit' => 'Who may deposit',
     'scope_line_deposit' => 'Deposit: {0}',
     'scope_line_withdraw' => 'Withdraw: {0}',
-    'scope_members_required' => 'Choose at least one employee or branch, or choose everybody.',
+    'scope_members_required' => 'Choose at least one employee, role or branch, or choose everybody.',
     'scope_note' => 'Deposit covers money coming into the treasury (sale payments, supplier refunds, transfers in). Withdraw covers money going out (purchase and supplier payments, customer refunds, transfers out). The permission to manage treasuries is separate and neither gives nor needs these.',
     'scope_roles' => 'Employees who hold these roles',
     'scope_roles_count' => '{0} role(s)',

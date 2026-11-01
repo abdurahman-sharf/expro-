@@ -205,6 +205,26 @@ final class RoleService
     }
 
     /**
+     * Whatever saving the roles and the record scope of an employee would refuse, asked before the
+     * employee is saved so that a refusal leaves nothing behind. An employee not yet saved has no
+     * personId.
+     *
+     * @param list<int|string> $roleIds
+     *
+     * @throws RoleException
+     */
+    public function checkAssignment(?int $personId, array $roleIds, string $scope, ?int $actorId): void
+    {
+        $this->requireManage($actorId);
+
+        $wanted = $this->existingRoleIds($roleIds);
+        $before = $personId === null ? [] : $this->roleIdsOf($personId);
+
+        $this->assertMayGrant($actorId, $this->permissionsOfRoles(array_values(array_diff($wanted, $before))));
+        $this->assertRecordScope($scope);
+    }
+
+    /**
      * The employee's own option to see their own records only. A role they hold can narrow them
      * further, and never widens them.
      *
@@ -213,10 +233,7 @@ final class RoleService
     public function setRecordScope(int $personId, string $scope, ?int $actorId): void
     {
         $this->requireManage($actorId);
-
-        if (! in_array($scope, RecordScope::SCOPES, true)) {
-            throw new RoleException(RoleError::InvalidScope, 'A record scope is all or own.');
-        }
+        $this->assertRecordScope($scope);
 
         if ($this->db->table('employees')->where(['person_id' => $personId, 'deleted' => 0])->countAllResults() === 0) {
             throw new RoleException(RoleError::EmployeeNotFound, "The employee {$personId} does not exist.");
@@ -358,6 +375,16 @@ final class RoleService
     /**
      * @throws RoleException
      */
+    /**
+     * @throws RoleException
+     */
+    private function assertRecordScope(string $scope): void
+    {
+        if (! in_array($scope, RecordScope::SCOPES, true)) {
+            throw new RoleException(RoleError::InvalidScope, 'A record scope is all or own.');
+        }
+    }
+
     private function requireManage(?int $actorId): void
     {
         if ($actorId !== null && ! $this->employee->has_grant(AccountingGuard::ROLES_MANAGE, $actorId)) {

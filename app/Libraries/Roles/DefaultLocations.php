@@ -48,6 +48,16 @@ final class DefaultLocations
     /**
      * @throws RoleException
      */
+    public function check(?int $locationId): void
+    {
+        if ($locationId !== null && $this->db->table('stock_locations')->where(['location_id' => $locationId, 'deleted' => 0])->countAllResults() === 0) {
+            throw new RoleException(RoleError::LocationNotFound, "The stock location {$locationId} does not exist.", ['location_id' => $locationId]);
+        }
+    }
+
+    /**
+     * @throws RoleException
+     */
     public function set(int $personId, ?int $locationId, ?int $actorId, ?Employee $employee = null): void
     {
         $employee ??= model(Employee::class);
@@ -60,9 +70,7 @@ final class DefaultLocations
             throw new RoleException(RoleError::EmployeeNotFound, "The employee {$personId} does not exist.");
         }
 
-        if ($locationId !== null && $this->db->table('stock_locations')->where(['location_id' => $locationId, 'deleted' => 0])->countAllResults() === 0) {
-            throw new RoleException(RoleError::LocationNotFound, "The stock location {$locationId} does not exist.", ['location_id' => $locationId]);
-        }
+        $this->check($locationId);
 
         $before = $this->of($personId);
 

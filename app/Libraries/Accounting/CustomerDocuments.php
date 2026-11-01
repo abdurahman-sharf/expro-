@@ -117,9 +117,9 @@ final class CustomerDocuments
             return [];
         }
 
-        $scope    = $branchIds === null ? '' : ' AND s.branch_id IN (' . implode(',', array_map('intval', $branchIds)) . ')';
-        $mine     = (new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());
-        $scope   .= $mine === null ? '' : ' AND p.employee_id = ' . $mine;
+        $scope = $branchIds === null ? '' : ' AND s.branch_id IN (' . implode(',', array_map('intval', $branchIds)) . ')';
+        $mine  = (new RecordScope($this->db))->limit($viewerId ?? RecordScope::sessionEmployee());
+        $scope .= $mine === null ? '' : ' AND p.employee_id = ' . $mine;
         $payments = $this->db->prefixTable('sales_payments');
         $sales    = $this->db->prefixTable('sales');
         $people   = $this->db->prefixTable('people');
@@ -328,7 +328,7 @@ final class CustomerDocuments
             $where[]    = 'p.employee_id = ?';
             $bindings[] = $mine;
         }
-        $dues     = PaymentType::Due->labels();
+        $dues = PaymentType::Due->labels();
 
         if ($dues !== []) {
             $where[]  = 'p.payment_type NOT IN (' . implode(',', array_fill(0, count($dues), '?')) . ')';
