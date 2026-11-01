@@ -3309,6 +3309,113 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('doc-ship-to', $body);
     }
 
+    /**
+     * Types the charges at the register of the mode and saves the document the way the cashier does, with
+     * the customer of the fixture when asked, a cash payment when one is given (negative for a refund), and
+     * gives back the row it saved.
+     *
+     * @param array<string, string> $posted
+     */
+    private function saveFromTheRegister(string $mode, string $uri, array $posted, bool $withCustomer = false, ?string $returnDocument = null, ?string $cash = null): object
+    {
+        $this->registerForHeaderCharges($mode);
+
+        if ($mode === 'return') {
+            $cart = $this->session['sales_cart'];
+
+            $cart[1]['quantity'] = '-1';
+
+            $this->withSession(array_merge($this->session, ['sales_cart' => $cart]));
+        }
+
+        if (str_ends_with($uri, 'suspend')) {
+            $this->withSession(array_merge($this->session, ['sale_type' => $this->session['sales_type']]));
+        }
+
+        if ($withCustomer) {
+            $this->withSession(array_merge($this->session, ['sales_customer' => $this->customerId]));
+        }
+
+        if ($returnDocument !== null) {
+            $this->withSession(array_merge($this->session, ['sales_return_document' => $returnDocument]));
+        }
+
+        $this->post('/sales/setHeaderCharges', $posted);
+        $this->withSession(array_merge($this->session, ['sales_header_charges' => Services::session()->get('sales_header_charges')]));
+
+        if ($cash !== null) {
+            $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => $cash]);
+            $this->withSession(array_merge($this->session, ['sales_payments' => Services::session()->get('sales_payments')]));
+        }
+
+        $this->post($uri);
+
+        $sale = $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->saleIds[] = (int) $sale->sale_id;
+
+        return $sale;
+    }
+
+    public function testPostComplete_SavesTheChargesOfAQuote(): void
+    {
+        $sale = $this->saveFromTheRegister('sale_quote', '/sales/complete', ['adjustment_label' => 'Fee', 'adjustment' => '5', 'shipping' => '20']);
+
+        $this->assertSame((string) SALE_TYPE_QUOTE, (string) $sale->sale_type);
+        $this->assertSame(['Fee', '5.0000', '20.0000'], [$sale->adjustment_label, $sale->adjustment_amount, $sale->shipping_amount]);
+    }
+
+    public function testPostComplete_SavesTheChargesOfACreditNoteAndPostsThemOnTheSidesOfAReturn(): void
+    {
+        $sale = $this->saveFromTheRegister('return', '/sales/complete', ['adjustment_label' => 'Goodwill', 'adjustment' => '-5', 'shipping' => '20'], true, null, '-115.00');
+
+        $this->assertSame((string) SALE_TYPE_RETURN, (string) $sale->sale_type);
+        $this->assertSame(COMPLETED, (int) $sale->sale_status);
+        $this->assertSame(['Goodwill', '-5.0000', '20.0000'], [$sale->adjustment_label, $sale->adjustment_amount, $sale->shipping_amount]);
+        $this->assertSame('20.00', $this->balance($this->accountId('sales_shipping')), 'the shipping given back is a debit of the shipping revenue');
+        $this->assertSame('-5.00', $this->balance($this->accountId('sales_adjustment')));
+    }
+
+    public function testPostComplete_SavesTheChargesOfARefundInvoiceAsOfACreditNote(): void
+    {
+        $sale = $this->saveFromTheRegister('return', '/sales/complete', ['shipping' => '20'], true, 'refund_invoice', '-120.00');
+
+        $this->assertSame('refund_invoice', $sale->return_document);
+        $this->assertSame('20.0000', $sale->shipping_amount);
+    }
+
+    public function testPostSuspend_KeepsTheChargesWithTheSuspendedInvoice(): void
+    {
+        $sale = $this->saveFromTheRegister('sale_invoice', '/sales/suspend', ['adjustment_label' => 'Fee', 'adjustment' => '5', 'shipping' => '20', 'shipping_taxed' => '1']);
+
+        $this->assertSame(SUSPENDED, (int) $sale->sale_status);
+        $this->assertSame(['Fee', '5.0000', '20.0000', 'added', '3.0000'], [$sale->adjustment_label, $sale->adjustment_amount, $sale->shipping_amount, $sale->shipping_tax_option, $sale->shipping_tax_amount]);
+    }
+
+    public function testPostSuspend_KeepsTheChargesWithASuspendedCreditNote(): void
+    {
+        $sale = $this->saveFromTheRegister('return', '/sales/suspend', ['shipping' => '20']);
+
+        $this->assertSame(SUSPENDED, (int) $sale->sale_status);
+        $this->assertSame((string) SALE_TYPE_RETURN, (string) $sale->sale_type);
+        $this->assertSame('20.0000', $sale->shipping_amount);
+    }
+
+    public function testPostComplete_RefusesChargesOnAWorkOrderInsteadOfDroppingThemAndSavesNothing(): void
+    {
+        $this->registerForHeaderCharges('sale_work_order');
+        $this->withSession(array_merge($this->session, ['sales_header_charges' => ['adjustment_label' => '', 'adjustment' => '0', 'shipping' => '20', 'shipping_tax_option' => 'none', 'shipping_tax_percent' => '0', 'shipping_options' => null]]));
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '120.00']);
+        $this->withSession(array_merge($this->session, ['sales_payments' => Services::session()->get('sales_payments')]));
+
+        $sales = $this->countSales();
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertSee(lang('Accounting.error_header_charges_not_allowed'));
+        $this->assertSame($sales, $this->countSales());
+    }
+
     public function testPostComplete_RefusesChargesWhoseSettingWasTurnedOffMeanwhileAndSavesNothing(): void
     {
         $this->registerForHeaderCharges();

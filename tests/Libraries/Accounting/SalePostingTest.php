@@ -6249,7 +6249,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('Sale for []', $this->descriptionsOf($saleId)['sale/revenue']);
     }
 
-    public function testSaveValue_ReversalsKeepTheDescriptionOfTheOriginalJournalSoNothingIsRewritten(): void
+    public function testDelete_LeavesTheDescriptionOfTheOriginalJournalAndGivesTheReversalTheReasonAndNotTheTemplate(): void
     {
         $this->setConfigValue('accounting_journal_description_sales', 'Doc {number}');
 
@@ -6258,10 +6258,15 @@ class SalePostingTest extends CIUnitTestCase
 
         $this->sales->delete($saleId, false, true, $this->employeeId);
 
-        $rows = $this->accountingDb()->table('accounting_journals')->select('description')->where(['source_type' => 'sale', 'source_id' => $saleId, 'entry_type' => 'revenue'])->get()->getResult();
+        $db       = $this->accountingDb();
+        $original = $db->table('accounting_journals')->where(['source_type' => 'sale', 'source_id' => $saleId, 'entry_type' => 'revenue'])->get()->getRow();
+        $reversal = $db->table('accounting_journals')->where('reverses_journal_id', $original->journal_id)->get()->getRow();
 
-        $this->assertNotEmpty($rows);
-        $this->assertSame('Doc ' . $saleId, (string) $rows[0]->description);
+        $this->assertSame('reversed', $original->status);
+        $this->assertSame('Doc ' . $saleId, (string) $original->description, 'the journal that stands keeps the text it was posted with');
+        $this->assertNotNull($reversal);
+        $this->assertNotSame('', trim((string) $reversal->description), 'a reversal says why it was made');
+        $this->assertStringNotContainsString('Doc ' . $saleId, (string) $reversal->description, 'the template describes the journal of a new document and not its reversal');
     }
 
     public function testSaveValue_IgnoresATemplateStoredByHandThatIsNotValid(): void

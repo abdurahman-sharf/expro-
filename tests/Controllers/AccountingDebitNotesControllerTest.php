@@ -159,6 +159,43 @@ class AccountingDebitNotesControllerTest extends CIUnitTestCase
 
         $page->assertSee('id="debit_note_' . $theirs . '"');
         $page->assertDontSee('id="debit_note_' . $mine . '"');
+        $page->assertSee('id="debit_notes_scope"');
+        $page->assertSee(lang('Accounting_debit_notes.scope_notice'));
+    }
+
+    public function testGetIndex_SaysNothingAboutTheScopeToAnEmployeeOfEveryBranch(): void
+    {
+        $this->raise('111');
+
+        $this->actAsWith(['accounting_debit_notes']);
+
+        $page = $this->get('/accounting_debit_notes');
+
+        $page->assertDontSee('id="debit_notes_scope"');
+        $page->assertDontSee(lang('Accounting_debit_notes.scope_notice'));
+    }
+
+    public function testGetIndex_PagesTheNotesWithLinksToTheNextAndThePreviousPage(): void
+    {
+        for ($i = 0; $i < 26; $i++) {
+            $this->raise('10');
+        }
+
+        $this->actAsWith(['accounting_debit_notes']);
+
+        $first = $this->get('/accounting_debit_notes');
+
+        $first->assertSee(lang('Accounting_debit_notes.next'));
+        $first->assertSee('offset=25');
+        $first->assertDontSee(lang('Accounting_debit_notes.previous'));
+        $this->assertSame(25, preg_match_all('/id="debit_note_\d+"/', $first->getBody()));
+
+        $second = $this->get('/accounting_debit_notes?offset=25');
+
+        $second->assertSee(lang('Accounting_debit_notes.previous'));
+        $this->assertMatchesRegularExpression('/href="[^"?]*accounting_debit_notes">' . preg_quote(lang('Accounting_debit_notes.previous'), '/') . '</', $second->getBody(), 'the first page needs no offset');
+        $second->assertDontSee(lang('Accounting_debit_notes.next'));
+        $this->assertSame(1, preg_match_all('/id="debit_note_\d+"/', $second->getBody()));
     }
 
     public function testGetIndex_FiltersByStatusAndKeepsTheReasonOfATakenBackNote(): void
@@ -192,6 +229,18 @@ class AccountingDebitNotesControllerTest extends CIUnitTestCase
         $this->actAsWith(['accounting_debit_notes']);
 
         $this->assertSame(403, $this->get('/accounting_debit_notes/form')->response()->getStatusCode());
+    }
+
+    public function testGetForm_ValidatesTheVisibleCustomerFieldBecauseTheHiddenOneIsNeverChecked(): void
+    {
+        $this->actAsWith(['accounting_debit_notes', AccountingGuard::DEBIT_NOTES_MANAGE]);
+
+        $body = $this->get('/accounting_debit_notes/form')->getBody();
+
+        $this->assertStringContainsString("customer_name: 'required'", $body);
+        $this->assertStringNotContainsString("customer_id: 'required'", $body);
+        $this->assertStringContainsString('focus: function(event, ui)', $body, 'moving through the suggestions shows the name and not the number');
+        $this->assertStringContainsString("if ($('#customer_id').val() === '')", $body, 'a name that was typed and not chosen is emptied');
     }
 
     public function testGetCustomers_FindsCustomersByNameForWhoMayManageNotesAndNoOneElse(): void

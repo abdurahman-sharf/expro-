@@ -78,12 +78,22 @@
             delay: 100,
             appendTo: '.modal-content',
             select: function(event, ui) {
-                event.preventDefault();
                 $('#customer_id').val(ui.item.value);
                 $('#customer_name').val(ui.item.label);
+
+                return false;
+            },
+            focus: function(event, ui) {
+                $('#customer_name').val(ui.item.label);
+
+                return false;
             }
         }).on('input', function() {
             $('#customer_id').val('');
+        }).on('change', function() {
+            if ($('#customer_id').val() === '') {
+                $(this).val('');
+            }
         });
 
         $('#debit_note_form').validate($.extend({
@@ -103,13 +113,13 @@
             errorLabelContainer: '#error_message_box',
 
             rules: {
-                customer_id: 'required',
+                customer_name: 'required',
                 note_date: 'required',
                 amount: 'required'
             },
 
             messages: {
-                customer_id: "<?= esc(lang('Accounting_debit_notes.customer_required'), 'js') ?>",
+                customer_name: "<?= esc(lang('Accounting_debit_notes.customer_required'), 'js') ?>",
                 note_date: "<?= esc(lang('Accounting_debit_notes.date_required'), 'js') ?>",
                 amount: "<?= esc(lang('Accounting_debit_notes.amount_required'), 'js') ?>"
             }

@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CreditSettlement;
+use App\Libraries\Accounting\CustomerLock;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\JournalService;
@@ -15,6 +16,7 @@ use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -300,6 +302,56 @@ class SalesDebitNotesTest extends CIUnitTestCase
 
         $this->assertSame((string) $other, (string) $this->noteRow($id)->branch_id);
         $this->assertSame((string) $other, (string) $this->accountingDb()->table('accounting_journals')->where(['source_type' => SalesDebitNotes::SOURCE, 'source_id' => $id])->get()->getRow()->branch_id);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function locksTakenBy(callable $action): array
+    {
+        $names    = [];
+        $listener = static function ($query) use (&$names): void {
+            if (preg_match("/GET_LOCK\('([^']+)'/", (string) $query->getQuery(), $found) === 1) {
+                $names[] = $found[1];
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $names;
+    }
+
+    public function testCreate_TakesTheLockOfTheCustomerWhileItRaisesTheNote(): void
+    {
+        $name = (new CustomerLock())->nameOf($this->customerId);
+
+        $this->assertContains($name, $this->locksTakenBy(fn () => $this->raise()));
+    }
+
+    public function testReverse_TakesTheLockOfTheCustomerWhileItTakesTheNoteBack(): void
+    {
+        $id   = $this->raise();
+        $name = (new CustomerLock())->nameOf($this->customerId);
+
+        $this->assertContains($name, $this->locksTakenBy(fn () => $this->notes->reverse($id, 'raised by mistake', $this->clerk)));
+    }
+
+    public function testCreate_TakesNoLockWhenTheNoteIsRefusedBeforeItTouchesTheBooks(): void
+    {
+        $taken = $this->locksTakenBy(function (): void {
+            try {
+                $this->raise(['amount' => '0']);
+            } catch (AccountingException) {
+            }
+        });
+
+        $this->assertSame([], $taken);
     }
 
     public function testCreate_RefusesANoteWhoseRevenueRoutingRowIsCancelledWithTheNamedFailureAndLeavesNothing(): void
