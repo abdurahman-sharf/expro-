@@ -347,4 +347,26 @@ enum AccountingError: string
     case BankReconciliationNotLatest      = 'bank_reconciliation_not_latest';
     case BankReconciliationReopened       = 'bank_reconciliation_reopened';
     case BankDirectoryCodeInvalid         = 'bank_directory_code_invalid';
+
+    case StockDocumentOff             = 'stock_document_off';
+    case StockPermitNotFound          = 'stock_permit_not_found';
+    case StockPermitCancelled         = 'stock_permit_cancelled';
+    case StockPermitTypeInvalid       = 'stock_permit_type_invalid';
+    case StockPermitLinesInvalid      = 'stock_permit_lines_invalid';
+    case StockPermitLocationInvalid   = 'stock_permit_location_invalid';
+    case StockPermitPartyInvalid      = 'stock_permit_party_invalid';
+    case StockPermitAccountInvalid    = 'stock_permit_account_invalid';
+    case StockPermitNoteTooLong       = 'stock_permit_note_too_long';
+    case StockLocationDenied          = 'stock_location_denied';
+    case StocktakeNotFound            = 'stocktake_not_found';
+    case StocktakeExists              = 'stocktake_exists';
+    case StocktakeNotCounting         = 'stocktake_not_counting';
+    case StocktakeNotApproved         = 'stocktake_not_approved';
+    case StocktakeLinesInvalid        = 'stocktake_lines_invalid';
+    case StocktakeNotCounted          = 'stocktake_not_counted';
+    case StocktakeNothingToApprove    = 'stocktake_nothing_to_approve';
+    case StockRequestNotFound         = 'stock_request_not_found';
+    case StockRequestStatusInvalid    = 'stock_request_status_invalid';
+    case StockRequestLocationsInvalid = 'stock_request_locations_invalid';
+    case StockRequestLinesInvalid     = 'stock_request_lines_invalid';
 }

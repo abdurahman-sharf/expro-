@@ -6,6 +6,7 @@ use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
+use App\Libraries\Stock\StockPermitSources;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\RawSql;
@@ -23,8 +24,12 @@ final class JournalService
         ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT,
         InterBranchSettlements::SOURCE,
         InterBranchSettlements::SOURCE_SECOND,
+        StockPermitSources::TRANSFER,
+        StockPermitSources::TRANSFER_RECEIPT,
     ];
     public const DOCUMENT_SOURCES = [
+        StockPermitSources::PERMIT,
+        StockPermitSources::STOCKTAKE,
         ExpensePostingBuilder::SOURCE,
         CashupPostingBuilder::SOURCE,
         CustomerOpening::SOURCE,

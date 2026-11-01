@@ -73,12 +73,9 @@ final class StockAdjustment
         $this->branches->requireBranch((int) $location->branch_id, $employeeId);
 
         $this->transactional(function () use ($itemId, $locationId, $quantityChange, $employeeId, $inventoryId, $date, $item, $location): void {
-            $gained = bccomp($quantityChange, '0', 3) > 0;
-            $units  = SaleAmounts::absolute($quantityChange);
-            $cost   = $this->ledger->unitCost($itemId, $locationId, (string) $item->cost_price, $quantityChange);
-            $value  = SaleAmounts::round(bcmul($units, $cost, 8), StockLedger::VALUE_SCALE);
-
-            $movement  = new StockMovement($itemId, $locationId, bcadd($quantityChange, '0', 3), $gained ? $value : bcsub('0', $value, StockLedger::VALUE_SCALE));
+            $gained    = bccomp($quantityChange, '0', 3) > 0;
+            $movement  = $this->valued($itemId, $locationId, $quantityChange, (string) $item->cost_price, $quantityChange);
+            $value     = SaleAmounts::absolute($movement->value);
             $journalId = null;
 
             if (bccomp($value, '0', StockLedger::VALUE_SCALE) > 0) {
@@ -103,6 +100,22 @@ final class StockAdjustment
 
             $this->ledger->record(self::SOURCE, $inventoryId, JournalEntryType::General, 1, $date, (int) $location->branch_id, [$movement], $journalId);
         });
+    }
+
+    /**
+     * The stock movement that a change of quantity makes, valued at what a unit is worth where it
+     * happens: what the movements of the location say a unit is worth, or the cost the item carries
+     * when they do not account for the shelves.
+     *
+     * @param numeric-string $quantityChange   Positive when the shelves gain units, negative when they lose them.
+     * @param numeric-string $pendingQuantity What the shelves changed by that is not yet a movement.
+     */
+    public function valued(int $itemId, int $locationId, string $quantityChange, string $itemCost, string $pendingQuantity = '0'): StockMovement
+    {
+        $cost  = $this->ledger->unitCost($itemId, $locationId, $itemCost, $pendingQuantity);
+        $value = SaleAmounts::round(bcmul(SaleAmounts::absolute($quantityChange), $cost, 8), StockLedger::VALUE_SCALE);
+
+        return new StockMovement($itemId, $locationId, bcadd($quantityChange, '0', 3), bccomp($quantityChange, '0', 3) > 0 ? $value : bcsub('0', $value, StockLedger::VALUE_SCALE));
     }
 
     /**
