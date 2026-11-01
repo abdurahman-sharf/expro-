@@ -281,8 +281,8 @@
   {
     "name": "G31 what a sale comes to is its price and the taxes added to it, row by row",
     "file": "app/Models/Sale.php",
-    "find": "$sale_total = \"ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment\";",
-    "replace": "$sale_total = \"ROUND(SUM($sale_price), $decimals) + $cash_adjustment\";",
+    "find": "$saleTotal = \"ROUND(SUM($salePrice), $decimals) + $salesTax + $cashAdjustment\";",
+    "replace": "$saleTotal = \"ROUND(SUM($salePrice), $decimals) + $cashAdjustment\";",
     "tests": [
       "tests/Models/SaleTest.php"
     ],

@@ -239,13 +239,15 @@ final class TaxDefinitionsTest extends CIUnitTestCase
 
     public function testAccountOptions_LeavesOutACustomAccountTheRoutingGivesToAnotherKey(): void
     {
-        $account  = $this->customAccount('215', '215006', 'Gift cards of the shop');
-        $original = (int) $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::GiftcardLiability->value)->get()->getRow()->account_id;
+        $account      = $this->customAccount('215', '215006', 'Gift cards of the shop');
+        $original     = (int) $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::GiftcardLiability->value)->get()->getRow()->account_id;
+        $originalCode = (string) $this->accountingDb()->table('accounting_accounts')->where('account_id', $original)->get()->getRow()->code;
 
         $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::GiftcardLiability->value)->update(['account_id' => $account]);
 
         try {
             $this->assertNotContains('215006', array_column($this->taxes->accountOptions(), 'code'));
+            $this->assertNotContains($originalCode, array_column($this->taxes->accountOptions(), 'code'), 'the reserved account stays reserved when the routing leaves it');
             $this->assertSame(AccountingError::TaxLiabilityAccountInvalid, $this->refusal(fn () => $this->taxes->save(['tax_name' => 'Gift', 'account_id' => $account], null, $this->router))->error);
         } finally {
             $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::GiftcardLiability->value)->update(['account_id' => $original]);
