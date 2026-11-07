@@ -195,7 +195,7 @@ class ScheduleInputTest extends CIUnitTestCase
     public function testNormalise_LeavesThePaymentTermsEmptyWhenNoneAreTypedAndRefusesBadOnes(): void
     {
         $this->assertNull($this->normalised(RecurringKind::Invoice, $this->invoice(['payment_terms_days' => '  ']))['columns']['payment_terms_days']);
-        $this->assertSame(0, $this->normalised(RecurringKind::Invoice, $this->invoice(['payment_terms_days' => '0']))['columns']['payment_terms_days']);
+        $this->assertNull($this->normalised(RecurringKind::Invoice, $this->invoice(['payment_terms_days' => '0']))['columns']['payment_terms_days'], 'zero days of terms is no terms, as on an invoice typed by hand');
 
         foreach (['-1', '1.5', 'net30', '99999'] as $bad) {
             $this->assertRefused(AccountingError::PaymentTermsInvalid, fn () => $this->normalised(RecurringKind::Invoice, $this->invoice(['payment_terms_days' => $bad])));

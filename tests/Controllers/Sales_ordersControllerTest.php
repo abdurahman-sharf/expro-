@@ -426,6 +426,11 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->assertTrue($result['success'], $result['message']);
         $this->assertStringEndsWith('/sales', $result['redirect']);
         $this->assertSame($orderId, session()->get('sales_order_source'));
+        $cart = array_values(session()->get('sales_cart') ?? []);
+
+        $this->assertCount(1, $cart);
+        $this->assertSame([$this->service, '10', '50.00'], [(int) $cart[0]['item_id'], (string) (float) $cart[0]['quantity'], number_format((float) $cart[0]['price'], 2, '.', '')]);
+        $this->assertSame($this->customerId, (int) session()->get('sales_customer'));
         $this->assertSame(0, $this->countRows('sales'));
         $this->assertSame(0, $this->countRows('accounting_journals'));
         $this->assertSame(0, $this->countRows('sales_order_invoice_lines'));

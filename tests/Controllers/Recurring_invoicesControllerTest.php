@@ -222,6 +222,15 @@ class Recurring_invoicesControllerTest extends CIUnitTestCase
         $page->assertSee(lang('Recurring.reminders_in_app_only'));
     }
 
+    public function testGetIndex_ShowsNoReminderOfInvoicesOnTheListOfExpenses(): void
+    {
+        $this->schedule(['name' => 'Support', 'reminders' => [['send_when' => '1', 'days' => '']]]);
+
+        $this->actAsWith(['recurring_expenses', RecurringKind::Expense->viewPermission()]);
+
+        $this->get('/recurring_expenses')->assertDontSee('id="schedule_reminders"');
+    }
+
     public function testGetIndex_ShowsNoReminderWhoseDayHasNotComeYet(): void
     {
         $this->schedule(['start_date' => date('Y-m-d', strtotime('+20 days')), 'reminders' => [['send_when' => '3', 'days' => '2']]]);
