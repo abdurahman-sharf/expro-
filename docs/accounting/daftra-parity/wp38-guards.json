@@ -357,7 +357,7 @@
     "replace": "$analysis = $this->analysis->clean($line, $lineNumber, $hasDebit ? $debit : $credit, false);",
     "tests": [
       "--filter",
-      "Incomplete|AskForTheCostCenter",
+      "Incomplete|PostNew_RejectsPercents",
       "tests/Libraries/Accounting/JournalServiceTest.php"
     ]
   },
@@ -489,7 +489,7 @@
     "replace": "$chargeAsked = true;",
     "tests": [
       "--filter",
-      "LeavesALegacy|DoesNotRefuse",
+      "LeavesTheCenterOfALineWhoseTextAlone|DoesNotRefuse",
       "tests/Libraries/Accounting/JournalServiceTest.php"
     ]
   },

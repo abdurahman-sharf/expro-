@@ -235,6 +235,23 @@ final class CostCenterReportTest extends FamilyReportTestCase
         $this->assertSame('2026', $years->blocks[0]->title);
     }
 
+    public function testBuild_ReadsOnlyTheDaysOfThePeriod(): void
+    {
+        [$a] = $this->twoCenters();
+
+        $this->journal('10.00', null, $a, '2026-10-01');
+        $this->journal('20.00', null, $a, '2026-10-15');
+        $this->journal('40.00', null, $a, '2026-10-31');
+
+        $inside = $this->built($this->report, ['from' => '2026-10-10', 'to' => '2026-10-20']);
+        $untilThen = $this->built($this->report, ['to' => '2026-10-20']);
+
+        $this->assertAmount('20.00', $this->grandOf($inside, 'credit'));
+        $this->assertAmount('30.00', $this->grandOf($untilThen, 'credit'));
+        $this->assertReportTies($inside);
+        $this->assertReportTies($untilThen);
+    }
+
     public function testBuild_CutsDownToACenterWithItsSubCentersAndLeavesTheTieOut(): void
     {
         $main = $this->centers->create(['code' => 'M', 'name' => 'Main']);

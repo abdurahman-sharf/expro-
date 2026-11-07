@@ -1051,7 +1051,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
 
         $this->assertStringContainsString('Fast Ship', $page);
         $this->assertStringNotContainsString('id="shipping_company_form"', $page);
-        $this->assertStringNotContainsString('shipping-edit', $page);
+        $this->assertStringNotContainsString('data-account=', $page);
     }
 
     public function testPostSaveShippingCompanies_TurnsTheSettingOnAndOff(): void

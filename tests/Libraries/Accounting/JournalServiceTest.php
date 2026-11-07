@@ -3171,14 +3171,28 @@ class JournalServiceTest extends CIUnitTestCase
         [$a, $b] = $this->twoCenters();
         $centers = new CostCenterService();
         $this->setConfigValue(JournalSettings::AUTOMATIC_DEFAULT, '1');
-        $centers->setDefaults($this->accountId('sales_revenue'), [['cost_center_id' => $a, 'percent' => '100']]);
+        $centers->setDefaults($this->accountId('sales_revenue'), [['cost_center_id' => $a, 'percent' => '25'], ['cost_center_id' => $b, 'percent' => '75']]);
         $original = $this->automaticJournal();
-        $centers->setDefaults($this->accountId('sales_revenue'), [['cost_center_id' => $b, 'percent' => '100']]);
+        $centers->setDefaults($this->accountId('sales_revenue'), [['cost_center_id' => $a, 'percent' => '50'], ['cost_center_id' => $b, 'percent' => '50']]);
 
         $reversal = $this->service->reverseAutomatic($original, '2026-10-22', 'Cancelled', null);
 
-        $this->assertSame((string) $a, (string) $this->lines($reversal)[1]->cost_center_id);
-        $this->assertSame([], $this->distributionRows($reversal));
+        $this->assertSame(['25.0000', '75.0000'], array_column($this->distributionRows($reversal), 'percent'));
+        $this->assertSame($this->distributionRows($original), $this->distributionRows($reversal));
+    }
+
+    public function testUpdateDetails_LeavesTheCenterOfALineWhoseTextAloneIsEdited(): void
+    {
+        [$a]       = $this->twoCenters();
+        $journalId = $this->automaticJournal();
+        [$first]   = $this->lineIds($journalId);
+        $editor    = $this->detailsEditor();
+
+        $this->service->updateDetails($journalId, ['lines' => [$first => ['cost_center_id' => $a]]], $editor);
+
+        $this->assertTrue($this->service->updateDetails($journalId, ['lines' => [$first => ['description' => 'Only the text']]], $editor));
+        $this->assertSame((string) $a, (string) $this->lines($journalId)[0]->cost_center_id);
+        $this->assertSame('Only the text', $this->lines($journalId)[0]->description);
     }
 
     public function testFind_ReadsALineWithNoRowAsChargedInFullToItsSingleCenter(): void
