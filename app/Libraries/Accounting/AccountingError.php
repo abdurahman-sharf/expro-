@@ -170,6 +170,7 @@ enum AccountingError: string
     case RecurringRunNotFound        = 'recurring_run_not_found';
     case RecurringRunNotRetryable    = 'recurring_run_not_retryable';
     case RecurringBusy               = 'recurring_busy';
+    case RecurringEnded              = 'recurring_ended';
 
     case InvoiceDateInvalid     = 'invoice_date_invalid';
     case InvoiceDateBeforeStart = 'invoice_date_before_start';

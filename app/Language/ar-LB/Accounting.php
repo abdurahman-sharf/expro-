@@ -365,6 +365,7 @@ return [
     'error_recurring_customer_invalid'           => 'عميل الجدولة غير موجود.',
     'error_recurring_date_invalid'               => 'التاريخ «{0}» ليس يومًا صحيحًا.',
     'error_recurring_end_before_start'           => 'تاريخ الانتهاء {0} قبل تاريخ البدء {1}.',
+    'error_recurring_ended'                      => 'الجدولة المنتهية هي سجلّ ما أنشأته ولا تُعدَّل.',
     'error_recurring_expense_invalid'            => 'يحتاج المصروف إلى فئة موجودة ومبلغ أكبر من صفر ومبلغ ضريبة من صفر حتى المبلغ ووسيلة دفع، وإن دُفع من خزينة فخزينة موجودة.',
     'error_recurring_frequency_invalid'          => 'اختر أحد التكرارات التسعة في القائمة.',
     'error_recurring_issue_before_invalid'       => 'يجب أن تكون الأيام قبل الموعد عددًا صحيحًا أقل من أيام فترة الجدولة (الحد الأقصى {0}).',

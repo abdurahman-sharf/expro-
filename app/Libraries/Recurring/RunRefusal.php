@@ -25,12 +25,23 @@ final class RunRefusal extends RuntimeException
     public const SOURCE_SALE       = 'sale';
     public const CONTEXT_MAX       = 500;
 
+    public ?string $dueDate = null;
+    public int $occurrence  = 0;
+
     /**
      * @param array<string, scalar> $context
      */
     public function __construct(public readonly string $source, public readonly string $error, public readonly array $context = [])
     {
         parent::__construct($source . ':' . $error);
+    }
+
+    public function forDate(string $dueDate, int $occurrence): self
+    {
+        $this->dueDate    = $dueDate;
+        $this->occurrence = $occurrence;
+
+        return $this;
     }
 
     public static function from(Throwable $failure): self

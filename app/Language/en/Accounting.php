@@ -365,6 +365,7 @@ return [
     'error_recurring_customer_invalid'           => 'The customer of the schedule does not exist.',
     'error_recurring_date_invalid'               => 'The date "{0}" is not a real day.',
     'error_recurring_end_before_start'           => 'The end date {0} is before the start date {1}.',
+    'error_recurring_ended'                      => 'An ended schedule is the record of what it made and is not changed.',
     'error_recurring_expense_invalid'            => 'The expense needs a category that exists, an amount above zero, a tax amount from zero up to the amount, a way of payment and, when it is paid from a treasury, a treasury that exists.',
     'error_recurring_frequency_invalid'          => 'Choose one of the nine frequencies of the list.',
     'error_recurring_issue_before_invalid'       => 'The days before the date must be a whole number, fewer than the days of the period (at most {0}).',

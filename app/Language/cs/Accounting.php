@@ -365,6 +365,7 @@ return [
     'error_recurring_customer_invalid'           => '',
     'error_recurring_date_invalid'               => '',
     'error_recurring_end_before_start'           => '',
+    'error_recurring_ended'                      => '',
     'error_recurring_expense_invalid'            => '',
     'error_recurring_frequency_invalid'          => '',
     'error_recurring_issue_before_invalid'       => '',

@@ -49,6 +49,18 @@ final readonly class RecurrenceTerms
     ) {
     }
 
+    public static function of(object $schedule): self
+    {
+        return new self(
+            (int) $schedule->period_count,
+            RecurrenceUnit::from((string) $schedule->period_unit),
+            (string) $schedule->start_date,
+            $schedule->end_date === null ? null : (string) $schedule->end_date,
+            (int) $schedule->max_repeats,
+            (int) $schedule->issue_before_days,
+        );
+    }
+
     /**
      * @param array<string, mixed> $input
      *
