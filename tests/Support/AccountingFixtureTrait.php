@@ -12,6 +12,7 @@ use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
+use App\Libraries\Accounting\JournalSettings;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Events\Events;
@@ -34,6 +35,13 @@ trait AccountingFixtureTrait
     protected function setConfigValue(string $key, string $value): void
     {
         $this->accountingDb()->table('app_config')->replace(['key' => $key, 'value' => $value]);
+    }
+
+    protected function resetJournalSettings(): void
+    {
+        foreach ([JournalSettings::OVER_100, JournalSettings::CENTER_REQUIRED, JournalSettings::AUTOMATIC_DEFAULT, JournalSettings::LINE_TAGS, JournalSettings::LINE_TAX] as $key) {
+            $this->setConfigValue($key, '0');
+        }
     }
 
     protected function clearJournals(): void

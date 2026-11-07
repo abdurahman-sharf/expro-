@@ -8,26 +8,14 @@
  * @var string       $sourceLabel
  * @var bool         $showBranch
  * @var string|null  $notice
+ * @var array<int, string> $centerLabels
+ * @var array{allow_over_100: bool, cost_center_required: bool, automatic_default: bool, line_tags: bool, line_tax: bool} $settings
+ * @var int          $decimals
+ * @var string       $cap
  */
 $format        = static fn (?string $value): string => to_currency_no_money($value ?? '0');
 $date          = static fn (?string $value): string => $value === null || strtotime($value) === false ? '' : to_date(strtotime($value));
 $jsonFlags     = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
-$centerOptions = static function (?int $selected, string $currentLabel) use ($costCenters): string {
-    $html  = '<option value="">' . esc(lang('Accounting_journals.no_cost_center')) . '</option>';
-    $found = false;
-
-    foreach ($costCenters as $center) {
-        $isSelected = $selected === (int) $center->cost_center_id;
-        $found      = $found || $isSelected;
-        $html .= '<option value="' . (int) $center->cost_center_id . '"' . ($isSelected ? ' selected' : '') . '>' . esc($center->code . ' - ' . $center->name) . '</option>';
-    }
-
-    if ($selected !== null && ! $found) {
-        $html .= '<option value="' . $selected . '" selected>' . esc($currentLabel) . '</option>';
-    }
-
-    return $html;
-};
 ?>
 
 <?= view('partial/header') ?>
@@ -97,9 +85,10 @@ $centerOptions = static function (?int $selected, string $currentLabel) use ($co
                         <td data-label="<?= esc(lang('Accounting_journals.account'), 'attr') ?>"><bdi dir="ltr"><?= esc($line->account_code) ?></bdi> <?= esc($line->account_name) ?></td>
                         <td data-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
                             <input type="text" name="lines[<?= $lineId ?>][description]" class="form-control form-control-sm" maxlength="255" value="<?= esc((string) $line->description, 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
+                            <?= view('accounting_journals/line_more', ['name' => "lines[{$lineId}]", 'analysis' => $line->analysis, 'settings' => $settings]) ?>
                         </td>
                         <td data-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>">
-                            <select name="lines[<?= $lineId ?>][cost_center_id]" class="form-select form-select-sm" aria-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>"><?= $centerOptions($line->cost_center_id === null ? null : (int) $line->cost_center_id, $line->cost_center_id === null ? '' : $line->cost_center_code . ' - ' . $line->cost_center_name) ?></select>
+                            <?= view('accounting_journals/line_charge', ['name' => "lines[{$lineId}]", 'analysis' => $line->analysis, 'centers' => $costCenters, 'labels' => $centerLabels, 'amount' => bccomp($line->debit, '0', 4) > 0 ? $line->debit : $line->credit]) ?>
                         </td>
                         <td class="acc-amount" data-label="<?= esc(lang('Accounting_journals.debit'), 'attr') ?>"><bdi dir="ltr"><?= bccomp($line->debit, '0', 4) === 0 ? '' : esc($format($line->debit)) ?></bdi></td>
                         <td class="acc-amount" data-label="<?= esc(lang('Accounting_journals.credit'), 'attr') ?>"><bdi dir="ltr"><?= bccomp($line->credit, '0', 4) === 0 ? '' : esc($format($line->credit)) ?></bdi></td>
@@ -117,10 +106,16 @@ $centerOptions = static function (?int $selected, string $currentLabel) use ($co
     </div>
 </form>
 
+<?= view('accounting_journals/distribution_script', ['centers' => $costCenters, 'decimals' => $decimals, 'overAllowed' => $settings['allow_over_100'], 'cap' => $cap]) ?>
+
 <script type="text/javascript">
     $(document).ready(function() {
         const failed = <?= json_encode(lang('Accounting_journals.request_failed'), $jsonFlags) ?>;
         let busy = false;
+
+        journal_distribution.bind($('#details_form'), function($dist) {
+            return journal_distribution.units(String($dist.attr('data-amount')));
+        });
 
         $('#details_form').on('submit', function(event) {
             event.preventDefault();

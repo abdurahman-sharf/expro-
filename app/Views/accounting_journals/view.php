@@ -163,8 +163,26 @@ $currencies = new Currencies();
                 <?php foreach ($journal->lines as $line): ?>
                     <tr>
                         <td data-label="<?= esc(lang('Accounting_journals.account'), 'attr') ?>"><bdi dir="ltr"><?= esc($line->account_code) ?></bdi> <?= esc($line->account_name) ?></td>
-                        <td data-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>"><?= esc((string) $line->description) ?></td>
-                        <td data-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>"><?= $line->cost_center_id === null ? '' : esc($line->cost_center_code . ' - ' . $line->cost_center_name) ?></td>
+                        <td data-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
+                            <?= esc((string) $line->description) ?>
+                            <?php foreach ($line->analysis->tags as $tag): ?>
+                                <span class="badge text-bg-light"><?= esc($tag) ?></span>
+                            <?php endforeach; ?>
+                            <?php if ($line->analysis->tax !== null): ?>
+                                <span class="form-text d-block"><?= esc(lang('Accounting_journals.tax_note') . ': ' . $line->analysis->tax['code'] . ' ' . to_decimals($line->analysis->tax['percent']) . '%, ' . lang('Accounting_journals.tax_amount') . ' ' . $format($line->analysis->tax['amount'])) ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td data-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>">
+                            <?php if ($line->analysis->distribution === []): ?>
+                                <?= $line->cost_center_id === null ? '' : esc($line->cost_center_code . ' - ' . $line->cost_center_name) ?>
+                            <?php else: ?>
+                                <ul class="list-unstyled mb-0 small">
+                                    <?php foreach ($line->analysis->distribution as $share): ?>
+                                        <li><?= esc($centerLabels[$share['cost_center_id']] ?? (string) $share['cost_center_id']) ?>: <bdi dir="ltr"><?= esc(rtrim(rtrim($share['percent'], '0'), '.')) ?>%</bdi> (<bdi dir="ltr"><?= esc($format($share['amount'])) ?></bdi>)</li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php endif; ?>
+                        </td>
                         <td class="acc-amount" data-label="<?= esc(lang('Accounting_journals.debit'), 'attr') ?>"><bdi dir="ltr"><?= bccomp($line->debit, '0', 4) === 0 ? '' : esc($format($line->debit)) ?></bdi></td>
                         <td class="acc-amount" data-label="<?= esc(lang('Accounting_journals.credit'), 'attr') ?>"><bdi dir="ltr"><?= bccomp($line->credit, '0', 4) === 0 ? '' : esc($format($line->credit)) ?></bdi></td>
                         <?php if ($hasForeign): ?>

@@ -12,7 +12,13 @@
  * @var list<array{id: int, name: string, size: string, by: string, at: string, url: string}> $attachments
  * @var bool $canAttach
  * @var bool $lineDescriptionRequired
+ * @var array{allow_over_100: bool, cost_center_required: bool, automatic_default: bool, line_tags: bool, line_tax: bool} $settings
+ * @var array<int, list<array{cost_center_id: int, percent: string}>> $defaults The default distribution of the accounts that have one.
+ * @var array<int, string> $center_labels
+ * @var int $decimals
+ * @var string $cap
  */
+
 
 $isNew       = $journal === null;
 $journalId   = $isNew ? NEW_ENTRY : (int) $journal->journal_id;
@@ -31,15 +37,6 @@ $accountInputs = static function (string $name, ?int $selected) use ($accountLab
     return '<input type="text" class="form-control form-control-sm acc-account-text" list="accounts_list" autocomplete="off" value="' . esc($label, 'attr') . '" placeholder="' . esc(lang('Accounting_journals.choose_account'), 'attr') . '" aria-label="' . esc(lang('Accounting_journals.account'), 'attr') . '">'
         . '<input type="hidden" name="' . esc($name, 'attr') . '" class="acc-account" value="' . ($selected === null ? '' : $selected) . '">';
 };
-$costCenterOptions = static function (?int $selected) use ($cost_centers): string {
-    $html = '<option value="">' . esc(lang('Accounting_journals.no_cost_center')) . '</option>';
-
-    foreach ($cost_centers as $center) {
-        $html .= '<option value="' . (int) $center->cost_center_id . '"' . ($selected === (int) $center->cost_center_id ? ' selected' : '') . '>' . esc($center->code . ' - ' . $center->name) . '</option>';
-    }
-
-    return $html;
-};
 $amount = static fn (?string $value): string => $value === null || bccomp($value, '0', 4) === 0 ? '' : rtrim(rtrim($value, '0'), '.');
 $rows   = $lines === [] ? [null, null] : $lines;
 ?>
@@ -54,9 +51,10 @@ $rows   = $lines === [] ? [null, null] : $lines;
         </td>
         <td data-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
             <input type="text" name="lines[__INDEX__][description]" class="form-control form-control-sm acc-line-text" maxlength="255"<?= $lineDescriptionRequired ? ' aria-required="true"' : '' ?> aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
+            <?= view('accounting_journals/line_more', ['name' => 'lines[__INDEX__]', 'analysis' => null, 'settings' => $settings]) ?>
         </td>
         <td data-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>">
-            <select name="lines[__INDEX__][cost_center_id]" class="form-select form-select-sm" aria-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>"><?= $costCenterOptions(null) ?></select>
+            <?= view('accounting_journals/line_charge', ['name' => 'lines[__INDEX__]', 'analysis' => null, 'centers' => $cost_centers, 'labels' => $center_labels, 'amount' => null]) ?>
         </td>
         <td data-label="<?= esc(lang('Accounting_journals.debit'), 'attr') ?>">
             <input type="text" name="lines[__INDEX__][debit]" class="form-control form-control-sm ltr-input acc-debit" dir="ltr" inputmode="decimal" autocomplete="off" aria-label="<?= esc(lang('Accounting_journals.debit'), 'attr') ?>">
@@ -151,9 +149,10 @@ $rows   = $lines === [] ? [null, null] : $lines;
                         </td>
                         <td data-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
                             <input type="text" name="lines[<?= $index ?>][description]" class="form-control form-control-sm acc-line-text" maxlength="255"<?= $lineDescriptionRequired ? ' aria-required="true"' : '' ?> value="<?= esc($line === null ? '' : (string) $line->description, 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.line_description'), 'attr') ?>">
+                            <?= view('accounting_journals/line_more', ['name' => "lines[{$index}]", 'analysis' => $line?->analysis, 'settings' => $settings]) ?>
                         </td>
                         <td data-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>">
-                            <select name="lines[<?= $index ?>][cost_center_id]" class="form-select form-select-sm" aria-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>"><?= $costCenterOptions($line === null || $line->cost_center_id === null ? null : (int) $line->cost_center_id) ?></select>
+                            <?= view('accounting_journals/line_charge', ['name' => "lines[{$index}]", 'analysis' => $line?->analysis, 'centers' => $cost_centers, 'labels' => $center_labels, 'amount' => null]) ?>
                         </td>
                         <td data-label="<?= esc(lang('Accounting_journals.debit'), 'attr') ?>">
                             <input type="text" name="lines[<?= $index ?>][debit]" class="form-control form-control-sm ltr-input acc-debit" dir="ltr" inputmode="decimal" autocomplete="off" value="<?= esc($amount($line?->debit), 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.debit'), 'attr') ?>">
@@ -184,6 +183,8 @@ $rows   = $lines === [] ? [null, null] : $lines;
 
 <?= view('accounting_journals/attachments', ['journalId' => $isNew ? 0 : $journalId, 'attachments' => $attachments, 'canAttach' => $canAttach]) ?>
 
+<?= view('accounting_journals/distribution_script', ['centers' => $cost_centers, 'decimals' => $decimals, 'overAllowed' => $settings['allow_over_100'], 'cap' => $cap]) ?>
+
 <script type="text/javascript">
     $(document).ready(function() {
         const journalId = <?= $journalId ?>;
@@ -199,6 +200,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
         const branchId = <?= (int) $branch_id ?>;
         const SCALE = 10000;
         const picker = accounting_support.accountPicker('accounts_list');
+        const defaults = <?= json_encode($defaults, $jsonFlags) ?>;
 
         const applyCutoff = function() {
             const cutoff = cutoffs[$('#journal_branch').val() || branchId];
@@ -270,11 +272,28 @@ $rows   = $lines === [] ? [null, null] : $lines;
             $('#balance_state').text(balanced ? text.balanced : text.unbalanced);
             $('#difference_box').toggleClass('is-balanced', balanced).toggleClass('is-unbalanced', !balanced);
             $('#post_journal, #post_and_new').prop('disabled', !ready || busy);
+            journal_distribution.refreshAll($body);
+        };
+
+        journal_distribution.bind($body, function($dist) {
+            const $row = $dist.closest('tr');
+
+            return BigInt(Math.max(units($row.find('.acc-debit').val()), units($row.find('.acc-credit').val())));
+        });
+
+        const applyDefaults = function($row) {
+            const rows = defaults[$row.find('input.acc-account').val()];
+            const $dist = $row.find('.acc-dist');
+
+            if (rows && !journal_distribution.hasRows($dist) && journal_distribution.single($dist) === '') {
+                journal_distribution.fill($dist, rows);
+            }
         };
 
         const addLine = function() {
             const $row = $(template.replace(/__INDEX__/g, nextIndex++));
             $body.append($row);
+            journal_distribution.init($row.find('.acc-dist'));
             return $row;
         };
 
@@ -288,7 +307,10 @@ $rows   = $lines === [] ? [null, null] : $lines;
             if ($body.children().length > 2) {
                 $row.remove();
             } else {
-                $row.find('input, select').val('').removeClass('is-invalid');
+                $row.find('input').not('[type=hidden], [type=checkbox]').add($row.find('input.acc-account')).add($row.find('select')).val('').removeClass('is-invalid');
+                $row.find('input[type=checkbox]').prop('checked', false);
+                $row.find('.acc-dist').attr('data-rows', '[]');
+                journal_distribution.init($row.find('.acc-dist'));
             }
             refreshTotals();
         });
@@ -300,6 +322,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
 
         $body.on('blur', '.acc-account-text', function() {
             picker.complete($(this), $(this).closest('td').find('.acc-account'));
+            applyDefaults($(this).closest('tr'));
             refreshTotals();
         });
 

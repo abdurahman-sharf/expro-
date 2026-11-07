@@ -70,6 +70,7 @@ $routes->group('accounting_settings', static function (RouteCollection $routes):
     $routes->get('/', 'AccountingSetup::getIndex');
     $routes->post('save', 'AccountingSetup::postSaveSettings');
     $routes->post('save_controls', 'AccountingSetup::postSaveControls');
+    $routes->post('save_journal', 'AccountingSetup::postSaveJournal');
     $routes->post('first_year', 'AccountingSetup::postFirstYear');
     $routes->post('enable', 'AccountingSetup::postEnable');
     $routes->post('disable', 'AccountingSetup::postDisable');
@@ -454,6 +455,9 @@ $routes->group('accounting_cost_centers', static function (RouteCollection $rout
     $routes->get('view/(:segment)', 'AccountingCostCenters::getView/$1');
     $routes->post('save', 'AccountingCostCenters::postSave');
     $routes->post('save/(:segment)', 'AccountingCostCenters::postSave/$1');
+    $routes->get('defaults', 'AccountingCostCenters::getDefaults');
+    $routes->get('defaults/(:num)', 'AccountingCostCenters::getDefaults/$1');
+    $routes->post('save_defaults/(:num)', 'AccountingCostCenters::postSaveDefaults/$1');
     $routes->post('deactivate/(:num)', 'AccountingCostCenters::postDeactivate/$1');
     $routes->post('activate/(:num)', 'AccountingCostCenters::postActivate/$1');
     $routes->post('delete/(:num)', 'AccountingCostCenters::postDeleteCostCenter/$1');

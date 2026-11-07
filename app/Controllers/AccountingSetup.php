@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingNotReadyException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\FiscalYearService;
 use App\Libraries\Accounting\JournalDescriptionTemplate;
+use App\Libraries\Accounting\JournalSettings;
 use App\Libraries\Accounting\ReadinessCode;
 use App\Libraries\Accounting\ReadinessIssue;
 use App\Libraries\Accounting\SensitivePermissions;
@@ -41,6 +42,7 @@ class AccountingSetup extends AccountingController
     private AccountingSettings $settings;
     private FiscalYearService $years;
     private SalesControlSettings $controls;
+    private JournalSettings $journalSettings;
 
     public function __construct()
     {
@@ -49,6 +51,7 @@ class AccountingSetup extends AccountingController
         $this->settings = new AccountingSettings(null, null, $this->branchGuard());
         $this->years    = new FiscalYearService(null, null, $this->branchGuard());
         $this->controls = new SalesControlSettings();
+        $this->journalSettings = new JournalSettings(null, null, $this->branchGuard());
     }
 
     public function getIndex(): string
@@ -78,6 +81,7 @@ class AccountingSetup extends AccountingController
             'template_max'             => JournalDescriptionTemplate::MAX,
             'template_placeholders'    => array_map(static fn (string $name): string => '{' . $name . '}', JournalDescriptionTemplate::PLACEHOLDERS),
             'controls'                 => $this->controls->all(),
+            'journal_settings'         => $this->journalSettings->all(),
             'controlLists'             => array_column(array_map(static fn (object $list): array => ['id' => (int) $list->price_list_id, 'name' => $list->name], model(Price_list::class)->allLists()), 'name', 'id'),
             'controlCategories'        => $this->controls->itemCategories(),
             'locked'                   => $this->settings->isLocked(),
@@ -136,6 +140,23 @@ class AccountingSetup extends AccountingController
             $this->settings->update($input, $this->employeeId());
 
             return ['success' => true, 'message' => lang('Accounting_settings.saved'), 'id' => 1];
+        });
+    }
+
+    public function postSaveJournal(): ResponseInterface
+    {
+        return $this->attempt(function (): array {
+            $input = [];
+
+            foreach (['allow_over_100', 'cost_center_required', 'automatic_default', 'line_tags', 'line_tax'] as $flag) {
+                if ($this->request->getPost($flag) !== null) {
+                    $input[$flag] = $this->request->getPost($flag) === '1';
+                }
+            }
+
+            $this->journalSettings->update($input, $this->employeeId());
+
+            return ['success' => true, 'message' => lang('Accounting_settings.journal_saved'), 'id' => 1];
         });
     }
 

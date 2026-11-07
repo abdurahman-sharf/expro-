@@ -20,6 +20,7 @@
  * @var string $journal_description_purchases
  * @var list<string> $template_placeholders
  * @var int $template_max
+ * @var array{allow_over_100: bool, cost_center_required: bool, automatic_default: bool, line_tags: bool, line_tax: bool} $journal_settings
  * @var array{price_lists: bool, default_list: ?int, change_list: bool, minimum_price: bool, max_discount_enabled: bool, max_discount: ?string, exempt_categories: list<string>, credit_limit: bool, credit_period: bool} $controls
  * @var array<int, string> $controlLists
  * @var list<string> $controlCategories
@@ -63,6 +64,11 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         $('#controls_form').on('submit', function(event) {
             event.preventDefault();
             send('accounting_settings/save_controls', $(this).serialize(), true);
+        });
+
+        $('#journal_form').on('submit', function(event) {
+            event.preventDefault();
+            send('accounting_settings/save_journal', $(this).serialize(), true);
         });
 
         $('#first_year_form').on('submit', function(event) {
@@ -252,6 +258,32 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                     <span class="form-label"><?= lang('Accounting_settings.next_number') ?></span>
                     <div class="field-control"><span class="form-control-plaintext"><bdi dir="ltr"><?= sprintf('%06d', $next_number) ?></bdi></span></div>
                 </div>
+            </div>
+
+            <?php if ($can_manage): ?>
+                <button type="submit" class="btn btn-primary btn-sm"><?= lang('Common.submit') ?></button>
+            <?php else: ?>
+                <p class="form-text mb-0" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= lang('Accounting_periods.permission_note') ?></p>
+            <?php endif; ?>
+        </form>
+    </section>
+
+    <section class="acc-setup-card" aria-labelledby="journal_title">
+        <h2 id="journal_title" class="acc-setup-title"><?= lang('Accounting_settings.journal_title') ?></h2>
+        <p class="text-body-secondary small"><?= lang('Accounting_settings.journal_desc') ?></p>
+
+        <form id="journal_form" class="app-form" novalidate>
+            <div class="form-grid">
+                <?php foreach (['allow_over_100', 'cost_center_required', 'automatic_default', 'line_tags', 'line_tax'] as $name): ?>
+                    <div class="field span-all">
+                        <div class="form-check form-switch">
+                            <input type="hidden" name="<?= $name ?>" value="0">
+                            <input type="checkbox" class="form-check-input" role="switch" name="<?= $name ?>" id="journal_<?= $name ?>" value="1"<?= $journal_settings[$name] ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
+                            <label class="form-check-label" for="journal_<?= $name ?>"><?= lang('Accounting_settings.journal_' . $name) ?></label>
+                        </div>
+                        <p class="form-text"><?= lang('Accounting_settings.journal_' . $name . '_desc') ?></p>
+                    </div>
+                <?php endforeach; ?>
             </div>
 
             <?php if ($can_manage): ?>

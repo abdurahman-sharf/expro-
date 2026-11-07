@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\JournalService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 
@@ -128,6 +129,38 @@ class AccountingCostCenters extends AccountingController
             }
 
             return ['success' => true, 'message' => lang('Accounting_cost_centers.successful_updating'), 'id' => $costCenterId];
+        });
+    }
+
+    public function getDefaults(int $accountId = 0): string
+    {
+        $accounts = [];
+
+        foreach ((new JournalService())->postableAccounts() as $account) {
+            $accounts[(int) $account->account_id] = $account->code . ' - ' . $account->name;
+        }
+
+        $rows = $accountId > 0 ? $this->costCenters->defaultsOf($accountId) : [];
+
+        return view('accounting_cost_centers/defaults', [
+            'accounts'    => $accounts,
+            'account_id'  => isset($accounts[$accountId]) || $rows !== [] ? $accountId : 0,
+            'rows'        => array_map(static fn (object $row): array => ['id' => (int) $row->cost_center_id, 'percent' => rtrim(rtrim($row->percent, '0'), '.')], $rows),
+            'centers'     => $this->costCenters->selectable(),
+            'labels'      => $this->costCenters->labels(),
+            'defaults'    => $this->costCenters->accountsWithDefaults(),
+            'can_manage'  => $this->canManage(AccountingGuard::COST_CENTERS_MANAGE),
+        ]);
+    }
+
+    public function postSaveDefaults(int $accountId): ResponseInterface
+    {
+        return $this->attempt(function () use ($accountId): array {
+            $rows = $this->request->getPost('rows');
+
+            $changed = $this->costCenters->setDefaults($accountId, is_array($rows) ? array_values($rows) : [], $this->employeeId());
+
+            return ['success' => true, 'message' => lang($changed ? 'Accounting_cost_centers.defaults_saved' : 'Accounting_cost_centers.defaults_unchanged'), 'id' => $accountId];
         });
     }
 

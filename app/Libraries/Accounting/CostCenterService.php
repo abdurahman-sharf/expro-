@@ -400,6 +400,44 @@ final class CostCenterService
     }
 
     /**
+     * The default distributions of every account that has one, over the cost centers that are on, for a
+     * journal form to fill a line with when its account is chosen.
+     *
+     * @return array<int, list<array{cost_center_id: int, percent: string}>>
+     */
+    public function defaultsByAccount(): array
+    {
+        $byAccount = [];
+
+        foreach ($this->db->table('accounting_account_cost_centers d')
+            ->select('d.account_id, d.cost_center_id, d.percent')
+            ->join('accounting_cost_centers c', 'c.cost_center_id = d.cost_center_id')
+            ->where('c.active', 1)
+            ->orderBy('d.account_id', 'ASC')
+            ->orderBy('c.code', 'ASC')
+            ->get()
+            ->getResult() as $row) {
+            $byAccount[(int) $row->account_id][] = ['cost_center_id' => (int) $row->cost_center_id, 'percent' => bcadd($row->percent, '0', 4)];
+        }
+
+        return $byAccount;
+    }
+
+    /**
+     * @return array<int, string> The words that name each cost center, switched off ones included.
+     */
+    public function labels(): array
+    {
+        $labels = [];
+
+        foreach ($this->db->table('accounting_cost_centers')->select('cost_center_id, code, name')->get()->getResult() as $row) {
+            $labels[(int) $row->cost_center_id] = $row->code . ' - ' . $row->name;
+        }
+
+        return $labels;
+    }
+
+    /**
      * Replaces the default distribution of an account, or clears it with no rows. A default is a plain
      * split: it adds up to 100 whatever the setting for more says, over active cost centers. It never
      * touches a journal that exists; it pre-fills a manual line, and lands on the lines of an automatic
