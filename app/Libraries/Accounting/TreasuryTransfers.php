@@ -261,30 +261,43 @@ final class TreasuryTransfers
 
     /**
      * The transfers a reader may see, the newest first: those that leave a branch of theirs and
-     * those that go into one.
+     * those that go into one, cut down to the days of the transfer and to one treasury, on either side.
      *
-     * @param list<int>|null $branchIds Null for every branch.
+     * @param list<int>|null                                                        $branchIds Null for every branch.
+     * @param array{date_from?: string, date_to?: string, treasury_id?: int|string} $filters
      *
      * @return array{total: int, rows: list<object>}
      */
-    public function search(?array $branchIds = null, int $limit = 25, int $offset = 0): array
+    public function search(?array $branchIds = null, int $limit = 25, int $offset = 0, array $filters = []): array
     {
         if ($branchIds === []) {
             return ['total' => 0, 'rows' => []];
         }
 
-        $count = $this->db->table('treasury_transfers tt')->where('tt.company_id', CompanyContext::id());
+        $restrict = static function (BaseBuilder $builder) use ($branchIds, $filters): BaseBuilder {
+            if ($branchIds !== null) {
+                $builder->groupStart()->whereIn('tt.branch_id', $branchIds)->orWhereIn('tt.to_branch_id', $branchIds)->groupEnd();
+            }
 
-        if ($branchIds !== null) {
-            $count->groupStart()->whereIn('tt.branch_id', $branchIds)->orWhereIn('tt.to_branch_id', $branchIds)->groupEnd();
-        }
+            foreach (['date_from' => 'tt.transfer_date >=', 'date_to' => 'tt.transfer_date <='] as $key => $column) {
+                $date = $filters[$key] ?? '';
 
-        $total = $count->countAllResults();
-        $rows  = $this->query();
+                if (is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1) {
+                    $builder->where($column, $date);
+                }
+            }
 
-        if ($branchIds !== null) {
-            $rows->groupStart()->whereIn('tt.branch_id', $branchIds)->orWhereIn('tt.to_branch_id', $branchIds)->groupEnd();
-        }
+            $treasuryId = (int) ($filters['treasury_id'] ?? 0);
+
+            if ($treasuryId > 0) {
+                $builder->groupStart()->where('tt.from_treasury_id', $treasuryId)->orWhere('tt.to_treasury_id', $treasuryId)->groupEnd();
+            }
+
+            return $builder;
+        };
+
+        $total = $restrict($this->db->table('treasury_transfers tt')->where('tt.company_id', CompanyContext::id()))->countAllResults();
+        $rows  = $restrict($this->query());
 
         return ['total' => $total, 'rows' => $rows->orderBy('tt.transfer_id', 'DESC')->limit($limit, $offset)->get()->getResult()];
     }

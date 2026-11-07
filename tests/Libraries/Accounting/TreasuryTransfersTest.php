@@ -590,6 +590,37 @@ class TreasuryTransfersTest extends CIUnitTestCase
         $this->assertSame(1, $this->transfers->search([$branch])['total']);
     }
 
+    public function testSearch_CutsTheListDownToTheDaysOfTheTransferAndToATreasuryOnEitherSide(): void
+    {
+        $first  = $this->transfers->transfer($this->main, $this->drawer, '10.00', '2026-10-10', '', $this->manager);
+        $second = $this->transfers->transfer($this->main, $this->drawer, '20.00', '2026-10-20', '', $this->manager);
+        $other  = $this->treasuries->create(['name' => 'Third drawer', 'kind' => 'cash'], $this->manager);
+        $third  = $this->transfers->transfer($this->drawer, $other, '5.00', '2026-10-25', '', $this->manager);
+        $ids    = static fn (array $result): array => array_map(static fn (object $row): int => (int) $row->transfer_id, $result['rows']);
+
+        $this->assertSame([$third, $second, $first], $ids($this->transfers->search()));
+        $this->assertSame([$third, $second], $ids($this->transfers->search(filters: ['date_from' => '2026-10-15'])));
+        $this->assertSame([$first], $ids($this->transfers->search(filters: ['date_to' => '2026-10-15'])));
+        $this->assertSame([$second], $ids($this->transfers->search(filters: ['date_from' => '2026-10-20', 'date_to' => '2026-10-20'])));
+        $this->assertSame([$third, $second, $first], $ids($this->transfers->search(filters: ['treasury_id' => $this->drawer])));
+        $this->assertSame([$third], $ids($this->transfers->search(filters: ['treasury_id' => $other])));
+        $this->assertSame([$second], $ids($this->transfers->search(filters: ['treasury_id' => $this->main, 'date_from' => '2026-10-15'])));
+        $this->assertSame(2, $this->transfers->search(filters: ['date_from' => '2026-10-15'])['total']);
+        $this->assertSame([$third, $second, $first], $ids($this->transfers->search(filters: ['date_from' => 'garbage'])));
+        $this->assertSame([$third, $second, $first], $ids($this->transfers->search(filters: ['date_to' => 'garbage'])));
+    }
+
+    public function testSearch_KeepsTheBranchesOfTheReaderWhateverTheFilterAsks(): void
+    {
+        [$other, $branch] = $this->elsewhere();
+        $third            = $this->createBranch('B3');
+        $id               = $this->transfers->transfer($this->main, $other, '100.00', '2026-10-21', '', $this->manager);
+
+        $this->assertSame(0, $this->transfers->search([$third], filters: ['treasury_id' => $other])['total']);
+        $this->assertSame(1, $this->transfers->search([$branch], filters: ['treasury_id' => $other, 'date_from' => '2026-10-21'])['total']);
+        $this->assertSame($id, (int) $this->transfers->search([1], filters: ['treasury_id' => $this->main])['rows'][0]->transfer_id);
+    }
+
     public function testTransfer_RefusesAnEmployeeWithoutThePermissionOrOfAnotherBranch(): void
     {
         $this->assertSame(AccountingError::PermissionDenied, $this->refusal(fn () => $this->transfers->transfer($this->main, $this->drawer, '1', '2026-10-21', '', $this->employeeWithGrants([])))->error);

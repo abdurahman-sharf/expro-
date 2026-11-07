@@ -1,6 +1,7 @@
 <?php
 
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Organization\BranchGuard;
 
@@ -252,6 +253,55 @@ function operationalReportCatalog(array $permissionIds, ?bool $accountingOn = nu
     }
 
     return $offered === [] ? [] : [['label' => lang('Accounting_operational_reports.catalog_group'), 'subjects' => $offered]];
+}
+
+/**
+ * The reports of purchases, suppliers, stock, expenses, income and the books, offered beside the others in
+ * the reports index and in the quick search. Each is offered to someone who holds the module of the financial
+ * reports and the permission of the report, and only while accounting is on.
+ *
+ * @param list<string> $permissionIds
+ * @param bool|null    $accountingOn  Null reads the setting.
+ *
+ * @return list<array{label: string, subjects: list<array{icon: string, label: string, links: list<array{path: string, label: string, icon: string}>}>}>
+ */
+function familyReportCatalog(array $permissionIds, ?bool $accountingOn = null): array
+{
+    if (! in_array('accounting_reports', $permissionIds, true)) {
+        return [];
+    }
+
+    $accountingOn ??= (new AccountingSettings())->isEnabled();
+
+    if (! $accountingOn) {
+        return [];
+    }
+
+    $subjects = [
+        'purchases' => ['bi-bag-check', 'Accounting_family_reports.catalog_purchases'],
+        'suppliers' => ['bi-truck', 'Accounting_family_reports.catalog_suppliers'],
+        'inventory' => ['bi-boxes', 'Accounting_family_reports.catalog_inventory'],
+        'cash'      => ['bi-wallet2', 'Accounting_family_reports.catalog_cash'],
+        'books'     => ['bi-journal-text', 'Accounting_family_reports.catalog_books'],
+    ];
+
+    $offered = [];
+
+    foreach ($subjects as $family => [$icon, $label]) {
+        $links = [];
+
+        foreach (FamilyReportCatalog::all() as $key => $report) {
+            if ($report['family'] === $family && in_array($report['permission'], $permissionIds, true)) {
+                $links[] = ['path' => site_url('accounting_reports/' . $key), 'label' => lang('Accounting_family_reports.' . FamilyReportCatalog::titleKey($key)), 'icon' => 'bi-table'];
+            }
+        }
+
+        if ($links !== []) {
+            $offered[] = ['icon' => $icon, 'label' => lang($label), 'links' => $links];
+        }
+    }
+
+    return $offered === [] ? [] : [['label' => lang('Accounting_family_reports.catalog_group'), 'subjects' => $offered]];
 }
 
 /**

@@ -8,11 +8,14 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\AuditLog;
+use App\Libraries\Accounting\AuditPeriods;
 use App\Libraries\Accounting\ChequeSources;
 use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\JournalAttachments;
 use App\Libraries\Accounting\JournalEntryType;
+use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PeriodGuard;
@@ -28,6 +31,8 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 class AccountingJournals extends AccountingController
 {
+    use ExportsCsv;
+
     private const DETAIL_LIMIT = 8;
 
     private JournalService $journals;
@@ -355,10 +360,18 @@ class AccountingJournals extends AccountingController
 
         $log          = new AuditLog();
         $seesBranches = $this->seesBranches();
+        $actions      = array_values(array_unique([...AuditLog::known('action'), ...$log->actions($this->branchIds())]));
+        $entities     = array_values(array_unique([...AuditLog::known('entity'), ...$log->entities($this->branchIds())]));
+
+        sort($actions);
+        sort($entities);
 
         return view('accounting_journals/audit', [
             'table_headers'  => transform_headers($this->auditHeaders($seesBranches), true, false),
-            'actions'        => $log->actions($this->branchIds()),
+            'actions'        => $actions,
+            'entities'       => $entities,
+            'origins'        => array_map(static fn (JournalOrigin $origin): string => $origin->value, JournalOrigin::cases()),
+            'presets'        => AuditPeriods::ALL,
             'employees'      => $log->employees($this->branchIds()),
             'branches'       => $seesBranches ? (new BranchService())->all($this->employeeId()) : [],
             'current_branch' => $this->branchContext()->current($this->employeeId()),
@@ -371,18 +384,9 @@ class AccountingJournals extends AccountingController
             throw PageNotFoundException::forPageNotFound();
         }
 
-        $limit  = max(1, min((int) $this->request->getGet('limit') ?: self::DEFAULT_PAGE_SIZE, 500));
+        $limit  = max(1, min((int) $this->request->getGet('limit') ?: self::DEFAULT_PAGE_SIZE, AuditLog::PAGE_MAX));
         $offset = max(0, (int) $this->request->getGet('offset'));
-        $order  = (string) $this->request->getGet('order');
-
-        $result = (new AuditLog())->search([
-            'date_from'   => (string) $this->request->getGet('date_from'),
-            'date_to'     => (string) $this->request->getGet('date_to'),
-            'action'      => (string) $this->request->getGet('action'),
-            'entity_type' => (string) $this->request->getGet('entity_type'),
-            'employee_id' => (int) $this->request->getGet('employee_id'),
-            'branch_id'   => (int) $this->request->getGet('branch_id'),
-        ], $order === 'asc' ? 'asc' : 'desc', $limit, $offset, $this->branchIds());
+        $result = (new AuditLog())->search($this->auditFilters(), $this->auditOrder(), $limit, $offset, $this->branchIds());
 
         $rows = [];
 
@@ -400,6 +404,46 @@ class AccountingJournals extends AccountingController
         }
 
         return $this->response->setJSON(['total' => $result['total'], 'rows' => $rows]);
+    }
+
+    public function getAuditCsv(): ResponseInterface
+    {
+        if (! $this->can(AccountingGuard::JOURNALS_AUDIT)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $log        = new AuditLog();
+        $filters    = $this->auditFilters();
+        $order      = $this->auditOrder();
+        $handle     = fopen('php://temp', 'r+b');
+        $withBranch = $this->seesBranches();
+
+        $this->csvRow($handle, [lang('Accounting_journals.audit_title')]);
+        $this->csvNote($handle, $this->auditScopeNote());
+        $this->csvRow($handle, [lang('Accounting_journals.audit_time'), lang('Accounting_journals.audit_action'), ...($withBranch ? [lang('Accounting_journals.branch')] : []), lang('Accounting_journals.audit_entity'), lang('Accounting_journals.audit_employee'), lang('Accounting_journals.audit_origin'), lang('Accounting_journals.audit_details')]);
+
+        if ($log->search($filters, $order, 1, 0, $this->branchIds())['total'] > AuditLog::EXPORT_LIMIT) {
+            fclose($handle);
+
+            return $this->response->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)->setBody($this->messageFor(new AccountingException(AccountingError::ExportTooLarge, 'The log holds more entries than a file can carry.', ['max' => AuditLog::EXPORT_LIMIT])));
+        }
+
+        foreach ($log->stream($filters, $order, $this->branchIds()) as $entry) {
+            $this->csvRow($handle, [
+                (string) $entry->created_at,
+                $this->label('action', $entry->action),
+                ...($withBranch ? [(string) $entry->branch_code] : []),
+                $this->label('entity', $entry->entity_type) . ($entry->entity_id === null ? '' : ' #' . (int) $entry->entity_id),
+                (string) ($entry->employee_name ?? ''),
+                $this->label('origin', $entry->origin),
+                $this->describe($entry),
+            ]);
+        }
+
+        return $this->response
+            ->setContentType('text/csv', 'UTF-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="activity_log_' . date('Y-m-d') . '.csv"')
+            ->setBody("\xEF\xBB\xBF" . $this->csvText($handle));
     }
 
     public function getFailures(): string
@@ -452,6 +496,41 @@ class AccountingJournals extends AccountingController
         }
 
         return $this->response->setJSON(['total' => $result['total'], 'rows' => $rows]);
+    }
+
+    /**
+     * @return array<string, int|string>
+     */
+    private function auditFilters(): array
+    {
+        $filters = [
+            'date_from'   => $this->requestText('date_from'),
+            'date_to'     => $this->requestText('date_to'),
+            'action'      => $this->requestText('action'),
+            'entity_type' => $this->requestText('entity_type'),
+            'origin'      => $this->requestText('origin'),
+            'employee_id' => (int) $this->request->getGet('employee_id'),
+            'branch_id'   => (int) $this->request->getGet('branch_id'),
+        ];
+
+        $preset = AuditPeriods::resolve($this->requestText('preset'), date('Y-m-d'));
+
+        if ($preset !== null) {
+            $filters['date_from'] = $preset['from'];
+            $filters['date_to']   = $preset['to'];
+        }
+
+        return $filters;
+    }
+
+    private function auditOrder(): string
+    {
+        return strtolower($this->requestText('order')) === 'asc' ? 'asc' : 'desc';
+    }
+
+    private function auditScopeNote(): ?string
+    {
+        return $this->branchIds() === null ? null : lang('Accounting_journals.audit_limited_branches');
     }
 
     /**

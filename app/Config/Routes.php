@@ -1,5 +1,6 @@
 <?php
 
+use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
 use CodeIgniter\Router\RouteCollection;
 
 /** @var RouteCollection $routes */
@@ -309,6 +310,11 @@ $routes->group('accounting_reports', static function (RouteCollection $routes): 
     $routes->get('net_position/csv', 'AccountingNetPosition::getCsv');
     $routes->get('invoice_returns', 'AccountingNetPosition::getCross');
     $routes->get('invoice_returns/csv', 'AccountingNetPosition::getCrossCsv');
+
+    foreach (FamilyReportCatalog::keys() as $familyKey) {
+        $routes->get($familyKey, 'AccountingFamilyReports::getShow/' . $familyKey);
+        $routes->get($familyKey . '/csv', 'AccountingFamilyReports::getCsv/' . $familyKey);
+    }
 });
 
 $routes->group('accounting_statements', static function (RouteCollection $routes): void {
@@ -328,6 +334,7 @@ $routes->group('accounting_treasuries', static function (RouteCollection $routes
     $routes->get('search', 'AccountingTreasuries::getSearch');
     $routes->get('row/(:num)', 'AccountingTreasuries::getRow/$1');
     $routes->get('statement/(:num)', 'AccountingTreasuries::getStatement/$1');
+    $routes->get('statement/(:num)/csv', 'AccountingTreasuries::getStatementCsv/$1');
     $routes->get('banks', 'AccountingTreasuries::getBanks');
     $routes->get('view', 'AccountingTreasuries::getView');
     $routes->get('view/(:segment)', 'AccountingTreasuries::getView/$1');
@@ -483,6 +490,7 @@ $routes->group('accounting_journals', static function (RouteCollection $routes):
     $routes->get('attachment/(:num)', 'AccountingJournals::getAttachment/$1');
     $routes->get('audit', 'AccountingJournals::getAudit');
     $routes->get('audit/search', 'AccountingJournals::getAuditSearch');
+    $routes->get('audit/csv', 'AccountingJournals::getAuditCsv');
     $routes->get('failures', 'AccountingJournals::getFailures');
     $routes->get('failures/search', 'AccountingJournals::getFailuresSearch');
     $routes->post('save_draft', 'AccountingJournals::postSaveDraft');

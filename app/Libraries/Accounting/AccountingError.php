@@ -433,4 +433,7 @@ enum AccountingError: string
     case StockRequestStatusInvalid    = 'stock_request_status_invalid';
     case StockRequestLocationsInvalid = 'stock_request_locations_invalid';
     case StockRequestLinesInvalid     = 'stock_request_lines_invalid';
+    case ReportTooLarge                   = 'report_too_large';
+    case StatementAmountInvalid           = 'statement_amount_invalid';
+    case ExportTooLarge                   = 'export_too_large';
 }

@@ -3,7 +3,7 @@
  * @var array  $permission_ids
  * @var string $error
  */
-$catalog = [...reportCatalog(openableReportPermissions($permission_ids)), ...operationalReportCatalog($permission_ids)];
+$catalog = [...reportCatalog(openableReportPermissions($permission_ids)), ...operationalReportCatalog($permission_ids), ...familyReportCatalog($permission_ids)];
 ?>
 
 <?= view('partial/header') ?>

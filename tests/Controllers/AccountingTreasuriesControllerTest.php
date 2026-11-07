@@ -728,6 +728,55 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->get('/accounting_treasuries/transfers')->assertSee(lang('Accounting_treasuries.between_difference', ['50.00']));
     }
 
+    public function testGetTransfersSearch_FiltersByTheDateOfTheTransferAndByTheTreasury(): void
+    {
+        $manager = $this->manager();
+        $main    = $this->treasuries->ensureMain();
+        $drawer  = $this->treasuries->create(['name' => 'Drawer', 'kind' => 'cash'], $manager);
+        $third   = $this->treasuries->create(['name' => 'Third', 'kind' => 'cash'], $manager);
+
+        (new TreasuryTransfers())->transfer($main, $drawer, '10', '2026-10-10', '', $manager);
+        (new TreasuryTransfers())->transfer($main, $drawer, '20', '2026-10-20', '', $manager);
+        (new TreasuryTransfers())->transfer($drawer, $third, '5', '2026-10-25', '', $manager);
+
+        $count = fn (string $query): int => json_decode($this->get('/accounting_treasuries/transfers/search' . $query)->getJSON(), true)['total'];
+
+        $this->assertSame(3, $count(''));
+        $this->assertSame(2, $count('?date_from=2026-10-15'));
+        $this->assertSame(1, $count('?date_to=2026-10-15'));
+        $this->assertSame(1, $count('?date_from=2026-10-20&date_to=2026-10-20'));
+        $this->assertSame(1, $count('?treasury_id=' . $third));
+        $this->assertSame(3, $count('?treasury_id=' . $drawer));
+        $this->assertSame(1, $count('?treasury_id=' . $drawer . '&date_from=2026-10-21'));
+    }
+
+    public function testGetTransfersSearch_IgnoresAFilterThatIsNotASingleText(): void
+    {
+        $manager = $this->manager();
+        $main    = $this->treasuries->ensureMain();
+        $drawer  = $this->treasuries->create(['name' => 'Drawer', 'kind' => 'cash'], $manager);
+
+        (new TreasuryTransfers())->transfer($main, $drawer, '10', '2026-10-10', '', $manager);
+
+        $response = $this->get('/accounting_treasuries/transfers/search?date_from[]=2030-01-01&date_to[]=2000-01-01&treasury_id[]=1');
+
+        $response->assertStatus(200);
+        $this->assertSame(1, json_decode($response->getJSON(), true)['total']);
+    }
+
+    public function testGetTransfers_OffersTheTreasuriesAndTheDaysAsFilters(): void
+    {
+        $manager = $this->manager();
+
+        $this->treasuries->create(['name' => 'Cashier drawer', 'kind' => 'cash'], $manager);
+
+        $response = $this->get('/accounting_treasuries/transfers');
+
+        $response->assertSee('id="transfer_filters"');
+        $response->assertSee('id="t_date_from"');
+        $response->assertSee('Cashier drawer');
+    }
+
     public function testGetTransfersSearch_OffersTheCancelIconOnlyToWhoWorksInEveryBranchOfTheTransfer(): void
     {
         $manager          = $this->manager();
@@ -1123,5 +1172,126 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->actAsWith(['accounting_treasuries', AccountingGuard::BANK_RECONCILE]);
 
         $this->get('/accounting_treasuries/statement/' . $bank)->assertSee('bank-matched');
+    }
+
+    /**
+     * A treasury with twenty-eight movements, one a day: the odd days deposit ten times the day, the
+     * even days withdraw five.
+     */
+    private function busyTreasury(): int
+    {
+        $manager  = $this->manager();
+        $treasury = $this->treasuries->create(['name' => '=Busy drawer', 'kind' => 'cash'], $manager);
+        $account  = (int) $this->treasuries->accountOf($treasury);
+
+        for ($day = 28; $day >= 1; $day--) {
+            $amount = $day % 2 === 1 ? (string) ($day * 10) . '.00' : '5.00';
+            $lines  = $day % 2 === 1
+                ? [new JournalLineDraft($account, debit: $amount), new JournalLineDraft($this->accountId('opening_balance'), credit: $amount)]
+                : [new JournalLineDraft($this->accountId('opening_balance'), debit: $amount), new JournalLineDraft($account, credit: $amount)];
+
+            (new PostingService())->post(new JournalDraft(date: date('Y-m-d', strtotime("-{$day} days")), lines: $lines, sourceType: JournalDraft::SOURCE_MANUAL, description: '=Movement ' . $day, currencyCode: 'SAR', branchId: 1));
+        }
+
+        $this->actAsWith(['accounting_treasuries', 'accounting_journals']);
+
+        return $treasury;
+    }
+
+    private function movementRows(string $html): int
+    {
+        $start = (int) strpos($html, 'id="treasury_movements"');
+        $table = substr($html, $start, (int) strpos($html, '</table>', $start) - $start);
+
+        return preg_match_all('/<tr[ >]/', $table) - 1;
+    }
+
+    public function testGetStatement_PagesTheMovementsWithTheBalanceBeforeTheOldestOfEachPage(): void
+    {
+        $treasury = $this->busyTreasury();
+
+        $first = $this->get('/accounting_treasuries/statement/' . $treasury)->getBody();
+
+        $this->assertSame(20, $this->movementRows($first));
+        $this->assertStringContainsString('id="statement_pages"', $first);
+        $this->assertStringContainsString('rel="next"', $first);
+        $this->assertStringContainsString('id="statement_before"', $first);
+        $this->assertStringContainsString('28', strip_tags(substr($first, (int) strpos($first, 'id="statement_count"'), 120)));
+
+        $second = $this->get('/accounting_treasuries/statement/' . $treasury . '?page=2')->getBody();
+
+        $this->assertStringContainsString('rel="prev"', $second);
+        $this->assertStringNotContainsString('rel="next"', $second);
+        $this->assertSame(8, $this->movementRows($second));
+        $this->assertMatchesRegularExpression('#id="statement_before">[^<]*<bdi dir="ltr">0\.00</bdi>#', $second);
+    }
+
+    public function testGetStatement_CutsTheMovementsDownByDayAndAmountAndOrder(): void
+    {
+        $treasury = $this->busyTreasury();
+        $base     = '/accounting_treasuries/statement/' . $treasury;
+
+        $dated  = $this->get($base . '?from=' . date('Y-m-d', strtotime('-4 days')))->getBody();
+        $amount = $this->get($base . '?amount_from=200')->getBody();
+        $oldest = $this->get($base . '?order=asc')->getBody();
+
+        $this->assertSame(4, $this->movementRows($dated));
+        $this->assertSame(4, $this->movementRows($amount));
+        $this->assertStringContainsString('-5.00', $oldest);
+        $this->assertStringNotContainsString('id="statement_pages"', $dated);
+    }
+
+    public function testGetStatement_ExplainsAFilterThatIsNotValidAndShowsEverythingInstead(): void
+    {
+        $treasury = $this->busyTreasury();
+
+        foreach (['amount_from=abc', 'from=2026-13-45', 'amount_from=50&amount_to=10'] as $query) {
+            $response = $this->get('/accounting_treasuries/statement/' . $treasury . '?' . $query);
+
+            $response->assertStatus(200);
+            $response->assertSee('id="statement_error"');
+            $response->assertSee('id="treasury_movements"');
+        }
+    }
+
+    public function testGetStatementCsv_GivesTheFilteredMovementsAndShowsATreasuryNamedAsAFormulaAsText(): void
+    {
+        $treasury = $this->busyTreasury();
+
+        $response = $this->get('/accounting_treasuries/statement/' . $treasury . '/csv?amount_from=200');
+        $body     = $response->response()->getBody();
+
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
+        $this->assertSame(1 + 1 + 4, substr_count($body, "\n"));
+        $this->assertStringContainsString("'=Busy drawer", $body);
+        $this->assertStringNotContainsString("\n=Busy drawer", substr($body, 3));
+        $this->assertStringNotContainsString("\xEF\xBB\xBF=Busy", $body);
+
+        $this->get('/accounting_treasuries/statement/' . $treasury . '/csv?amount_from=abc')->assertStatus(422);
+    }
+
+    public function testGetStatementCsv_GivesEveryMovementTheFiltersLeaveNotOnlyThePageOfTheScreen(): void
+    {
+        $treasury = $this->busyTreasury();
+        $base     = '/accounting_treasuries/statement/' . $treasury . '/csv';
+
+        $all    = $this->get($base)->response()->getBody();
+        $oldest = $this->get($base . '?order=asc')->response()->getBody();
+
+        $this->assertSame(1 + 1 + 28, substr_count($all, "\n"));
+        $this->assertSame(1 + 1 + 28, substr_count($oldest, "\n"));
+        $this->assertSame(1 + 1 + 4, substr_count($this->get($base . '?from=' . date('Y-m-d', strtotime('-4 days')))->response()->getBody(), "\n"));
+    }
+
+    public function testGetStatementCsv_IsNotFoundForATreasuryOfAnotherBranch(): void
+    {
+        $manager = $this->manager();
+        $other   = $this->treasuries->create(['name' => 'Elsewhere csv', 'kind' => 'cash', 'branch_id' => $this->createBranch('B3')], $manager);
+
+        $this->actAsWith(['accounting_treasuries'], [1]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_treasuries/statement/' . $other . '/csv');
     }
 }

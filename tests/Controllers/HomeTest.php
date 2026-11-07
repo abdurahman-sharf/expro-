@@ -361,6 +361,18 @@ class HomeTest extends CIUnitTestCase
         $this->assertSame([], array_values(array_filter($without, static fn (string $url): bool => str_contains($url, 'accounting_reports/revenue'))));
     }
 
+    public function testGetSearchIndex_OffersTheReportsOfTheFamiliesOnlyWithTheModuleThePermissionAndAccountingOn(): void
+    {
+        $offered = static fn (array $urls, string $report): bool => array_filter($urls, static fn (string $url): bool => str_ends_with($url, 'accounting_reports/' . $report)) !== [];
+
+        $urls = $this->searchIndexUrls(['reports_suppliers', 'accounting_reports'], '1');
+
+        $this->assertTrue($offered($urls, 'supplier_balances'));
+        $this->assertFalse($offered($urls, 'stock_aging'), 'No permission for the stock reports');
+        $this->assertFalse($offered($this->searchIndexUrls(['reports_suppliers', 'accounting_reports'], '0'), 'supplier_balances'));
+        $this->assertFalse($offered($this->searchIndexUrls(['reports_suppliers', 'accounting_journals'], '1'), 'supplier_balances'));
+    }
+
     /**
      * Create a non-admin employee for testing
      *

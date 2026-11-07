@@ -662,4 +662,20 @@ class ReportsControllerTest extends CIUnitTestCase
 
         $this->assertStringNotContainsString('inventory_valuation', $body);
     }
+
+    public function testGetIndex_OffersTheReportsOfTheFamiliesToWhoHoldsTheModuleAndThePermissionWhileAccountingIsOn(): void
+    {
+        $body = $this->reportsIndexOf(['reports_suppliers', 'reports_inventory', 'accounting_reports'], '1');
+
+        $this->assertStringContainsString('accounting_reports/supplier_balances', $body);
+        $this->assertStringContainsString('accounting_reports/stock_aging', $body);
+        $this->assertStringNotContainsString('accounting_reports/expenses', $body, 'No permission for the expenses report');
+        $this->assertStringContainsString('reports/inventory_summary', $body);
+    }
+
+    public function testGetIndex_DoesNotOfferTheReportsOfTheFamiliesWhileAccountingIsOffOrWithoutTheModule(): void
+    {
+        $this->assertStringNotContainsString('accounting_reports/supplier_balances', $this->reportsIndexOf(['reports_suppliers', 'accounting_reports'], '0'));
+        $this->assertStringNotContainsString('accounting_reports/supplier_balances', $this->reportsIndexOf(['reports_suppliers', 'accounting_journals'], '1'));
+    }
 }

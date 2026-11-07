@@ -7,7 +7,7 @@ use Config\Database;
 
 /**
  * The balance of every supplier over a period, split by what moved it. A journal on the account of
- * a supplier is a purchase (purchases, an opening balance owed counting as one), a debit note
+ * a supplier is a purchase (purchases, an opening balance owed counting as one unless asked apart), a debit note
  * (settlements, negative), a payment or an advance (payments, what a supplier paid back counting
  * negative) or something else (other); a journal that reverses another counts as what it reverses.
  * A balance is what is owed to the supplier. The balance before is the account at the end of the day
@@ -27,8 +27,14 @@ final class SupplierBalanceReport
         $this->db = $db ?? Database::connect();
     }
 
-    public function build(ReportPeriod $period, bool $hideEmpty = true): BalanceTable
+    /**
+     * @param list<int>|null $branchIds    The branches whose journals count, null for every branch.
+     * @param bool           $openingApart Whether an opening balance owed to a supplier is counted under other, not as a purchase.
+     */
+    public function build(ReportPeriod $period, bool $hideEmpty = true, ?array $branchIds = null, bool $openingApart = false): BalanceTable
     {
+        $inBranch = $branchIds === null ? '' : ' AND j.branch_id IN (' . ($branchIds === [] ? 'NULL' : implode(', ', array_map('intval', $branchIds))) . ')';
+
         $from       = $period->from ?? self::PERIOD_START;
         $accounts   = $this->db->prefixTable('accounting_accounts');
         $lines      = $this->db->prefixTable('accounting_journal_lines');
@@ -48,13 +54,14 @@ final class SupplierBalanceReport
                  SELECT a.entity_id AS party_id, a.name AS party_name, a.account_id, j.journal_date AS day, l.credit - l.debit AS amount,
                         CASE
                             WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? AND r.receiving_type = ? THEN 'settlements'
+                            WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? AND r.receiving_type = ? THEN ?
                             WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? THEN 'sales'
                             WHEN IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) IN (?, ?, ?, ?, ?) THEN 'payments'
                             ELSE 'other'
                         END AS kind
                  FROM {$accounts} a
                  JOIN {$lines} l ON l.account_id = a.account_id
-                 JOIN {$journals} j ON j.journal_id = l.journal_id AND j.status IN (?, ?) AND j.journal_date <= ?
+                 JOIN {$journals} j ON j.journal_id = l.journal_id AND j.status IN (?, ?) AND j.journal_date <= ?{$inBranch}
                  LEFT JOIN {$journals} o ON o.journal_id = j.reverses_journal_id
                  LEFT JOIN {$receivings} r ON IF(j.reverses_journal_id IS NULL, j.source_type, o.source_type) = ? AND r.receiving_id = IF(j.reverses_journal_id IS NULL, j.source_id, o.source_id)
                  WHERE a.entity_type = ?
@@ -63,7 +70,9 @@ final class SupplierBalanceReport
              ORDER BY t.party_name ASC, t.party_id ASC",
             [
                 $from, $from, $from, $from, $from, $from,
-                ReceivingPostingBuilder::SOURCE_PURCHASE, ReceivingType::Return->value, ReceivingPostingBuilder::SOURCE_PURCHASE,
+                ReceivingPostingBuilder::SOURCE_PURCHASE, ReceivingType::Return->value,
+                ReceivingPostingBuilder::SOURCE_PURCHASE, SupplierAdvances::OPENING_TYPE, $openingApart ? 'other' : 'sales',
+                ReceivingPostingBuilder::SOURCE_PURCHASE,
                 ReceivingPostingBuilder::SOURCE_PAYMENT, ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, SupplierAdvances::SOURCE, CreditRefunds::SUPPLIER_SOURCE,
                 JournalStatus::Posted->value, JournalStatus::Reversed->value, $period->to,
                 ReceivingPostingBuilder::SOURCE_PURCHASE,

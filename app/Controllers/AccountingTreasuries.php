@@ -2,16 +2,19 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\Currency;
 use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\Bank\BankDirectory;
 use App\Libraries\Accounting\Bank\BankMatches;
+use App\Libraries\Accounting\ExportsCsv;
+use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\TreasuryPosition;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
-use App\Libraries\Accounting\InterBranchPosition;
+use App\Libraries\Accounting\TreasuryStatement;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Organization\BranchService;
 use App\Libraries\Roles\RoleService;
@@ -25,12 +28,15 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingTreasuries extends AccountingController
 {
-    private const MAX_PAGE_SIZE  = 500;
-    private const STATEMENT_ROWS = 200;
+    use ExportsCsv;
+
+    private const MAX_PAGE_SIZE = 500;
+    private const FILTERS       = ['from', 'to', 'amount_from', 'amount_to'];
 
     private TreasuryService $treasuries;
     private TreasuryTransfers $transfers;
     private TreasuryScopes $scopes;
+    private TreasuryStatement $statements;
 
     public function __construct()
     {
@@ -39,6 +45,7 @@ class AccountingTreasuries extends AccountingController
         $this->treasuries = new TreasuryService(null, null, $this->branchGuard());
         $this->transfers  = new TreasuryTransfers(null, null, $this->branchGuard());
         $this->scopes     = new TreasuryScopes(null, $this->branchGuard());
+        $this->statements = new TreasuryStatement($this->treasuries);
     }
 
     public function getIndex(): string
@@ -78,21 +85,104 @@ class AccountingTreasuries extends AccountingController
         $treasury  = $this->visible($treasuryId);
         $position  = $this->treasuries->position($treasuryId);
         $movements = $this->treasuries->movements($treasuryId);
-        $rows      = array_slice(array_reverse($movements['rows']), 0, self::STATEMENT_ROWS);
+        $filters   = $this->statementFilters();
+        $order     = $this->statementOrder();
+        $error     = null;
+
+        try {
+            $page = $this->statements->page($treasuryId, $filters, $order, (int) $this->request->getGet('page'));
+        } catch (AccountingException $refusal) {
+            $error = $this->messageFor($refusal);
+            $page  = $this->statements->page($treasuryId, [], $order, 1);
+        }
 
         return view('accounting_treasuries/statement', [
             'treasury'      => $treasury,
             'balance'       => $position->balance,
             'foreign_balance' => $this->foreignBalanceCell($position),
-            'rows'          => $rows,
-            'matched'       => $treasury->kind === TreasuryService::BANK && $this->can(AccountingGuard::BANK_RECONCILE) ? (new BankMatches())->flagged(array_map(static fn (array $row): int => (int) $row['line_id'], $rows)) : [],
-            'total_rows'    => count($movements['rows']),
+            'rows'          => $page['rows'],
+            'matched'       => $treasury->kind === TreasuryService::BANK && $this->can(AccountingGuard::BANK_RECONCILE) ? (new BankMatches())->flagged(array_map(static fn (array $row): int => (int) $row['line_id'], $page['rows'])) : [],
+            'total_rows'    => $page['total'],
+            'page'          => $page['page'],
+            'pages'         => $page['pages'],
+            'before'        => $page['before'],
+            'filters'       => $filters,
+            'order'         => $order,
+            'error'         => $error,
+            'csv_url'       => base_url('accounting_treasuries/statement/' . $treasuryId . '/csv') . $this->statementQuery(),
+            'page_url'      => fn (int $target): string => base_url('accounting_treasuries/statement/' . $treasuryId) . $this->statementQuery(['page' => $target]),
             'crossings'     => array_reverse($movements['crossings']),
             'lowest'        => $movements['lowest'],
             'journal_links' => $this->can('accounting_journals'),
             'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'          => fn (string $value): string => $this->formatDate($value),
         ]);
+    }
+
+    public function getStatementCsv(int $treasuryId): ResponseInterface
+    {
+        $treasury = $this->visible($treasuryId);
+
+        try {
+            $rows = $this->statements->rows($treasuryId, $this->statementFilters(), $this->statementOrder());
+        } catch (AccountingException $refusal) {
+            return $this->response->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)->setBody($this->messageFor($refusal));
+        }
+
+        $handle = fopen('php://temp', 'r+b');
+
+        $this->csvRow($handle, [(string) $treasury->name]);
+        $this->csvRow($handle, [lang('Accounting_treasuries.date'), lang('Accounting_treasuries.journal'), lang('Accounting_treasuries.source'), lang('Accounting_treasuries.document'), lang('Accounting_treasuries.money_in'), lang('Accounting_treasuries.money_out'), lang('Accounting_treasuries.balance')]);
+
+        foreach ($rows as $row) {
+            $this->csvRow($handle, [
+                (string) $row['journal_date'],
+                (string) $row['number'],
+                $this->label('source', (string) $row['source_type']) . ($row['reverses_journal_id'] === null ? '' : ' (' . lang('Accounting.source_reversal') . ')'),
+                '#' . (int) $row['source_id'],
+                bccomp((string) $row['debit'], '0', 4) === 0 ? '' : (string) $row['debit'],
+                bccomp((string) $row['credit'], '0', 4) === 0 ? '' : (string) $row['credit'],
+                (string) $row['balance'],
+            ]);
+        }
+
+        return $this->response
+            ->setContentType('text/csv', 'UTF-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="treasury_statement_' . $treasuryId . '_' . date('Y-m-d') . '.csv"')
+            ->setBody("\xEF\xBB\xBF" . $this->csvText($handle));
+    }
+
+    /**
+     * @return array{from?: string, to?: string, amount_from?: string, amount_to?: string}
+     */
+    private function statementFilters(): array
+    {
+        $filters = [];
+
+        foreach (self::FILTERS as $name) {
+            $value = $this->request->getGet($name);
+
+            if (is_string($value) && trim($value) !== '') {
+                $filters[$name] = trim($value);
+            }
+        }
+
+        return $filters;
+    }
+
+    private function statementOrder(): string
+    {
+        return $this->request->getGet('order') === 'asc' ? 'asc' : 'desc';
+    }
+
+    /**
+     * @param array<string, int> $extra
+     */
+    private function statementQuery(array $extra = []): string
+    {
+        $query = [...$this->statementFilters(), ...($this->statementOrder() === 'asc' ? ['order' => 'asc'] : []), ...$extra];
+
+        return $query === [] ? '' : '?' . http_build_query($query);
     }
 
     public function getBanks(): ResponseInterface
@@ -200,9 +290,10 @@ class AccountingTreasuries extends AccountingController
         ));
 
         return view('accounting_treasuries/transfers', [
-            'table_headers'    => transform_headers($this->transferHeaders(), true, true),
-            'can_manage'       => $this->can(AccountingGuard::TREASURIES_MANAGE),
-            'branch_balances'  => array_map(fn (object $row): array => [
+            'table_headers'   => transform_headers($this->transferHeaders(), true, true),
+            'can_manage'      => $this->can(AccountingGuard::TREASURIES_MANAGE),
+            'treasuries'      => $this->treasuries->all($this->branchIds(), true),
+            'branch_balances' => array_map(fn (object $row): array => [
                 'code'       => $row->code,
                 'receivable' => $this->formatAmount($row->receivable),
                 'payable'    => $this->formatAmount($row->payable),
@@ -215,7 +306,11 @@ class AccountingTreasuries extends AccountingController
     {
         $limit  = max(1, min((int) $this->request->getGet('limit') ?: self::DEFAULT_PAGE_SIZE, self::MAX_PAGE_SIZE));
         $offset = max(0, (int) $this->request->getGet('offset'));
-        $result = $this->transfers->search($this->branchIds(), $limit, $offset);
+        $result = $this->transfers->search($this->branchIds(), $limit, $offset, [
+            'date_from'   => $this->requestText('date_from'),
+            'date_to'     => $this->requestText('date_to'),
+            'treasury_id' => (int) $this->request->getGet('treasury_id'),
+        ]);
 
         return $this->response->setJSON([
             'total' => $result['total'],

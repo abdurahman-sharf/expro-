@@ -1,0 +1,1109 @@
+[
+  {
+    "name": "G01 report permission not asked",
+    "file": "app/Controllers/AccountingFamilyReports.php",
+    "find": "if (! $this->can($definition['permission'])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/AccountingFamilyReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G02 module of the financial reports not asked",
+    "file": "app/Controllers/AccountingFamilyReports.php",
+    "find": "parent::__construct('accounting_reports');",
+    "replace": "parent::__construct('home');",
+    "tests": [
+      "tests/Controllers/AccountingFamilyReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G04 journals of others readable without the permission",
+    "file": "app/Controllers/AccountingFamilyReports.php",
+    "find": "$this->can(AccountingGuard::JOURNALS_ALL) ? null : $this->employeeId()",
+    "replace": "null",
+    "tests": [
+      "--filter",
+      "testGetShow_ShowsTheJournalReportsOnlyTheJournalsOfWhoMayNotReadThoseOfEveryone",
+      "tests/Controllers/AccountingFamilyReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G05 page past the last one not clamped",
+    "file": "app/Controllers/AccountingFamilyReports.php",
+    "find": "$page    = min($page, $pages);",
+    "replace": "$page    = $page;",
+    "tests": [
+      "tests/Controllers/AccountingFamilyReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G06 refusal of a bad period in the file answers 200",
+    "file": "app/Controllers/AccountingFamilyReports.php",
+    "find": "->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)",
+    "replace": "->setStatusCode(ResponseInterface::HTTP_OK)",
+    "tests": [
+      "tests/Controllers/AccountingFamilyReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G07 file without the byte order mark",
+    "file": "app/Controllers/AccountingFamilyReports.php",
+    "find": "->setBody(\"\\xEF\\xBB\\xBF\" . $this->csv(",
+    "replace": "->setBody('' . $this->csv(",
+    "tests": [
+      "tests/Controllers/AccountingFamilyReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G08 formula text in a file not neutralised",
+    "file": "app/Libraries/Accounting/ExportsCsv.php",
+    "find": "return \"'\" . $cell;",
+    "replace": "return $cell;",
+    "tests": [
+      "tests/Controllers/AccountingFamilyReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G10 range of too many periods not refused",
+    "file": "app/Libraries/Accounting/FamilyReports/PeriodUnit.php",
+    "find": "if (count($starts) > self::MAX_BUCKETS) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testBuild_RefusesARangeWithMoreDaysThanAScreenCanHold",
+      "tests/Libraries/Accounting/FamilyReports/PurchasesReportTest.php"
+    ]
+  },
+  {
+    "name": "G11 week does not start on Monday",
+    "file": "app/Libraries/Accounting/FamilyReports/PeriodUnit.php",
+    "find": "self::Week  => $date->modify('monday this week')->format('Y-m-d'),",
+    "replace": "self::Week  => $date->modify('sunday this week')->format('Y-m-d'),",
+    "tests": [
+      "--filter",
+      "testBuild_StartsTheWeekOnMondayAndNamesTheMonth",
+      "tests/Libraries/Accounting/FamilyReports/PurchasesReportTest.php"
+    ]
+  },
+  {
+    "name": "G12 purchases of every branch read",
+    "file": "app/Libraries/Accounting/FamilyReports/PurchaseDocuments.php",
+    "find": "$where    = [ScopeSql::branches('r.branch_id', $scope), ",
+    "replace": "$where    = ['1 = 1', ",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyTheBranchesOfTheScope",
+      "tests/Libraries/Accounting/FamilyReports/PurchasesReportTest.php"
+    ]
+  },
+  {
+    "name": "G13 expenses and vouchers of every branch read",
+    "file": "app/Libraries/Accounting/FamilyReports/CashDocumentRows.php",
+    "find": "$where       = [ScopeSql::branches('d.branch_id', $scope, true), ",
+    "replace": "$where       = ['1 = 1', ",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyTheBranchesOfTheScope",
+      "tests/Libraries/Accounting/FamilyReports/IncomeReportTest.php"
+    ]
+  },
+  {
+    "name": "G14 unbranched expenses read by employees of some branches",
+    "file": "app/Libraries/Accounting/FamilyReports/ScopeSql.php",
+    "find": "return $withUnbranched && $scope->isCompany() ? \"({$in} OR {$column} IS NULL)\" : $in;",
+    "replace": "return $withUnbranched ? \"({$in} OR {$column} IS NULL)\" : $in;",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyTheBranchesOfTheScopeAndKeepsAnExpenseWithoutABranchForTheWholeCompany",
+      "tests/Libraries/Accounting/FamilyReports/ExpensesReportTest.php"
+    ]
+  },
+  {
+    "name": "G15 supplier payments of every branch read",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierPaymentRows.php",
+    "find": "ScopeSql::branches('d.branch_id', $scope) . ' AND d.doc_date >= ? AND d.doc_date <= ?'",
+    "replace": "'1 = 1' . ' AND d.doc_date >= ? AND d.doc_date <= ?'",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyTheBranchesOfTheScopeAndComparesOnlyTheWholeCompany",
+      "tests/Libraries/Accounting/FamilyReports/SupplierPaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "G16 journal lines of every branch read",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalLines.php",
+    "find": "->whereIn('j.branch_id', $scope->ids)\n            ->where('j.journal_date <=', $period->to);",
+    "replace": "->where('j.journal_date <=', $period->to);",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyTheBranchesOfTheScopeAndTheJournalsOfTheOwnerWhenGivenOne",
+      "tests/Libraries/Accounting/FamilyReports/JournalMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G17 chart balances of every branch read",
+    "file": "app/Libraries/Accounting/FamilyReports/ChartReport.php",
+    "find": "->whereIn('j.branch_id', $input->scope->ids)\n",
+    "replace": "\n",
+    "tests": [
+      "--filter",
+      "testBuild_WithBalancesShowsWhatTheJournalsOfTheBranchesPutOnEachAccountAndTheyAddUpToNothing",
+      "tests/Libraries/Accounting/FamilyReports/ChartReportTest.php"
+    ]
+  },
+  {
+    "name": "G18 financial movements of every branch read",
+    "file": "app/Libraries/Accounting/FamilyReports/FinancialMovementsReport.php",
+    "find": "->whereIn('j.branch_id', $input->scope->ids)\n",
+    "replace": "\n",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyTheBranchesOfTheScope",
+      "tests/Libraries/Accounting/FamilyReports/FinancialMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G19 movements of every branch in the book totals",
+    "file": "app/Libraries/Accounting/FamilyReports/ControlAccounts.php",
+    "find": "->whereIn('j.branch_id', $scope->ids);",
+    "replace": ";",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/SupplierBalancesReportTest.php"
+    ]
+  },
+  {
+    "name": "G20 stock movements of every branch read",
+    "file": "app/Libraries/Accounting/FamilyReports/StockEntries.php",
+    "find": "->whereIn('e.branch_id', $scope->ids);",
+    "replace": ";",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyTheBranchesOfTheScopeAndDoesNotCompareAnItem",
+      "tests/Libraries/Accounting/FamilyReports/StockMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G21 stock quantity of every location compared with the shelves of a few",
+    "file": "app/Libraries/Accounting/FamilyReports/StockEntries.php",
+    "find": "->where('e.company_id', CompanyContext::id())\n            ->whereIn('e.location_id', $locationIds)\n            ->get()",
+    "replace": "->where('e.company_id', CompanyContext::id())\n            ->get()",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyTheLocationsOfTheBranchesOfTheScopeAndOneLocation",
+      "tests/Libraries/Accounting/FamilyReports/StockCountSheetReportTest.php"
+    ]
+  },
+  {
+    "name": "G22 locations of every branch listed",
+    "file": "app/Libraries/Accounting/FamilyReports/StockShelves.php",
+    "find": "->where('deleted', 0)->whereIn('branch_id', $scope->ids)",
+    "replace": "->where('deleted', 0)",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyTheLocationsOfTheBranchesOfTheScope",
+      "tests/Libraries/Accounting/FamilyReports/StockBalanceReportTest.php"
+    ]
+  },
+  {
+    "name": "G23 supplier aging of every branch read",
+    "file": "app/Libraries/Accounting/AgedLedger.php",
+    "find": "if ($branchIds !== null) {\n            $inBranch",
+    "replace": "if (false) {\n            $inBranch",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/SupplierAgedLedgerReportTest.php"
+    ]
+  },
+  {
+    "name": "G24 supplier balances of every branch read",
+    "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
+    "find": "$inBranch = $branchIds === null ? '' : ",
+    "replace": "$inBranch = true ? '' : ",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/SupplierBalancesReportTest.php"
+    ]
+  },
+  {
+    "name": "G26 purchases of others shown to who sees their own records",
+    "file": "app/Libraries/Accounting/FamilyReports/PurchaseDocuments.php",
+    "find": "if ($mine !== '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyThePurchasesOfAViewerWhoSeesTheirOwnRecords",
+      "tests/Libraries/Accounting/FamilyReports/PurchasesReportTest.php"
+    ]
+  },
+  {
+    "name": "G27 expenses and vouchers of others shown to who sees their own records",
+    "file": "app/Libraries/Accounting/FamilyReports/CashDocumentRows.php",
+    "find": "if ($mine !== '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyTheExpensesOfAViewerWhoSeesTheirOwnRecords",
+      "tests/Libraries/Accounting/FamilyReports/ExpensesReportTest.php"
+    ]
+  },
+  {
+    "name": "G28 supplier payments of others shown to who sees their own records",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierPaymentRows.php",
+    "find": "if ($mine !== '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyThePaymentsOfAViewerWhoSeesTheirOwnRecords",
+      "tests/Libraries/Accounting/FamilyReports/SupplierPaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "G29 journals of others shown to who may not read them",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalLines.php",
+    "find": "$builder->where('j.created_by', $owner);",
+    "replace": "$owner;",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyTheBranchesOfTheScopeAndTheJournalsOfTheOwnerWhenGivenOne",
+      "tests/Libraries/Accounting/FamilyReports/JournalMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G30 net purchases tie always passes",
+    "file": "app/Libraries/Accounting/FamilyReports/PurchasesReport.php",
+    "find": "PurchaseDocuments::net($all), $this->documents->booked($input->scope, $period, $input->viewerId, $filter))",
+    "replace": "PurchaseDocuments::net($all), PurchaseDocuments::net($all))",
+    "tests": [
+      "--filter",
+      "testBuild_SaysSoWhenAPurchaseHasNoJournalInTheBooks",
+      "tests/Libraries/Accounting/FamilyReports/PurchasesReportTest.php"
+    ]
+  },
+  {
+    "name": "G31 reversed purchase journal counted in the book",
+    "file": "app/Libraries/Accounting/FamilyReports/PurchaseDocuments.php",
+    "find": "AND j.entry_type = ? AND j.status = ?\n             LEFT JOIN \" . $this->db->prefixTable('suppliers')",
+    "replace": "AND j.entry_type = ? AND j.status IN ('posted', 'reversed')\n             LEFT JOIN \" . $this->db->prefixTable('suppliers')",
+    "tests": [
+      "--filter",
+      "testBuild_SaysSoWhenAPurchaseHasNoJournalInTheBooks",
+      "tests/Libraries/Accounting/FamilyReports/PurchasesReportTest.php"
+    ]
+  },
+  {
+    "name": "G32 a return is added to the net purchases",
+    "file": "app/Libraries/Accounting/FamilyReports/PurchaseDocuments.php",
+    "find": "? bcsub($total, (string) $row->journal_total, SaleAmounts::SCALE)",
+    "replace": "? bcadd($total, (string) $row->journal_total, SaleAmounts::SCALE)",
+    "tests": [
+      "--filter",
+      "testBuild_TiesTheNetPurchasesToTheJournalsOfThePurchases",
+      "tests/Libraries/Accounting/FamilyReports/PurchasesReportTest.php"
+    ]
+  },
+  {
+    "name": "G33 expense tie reads no journal",
+    "file": "app/Libraries/Accounting/FamilyReports/CashDocumentsReport.php",
+    "find": "$booked = bcadd($booked, $row->journal_total, SaleAmounts::SCALE);",
+    "replace": "$booked = bcadd($booked, $row->total, SaleAmounts::SCALE);",
+    "tests": [
+      "--filter",
+      "testBuild_SaysSoWhenTheJournalOfAnExpenseHoldsAnotherAmountThanTheExpense",
+      "tests/Libraries/Accounting/FamilyReports/ExpensesReportTest.php"
+    ]
+  },
+  {
+    "name": "G34 unposted expenses not counted",
+    "file": "app/Libraries/Accounting/FamilyReports/CashDocumentsReport.php",
+    "find": "$unposted++;",
+    "replace": "$unposted += 0;",
+    "tests": [
+      "--filter",
+      "testBuild_SaysSoWhenAnExpenseHasNoJournalInTheBooks",
+      "tests/Libraries/Accounting/FamilyReports/ExpensesReportTest.php"
+    ]
+  },
+  {
+    "name": "G35 supplier payments tie reads no journal",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierPaymentsReport.php",
+    "find": "$comparable = $input->scope->isCompany()",
+    "replace": "$comparable = false && $input->scope->isCompany()",
+    "tests": [
+      "--filter",
+      "testBuild_TiesTheTotalToWhatTheJournalsTookOutOfTheTreasuryAndBankAccounts",
+      "tests/Libraries/Accounting/FamilyReports/SupplierPaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "G36 supplier balances tie to nothing",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierBalancesReport.php",
+    "find": "$input->scope->isEmpty() ? null :",
+    "replace": "true ? null :",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/SupplierBalancesReportTest.php"
+    ]
+  },
+  {
+    "name": "G37 stock value tie to the accounts always passes",
+    "file": "app/Libraries/Accounting/FamilyReports/StockTies.php",
+    "find": "return new TieCheck(lang('Accounting_family_reports.tie_stock_accounts'), $reported, $sum);",
+    "replace": "return new TieCheck(lang('Accounting_family_reports.tie_stock_accounts'), $reported, $reported);",
+    "tests": [
+      "--filter",
+      "testBuild_SaysSoWhenTheAccountOfALocationHoldsWhatNoMovementDoes",
+      "tests/Libraries/Accounting/FamilyReports/ProductBalanceReportTest.php"
+    ]
+  },
+  {
+    "name": "G38 stock tie of the whole company not through the reconciliation",
+    "file": "app/Libraries/Accounting/FamilyReports/StockTies.php",
+    "find": "if ($current && $scope->isCompany() && $held !== []) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsTheStockAccountsThroughTheReconciliationOfTheLedgerForTheWholeCompanyNowAndNotOtherwise",
+      "tests/Libraries/Accounting/FamilyReports/ProductBalanceReportTest.php"
+    ]
+  },
+  {
+    "name": "G39 cost of sales tie reads no journal",
+    "file": "app/Libraries/Accounting/FamilyReports/StockTurnoverReport.php",
+    "find": "$ties[]  = new TieCheck($this->text('tie_cost_of_sales'), bcadd($cogs, '0', SaleAmounts::SCALE), $charged);",
+    "replace": "$ties[]  = new TieCheck($this->text('tie_cost_of_sales'), bcadd($cogs, '0', SaleAmounts::SCALE), bcadd($cogs, '0', SaleAmounts::SCALE));",
+    "tests": [
+      "--filter",
+      "testBuild_SaysSoWhenTheMovementsOfTheSalesCostMoreThanTheJournalsChargedToTheCostOfSales",
+      "tests/Libraries/Accounting/FamilyReports/StockTurnoverReportTest.php"
+    ]
+  },
+  {
+    "name": "G40 journal debit not set beside the trial balance",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalMovementsReport.php",
+    "find": "if ($whole && $account === 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/JournalMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G41 chart balances not shown",
+    "file": "app/Libraries/Accounting/FamilyReports/ChartReport.php",
+    "find": "$cells['balance'] = $held[(int) $account->account_id] ?? '0.0000';",
+    "replace": "$cells['balance'] = '0.0000';",
+    "tests": [
+      "--filter",
+      "testBuild_WithBalancesShowsWhatTheJournalsOfTheBranchesPutOnEachAccountAndTheyAddUpToNothing",
+      "tests/Libraries/Accounting/FamilyReports/ChartReportTest.php"
+    ]
+  },
+  {
+    "name": "G42 reversal does not take back what the document brought in",
+    "file": "app/Libraries/Accounting/FamilyReports/StockAgingReport.php",
+    "find": "if ($entry->kind === 'reversal' && isset($lots[$key])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testBuild_TakesBackTheQuantityOfTheReversedDocumentAndNotTheOldestQuantity",
+      "tests/Libraries/Accounting/FamilyReports/StockAgingReportTest.php"
+    ]
+  },
+  {
+    "name": "G43 quantity that went out takes the newest quantity first",
+    "file": "app/Libraries/Accounting/FamilyReports/StockAgingReport.php",
+    "find": "foreach ($lots as $id => $lot) {\n            if (bccomp($out, '0', 3) <= 0) {",
+    "replace": "foreach (array_reverse($lots, true) as $id => $lot) {\n            if (bccomp($out, '0', 3) <= 0) {",
+    "tests": [
+      "--filter",
+      "testBuild_PlacesTheRemainingQuantityInFixedBucketsByTheDateItWasReceived",
+      "tests/Libraries/Accounting/FamilyReports/StockAgingReportTest.php"
+    ]
+  },
+  {
+    "name": "G45 turnover divides by the closing value alone",
+    "file": "app/Libraries/Accounting/FamilyReports/StockTurnoverReport.php",
+    "find": "$average = bcdiv(bcadd($set['opening'], $set['closing'], SaleAmounts::SCALE), '2', SaleAmounts::SCALE);",
+    "replace": "$average = bcadd($set['closing'], '0', SaleAmounts::SCALE);",
+    "tests": [
+      "--filter",
+      "testBuild_DividesTheCostOfSalesByTheAverageOfTheOpeningAndClosingValue",
+      "tests/Libraries/Accounting/FamilyReports/StockTurnoverReportTest.php"
+    ]
+  },
+  {
+    "name": "G46 turnover total is the sum of the item turnovers",
+    "file": "app/Libraries/Accounting/FamilyReports/StockTurnoverReport.php",
+    "find": "$cells = [...$total->cells, ...$this->ratios($total->cell('cogs'), $total->cell('average'), $days)];",
+    "replace": "$cells = [...$total->cells, 'ratio' => array_sum(array_map(static fn ($row): float => (float) $row->cell('ratio'), $rows)) . '', 'days' => '0.00'];",
+    "tests": [
+      "--filter",
+      "testBuild_GivesTheTurnoverOfTheWholeStockAsTheTotalNotTheSumOfTheItems",
+      "tests/Libraries/Accounting/FamilyReports/StockTurnoverReportTest.php"
+    ]
+  },
+  {
+    "name": "G47 turnover without a cost of sales or stock is not zero",
+    "file": "app/Libraries/Accounting/FamilyReports/StockTurnoverReport.php",
+    "find": "if (bccomp($average, '0', SaleAmounts::SCALE) <= 0 || bccomp($cogs, '0', SaleAmounts::SCALE) <= 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/StockTurnoverReportTest.php"
+    ]
+  },
+  {
+    "name": "G48 supplier aged ledger asks no valid day",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierAgedLedgerReport.php",
+    "find": "if ($query->refusal !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testBuild_RefusesADayThatIsNotOne",
+      "tests/Libraries/Accounting/FamilyReports/SupplierAgedLedgerReportTest.php"
+    ]
+  },
+  {
+    "name": "G49 supplier filter compared with the whole account",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierAgedLedgerReport.php",
+    "find": "if ($supplierId === 0) {",
+    "replace": "if (true) {",
+    "tests": [
+      "--filter",
+      "testBuild_CutsDownToOneSupplierAndDoesNotCompareIt",
+      "tests/Libraries/Accounting/FamilyReports/SupplierAgedLedgerReportTest.php"
+    ]
+  },
+  {
+    "name": "G50 supplier balances hide empty suppliers never",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierBalancesReport.php",
+    "find": "! $query->showEmpty",
+    "replace": "false",
+    "tests": [
+      "--filter",
+      "testBuild_HidesSuppliersWithNothingUnlessAskedAndRefusesABadPeriod",
+      "tests/Libraries/Accounting/FamilyReports/SupplierBalancesReportTest.php"
+    ]
+  },
+  {
+    "name": "G51 supplier directory city filter ignored",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierDirectoryReport.php",
+    "find": "if ($input->text($name) !== '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/SupplierDirectoryReportTest.php"
+    ]
+  },
+  {
+    "name": "G75 deleted supplier listed in the directory",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierDirectoryReport.php",
+    "find": "->where('s.deleted', 0)",
+    "replace": "->where('s.deleted >=', 0)",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/SupplierDirectoryReportTest.php"
+    ]
+  },
+  {
+    "name": "G52 activity log file without the audit permission",
+    "file": "app/Controllers/AccountingJournals.php",
+    "find": "public function getAuditCsv(): ResponseInterface\n    {\n        if (! $this->can(AccountingGuard::JOURNALS_AUDIT)) {",
+    "replace": "public function getAuditCsv(): ResponseInterface\n    {\n        if (false) {",
+    "tests": [
+      "--filter",
+      "testGetAuditCsv_IsNotFoundWithoutTheAuditPermission",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G53 activity log file of every branch for a reader of some",
+    "file": "app/Controllers/AccountingJournals.php",
+    "find": "foreach ($log->stream($filters, $order, $this->branchIds()) as $entry) {",
+    "replace": "foreach ($log->stream($filters, $order, null) as $entry) {",
+    "tests": [
+      "--filter",
+      "testGetAuditCsv_ListsOnlyTheEntriesOfTheBranchesOfALimitedReader",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G54 activity log list of every branch for a reader of some",
+    "file": "app/Controllers/AccountingJournals.php",
+    "find": "->search($this->auditFilters(), $this->auditOrder(), $limit, $offset, $this->branchIds());",
+    "replace": "->search($this->auditFilters(), $this->auditOrder(), $limit, $offset, null);",
+    "tests": [
+      "--filter",
+      "testGetAuditSearch_ShowsAReaderLimitedToABranchOnlyItsEntries",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G55 activity log file without a size limit",
+    "file": "app/Controllers/AccountingJournals.php",
+    "find": "if ($log->search($filters, $order, 1, 0, $this->branchIds())['total'] > AuditLog::EXPORT_LIMIT) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testGetAuditCsv_RefusesALogLargerThanOneFileCanCarry",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G56 activity log preset does not override the days",
+    "file": "app/Controllers/AccountingJournals.php",
+    "find": "if ($preset !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testGetAuditSearch_ReadsThePresetsAsTheObservedRanges",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G57 activity log origin filter ignored",
+    "file": "app/Controllers/AccountingJournals.php",
+    "find": "'origin'      => $this->requestText('origin'),",
+    "replace": "'origin'      => '',",
+    "tests": [
+      "--filter",
+      "testGetAuditSearch_FiltersByTheOriginOfTheEntry",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G58 activity log order ignored",
+    "file": "app/Controllers/AccountingJournals.php",
+    "find": "return strtolower($this->requestText('order')) === 'asc' ? 'asc' : 'desc';",
+    "replace": "return 'desc';",
+    "tests": [
+      "--filter",
+      "testGetAuditSearch_PagesWithTheTotalOfEveryEntry",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G59 activity log offers only the actions seen",
+    "file": "app/Controllers/AccountingJournals.php",
+    "find": "$actions      = array_values(array_unique([...AuditLog::known('action'), ...$log->actions($this->branchIds())]));",
+    "replace": "$actions      = array_values(array_unique([...$log->actions($this->branchIds())]));",
+    "tests": [
+      "--filter",
+      "testGetAudit_OffersEveryKnownActionAndEntityBeforeAnythingWasLogged",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G60 activity log known list takes every language key",
+    "file": "app/Libraries/Accounting/AuditLog.php",
+    "find": "if (str_starts_with($key, $prefix)) {",
+    "replace": "if (true) {",
+    "tests": [
+      "--filter",
+      "testKnown_NamesEveryActionAndEveryKindOfRecordTheLanguageFileHas",
+      "tests/Libraries/Accounting/AuditLogTest.php"
+    ]
+  },
+  {
+    "name": "G61 current month starts on the second day",
+    "file": "app/Libraries/Accounting/AuditPeriods.php",
+    "find": "$day->format('Y-m-01')",
+    "replace": "$day->format('Y-m-02')",
+    "tests": [
+      "tests/Libraries/Accounting/AuditPeriodsTest.php"
+    ]
+  },
+  {
+    "name": "G62 last month not cut short",
+    "file": "app/Libraries/Accounting/AuditPeriods.php",
+    "find": "min((int) $day->format('j'), $lastDay)",
+    "replace": "(int) $day->format('j')",
+    "tests": [
+      "tests/Libraries/Accounting/AuditPeriodsTest.php"
+    ]
+  },
+  {
+    "name": "G63 a day that is not a day accepted by the presets",
+    "file": "app/Libraries/Accounting/AuditPeriods.php",
+    "find": "if ($day === false || $day->format('Y-m-d') !== $today) {",
+    "replace": "if ($day === false) {",
+    "tests": [
+      "tests/Libraries/Accounting/AuditPeriodsTest.php"
+    ]
+  },
+  {
+    "name": "G64 treasury statement file of another branch",
+    "file": "app/Controllers/AccountingTreasuries.php",
+    "find": "public function getStatementCsv(int $treasuryId): ResponseInterface\n    {\n        $treasury = $this->visible($treasuryId);",
+    "replace": "public function getStatementCsv(int $treasuryId): ResponseInterface\n    {\n        $treasury = $this->treasuries->find($treasuryId);",
+    "tests": [
+      "--filter",
+      "testGetStatement",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G65 statement amounts in the wrong order accepted",
+    "file": "app/Libraries/Accounting/TreasuryStatement.php",
+    "find": "if ($least !== null && $most !== null && bccomp($least, $most, SaleAmounts::SCALE) > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TreasuryStatementTest.php"
+    ]
+  },
+  {
+    "name": "G66 statement amount that is not an amount accepted",
+    "file": "app/Libraries/Accounting/TreasuryStatement.php",
+    "find": "if (preg_match('/^\\d{1,11}(\\.\\d{1,4})?$/', $text) !== 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/TreasuryStatementTest.php"
+    ]
+  },
+  {
+    "name": "G67 statement page past the last not clamped",
+    "file": "app/Libraries/Accounting/TreasuryStatement.php",
+    "find": "$page    = max(1, min($page, $pages));",
+    "replace": "$page    = $page;",
+    "tests": [
+      "tests/Libraries/Accounting/TreasuryStatementTest.php"
+    ]
+  },
+  {
+    "name": "G68 statement oldest first ignored",
+    "file": "app/Libraries/Accounting/TreasuryStatement.php",
+    "find": "$ordered = $order === 'asc' ? $rows : array_reverse($rows);",
+    "replace": "$ordered = array_reverse($rows);",
+    "tests": [
+      "tests/Libraries/Accounting/TreasuryStatementTest.php"
+    ]
+  },
+  {
+    "name": "G69 statement balance before not carried",
+    "file": "app/Libraries/Accounting/TreasuryStatement.php",
+    "find": "bcsub((string) $oldest['balance'], bcsub((string) $oldest['debit'], (string) $oldest['credit'], SaleAmounts::SCALE), SaleAmounts::SCALE)",
+    "replace": "(string) $oldest['balance']",
+    "tests": [
+      "tests/Libraries/Accounting/TreasuryStatementTest.php"
+    ]
+  },
+  {
+    "name": "G70 statement filter changes the balances",
+    "file": "app/Libraries/Accounting/TreasuryStatement.php",
+    "find": "$balance = $all === [] ? '0.0000' : (string) $all[count($all) - 1]['balance'];",
+    "replace": "$balance = $rows === [] ? '0.0000' : (string) $rows[count($rows) - 1]['balance'];",
+    "tests": [
+      "tests/Libraries/Accounting/TreasuryStatementTest.php"
+    ]
+  },
+  {
+    "name": "G71 transfers of another branch listed",
+    "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+    "find": "if ($branchIds !== null) {\n                $builder->groupStart()->whereIn('tt.branch_id', $branchIds)",
+    "replace": "if (false) {\n                $builder->groupStart()->whereIn('tt.branch_id', $branchIds)",
+    "tests": [
+      "--filter",
+      "testSearch_KeepsTheBranchesOfTheReaderWhateverTheFilterAsks",
+      "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+    ]
+  },
+  {
+    "name": "G72 transfers not cut to the treasury",
+    "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+    "find": "if ($treasuryId > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testSearch_CutsTheListDownToTheDaysOfTheTransferAndToATreasuryOnEitherSide",
+      "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+    ]
+  },
+  {
+    "name": "G73 transfers day that is not a day used as is",
+    "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+    "find": "if (is_string($date) && preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $date) === 1) {",
+    "replace": "if (is_string($date) && $date !== '') {",
+    "tests": [
+      "--filter",
+      "testSearch_CutsTheListDownToTheDaysOfTheTransferAndToATreasuryOnEitherSide",
+      "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+    ]
+  },
+  {
+    "name": "G74 transfers screen filter by day ignored",
+    "file": "app/Controllers/AccountingTreasuries.php",
+    "find": "'date_from'   => $this->requestText('date_from'),",
+    "replace": "'date_from'   => '',",
+    "tests": [
+      "--filter",
+      "testGetTransfersSearch_FiltersByTheDateOfTheTransferAndByTheTreasury",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G76 supplier payments tie asks who reads, not whether the id is empty",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierPaymentsReport.php",
+    "find": "! $input->readsOwnRecordsOnly() &&",
+    "replace": "$input->viewerId === null &&",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyThePaymentsOfAViewerWhoSeesTheirOwnRecords",
+      "tests/Libraries/Accounting/FamilyReports/SupplierPaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "G77 supplier payments tie compared for who reads only their own",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierPaymentsReport.php",
+    "find": "! $input->readsOwnRecordsOnly() &&",
+    "replace": "true &&",
+    "tests": [
+      "--filter",
+      "testBuild_ReadsOnlyThePaymentsOfAViewerWhoSeesTheirOwnRecords",
+      "tests/Libraries/Accounting/FamilyReports/SupplierPaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "G78 purchase payments tie asks who reads, not whether the id is empty",
+    "file": "app/Libraries/Accounting/FamilyReports/PurchasePaymentsReport.php",
+    "find": "! $input->readsOwnRecordsOnly() &&",
+    "replace": "$input->viewerId === null &&",
+    "tests": [
+      "--filter",
+      "testBuild_ComparesWithTheAccountsForAReaderOfEveryonesRecordsAndNotForOneOfTheirOwn",
+      "tests/Libraries/Accounting/FamilyReports/PurchasePaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "G79 purchase payments tie compared for who reads only their own",
+    "file": "app/Libraries/Accounting/FamilyReports/PurchasePaymentsReport.php",
+    "find": "! $input->readsOwnRecordsOnly() &&",
+    "replace": "true &&",
+    "tests": [
+      "--filter",
+      "testBuild_ComparesWithTheAccountsForAReaderOfEveryonesRecordsAndNotForOneOfTheirOwn",
+      "tests/Libraries/Accounting/FamilyReports/PurchasePaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "G80 financial movements supplier tie asks who reads, not whether the id is empty",
+    "file": "app/Libraries/Accounting/FamilyReports/FinancialMovementsReport.php",
+    "find": "! $input->readsOwnRecordsOnly()",
+    "replace": "$input->viewerId === null",
+    "tests": [
+      "--filter",
+      "testBuild_ComparesTheSupplierPaymentsForAReaderOfEveryonesRecordsAndNotForOneOfTheirOwn",
+      "tests/Libraries/Accounting/FamilyReports/FinancialMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G81 financial movements supplier tie compared for who reads only their own",
+    "file": "app/Libraries/Accounting/FamilyReports/FinancialMovementsReport.php",
+    "find": "! $input->readsOwnRecordsOnly()",
+    "replace": "true",
+    "tests": [
+      "--filter",
+      "testBuild_ComparesTheSupplierPaymentsForAReaderOfEveryonesRecordsAndNotForOneOfTheirOwn",
+      "tests/Libraries/Accounting/FamilyReports/FinancialMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G82 ties of the payment reports not reached through the controller",
+    "file": "app/Libraries/Accounting/FamilyReports/ReportInput.php",
+    "find": "return (new RecordScope())->ownOnly($this->viewerId ?? RecordScope::sessionEmployee());",
+    "replace": "return true;",
+    "tests": [
+      "--filter",
+      "testGetShow_ShowsTheTiesToTheLedgerOfThePaymentReportsToWhoReadsEveryonesRecords",
+      "tests/Controllers/AccountingFamilyReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G83 payments of a treasury of another branch left out of the cash sources",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierPaymentRows.php",
+    "find": "$sources = [...$sources, ...CrossBranchPayments::companionsOf($source)];",
+    "replace": "$sources = [...$sources];",
+    "tests": [
+      "--filter",
+      "testCashSources_AddsTheJournalOfTheTreasuryOfAnotherBranchToTheSourcesOfThePayments",
+      "tests/Libraries/Accounting/FamilyReports/SupplierPaymentRowsTest.php"
+    ]
+  },
+  {
+    "name": "G84 supplier payments tie ignores the journal of the treasury of another branch",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierPaymentsReport.php",
+    "find": "$period->from, $period->to, SupplierPaymentRows::cashSources());",
+    "replace": "$period->from, $period->to, SupplierPaymentRows::SOURCES);",
+    "tests": [
+      "--filter",
+      "testBuild_CountsAPaymentOutOfATreasuryOfAnotherBranchThroughTheJournalOfThatBranch",
+      "tests/Libraries/Accounting/FamilyReports/SupplierPaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "G85 financial movements supplier tie ignores the journal of the treasury of another branch",
+    "file": "app/Libraries/Accounting/FamilyReports/FinancialMovementsReport.php",
+    "find": "if (in_array($move->source_type, SupplierPaymentRows::cashSources(), true)) {",
+    "replace": "if (in_array($move->source_type, SupplierPaymentRows::SOURCES, true)) {",
+    "tests": [
+      "--filter",
+      "testBuild_CountsAPaymentOutOfATreasuryOfAnotherBranchOnceThroughTheJournalOfThatBranch",
+      "tests/Libraries/Accounting/FamilyReports/FinancialMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G86 financial movements closing balance tie reads no journal",
+    "file": "app/Libraries/Accounting/FamilyReports/FinancialMovementsReport.php",
+    "find": "$this->accounts->movement($accounts, $input->scope, null, $period->to, self::sources()))];",
+    "replace": "'0.0000')];",
+    "tests": [
+      "--filter",
+      "testBuild_TiesTheClosingBalanceAndTheSupplierPaymentsToTheReportOfThem",
+      "tests/Libraries/Accounting/FamilyReports/FinancialMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G87 journal movements of an account asked to balance",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalMovementsReport.php",
+    "find": "if ($account === 0) {\n            $ties[] = new TieCheck($this->text('tie_debit_credit')",
+    "replace": "if (true) {\n            $ties[] = new TieCheck($this->text('tie_debit_credit')",
+    "tests": [
+      "--filter",
+      "testBuild_TiesTheLinesOfAnAccountToWhatTheAccountHoldsInsteadOfAskingThemToBalance",
+      "tests/Libraries/Accounting/FamilyReports/JournalMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G88 journal movements of an account tied to nothing",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalMovementsReport.php",
+    "find": "} elseif ($whole && $account > 0) {",
+    "replace": "} elseif (false) {",
+    "tests": [
+      "--filter",
+      "testBuild_TiesTheLinesOfAnAccountToWhatTheAccountHoldsInsteadOfAskingThemToBalance",
+      "tests/Libraries/Accounting/FamilyReports/JournalMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G89 journal movements of an account and a source compared",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalMovementsReport.php",
+    "find": "$whole = $source === '' && $input->journalOwner === null;",
+    "replace": "$whole = $input->journalOwner === null;",
+    "tests": [
+      "--filter",
+      "testBuild_LeavesTheTieOutWhenTheAccountIsNarrowedBySourceToo",
+      "tests/Libraries/Accounting/FamilyReports/JournalMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G90 journal blocks sorted by the text of their number",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalMovementsReport.php",
+    "find": "if ($group === 'account') {\n            ksort($sets);",
+    "replace": "if (true) {\n            ksort($sets);",
+    "tests": [
+      "--filter",
+      "testBuild_ListsTheJournalsInTheOrderOfTheirDayAndNumberNotOfTheTextOfTheirNumber",
+      "tests/Libraries/Accounting/FamilyReports/JournalMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G91 journal accounts not sorted by their code",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalMovementsReport.php",
+    "find": "if ($group === 'account') {\n            ksort($sets);",
+    "replace": "if (false) {\n            ksort($sets);",
+    "tests": [
+      "--filter",
+      "testBuild_ListsTheAccountsByTheirCode",
+      "tests/Libraries/Accounting/FamilyReports/JournalMovementsReportTest.php"
+    ]
+  },
+  {
+    "name": "G92 turnover day of the end not validated before the start is derived",
+    "file": "app/Libraries/Accounting/FamilyReports/StockTurnoverReport.php",
+    "find": "$to      = ReportPeriod::of(null, $input->text('to') === '' ? $input->today : $input->text('to'))->to;",
+    "replace": "$to      = $input->text('to') === '' ? $input->today : $input->text('to');",
+    "tests": [
+      "--filter",
+      "testBuild_RefusesADayThatIsNotOneWhenOnlyTheEndOfThePeriodIsGiven",
+      "tests/Libraries/Accounting/FamilyReports/StockTurnoverReportTest.php"
+    ]
+  },
+  {
+    "name": "G93 turnover days divided by a ratio that can round to nothing",
+    "file": "app/Libraries/Accounting/FamilyReports/StockTurnoverReport.php",
+    "find": "'days'  => SaleAmounts::round(bcdiv(bcmul($days, $average, 6), $cogs, 6), 2),",
+    "replace": "'days'  => SaleAmounts::round(bcdiv($days, bcdiv($cogs, $average, 6), 6), 2),",
+    "tests": [
+      "--filter",
+      "testBuild_GivesTheDaysToSellWithoutDividingByATurnoverTooSmallToShow",
+      "tests/Libraries/Accounting/FamilyReports/StockTurnoverReportTest.php"
+    ]
+  },
+  {
+    "name": "G94 journal source filter without the journals of a treasury of another branch",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalSources.php",
+    "find": "            ...CrossBranchPayments::companionsOf(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT),\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/JournalSourcesTest.php"
+    ]
+  },
+  {
+    "name": "G95 supplier opening balance counted as a purchase",
+    "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
+    "find": "$openingApart ? 'other' : 'sales',",
+    "replace": "'sales',",
+    "tests": [
+      "--filter",
+      "testBuild_CountsAnOpeningBalanceOwedUnderOtherWhenAskedToKeepItApart",
+      "tests/Libraries/Accounting/SupplierBalanceReportTest.php"
+    ]
+  },
+  {
+    "name": "G96 supplier balances report keeps the opening balance as a purchase",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierBalancesReport.php",
+    "find": "$input->scope->ids, true);",
+    "replace": "$input->scope->ids);",
+    "tests": [
+      "--filter",
+      "testBuild_KeepsAnOpeningBalanceOwedOutOfThePurchasesSoTheNetPurchasesAreThoseOfEveryReport",
+      "tests/Libraries/Accounting/FamilyReports/SupplierBalancesReportTest.php"
+    ]
+  },
+  {
+    "name": "G97 supplier balances show the database number as the account",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierBalancesReport.php",
+    "find": "'account'   => $codes[$row->accountId] ?? '',",
+    "replace": "'account'   => (string) $row->accountId,",
+    "tests": [
+      "--filter",
+      "testBuild_NamesTheAccountOfASupplierByItsCodeInTheChartNotByItsNumberInTheDatabase",
+      "tests/Libraries/Accounting/FamilyReports/SupplierBalancesReportTest.php"
+    ]
+  },
+  {
+    "name": "G98 supplier aged ledger shows the database number as the account",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierAgedLedgerReport.php",
+    "find": "'account' => $codes[$row->accountId] ?? '',",
+    "replace": "'account' => (string) $row->accountId,",
+    "tests": [
+      "--filter",
+      "testBuild_NamesTheAccountOfASupplierByItsCodeInTheChartNotByItsNumberInTheDatabase",
+      "tests/Libraries/Accounting/FamilyReports/SupplierAgedLedgerReportTest.php"
+    ]
+  },
+  {
+    "name": "G99 product purchases not set beside the journals",
+    "file": "app/Libraries/Accounting/FamilyReports/ProductPurchasesReport.php",
+    "find": "                new TieCheck($this->text('tie_net_purchases'), PurchaseDocuments::net($all), $this->documents->booked($input->scope, $period, $input->viewerId, $filter)),\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testBuild_SetsTheNetPurchasesBesideTheJournalsAndSaysSoWhenAJournalIsMissing",
+      "tests/Libraries/Accounting/FamilyReports/ProductPurchasesReportTest.php"
+    ]
+  },
+  {
+    "name": "G100 stock count sheet listed under a title that does not exist",
+    "file": "app/Libraries/Accounting/FamilyReports/FamilyReportCatalog.php",
+    "find": "'stock_count_sheet' => 'stock_count_title',\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testFamilyReportCatalog_LabelsEveryLinkWithTheTitleOfItsReport",
+      "tests/helpers/report_helperTest.php"
+    ]
+  },
+  {
+    "name": "G101 activity log walk takes no snapshot of the log",
+    "file": "app/Libraries/Accounting/AuditLog.php",
+    "find": "$filters['max_audit_id'] = $this->latestId();",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testStream_LeavesOutWhatIsWrittenWhileItGoesOn",
+      "tests/Libraries/Accounting/AuditLogTest.php"
+    ]
+  },
+  {
+    "name": "G102 activity log search ignores the last entry it was told",
+    "file": "app/Libraries/Accounting/AuditLog.php",
+    "find": "$builder->where('a.audit_id <=', $maxAuditId);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSearch_StopsAtTheEntryItIsToldIsTheLast",
+      "tests/Libraries/Accounting/AuditLogTest.php"
+    ]
+  },
+  {
+    "name": "G103 activity log walk skips entries between pages",
+    "file": "app/Libraries/Accounting/AuditLog.php",
+    "find": "$offset += self::PAGE_MAX;",
+    "replace": "$offset += 600;",
+    "tests": [
+      "--filter",
+      "testStream_WalksEveryEntryOfTheFiltersOnceInTheOrderAsked",
+      "tests/Libraries/Accounting/AuditLogTest.php"
+    ]
+  },
+  {
+    "name": "G104 activity log kinds of records only the ones with a name",
+    "file": "app/Controllers/AccountingJournals.php",
+    "find": ", ...$log->entities($this->branchIds())",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetAudit_OffersTheKindsOfRecordsTheLogHoldsAndNamesTheOnesTheCodeWrites",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G105 filters of the activity log file read as any value",
+    "file": "app/Controllers/AccountingController.php",
+    "find": "return is_string($value) ? trim($value) : '';",
+    "replace": "return trim((string) $value);",
+    "tests": [
+      "--filter",
+      "testGetAuditCsv_IgnoresAFilterThatIsNotASingleText",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G106 filters of the transfers list read as any value",
+    "file": "app/Controllers/AccountingController.php",
+    "find": "return is_string($value) ? trim($value) : '';",
+    "replace": "return trim((string) $value);",
+    "tests": [
+      "--filter",
+      "testGetTransfersSearch_IgnoresAFilterThatIsNotASingleText",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G107 treasury statement file holds one page",
+    "file": "app/Controllers/AccountingTreasuries.php",
+    "find": "$rows = $this->statements->rows($treasuryId, $this->statementFilters(), $this->statementOrder());",
+    "replace": "$rows = $this->statements->page($treasuryId, $this->statementFilters(), $this->statementOrder(), 1)['rows'];",
+    "tests": [
+      "--filter",
+      "testGetStatementCsv_GivesEveryMovementTheFiltersLeaveNotOnlyThePageOfTheScreen",
+      "tests/Controllers/AccountingTreasuriesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G108 activity log file larger than the limit by one",
+    "file": "app/Libraries/Accounting/AuditLog.php",
+    "find": "public const EXPORT_LIMIT = 20000;",
+    "replace": "public const EXPORT_LIMIT = 19999;",
+    "tests": [
+      "--filter",
+      "testGetAuditCsv_WritesALogOfExactlyTheLimitWholeAndOnceEach",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G109 activity log file refuses a log of exactly the limit",
+    "file": "app/Controllers/AccountingJournals.php",
+    "find": "['total'] > AuditLog::EXPORT_LIMIT) {",
+    "replace": "['total'] >= AuditLog::EXPORT_LIMIT) {",
+    "tests": [
+      "--filter",
+      "testGetAuditCsv_WritesALogOfExactlyTheLimitWholeAndOnceEach",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  }
+]
