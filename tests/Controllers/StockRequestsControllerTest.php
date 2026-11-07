@@ -275,6 +275,7 @@ class StockRequestsControllerTest extends CIUnitTestCase
         $page = $this->get('/stock_documents/requests/view/' . $requestId);
 
         $page->assertSee('id="request_permit_link"');
+        $this->assertStringContainsString('<bdi dir="ltr">STK-TRF ' . (int) $fulfilled['permit_id'] . '</bdi></a>', $page->getBody(), 'the permit is shown by the number its own page shows');
         $page->assertDontSee('id="request_fulfil"');
         $page->assertDontSee('id="request_cancel"');
 

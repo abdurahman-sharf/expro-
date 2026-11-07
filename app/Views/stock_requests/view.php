@@ -3,6 +3,7 @@
  * @var object       $stockRequest
  * @var list<object> $lines
  * @var string       $number
+ * @var string|null  $permitNumber
  * @var bool         $enabled
  * @var bool         $canManage
  * @var bool         $canApprove
@@ -78,7 +79,7 @@ $status = $stockRequest->status;
     <?php endif; ?>
     <?php if ($stockRequest->permit_id !== null): ?>
         <dt class="col-sm-3"><?= lang('Stock_documents.transfer_permit') ?></dt>
-        <dd class="col-sm-9"><a id="request_permit_link" href="<?= esc(base_url('stock_documents/permits/view/' . (int) $stockRequest->permit_id), 'attr') ?>">#<?= (int) $stockRequest->permit_id ?></a></dd>
+        <dd class="col-sm-9"><a id="request_permit_link" href="<?= esc(base_url('stock_documents/permits/view/' . (int) $stockRequest->permit_id), 'attr') ?>"><bdi dir="ltr"><?= esc((string) $permitNumber) ?></bdi></a></dd>
     <?php endif; ?>
 </dl>
 

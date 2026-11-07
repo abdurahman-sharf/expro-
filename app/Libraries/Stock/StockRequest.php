@@ -323,6 +323,11 @@ final class StockRequest
         return $this->numbering->label(DocumentType::StockRequest, 'stock_requests', $requestId);
     }
 
+    public function permitNumberOf(int $permitId): string
+    {
+        return $this->numbering->label(DocumentType::StockPermitTransfer, 'stock_permits', $permitId);
+    }
+
     public function peekNumber(): ?string
     {
         return $this->numbering->peek(DocumentType::StockRequest);

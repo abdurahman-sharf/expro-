@@ -72,6 +72,7 @@ class StockRequests extends StockDocumentController
             'stockRequest' => $request,
             'lines'        => $this->requests->lines($requestId),
             'number'       => $this->requests->numberOf($requestId),
+            'permitNumber' => $request->permit_id === null ? null : $this->requests->permitNumberOf((int) $request->permit_id),
             'enabled'      => $this->stockSettings()->requestsEnabled(),
             'canManage'    => $this->can(StockPermissions::REQUESTS_MANAGE),
             'canApprove'   => $this->can(StockPermissions::REQUESTS_APPROVE),

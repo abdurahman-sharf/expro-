@@ -2185,5 +2185,23 @@
   "tests": [
    "tests/Controllers/StockPermitsControllerTest.php"
   ]
+ },
+ {
+  "name": "R30 the permit of a fulfilled request is shown by its number",
+  "file": "app/Controllers/StockRequests.php",
+  "find": "'permitNumber' => $request->permit_id === null ? null : $this->requests->permitNumberOf((int) $request->permit_id),",
+  "replace": "'permitNumber' => $request->permit_id === null ? null : '#' . $request->permit_id,",
+  "tests": [
+   "tests/Controllers/StockRequestsControllerTest.php"
+  ]
+ },
+ {
+  "name": "R31 the number of the permit of a request is that of a transfer permit",
+  "file": "app/Libraries/Stock/StockRequest.php",
+  "find": "return $this->numbering->label(DocumentType::StockPermitTransfer, 'stock_permits', $permitId);",
+  "replace": "return $this->numbering->label(DocumentType::StockRequest, 'stock_requests', $permitId);",
+  "tests": [
+   "tests/Controllers/StockRequestsControllerTest.php"
+  ]
  }
 ]

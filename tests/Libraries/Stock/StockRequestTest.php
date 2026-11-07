@@ -427,7 +427,7 @@ class StockRequestTest extends CIUnitTestCase
         $this->assertSame([], $this->requests->search([], $this->keeper([]))['rows']);
     }
 
-    public function testSearch_AcceptsTheLabelAndTheIdOfARequestWhileNumberingIsOff(): void
+    public function testSearch_AcceptsTheLabelAndTheIdOfARequestWhileNumberingIsOffAndOnlyThen(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -439,6 +439,13 @@ class StockRequestTest extends CIUnitTestCase
         $this->assertSame(['STK-REQ ' . $second, 'STK-REQ ' . $first], array_map(static fn (object $row): string => $row->label, $this->requests->search([], $this->keeperId)['rows']));
         $this->assertSame([$first], $ids($this->requests->search(['search' => 'STK-REQ ' . $first], $this->keeperId)));
         $this->assertSame([$second], $ids($this->requests->search(['search' => (string) $second], $this->keeperId)));
+
+        $this->numberWith(DocumentType::StockRequest, 'REQ-', 3);
+
+        $numbered = $this->ask([['item_id' => $itemId, 'quantity' => '1']]);
+
+        $this->assertSame('REQ-001', $this->requests->search(['search' => 'REQ-001'], $this->keeperId)['rows'][0]->label);
+        $this->assertSame([], $ids($this->requests->search(['search' => (string) $numbered], $this->keeperId)), 'a request that has a number is found by it, not by its id');
     }
 
     public function testApprove_WritesTheAuditLogOfApprovalFulfilmentAndCancellation(): void

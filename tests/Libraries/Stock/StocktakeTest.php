@@ -793,7 +793,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame(3, $this->takes->search([], $this->keeperId)['total']);
     }
 
-    public function testSearch_AcceptsTheLabelAndTheIdOfAStocktakeWhileNumberingIsOff(): void
+    public function testSearch_AcceptsTheLabelAndTheIdOfAStocktakeWhileNumberingIsOffAndOnlyThen(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -805,6 +805,13 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame(['STKT ' . $stocktakeId, 'STKT ' . $other], array_map(static fn (object $row): string => $row->label, $this->takes->search([], $this->keeperId)['rows']));
         $this->assertSame([$stocktakeId], $ids($this->takes->search(['search' => 'STKT ' . $stocktakeId], $this->keeperId)));
         $this->assertSame([$other], $ids($this->takes->search(['search' => '#' . $other], $this->keeperId)));
+
+        $this->numberWith(DocumentType::Stocktake, 'CNT-', 3);
+
+        $numbered = $this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d', strtotime('-2 days'))], $this->keeperId);
+
+        $this->assertSame('CNT-001', $this->takes->search(['search' => 'CNT-001'], $this->keeperId)['rows'][0]->label);
+        $this->assertSame([], $ids($this->takes->search(['search' => (string) $numbered], $this->keeperId)), 'a stocktake that has a number is found by it, not by its id');
     }
 
     public function testApprove_LeavesTheQuantityAdjustmentsOfTheItemScreensAlone(): void
