@@ -37,15 +37,15 @@ final class SalesOrders
 {
     use RunsInTransaction;
 
-    public const MODULE      = 'sales_orders';
-    public const ADD         = 'sales_orders_add';
-    public const EDIT        = 'sales_orders_edit';
-    public const DELETE      = 'sales_orders_delete';
-    public const VIEW_ALL    = 'sales_orders_view_all';
-    public const CONVERT     = 'sales_orders_convert';
-    public const NOTE_MAX    = 500;
-    public const REASON_MAX  = 255;
-    private const ENTITY     = 'sales_order';
+    public const MODULE     = 'sales_orders';
+    public const ADD        = 'sales_orders_add';
+    public const EDIT       = 'sales_orders_edit';
+    public const DELETE     = 'sales_orders_delete';
+    public const VIEW_ALL   = 'sales_orders_view_all';
+    public const CONVERT    = 'sales_orders_convert';
+    public const NOTE_MAX   = 500;
+    public const REASON_MAX = 255;
+    private const ENTITY    = 'sales_order';
 
     private BaseConnection $db;
     private AccountingGuard $guard;
@@ -78,11 +78,11 @@ final class SalesOrders
         $this->guard->require(self::ADD, $employeeId);
         $this->assertOn();
 
-        $customerId = $this->customer($input['customer_id'] ?? 0);
-        $date       = $this->orderDate($input['order_date'] ?? null, $today ?? date('Y-m-d'));
-        $note       = $this->noteText($input['note'] ?? '');
+        $customerId              = $this->customer($input['customer_id'] ?? 0);
+        $date                    = $this->orderDate($input['order_date'] ?? null, $today ?? date('Y-m-d'));
+        $note                    = $this->noteText($input['note'] ?? '');
         [$locationId, $branchId] = $this->location($input['location_id'] ?? 0, $employeeId);
-        $lines      = LineInput::normalise($input['lines'] ?? null, $locationId, $this->db, AccountingError::SalesOrderNoLines, AccountingError::SalesOrderLineInvalid);
+        $lines                   = LineInput::normalise($input['lines'] ?? null, $locationId, $this->db, AccountingError::SalesOrderNoLines, AccountingError::SalesOrderLineInvalid);
 
         return $this->transactional(function () use ($customerId, $date, $note, $branchId, $lines, $employeeId): int {
             $this->db->table('sales_orders')->insert([
@@ -118,11 +118,11 @@ final class SalesOrders
         $this->guard->require(self::EDIT, $employeeId);
         $this->assertOn();
 
-        $customerId = $this->customer($input['customer_id'] ?? 0);
-        $date       = $this->orderDate($input['order_date'] ?? null, $today ?? date('Y-m-d'));
-        $note       = $this->noteText($input['note'] ?? '');
+        $customerId              = $this->customer($input['customer_id'] ?? 0);
+        $date                    = $this->orderDate($input['order_date'] ?? null, $today ?? date('Y-m-d'));
+        $note                    = $this->noteText($input['note'] ?? '');
         [$locationId, $branchId] = $this->location($input['location_id'] ?? 0, $employeeId);
-        $lines      = LineInput::normalise($input['lines'] ?? null, $locationId, $this->db, AccountingError::SalesOrderNoLines, AccountingError::SalesOrderLineInvalid);
+        $lines                   = LineInput::normalise($input['lines'] ?? null, $locationId, $this->db, AccountingError::SalesOrderNoLines, AccountingError::SalesOrderLineInvalid);
 
         $this->transactional(function () use ($orderId, $customerId, $date, $note, $branchId, $lines, $employeeId): void {
             $order = $this->lock($orderId, $employeeId);
@@ -477,9 +477,9 @@ final class SalesOrders
                     continue;
                 }
 
-                $take                       = bccomp($quantity, $left, 3) < 0 ? $quantity : $left;
+                $take                        = bccomp($quantity, $left, 3) < 0 ? $quantity : $left;
                 $taken[(int) $line->line_id] = bcadd($taken[(int) $line->line_id] ?? '0', $take, 3);
-                $quantity                   = bcsub($quantity, $take, 3);
+                $quantity                    = bcsub($quantity, $take, 3);
             }
 
             if (bccomp($quantity, '0', 3) > 0) {

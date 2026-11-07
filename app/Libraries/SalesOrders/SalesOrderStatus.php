@@ -11,11 +11,11 @@ namespace App\Libraries\SalesOrders;
  */
 enum SalesOrderStatus: string
 {
-    case Open          = 'open';
-    case Approved      = 'approved';
+    case Open           = 'open';
+    case Approved       = 'approved';
     case PartlyInvoiced = 'partly_invoiced';
-    case Invoiced      = 'invoiced';
-    case Cancelled     = 'cancelled';
+    case Invoiced       = 'invoiced';
+    case Cancelled      = 'cancelled';
 
     public function languageKey(): string
     {

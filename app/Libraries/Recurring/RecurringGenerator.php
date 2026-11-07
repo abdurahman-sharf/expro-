@@ -164,6 +164,8 @@ final class RecurringGenerator
             });
         } catch (AccountingException $busy) {
             if (in_array($busy->error, [AccountingError::CustomerBusy, AccountingError::WriteFailed], true)) {
+                log_message('warning', 'The recurring schedule ' . $scheduleId . ' is left for the next run: ' . $busy->getMessage());
+
                 return new RunResult($scheduleId, RunResult::BUSY);
             }
 
@@ -371,7 +373,7 @@ final class RecurringGenerator
         foreach ($this->db->table('recurring_schedule_lines l')->select('l.*, i.name AS item_name, i.cost_price')->join('items i', 'i.item_id = l.item_id')->where('l.schedule_id', $schedule->schedule_id)->orderBy('l.line_no', 'ASC')->get()->getResult() as $index => $line) {
             $cart[] = [
                 'item_id'       => (int) $line->item_id,
-                'line'          => $index,
+                'line'          => $index + 1,
                 'description'   => (string) $line->description === '' ? (string) $line->item_name : (string) $line->description,
                 'serialnumber'  => '',
                 'quantity'      => (string) $line->quantity,

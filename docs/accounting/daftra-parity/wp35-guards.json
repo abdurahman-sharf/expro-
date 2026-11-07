@@ -1,0 +1,1320 @@
+[
+  {
+    "name": "G01 terms: the period is at least one",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "AccountingError::RecurringPeriodInvalid, 1, self::MAX_COUNT)",
+    "replace": "AccountingError::RecurringPeriodInvalid, 0, self::MAX_COUNT)",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G02 terms: the period has a largest count",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "AccountingError::RecurringPeriodInvalid, 1, self::MAX_COUNT)",
+    "replace": "AccountingError::RecurringPeriodInvalid, 1, PHP_INT_MAX)",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G03 terms: the days before the date are fewer than the days of the period",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "AccountingError::RecurringIssueBeforeInvalid, 0, $limit - 1)",
+    "replace": "AccountingError::RecurringIssueBeforeInvalid, 0, $limit * 100)",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G04 terms: the end date is not before the start",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "if ($end !== null && $end < $start) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G05 terms: a date is a real day",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "$parsed->format('Y-m-d') !== $text",
+    "replace": "false",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G06 terms: a month-end date is clamped to the last day of the month",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "min((int) $start->format('j'), $last)",
+    "replace": "(int) $start->format('j')",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G07 terms: a year is twelve months",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "$this->unit === RecurrenceUnit::Years ? 12 : 1",
+    "replace": "$this->unit === RecurrenceUnit::Years ? 1 : 1",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G08 terms: a week is seven days",
+    "file": "app/Libraries/Recurring/RecurrenceUnit.php",
+    "find": "self::Weeks  => 7,",
+    "replace": "self::Weeks  => 1,",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G09 terms: the number of dates stops the schedule",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "if ($occurrence < 0 || ($this->maxRepeats > 0 && $occurrence >= $this->maxRepeats)) {",
+    "replace": "if ($occurrence < 0) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G10 terms: the end day stops the schedule",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "($this->endDate !== null && $date > $this->endDate)",
+    "replace": "false",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G11 terms: the reason a schedule ended is named",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "? 'max_repeats' : 'end_date';",
+    "replace": "? 'end_date' : 'max_repeats';",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G12 terms: the invoice is made the days before its date",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "->modify('-' . $this->issueBeforeDays . ' days')",
+    "replace": "->modify('+' . $this->issueBeforeDays . ' days')",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G13 terms: a schedule that resumes skips the dates before today",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "if ($date === null || $date >= $day) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G14 terms: no date after the last year",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "return (int) $date->format('Y') > self::MAX_YEAR ? null",
+    "replace": "return false ? null",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G15 terms: the expense frequencies keep their own period",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "'2_weeks'  => [2, RecurrenceUnit::Weeks],",
+    "replace": "'2_weeks'  => [2, RecurrenceUnit::Months],",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G16 terms: an expense has no days before its date",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "if ($kind === RecurringKind::Invoice) {\n            $limit",
+    "replace": "if (true) {\n            $limit",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrenceTermsTest.php"
+    ]
+  },
+  {
+    "name": "G20 input: the name is required and bounded",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if ($name === '' || mb_strlen($name) > RecurrenceTerms::MAX_NAME_LENGTH) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G21 input: the first date of a new schedule is not a day that has passed",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if ($isNew && $terms->startDate < $today) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G22 input: the comment is bounded",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if (mb_strlen($comment) > self::COMMENT_MAX) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G23 input: the customer exists",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if ($customerId <= 0 || $db->table('customers')",
+    "replace": "if (false && $db->table('customers')",
+    "tests": [
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G24 input: the stock location exists",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if ($location === null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G25 input: the employee works in the branch of the stock location",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "$branches->requireBranch((int) $location->branch_id, $employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G26 input: the payment terms are a number of days",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "InvoiceTiming::terms($input['payment_terms_days'])",
+    "replace": "(int) $input['payment_terms_days']",
+    "tests": [
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G27 input: an invoice is a draft unless it is to be issued",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "$mode  = ($input['issue_mode'] ?? self::ISSUE_DRAFT) === self::ISSUE_NOW ? self::ISSUE_NOW : self::ISSUE_DRAFT;",
+    "replace": "$mode  = $input['issue_mode'] ?? self::ISSUE_DRAFT;",
+    "tests": [
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G28 input: the expense category exists",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if ($categoryId <= 0 || $db->table('expense_categories')",
+    "replace": "if (false && $db->table('expense_categories')",
+    "tests": [
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G29 input: the amount of an expense is above zero",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "bccomp($amount, '0', 2) <= 0 ||",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G30 input: the tax is not more than the amount",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "|| bccomp($tax, $amount, 2) > 0)",
+    "replace": ")",
+    "tests": [
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G31 input: the way of payment is one of the list",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if (! array_key_exists($payment, get_payment_options())) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G32 input: the supplier exists",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if ($supplierId !== null && $db->table('suppliers')",
+    "replace": "if (false && $db->table('suppliers')",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G33 input: the treasury exists and is active",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if ($treasuryId !== null && ($treasury === null || (int) $treasury->active !== 1)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G34 input: the tax code of the supplier is bounded",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if (mb_strlen($taxCode) > 255) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G35 input: at most ten reminders",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if (count($rows) > self::MAX_REMINDERS) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G36 input: the days of a reminder before or after are required",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if ($needsDays && preg_match('/^\\d{1,4}$/', $days) !== 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G37 input: a reminder is one of the five choices",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if (preg_match('/^[0-4]$/', $when) !== 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G38 input: the reminders are rows",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "if (! is_array($raw)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G40 schedules: making one needs the permission of its kind",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "$this->guard->require($kind->managePermission(), $employeeId);\n\n        if ($employeeId === null) {",
+    "replace": "if ($employeeId === null) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G41 schedules: making one needs an employee whose permissions the documents use",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "if ($employeeId === null) {\n            throw new AccountingException(AccountingError::PermissionDenied",
+    "replace": "if (false) {\n            throw new AccountingException(AccountingError::PermissionDenied",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G42 schedules: changing one needs the permission of its kind",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "$this->guard->require($kind->managePermission(), $employeeId);\n\n        $today ??= date('Y-m-d');\n        $data ",
+    "replace": "$today ??= date('Y-m-d');\n        $data ",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G43 schedules: pausing, resuming and ending need the permission of its kind",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "$this->guard->require($kind->managePermission(), $employeeId);\n\n        $today ??= date('Y-m-d');\n\n        return $this->transactional(",
+    "replace": "$today ??= date('Y-m-d');\n\n        return $this->transactional(",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G44 schedules: an ended schedule is not changed",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "if ($row->status === ScheduleStatus::Ended->value) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G45 schedules: the start and the period stay once a date was made",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "if ($moved && $hasRuns) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G46 schedules: a moved start is not a day that has passed",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "if ($moved && $terms->startDate < $today) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G47 schedules: only the allowed moves between the three statuses",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "if (! $from->canMoveTo($to)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G48 schedules: a schedule that resumes skips the dates it was paused over",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "$occurrence = $terms->firstOccurrenceFrom($today, (int) $row->next_occurrence);",
+    "replace": "$occurrence = (int) $row->next_occurrence;",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G49 schedules: the employee works in the branch of the schedule",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "if ($row === null || ! $this->branches->canAccess((int) $row->branch_id, $employeeId)) {",
+    "replace": "if ($row === null) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G50 schedules: one is found only in the branches of the viewer",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "$this->limitTo($builder, $reach);\n\n        return $builder->where('s.schedule_id', $scheduleId)",
+    "replace": "return $builder->where('s.schedule_id', $scheduleId)",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G51 schedules: the list shows only the branches of the viewer",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "$this->limitTo($builder, $reach);\n\n        if (ScheduleStatus::tryFrom",
+    "replace": "if (ScheduleStatus::tryFrom",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G52 schedules: the list keeps the two kinds apart",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "->where('s.kind', $kind->value);",
+    "replace": "->where('s.company_id', CompanyContext::id());",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G53 schedules: a schedule with no date left ends when it is changed",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "'status'          => $due === null ? ScheduleStatus::Ended->value : $row->status,",
+    "replace": "'status'          => $row->status,",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G54 schedules: a schedule that is not active starts paused",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "$data['active'] ? ScheduleStatus::Active->value : ScheduleStatus::Paused->value",
+    "replace": "ScheduleStatus::Active->value",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G55 schedules: the audit log of the books is written only while they are on",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "if (! (new AccountingSettings($this->db))->isEnabled()) {\n            return;\n        }\n\n        $this->audit->write($kind->auditEntity()",
+    "replace": "$this->audit->write($kind->auditEntity()",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G56 schedules: an unknown schedule is refused",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "if ($row === null) {\n            throw new AccountingException(AccountingError::RecurringNotFound, 'There is no such schedule.', ['name' => (string) $scheduleId]);\n        }\n\n        return RecurringKind::from",
+    "replace": "if (false) {\n            throw new AccountingException(AccountingError::RecurringNotFound, 'There is no such schedule.', ['name' => (string) $scheduleId]);\n        }\n\n        return RecurringKind::from",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G60 generator: nothing is made before its day",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "if ($terms->generationDate($due) > $today) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G61 generator: a date that already has its run is never made twice",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "if ($existing !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G62 generator: the employee of the schedule still needs the permission to manage it",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "$this->guard->require(RecurringKind::from((string) $schedule->kind)->managePermission(), (int) $schedule->employee_id);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G63 generator: the employee of the schedule still works in its branch",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "(new BranchGuard($this->db))->requireBranch((int) $schedule->branch_id, (int) $schedule->employee_id);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G64 generator: an invoice is never dated a day that has not come",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "$date          = min($due, $today);",
+    "replace": "$date          = $due;",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G65 generator: an invoice is a draft unless the schedule issues it",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "$status        = $issue ? COMPLETED : SUSPENDED;",
+    "replace": "$status        = COMPLETED;",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G66 generator: a run makes at most the cap for one schedule",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "for ($done = 0; $done < $cap; $done++) {",
+    "replace": "for ($done = 0; $done < $cap + 100; $done++) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G67 generator: a refused date moves the schedule on to the next",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "$this->advance($schedule, RecurrenceTerms::of($schedule), (int) $schedule->next_occurrence);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G68 generator: trying a date again needs the permission to manage the schedule",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "$this->guard->require(RecurringKind::from((string) $row->kind)->managePermission(), $employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G69 generator: trying a date again needs the branch of the schedule",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "if (! (new BranchGuard($this->db))->canAccess((int) $row->branch_id, $employeeId)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G70 generator: only a refused date is tried again",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "if ($run->status !== 'refused' || $run->sale_id !== null || $run->expense_id !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G71 generator: a run of another schedule is not found",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "' WHERE run_id = ? AND schedule_id = ? FOR UPDATE', [$runId, $scheduleId]);",
+    "replace": "' WHERE run_id = ? FOR UPDATE', [$runId]);",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G72 generator: the audit log of the books is written only while they are on",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "if (! (new AccountingSettings($this->db))->isEnabled()) {\n            return;\n        }\n\n        $kind = RecurringKind::from",
+    "replace": "$kind = RecurringKind::from",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G73 generator: the last date ends the schedule",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "'status'          => $nextDue === null ? ScheduleStatus::Ended->value : ScheduleStatus::Active->value,",
+    "replace": "'status'          => ScheduleStatus::Active->value,",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G74 generator: the payment terms of the schedule go to the invoice",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "paymentTerms: $schedule->payment_terms_days === null ? null : (int) $schedule->payment_terms_days,",
+    "replace": "paymentTerms: null,",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G75 generator: the issue-before days bring the date forward",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "->where('DATE_SUB(next_due_date, INTERVAL issue_before_days DAY) <=', $today)",
+    "replace": "->where('next_due_date <=', $today)",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G76 generator: the day is a real day",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "if ($parsed === false || $parsed->format('Y-m-d') !== $day) {",
+    "replace": "if ($parsed === false) {",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G77 generator: the day that counts is the day of the application",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "$day ??= date('Y-m-d');",
+    "replace": "$day ??= (string) $this->db->query('SELECT CURDATE() AS today')->getRow()->today;",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G78 generator: the expense takes its due date",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "'date'                => $due . ' 00:00:00',",
+    "replace": "'date'                => date('Y-m-d H:i:s'),",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G80 reminders: not older than a month",
+    "file": "app/Libraries/Recurring/RecurringReminders.php",
+    "find": "$date <= $today && $date >= $oldest",
+    "replace": "$date <= $today",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringRemindersTest.php"
+    ]
+  },
+  {
+    "name": "G81 reminders: not before their day",
+    "file": "app/Libraries/Recurring/RecurringReminders.php",
+    "find": "$date <= $today && $date >= $oldest",
+    "replace": "$date >= $oldest",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringRemindersTest.php"
+    ]
+  },
+  {
+    "name": "G82 reminders: the ones that look back count from the invoice made last",
+    "file": "app/Libraries/Recurring/RecurringReminders.php",
+    "find": "$looksBack   = $sendWhen === self::ON_DUE || $sendWhen === self::DAYS_AFTER;",
+    "replace": "$looksBack   = false;",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringRemindersTest.php"
+    ]
+  },
+  {
+    "name": "G83 reminders: only the schedules of the branches of the viewer",
+    "file": "app/Libraries/Recurring/RecurringReminders.php",
+    "find": "$builder->whereIn('s.branch_id', $reach);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringRemindersTest.php"
+    ]
+  },
+  {
+    "name": "G84 reminders: only the active schedules of invoices",
+    "file": "app/Libraries/Recurring/RecurringReminders.php",
+    "find": "['s.kind' => RecurringKind::Invoice->value, 's.status' => ScheduleStatus::Active->value]",
+    "replace": "['s.kind' => RecurringKind::Invoice->value]",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringRemindersTest.php"
+    ]
+  },
+  {
+    "name": "G85 reminders: days before is before",
+    "file": "app/Libraries/Recurring/RecurringReminders.php",
+    "find": "self::DAYS_BEFORE => -($days ?? 0),",
+    "replace": "self::DAYS_BEFORE => ($days ?? 0),",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringRemindersTest.php"
+    ]
+  },
+  {
+    "name": "G86 reminders: the due date counts the payment terms",
+    "file": "app/Libraries/Recurring/RecurringReminders.php",
+    "find": "self::ON_DUE      => $paymentTerms ?? 0,",
+    "replace": "self::ON_DUE      => 0,",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringRemindersTest.php"
+    ]
+  },
+  {
+    "name": "G87 reminders: the issue date is the days before",
+    "file": "app/Libraries/Recurring/RecurringReminders.php",
+    "find": "self::ON_ISSUE    => -$issueBeforeDays,",
+    "replace": "self::ON_ISSUE    => $issueBeforeDays,",
+    "tests": [
+      "tests/Libraries/Recurring/RecurringRemindersTest.php"
+    ]
+  },
+  {
+    "name": "G90 refusal: only what is a scalar of the context is kept",
+    "file": "app/Libraries/Recurring/RunRefusal.php",
+    "find": "array_filter($context, static fn (mixed $value): bool => is_scalar($value))",
+    "replace": "$context",
+    "tests": [
+      "tests/Libraries/Recurring/RunRefusalTest.php"
+    ]
+  },
+  {
+    "name": "G91 refusal: the context never passes the column",
+    "file": "app/Libraries/Recurring/RunRefusal.php",
+    "find": "mb_substr(json_encode($this->context, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 0, self::CONTEXT_MAX)",
+    "replace": "json_encode($this->context, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)",
+    "tests": [
+      "tests/Libraries/Recurring/RunRefusalTest.php"
+    ]
+  },
+  {
+    "name": "G95 readiness: two days behind is not stuck, three is",
+    "file": "app/Libraries/Accounting/Readiness/RecurringChecks.php",
+    "find": "->where('DATE_SUB(next_due_date, INTERVAL issue_before_days DAY) <', $limit)",
+    "replace": "->where('DATE_SUB(next_due_date, INTERVAL issue_before_days DAY) <=', $limit)",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/RecurringChecksTest.php"
+    ]
+  },
+  {
+    "name": "G96 readiness: only the active schedules are late",
+    "file": "app/Libraries/Accounting/Readiness/RecurringChecks.php",
+    "find": "->select('schedule_id, kind, name, next_due_date, issue_before_days')\n            ->where('status', ScheduleStatus::Active->value)",
+    "replace": "->select('schedule_id, kind, name, next_due_date, issue_before_days')",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/RecurringChecksTest.php"
+    ]
+  },
+  {
+    "name": "G97 readiness: a schedule that is stuck fails the check",
+    "file": "app/Libraries/Accounting/Readiness/RecurringChecks.php",
+    "find": "if ($stuck !== []) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/RecurringChecksTest.php"
+    ]
+  },
+  {
+    "name": "G98 readiness: the refused dates are for review",
+    "file": "app/Libraries/Accounting/Readiness/RecurringChecks.php",
+    "find": "if ($refused > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/RecurringChecksTest.php"
+    ]
+  },
+  {
+    "name": "G100 command: the date is not after today",
+    "file": "app/Commands/AccountingGenerateRecurring.php",
+    "find": "|| $date > date('Y-m-d')",
+    "replace": "",
+    "tests": [
+      "tests/Commands/AccountingGenerateRecurringTest.php"
+    ]
+  },
+  {
+    "name": "G101 command: the cap is at least one",
+    "file": "app/Commands/AccountingGenerateRecurring.php",
+    "find": "|| (int) $cap < 1",
+    "replace": "",
+    "tests": [
+      "tests/Commands/AccountingGenerateRecurringTest.php"
+    ]
+  },
+  {
+    "name": "G102 command: the schedule is a whole number",
+    "file": "app/Commands/AccountingGenerateRecurring.php",
+    "find": "($schedule !== null && ! ctype_digit($schedule))",
+    "replace": "false",
+    "tests": [
+      "tests/Commands/AccountingGenerateRecurringTest.php"
+    ]
+  },
+  {
+    "name": "G103 command: it says by its exit code that something was refused or left",
+    "file": "app/Commands/AccountingGenerateRecurring.php",
+    "find": "return $report->refused() === 0 && $report->capped === [] && $report->count(RunResult::BUSY) === 0 ? EXIT_SUCCESS : EXIT_ERROR;",
+    "replace": "return EXIT_SUCCESS;",
+    "tests": [
+      "tests/Commands/AccountingGenerateRecurringTest.php"
+    ]
+  },
+  {
+    "name": "G104 command: the date is a real day",
+    "file": "app/Commands/AccountingGenerateRecurring.php",
+    "find": "$parsed->format('Y-m-d') === $date",
+    "replace": "true",
+    "tests": [
+      "tests/Commands/AccountingGenerateRecurringTest.php"
+    ]
+  },
+  {
+    "name": "G110 screen: the form is for who may manage",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "if (! $this->can($kind->managePermission())) {\n            throw PageNotFoundException::forPageNotFound();",
+    "replace": "if (false) {\n            throw PageNotFoundException::forPageNotFound();",
+    "tests": [
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G111 screen: an ended schedule has no form",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "if ($schedule === null || $schedule->status === ScheduleStatus::Ended->value) {",
+    "replace": "if ($schedule === null) {",
+    "tests": [
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G112 screen: a schedule is shown through the module of its kind",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "if ($schedule === null || $schedule->kind !== $kind->value) {",
+    "replace": "if ($schedule === null) {",
+    "tests": [
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G113 screen: a schedule is changed through the module of its kind",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "$this->assertKind($scheduleId);\n                $this->schedules->update(",
+    "replace": "$this->schedules->update(",
+    "tests": [
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G114 screen: a status is changed through the module of its kind",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "$this->assertKind($scheduleId);\n\n            $to = ScheduleStatus::tryFrom",
+    "replace": "$to = ScheduleStatus::tryFrom",
+    "tests": [
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G115 screen: a date is tried again through the module of its kind",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "$this->assertKind($scheduleId);\n\n            $result = (new RecurringGenerator",
+    "replace": "$result = (new RecurringGenerator",
+    "tests": [
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G116 screen: the lookups are for who may manage",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "return $this->can($this->kind()->managePermission()) ? $this->customerLookup() : $this->forbidden();",
+    "replace": "return $this->customerLookup();",
+    "tests": [
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G117 screen: the reminders are on the list of invoices only",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "'reminders'  => $kind === RecurringKind::Invoice ? (new RecurringReminders(null, $this->branchGuard()))->due(date('Y-m-d'), $this->employeeId()) : [],",
+    "replace": "'reminders'  => (new RecurringReminders(null, $this->branchGuard()))->due(date('Y-m-d'), $this->employeeId()),",
+    "tests": [
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G118 routes: a status change is a POST",
+    "file": "app/Config/Routes.php",
+    "find": "$routes->post('status/(:num)', 'Recurring_invoices::postStatus/$1');",
+    "replace": "$routes->get('status/(:num)', 'Recurring_invoices::postStatus/$1');",
+    "tests": [
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G119 routes: a retry is a POST",
+    "file": "app/Config/Routes.php",
+    "find": "$routes->post('retry/(:num)/(:num)', 'Recurring_expenses::postRetry/$1/$2');",
+    "replace": "$routes->get('retry/(:num)/(:num)', 'Recurring_expenses::postRetry/$1/$2');",
+    "tests": [
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G130 orders: adding needs the permission to add",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "$this->guard->require(self::ADD, $employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G131 orders: changing needs the permission to edit",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "$this->guard->require(self::EDIT, $employeeId);\n        $this->assertOn();\n\n        $customerId",
+    "replace": "$this->assertOn();\n\n        $customerId",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G132 orders: approving needs the permission to edit",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "$this->guard->require(self::EDIT, $employeeId);\n        $this->assertOn();\n\n        return $this->transactional(function () use ($orderId, $to",
+    "replace": "$this->assertOn();\n\n        return $this->transactional(function () use ($orderId, $to",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G133 orders: cancelling needs the permission to delete",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "$this->guard->require(self::DELETE, $employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G134 orders: converting needs the permission to convert",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "$this->guard->require(self::CONVERT, $employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G135 orders: nothing works while the module is off",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "if (! $this->settings->isEnabled()) {\n            throw new AccountingException(AccountingError::SalesOrderModuleOff",
+    "replace": "if (false) {\n            throw new AccountingException(AccountingError::SalesOrderModuleOff",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G136 orders: an order an invoice was made from is not changed",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "|| $this->everInvoiced($orderId)) {",
+    "replace": "|| false) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G137 orders: a cancelled order is not changed",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "if (! $this->statusOf($orderId)?->isEditable() ||",
+    "replace": "if (false ||",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G138 orders: cancelling needs a reason",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G139 orders: an invoiced or cancelled order is not cancelled",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "if (! $from->canCancel()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G140 orders: only open and approved are set by hand",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "if (! in_array($to, $from->manualNext(), true) || ! $to->isStored()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G141 orders: the employee works in the branch of the order he changes",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "$order = $this->lock($orderId, $employeeId);\n\n            $this->branches->requireBranch((int) $order->branch_id, $employeeId);\n\n            if (! $this->statusOf",
+    "replace": "$order = $this->lock($orderId, $employeeId);\n\n            if (! $this->statusOf",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G142 orders: the employee works in the branch of the order he approves",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "$order = $this->lock($orderId, $employeeId);\n\n            $this->branches->requireBranch((int) $order->branch_id, $employeeId);\n\n            $from = $this->statusOf($orderId) ?? SalesOrderStatus::Open;\n\n            if ($from === $to) {",
+    "replace": "$order = $this->lock($orderId, $employeeId);\n\n            $from = $this->statusOf($orderId) ?? SalesOrderStatus::Open;\n\n            if ($from === $to) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G143 orders: the employee works in the branch of the order he cancels",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "$order = $this->lock($orderId, $employeeId);\n\n            $this->branches->requireBranch((int) $order->branch_id, $employeeId);\n\n            $from = $this->statusOf($orderId) ?? SalesOrderStatus::Open;\n\n            if (! $from->canCancel()) {",
+    "replace": "$order = $this->lock($orderId, $employeeId);\n\n            $from = $this->statusOf($orderId) ?? SalesOrderStatus::Open;\n\n            if (! $from->canCancel()) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G144 orders: the invoice is saved by an employee of the branch of the order",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "$this->branches->requireBranch((int) $order->branch_id, $employeeId);\n\n            if ((int) $order->customer_id !== $customerId) {",
+    "replace": "if ((int) $order->customer_id !== $customerId) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G145 orders: the employee works in the branch of the order he converts",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "$this->branches->requireBranch((int) $order->branch_id, $employeeId);\n\n        if (! $order->status_object->canConvert()) {",
+    "replace": "if (! $order->status_object->canConvert()) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G146 orders: the stock location is in the branch of the employee",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "$this->branches->requireBranch((int) $row->branch_id, $employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G147 orders: a person who may see only their own orders sees only those",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "if (! $reach['all']) {\n            $builder->where('o.created_by', $viewerId);\n        }",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G148 orders: a person who may see only their own orders changes only those",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "(! $this->mayViewAll($employeeId) && (int) $order->created_by !== $employeeId)",
+    "replace": "false",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G149 orders: the invoice does not take more than the order has left",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "if (! $allowExcess) {\n                    throw",
+    "replace": "if (false) {\n                    throw",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G150 orders: the invoice is for the customer of the order",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "if ((int) $order->customer_id !== $customerId) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G151 orders: only an order that may be converted is invoiced",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "if (! $status->canConvert()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G152 orders: an invoice that is not completed gives its quantity back",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "->join('sales s', 's.sale_id = t.sale_id AND s.sale_status = ' . COMPLETED)",
+    "replace": "->join('sales s', 's.sale_id = t.sale_id')",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G153 orders: the customer exists",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "$found      = $customerId > 0 && $this->db->table('customers')->where(['person_id' => $customerId, 'deleted' => 0])->countAllResults() > 0;",
+    "replace": "$found      = true;",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G154 orders: the date is a real day",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "if ($parsed === false || $parsed->format('Y-m-d') !== $text) {",
+    "replace": "if ($parsed === false) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G155 orders: the note is bounded",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "if (mb_strlen($text) > self::NOTE_MAX) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G156 orders: the audit log of the books is written only while they are on",
+    "file": "app/Libraries/SalesOrders/SalesOrders.php",
+    "find": "if (! (new AccountingSettings($this->db))->isEnabled()) {\n            return;\n        }\n\n        $this->audit->write(self::ENTITY",
+    "replace": "$this->audit->write(self::ENTITY",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G157 orders: a draft takes no quantity until it is issued",
+    "file": "app/Models/Sale.php",
+    "find": "$saleStatus == COMPLETED\n                        ? $orders->recordInvoice(",
+    "replace": "true\n                        ? $orders->recordInvoice(",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrdersTest.php"
+    ]
+  },
+  {
+    "name": "G160 settings: the switches need the permission of the configuration",
+    "file": "app/Libraries/SalesOrders/SalesOrderSettings.php",
+    "find": "$this->guard->require(self::PERMISSION, $employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrderSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G161 status: an order is converted from approved or partly invoiced only",
+    "file": "app/Libraries/SalesOrders/SalesOrderStatus.php",
+    "find": "return $this === self::Approved || $this === self::PartlyInvoiced;",
+    "replace": "return true;",
+    "tests": [
+      "tests/Libraries/SalesOrders/SalesOrderStatusTest.php"
+    ]
+  },
+  {
+    "name": "G162 lines: a quantity is above zero",
+    "file": "app/Libraries/SalesOrders/LineInput.php",
+    "find": "bccomp($quantity, '0', 3) <= 0 ||",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/SalesOrders/LineInputTest.php"
+    ]
+  },
+  {
+    "name": "G163 lines: a percent discount is at most a hundred",
+    "file": "app/Libraries/SalesOrders/LineInput.php",
+    "find": "if ($type === 0 && bccomp($discount, '100', 2) > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/LineInputTest.php"
+    ]
+  },
+  {
+    "name": "G164 lines: a fixed discount is not more than the line",
+    "file": "app/Libraries/SalesOrders/LineInput.php",
+    "find": "if ($type === 1 && bccomp($discount, bcmul($quantity, $price, 2), 2) > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/LineInputTest.php"
+    ]
+  },
+  {
+    "name": "G165 lines: the item exists",
+    "file": "app/Libraries/SalesOrders/LineInput.php",
+    "find": "if (! in_array($line['item_id'], $found, true)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/LineInputTest.php"
+    ]
+  },
+  {
+    "name": "G166 lines: a document has at most 200 lines",
+    "file": "app/Libraries/SalesOrders/LineInput.php",
+    "find": "if (count($raw) > self::MAX_LINES) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/SalesOrders/LineInputTest.php"
+    ]
+  },
+  {
+    "name": "G170 order screen: the form goes to the register while the module is off",
+    "file": "app/Controllers/Sales_orders.php",
+    "find": "if (! $this->orders->isEnabled()) {\n            return redirect()->to(site_url('sales'));",
+    "replace": "if (false) {\n            return redirect()->to(site_url('sales'));",
+    "tests": [
+      "tests/Controllers/Sales_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G171 order screen: the form is for who may add or edit",
+    "file": "app/Controllers/Sales_orders.php",
+    "find": "} elseif (! $this->can(SalesOrders::ADD)) {",
+    "replace": "} elseif (false) {",
+    "tests": [
+      "tests/Controllers/Sales_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G172 order screen: an order is shown only while the module is on",
+    "file": "app/Controllers/Sales_orders.php",
+    "find": "$order = $this->orders->isEnabled() ? $this->orders->find($orderId, $this->employeeId()) : null;",
+    "replace": "$order = $this->orders->find($orderId, $this->employeeId());",
+    "tests": [
+      "tests/Controllers/Sales_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G173 order screen: the lookups are for who may write an order",
+    "file": "app/Controllers/Sales_orders.php",
+    "find": "return $this->can(SalesOrders::ADD) || $this->can(SalesOrders::EDIT) ? $this->customerLookup() : $this->forbidden();",
+    "replace": "return $this->customerLookup();",
+    "tests": [
+      "tests/Controllers/Sales_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G174 order screen: an order becomes an invoice only when invoices are on",
+    "file": "app/Controllers/Sales_orders.php",
+    "find": "if (! config(OSPOS::class)->settings['invoice_enable']) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/Sales_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G175 order screen: the conversion asks the service first",
+    "file": "app/Controllers/Sales_orders.php",
+    "find": "$order = $this->orders->assertConvertible($orderId, $this->employeeId());",
+    "replace": "$order = $this->orders->find($orderId, $this->employeeId());",
+    "tests": [
+      "tests/Controllers/Sales_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G176 order routes: a cancel is a POST",
+    "file": "app/Config/Routes.php",
+    "find": "$routes->post('cancel/(:num)', 'Sales_orders::postCancel/$1');",
+    "replace": "$routes->get('cancel/(:num)', 'Sales_orders::postCancel/$1');",
+    "tests": [
+      "tests/Controllers/Sales_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G177 order routes: a conversion is a POST",
+    "file": "app/Config/Routes.php",
+    "find": "$routes->post('convert/(:num)', 'Sales_orders::postConvert/$1');",
+    "replace": "$routes->get('convert/(:num)', 'Sales_orders::postConvert/$1');",
+    "tests": [
+      "tests/Controllers/Sales_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G178 order routes: the settings are a POST",
+    "file": "app/Config/Routes.php",
+    "find": "$routes->post('settings', 'Sales_orders::postSettings');",
+    "replace": "$routes->get('settings', 'Sales_orders::postSettings');",
+    "tests": [
+      "tests/Controllers/Sales_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G180 sale: a schedule may date an invoice without the permission to type the day",
+    "file": "app/Models/Sale.php",
+    "find": "if ($this->datedBySchedule || model(Employee::class)->has_grant('sales_invoice_date', $employeeId)) {",
+    "replace": "if (model(Employee::class)->has_grant('sales_invoice_date', $employeeId)) {",
+    "tests": [
+      "--filter",
+      "DatedBySchedule",
+      "tests/Libraries/Accounting/SalePostingTest.php"
+    ]
+  },
+  {
+    "name": "G181 sale: the right to date an invoice is taken back when the schedule work ends",
+    "file": "app/Models/Sale.php",
+    "find": "$this->datedBySchedule = $before;",
+    "replace": "$this->datedBySchedule = true;",
+    "tests": [
+      "--filter",
+      "DatedBySchedule",
+      "tests/Libraries/Accounting/SalePostingTest.php"
+    ]
+  }
+]
