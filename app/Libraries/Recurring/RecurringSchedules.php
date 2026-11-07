@@ -251,7 +251,14 @@ final class RecurringSchedules
      */
     public function runs(int $scheduleId, int $limit = 200): array
     {
-        $runs = $this->db->table('recurring_runs')->where('schedule_id', $scheduleId)->orderBy('due_date', 'DESC')->limit(max(1, $limit))->get()->getResult();
+        $runs = $this->db->table('recurring_runs r')
+            ->select('r.*, s.sale_status')
+            ->join('sales s', 's.sale_id = r.sale_id', 'left')
+            ->where('r.schedule_id', $scheduleId)
+            ->orderBy('r.due_date', 'DESC')
+            ->limit(max(1, $limit))
+            ->get()
+            ->getResult();
 
         foreach ($runs as $run) {
             $run->refusal_words = $run->status === 'refused' ? RunRefusal::wordsOf($run->refusal_source, $run->refusal_code, $run->refusal_context) : '';

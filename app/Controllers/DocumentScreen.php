@@ -9,10 +9,12 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Stock_location;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Database;
 
 abstract class DocumentScreen extends Secure_Controller
 {
-    protected const PAGE_SIZE = 25;
+    protected const PAGE_SIZE    = 25;
+    protected const LOOKUP_LIMIT = 20;
 
     private ?BranchGuard $branchGuard = null;
 
@@ -76,5 +78,37 @@ abstract class DocumentScreen extends Secure_Controller
         }
 
         return $options;
+    }
+
+    protected function customerLookup(): ResponseInterface
+    {
+        $builder = Database::connect()->table('customers c')
+            ->select("c.person_id, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS name", false)
+            ->join('people p', 'p.person_id = c.person_id')
+            ->where('c.deleted', 0);
+
+        $term = trim((string) $this->request->getGet('term'));
+
+        if ($term !== '') {
+            $builder->groupStart()->like('p.first_name', $term)->orLike('p.last_name', $term)->orLike("CONCAT(p.first_name, ' ', p.last_name)", $term)->groupEnd();
+        }
+
+        $rows = $builder->orderBy('p.first_name', 'ASC')->limit(self::LOOKUP_LIMIT)->get()->getResult();
+
+        return $this->response->setJSON(array_map(static fn (object $row): array => ['value' => (int) $row->person_id, 'label' => $row->name], $rows));
+    }
+
+    protected function itemLookup(): ResponseInterface
+    {
+        $builder = Database::connect()->table('items')->select('item_id, name, item_number, unit_price')->where('deleted', 0);
+        $term    = trim((string) $this->request->getGet('term'));
+
+        if ($term !== '') {
+            $builder->groupStart()->like('name', $term)->orLike('item_number', $term)->groupEnd();
+        }
+
+        $rows = $builder->orderBy('name', 'ASC')->limit(self::LOOKUP_LIMIT)->get()->getResult();
+
+        return $this->response->setJSON(array_map(static fn (object $row): array => ['value' => (int) $row->item_id, 'label' => $row->name . ($row->item_number === null || $row->item_number === '' ? '' : ' (' . $row->item_number . ')'), 'price' => (string) $row->unit_price], $rows));
     }
 }

@@ -81,6 +81,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->releaseOpenTransactions();
         $this->clearSchedules();
         $this->accountingDb()->table('accounting_audit_log')->whereIn('entity_type', ['recurring_invoice', 'recurring_expense'])->delete();
+        $this->cleanSaleIds();
         $this->stopExpenses();
         $this->stopSelling();
 
@@ -187,7 +188,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         }
     }
 
-    public function testRunMakesADraftInvoiceOnItsDateAndPostsNothingUntilItIsIssued(): void
+    public function testRun_MakesADraftInvoiceOnItsDateAndPostsNothingUntilItIsIssued(): void
     {
         $scheduleId = $this->invoiceSchedule();
 
@@ -207,7 +208,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame($this->customerId, (int) $sale->customer_id);
     }
 
-    public function testRunIssuesTheInvoiceThroughTheNormalPostingWhenTheScheduleIssues(): void
+    public function testRun_IssuesTheInvoiceThroughTheNormalPostingWhenTheScheduleIssues(): void
     {
         $stocked = $this->item('10');
         $this->accountingDb()->table('item_quantities')->ignore(true)->insert(['item_id' => $stocked, 'location_id' => self::LOCATION_ID, 'quantity' => 20]);
@@ -232,7 +233,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertTies();
     }
 
-    public function testRunMakesOneDocumentWhenItIsRunAgain(): void
+    public function testRun_MakesOneDocumentWhenItIsRunAgain(): void
     {
         $scheduleId = $this->invoiceSchedule();
 
@@ -247,7 +248,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(1, (int) $this->scheduleRow($scheduleId)->next_occurrence);
     }
 
-    public function testRunMakesNothingBeforeTheDateComes(): void
+    public function testRun_MakesNothingBeforeTheDateComes(): void
     {
         $scheduleId = $this->invoiceSchedule(['start_date' => date('Y-m-d', strtotime('+3 days'))]);
 
@@ -258,7 +259,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(0, $this->countSales());
     }
 
-    public function testRunMakesTheInvoiceTheDaysBeforeItsDateThatTheScheduleAsks(): void
+    public function testRun_MakesTheInvoiceTheDaysBeforeItsDateThatTheScheduleAsks(): void
     {
         $due        = date('Y-m-d', strtotime('+3 days'));
         $scheduleId = $this->invoiceSchedule(['start_date' => $due, 'issue_before_days' => '5']);
@@ -273,7 +274,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(date('Y-m-d'), $this->saleRow((int) $run->sale_id)->invoice_date, 'an invoice is never dated a day that has not come');
     }
 
-    public function testRunCatchesUpMissedDatesInOrderUpToTheCapAndGoesOnWhenItRunsAgain(): void
+    public function testRun_CatchesUpMissedDatesInOrderUpToTheCapAndGoesOnWhenItRunsAgain(): void
     {
         $scheduleId = $this->invoiceSchedule(['start_date' => $this->daysAgo(5), 'period_count' => '1', 'period_unit' => 'days']);
 
@@ -293,7 +294,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(array_map(static fn (int $i): int => $i, range(0, 5)), array_map('intval', array_column($this->runsOf($scheduleId), 'occurrence')));
     }
 
-    public function testRunDatesEachCaughtUpInvoiceWithItsOwnDueDate(): void
+    public function testRun_DatesEachCaughtUpInvoiceWithItsOwnDueDate(): void
     {
         $scheduleId = $this->invoiceSchedule(['start_date' => $this->daysAgo(2), 'period_unit' => 'days', 'issue_mode' => 'issue']);
 
@@ -305,7 +306,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame([$this->daysAgo(2), $this->daysAgo(1), $this->daysAgo(0)], $dates);
     }
 
-    public function testRunCountsMonthEndDatesFromTheStartAndNeverFromTheDateBefore(): void
+    public function testRun_CountsMonthEndDatesFromTheStartAndNeverFromTheDateBefore(): void
     {
         $scheduleId = $this->invoiceSchedule(['start_date' => '2026-01-31']);
 
@@ -315,7 +316,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(['2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30'], array_column($this->runsOf($scheduleId), 'due_date'));
     }
 
-    public function testRunRecordsANamedRefusalForADateInAClosedPeriodAndGoesOnWithTheNext(): void
+    public function testRun_RecordsANamedRefusalForADateInAClosedPeriodAndGoesOnWithTheNext(): void
     {
         $scheduleId = $this->invoiceSchedule(['start_date' => $this->daysAgo(3), 'period_unit' => 'days', 'issue_mode' => 'issue']);
         $this->closeThrough($this->daysAgo(2));
@@ -336,7 +337,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertNotSame('', RunRefusal::wordsOf($first->refusal_source, $first->refusal_code, $first->refusal_context));
     }
 
-    public function testRunLeavesNothingBehindOfARefusedDate(): void
+    public function testRun_LeavesNothingBehindOfARefusedDate(): void
     {
         $this->invoiceSchedule(['start_date' => $this->daysAgo(1), 'period_unit' => 'days', 'issue_mode' => 'issue']);
         $this->closeThrough(date('Y-m-d'));
@@ -348,7 +349,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('document_numbers'));
     }
 
-    public function testRunSkipsAPausedAndAnEndedSchedule(): void
+    public function testRun_SkipsAPausedAndAnEndedSchedule(): void
     {
         $paused = $this->invoiceSchedule();
         $ended  = $this->invoiceSchedule(['name' => 'Another']);
@@ -362,7 +363,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(0, $this->countSales());
     }
 
-    public function testRunStopsAtTheMaximumNumberOfRepeatsAndEndsTheSchedule(): void
+    public function testRun_StopsAtTheMaximumNumberOfRepeatsAndEndsTheSchedule(): void
     {
         $scheduleId = $this->invoiceSchedule(['start_date' => $this->daysAgo(5), 'period_unit' => 'days', 'max_repeats' => '3']);
 
@@ -378,7 +379,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame([], $this->generator->run()->results);
     }
 
-    public function testRunStopsAfterTheEndDateAndEndsTheSchedule(): void
+    public function testRun_StopsAfterTheEndDateAndEndsTheSchedule(): void
     {
         $scheduleId = $this->invoiceSchedule(['start_date' => $this->daysAgo(5), 'period_unit' => 'days', 'end_date' => $this->daysAgo(3)]);
 
@@ -390,7 +391,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(['ended', 'end_date'], [$this->scheduleRow($scheduleId)->status, $this->scheduleRow($scheduleId)->ended_reason]);
     }
 
-    public function testRunMakesNothingForTheDatesAScheduleWasPausedOver(): void
+    public function testRun_MakesNothingForTheDatesAScheduleWasPausedOver(): void
     {
         $scheduleId = $this->invoiceSchedule(['start_date' => $this->daysAgo(5), 'period_unit' => 'days']);
 
@@ -402,7 +403,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame([date('Y-m-d')], array_column($this->runsOf($scheduleId), 'due_date'));
     }
 
-    public function testRunMakesOnlyTheScheduleItWasAskedFor(): void
+    public function testRun_MakesOnlyTheScheduleItWasAskedFor(): void
     {
         $one = $this->invoiceSchedule();
         $two = $this->invoiceSchedule(['name' => 'Second']);
@@ -415,7 +416,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertCount(1, $this->runsOf($two));
     }
 
-    public function testRunRefusesWhenTheEmployeeOfTheScheduleLostThePermissionToManageIt(): void
+    public function testRun_RefusesWhenTheEmployeeOfTheScheduleLostThePermissionToManageIt(): void
     {
         $scheduleId = $this->invoiceSchedule();
         $this->accountingDb()->table('grants')->where(['person_id' => $this->manager, 'permission_id' => RecurringKind::Invoice->managePermission()])->delete();
@@ -429,7 +430,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(0, $this->countSales());
     }
 
-    public function testRunRefusesWhenTheEmployeeOfTheScheduleNoLongerWorksInItsBranch(): void
+    public function testRun_RefusesWhenTheEmployeeOfTheScheduleNoLongerWorksInItsBranch(): void
     {
         $other   = $this->createBranch('B2');
         $worker  = $this->employeeWithGrants([RecurringKind::Invoice->managePermission()], [1]);
@@ -447,7 +448,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(BranchError::NotAllowed->value, $this->runsOf($created)[0]->refusal_code);
     }
 
-    public function testRunUsesTheUniqueKeyOfTheScheduleAndTheDateWhenTheCounterIsLost(): void
+    public function testRun_UsesTheUniqueKeyOfTheScheduleAndTheDateWhenTheCounterIsLost(): void
     {
         $scheduleId = $this->invoiceSchedule();
 
@@ -464,7 +465,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(1, (int) $this->scheduleRow($scheduleId)->next_occurrence);
     }
 
-    public function testRunRefusesTheSecondRowOfADateByTheKeyOfTheTable(): void
+    public function testRun_RefusesTheSecondRowOfADateByTheKeyOfTheTable(): void
     {
         $scheduleId = $this->invoiceSchedule();
 
@@ -475,7 +476,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->accountingDb()->table('recurring_runs')->insert(['schedule_id' => $scheduleId, 'occurrence' => 5, 'due_date' => date('Y-m-d'), 'status' => 'refused', 'refusal_code' => 'x']);
     }
 
-    public function testRunMakesOneDocumentWhenTwoProcessesRunItAtTheSameMoment(): void
+    public function testRun_MakesOneDocumentWhenTwoProcessesRunItAtTheSameMoment(): void
     {
         $scheduleId = $this->invoiceSchedule();
 
@@ -488,7 +489,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(1, (int) $this->scheduleRow($scheduleId)->next_occurrence);
     }
 
-    public function testRunCountsTheDayOfTheApplicationAndNotTheClockOfTheDatabase(): void
+    public function testRun_CountsTheDayOfTheApplicationAndNotTheClockOfTheDatabase(): void
     {
         $databaseDay = (string) $this->accountingDb()->query('SELECT CURDATE() AS today')->getRow()->today;
 
@@ -517,7 +518,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame($today, substr((string) $this->runsOf($dueToday)[0]->created_at, 0, 10), 'the history says the day of the application');
     }
 
-    public function testRunMakesALegacySaleThatPostsNothingWhileTheBooksAreOff(): void
+    public function testRun_MakesALegacySaleThatPostsNothingWhileTheBooksAreOff(): void
     {
         $scheduleId = $this->invoiceSchedule(['issue_mode' => 'issue']);
         $this->setConfigValue('accounting_enabled', '0');
@@ -534,7 +535,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_audit_log'), 'the audit log of the books is not written while they are off');
     }
 
-    public function testRunAuditsEveryGenerationWhileTheBooksAreOn(): void
+    public function testRun_AuditsEveryGenerationWhileTheBooksAreOn(): void
     {
         $scheduleId = $this->invoiceSchedule(['start_date' => $this->daysAgo(1), 'period_unit' => 'days', 'issue_mode' => 'issue']);
         $this->closeThrough($this->daysAgo(1));
@@ -547,7 +548,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(['created', 'refused', 'generated'], $actions);
     }
 
-    public function testRunMakesTheExpenseThroughTheNormalPostingWithTheTaxSplit(): void
+    public function testRun_MakesTheExpenseThroughTheNormalPostingWithTheTaxSplit(): void
     {
         $scheduleId = $this->expenseSchedule();
 
@@ -568,7 +569,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         );
     }
 
-    public function testRunMakesOneExpenseWhenItIsRunAgainAndCatchesUpInOrder(): void
+    public function testRun_MakesOneExpenseWhenItIsRunAgainAndCatchesUpInOrder(): void
     {
         $scheduleId = $this->expenseSchedule(['start_date' => '2026-01-31']);
 
@@ -581,7 +582,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(3, $this->countRows('expenses'));
     }
 
-    public function testRunRefusesAnExpenseOfAClosedPeriodByName(): void
+    public function testRun_RefusesAnExpenseOfAClosedPeriodByName(): void
     {
         $scheduleId = $this->expenseSchedule(['start_date' => $this->daysAgo(40), 'frequency' => 'monthly']);
         $this->closeThrough($this->daysAgo(20));
@@ -595,7 +596,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('expenses'));
     }
 
-    public function testRunMakesAPlainExpenseWhileTheBooksAreOff(): void
+    public function testRun_MakesAPlainExpenseWhileTheBooksAreOff(): void
     {
         $scheduleId = $this->expenseSchedule();
         $this->setConfigValue('accounting_enabled', '0');
@@ -608,14 +609,14 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertNotNull($this->runsOf($scheduleId)[0]->expense_id);
     }
 
-    public function testRunRefusesTheDayThatIsNotADay(): void
+    public function testRun_RefusesTheDayThatIsNotADay(): void
     {
         $this->expectException(AccountingException::class);
 
         $this->generator->run('2026-02-30');
     }
 
-    public function testRetryMakesTheDocumentOfARefusedDateWhenTheCauseIsGone(): void
+    public function testRetry_MakesTheDocumentOfARefusedDateWhenTheCauseIsGone(): void
     {
         $scheduleId = $this->invoiceSchedule(['start_date' => $this->daysAgo(1), 'period_unit' => 'days', 'issue_mode' => 'issue']);
         $this->closeThrough($this->daysAgo(1));
@@ -638,7 +639,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(2, $this->countSales());
     }
 
-    public function testRetryKeepsTheRefusalWhenTheCauseIsStillThere(): void
+    public function testRetry_KeepsTheRefusalWhenTheCauseIsStillThere(): void
     {
         $scheduleId = $this->invoiceSchedule(['start_date' => $this->daysAgo(1), 'period_unit' => 'days', 'issue_mode' => 'issue']);
         $this->closeThrough($this->daysAgo(1));
@@ -655,7 +656,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(PostingError::PeriodClosed->value, $row->refusal_code);
     }
 
-    public function testRetryRefusesADateThatWasMadeAndARunOfAnotherSchedule(): void
+    public function testRetry_RefusesADateThatWasMadeAndARunOfAnotherSchedule(): void
     {
         $one = $this->invoiceSchedule();
         $two = $this->invoiceSchedule(['name' => 'Second']);
@@ -681,7 +682,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame(2, $this->countSales());
     }
 
-    public function testRetryRequiresThePermissionToManageTheScheduleAndItsBranch(): void
+    public function testRetry_RequiresThePermissionToManageTheScheduleAndItsBranch(): void
     {
         $scheduleId = $this->invoiceSchedule(['start_date' => $this->daysAgo(1), 'period_unit' => 'days']);
         $this->closeThrough($this->daysAgo(1));

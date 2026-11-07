@@ -13,13 +13,10 @@ use App\Libraries\SalesOrders\SalesOrderStatus;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
-use Config\Database;
 use Config\OSPOS;
 
 class Sales_orders extends DocumentScreen
 {
-    private const LOOKUP_LIMIT = 20;
-
     private SalesOrders $orders;
 
     public function __construct()
@@ -107,42 +104,12 @@ class Sales_orders extends DocumentScreen
 
     public function getCustomers(): ResponseInterface
     {
-        if (! $this->can(SalesOrders::ADD) && ! $this->can(SalesOrders::EDIT)) {
-            return $this->forbidden();
-        }
-
-        $builder = Database::connect()->table('customers c')
-            ->select("c.person_id, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS name", false)
-            ->join('people p', 'p.person_id = c.person_id')
-            ->where('c.deleted', 0);
-
-        $term = trim((string) $this->request->getGet('term'));
-
-        if ($term !== '') {
-            $builder->groupStart()->like('p.first_name', $term)->orLike('p.last_name', $term)->orLike("CONCAT(p.first_name, ' ', p.last_name)", $term)->groupEnd();
-        }
-
-        $rows = $builder->orderBy('p.first_name', 'ASC')->limit(self::LOOKUP_LIMIT)->get()->getResult();
-
-        return $this->response->setJSON(array_map(static fn (object $row): array => ['value' => (int) $row->person_id, 'label' => $row->name], $rows));
+        return $this->can(SalesOrders::ADD) || $this->can(SalesOrders::EDIT) ? $this->customerLookup() : $this->forbidden();
     }
 
     public function getItems(): ResponseInterface
     {
-        if (! $this->can(SalesOrders::ADD) && ! $this->can(SalesOrders::EDIT)) {
-            return $this->forbidden();
-        }
-
-        $builder = Database::connect()->table('items')->select('item_id, name, item_number, unit_price')->where('deleted', 0);
-        $term    = trim((string) $this->request->getGet('term'));
-
-        if ($term !== '') {
-            $builder->groupStart()->like('name', $term)->orLike('item_number', $term)->groupEnd();
-        }
-
-        $rows = $builder->orderBy('name', 'ASC')->limit(self::LOOKUP_LIMIT)->get()->getResult();
-
-        return $this->response->setJSON(array_map(static fn (object $row): array => ['value' => (int) $row->item_id, 'label' => $row->name . ($row->item_number === null || $row->item_number === '' ? '' : ' (' . $row->item_number . ')'), 'price' => (string) $row->unit_price], $rows));
+        return $this->can(SalesOrders::ADD) || $this->can(SalesOrders::EDIT) ? $this->itemLookup() : $this->forbidden();
     }
 
     public function postSave(int $orderId = NEW_ENTRY): ResponseInterface

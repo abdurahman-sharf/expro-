@@ -139,7 +139,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         ];
     }
 
-    public function testGetIndexListsTheOrdersAndOffersTheNewOneToWhoMayAddThem(): void
+    public function testGetIndex_ListsTheOrdersAndOffersTheNewOneToWhoMayAddThem(): void
     {
         $orderId = $this->order();
 
@@ -153,7 +153,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $page->assertSee('id="sales_order_new"');
     }
 
-    public function testGetIndexOffersNoNewOrderToWhoMayOnlyLook(): void
+    public function testGetIndex_OffersNoNewOrderToWhoMayOnlyLook(): void
     {
         $this->order();
 
@@ -166,7 +166,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $page->assertDontSee('id="sales_order_settings"');
     }
 
-    public function testGetIndexShowsTheEmptyStateAndNoOrderWhileTheModuleIsOff(): void
+    public function testGetIndex_ShowsTheEmptyStateAndNoOrderWhileTheModuleIsOff(): void
     {
         $this->order();
         $this->setConfigValue('enable_sales_order', '0');
@@ -181,7 +181,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $page->assertDontSee('id="sales_order_new"');
     }
 
-    public function testGetFormRedirectsToTheInvoiceRegisterWhileTheModuleIsOff(): void
+    public function testGetForm_RedirectsToTheInvoiceRegisterWhileTheModuleIsOff(): void
     {
         $this->setConfigValue('enable_sales_order', '0');
         $this->actAsWith([SalesOrders::ADD]);
@@ -191,7 +191,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $page->assertRedirectTo(site_url('sales'));
     }
 
-    public function testGetIndexOffersTheSettingsToWhoHoldsTheConfigPermission(): void
+    public function testGetIndex_OffersTheSettingsToWhoHoldsTheConfigPermission(): void
     {
         $this->actAsWith([SalesOrderSettings::PERMISSION, SalesOrders::VIEW_ALL]);
 
@@ -200,7 +200,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $page->assertSee('id="sales_order_settings"');
     }
 
-    public function testGetIndexFiltersByTheStatusOfTheOrder(): void
+    public function testGetIndex_FiltersByTheStatusOfTheOrder(): void
     {
         $open     = $this->order();
         $approved = $this->approved();
@@ -213,7 +213,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $page->assertDontSee('id="sales_order_' . $open . '"');
     }
 
-    public function testGetIndexShowsOnlyTheOrdersOfTheBranchesOfTheEmployee(): void
+    public function testGetIndex_ShowsOnlyTheOrdersOfTheBranchesOfTheEmployee(): void
     {
         $other       = $this->createBranch();
         $mine        = $this->order();
@@ -230,7 +230,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $page->assertDontSee('id="sales_order_' . $mine . '"');
     }
 
-    public function testGetShowIsNotFoundForAnOrderOutsideTheBranchesOfTheEmployee(): void
+    public function testGetShow_IsNotFoundForAnOrderOutsideTheBranchesOfTheEmployee(): void
     {
         $other = $this->createBranch();
         $mine  = $this->order();
@@ -241,7 +241,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->get('/sales_orders/view/' . $mine);
     }
 
-    public function testGetFormOffersTheFormToWhoMayAddAndHidesItFromWhoMayNot(): void
+    public function testGetForm_OffersTheFormToWhoMayAddAndHidesItFromWhoMayNot(): void
     {
         $this->actAsWith([SalesOrders::ADD]);
 
@@ -253,7 +253,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->get('/sales_orders/add');
     }
 
-    public function testGetFormOpensAnOrderOfTheBranchForEditingOnlyWhileItIsNotInvoiced(): void
+    public function testGetForm_OpensAnOrderOfTheBranchForEditingOnlyWhileItIsNotInvoiced(): void
     {
         $orderId = $this->order();
 
@@ -267,7 +267,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->get('/sales_orders/edit/' . $orderId);
     }
 
-    public function testGetShowShowsTheLinesWithWhatIsInvoicedAndWhatIsLeft(): void
+    public function testGetShow_ShowsTheLinesWithWhatIsInvoicedAndWhatIsLeft(): void
     {
         $orderId = $this->approved();
 
@@ -283,7 +283,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $page->assertSee('10.000');
     }
 
-    public function testGetShowOffersOnlyWhatTheEmployeeMayDo(): void
+    public function testGetShow_OffersOnlyWhatTheEmployeeMayDo(): void
     {
         $orderId = $this->approved();
 
@@ -297,7 +297,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $page->assertDontSee('data-status=');
     }
 
-    public function testGetShowIsNotFoundForAnOrderThatDoesNotExist(): void
+    public function testGetShow_IsNotFoundForAnOrderThatDoesNotExist(): void
     {
         $this->actAsWith([SalesOrders::VIEW_ALL]);
         $this->expectException(PageNotFoundException::class);
@@ -305,7 +305,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->get('/sales_orders/view/999999');
     }
 
-    public function testGetShowIsNotFoundWhileTheModuleIsOff(): void
+    public function testGetShow_IsNotFoundWhileTheModuleIsOff(): void
     {
         $orderId = $this->order();
         $this->setConfigValue('enable_sales_order', '0');
@@ -316,7 +316,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->get('/sales_orders/view/' . $orderId);
     }
 
-    public function testPostSaveSavesTheOrderThroughTheServiceAndSendsTheEmployeeToIt(): void
+    public function testPostSave_SavesTheOrderThroughTheServiceAndSendsTheEmployeeToIt(): void
     {
         $this->actAsWith([SalesOrders::ADD, SalesOrders::VIEW_ALL]);
 
@@ -328,7 +328,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_journals'));
     }
 
-    public function testPostSaveRefusesInWordsWhatTheServiceRefuses(): void
+    public function testPostSave_RefusesInWordsWhatTheServiceRefuses(): void
     {
         $this->actAsWith([SalesOrders::ADD]);
 
@@ -342,7 +342,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('sales_orders'));
     }
 
-    public function testPostSaveRequiresThePermissionToAddAndToEdit(): void
+    public function testPostSave_RequiresThePermissionToAddAndToEdit(): void
     {
         $orderId = $this->order();
 
@@ -357,7 +357,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_permission_denied'), $edited['message']);
     }
 
-    public function testPostSaveChangesAnOrderNothingWasInvoicedFrom(): void
+    public function testPostSave_ChangesAnOrderNothingWasInvoicedFrom(): void
     {
         $orderId = $this->order();
 
@@ -369,7 +369,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->assertSame('7.000', (string) $this->accountingDb()->table('sales_order_lines')->where('order_id', $orderId)->get()->getRow()->quantity);
     }
 
-    public function testPostStatusApprovesTheOrderAndRefusesAStatusThatIsNotSetByHand(): void
+    public function testPostStatus_ApprovesTheOrderAndRefusesAStatusThatIsNotSetByHand(): void
     {
         $orderId = $this->order();
 
@@ -384,7 +384,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->assertSame(SalesOrderStatus::Approved, $this->orders->statusOf($orderId));
     }
 
-    public function testPostStatusRequiresThePermissionToEdit(): void
+    public function testPostStatus_RequiresThePermissionToEdit(): void
     {
         $orderId = $this->order();
 
@@ -396,7 +396,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->assertSame(SalesOrderStatus::Open, $this->orders->statusOf($orderId));
     }
 
-    public function testPostCancelRequiresAReasonAndThePermissionToDelete(): void
+    public function testPostCancel_RequiresAReasonAndThePermissionToDelete(): void
     {
         $orderId = $this->order();
 
@@ -415,7 +415,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->assertFalse($this->postJson('/sales_orders/cancel/' . $other, ['reason' => 'x'])['success']);
     }
 
-    public function testPostConvertFillsTheRegisterWithWhatIsLeftAndSavesNothing(): void
+    public function testPostConvert_FillsTheRegisterWithWhatIsLeftAndSavesNothing(): void
     {
         $orderId = $this->approved();
 
@@ -431,7 +431,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('sales_order_invoice_lines'));
     }
 
-    public function testPostConvertRefusesAnOrderThatIsNotApprovedAndAnEmployeeWithoutThePermission(): void
+    public function testPostConvert_RefusesAnOrderThatIsNotApprovedAndAnEmployeeWithoutThePermission(): void
     {
         $open     = $this->order();
         $approved = $this->approved();
@@ -447,7 +447,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->assertNull(session()->get('sales_order_source'));
     }
 
-    public function testPostConvertRefusesWhenInvoicesAreNotEnabled(): void
+    public function testPostConvert_RefusesWhenInvoicesAreNotEnabled(): void
     {
         $orderId = $this->approved();
         $this->setConfigValue('invoice_enable', '0');
@@ -460,7 +460,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Sales_orders.invoice_unavailable'), $result['message']);
     }
 
-    public function testPostSettingsRequiresTheConfigPermissionAndSavesBothSwitches(): void
+    public function testPostSettings_RequiresTheConfigPermissionAndSavesBothSwitches(): void
     {
         $this->setConfigValue('enable_sales_order', '0');
 
@@ -475,7 +475,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
     }
 
     #[DataProvider('provideChange_IsNotReachableByAGetRequest')]
-    public function testChangeIsNotReachableByAGetRequest(string $url): void
+    public function testChange_IsNotReachableByAGetRequest(string $url): void
     {
         $this->actAsWith([SalesOrders::ADD, SalesOrders::EDIT, SalesOrders::DELETE, SalesOrders::CONVERT, SalesOrders::VIEW_ALL, SalesOrderSettings::PERMISSION]);
         $this->expectException(PageNotFoundException::class);
@@ -498,7 +498,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         ];
     }
 
-    public function testGetCustomersAndGetItemsAnswerOnlyToWhoMayWriteAnOrder(): void
+    public function testGetCustomers_AnswersOnlyToWhoMayWriteAnOrder(): void
     {
         $this->actAsWith([SalesOrders::ADD]);
 
@@ -515,7 +515,7 @@ final class Sales_ordersControllerTest extends CIUnitTestCase
         $this->get('/sales_orders/items')->assertStatus(403);
     }
 
-    public function testGetIndexIsNotOpenedByAnEmployeeWithoutTheModuleGrant(): void
+    public function testGetIndex_IsNotOpenedByAnEmployeeWithoutTheModuleGrant(): void
     {
         $personId = $this->employeeWithGrants([SalesOrders::VIEW_ALL]);
         $this->withSession(['person_id' => $personId, 'menu_group' => 'home']);

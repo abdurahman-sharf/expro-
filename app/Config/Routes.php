@@ -174,6 +174,32 @@ $routes->group('sales_orders', static function (RouteCollection $routes): void {
     $routes->post('settings', 'Sales_orders::postSettings');
 });
 
+$routes->group('recurring_invoices', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Recurring_invoices::getIndex');
+    $routes->get('add', 'Recurring_invoices::getForm');
+    $routes->get('edit/(:num)', 'Recurring_invoices::getForm/$1');
+    $routes->get('view/(:num)', 'Recurring_invoices::getShow/$1');
+    $routes->get('customers', 'Recurring_invoices::getCustomers');
+    $routes->get('items', 'Recurring_invoices::getItems');
+    $routes->post('save', 'Recurring_invoices::postSave');
+    $routes->post('save/(:num)', 'Recurring_invoices::postSave/$1');
+    $routes->post('status/(:num)', 'Recurring_invoices::postStatus/$1');
+    $routes->post('retry/(:num)/(:num)', 'Recurring_invoices::postRetry/$1/$2');
+});
+
+$routes->group('recurring_expenses', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Recurring_expenses::getIndex');
+    $routes->get('add', 'Recurring_expenses::getForm');
+    $routes->get('edit/(:num)', 'Recurring_expenses::getForm/$1');
+    $routes->get('view/(:num)', 'Recurring_expenses::getShow/$1');
+    $routes->get('customers', 'Recurring_expenses::getCustomers');
+    $routes->get('items', 'Recurring_expenses::getItems');
+    $routes->post('save', 'Recurring_expenses::postSave');
+    $routes->post('save/(:num)', 'Recurring_expenses::postSave/$1');
+    $routes->post('status/(:num)', 'Recurring_expenses::postStatus/$1');
+    $routes->post('retry/(:num)/(:num)', 'Recurring_expenses::postRetry/$1/$2');
+});
+
 $routes->group('receipt_vouchers', static function (RouteCollection $routes): void {
     $routes->get('/', 'Receipt_vouchers::getIndex');
     $routes->get('search', 'Receipt_vouchers::getSearch');
