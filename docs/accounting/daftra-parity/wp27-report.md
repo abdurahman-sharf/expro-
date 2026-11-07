@@ -22,23 +22,24 @@
 
 ## 2. الأدلة
 
-كل ملف شُغِّل وحده على قاعدة الاختبار `ospos_test_wp27`: `MYSQL_DB_NAME=ospos_test_wp27 vendor/bin/phpunit --no-coverage <الملف>`، بعد آخر تعديل على الكود (2026-11-01). **كلها نجحت: 4420 اختبارًا و18038 تأكيدًا في 39 ملفًا.**
+كل ملف شُغِّل وحده على قاعدة الاختبار `ospos_test_wp27`: `MYSQL_DB_NAME=ospos_test_wp27 vendor/bin/phpunit --no-coverage <الملف>`، بعد آخر تعديل على الكود (2026-11-07، بعد مراجعة المرحلة 3). **كلها نجحت: 4460 اختبارًا و18427 تأكيدًا في 40 ملفًا.**
 
-**ملفات الحزمة الجديدة** (225 اختبارًا جديدًا في اثني عشر ملفًا، ملف واحد لكل صنف تحت الاختبار):
+**ملفات الحزمة الجديدة** (259 اختبارًا جديدًا في 13 ملفًا، ملف واحد لكل صنف تحت الاختبار):
 
 | الملف | الاختبارات | التأكيدات | النتيجة |
 |---|---|---|---|
 | `tests/Libraries/Stock/StockAccessTest.php` | 5 | 37 | نجح |
+| `tests/Libraries/Stock/StockDocumentSearchTest.php` | 3 | 12 | نجح |
 | `tests/Libraries/Stock/StockDocumentSettingsTest.php` | 5 | 46 | نجح |
 | `tests/Libraries/Stock/StockPermitBuilderTest.php` | 12 | 105 | نجح |
-| `tests/Libraries/Stock/StockPermitTest.php` | 66 | 685 | نجح |
+| `tests/Libraries/Stock/StockPermitTest.php` | 69 | 727 | نجح |
 | `tests/Libraries/Stock/StockPermitTypeTest.php` | 4 | 12 | نجح |
-| `tests/Libraries/Stock/StockRequestTest.php` | 19 | 220 | نجح |
+| `tests/Libraries/Stock/StockRequestTest.php` | 20 | 230 | نجح |
 | `tests/Libraries/Stock/StockShelvesTest.php` | 12 | 93 | نجح |
-| `tests/Libraries/Stock/StocktakeTest.php` | 44 | 449 | نجح |
-| `tests/Controllers/StockPermitsControllerTest.php` | 21 | 310 | نجح |
-| `tests/Controllers/StocktakesControllerTest.php` | 15 | 198 | نجح |
-| `tests/Controllers/StockRequestsControllerTest.php` | 12 | 165 | نجح |
+| `tests/Libraries/Stock/StocktakeTest.php` | 65 | 616 | نجح |
+| `tests/Controllers/StockPermitsControllerTest.php` | 23 | 335 | نجح |
+| `tests/Controllers/StocktakesControllerTest.php` | 19 | 257 | نجح |
+| `tests/Controllers/StockRequestsControllerTest.php` | 12 | 167 | نجح |
 | `tests/Database/StockDocumentsMigrationTest.php` | 10 | 44 | نجح |
 
 **ملفات موجودة عُدِّلت** (الأنواع الخمسة الجديدة في `DocumentType`، وحالات الخطأ والمفاتيح، و`StockAdjustment::valued`):
@@ -47,7 +48,7 @@
 |---|---|---|---|
 | `tests/Libraries/Accounting/StockAdjustmentTest.php` | 18 | 171 | نجح |
 | `tests/Libraries/Numbering/DocumentTypeTest.php` | 10 | 111 | نجح |
-| `tests/LanguageFilesTest.php` | 2450 | 5760 | نجح |
+| `tests/LanguageFilesTest.php` | 2452 | 5828 | نجح |
 
 **انحدار على ما يلمسه الكود المشترك** (المصادر والقيود والاستلام والتحويل والمخزون والتنقل والصلاحيات والترقيم والإعدادات):
 
@@ -59,7 +60,7 @@
 | `tests/Libraries/Accounting/ReceivingPostingBuilderTest.php` | 41 | 89 | نجح |
 | `tests/Libraries/Accounting/ReceivingPostingTest.php` | 289 | 2721 | نجح |
 | `tests/Libraries/Accounting/OpeningStockTest.php` | 78 | 826 | نجح |
-| `tests/Libraries/Accounting/AccountingMessageTest.php` | 376 | 376 | نجح |
+| `tests/Libraries/Accounting/AccountingMessageTest.php` | 380 | 380 | نجح |
 | `tests/Libraries/Accounting/Readiness/LedgerChecksTest.php` | 43 | 79 | نجح |
 | `tests/Libraries/Accounting/Readiness/TieChecksTest.php` | 34 | 161 | نجح |
 | `tests/Libraries/Numbering/DocumentNumberingTest.php` | 90 | 422 | نجح |
@@ -84,11 +85,13 @@
 
 ## 3. الحراس
 
-أُضيف هنا كل حارس في الكود وأُثبت بـ`tools/dev/guard_mutations.py`: يُعطَّل الحارس (أو تُعكس شرطيته) ويُشغَّل الاختبار المسمّى، فإن لم يفشل فالحارس غير مثبت. قائمة التعطيلات في `wp27-guards.json` (197 تعطيلًا). **النتيجة: 197 من 197 كُشفت**
+أُضيف هنا كل حارس في الكود وأُثبت بـ`tools/dev/guard_mutations.py`: يُعطَّل الحارس (أو تُعكس شرطيته) ويُشغَّل الاختبار المسمّى، فإن لم يفشل فالحارس غير مثبت. قائمة التعطيلات في `wp27-guards.json` (244 تعطيلًا). **النتيجة: 244 من 244 كُشفت** على الكود النهائي بعد المراجعة (2026-11-07): تشغيل لكل القائمة كشف 242 وترك اثنين غير مثبتين (`T52` و`T53`) فقُوِّي اختبارهما وأُعيد تشغيلهما (الفقرة التالية)
 
-**العائلات:** `P` أذون المخزن (54، `StockPermit`)، و`S` الأرفف (10)، و`A` صلاحية الأصناف والفرع (4)، و`C` الإعدادان (5)، و`T` الجرد (51)، و`R` الطلبات (26)، و`B` بناء القيد (11)، و`J` مصادر القيود الآلية (3 في `JournalService`)، و`D` أنواع الترقيم (3)، و`K` تقويم تسوية الكمية (2)، و`Q` الشاشات (28: الصلاحية والفرع والإعدادات و«غير موجود» لمستند فرع آخر).
+**العائلات:** `P` أذون المخزن (58، `StockPermit`)، و`S` الأرفف (10)، و`A` صلاحية الأصناف والفرع (4)، و`C` الإعدادان (5)، و`T` الجرد (73)، و`R` الطلبات (31)، و`B` بناء القيد (11)، و`J` مصادر القيود الآلية (4 في `JournalService`)، و`D` أنواع الترقيم (3)، و`K` تقويم تسوية الكمية (2)، و`Q` الشاشات (32: الصلاحية والفرع والإعدادات و«غير موجود» لمستند فرع آخر وحقل القائمة)، و`N` بحث الرقم والتسمية (5، `StockDocumentSearch`)، و`V` ورقة الجرد وسهم التحويل (6، الواجهات).
 
 **التشغيل الأول** (198 تعطيلًا) كشف 175 ولم يكشف 23: حراس لا يثبتها اختبار. عولجت كلها: أُضيفت اختبارات (سقف 200 بندًا وسقف الكمية، وسبب الإلغاء حين لا ترحيل، وأن الإضافة لا تُرفض لرف تحت الصفر، وقراءة الرف تحت قفل عند الحكم، وصلاحية إدراج صنف وإزالته وإدخال العدّ في الجرد، وأن اليوم قبل بدء الدفاتر لا يُرحَّل، وفترة اعتماد مغلقة لجرد لا قيمة له، وسجل التدقيق لبدء الجرد وإلغائه، وسقف 5000 صنف، واعتماد الطلب والإعداد مطفأ، وإذن صرف لا قيمة له بلا قيد، وجواب «غير موجود» لمستند فرع آخر في المسارات الستة المتبقية)، وحُذف إدخال ظنّنتُه ميتًا (`StockPermitSources::TRANSFER_RECEIPT` في `JournalService::TRANSFER_SOURCES`) فسقط تعطيله، **وكان ذلك خطأ**: كشفت المراجعة أن `reverseAutomatic` يرفض قيد الاستلام الذي مصدره ليس في القوائم، وهو الأول في الترتيب حين يكون رقم فرعه أقل (الاقتران لا يحميه في هذا المسار). أُعيد الإدخال وأُضيف اختبار الإلغاء والتعديل لتحويل من الفرع الأعلى إلى الأدنى فعاد الحارس `J04` مثبتًا (القسم 8). وأُعيد تعريف تعطيل `S05` لأن القفل في نص الاستعلام لا في `LockedRead`. ثم أُعيد تشغيل تلك التعطيلات و`J01` إلى `J03` بعد تعديل `JournalService`، فكُشفت كلها.
+
+**التشغيل الثاني (بعد مراجعة المرحلة 3):** غيّرت المراجعة كود الجرد والمتحكمات والبحث، فأُعيد تعريف خمسة تعطيلات تغيّر نص كودها (`T04` و`T12` و`T13` و`Q12` و`Q13`)، وأُضيف 46 تعطيلًا للحراس الجديدة (قفل الموقع وصنف واحد على جرد قائم واحد وتدقيق العدّ والإدراج والحذف والاعتماد بالبصمة والحقل القائمة وبحث التسمية والرقم وسهم التحويل وربط معالجات الورقة ورقم إذن الطلب). كشف التشغيل الأول لها **اثنين غير مثبتين**: `T73` و`R29` (جرد أو طلب له رقم لا يجب أن يُعثر عليه بمعرّفه)، فأُضيف إلى اختباري البحث حالة المستند المرقَّم (وأُضيف `R30` و`R31` لرقم إذن الطلب)، ثم أُعيد تشغيل **القائمة كلها** (244) فكُشف 242 وبقي **`T52` و`T53` غير مثبتين**: قفل الموقع عند بدء الجرد وعند إدراج الأصناف كان يُثبته اختبار سباق بين عمليتين حقيقيتين، وهو ينجح بالصدفة إن تأخرت العملية الثانية (كُشف في التشغيل الأول وفات في الثاني). استُبدل به **اختباران يمسكان قفل الموقع على اتصال ثانٍ** ويتوقعان أن ينتظره الطلب (`testCreate_WaitsForTheLockOfTheLocationAnotherRequestHolds` و`testAddItems_WaitsForTheLockOfTheLocationAnotherRequestHolds`)، وكانت أول محاولة للإمساك بقفل للتحديث تُنتظَر في الإدراج بسبب المفتاح الأجنبي إلى الموقع حتى بلا الحارس، فصار الإمساك بقفل مشترك لا ينتظره إلا طلب القفل للتحديث. يفشل الاختباران وحدهما أمام التعطيلين، وأُعيد تشغيل `T52` و`T53` ثلاث مرات فكُشفا في كل مرة (وبقي اختبارا السباق الحقيقيان قائمين). وحارس `J04` الذي أُسقط خطأً في مرحلة سابقة عاد مثبتًا باختبار إلغاء تحويل من الفرع الأعلى إلى الأدنى.
 
 | # | الحارس (اسمه في `wp27-guards.json`) | الملف الذي يحرسه | الاختبار الذي يكشفه | النتيجة |
 |---|---|---|---|---|
@@ -256,6 +259,7 @@
 | J01 | the journal of a permit is an automatic one of a document | `JournalService.php` | `StockPermitTest` | كُشف |
 | J02 | the journal of a stocktake is an automatic one of a document | `JournalService.php` | `StocktakeTest` | كُشف |
 | J03 | the sending journal of a transfer permit is that of a transfer | `JournalService.php` | `StockPermitTest` | كُشف |
+| J04 | the receipt of a transfer permit is that of a transfer | `JournalService.php` | `StockPermitTest` | كُشف |
 | D01 | the three permits share one table | `DocumentType.php` | `DocumentTypeTest` | كُشف |
 | D02 | the stock documents are numbered with six digits | `DocumentType.php` | `DocumentTypeTest` | كُشف |
 | D03 | a stock permit shows its kind and id until it has a number | `DocumentType.php` | `DocumentTypeTest` | كُشف |
@@ -289,6 +293,52 @@
 | Q26 | the figure on hand is given only for a location the employee may use | `StockDocumentController.php` | `StockPermitsControllerTest` | كُشف |
 | Q27 | one item is asked for by its id | `StockDocumentController.php` | `StockPermitsControllerTest` | كُشف |
 | Q28 | the figure on hand is that of the location asked for | `StockDocumentController.php` | `StockPermitsControllerTest` | كُشف |
+| T52 | starting a stocktake locks the location before it looks at the day and the items | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T53 | listing more items locks the location before it looks at the other counts | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T54 | an item is on one count of a location at a time while it is being made | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T55 | a count that is approved or cancelled lets go of its items | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T56 | a count of another location does not hold the items of this one | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T57 | an item already on the sheet is not listed twice | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T58 | the items listed are written to the audit log | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T59 | an item taken off the sheet is written to the audit log | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T60 | taking off an item that is not on the sheet leaves no trace | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T61 | a figure that is the stored one changes nothing | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T62 | a figure that is the one the sheet showed leaves the row alone | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T63 | a figure typed over a count that changed after the sheet was opened is refused | `Stocktake.php` | `StocktakeTest`، `StocktakesControllerTest` | كُشف |
+| T64 | the counts that changed are written to the audit log | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T65 | a counted quantity that is a list is refused | `Stocktake.php` | `StocktakeTest`، `StocktakesControllerTest` | كُشف |
+| T66 | an approval is refused when the lines are not those the approver reviewed | `Stocktake.php` | `StocktakeTest`، `StocktakesControllerTest` | كُشف |
+| T67 | the digest of the lines is written to the audit log of the approval | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T68 | the digest covers the quantity counted | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T69 | the digest covers the quantity frozen | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T70 | the items to count must be a list | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T71 | the stocktakes of the list carry the label the page shows | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T72 | a stocktake is found by its id while it has no number | `Stocktake.php` | `StocktakeTest` | كُشف |
+| T73 | a stocktake that has a number is not found by its id | `Stocktake.php` | `StocktakeTest` | كُشف |
+| P55 | the permits of the list carry the label the page shows | `StockPermit.php` | `StockPermitTest` | كُشف |
+| P56 | a permit is found by its id while it has no number | `StockPermit.php` | `StockPermitTest` | كُشف |
+| P57 | a permit that has a number is not found by its id | `StockPermit.php` | `StockPermitTest` | كُشف |
+| P58 | a label of a kind finds only the permits of that kind | `StockPermit.php` | `StockPermitTest` | كُشف |
+| R27 | the requests of the list carry the label the page shows | `StockRequest.php` | `StockRequestTest` | كُشف |
+| R28 | a request is found by its id while it has no number | `StockRequest.php` | `StockRequestTest` | كُشف |
+| R29 | a request that has a number is not found by its id | `StockRequest.php` | `StockRequestTest` | كُشف |
+| N01 | the label of a kind is taken for what it names | `StockDocumentSearch.php` | `StockDocumentSearchTest` | كُشف |
+| N02 | a hash before the text is not part of it | `StockDocumentSearch.php` | `StockDocumentSearchTest` | كُشف |
+| N03 | the case of the label does not matter | `StockDocumentSearch.php` | `StockDocumentSearchTest` | كُشف |
+| N04 | an id is digits only | `StockDocumentSearch.php` | `StockDocumentSearchTest` | كُشف |
+| N05 | an id is not longer than the column holds | `StockDocumentSearch.php` | `StockDocumentSearchTest` | كُشف |
+| Q29 | a field that is a list is taken as no text | `StockDocumentController.php` | `StocktakesControllerTest`، `StockPermitsControllerTest` | كُشف |
+| Q30 | the sheet carries the digest of the lines it shows | `Stocktakes.php` | `StocktakesControllerTest` | كُشف |
+| Q31 | an approval carries the digest the approver reviewed | `Stocktakes.php` | `StocktakesControllerTest` | كُشف |
+| Q32 | a save of the sheet carries what the sheet showed | `Stocktakes.php` | `StocktakesControllerTest` | كُشف |
+| V01 | approving on the sheet waits for the typed counts to be saved | `sheet.php` | `StocktakesControllerTest` | كُشف |
+| V02 | taking an item off waits for the typed counts to be saved | `sheet.php` | `StocktakesControllerTest` | كُشف |
+| V03 | listing an item waits for the typed counts to be saved | `sheet.php` | `StocktakesControllerTest` | كُشف |
+| V04 | the approval carries the digest of the sheet | `sheet.php` | `StocktakesControllerTest` | كُشف |
+| V05 | the sheet says what it showed of each count | `sheet.php` | `StocktakesControllerTest` | كُشف |
+| V06 | the arrow of a transfer follows the reading direction | `manage.php` | `StockPermitsControllerTest` | كُشف |
+| R30 | the permit of a fulfilled request is shown by its number | `StockRequests.php` | `StockRequestsControllerTest` | كُشف |
+| R31 | the number of the permit of a request is that of a transfer permit | `StockRequest.php` | `StockRequestsControllerTest` | كُشف |
 
 ## 4. ما افترضتُه
 
@@ -358,7 +408,7 @@
 |---|---|---|---|---|---|
 | 1 | إلغاء وتعديل إذن تحويل بين فرعين يفشلان حين يكون رقم الفرع المستلِم أقل من رقم المُرسِل | **صحيح (حرج)**: `takeBack` يمرّ على القيود بترتيب `branch_id` فيصل قيد الاستلام أولًا، و`reverseAutomatic` لا يعرف الاقتران ويرفضه إن لم يكن مصدره في القوائم الآلية. والإدخال الذي حُذف في `32558fc` بوصفه «ميتًا» لم يكن ميتًا | أُعيد `StockPermitSources::TRANSFER_RECEIPT` إلى `JournalService::TRANSFER_SOURCES` (فيبقى الاستلام مقرونًا فلا يُعكس يدويًا) | `StockPermitTest::testCancel_ReversesBothJournalsOfATransferSentFromTheHigherBranchToTheLowerOne` و`testUpdate_CorrectsATransferSentFromTheHigherBranchToTheLowerOne` (التحويل من الفرع الأعلى إلى الأدنى، وكانت كل اختبارات الإلغاء قبلها من الفرع 1) | `J04` |
 | 2 | عدّ الجرد وإضافة صنف وحذفه لا تُكتب في سجل التدقيق والاعتماد لا يرتبط بما راجعه المعتمِد | **صحيح** | يُكتب في سجل التدقيق `stocktake_counted` (كل صف تغيّر بقيمته قبل وبعد) و`stocktake_items_added` و`stocktake_item_removed` (بما جُمِّد وما عُدّ). **بصمة (digest) للبنود** تحملها الورقة إلى الاعتماد فيُرفض الاعتماد إن تغيّرت البنود بعد مراجعتها (`StocktakeChanged`)، وتُكتب البصمة في تدقيق الاعتماد. واجهة المكتبة تقبل غياب البصمة (للاستدعاء البرمجي واختبارات المكتبة)، أما **المسار `postApprove` فيرفض الطلب الذي لا يحملها** | `StocktakeTest` (تدقيق كل تغيير، وقبول البنود كما روجعت ورفض ما تغيّر عدًّا وإضافةً وحذفًا، وتغيّر البصمة بتغيّر المجمَّد أو المعدود) و`StocktakesControllerTest::testPostApprove_RejectsAnApprovalThatCarriesNoDigestOrAStaleOne` | `T58` و`T59` و`T64` و`T66` إلى `T69` و`Q30` و`Q31` |
-| 3 | جردان مفتوحان لموقع واحد بتاريخين مختلفين يطبّقان الفرق نفسه مرتين | **صحيح** (الرف 10 والعدّ الصحيح 8: الاعتماد الأول يترك 8 والثاني يترك 6 ويرحّل خسارة ثانية) | **الصنف على جرد قائم واحد لموقعه في وقت واحد**: عند الإدراج (بدء الجرد أو إضافة صنف) يُرفض صنف مدرج في جرد آخر للموقع حالته `counting` (`StocktakeItemOpen`، والرسالة تسمّي الجرد والصنف). يُقفل الموقع أثناء الإدراج فيُدرج أحد الجردين المتزامنين فقط. بعد الاعتماد أو الإلغاء يتحرر الصنف، والجرد التالي يجمّد ما تركه الاعتماد | `StocktakeTest` (رفض عند البدء وعند الإضافة وبـ«كل الأصناف»، وقبول بعد الاعتماد والإلغاء ولموقع آخر، وسباق عمليتين حقيقيتين على البدء وعلى الإضافة) | `T52` إلى `T57` |
+| 3 | جردان مفتوحان لموقع واحد بتاريخين مختلفين يطبّقان الفرق نفسه مرتين | **صحيح** (الرف 10 والعدّ الصحيح 8: الاعتماد الأول يترك 8 والثاني يترك 6 ويرحّل خسارة ثانية) | **الصنف على جرد قائم واحد لموقعه في وقت واحد**: عند الإدراج (بدء الجرد أو إضافة صنف) يُرفض صنف مدرج في جرد آخر للموقع حالته `counting` (`StocktakeItemOpen`، والرسالة تسمّي الجرد والصنف). يُقفل الموقع أثناء الإدراج فيُدرج أحد الجردين المتزامنين فقط. بعد الاعتماد أو الإلغاء يتحرر الصنف، والجرد التالي يجمّد ما تركه الاعتماد | `StocktakeTest` (رفض عند البدء وعند الإضافة وبـ«كل الأصناف»، وقبول بعد الاعتماد والإلغاء ولموقع آخر، وسباق عمليتين حقيقيتين على البدء وعلى الإضافة، واختباران يمسكان قفل الموقع على اتصال ثانٍ ويتوقعان الانتظار، وهما دليل `T52` و`T53` لأن السباق وحده ينجح بالصدفة) | `T52` إلى `T57` |
 | 4 | زر «اعتماد» يعتمد المحفوظ ويتجاهل ما كُتب في الحقول | **صحيح** | الورقة ترفض الاعتماد والإضافة والحذف ما دامت في الحقول أرقام لم تُحفظ (رسالة «احفظ العدّ أولًا») وتُرسل بصمة ما عُرض | `StocktakesControllerTest::testGetDocument_CarriesTheDigestAndWhatEachCountShowedAndGuardsTypedCountsThatWereNotSaved` (يقرأ ربط المعالجات في نص الصفحة؛ **لا متصفح هنا**، فالسلوك في المتصفح لم يُجرَّب) | `V01` إلى `V04` |
 | 5 | حفظ الورقة يمسح عدّ شخص آخر حُفظ بعد فتحها | **صحيح** | كل صف يحمل ما عُرض عنه (`seen`): الصف الذي لم يتغير عمّا عُرض يُترك كما هو في القاعدة، وصف كُتب فوق عدّ تغيّر بعد فتح الورقة يُرفض الحفظ كله (`StocktakeCountChanged` باسم الصنف) | `StocktakeTest` و`StocktakesControllerTest::testPostCount_KeepsACountSavedAfterTheSheetWasOpenedAndSaysWhichCountChanged` | `T61` إلى `T63` و`Q32` و`V05` |
 | 6 | `assertSee('-2')` ينجح في الأيام 20 إلى 29 بلا صلة بالكود | **صحيح** | صار التأكيد على `<bdi dir="ltr">-2</bdi>` وعلى المعدود | `StocktakesControllerTest::testPostCount_EntersTheCountsAndPostApproveAppliesThemWhileTheBooksFollow` | لا حارس (اختبار) |
@@ -383,12 +433,12 @@
 
 **decisions.md** (صف جديد، رقمه E-التالي بعد E109):
 
-> | E-؟؟ | **مستندات المخزون** (`INV-10` و`INV-11` و`INV-12`، WP27، 2026-11-01): وحدة `stock_documents` (`/stock_documents`) بأذون مخزن مرقّمة (إضافة وصرف وتحويل بين موقعين، ترقيم WP8 بست خانات)، وجرد بكمية نظام مجمَّدة عند البدء، وطلبات مخزون بين موقعين. **الأذون ترحّل بالبناة القائمة** (`StockLedger` و`ReceivingPostingBuilder`): الإضافة مدين مخزن الموقع ودائن `2213` أو الحساب الفرعي المختار، والصرف بالمتوسط مدين `12042` أو المختار، والتحويل بما يستحقه المُخرِج بمتوسطه مدين المستلِم ودائن المُخرِج وبين فرعين بقيد في كل فرع يلتقيان في حسابَي ما بين الفروع؛ **الإلغاء عكس لا حذف والتعديل عكس وإعادة ترحيل (E15)** ويُرفض ما يترك موقعًا بأقل من صفر (قاعدة تصحيح الاستلام، WP17)؛ فترة الإذن المغلقة ترفض التعديل ويُرحَّل عكس الإلغاء بتاريخ اليوم. **الجرد** يطبّق `معدود − مجمَّد` على الرف الحالي بالمتوسط الحالي في **قيد واحد بتاريخ يوم الاعتماد** مقابل `511`، والاعتماد صلاحية مستقلة، وجرد واحد قائم لكل موقع ويوم، والإلغاء بعد الاعتماد عكس يُرفض إن كسر حركة لاحقة. **الطلبات** لا ترحّل شيئًا وإتمامها ينشئ إذن التحويل. **افتراضات للمراجعة بلا ادّعاء تطابق:** إذن التحويل والطلبات خلف إعدادين مطفأين افتراضيًا وحالات الطلب وأدواره من تصميمنا (لم يُرصد تفعيلها عند دفترة)؛ قيد الجرد واحد لا إذنان آليان كما رُصد؛ المورّد والعميل يُكتبان على المستند فقط؛ التعديل لا يغيّر النوع ولا المواقع؛ الصلاحيات الخمس لا تُمنح لأحد. **بنود قرار للمالك:** تاريخ قيد الجرد، وحساسية صلاحيتَي الاعتماد، ورفض الرصيد السالب، وترحيل المورّد والعميل، وقواعد الطلبات. **أصناف التتبع (E79) تتبع WP42، ولا كتابة في دفترة، ولا دمج في `master`، ولا نشر** [تقرير WP27](daftra-parity/wp27-report.md) |
+> | E-؟؟ | **مستندات المخزون** (`INV-10` و`INV-11` و`INV-12`، WP27، 2026-11-01): وحدة `stock_documents` (`/stock_documents`) بأذون مخزن مرقّمة (إضافة وصرف وتحويل بين موقعين، ترقيم WP8 بست خانات)، وجرد بكمية نظام مجمَّدة عند البدء، وطلبات مخزون بين موقعين. **الأذون ترحّل بالبناة القائمة** (`StockLedger` و`ReceivingPostingBuilder`): الإضافة مدين مخزن الموقع ودائن `2213` أو الحساب الفرعي المختار، والصرف بالمتوسط مدين `12042` أو المختار، والتحويل بما يستحقه المُخرِج بمتوسطه مدين المستلِم ودائن المُخرِج وبين فرعين بقيد في كل فرع يلتقيان في حسابَي ما بين الفروع؛ **الإلغاء عكس لا حذف والتعديل عكس وإعادة ترحيل (E15)** ويُرفض ما يترك موقعًا بأقل من صفر (قاعدة تصحيح الاستلام، WP17)؛ فترة الإذن المغلقة ترفض التعديل ويُرحَّل عكس الإلغاء بتاريخ اليوم. **الجرد** يطبّق `معدود − مجمَّد` على الرف الحالي بالمتوسط الحالي في **قيد واحد بتاريخ يوم الاعتماد** مقابل `511`، والاعتماد صلاحية مستقلة، وجرد واحد قائم لكل موقع ويوم، **والصنف على جرد قائم واحد لموقعه** (فلا يُطبَّق فرقه مرتين)، وكل عدّ وإدراج وحذف في سجل التدقيق، **والاعتماد بحسب بصمة البنود التي راجعها المعتمِد**، والإلغاء بعد الاعتماد عكس يُرفض إن كسر حركة لاحقة. **الطلبات** لا ترحّل شيئًا وإتمامها ينشئ إذن التحويل. **افتراضات للمراجعة بلا ادّعاء تطابق:** إذن التحويل والطلبات خلف إعدادين مطفأين افتراضيًا وحالات الطلب وأدواره من تصميمنا (لم يُرصد تفعيلها عند دفترة)؛ قيد الجرد واحد لا إذنان آليان كما رُصد؛ المورّد والعميل يُكتبان على المستند فقط؛ التعديل لا يغيّر النوع ولا المواقع؛ الصلاحيات الخمس لا تُمنح لأحد. **بنود قرار للمالك:** تاريخ قيد الجرد، وحساسية صلاحيتَي الاعتماد، ورفض الرصيد السالب، وترحيل المورّد والعميل، وقواعد الطلبات. **أصناف التتبع (E79) تتبع WP42، ولا كتابة في دفترة، ولا دمج في `master`، ولا نشر** [تقرير WP27](daftra-parity/wp27-report.md) |
 
 **مصفوفة التطابق** (`conformance-matrix.md`):
 
 - الصف `INV-10`: عمود «ما عندنا»: «إذن مخزن مرقّم (WP27): إضافة وصرف وتحويل بين موقعين بترقيم لكل نوع وتاريخ وملاحظة وبنود وطرف اختياري وحساب فرعي اختياري، يرحّل حركات مقيَّمة وقيدًا (إضافة ← `2213`، صرف ← `12042`، تحويل بمتوسط المُخرِج وبين فرعين بقيدين) ويُلغى بالعكس ويُعدَّل بعكس وإعادة ترحيل، وعمودا المتاح والرصيد بعد الحركة؛ التحويل خلف إعداد مطفأ افتراضيًا؛ التحويل القديم عبر استلام بوضع `requisition` باقٍ»؛ التصنيف يبقى «مختلف ويحتاج تعديلًا» (الترقيم اليدوي والمرفقات والربط بالفواتير وأصناف التتبع لم تُبنَ، وأساس 120.00 لم يُسجَّل). الأدلة: `StockPermitTest` و`StockPermitsControllerTest` و`StockPermitBuilderTest`.
-- الصف `INV-11`: «مستند جرد (WP27) بكمية نظام مجمَّدة وعدّ وفروق وجرد جزئي وجرد واحد لكل موقع ويوم، يُعتمد بصلاحية مستقلة فيُرحَّل **قيدًا واحدًا** بالمتوسط الحالي مقابل `511`، ويُلغى بالعكس إن لم يكسر حركة لاحقة، وورقة عدّ للطباعة». التصنيف يبقى «مختلف ويحتاج تعديلًا» (دفترة تنشئ **إذنين آليين**، وتاريخ القيد وإعداد `calculate_stocktaking_to_stocktaking_date` وتخطيط الورقة لم تُقارَن). الأدلة: `StocktakeTest` و`StocktakesControllerTest`.
+- الصف `INV-11`: «مستند جرد (WP27) بكمية نظام مجمَّدة وعدّ وفروق وجرد جزئي وجرد واحد لكل موقع ويوم، يُعتمد بصلاحية مستقلة وببصمة ما روجع فيُرحَّل **قيدًا واحدًا** بالمتوسط الحالي مقابل `511`، والصنف على جرد قائم واحد لموقعه، ويُلغى بالعكس إن لم يكسر حركة لاحقة، وورقة عدّ للطباعة». التصنيف يبقى «مختلف ويحتاج تعديلًا» (دفترة تنشئ **إذنين آليين**، وتاريخ القيد وإعداد `calculate_stocktaking_to_stocktaking_date` وتخطيط الورقة لم تُقارَن). الأدلة: `StocktakeTest` و`StocktakesControllerTest`.
 - الصف `INV-12`: «طلب مخزون بين موقعين (WP27) خلف إعداد مطفأ افتراضيًا: `requested` ← `approved` ← `fulfilled` أو `cancelled`، بلا ترحيل، وإتمامه ينشئ إذن التحويل». ينتقل من «غير منفّذ» إلى **«مختلف ويحتاج تعديلًا»** (الحالات والأدوار من تصميمنا لا من رصد). الأدلة: `StockRequestTest` و`StockRequestsControllerTest`.
 - الصف `ACC-08`: يُضاف «بنود الأذون الأربعة تستعملها أذون WP27 وجردها (قيد الجرد واحد)».
 - الصف `ACC-37`: يُضاف «الحساب الفرعي على إذن المخزن (WP27): ورقة مفتوحة بلا كيان ولا مفتاح نظام وبنوع يناسب الجانب» ويبقى «غير منفّذ» للمصروف والإيراد، وللأذون يصير «مختلف».
