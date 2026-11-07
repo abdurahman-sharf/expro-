@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\CurrencyCatalog;
 use App\Libraries\Accounting\DocumentCurrency;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\InvoiceDiscount;
@@ -25,12 +26,14 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\ParityFixture;
 
 class SalePostingBuilderTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ParityCaseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -1631,5 +1634,57 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $failure = $this->failureOf(fn () => $this->builder->paymentDifference($sale, $sale->payments[0], 1));
 
         $this->assertSame(PostingError::FxAccountsMissing, $failure->error);
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function rolesOfASale(): array
+    {
+        return [
+            'customer'      => $this->customerAccount(),
+            'sales_revenue' => $this->accountId('sales_revenue'),
+            'tax_output'    => $this->accountId('tax_output'),
+            'treasury'      => $this->accountId('cash'),
+            'fx_loss'       => $this->accountId('fx_loss'),
+            'fx_gain'       => $this->accountId('fx_gain'),
+        ];
+    }
+
+    public function testPaymentDifference_PostsTheJournalsOfTheObservedDollarInvoiceAndItsThreePaymentsWithTheDifferencesInTwoAccounts(): void
+    {
+        $case  = $this->referenceCase('T-58', 'foreign_currency_invoice', 'an-invoice-in-a-foreign-currency-and-its-payments-at-other-rates', 'differs');
+        $sale  = $this->sale([$this->line('2', '100', added: '30'), $this->line('1', '33.33', added: '4.9995', itemId: 2)], [
+            $this->foreignPayment(1, '100.00', '3.75000000'),
+            $this->foreignPayment(2, '100.00', '3.60000000'),
+            $this->foreignPayment(3, '68.33', '3.90000000'),
+        ], currency: $this->foreign());
+        $roles = $this->rolesOfASale();
+
+        $this->assertSameAsFixture($case['expected']['journals']['invoice'], $this->foreignRoleLines($this->builder->invoice($sale, 1), $roles), 'the invoice');
+        $this->assertSameAsFixture($case['expected']['journals']['payment_1_at_3_75'], $this->foreignRoleLines($this->builder->payment($sale, $sale->payments[0], 1), $roles), 'the first payment');
+        $this->assertSameAsFixture($case['expected']['journals']['payment_2_at_3_60'], $this->foreignRoleLines($this->builder->payment($sale, $sale->payments[1], 1), $roles), 'the second payment');
+        $this->assertSameAsFixture($case['expected']['journals']['difference_of_payment_2_loss'], $this->foreignRoleLines($this->builder->paymentDifference($sale, $sale->payments[1], 1), $roles), 'the loss of the second payment');
+        $this->assertSameAsFixture($case['expected']['journals']['payment_3_at_3_90'], $this->foreignRoleLines($this->builder->payment($sale, $sale->payments[2], 1), $roles), 'the third payment');
+        $this->assertSameAsFixture($case['expected']['journals']['difference_of_payment_3_gain'], $this->foreignRoleLines($this->builder->paymentDifference($sale, $sale->payments[2], 1), $roles), 'the gain of the third payment');
+        $this->assertNull($this->builder->paymentDifference($sale, $sale->payments[0], 1), 'a payment at the rate of the invoice has no difference');
+        $this->assertSame($case['reference']['payment_form_has_a_rate_field'], $case['expected']['payment_form_has_a_rate_field']);
+        $this->assertSame($case['expected']['one_account_for_gains_and_losses'], $this->accountId('fx_loss') === $this->accountId('fx_gain'));
+    }
+
+    public function testInvoice_RoundsTheObservedPurchasesInDinarsAndYenToTheDecimalsOfEachCurrency(): void
+    {
+        $case = $this->referenceCase('T-61', 'currency_decimals', 'each-currency-has-its-own-decimals', 'differs');
+
+        $dinars = $this->builder->invoice($this->sale([$this->line('3', '10.125')], currency: $this->foreign('KWD', '12.04917000', CurrencyCatalog::decimalsOf('KWD'))), 1);
+        $yen    = $this->builder->invoice($this->sale([$this->line('3', '1234.5')], currency: $this->foreign('JPY', '0.02376000', CurrencyCatalog::decimalsOf('JPY'))), 1);
+
+        $this->assertSameAsFixture($case['expected'], [
+            'decimals'   => ['USD' => (string) CurrencyCatalog::decimalsOf('USD'), 'KWD' => (string) CurrencyCatalog::decimalsOf('KWD'), 'JPY' => (string) CurrencyCatalog::decimalsOf('JPY')],
+            'kwd_total'  => $dinars->lines[0]->foreignAmount,
+            'jpy_total'  => $yen->lines[0]->foreignAmount,
+            'kwd_in_sar' => bcadd($dinars->lines[0]->debit, '0', 2),
+            'jpy_in_sar' => bcadd($yen->lines[0]->debit, '0', 2),
+        ], 'dinars and yen');
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Support;
 
+use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\SaleAmounts;
 
 /**
@@ -84,6 +85,34 @@ trait ParityCaseTrait
                 'debit'  => $decimals === null ? (string) $line->debit : SaleAmounts::round((string) $line->debit, $decimals),
                 'credit' => $decimals === null ? (string) $line->credit : SaleAmounts::round((string) $line->credit, $decimals),
             ];
+        }
+
+        return $lines;
+    }
+
+    /**
+     * The lines of a journal that is not posted yet as the fixture writes them. A line that has an amount
+     * in a foreign currency says it in that currency and the base apart.
+     *
+     * @param array<string, int> $accounts The account of each role.
+     *
+     * @return list<array<string, string>>
+     */
+    protected function foreignRoleLines(JournalDraft $draft, array $accounts): array
+    {
+        $roles = array_flip($accounts);
+        $lines = [];
+
+        foreach ($draft->lines as $line) {
+            $role = $roles[$line->accountId] ?? 'account ' . $line->accountId;
+
+            if ($line->foreignAmount === null) {
+                $lines[] = ['role' => $role, 'debit' => $line->debit, 'credit' => $line->credit];
+            } elseif (bccomp($line->debit, '0', 4) > 0) {
+                $lines[] = ['role' => $role, 'debit' => $line->foreignAmount, 'credit' => '0', 'debit_base' => $line->debit];
+            } else {
+                $lines[] = ['role' => $role, 'debit' => '0', 'credit' => $line->foreignAmount, 'credit_base' => $line->credit];
+            }
         }
 
         return $lines;

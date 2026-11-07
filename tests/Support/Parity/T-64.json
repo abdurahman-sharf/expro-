@@ -73,56 +73,21 @@
     {
       "id": "a-posted-foreign-journal-keeps-its-rate",
       "kind": "reference_quirk",
-      "classification": "not_implemented",
-      "work_package": "WP28",
-      "reason": "There are no foreign-currency journals of documents yet. When WP28 builds them a posted journal must keep the rate it was posted at, whatever happens to the rate table afterwards.",
+      "classification": "deliberate_difference",
+      "reason": "The reference system re-rated the posted journal of a foreign invoice when the manual rate row was deleted. Here the rate is captured on the document and on its journal when it is posted, and nothing that happens to the rate table afterwards, a rate changed or deleted, touches a journal that stands (WP28).",
       "evidence": [
         "rerated_journals"
       ],
       "inputs": {
-        "rates": "a manual rate row of 3.75 deleted after a USD invoice was posted at it"
+        "rates": "the rate row of 3.75 deleted after a USD invoice was posted at it"
       },
       "reference": {
         "posted_journal_rate_after_the_rate_row_is_deleted": "3.74474",
         "posted_journal_rate_before": "3.75"
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
-          {
-            "kind": "column",
-            "table": "sales",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "sales_payments",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "receivings",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "receivings_payments",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "treasuries",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "table",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "table",
-            "pattern": "exchange_rate"
-          }
-        ]
+        "posted_journal_rate_after_the_rate_row_is_deleted": "3.75",
+        "posted_journal_rate_before": "3.75"
       }
     }
   ]

@@ -1,6 +1,6 @@
 {
   "id": "T-58",
-  "title": "An invoice in US dollars at a rate of 3.75 and three payments at other rates: every line converted and rounded on its own, the payment taken at the rate of its day, and the difference booked in one account; this application has one currency",
+  "title": "An invoice in US dollars at a rate of 3.75 and three payments at other rates: the invoice converted to the base line by line, each payment taken at the rate of its own day, and the difference of a payment booked as a journal of its own; built here with the gains and the losses in two accounts",
   "recorded": "2026-10-28",
   "observation": {
     "batch": "b",
@@ -53,9 +53,8 @@
     {
       "id": "an-invoice-in-a-foreign-currency-and-its-payments-at-other-rates",
       "kind": "foreign_currency_invoice",
-      "classification": "not_implemented",
-      "work_package": "WP28",
-      "reason": "A document here has no currency and no rate and no treasury has a currency: every amount is in the base currency (WP28 builds the document currency, the rate, the difference entries and the decimals of each currency). The numbers the reference system wrote are recorded for the package, with the quirks it should not copy: one account for gains and losses under current assets, and a difference booked in the SAR bucket that leaks 4.75 onto a SAR invoice.",
+      "classification": "differs",
+      "reason": "The document currency is built (WP28): the invoice is posted in the base at the rate of its day with the amount in dollars on every line, each payment is taken at the rate of its own day and the difference of a payment is a journal of its own tied to that payment, as the reference system does. It differs on purpose in two things: the gains go to an account of exchange gains and the losses to an account of exchange losses where the reference system keeps one account under current assets (1209), and the amount in dollars of the tax and revenue lines is kept to four decimals, with the cent the conversion rounds put on the revenue, where the reference system shows it to the cent. The payment form has no rate field here either: a payment takes the rate of the table on its day.",
       "evidence": [
         "currency_choice",
         "usd_invoice",
@@ -216,42 +215,97 @@
         "one_account_for_gains_and_losses": "1209"
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
-          {
-            "kind": "column",
-            "table": "sales",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "sales_payments",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "receivings",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "receivings_payments",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "treasuries",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "table",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "table",
-            "pattern": "exchange_rate"
-          }
-        ]
+        "journals": {
+          "invoice": [
+            {
+              "role": "customer",
+              "debit": "268.3300",
+              "credit": "0",
+              "debit_base": "1006.24"
+            },
+            {
+              "role": "tax_output",
+              "debit": "0",
+              "credit": "34.9995",
+              "credit_base": "131.25"
+            },
+            {
+              "role": "sales_revenue",
+              "debit": "0",
+              "credit": "233.3305",
+              "credit_base": "874.99"
+            }
+          ],
+          "payment_1_at_3_75": [
+            {
+              "role": "treasury",
+              "debit": "100.0000",
+              "credit": "0",
+              "debit_base": "375.00"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "100.0000",
+              "credit_base": "375.00"
+            }
+          ],
+          "payment_2_at_3_60": [
+            {
+              "role": "treasury",
+              "debit": "100.0000",
+              "credit": "0",
+              "debit_base": "360.00"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "100.0000",
+              "credit_base": "360.00"
+            }
+          ],
+          "difference_of_payment_2_loss": [
+            {
+              "role": "fx_loss",
+              "debit": "15.00",
+              "credit": "0"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "15.00"
+            }
+          ],
+          "payment_3_at_3_90": [
+            {
+              "role": "treasury",
+              "debit": "68.3300",
+              "credit": "0",
+              "debit_base": "266.49"
+            },
+            {
+              "role": "customer",
+              "debit": "0",
+              "credit": "68.3300",
+              "credit_base": "266.49"
+            }
+          ],
+          "difference_of_payment_3_gain": [
+            {
+              "role": "customer",
+              "debit": "10.25",
+              "credit": "0"
+            },
+            {
+              "role": "fx_gain",
+              "debit": "0",
+              "credit": "10.25"
+            }
+          ]
+        },
+        "every_line_converted_and_rounded_on_its_own": true,
+        "payment_form_has_a_rate_field": false,
+        "one_account_for_gains_and_losses": false
       }
     }
   ]

@@ -6988,4 +6988,24 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(['USD', '3.60000000'], [$this->saleRow($draft)->currency_code, $this->saleRow($draft)->currency_rate]);
         $this->assertSame(['sale:' . $this->customerAccount() . ':360.00:0.00', 'sale:' . $this->accountId('sales_revenue') . ':0.00:360.00'], $this->linesOfStanding($draft));
     }
+
+    public function testSaveValue_KeepsTheRateOfAPostedForeignJournalWhenTheRateRowIsDeletedAndAnotherIsEntered(): void
+    {
+        $case       = $this->referenceCase('T-64', 'reference_quirk', 'a-posted-foreign-journal-keeps-its-rate', 'deliberate_difference');
+        $currencies = $this->dollars();
+        $saleId     = $this->dollarInvoice();
+        $journalOf  = fn (): object => $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'sale', 'source_id' => $saleId])->get()->getRow();
+        $before     = $journalOf()->exchange_rate;
+
+        $rate = $this->accountingDb()->table('accounting_currency_rates')->where(['currency_code' => 'USD', 'rate' => '3.75000000'])->get()->getRow();
+        $currencies->rates()->delete((int) $rate->rate_id);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.74474', 'effective_date' => $this->daysAgo(30)]);
+
+        $this->assertSameAsFixture($case['expected'], [
+            'posted_journal_rate_after_the_rate_row_is_deleted' => $journalOf()->exchange_rate,
+            'posted_journal_rate_before'                        => $before,
+        ], 'the rate of the posted journal');
+        $this->assertSame('3.75000000', $this->saleRow($saleId)->currency_rate);
+        $this->assertSame('375.00', $this->balance($this->customerAccount()));
+    }
 }

@@ -1,6 +1,6 @@
 {
   "id": "T-61",
-  "title": "The decimals of a currency: two for the dollar, three for the dinar, none for the yen, each document rounded half up to the decimals of its own currency; this application rounds to the decimals of its one currency",
+  "title": "The decimals of a currency: two for the dollar, three for the dinar, none for the yen, each document rounded half up to the decimals of its own currency; built here, with the base journal kept to the decimals of the base",
   "recorded": "2026-10-28",
   "observation": {
     "batch": "b",
@@ -21,9 +21,8 @@
     {
       "id": "each-currency-has-its-own-decimals",
       "kind": "currency_decimals",
-      "classification": "not_implemented",
-      "work_package": "WP28",
-      "reason": "The decimals of the shop are one setting for every document (G-25 keeps the per-currency decimals in WP28).",
+      "classification": "differs",
+      "reason": "The decimals of each currency are built (WP28): zero, two or three from the catalog, and a document is rounded half up to the decimals of its own currency, as the reference system does. The journal in the base is kept to the two decimals of the base where the reference system showed 365.993 and 88. A document in the register takes up to two decimals in a quantity and a price: an amount of three decimals is refused by name.",
       "evidence": [
         "currency_decimals"
       ],
@@ -53,42 +52,15 @@
         "jpy_in_sar": "88"
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
-          {
-            "kind": "column",
-            "table": "sales",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "sales_payments",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "receivings",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "receivings_payments",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "treasuries",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "table",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "table",
-            "pattern": "exchange_rate"
-          }
-        ]
+        "decimals": {
+          "USD": "2",
+          "KWD": "3",
+          "JPY": "0"
+        },
+        "kwd_total": "30.375",
+        "jpy_total": "3704",
+        "kwd_in_sar": "365.99",
+        "jpy_in_sar": "88.01"
       }
     }
   ]

@@ -1,6 +1,6 @@
 {
   "id": "T-60",
-  "title": "A transfer between treasuries of different currencies: two journals clearing through the exchange difference account, the foreign leg valued at the rate table and not at the typed rate; treasuries here have no currency",
+  "title": "A transfer between treasuries of different currencies: both amounts are typed and the difference of the foreign leg from the rate table is booked to an exchange account; built here as one journal for both legs",
   "recorded": "2026-10-28",
   "observation": {
     "batch": "b",
@@ -31,9 +31,8 @@
     {
       "id": "a-transfer-between-treasuries-of-two-currencies",
       "kind": "currency_transfer",
-      "classification": "not_implemented",
-      "work_package": "WP28",
-      "reason": "A treasury here has no currency and a transfer has no rate (WP28). The reference system books each leg in its own journal and clears them through 1209; when the typed rate differs from the table the foreign leg is valued at the table.",
+      "classification": "differs",
+      "reason": "The treasury currency and the transfer between currencies are built (WP28): the foreign leg is valued at the rate of the table on the day, as the reference system does. It differs on purpose in three things: both legs are one journal in the base where the reference system writes one journal for each leg and clears them through 1209, the user types the amount that arrives where the reference system takes a rate, and the difference between the amount typed and the rate of the table is a line of the same journal in the account of exchange gains or losses, which a difference of more than 10% of what leaves refuses.",
       "evidence": [
         "treasury_currency",
         "transfers"
@@ -165,24 +164,53 @@
         "a_transfer_can_be_deleted": false
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
-          {
-            "kind": "column",
-            "table": "treasuries",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "treasury_transfers",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "treasury_transfers",
-            "pattern": "rate"
-          }
-        ]
+        "journals": {
+          "x1": [
+            {
+              "role": "treasury",
+              "debit": "10.0000",
+              "credit": "0",
+              "debit_base": "37.50"
+            },
+            {
+              "role": "bank",
+              "debit": "0",
+              "credit": "37.50"
+            }
+          ],
+          "x2": [
+            {
+              "role": "treasury",
+              "debit": "7.5000",
+              "credit": "0",
+              "debit_base": "28.13"
+            },
+            {
+              "role": "bank",
+              "debit": "0",
+              "credit": "30.00"
+            },
+            {
+              "role": "fx_loss",
+              "debit": "1.87",
+              "credit": "0"
+            }
+          ],
+          "x3": [
+            {
+              "role": "bank",
+              "debit": "65.63",
+              "credit": "0"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "17.5000",
+              "credit_base": "65.63"
+            }
+          ]
+        },
+        "a_transfer_can_be_deleted": false
       }
     }
   ]

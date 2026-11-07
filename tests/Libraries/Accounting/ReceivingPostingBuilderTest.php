@@ -22,6 +22,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 
 /**
  * The journals and the stock movements a purchase draws, from a purchase handed to the builder
@@ -31,6 +32,7 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ParityCaseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -829,5 +831,17 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         $draft = $this->builder->supplierPaymentDifference($purchase, $refund, 1);
 
         $this->assertSame([$this->accountId('fx_loss') . ':7.5000:0.0000', $this->supplierAccount() . ':0.0000:7.5000'], $this->shape($draft));
+    }
+
+    public function testSupplierPaymentDifference_PostsTheJournalsOfTheObservedDollarPurchasePaidAtAnotherRate(): void
+    {
+        $case     = $this->referenceCase('T-59', 'foreign_currency_purchase', 'a-purchase-in-a-foreign-currency-paid-at-another-rate', 'differs');
+        $payment  = $this->supplierPayment(3, '200.00', '3.60000000');
+        $purchase = $this->purchase([$this->line('4', '50.00')], currency: $this->dollars(), payments: [$payment]);
+        $roles    = ['stock' => $this->stockAccount($this->warehouse), 'supplier' => $this->supplierAccount(), 'treasury' => $this->accountId('cash'), 'fx_gain' => $this->accountId('fx_gain')];
+
+        $this->assertSameAsFixture($case['expected']['journals']['purchase'], $this->foreignRoleLines($this->builder->purchase($purchase, 1)->journal, $roles), 'the purchase');
+        $this->assertSameAsFixture($case['expected']['journals']['payment'], $this->foreignRoleLines($this->builder->supplierPayment($purchase, $payment, 1), $roles), 'the payment');
+        $this->assertSameAsFixture($case['expected']['journals']['difference_gain'], $this->foreignRoleLines($this->builder->supplierPaymentDifference($purchase, $payment, 1), $roles), 'the difference');
     }
 }

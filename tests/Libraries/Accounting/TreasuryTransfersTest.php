@@ -920,4 +920,89 @@ class TreasuryTransfersTest extends CIUnitTestCase
         $row = $this->accountingDb()->table('treasury_transfers')->where('transfer_id', $id)->get()->getRow();
         $this->assertSame([null, null, null], [$row->from_currency, $row->to_currency, $row->to_amount]);
     }
+
+    /**
+     * @param array<string, int> $accounts The account of each role.
+     *
+     * @return list<array<string, string>> The lines of the journal of a transfer as the fixture writes them.
+     */
+    private function transferAsFixture(int $transferId, array $accounts): array
+    {
+        $roles   = array_flip($accounts);
+        $journal = $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'treasury_transfer', 'source_id' => $transferId])->get()->getRow();
+        $lines   = [];
+
+        foreach ($this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journal->journal_id)->orderBy('line_no')->get()->getResult() as $line) {
+            $role = $roles[(int) $line->account_id] ?? 'account ' . $line->account_id;
+
+            if ($line->foreign_amount === null) {
+                $lines[] = ['role' => $role, 'debit' => $line->debit, 'credit' => $line->credit];
+            } elseif (bccomp($line->debit, '0', 4) > 0) {
+                $lines[] = ['role' => $role, 'debit' => $line->foreign_amount, 'credit' => '0', 'debit_base' => $line->debit];
+            } else {
+                $lines[] = ['role' => $role, 'debit' => '0', 'credit' => $line->foreign_amount, 'credit_base' => $line->credit];
+            }
+        }
+
+        return $lines;
+    }
+
+    public function testTransfer_PostsTheThreeObservedTransfersAsOneJournalEachWithTheForeignLegAtTheRateOfTheTable(): void
+    {
+        $case    = $this->referenceCase('T-60', 'currency_transfer', 'a-transfer-between-treasuries-of-two-currencies', 'differs');
+        $dollars = $this->dollarBox();
+        $roles   = ['treasury' => (int) $this->treasuries->accountOf($dollars), 'bank' => (int) $this->treasuries->accountOf($this->main), 'fx_loss' => $this->accountId('fx_loss'), 'fx_gain' => $this->accountId('fx_gain')];
+
+        $first  = $this->transfers->transfer($this->main, $dollars, '37.50', '2026-10-21', '', $this->manager, '10.00');
+        $second = $this->transfers->transfer($this->main, $dollars, '30.00', '2026-10-21', '', $this->manager, '7.50');
+        $third  = $this->transfers->transfer($dollars, $this->main, '17.50', '2026-10-21', '', $this->manager, '65.63');
+
+        $this->assertSameAsFixture($case['expected']['journals']['x1'], $this->transferAsFixture($first, $roles), 'the first transfer');
+        $this->assertSameAsFixture($case['expected']['journals']['x2'], $this->transferAsFixture($second, $roles), 'the second transfer');
+        $this->assertSameAsFixture($case['expected']['journals']['x3'], $this->transferAsFixture($third, $roles), 'the third transfer');
+        $this->assertSame('0.0000', $this->treasuries->position($dollars)->foreignBalance);
+        $this->assertFalse($case['expected']['a_transfer_can_be_deleted']);
+    }
+
+    public function testTransfer_AcceptsAnAmountThatArrivesTenPercentFromTheRateOfTheDay(): void
+    {
+        $dollars = $this->dollarBox();
+
+        $id = $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager, '90.00');
+
+        $this->assertSame([(int) $this->treasuries->accountOf($dollars) . ':337.50:0.00', (int) $this->treasuries->accountOf($this->main) . ':0.00:375.00', $this->accountId('fx_loss') . ':37.50:0.00'], $this->transferLines($id));
+    }
+
+    public function testTransfer_RejectsAnAmountThatArrivesFurtherThanTenPercentBelowTheRateOfTheDay(): void
+    {
+        $dollars = $this->dollarBox();
+
+        $exception = $this->refusal(fn () => $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager, '89.99'));
+
+        $this->assertSame(AccountingError::TransferRateOutOfRange, $exception->error);
+        $this->assertSame(0, $this->accountingDb()->table('treasury_transfers')->where('to_treasury_id', $dollars)->countAllResults());
+        $this->assertSame('0.00', $this->balance($this->accountId('fx_loss')));
+    }
+
+    public function testTransfer_RejectsAnAmountThatArrivesFurtherThanTenPercentAboveTheRateOfTheDay(): void
+    {
+        $dollars = $this->dollarBox();
+
+        $exception = $this->refusal(fn () => $this->transfers->transfer($this->main, $dollars, '3750.00', '2026-10-21', '', $this->manager, '10000.00'));
+
+        $this->assertSame(AccountingError::TransferRateOutOfRange, $exception->error);
+        $this->assertSame('0.00', $this->balance($this->accountId('fx_gain')));
+        $this->assertSame('0.0000', $this->treasuries->position($dollars)->balance);
+    }
+
+    public function testTransfer_RejectsAnAmountOfTheBaseThatArrivesFarFromWhatTheDollarsLeavingAreWorth(): void
+    {
+        $dollars = $this->dollarBox();
+        $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager, '100.00');
+
+        $exception = $this->refusal(fn () => $this->transfers->transfer($dollars, $this->drawer, '100.00', '2026-10-21', '', $this->manager, '2000.00'));
+
+        $this->assertSame(AccountingError::TransferRateOutOfRange, $exception->error);
+        $this->assertSame('100.0000', $this->treasuries->position($dollars)->foreignBalance);
+    }
 }
