@@ -351,6 +351,18 @@ final class RecurringSchedulesTest extends CIUnitTestCase
         $this->assertSame([$later, '2', 'weeks', $later], [$row->start_date, (string) $row->period_count, $row->period_unit, $row->next_due_date]);
     }
 
+    public function testUpdate_RefusesToMoveTheStartToADayThatHasPassed(): void
+    {
+        $scheduleId = $this->invoiceSchedule();
+
+        $this->assertRefused(AccountingError::RecurringStartInPast, fn () => $this->schedules->update($scheduleId, $this->invoiceInput(['start_date' => $this->daysAgo(2)]), $this->manager));
+        $this->assertSame(date('Y-m-d'), $this->row($scheduleId)->start_date);
+
+        $this->schedules->update($scheduleId, $this->invoiceInput(['start_date' => $this->daysAgo(2), 'name' => 'Same start']), $this->manager, $this->daysAgo(2));
+
+        $this->assertSame($this->daysAgo(2), $this->row($scheduleId)->start_date);
+    }
+
     public function testUpdate_RefusesToMoveTheStartOrThePeriodOnceADateWasMade(): void
     {
         $scheduleId = $this->invoiceSchedule();

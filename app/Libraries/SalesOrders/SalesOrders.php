@@ -331,7 +331,7 @@ final class SalesOrders
 
     /**
      * Whether the employee may open the register on this order now, with the reason when not: the module
-     * is on, they may convert orders, the order is theirs to see and works in their branch, and it is approved
+     * is on, they may convert orders, the order is theirs to see (which is what keeps it to their branches), and it is approved
      * or invoiced in part. It takes no lock: the invoice that is saved asks again under the lock of the order.
      *
      * @throws AccountingException|BranchException
@@ -346,8 +346,6 @@ final class SalesOrders
         if ($order === null) {
             throw new AccountingException(AccountingError::SalesOrderNotFound, 'There is no such sales order.', ['name' => (string) $orderId]);
         }
-
-        $this->branches->requireBranch((int) $order->branch_id, $employeeId);
 
         if (! $order->status_object->canConvert()) {
             throw new AccountingException(AccountingError::SalesOrderNotConvertible, 'An order that is ' . $order->status_object->name . ' does not become an invoice.', ['name' => lang($order->status_object->languageKey())]);

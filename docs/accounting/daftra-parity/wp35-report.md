@@ -68,11 +68,28 @@
 
 **ما غطّته الاختبارات:** المولِّد (**تشغيل متكرر، وعمليتان حقيقيتان معًا، وفترة مقفلة، وجدولة موقوفة ومنتهية، وأقصى عدد مرات، وتاريخ انتهاء، وتواريخ نهاية الشهر (31 يناير + شهر) والسنة الكبيسة، واللحاق بالترتيب بسقف، واستئناف بعد إيقاف، وفقدان صلاحية الموظف وفرعه، وفقد العدّاد والمفتاح الفريد، ويوم التطبيق مقابل ساعة القاعدة، والمحاسبة معطلة، والتدقيق، والمصروف بتقسيم الضريبة**)، وإعادة المحاولة، والجدولة (**كل رفض مسمّى وأثره**: صلاحية النوع والفرع والتحرير بعد أول موعد والحالات)، وتحويل الأمر وتتبع الكميات والفروع والصلاحيات والمحاسبة معطلة (الوكيل السابق)، والشاشات (**صلاحية، ونطاق فرع، وPOST فقط، ووحدة النوع، وتنبيهات**)، والأمر (رموز الخروج والخيارات)، والترحيل (القيود، والمفاتيح الفريدة، وإعادة التشغيل، وإزالته).
 
-**نتائج التشغيل (من `/home/user/wt/WP35` بقاعدة `ospos_test_wp35`):** {{RUNS}}
+**نتائج التشغيل (من `/home/user/wt/WP35` بقاعدة `ospos_test_wp35`):** - **الملفات التي شغّلتُها كلها، كل ملف بقاعدته:** `tests/Database/OrderToCashDocumentsMigrationTest.php` و`tests/Libraries/SalesOrders` و`tests/Libraries/Recurring` و`tests/Libraries/Numbering` و`tests/Libraries/Accounting/Readiness` و`tests/Commands` و`tests/Controllers/Sales_ordersControllerTest.php` و`Recurring_invoicesControllerTest.php` و`Recurring_expensesControllerTest.php` و`tests/Models/SaleTest.php` و`tests/Libraries/Sale_libTest.php` و`tests/Libraries/Accounting/AccountingMessageTest.php` و`tests/LanguageFilesTest.php` و`tests/helpers`: **3998 اختبارًا، كلها نجحت (4 تخطّتها الأطر لا مني)**؛ ثم `tests/Libraries/Accounting/SalePostingTest.php` و`tests/Controllers/SalesControllerTest.php` و`ConfigTest.php` و`tests/Libraries/Accounting/ExpensePostingTest.php` و`tests/Controllers/ExpensesControllerTest.php` مع ملفي المولِّد والتنبيهات: **1103 اختبارات نجحت**. وبعد تقوية الاختبارات لأدلة الحراس أعدتُ `RecurringGeneratorTest` و`RecurringSchedulesTest` و`ScheduleInputTest` و`Recurring_invoicesControllerTest` و`SalesOrdersTest`: **180 اختبارًا نجحت**.
+- **لم أشغّل الحزمة كاملة** (قاعدة المالك وحدها المرجع، والحزمة تستغرق نحو ساعة وتشاركني فيها وكلاء آخرون).
+- **تجربة يدوية من سطر الأوامر الحقيقي** (`CI_ENVIRONMENT=development MYSQL_DB_NAME=ospos_test_wp35 php spark accounting:generate_recurring`) على قاعدة الاختبار والمحاسبة معطلة: جدولة مصروف وجدولة فاتورة «مُصدَرة» بموعدين مضيا، فصنع مصروفين وفاتورتين (برقم الفاتورة القديم) بلا جلسة وخرج بـ0.
 
 ## 3. أدلة تعطيل الحارس
 
-{{GUARDS}}
+**146 حارسًا عُطِّل كلٌّ وحده وكشفه اختبار** (`docs/accounting/daftra-parity/wp35-guards.json`، بـ`tools/dev/guard_mutations.py`): **146 من 146 `DETECTED`، و0 `UNDETECTED`، و0 `INVALID`**. الجولة الأولى كشفت 136 وأبقت **10 بلا كشف**، فقوّيتُ الاختبارات (لا الحراس) حتى كُشفت كلها:
+
+| الحارس | ما كان ناقصًا في الاختبار |
+|---|---|
+| `G31` وسيلة الدفع من القائمة | لا اختبار مباشر في `ScheduleInputTest` (كان في اختبار الجدولة) |
+| `G46` البدء المنقول ليس يومًا مضى | لا اختبار نقل البدء إلى الماضي |
+| `G67` الموعد المرفوض يقدّم الجدولة | **التقدّم يحدث أيضًا من مسار «موعد له سجل»** فبقي الحارس مغطًّى؛ أضفتُ أن عدد نتائج التشغيل أربع بلا «سبق» |
+| `G73` آخر موعد ينهي الجدولة | **تنتهي أيضًا في المرور التالي**؛ أضفتُ أن عدد النتائج ثلاث بلا «انتهت» |
+| `G113` و`G114` و`G115` الجدولة من وحدة نوعها (حفظ وحالة وإعادة محاولة) | **صلاحية النوع في الخدمة كانت تحجب الاختبار**؛ صار موظف الاختبار يملك صلاحيتي النوعين فلا يمنع إلا الحارس |
+| `G142` و`G143` فرع الأمر عند الاعتماد والإلغاء | لا اختبار موظف من فرع آخر لهما |
+| `G145` فرع الأمر عند التحويل | **كان الحارس شيفرة لا يبلغها اختبار** (`find` يرفض أمر الفرع الآخر قبلها)، فحذفتُ الاستدعاء المكرر وصار الحارس هو مرشِّح الفروع في `find` (**وعُطِّل هو**) |
+
+**كتل الحراس (146):** `RecurrenceTerms` (16) و`ScheduleInput` (19) و`RecurringSchedules` (17) و`RecurringGenerator` (19) و`RecurringReminders` (8) و`RunRefusal` (2) و`RecurringChecks` (4) والأمر (5) و`RecurringScreen` والمسارات (10) و`SalesOrders` (28) و`SalesOrderSettings` و`SalesOrderStatus` و`LineInput` (7) وشاشة أمر البيع ومساراتها (9) وخطاف `Sale::datedBySchedule` (2: **عُطِّل بمرشّح `--filter DatedBySchedule`**).
+
+**مكافئات لم أعدّها حراسًا:** حالة «نشطة» تُفحص في المولِّد على **ثلاث طبقات** (الاختيار والفحص المسبق وتحت القفل)، فتعطيل طبقة واحدة لا يغيّر سلوكًا (القفل هو الحاسم)؛ و`INSERT IGNORE` مع فحص `affectedRows` يسدّان وحدهما سباقًا لا يبلغه اختبار متتابع (السباق الحقيقي مغطّى باختبار العمليتين، والمفتاح الفريد باختبار الجدول).
+
 
 ## 4. ما افترضتُه
 

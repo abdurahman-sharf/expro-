@@ -1035,10 +1035,10 @@
     ]
   },
   {
-    "name": "G145 orders: the employee works in the branch of the order he converts",
+    "name": "G145 orders: an order is found only in the branches of the viewer",
     "file": "app/Libraries/SalesOrders/SalesOrders.php",
-    "find": "$this->branches->requireBranch((int) $order->branch_id, $employeeId);\n\n        if (! $order->status_object->canConvert()) {",
-    "replace": "if (! $order->status_object->canConvert()) {",
+    "find": "if ($reach['branches'] !== null) {",
+    "replace": "if (false) {",
     "tests": [
       "tests/Libraries/SalesOrders/SalesOrdersTest.php"
     ]

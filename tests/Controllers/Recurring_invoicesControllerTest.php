@@ -342,7 +342,7 @@ class Recurring_invoicesControllerTest extends CIUnitTestCase
     {
         $scheduleId = $this->schedule();
 
-        $this->actAsWith(['recurring_expenses', RecurringKind::Expense->managePermission()]);
+        $this->actAsWith(['recurring_expenses', RecurringKind::Expense->managePermission(), RecurringKind::Invoice->managePermission()]);
 
         $changed = $this->postJson('/recurring_expenses/status/' . $scheduleId, ['status' => 'paused']);
 
@@ -357,7 +357,7 @@ class Recurring_invoicesControllerTest extends CIUnitTestCase
         $this->assertFalse($retried['success']);
         $this->assertSame('refused', $this->accountingDb()->table('recurring_runs')->where('run_id', $runId)->get()->getRow()->status);
 
-        $saved = $this->postJson('/recurring_expenses/save/' . $scheduleId, ['name' => 'Hijacked', 'frequency' => 'monthly', 'start_date' => date('Y-m-d')]);
+        $saved = $this->postJson('/recurring_expenses/save/' . $scheduleId, $this->input(['name' => 'Hijacked']));
 
         $this->assertFalse($saved['success']);
         $this->assertSame('Monthly support', $this->accountingDb()->table('recurring_schedules')->where('schedule_id', $scheduleId)->get()->getRow()->name);

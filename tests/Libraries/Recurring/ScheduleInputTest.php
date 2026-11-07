@@ -248,6 +248,15 @@ class ScheduleInputTest extends CIUnitTestCase
         $this->assertRefused(AccountingError::RecurringExpenseInvalid, fn () => $this->normalised(RecurringKind::Expense, $input));
     }
 
+    public function testNormalise_AcceptsOnlyAWayOfPaymentOfTheList(): void
+    {
+        $this->assertSame(lang('Sales.cash'), $this->normalised(RecurringKind::Expense, $this->expense())['columns']['payment_type']);
+
+        foreach (['Barter', '', 'cash ', ['Cash']] as $bad) {
+            $this->assertRefused(AccountingError::RecurringExpenseInvalid, fn () => $this->normalised(RecurringKind::Expense, $this->expense(['payment_type' => $bad])));
+        }
+    }
+
     public function testNormalise_KeepsTheTaxOfAnExpenseWithinItsAmount(): void
     {
         $this->assertSame('230.00', $this->normalised(RecurringKind::Expense, $this->expense(['tax_amount' => '230']))['columns']['tax_amount']);

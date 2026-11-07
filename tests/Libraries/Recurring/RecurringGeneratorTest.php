@@ -326,6 +326,8 @@ final class RecurringGeneratorTest extends CIUnitTestCase
 
         $this->assertSame(2, $report->refused());
         $this->assertSame(2, $report->generated());
+        $this->assertCount(4, $report->results, 'each date is met once: a refused date moves the schedule on at once');
+        $this->assertSame(0, $report->count(RunResult::EXISTING));
 
         [$first, $second, $third, $fourth] = $this->runsOf($scheduleId);
 
@@ -371,6 +373,8 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->cleanSaleIds();
 
         $this->assertSame(3, $report->generated());
+        $this->assertCount(3, $report->results, 'the last date ends the schedule, which is not met again');
+        $this->assertSame(0, $report->count(RunResult::ENDED));
         $row = $this->scheduleRow($scheduleId);
 
         $this->assertSame('ended', $row->status);

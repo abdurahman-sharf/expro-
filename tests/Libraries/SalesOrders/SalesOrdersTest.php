@@ -394,6 +394,19 @@ class SalesOrdersTest extends CIUnitTestCase
         $this->assertSame('open', $this->storedStatus($orderId));
     }
 
+    public function testChangeStatus_RefusesAnOrderOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $branch   = $this->createBranch('B2', 'Second');
+        $location = $this->branchLocation($branch);
+        $orderId  = $this->order(location: $location);
+        $inFirst  = $this->employeeWithGrants([SalesOrders::EDIT, SalesOrders::VIEW_ALL], [1]);
+
+        $refusal = $this->refusal(fn () => $this->orders->changeStatus($orderId, SalesOrderStatus::Approved, $inFirst));
+
+        $this->assertInstanceOf(BranchException::class, $refusal);
+        $this->assertSame('open', $this->storedStatus($orderId));
+    }
+
     public function testChangeStatus_RefusesToReopenAnOrderThatIsPartlyInvoicedAndRequiresThePermissionToEdit(): void
     {
         $orderId = $this->approved();
@@ -445,6 +458,20 @@ class SalesOrdersTest extends CIUnitTestCase
         $this->assertSame('customer withdrew', $order->cancel_reason);
         $this->assertSame((string) $this->clerk, (string) $order->cancelled_by);
         $this->assertSame((string) COMPLETED, (string) $this->accountingDb()->table('sales')->where('sale_id', $invoice)->get()->getRow()->sale_status);
+    }
+
+    public function testCancel_RefusesAnOrderOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $branch   = $this->createBranch('B2', 'Second');
+        $location = $this->branchLocation($branch);
+        $orderId  = $this->order(location: $location);
+        $inFirst  = $this->employeeWithGrants([SalesOrders::DELETE, SalesOrders::VIEW_ALL], [1]);
+
+        $refusal = $this->refusal(fn () => $this->orders->cancel($orderId, 'not mine to cancel', $inFirst));
+
+        $this->assertInstanceOf(BranchException::class, $refusal);
+        $this->assertSame('open', $this->storedStatus($orderId));
+        $this->assertSame([], $this->auditOf($orderId, 'cancelled'));
     }
 
     public function testCancel_RefusesAnOrderThatIsInvoicedAndOneThatIsCancelled(): void
