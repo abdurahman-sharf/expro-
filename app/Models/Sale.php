@@ -72,6 +72,7 @@ class Sale extends Model
     ];
 
     private ?Throwable $accountingFailure = null;
+    private bool $datedBySchedule         = false;
 
     private ?InvoiceDiscountProblem $invoiceDiscountProblem = null;
 
@@ -115,6 +116,30 @@ class Sale extends Model
         $line = SalesTaxSettings::lineWithoutTax($items, $salesTaxes[1] ?? []);
 
         return $line === null ? null : new AccountingException(AccountingError::TaxOneRequired, "Line {$line} of the sale has no tax.", ['line' => $line]);
+    }
+
+    /**
+     * Runs a change in which the day of the invoice is the one a schedule gave it. The permission to type
+     * the date of an invoice is the employee's own to hold; a schedule that was made by somebody who may
+     * manage it dates what it makes with the day it was due, and the day must still be a day up to today
+     * and not before the books start.
+     *
+     * @template T
+     *
+     * @param callable(): T $work
+     *
+     * @return T
+     */
+    public function datedBySchedule(callable $work): mixed
+    {
+        $before                 = $this->datedBySchedule;
+        $this->datedBySchedule = true;
+
+        try {
+            return $work();
+        } finally {
+            $this->datedBySchedule = $before;
+        }
     }
 
     /**
@@ -1761,7 +1786,7 @@ class Sale extends Model
      */
     private function mayTypeInvoiceDate(int $saleId, int $employeeId, string $date): bool
     {
-        if (model(Employee::class)->has_grant('sales_invoice_date', $employeeId)) {
+        if ($this->datedBySchedule || model(Employee::class)->has_grant('sales_invoice_date', $employeeId)) {
             return true;
         }
 
