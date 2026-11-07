@@ -102,6 +102,17 @@ class AccountLedgerTest extends CIUnitTestCase
         ))->journalId;
     }
 
+    public function testBuild_ShowsTheLinesOfADollarJournalInTheBaseWithTheBalanceAfterEach(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->foreignCashSale('2026-10-06', 1, '40.00');
+
+        $report = $this->statement('cash');
+
+        $this->assertSame(['2026-10-05 100.0000 0.0000 100.0000', '2026-10-06 150.0000 0.0000 250.0000'], $this->lines($report));
+        $this->assertSame(['250.0000', '250.0000'], [$report->debit, $report->closing]);
+    }
+
     public function testBuild_ShowsTheJournalThatClosesAYearAndSaysWhatItIsByItsType(): void
     {
         $this->cashSale('2026-10-05', 1, '100.00');

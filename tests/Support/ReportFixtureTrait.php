@@ -2,9 +2,11 @@
 
 namespace Tests\Support;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\PostingService;
 
 /**
@@ -51,5 +53,38 @@ trait ReportFixtureTrait
     protected function reverseOn(int $journalId, string $date): int
     {
         return (new JournalService())->reverseAutomatic($journalId, $date, 'Report test reversal', null);
+    }
+
+    /**
+     * Posts a sale in dollars paid in cash: the journal is in the base at the rate and each line carries the
+     * dollars it is worth.
+     *
+     * @param numeric-string $dollars
+     * @param numeric-string $rate
+     */
+    protected function foreignCashSale(string $date, int $branchId, string $dollars, string $rate = '3.75'): int
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+
+        if ($currencies->rates()->rateOn('USD', $date) === null) {
+            $currencies->rates()->add(['currency_code' => 'USD', 'rate' => $rate, 'effective_date' => '2020-01-01']);
+        }
+
+        $base = Money::toBase($dollars, $rate, 2);
+
+        return (new PostingService())->post(new JournalDraft(
+            date: $date,
+            lines: [
+                new JournalLineDraft($this->accountId('cash'), debit: $base, foreignAmount: $dollars, currencyCode: 'USD'),
+                new JournalLineDraft($this->accountId('sales_revenue'), credit: $base, foreignAmount: $dollars, currencyCode: 'USD'),
+            ],
+            sourceType: 'sale',
+            sourceId: ++$this->reportSourceId,
+            description: 'Report test in dollars',
+            currencyCode: 'USD',
+            exchangeRate: $rate,
+            branchId: $branchId,
+        ))->journalId;
     }
 }

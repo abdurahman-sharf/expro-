@@ -6722,6 +6722,80 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('100.0000', $mirrored[0]->foreign_amount);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function paymentChange(int $paymentId, string $amount): array
+    {
+        return ['comment' => 'change', 'payments' => [['payment_id' => $paymentId, 'payment_type' => lang('Sales.cash'), 'payment_amount' => $amount, 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null]]];
+    }
+
+    public function testUpdate_RejectsAForeignPaymentInAClosedPeriodAndPostsNeitherThePaymentNorItsDifference(): void
+    {
+        $this->dollars();
+        $saleId = $this->dollarInvoice();
+        $this->closeThrough(date('Y-m-d'));
+        $payments = $this->countRows('sales_payments');
+        $journals = $this->countJournals();
+
+        $this->assertFalse($this->sales->update($saleId, $this->paymentChange(NEW_ENTRY, '100.00')));
+
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame([$payments, $journals], [$this->countRows('sales_payments'), $this->countJournals()]);
+        $this->assertSame('375.00', $this->balance($this->customerAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('fx_loss')));
+    }
+
+    public function testUpdate_RejectsTakingBackAForeignPaymentInAClosedPeriodAndKeepsItsDifference(): void
+    {
+        $this->dollars();
+        $saleId    = $this->dollarInvoice();
+        $paymentId = $this->addPayment($saleId, '100.00');
+        $this->closeThrough(date('Y-m-d'));
+        $journals = $this->countJournals();
+
+        $this->assertFalse($this->sales->update($saleId, $this->paymentChange($paymentId, '0')));
+
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertSame('15.00', $this->balance($this->accountId('fx_loss')), 'the difference of the payment stands with the payment');
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+        $this->assertSame(1, $this->countRows('sales_payments'));
+    }
+
+    public function testDelete_KeepsAForeignSaleWithItsPaymentAndItsExchangeDifferenceWhenThePeriodIsClosed(): void
+    {
+        $currencies = $this->dollars();
+
+        $this->sales->useCurrency('USD');
+
+        $saleId = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [], SALE_TYPE_POS);
+
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.90', 'effective_date' => date('Y-m-d')]);
+        $this->addPayment($saleId, '100.00');
+        $this->closeThrough(date('Y-m-d'));
+        $journals = $this->countJournals();
+
+        $this->assertFalse($this->sales->delete($saleId, false, true, $this->employeeId));
+
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($saleId)->sale_status);
+        $this->assertSame('-30.00', $this->balance($this->accountId('fx_gain')), 'a hundred dollars paid at 3.90 for a sale at 3.60');
+    }
+
+    public function testUpdate_ClosesTheForeignPaymentOnTheDayOfItsOwnPeriodAndNotOnTheDayOfTheInvoice(): void
+    {
+        $this->dollars();
+        $saleId = $this->dollarInvoice();
+        $this->closeThrough($this->daysAgo(3));
+
+        $this->addPayment($saleId, '100.00');
+
+        $this->assertSame('0.00', $this->balance($this->customerAccount()), 'the invoice is in a closed period, the payment of today is not');
+        $this->assertSame('15.00', $this->balance($this->accountId('fx_loss')));
+    }
+
     public function testSaveValue_RejectsAForeignSaleWithNoRateOnItsDay(): void
     {
         $currencies = new Currencies();

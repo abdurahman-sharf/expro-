@@ -911,6 +911,32 @@ class TreasuryTransfersTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->balance($this->accountId('fx_loss')));
     }
 
+    public function testTransfer_LeavesNothingBehindWhenThePeriodOfATransferBetweenCurrenciesIsClosed(): void
+    {
+        $dollars = $this->dollarBox();
+        $this->closeThrough('2026-10-31');
+
+        $refusal = $this->refusal(fn () => $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager, '99.00'));
+
+        $this->assertSame(PostingError::PeriodClosed, $refusal->error);
+        $this->assertSame(0, $this->accountingDb()->table('treasury_transfers')->where('to_treasury_id', $dollars)->countAllResults());
+        $this->assertSame('0.0000', $this->treasuries->position($dollars)->foreignBalance);
+        $this->assertSame('0.00', $this->balance($this->accountId('fx_loss')));
+    }
+
+    public function testCancel_KeepsATransferBetweenCurrenciesWhenThePeriodOfItsDayIsClosed(): void
+    {
+        $dollars = $this->dollarBox();
+        $id      = $this->transfers->transfer($this->main, $dollars, '375.00', '2026-10-21', '', $this->manager, '99.00');
+        $this->closeThrough(date('Y-m-d'));
+
+        $refusal = $this->refusal(fn () => $this->transfers->cancel($id, 'a mistake', $this->manager));
+
+        $this->assertSame(PostingError::PeriodClosed, $refusal->error);
+        $this->assertSame('99.0000', $this->treasuries->position($dollars)->foreignBalance);
+        $this->assertSame('3.75', $this->balance($this->accountId('fx_loss')));
+    }
+
     public function testTransfer_LeavesATransferBetweenTwoTreasuriesOfTheBaseAsItWas(): void
     {
         $id = $this->transfers->transfer($this->main, $this->drawer, '100.00', '2026-10-21', '', $this->manager);

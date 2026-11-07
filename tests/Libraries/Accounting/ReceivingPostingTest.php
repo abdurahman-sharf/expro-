@@ -4976,6 +4976,41 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::DocumentCurrencyLocked, $this->purchases->accountingFailure()->error);
     }
 
+    public function testUpdate_RejectsAPaymentToTheSupplierOfAForeignPurchaseInAClosedPeriodAndPostsNeitherItNorItsDifference(): void
+    {
+        $this->dollars();
+        $receivingId = $this->dollarPurchase();
+        $this->closeThrough(date('Y-m-d'));
+        $payments = $this->countRows('receivings_payments');
+        $journals = $this->countRows('accounting_journals');
+
+        $this->assertFalse($this->purchases->update($receivingId, ['comment' => 'paid', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '200.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]));
+
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame([$payments, $journals], [$this->countRows('receivings_payments'), $this->countRows('accounting_journals')]);
+        $this->assertSame('750.00', $this->owed());
+        $this->assertSame('0.00', $this->balance($this->accountId('fx_gain')));
+    }
+
+    public function testDelete_KeepsAForeignPurchaseWithItsPaymentAndItsDifferenceWhenThePeriodIsClosed(): void
+    {
+        $this->dollars();
+        $receivingId = $this->dollarPurchase();
+
+        $this->payPurchase($receivingId, '200.00');
+        $this->closeThrough(date('Y-m-d'));
+        $journals = $this->countRows('accounting_journals');
+
+        $this->assertFalse($this->purchases->delete_value($receivingId, $this->employeeId));
+
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame('-30.00', $this->balance($this->accountId('fx_gain')));
+        $this->assertSame(1, $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->countAllResults());
+    }
+
     public function testSaveValue_RejectsAForeignPurchaseWithNoRateOnItsDayAndSavesNothing(): void
     {
         $currencies = new Currencies();
