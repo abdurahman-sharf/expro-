@@ -208,11 +208,11 @@ function familyReportCatalog(array $permissionIds, ?bool $accountingOn = null): 
     }
 
     $subjects = [
-        'purchases'  => ['bi-bag-check', 'Accounting_family_reports.catalog_purchases'],
-        'suppliers'  => ['bi-truck', 'Accounting_family_reports.catalog_suppliers'],
-        'inventory'  => ['bi-boxes', 'Accounting_family_reports.catalog_inventory'],
-        'cash'       => ['bi-wallet2', 'Accounting_family_reports.catalog_cash'],
-        'books'      => ['bi-journal-text', 'Accounting_family_reports.catalog_books'],
+        'purchases' => ['bi-bag-check', 'Accounting_family_reports.catalog_purchases'],
+        'suppliers' => ['bi-truck', 'Accounting_family_reports.catalog_suppliers'],
+        'inventory' => ['bi-boxes', 'Accounting_family_reports.catalog_inventory'],
+        'cash'      => ['bi-wallet2', 'Accounting_family_reports.catalog_cash'],
+        'books'     => ['bi-journal-text', 'Accounting_family_reports.catalog_books'],
     ];
 
     $offered = [];

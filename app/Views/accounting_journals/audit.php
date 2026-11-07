@@ -1,16 +1,15 @@
 <?php
 /**
- * @var string $table_headers
+ * @var string       $table_headers
  * @var list<string> $actions
  * @var list<string> $entities
  * @var list<string> $origins
  * @var list<string> $presets
  * @var list<object> $employees
  * @var list<object> $branches
- * @var int|null $current_branch
- * @var array $config
+ * @var int|null     $current_branch
+ * @var array        $config
  */
-
 $actionLabel = static function (string $action): string {
     $key  = 'Accounting.action_' . $action;
     $line = lang($key);

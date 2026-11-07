@@ -1,13 +1,12 @@
 <?php
 /**
- * @var string $table_headers
- * @var bool $can_manage
- * @var list<object> $treasuries
+ * @var string                                                         $table_headers
+ * @var bool                                                           $can_manage
+ * @var list<object>                                                   $treasuries
  * @var list<array{code: string, receivable: string, payable: string}> $branch_balances
- * @var string|null $branch_unmatched
- * @var array $config
+ * @var string|null                                                    $branch_unmatched
+ * @var array                                                          $config
  */
-
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
 
