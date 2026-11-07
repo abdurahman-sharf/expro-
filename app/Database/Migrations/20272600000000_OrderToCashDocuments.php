@@ -17,8 +17,8 @@ class OrderToCashDocuments extends Migration
 
     private const MODULES = [
         'sales_orders'       => [140, ['sales_orders', 'sales_orders_add', 'sales_orders_edit', 'sales_orders_delete', 'sales_orders_view_all', 'sales_orders_convert']],
-        'recurring_invoices' => [141, ['recurring_invoices', 'recurring_invoices_manage']],
-        'recurring_expenses' => [142, ['recurring_expenses', 'recurring_expenses_manage']],
+        'recurring_invoices' => [141, ['recurring_invoices', 'recurring_invoices_view', 'recurring_invoices_manage']],
+        'recurring_expenses' => [142, ['recurring_expenses', 'recurring_expenses_view', 'recurring_expenses_manage']],
     ];
 
     public function up(): void

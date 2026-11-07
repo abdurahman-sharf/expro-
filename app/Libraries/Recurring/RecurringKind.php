@@ -15,6 +15,11 @@ enum RecurringKind: string
         };
     }
 
+    public function viewPermission(): string
+    {
+        return $this->moduleId() . '_view';
+    }
+
     public function managePermission(): string
     {
         return $this->moduleId() . '_manage';

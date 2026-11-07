@@ -9,6 +9,7 @@ use App\Libraries\Recurring\RecurringGenerator;
 use App\Libraries\Recurring\RunResult;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
+use DateTimeImmutable;
 
 class AccountingGenerateRecurring extends BaseCommand
 {
@@ -34,7 +35,7 @@ class AccountingGenerateRecurring extends BaseCommand
             return EXIT_USER_INPUT;
         }
 
-        if ($date !== null && (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1 || $date > date('Y-m-d'))) {
+        if ($date !== null && (! $this->isDay($date) || $date > date('Y-m-d'))) {
             CLI::error('The date is a day, YYYY-MM-DD, that is not after today.');
 
             return EXIT_USER_INPUT;
@@ -90,5 +91,12 @@ class AccountingGenerateRecurring extends BaseCommand
         }
 
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    private function isDay(string $date): bool
+    {
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+        return $parsed !== false && $parsed->format('Y-m-d') === $date;
     }
 }
