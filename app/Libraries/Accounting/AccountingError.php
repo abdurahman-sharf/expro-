@@ -55,6 +55,11 @@ enum AccountingError: string
     case LineTaxInvalid             = 'line_tax_invalid';
     case LineTaxOff                 = 'line_tax_off';
 
+    case ShippingCompanyNotFound = 'shipping_company_not_found';
+    case ShippingCompanyInvalid  = 'shipping_company_invalid';
+    case ShippingAccountInvalid  = 'shipping_account_invalid';
+    case ShippingCompaniesOff    = 'shipping_companies_off';
+
     case PostedJournalLocked     = 'posted_journal_locked';
     case JournalNotPosted        = 'journal_not_posted';
     case JournalLineNotFound     = 'journal_line_not_found';

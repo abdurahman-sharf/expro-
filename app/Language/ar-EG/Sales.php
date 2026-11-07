@@ -340,6 +340,8 @@ return [
     'service_charge'                    => 'رسوم الخدمة',
     'ship_to'                           => 'الشحن إلى',
     'shipping'                          => 'الشحن',
+    'shipping_company'                  => 'شركة الشحن',
+    'shipping_company_none'             => 'بدون شركة شحن',
     'shipping_negative'                 => 'لا يمكن أن يكون الشحن سالبًا.',
     'shipping_options'                  => 'بيانات الشحن',
     'shipping_options_auto'             => 'آلي',

@@ -340,6 +340,8 @@ return [
     'service_charge'                    => 'Costo de Servicio',
     'ship_to'                           => '',
     'shipping'                          => '',
+    'shipping_company'                  => '',
+    'shipping_company_none'             => '',
     'shipping_negative'                 => '',
     'shipping_options'                  => '',
     'shipping_options_auto'             => '',

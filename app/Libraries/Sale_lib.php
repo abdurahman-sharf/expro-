@@ -246,6 +246,7 @@ class Sale_lib
             ShippingTaxOption::fromStored($stored['shipping_tax_option'] ?? null),
             (string) ($stored['shipping_tax_percent'] ?? '0'),
             isset($stored['shipping_options']) ? (int) $stored['shipping_options'] : null,
+            isset($stored['shipping_company_id']) ? (int) $stored['shipping_company_id'] : null,
         );
     }
 
@@ -264,7 +265,7 @@ class Sale_lib
             'shipping_tax_option'  => $charges->shippingTaxOption->value,
             'shipping_tax_percent' => $charges->shippingTaxPercent,
             'shipping_options'     => $charges->shippingOptions,
-        ]);
+        ] + ($charges->shippingCompanyId === null ? [] : ['shipping_company_id' => $charges->shippingCompanyId]));
     }
 
     public function clearHeaderCharges(): void

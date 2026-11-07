@@ -21,6 +21,9 @@
  * @var list<string> $template_placeholders
  * @var int $template_max
  * @var array{allow_over_100: bool, cost_center_required: bool, automatic_default: bool, line_tags: bool, line_tax: bool} $journal_settings
+ * @var bool $shipping_enabled
+ * @var list<object> $shipping_companies
+ * @var array<int, string> $shipping_accounts
  * @var array{price_lists: bool, default_list: ?int, change_list: bool, minimum_price: bool, max_discount_enabled: bool, max_discount: ?string, exempt_categories: list<string>, credit_limit: bool, credit_period: bool} $controls
  * @var array<int, string> $controlLists
  * @var list<string> $controlCategories
@@ -69,6 +72,27 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         $('#journal_form').on('submit', function(event) {
             event.preventDefault();
             send('accounting_settings/save_journal', $(this).serialize(), true);
+        });
+
+        $('#shipping_switch_form').on('submit', function(event) {
+            event.preventDefault();
+            send('accounting_settings/save_shipping_companies', $(this).serialize(), true);
+        });
+
+        $('#shipping_company_form').on('submit', function(event) {
+            event.preventDefault();
+            const id = $('#shipping_company_id').val();
+            send('accounting_settings/save_shipping_company' + (id === '' ? '' : '/' + id), $(this).serialize(), true);
+        });
+
+        $('.shipping-edit').on('click', function() {
+            $('#shipping_company_id').val($(this).data('id'));
+            $('#shipping_company_name').val($(this).data('name')).trigger('focus');
+            $('#shipping_company_account').val(String($(this).data('account') || ''));
+        });
+
+        $('.shipping-toggle').on('click', function() {
+            send('accounting_settings/toggle_shipping_company/' + $(this).data('id'), {}, true);
         });
 
         $('#first_year_form').on('submit', function(event) {
@@ -292,6 +316,77 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 <p class="form-text mb-0" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= lang('Accounting_periods.permission_note') ?></p>
             <?php endif; ?>
         </form>
+    </section>
+
+    <section class="acc-setup-card" aria-labelledby="shipping_title">
+        <h2 id="shipping_title" class="acc-setup-title"><?= lang('Accounting_settings.shipping_title') ?></h2>
+        <p class="text-body-secondary small"><?= lang('Accounting_settings.shipping_desc') ?></p>
+
+        <form id="shipping_switch_form" class="app-form" novalidate>
+            <div class="form-check form-switch">
+                <input type="hidden" name="enabled" value="0">
+                <input type="checkbox" class="form-check-input" role="switch" name="enabled" id="shipping_enabled" value="1"<?= $shipping_enabled ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
+                <label class="form-check-label" for="shipping_enabled"><?= lang('Accounting_settings.shipping_enabled') ?></label>
+            </div>
+            <?php if ($can_manage): ?>
+                <button type="submit" class="btn btn-primary btn-sm mt-2"><?= lang('Common.submit') ?></button>
+            <?php endif; ?>
+        </form>
+
+        <?php if ($shipping_companies !== []): ?>
+            <table class="table table-sm mt-3" id="shipping_companies_table">
+                <thead>
+                    <tr>
+                        <th scope="col"><?= lang('Accounting_settings.shipping_company_name') ?></th>
+                        <th scope="col"><?= lang('Accounting_settings.shipping_company_account') ?></th>
+                        <th scope="col"><?= lang('Accounting.status') ?></th>
+                        <th scope="col"><span class="visually-hidden"><?= lang('Accounting_settings.shipping_company_actions') ?></span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($shipping_companies as $company): ?>
+                        <tr>
+                            <td><?= esc($company->name) ?></td>
+                            <td><?= $company->account_id === null ? esc(lang('Accounting_settings.shipping_company_no_account')) : '<bdi dir="ltr">' . esc($company->account_code) . '</bdi> ' . esc($company->account_name) ?></td>
+                            <td><?= esc(lang((int) $company->active === 1 ? 'Accounting.state_active' : 'Accounting.state_inactive')) ?></td>
+                            <td>
+                                <?php if ($can_manage): ?>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm shipping-edit" data-id="<?= (int) $company->shipping_company_id ?>" data-name="<?= esc($company->name, 'attr') ?>" data-account="<?= (int) $company->account_id ?>"><?= lang('Common.edit') ?></button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm shipping-toggle" data-id="<?= (int) $company->shipping_company_id ?>"><?= lang((int) $company->active === 1 ? 'Accounting_settings.shipping_company_deactivate' : 'Accounting_settings.shipping_company_activate') ?></button>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+
+        <?php if ($can_manage): ?>
+            <form id="shipping_company_form" class="app-form mt-3" novalidate>
+                <input type="hidden" id="shipping_company_id" value="">
+                <div class="form-grid">
+                    <div class="field">
+                        <label class="form-label" for="shipping_company_name"><?= lang('Accounting_settings.shipping_company_name') ?></label>
+                        <div class="field-control">
+                            <input type="text" name="name" id="shipping_company_name" class="form-control form-control-sm" maxlength="255">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="form-label" for="shipping_company_account"><?= lang('Accounting_settings.shipping_company_account') ?></label>
+                        <div class="field-control">
+                            <select name="account_id" id="shipping_company_account" class="form-select form-select-sm">
+                                <option value=""><?= lang('Accounting_settings.shipping_company_no_account') ?></option>
+                                <?php foreach ($shipping_accounts as $accountId => $label): ?>
+                                    <option value="<?= (int) $accountId ?>"><?= esc($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <p class="form-text"><?= lang('Accounting_settings.shipping_company_account_hint') ?></p>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm"><?= lang('Common.submit') ?></button>
+            </form>
+        <?php endif; ?>
     </section>
 
     <section class="acc-setup-card" aria-labelledby="controls_title">

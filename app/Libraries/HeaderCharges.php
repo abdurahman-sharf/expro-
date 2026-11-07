@@ -27,6 +27,7 @@ final readonly class HeaderCharges
         public ShippingTaxOption $shippingTaxOption = ShippingTaxOption::None,
         public string $shippingTaxPercent = '0',
         public ?int $shippingOptions = null,
+        public ?int $shippingCompanyId = null,
     ) {
     }
 
@@ -112,7 +113,7 @@ final readonly class HeaderCharges
         $before     = bcadd(SaleAmounts::absolute($running), $shipping, self::WORK);
         $effective  = bccomp($before, '0', self::WORK) > 0 ? bcadd($adjustment, '0', self::SCALE) : '0.0000';
 
-        return new ResolvedCharges(trim($this->adjustmentLabel), $effective, $shipping, $tax, $included, $this->shippingOptions);
+        return new ResolvedCharges(trim($this->adjustmentLabel), $effective, $shipping, $tax, $included, $this->shippingOptions, bccomp($shipping, '0', self::WORK) === 0 ? null : $this->shippingCompanyId);
     }
 
     public function shippingTax(string $shipping): string

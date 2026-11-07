@@ -21,6 +21,8 @@ final readonly class ResolvedCharges
         public string $shippingTax = '0.0000',
         public bool $shippingTaxIncluded = false,
         public ?int $shippingOptions = null,
+        public ?int $shippingCompanyId = null,
+        public ?int $shippingAccountId = null,
     ) {
     }
 

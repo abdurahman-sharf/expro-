@@ -41,7 +41,7 @@ final class DraftInvoice
     public function find(int $saleId): ?object
     {
         return $this->db->table('sales')
-            ->select('sale_id, sale_time, customer_id, employee_id, comment, invoice_number, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, source_quote_id, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent')
+            ->select('sale_id, sale_time, customer_id, employee_id, comment, invoice_number, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, source_quote_id, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent, shipping_company_id')
             ->where(['sale_id' => $saleId, 'sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_INVOICE])
             ->get()
             ->getRow();
@@ -78,7 +78,7 @@ final class DraftInvoice
     public function fingerprint(int $saleId): string
     {
         $header = $this->db->table('sales')
-            ->select('customer_id, comment, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, invoice_number, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent')
+            ->select('customer_id, comment, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, invoice_number, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent, shipping_company_id')
             ->where('sale_id', $saleId)
             ->get()
             ->getRowArray();
@@ -109,7 +109,7 @@ final class DraftInvoice
         $fingerprint = $this->fingerprint($saleId);
 
         $row = $this->db->table('sales')
-            ->select('sale_id, sale_time, customer_id, employee_id, comment, invoice_number, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, source_quote_id, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent')
+            ->select('sale_id, sale_time, customer_id, employee_id, comment, invoice_number, branch_id, delivered, dinner_table_id, invoice_discount_type, invoice_discount, invoice_date, payment_terms_days, source_quote_id, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent, shipping_company_id')
             ->where('sale_status', SUSPENDED)
             ->where('sale_id', $saleId)
             ->whereIn('sale_type', [SALE_TYPE_INVOICE, SALE_TYPE_QUOTE])
@@ -173,6 +173,7 @@ final class DraftInvoice
             ShippingTaxOption::fromStored($draft->shipping_tax_option),
             (string) ($draft->shipping_tax_percent ?? '0'),
             $draft->shipping_options === null ? null : (int) $draft->shipping_options,
+            $draft->shipping_company_id === null ? null : (int) $draft->shipping_company_id,
         );
     }
 

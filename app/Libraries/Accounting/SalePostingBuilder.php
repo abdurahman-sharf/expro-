@@ -83,7 +83,7 @@ final class SalePostingBuilder
         }
 
         if (bccomp($figures['shipping'], '0', SaleAmounts::SCALE) > 0) {
-            $incomeSide[] = [$this->required(RoutingKey::SalesShipping), $figures['shipping']];
+            $incomeSide[] = [$this->shippingAccount($sale), $figures['shipping']];
         }
 
         $against        = null;
@@ -123,7 +123,7 @@ final class SalePostingBuilder
         $goods = bccomp($goods, '0', SaleAmounts::SCALE) !== 0 ? RoutingKey::SalesRevenue : RoutingKey::SalesShipping;
         $goods = $sale->isReturn() && $goods === RoutingKey::SalesRevenue ? RoutingKey::SalesReturns : $goods;
 
-        return ForeignConversion::toBase($draft, $sale->currency, $this->baseDecimalsOf(), ForeignConversion::indexOf($draft, $this->required($goods)));
+        return ForeignConversion::toBase($draft, $sale->currency, $this->baseDecimalsOf(), ForeignConversion::indexOf($draft, $goods === RoutingKey::SalesShipping ? $this->shippingAccount($sale) : $this->required($goods)));
     }
 
     /**
@@ -541,6 +541,15 @@ final class SalePostingBuilder
     /**
      * @throws PostingException
      */
+    /**
+     * Where the shipping charge of a sale is credited: the account of the shipping company it names, which is
+     * what the shop owes on, or else the routed account of shipping revenue.
+     */
+    private function shippingAccount(SaleDocument $sale): int
+    {
+        return $sale->charges?->shippingAccountId ?? $this->required(RoutingKey::SalesShipping);
+    }
+
     private function required(RoutingKey $key, ?int $entityId = null): int
     {
         $account = $this->resolver->accountFor($key, $entityId);

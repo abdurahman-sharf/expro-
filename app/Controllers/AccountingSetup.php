@@ -11,6 +11,7 @@ use App\Libraries\Accounting\JournalSettings;
 use App\Libraries\Accounting\ReadinessCode;
 use App\Libraries\Accounting\ReadinessIssue;
 use App\Libraries\Accounting\SensitivePermissions;
+use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Models\Price_list;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -43,6 +44,7 @@ class AccountingSetup extends AccountingController
     private FiscalYearService $years;
     private SalesControlSettings $controls;
     private JournalSettings $journalSettings;
+    private ShippingCompanies $shippingCompanies;
 
     public function __construct()
     {
@@ -52,6 +54,7 @@ class AccountingSetup extends AccountingController
         $this->years    = new FiscalYearService(null, null, $this->branchGuard());
         $this->controls = new SalesControlSettings();
         $this->journalSettings = new JournalSettings(null, null, $this->branchGuard());
+        $this->shippingCompanies = new ShippingCompanies(null, null, $this->branchGuard());
     }
 
     public function getIndex(): string
@@ -82,6 +85,9 @@ class AccountingSetup extends AccountingController
             'template_placeholders'    => array_map(static fn (string $name): string => '{' . $name . '}', JournalDescriptionTemplate::PLACEHOLDERS),
             'controls'                 => $this->controls->all(),
             'journal_settings'         => $this->journalSettings->all(),
+            'shipping_enabled'         => $this->shippingCompanies->enabled(),
+            'shipping_companies'       => $this->shippingCompanies->all(),
+            'shipping_accounts'        => $this->shippingCompanies->accountChoices(),
             'controlLists'             => array_column(array_map(static fn (object $list): array => ['id' => (int) $list->price_list_id, 'name' => $list->name], model(Price_list::class)->allLists()), 'name', 'id'),
             'controlCategories'        => $this->controls->itemCategories(),
             'locked'                   => $this->settings->isLocked(),
@@ -157,6 +163,41 @@ class AccountingSetup extends AccountingController
             $this->journalSettings->update($input, $this->employeeId());
 
             return ['success' => true, 'message' => lang('Accounting_settings.journal_saved'), 'id' => 1];
+        });
+    }
+
+    public function postSaveShippingCompanies(): ResponseInterface
+    {
+        return $this->attempt(function (): array {
+            $this->shippingCompanies->setEnabled($this->request->getPost('enabled') === '1', $this->employeeId());
+
+            return ['success' => true, 'message' => lang('Accounting_settings.shipping_saved'), 'id' => 1];
+        });
+    }
+
+    public function postSaveShippingCompany(int $companyId = NEW_ENTRY): ResponseInterface
+    {
+        return $this->attempt(function () use ($companyId): array {
+            $input = ['name' => (string) $this->request->getPost('name'), 'account_id' => (string) $this->request->getPost('account_id')];
+
+            if ($companyId === NEW_ENTRY) {
+                $companyId = $this->shippingCompanies->create($input, $this->employeeId());
+            } else {
+                $this->shippingCompanies->update($companyId, $input, $this->employeeId());
+            }
+
+            return ['success' => true, 'message' => lang('Accounting_settings.shipping_company_saved'), 'id' => $companyId];
+        });
+    }
+
+    public function postToggleShippingCompany(int $companyId): ResponseInterface
+    {
+        return $this->attempt(function () use ($companyId): array {
+            $company = $this->shippingCompanies->find($companyId);
+
+            $this->shippingCompanies->setActive($companyId, $company === null || (int) $company->active === 0, $this->employeeId());
+
+            return ['success' => true, 'message' => lang('Accounting_settings.shipping_company_saved'), 'id' => $companyId];
         });
     }
 
