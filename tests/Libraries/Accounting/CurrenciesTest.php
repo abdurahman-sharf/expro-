@@ -66,6 +66,13 @@ class CurrenciesTest extends CIUnitTestCase
         }
     }
 
+    private function auditedCode(string $action): ?string
+    {
+        $row = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'currency', 'action' => $action])->orderBy('audit_id', 'DESC')->get()->getRow();
+
+        return $row === null ? null : json_decode((string) $row->details, true)['code'] ?? null;
+    }
+
     public function testAll_ListsTheBaseCurrencyFirstAndSwitchedOn(): void
     {
         $this->currencies->setActive('USD', true);
@@ -426,18 +433,20 @@ class CurrenciesTest extends CIUnitTestCase
 
     public function testSetActive_SwitchesACurrencyOnWhateverTheCaseOfItsCode(): void
     {
-        $this->currencies->setActive('eur', true, $this->manager());
+        $this->currencies->setActive(' eur ', true, $this->manager());
 
         $this->assertTrue($this->currencies->find('EUR')->active);
+        $this->assertSame('EUR', $this->auditedCode('activated'));
     }
 
     public function testUpdate_ChangesACurrencyWhateverTheCaseOfItsCodeAndHoldsTheBaseToItsDecimals(): void
     {
         (new PostingService())->post($this->balancedDraft());
 
-        $this->currencies->update('eur', ['name_en' => 'Euro (lower case)'], $this->manager());
+        $this->currencies->update(' eur ', ['name_en' => 'Euro (lower case)'], $this->manager());
 
         $this->assertSame('Euro (lower case)', $this->currencies->find('EUR')->nameEn);
+        $this->assertSame('EUR', $this->auditedCode('updated'));
         $this->assertRefused(AccountingError::CurrencyInUse, fn () => $this->currencies->update('sar', ['decimals' => 3], $this->manager()));
         $this->assertSame(2, $this->currencies->decimalsOf('SAR'));
         $this->currencies->update('EUR', ['name_en' => 'Euro'], $this->manager());
@@ -448,5 +457,6 @@ class CurrenciesTest extends CIUnitTestCase
         $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'EUR box', 'kind' => 'cash', 'currency_code' => 'EUR']);
 
         $this->assertTrue($this->currencies->inUse('eur'));
+        $this->assertTrue($this->currencies->inUse(' eur '));
     }
 }

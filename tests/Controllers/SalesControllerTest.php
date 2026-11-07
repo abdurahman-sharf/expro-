@@ -7974,4 +7974,51 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertMatchesRegularExpression('/pos-top-tile-price num">[^<]*USD[^<]*100\.00|pos-top-tile-price num">[^<]*100\.00[^<]*USD/', $foreign);
         $this->assertDoesNotMatchRegularExpression('/pos-top-tile-price num">[^<]*375/', $foreign);
     }
+
+    public function testPostAdd_RejectsAnItemOfAForeignSaleWhoseValueInTheBaseIsUnderItsMinimumAndNamesTheFiguresInTheBase(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['minimum_price' => '400']);
+        $this->turnOnPriceControls(true);
+        $this->chooseCurrency('USD');
+
+        $response = $this->post('/sales/add', ['item' => (string) $itemId]);
+
+        $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '400.00', '375.00']));
+        $this->assertEmpty(Services::session()->get('sales_cart'));
+
+        $this->turnOnPriceControls(false);
+    }
+
+    public function testPostAdd_AcceptsAnItemOfAForeignSaleWhoseValueInTheBaseIsAboveItsMinimum(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['minimum_price' => '350']);
+        $this->turnOnPriceControls(true);
+        $this->chooseCurrency('USD');
+
+        $this->addToTheRegister($itemId);
+
+        $this->assertSame('100.00', $this->lineOfTheRegister()['price'], '100 dollars are 375 of the base, above 350');
+
+        $this->turnOnPriceControls(false);
+    }
+
+    public function testPostUnsuspend_DropsTheCurrencyTheRegisterHeldWhenTheSuspendedSaleIsInTheBase(): void
+    {
+        [$employeeId, $itemId] = $this->foreignRegister();
+
+        $this->addToTheRegister($itemId);
+        $this->post('/sales/suspend');
+
+        $suspended = (int) $this->accountingDb()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+
+        $this->withSession(['person_id' => $employeeId, 'menu_group' => 'home', 'sales_mode' => 'sale', 'sale_id' => NEW_ENTRY, 'sales_location' => 1, 'sales_currency' => 'USD']);
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $suspended]);
+
+        $this->assertNull(Services::session()->get('sales_currency'));
+        $this->assertSame('375.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
+    }
 }
