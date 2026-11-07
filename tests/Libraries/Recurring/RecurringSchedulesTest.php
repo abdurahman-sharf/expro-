@@ -300,7 +300,7 @@ final class RecurringSchedulesTest extends CIUnitTestCase
         $scheduleId = $this->schedules->create(RecurringKind::Expense, $this->expenseInput(['frequency' => '3_months']), $this->manager);
         $row        = $this->row($scheduleId);
 
-        $this->assertSame(['expense', '3', 'months', '230.00', '30.00', lang('Sales.cash'), null, null], [$row->kind, (string) $row->period_count, $row->period_unit, $row->amount, $row->tax_amount, $row->payment_type, $row->customer_id, $row->issue_mode]);
+        $this->assertSame(['expense', '3', 'months', '230.00', '30.00', 'cash', null, null], [$row->kind, (string) $row->period_count, $row->period_unit, $row->amount, $row->tax_amount, $row->payment_type, $row->customer_id, $row->issue_mode]);
         $this->assertSame([], $this->schedules->lines($scheduleId));
         $this->assertSame(['created'], $this->auditOf($scheduleId, 'recurring_expense'));
     }
@@ -417,6 +417,43 @@ final class RecurringSchedulesTest extends CIUnitTestCase
         }
     }
 
+    public function testUpdate_KeepsTheBranchOfTheOwnerWhenAnotherEmployeeEditsAnExpenseWithoutATreasury(): void
+    {
+        $second = $this->createBranch('B2');
+        $owner  = $this->employeeWithGrants([RecurringKind::Expense->managePermission()], [$second]);
+        $editor = $this->employeeWithGrants([RecurringKind::Expense->managePermission()]);
+
+        $scheduleId = $this->schedules->create(RecurringKind::Expense, $this->expenseInput(), $owner);
+        $this->assertSame($second, (int) $this->row($scheduleId)->branch_id);
+
+        $this->schedules->update($scheduleId, $this->expenseInput(['name' => 'Renamed by the admin']), $editor);
+
+        $row = $this->row($scheduleId);
+
+        $this->assertSame(['Renamed by the admin', $second, $owner], [$row->name, (int) $row->branch_id, (int) $row->employee_id]);
+        $this->assertNotNull($this->schedules->find($scheduleId, $owner), 'the owner still sees it');
+    }
+
+    public function testUpdate_RefusesABranchTheOwnerOfTheScheduleDoesNotWorkIn(): void
+    {
+        $second = $this->createBranch('B2');
+        $owner  = $this->employeeWithGrants([RecurringKind::Invoice->managePermission()], [$second]);
+        $editor = $this->employeeWithGrants([RecurringKind::Invoice->managePermission()]);
+        $stock  = $this->branchLocation($second, 'Second store');
+
+        $scheduleId = $this->schedules->create(RecurringKind::Invoice, $this->invoiceInput(['location_id' => $stock]), $owner);
+
+        try {
+            $this->schedules->update($scheduleId, $this->invoiceInput(['location_id' => self::LOCATION_ID]), $editor);
+            $this->fail('The documents are made as the owner, who does not work in the branch of the new stock location.');
+        } catch (BranchException $refusal) {
+            $this->assertSame(BranchError::NotAllowed, $refusal->error);
+        }
+
+        $this->assertSame($second, (int) $this->row($scheduleId)->branch_id);
+        $this->assertSame($stock, (int) $this->schedules->lines($scheduleId)[0]->item_location);
+    }
+
     public function testChangeStatus_PausesResumesAndEndsAndRefusesToReviveAnEndedSchedule(): void
     {
         $scheduleId = $this->invoiceSchedule();
@@ -496,6 +533,17 @@ final class RecurringSchedulesTest extends CIUnitTestCase
         $this->assertSame([$two], $ids($this->schedules->search(RecurringKind::Invoice, ['search' => 'hosting'], $this->manager)));
         $this->assertSame([$two, $one], $ids($this->schedules->search(RecurringKind::Invoice, ['search' => 'Omar'], $this->manager)));
         $this->assertSame([$expense], $ids($this->schedules->search(RecurringKind::Expense, [], $this->manager)));
+    }
+
+    public function testSearch_NamesTheCategoryOfAnExpenseSchedule(): void
+    {
+        $categoryId = $this->category('Premises rent');
+        $this->schedules->create(RecurringKind::Expense, $this->expenseInput(['expense_category_id' => $categoryId, 'comment' => 'paid by transfer']), $this->manager);
+
+        $row = $this->schedules->search(RecurringKind::Expense, [], $this->manager)['rows'][0];
+
+        $this->assertSame($this->accountingDb()->table('expense_categories')->where('expense_category_id', $categoryId)->get()->getRow()->category_name, $row->category_name);
+        $this->assertStringStartsWith('Premises rent', $row->category_name);
     }
 
     public function testSearch_CountsWhatEachScheduleMadeAndWhatWasRefused(): void

@@ -4,10 +4,16 @@ namespace Tests\Commands;
 
 use App\Libraries\Recurring\RecurringKind;
 use App\Libraries\Recurring\RecurringSchedules;
+use App\Models\Sale;
+use CodeIgniter\Config\Factories;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\StreamFilterTrait;
 use Config\Database;
+use Config\OSPOS;
+use DateTimeImmutable;
+use DateTimeZone;
+use RuntimeException;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -34,6 +40,7 @@ class AccountingGenerateRecurringTest extends CIUnitTestCase
     private RecurringSchedules $schedules;
     private int $manager;
     private int $service;
+    private string $zone;
 
     public static function setUpBeforeClass(): void
     {
@@ -45,6 +52,7 @@ class AccountingGenerateRecurringTest extends CIUnitTestCase
     {
         parent::setUp();
 
+        $this->zone = date_default_timezone_get();
         $this->startSelling();
         $this->allowEmployeeEverywhere();
         $this->clearSchedules();
@@ -56,6 +64,7 @@ class AccountingGenerateRecurringTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        date_default_timezone_set($this->zone);
         $this->clearSchedules();
         $this->accountingDb()->table('accounting_audit_log')->whereIn('entity_type', ['recurring_invoice', 'recurring_expense'])->delete();
 
@@ -197,5 +206,61 @@ class AccountingGenerateRecurringTest extends CIUnitTestCase
 
         $this->assertSame(0, $exit);
         $this->assertStringContainsString('0 made, 0 refused', $output);
+    }
+
+    public function testRun_CountsTheDayOfTheShopInItsTimeZoneAndNotTheOneOfTheProcess(): void
+    {
+        $processDay = date('Y-m-d');
+        $config     = config(OSPOS::class);
+        $before     = $config->settings;
+        $zone       = null;
+
+        foreach (['Pacific/Kiritimati', 'Pacific/Pago_Pago'] as $candidate) {
+            if ((new DateTimeImmutable('now', new DateTimeZone($candidate)))->format('Y-m-d') !== $processDay) {
+                $zone = $candidate;
+
+                break;
+            }
+        }
+
+        $shopDay = (new DateTimeImmutable('now', new DateTimeZone($zone)))->format('Y-m-d');
+        $this->schedule($shopDay);
+
+        $config->settings = [...$before, 'timezone' => $zone];
+
+        try {
+            [$exit, $output] = $this->generate();
+        } finally {
+            $config->settings = $before;
+        }
+
+        $this->assertSame(0, $exit);
+        $this->assertStringContainsString('as of ' . $shopDay, $output, 'the day of the shop, and not the day of the process');
+        $this->assertStringContainsString('1 made', $output);
+    }
+
+    public function testRun_NamesTheScheduleThatFailedExitsWithOneAndMakesTheOthers(): void
+    {
+        $broken = $this->schedule(date('Y-m-d'));
+        $model  = $this->getMockBuilder(Sale::class)->disableOriginalConstructor()->onlyMethods(['save_value'])->getMock();
+        $model->method('save_value')->willThrowException(new RuntimeException('unexpected'));
+
+        try {
+            Factories::injectMock('models', Sale::class, $model);
+            [$exit, $output] = $this->generate();
+        } finally {
+            Factories::reset('models');
+        }
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('schedule ' . $broken . ': FAILED, left for the next run (unexpected)', $output);
+        $this->assertStringContainsString('0 made, 0 refused, 1 failed', $output);
+        $this->assertSame(0, $this->countSales());
+
+        [$exit, $output] = $this->generate();
+
+        $this->assertSame(0, $exit);
+        $this->assertStringContainsString('1 made', $output);
+        $this->assertSame(1, $this->countSales());
     }
 }

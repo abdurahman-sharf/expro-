@@ -22,7 +22,7 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
 <div id="title_bar" class="print_hide btn-toolbar">
     <h1 class="h5 me-auto mb-0"><?= lang('Sales_orders.title') ?></h1>
     <?php if ($canAdd): ?>
-        <a class="btn btn-primary btn-sm" id="sales_order_new" href="<?= esc(base_url($enabled ? 'sales_orders/add' : 'sales/manage'), 'attr') ?>">
+        <a class="btn btn-primary btn-sm" id="sales_order_new" href="<?= esc(base_url($enabled ? 'customer_orders/add' : 'sales/manage'), 'attr') ?>">
             <span class="bi bi-plus-circle" aria-hidden="true">&nbsp;</span><?= lang('Sales_orders.new') ?>
         </a>
     <?php endif; ?>
@@ -33,7 +33,7 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
 <?php endif; ?>
 
 <?php if ($canSettings): ?>
-    <?= form_open('sales_orders/settings', ['id' => 'sales_order_settings', 'class' => 'app-form card card-body mb-3']) ?>
+    <?= form_open('customer_orders/settings', ['id' => 'sales_order_settings', 'class' => 'app-form card card-body mb-3']) ?>
         <h2 class="h6"><?= lang('Sales_orders.settings') ?></h2>
         <div class="form-check form-switch">
             <input type="hidden" name="enabled" value="0">
@@ -94,7 +94,7 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
                 <?php endif; ?>
                 <?php foreach ($rows as $row): ?>
                     <tr id="sales_order_<?= (int) $row->order_id ?>">
-                        <td><a href="<?= esc(base_url('sales_orders/view/' . (int) $row->order_id), 'attr') ?>"><bdi dir="ltr"><?= esc((string) ($row->document_number ?? str_pad((string) $row->order_id, 5, '0', STR_PAD_LEFT))) ?></bdi></a></td>
+                        <td><a href="<?= esc(base_url('customer_orders/view/' . (int) $row->order_id), 'attr') ?>"><bdi dir="ltr"><?= esc((string) ($row->document_number ?? str_pad((string) $row->order_id, 5, '0', STR_PAD_LEFT))) ?></bdi></a></td>
                         <td><bdi dir="ltr"><?= esc((string) $row->order_date) ?></bdi></td>
                         <td><?= esc((string) $row->customer_name) ?></td>
                         <td><bdi dir="ltr"><?= esc((string) $row->branch_code) ?></bdi></td>
@@ -109,10 +109,10 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
     <nav class="d-flex gap-2 align-items-center" aria-label="<?= lang('Sales_orders.title') ?>">
         <span class="text-body-secondary small"><?= lang('Sales_orders.count', [$total]) ?></span>
         <?php if ($offset > 0): ?>
-            <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('sales_orders?' . $query(['offset' => max(0, $offset - $pageSize)])), 'attr') ?>"><?= lang('Sales_orders.previous') ?></a>
+            <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('customer_orders?' . $query(['offset' => max(0, $offset - $pageSize)])), 'attr') ?>"><?= lang('Sales_orders.previous') ?></a>
         <?php endif; ?>
         <?php if ($offset + $pageSize < $total): ?>
-            <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('sales_orders?' . $query(['offset' => $offset + $pageSize])), 'attr') ?>"><?= lang('Sales_orders.next') ?></a>
+            <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('customer_orders?' . $query(['offset' => $offset + $pageSize])), 'attr') ?>"><?= lang('Sales_orders.next') ?></a>
         <?php endif; ?>
     </nav>
 <?php endif; ?>

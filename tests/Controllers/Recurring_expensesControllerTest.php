@@ -166,7 +166,8 @@ class Recurring_expensesControllerTest extends CIUnitTestCase
 
         $page = $this->get('/recurring_expenses');
 
-        $this->assertNotSame(200, $page->response()->getStatusCode());
+        $page->assertRedirect();
+        $this->assertStringContainsString('no_access/recurring_expenses', $page->getRedirectUrl());
     }
 
     public function testGetForm_ListsTheNineFrequenciesAndTheCategories(): void
@@ -180,6 +181,75 @@ class Recurring_expensesControllerTest extends CIUnitTestCase
         foreach (array_keys(RecurrenceTerms::EXPENSE_FREQUENCIES) as $frequency) {
             $page->assertSee('value="' . $frequency . '"');
         }
+    }
+
+    public function testGetForm_OffersWeeklyFirstForANewScheduleAndTheWaysOfPaymentByTheirType(): void
+    {
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $body = $this->get('/recurring_expenses/add')->getBody();
+
+        $this->assertStringContainsString('<option value="weekly" selected>', $body, 'the default of the observed form is weekly');
+        $this->assertStringNotContainsString('<option value="monthly" selected>', $body);
+        $this->assertStringContainsString('<option value="cash"', $body);
+        $this->assertStringContainsString('>' . esc(lang('Sales.cash')) . '</option>', $body);
+    }
+
+    public function testGetForm_SelectsTheFrequencyAndTheWayOfPaymentOfTheScheduleWhateverLanguageItWasTypedIn(): void
+    {
+        $scheduleId = $this->schedule(['frequency' => '3_months', 'payment_type' => 'bank_transfer']);
+
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $body = $this->get('/recurring_expenses/edit/' . $scheduleId)->getBody();
+
+        $this->assertStringContainsString('<option value="bank_transfer" selected>', $body);
+        $this->assertStringContainsString('<option value="3_months" selected>', $body);
+        $this->assertStringNotContainsString('<option value="cash" selected>', $body);
+    }
+
+    public function testGetIndex_NamesTheCategoryOfEachScheduleAndNotItsComment(): void
+    {
+        $categoryId = $this->category('Premises rent');
+        $name       = $this->accountingDb()->table('expense_categories')->where('expense_category_id', $categoryId)->get()->getRow()->category_name;
+        $scheduleId = $this->schedule(['expense_category_id' => (string) $categoryId, 'comment' => 'paid by transfer']);
+
+        $this->actAsWith([RecurringKind::Expense->viewPermission()]);
+
+        $body = $this->get('/recurring_expenses')->getBody();
+
+        $this->assertMatchesRegularExpression('/id="schedule_' . $scheduleId . '".*?<td>' . preg_quote(esc($name), '/') . '<\/td>/s', $body);
+        $this->assertStringNotContainsString('paid by transfer', $body);
+    }
+
+    public function testGetShow_NamesTheWayOfPaymentInTheLanguageInUse(): void
+    {
+        $scheduleId = $this->schedule(['payment_type' => 'cash']);
+
+        $this->actAsWith([RecurringKind::Expense->viewPermission()]);
+
+        $this->get('/recurring_expenses/view/' . $scheduleId)->assertSee(lang('Sales.cash'));
+    }
+
+    public function testPostSave_RefusesInWordsAFieldThatCameAsAList(): void
+    {
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $refused = $this->postJson('/recurring_expenses/save', $this->input(['tax_amount' => ['1']]));
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_recurring_expense_invalid'), $refused['message']);
+        $this->assertSame(0, $this->countRows('recurring_schedules'));
+    }
+
+    public function testPostSave_KeepsTheTypeOfTheWayOfPaymentTheFormSent(): void
+    {
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $made = $this->postJson('/recurring_expenses/save', $this->input(['payment_type' => 'bank_transfer']));
+
+        $this->assertTrue($made['success'], $made['message']);
+        $this->assertSame('bank_transfer', $this->accountingDb()->table('recurring_schedules')->where('schedule_id', $made['id'])->get()->getRow()->payment_type);
     }
 
     public function testGetForm_IsNotFoundForWhoMayOnlyLook(): void
@@ -275,7 +345,7 @@ class Recurring_expensesControllerTest extends CIUnitTestCase
     }
 
     #[DataProvider('changesProvider')]
-    public function testChange_IsNotReachableByAGetRequest(string $url): void
+    public function testRoutes_RejectAGetRequestToAChange(string $url): void
     {
         $this->actAsWith([RecurringKind::Expense->managePermission()]);
         $this->expectException(PageNotFoundException::class);

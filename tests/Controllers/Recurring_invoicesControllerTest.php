@@ -2,6 +2,8 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Recurring\RecurrencePhrase;
+use App\Libraries\Recurring\RecurrenceUnit;
 use App\Libraries\Recurring\RecurringGenerator;
 use App\Libraries\Recurring\RecurringKind;
 use App\Libraries\Recurring\RecurringSchedules;
@@ -177,7 +179,8 @@ class Recurring_invoicesControllerTest extends CIUnitTestCase
 
         $page = $this->get('/recurring_invoices');
 
-        $this->assertNotSame(200, $page->response()->getStatusCode());
+        $page->assertRedirect();
+        $this->assertStringContainsString('no_access/recurring_invoices', $page->getRedirectUrl());
     }
 
     public function testGetIndex_FiltersByStatusAndKeepsTheExpensesOut(): void
@@ -276,6 +279,88 @@ class Recurring_invoicesControllerTest extends CIUnitTestCase
         $this->get('/recurring_invoices/edit/' . $scheduleId)->assertSee('id="schedule_locked"');
     }
 
+    public function testGetForm_SelectsTheStockLocationOfTheScheduleWhenTheEmployeeWorksFromSeveral(): void
+    {
+        $db    = $this->accountingDb();
+        $stock = $this->branchLocation($this->createBranch('B2'), 'Second store');
+        $db->table('permissions')->insert(['permission_id' => 'sales_second_store', 'module_id' => 'sales', 'location_id' => $stock]);
+        $scheduleId = $this->schedule(['location_id' => (string) $stock]);
+
+        try {
+            $personId = $this->actAsWith([RecurringKind::Invoice->managePermission()]);
+
+            foreach (['sales_stock', 'sales_second_store'] as $permission) {
+                $db->table('grants')->insert(['permission_id' => $permission, 'person_id' => $personId, 'menu_group' => 'home']);
+            }
+
+            $body = $this->get('/recurring_invoices/edit/' . $scheduleId)->getBody();
+        } finally {
+            $db->table('grants')->where('permission_id', 'sales_second_store')->delete();
+            $db->table('permissions')->where('permission_id', 'sales_second_store')->delete();
+        }
+
+        $this->assertStringContainsString('<option value="' . $stock . '" selected>', $body, 'the stock location of the schedule, and not the first one the employee may sell from');
+        $this->assertStringNotContainsString('<option value="' . self::LOCATION_ID . '" selected>', $body);
+    }
+
+    public function testGetForm_IsNotFoundForAScheduleOfAnotherKindInEitherModule(): void
+    {
+        $expense = $this->schedules->create(RecurringKind::Expense, ['name' => 'Rent', 'frequency' => 'monthly', 'start_date' => date('Y-m-d'), 'expense_category_id' => $this->categoryOf(), 'amount' => '10', 'tax_amount' => '0', 'payment_type' => 'cash'], $this->manager);
+        $invoice = $this->schedule();
+
+        $this->actAsWith([RecurringKind::Invoice->managePermission(), RecurringKind::Expense->managePermission(), 'recurring_expenses']);
+
+        foreach (['/recurring_invoices/edit/' . $expense, '/recurring_expenses/edit/' . $invoice] as $url) {
+            try {
+                $this->get($url);
+                $this->fail($url . ' should be not found.');
+            } catch (PageNotFoundException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+
+        $this->get('/recurring_invoices/edit/' . $invoice)->assertSee('id="schedule_form"');
+        $this->get('/recurring_expenses/edit/' . $expense)->assertSee('id="schedule_form"');
+    }
+
+    public function testGetForm_LabelsTheQuantityColumnQuantityAndNotOrdered(): void
+    {
+        $scheduleId = $this->schedule();
+
+        $this->actAsWith([RecurringKind::Invoice->managePermission()]);
+
+        foreach (['/recurring_invoices/add', '/recurring_invoices/edit/' . $scheduleId] as $url) {
+            $body = $this->get($url)->getBody();
+
+            $this->assertStringContainsString('<th scope="col" class="text-end">' . lang('Sales.quantity') . '</th>', $body, $url);
+            $this->assertStringNotContainsString(lang('Sales_orders.quantity'), $body, $url);
+        }
+
+        $this->assertStringNotContainsString('<th scope="col" class="text-end">' . lang('Sales_orders.quantity') . '</th>', $this->get('/recurring_invoices/view/' . $scheduleId)->getBody());
+    }
+
+    public function testGetIndex_ReadsAFilterThatCameAsAListAsNoFilter(): void
+    {
+        $scheduleId = $this->schedule();
+
+        $this->actAsWith([RecurringKind::Invoice->viewPermission()]);
+
+        $page = $this->get('/recurring_invoices?status[]=paused&search[]=x');
+
+        $page->assertStatus(200);
+        $page->assertSee('id="schedule_' . $scheduleId . '"');
+    }
+
+    public function testGetIndex_SaysHowOftenAScheduleRepeatsInTheNumberTheCountAsksFor(): void
+    {
+        $scheduleId = $this->schedule();
+
+        $this->actAsWith([RecurringKind::Invoice->viewPermission()]);
+
+        $this->get('/recurring_invoices')->assertSee(RecurrencePhrase::every(1, RecurrenceUnit::Months));
+        $this->get('/recurring_invoices/view/' . $scheduleId)->assertSee(RecurrencePhrase::every(1, RecurrenceUnit::Months));
+    }
+
     public function testGetShow_ShowsTheTermsTheLinesAndTheHistoryWithTheWordsOfARefusal(): void
     {
         $scheduleId = $this->schedule(['start_date' => $this->daysAgo(1), 'period_unit' => 'days', 'issue_mode' => 'issue']);
@@ -338,7 +423,7 @@ class Recurring_invoicesControllerTest extends CIUnitTestCase
         return (int) $db->insertID();
     }
 
-    public function testExpensesModule_DoesNotShowOrChangeAnInvoiceSchedule(): void
+    public function testAssertKind_RefusesAnInvoiceScheduleToTheExpensesModule(): void
     {
         $scheduleId = $this->schedule();
 
@@ -509,7 +594,7 @@ class Recurring_invoicesControllerTest extends CIUnitTestCase
     }
 
     #[DataProvider('changesProvider')]
-    public function testChange_IsNotReachableByAGetRequest(string $url): void
+    public function testRoutes_RejectAGetRequestToAChange(string $url): void
     {
         $this->actAsWith([RecurringKind::Invoice->managePermission()]);
         $this->expectException(PageNotFoundException::class);

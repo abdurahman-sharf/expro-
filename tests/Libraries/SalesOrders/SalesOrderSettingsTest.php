@@ -84,7 +84,7 @@ class SalesOrderSettingsTest extends CIUnitTestCase
 
     public function testUpdate_RequiresThePermissionOfTheConfiguration(): void
     {
-        $clerk = $this->employeeWithGrants(['sales_orders']);
+        $clerk = $this->employeeWithGrants(['customer_orders']);
         $admin = $this->employeeWithGrants(['config']);
 
         try {

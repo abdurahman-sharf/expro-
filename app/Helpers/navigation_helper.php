@@ -2,7 +2,7 @@
 
 const NAVIGATION_GROUPS = [
     'group_main'       => ['home'],
-    'group_sales'      => ['sales', 'sales_orders', 'recurring_invoices'],
+    'group_sales'      => ['sales', 'customer_orders', 'recurring_invoices'],
     'group_purchases'  => ['receivings', 'suppliers'],
     'group_inventory'  => ['items', 'item_kits', 'attributes', 'price_lists'],
     'group_customers'  => ['customers', 'giftcards', 'messages'],
@@ -15,7 +15,7 @@ const NAVIGATION_GROUPS = [
 const NAVIGATION_ICONS = [
     'home'                    => 'bi-house',
     'sales'                   => 'bi-cart3',
-    'sales_orders'            => 'bi-clipboard-check',
+    'customer_orders'         => 'bi-clipboard-check',
     'recurring_invoices'      => 'bi-arrow-repeat',
     'recurring_expenses'      => 'bi-calendar2-week',
     'receivings'              => 'bi-box-arrow-in-down',

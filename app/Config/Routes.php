@@ -159,19 +159,19 @@ $routes->group('accounting_debit_notes', static function (RouteCollection $route
     $routes->post('reverse/(:num)', 'AccountingDebitNotes::postReverse/$1');
 });
 
-$routes->group('sales_orders', static function (RouteCollection $routes): void {
-    $routes->get('/', 'Sales_orders::getIndex');
-    $routes->get('add', 'Sales_orders::getForm');
-    $routes->get('edit/(:num)', 'Sales_orders::getForm/$1');
-    $routes->get('view/(:num)', 'Sales_orders::getShow/$1');
-    $routes->get('customers', 'Sales_orders::getCustomers');
-    $routes->get('items', 'Sales_orders::getItems');
-    $routes->post('save', 'Sales_orders::postSave');
-    $routes->post('save/(:num)', 'Sales_orders::postSave/$1');
-    $routes->post('status/(:num)', 'Sales_orders::postStatus/$1');
-    $routes->post('cancel/(:num)', 'Sales_orders::postCancel/$1');
-    $routes->post('convert/(:num)', 'Sales_orders::postConvert/$1');
-    $routes->post('settings', 'Sales_orders::postSettings');
+$routes->group('customer_orders', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Customer_orders::getIndex');
+    $routes->get('add', 'Customer_orders::getForm');
+    $routes->get('edit/(:num)', 'Customer_orders::getForm/$1');
+    $routes->get('view/(:num)', 'Customer_orders::getShow/$1');
+    $routes->get('customers', 'Customer_orders::getCustomers');
+    $routes->get('items', 'Customer_orders::getItems');
+    $routes->post('save', 'Customer_orders::postSave');
+    $routes->post('save/(:num)', 'Customer_orders::postSave/$1');
+    $routes->post('status/(:num)', 'Customer_orders::postStatus/$1');
+    $routes->post('cancel/(:num)', 'Customer_orders::postCancel/$1');
+    $routes->post('convert/(:num)', 'Customer_orders::postConvert/$1');
+    $routes->post('settings', 'Customer_orders::postSettings');
 });
 
 $routes->group('recurring_invoices', static function (RouteCollection $routes): void {

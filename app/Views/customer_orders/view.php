@@ -21,9 +21,9 @@ $orderId = (int) $order->order_id;
 
 <div id="title_bar" class="print_hide btn-toolbar gap-2">
     <h1 class="h5 me-auto mb-0"><?= lang('Sales_orders.order') ?> <bdi dir="ltr"><?= esc($number) ?></bdi></h1>
-    <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('sales_orders'), 'attr') ?>"><?= lang('Sales_orders.back') ?></a>
+    <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('customer_orders'), 'attr') ?>"><?= lang('Sales_orders.back') ?></a>
     <?php if ($canEdit): ?>
-        <a class="btn btn-outline-secondary btn-sm" id="order_edit" href="<?= esc(base_url('sales_orders/edit/' . $orderId), 'attr') ?>"><?= lang('Sales_orders.edit') ?></a>
+        <a class="btn btn-outline-secondary btn-sm" id="order_edit" href="<?= esc(base_url('customer_orders/edit/' . $orderId), 'attr') ?>"><?= lang('Sales_orders.edit') ?></a>
     <?php endif; ?>
     <?php if ($canStatus): ?>
         <?php foreach ($next as $to): ?>
@@ -119,18 +119,18 @@ $orderId = (int) $order->order_id;
         };
 
         $('.order-status').on('click', function() {
-            post('sales_orders/status/<?= $orderId ?>', {status: $(this).data('status')});
+            post('customer_orders/status/<?= $orderId ?>', {status: $(this).data('status')});
         });
 
         $('#order_convert').on('click', function() {
-            post('sales_orders/convert/<?= $orderId ?>', {});
+            post('customer_orders/convert/<?= $orderId ?>', {});
         });
 
         $('#order_cancel').on('click', function() {
             const reason = window.prompt("<?= esc(lang('Sales_orders.cancel_prompt'), 'js') ?>");
 
             if (reason !== null) {
-                post('sales_orders/cancel/<?= $orderId ?>', {reason: reason});
+                post('customer_orders/cancel/<?= $orderId ?>', {reason: reason});
             }
         });
     });

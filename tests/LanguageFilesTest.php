@@ -13,7 +13,6 @@ use App\Libraries\Organization\BranchError;
 use App\Libraries\Recurring\RecurrenceTerms;
 use App\Libraries\Recurring\RecurrenceUnit;
 use App\Libraries\Recurring\RecurringKind;
-use App\Libraries\Recurring\RunRefusal;
 use App\Libraries\Recurring\ScheduleStatus;
 use App\Libraries\SalesOrders\SalesOrderStatus;
 use App\Libraries\Roles\RoleError;
@@ -256,12 +255,12 @@ class LanguageFilesTest extends CIUnitTestCase
     {
         $module = include __DIR__ . "/../app/Language/{$locale}/Module.php";
 
-        foreach (['sales_orders', 'recurring_invoices', 'recurring_expenses'] as $name) {
+        foreach (['customer_orders', 'recurring_invoices', 'recurring_expenses'] as $name) {
             $this->assertNotSame('', $module[$name] ?? '', "{$locale} lacks the module label {$name}");
             $this->assertNotSame('', $module[$name . '_desc'] ?? '', "{$locale} lacks the module description {$name}");
         }
 
-        foreach (['Sales_orders', 'Recurring', 'Recurring_invoices', 'Recurring_expenses'] as $file) {
+        foreach (['Customer_orders', 'Sales_orders', 'Recurring', 'Recurring_invoices', 'Recurring_expenses'] as $file) {
             $english  = include __DIR__ . "/../app/Language/en/{$file}.php";
             $messages = include __DIR__ . "/../app/Language/{$locale}/{$file}.php";
 
@@ -270,10 +269,10 @@ class LanguageFilesTest extends CIUnitTestCase
             }
         }
 
-        $orders = include __DIR__ . "/../app/Language/{$locale}/Sales_orders.php";
+        $orders = include __DIR__ . "/../app/Language/{$locale}/Customer_orders.php";
 
-        foreach (['orders_add', 'orders_edit', 'orders_delete', 'orders_view_all', 'orders_convert'] as $permission) {
-            $this->assertNotSame('', $orders[$permission] ?? '', "{$locale} lacks the label of the permission {$permission}");
+        foreach (['so_add', 'so_edit', 'so_delete', 'so_view_all', 'so_convert'] as $permission) {
+            $this->assertNotSame('', $orders[explode('_', $permission, 2)[1]] ?? '', "{$locale} lacks the label of the permission {$permission}, which the employee form looks up as Customer_orders.{key}");
         }
 
         foreach (RecurringKind::cases() as $kind) {
@@ -319,7 +318,34 @@ class LanguageFilesTest extends CIUnitTestCase
         foreach (range(0, 4) as $when) {
             $this->assertNotSame('', $recurring['reminder_when_' . $when] ?? '', "{$locale} lacks the reminder {$when}");
         }
+    }
 
-        $this->assertSame(RunRefusal::SOURCE_SALE, 'sale');
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function everyLocaleProvider(): array
+    {
+        $cases = [];
+
+        foreach (glob(realpath(__DIR__ . '/../app/Language') . '/*', GLOB_ONLYDIR) as $localeDir) {
+            $cases[basename($localeDir)] = [basename($localeDir)];
+        }
+
+        return $cases;
+    }
+
+    #[DataProvider('everyLocaleProvider')]
+    public function testOrderToCashFiles_KeepTheKeysOfEnglishInTheirOrderAndLeaveWhatIsNotTranslatedEmpty(string $locale): void
+    {
+        foreach (['Customer_orders', 'Sales_orders', 'Recurring', 'Recurring_invoices', 'Recurring_expenses'] as $file) {
+            $english  = include __DIR__ . "/../app/Language/en/{$file}.php";
+            $messages = include __DIR__ . "/../app/Language/{$locale}/{$file}.php";
+
+            $this->assertSame(array_keys($english), array_keys($messages), "{$locale} {$file}: the keys of English, in the same order");
+
+            if (! in_array($locale, ['en', 'en-GB', 'ar-EG', 'ar-LB'], true)) {
+                $this->assertSame([''], array_values(array_unique($messages)), "{$locale} {$file}: a language with no translation yet falls back to English and never holds English text");
+            }
+        }
     }
 }

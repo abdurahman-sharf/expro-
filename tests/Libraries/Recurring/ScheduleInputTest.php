@@ -4,6 +4,8 @@ namespace Tests\Libraries\Recurring;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Organization\BranchError;
+use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Recurring\RecurringKind;
 use App\Libraries\Recurring\ScheduleInput;
@@ -103,22 +105,22 @@ class ScheduleInputTest extends CIUnitTestCase
      *
      * @return array<string, mixed>
      */
-    private function normalised(RecurringKind $kind, array $input, bool $isNew = true, ?int $employeeId = null): array
+    private function normalised(RecurringKind $kind, array $input, bool $isNew = true, ?int $employeeId = null, ?int $ownerId = null): array
     {
-        return ScheduleInput::normalise($kind, $input, $this->accountingDb(), new BranchGuard($this->accountingDb()), $employeeId ?? $this->employeeId, date('Y-m-d'), $isNew);
+        return ScheduleInput::normalise($kind, $input, $this->accountingDb(), new BranchGuard($this->accountingDb()), $employeeId ?? $this->employeeId, date('Y-m-d'), $isNew, $ownerId);
     }
 
-    private function assertRefused(AccountingError $error, callable $action): void
+    private function assertRefused(AccountingError $error, callable $action, string $why = ''): void
     {
         try {
             $action();
         } catch (AccountingException $refusal) {
-            $this->assertSame($error, $refusal->error);
+            $this->assertSame($error, $refusal->error, $why);
 
             return;
         }
 
-        $this->fail('The input should have been refused with ' . $error->value);
+        $this->fail('The input should have been refused with ' . $error->value . ($why === '' ? '' : ': ' . $why));
     }
 
     public function testNormalise_TrimsTheNameAndTheCommentAndRefusesAnEmptyOrTooLongOne(): void
@@ -248,11 +250,37 @@ class ScheduleInputTest extends CIUnitTestCase
         $this->assertRefused(AccountingError::RecurringExpenseInvalid, fn () => $this->normalised(RecurringKind::Expense, $input));
     }
 
-    public function testNormalise_AcceptsOnlyAWayOfPaymentOfTheList(): void
+    public function testNormalise_AcceptsAWayOfPaymentOfTheListByItsTypeOrByItsNameAndKeepsTheType(): void
     {
-        $this->assertSame(lang('Sales.cash'), $this->normalised(RecurringKind::Expense, $this->expense())['columns']['payment_type']);
+        foreach (['cash', lang('Sales.cash'), ' cash '] as $typed) {
+            $this->assertSame('cash', $this->normalised(RecurringKind::Expense, $this->expense(['payment_type' => $typed]))['columns']['payment_type'], $typed);
+        }
 
-        foreach (['Barter', '', 'cash ', ['Cash']] as $bad) {
+        $this->assertSame('bank_transfer', $this->normalised(RecurringKind::Expense, $this->expense(['payment_type' => lang('Sales.bank_transfer')]))['columns']['payment_type']);
+    }
+
+    public function testNormalise_KeepsTheTypeOfAWayOfPaymentTypedInAnotherLanguage(): void
+    {
+        $language = service('language');
+        $original = $language->getLocale();
+        $other    = $original === 'en' ? 'ar-EG' : 'en';
+
+        try {
+            $language->setLocale($other);
+            $typed  = lang('Sales.cash');
+            $stored = $this->normalised(RecurringKind::Expense, $this->expense(['payment_type' => $typed]))['columns']['payment_type'];
+        } finally {
+            $language->setLocale($original);
+        }
+
+        $this->assertNotSame(lang('Sales.cash'), $typed);
+        $this->assertSame('cash', $stored);
+        $this->assertRefused(AccountingError::RecurringExpenseInvalid, fn () => $this->normalised(RecurringKind::Expense, $this->expense(['payment_type' => $typed])), 'the name of another language than the one in use is not one of the list');
+    }
+
+    public function testNormalise_RefusesAWayOfPaymentThatIsNotOnTheList(): void
+    {
+        foreach (['Barter', '', ['Cash'], 'Cash:12345', 'giftcard', 'rewards', 'upi', 'CASH', 'cash;'] as $bad) {
             $this->assertRefused(AccountingError::RecurringExpenseInvalid, fn () => $this->normalised(RecurringKind::Expense, $this->expense(['payment_type' => $bad])));
         }
     }
@@ -298,5 +326,69 @@ class ScheduleInputTest extends CIUnitTestCase
         $this->assertRefused(AccountingError::RecurringRemindersInvalid, fn () => $this->normalised(RecurringKind::Invoice, $this->invoice(['reminders' => [['send_when' => '3', 'days' => '12345']]])));
         $this->assertRefused(AccountingError::RecurringRemindersInvalid, fn () => $this->normalised(RecurringKind::Invoice, $this->invoice(['reminders' => [['send_when' => '-1', 'days' => '']]])));
         $this->assertSame(9999, $this->normalised(RecurringKind::Invoice, $this->invoice(['reminders' => [['send_when' => '3', 'days' => '9999']]]))['reminders'][0]['days']);
+    }
+
+    /**
+     * @return array<string, array{0: RecurringKind, 1: string, 2: AccountingError}>
+     */
+    public static function listFieldProvider(): array
+    {
+        return [
+            'frequency'          => [RecurringKind::Expense, 'frequency', AccountingError::RecurringFrequencyInvalid],
+            'end date'           => [RecurringKind::Expense, 'end_date', AccountingError::RecurringDateInvalid],
+            'number of dates'    => [RecurringKind::Expense, 'max_repeats', AccountingError::RecurringMaxRepeatInvalid],
+            'tax of the expense' => [RecurringKind::Expense, 'tax_amount', AccountingError::RecurringExpenseInvalid],
+            'supplier'           => [RecurringKind::Expense, 'supplier_id', AccountingError::RecurringExpenseInvalid],
+            'issue before'       => [RecurringKind::Invoice, 'issue_before_days', AccountingError::RecurringIssueBeforeInvalid],
+            'payment terms'      => [RecurringKind::Invoice, 'payment_terms_days', AccountingError::PaymentTermsInvalid],
+        ];
+    }
+
+    #[DataProvider('listFieldProvider')]
+    public function testNormalise_RefusesAFieldThatCameAsAListWithTheErrorOfTheField(RecurringKind $kind, string $field, AccountingError $error): void
+    {
+        $input = $kind === RecurringKind::Invoice ? $this->invoice([$field => ['1']]) : $this->expense([$field => ['1']]);
+
+        $this->assertRefused($error, fn () => $this->normalised($kind, $input));
+    }
+
+    public function testNormalise_RefusesAReminderWhoseFieldsCameAsLists(): void
+    {
+        $this->assertRefused(AccountingError::RecurringRemindersInvalid, fn () => $this->normalised(RecurringKind::Invoice, $this->invoice(['reminders' => [['send_when' => ['3'], 'days' => '1']]])));
+        $this->assertRefused(AccountingError::RecurringRemindersInvalid, fn () => $this->normalised(RecurringKind::Invoice, $this->invoice(['reminders' => [['send_when' => '3', 'days' => ['1']]]])));
+    }
+
+    public function testNormalise_TakesTheDefaultBranchOfTheOwnerOfTheScheduleAndNotOfWhoEditsIt(): void
+    {
+        $second = $this->createBranch('B2');
+        $owner  = $this->employeeWithGrants([], [$second]);
+        $editor = $this->employeeWithGrants([]);
+
+        $result = $this->normalised(RecurringKind::Expense, $this->expense(), false, $editor, $owner);
+
+        $this->assertSame($second, (int) $result['columns']['branch_id']);
+        $this->assertNotSame($second, (new BranchGuard($this->accountingDb()))->defaultBranchId($editor), 'the editor works from another branch');
+    }
+
+    public function testNormalise_RefusesWhatTheOwnerOfTheScheduleCouldNotMakeEvenWhenTheEditorMay(): void
+    {
+        $second = $this->createBranch('B2');
+        $owner  = $this->employeeWithGrants([], [$second]);
+        $editor = $this->employeeWithGrants([]);
+        $drawer = $this->treasury('Main drawer', 1);
+
+        foreach ([
+            [RecurringKind::Invoice, $this->invoice(['location_id' => self::LOCATION_ID])],
+            [RecurringKind::Expense, $this->expense(['treasury_id' => $drawer])],
+        ] as [$kind, $input]) {
+            try {
+                $this->normalised($kind, $input, false, $editor, $owner);
+                $this->fail('A schedule whose owner does not work in the branch is refused: ' . $kind->value);
+            } catch (BranchException $refusal) {
+                $this->assertSame(BranchError::NotAllowed, $refusal->error);
+            }
+
+            $this->assertSame(1, (int) $this->normalised($kind, $input, false, $editor, $editor)['columns']['branch_id'], 'the editor alone may');
+        }
     }
 }

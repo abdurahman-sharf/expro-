@@ -9,14 +9,14 @@
 $isNew      = $order === null;
 $rows       = $isNew ? [] : array_map(static fn (object $line): array => ['item_id' => (int) $line->item_id, 'label' => (string) $line->item_name, 'quantity' => rtrim(rtrim((string) $line->quantity, '0'), '.'), 'unit_price' => (string) $line->unit_price, 'discount' => (string) $line->discount, 'discount_type' => (int) $line->discount_type, 'description' => (string) $line->description], $lines);
 $locationId = $isNew ? (int) array_key_first($locations) : (int) ($lines[0]->item_location ?? array_key_first($locations));
-$action     = $isNew ? 'sales_orders/save' : 'sales_orders/save/' . (int) $order->order_id;
+$action     = $isNew ? 'customer_orders/save' : 'customer_orders/save/' . (int) $order->order_id;
 ?>
 
 <?= view('partial/header') ?>
 
 <div id="title_bar" class="print_hide btn-toolbar">
     <h1 class="h5 me-auto mb-0"><?= lang($isNew ? 'Sales_orders.new' : 'Sales_orders.edit') ?></h1>
-    <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('sales_orders'), 'attr') ?>"><?= lang('Sales_orders.back') ?></a>
+    <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('customer_orders'), 'attr') ?>"><?= lang('Sales_orders.back') ?></a>
 </div>
 
 <ul id="error_message_box" class="error_message_box"></ul>
@@ -64,7 +64,7 @@ $action     = $isNew ? 'sales_orders/save' : 'sales_orders/save/' . (int) $order
         </div>
     </div>
 
-    <?= view('partial/document_lines', ['rows' => $rows, 'itemsUrl' => 'sales_orders/items']) ?>
+    <?= view('partial/document_lines', ['rows' => $rows, 'itemsUrl' => 'customer_orders/items']) ?>
 
     <div class="mt-3">
         <button type="submit" class="btn btn-primary btn-sm" id="submit_order"><?= lang('Common.submit') ?></button>
@@ -74,7 +74,7 @@ $action     = $isNew ? 'sales_orders/save' : 'sales_orders/save/' . (int) $order
 <script type="text/javascript">
     $(document).ready(function() {
         $('#customer_name').autocomplete({
-            source: 'sales_orders/customers',
+            source: 'customer_orders/customers',
             minChars: 0,
             delay: 100,
             select: function(event, ui) {

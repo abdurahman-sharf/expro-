@@ -3,6 +3,7 @@
 namespace Tests\Database;
 
 use App\Database\Migrations\OrderToCashDocuments;
+use App\Models\Employee;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -27,7 +28,7 @@ class OrderToCashDocumentsMigrationTest extends CIUnitTestCase
     private const TABLES = ['sales_orders', 'sales_order_lines', 'sales_order_invoices', 'sales_order_invoice_lines', 'recurring_schedules', 'recurring_schedule_lines', 'recurring_schedule_reminders', 'recurring_runs'];
 
     private const PERMISSIONS = [
-        'sales_orders'       => ['sales_orders', 'so_add', 'so_edit', 'so_delete', 'so_view_all', 'so_convert'],
+        'customer_orders'    => ['customer_orders', 'so_add', 'so_edit', 'so_delete', 'so_view_all', 'so_convert'],
         'recurring_invoices' => ['recurring_invoices', 'recurring_invoices_view', 'recurring_invoices_manage'],
         'recurring_expenses' => ['recurring_expenses', 'recurring_expenses_view', 'recurring_expenses_manage'],
     ];
@@ -135,6 +136,22 @@ class OrderToCashDocumentsMigrationTest extends CIUnitTestCase
         }
     }
 
+    public function testUp_GivesNoGrantOfSalesOrdersTheRightToTheRegister(): void
+    {
+        $db       = $this->accountingDb();
+        $employee = model(Employee::class);
+
+        foreach ([['customer_orders'], self::PERMISSIONS['customer_orders']] as $held) {
+            $personId = $this->employeeWithGrants($held);
+
+            $this->assertTrue($employee->has_module_grant('customer_orders', $personId), implode(', ', $held));
+            $this->assertFalse($employee->has_module_grant('sales', $personId), 'whoever may only write orders does not get the register: ' . implode(', ', $held));
+            $this->assertFalse($employee->has_grant('sales', $personId));
+        }
+
+        $this->assertSame(0, $db->table('permissions')->like('permission_id', 'customer_orders_', 'after')->countAllResults(), 'a sub-permission that starts with the id of the module asks the register check for more than the module');
+    }
+
     public function testUp_RunsAgainWithoutHarmAndKeepsTheRowsThatExist(): void
     {
         $scheduleId = $this->schedule();
@@ -144,8 +161,8 @@ class OrderToCashDocumentsMigrationTest extends CIUnitTestCase
 
         $this->assertSame(1, $this->countRows('recurring_schedules'));
         $this->assertSame($scheduleId, (int) $this->accountingDb()->table('recurring_schedules')->get()->getRow()->schedule_id);
-        $this->assertSame(1, $this->accountingDb()->table('modules')->where('module_id', 'sales_orders')->countAllResults());
-        $this->assertSame(6, $this->accountingDb()->table('permissions')->where('module_id', 'sales_orders')->countAllResults());
+        $this->assertSame(1, $this->accountingDb()->table('modules')->where('module_id', 'customer_orders')->countAllResults());
+        $this->assertSame(6, $this->accountingDb()->table('permissions')->where('module_id', 'customer_orders')->countAllResults());
     }
 
     public function testUp_RefusesTwoRunsOfOneScheduleOnOneDateAndTwoWithOneOccurrence(): void

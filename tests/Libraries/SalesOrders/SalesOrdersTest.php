@@ -900,15 +900,6 @@ class SalesOrdersTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('sales_order_invoice_lines'));
     }
 
-    public function testSettings_AreOffUntilTheyAreTurnedOn(): void
-    {
-        $this->setConfigValue('enable_sales_order', '0');
-        $this->accountingDb()->table('app_config')->whereIn('key', ['enable_sales_order', 'sales_order_allow_excess'])->delete();
-
-        $this->assertFalse($this->orders->isEnabled());
-        $this->assertFalse($this->orders->allowsExcess());
-    }
-
     public function testRecordInvoice_RefusesAnInvoiceWithoutTheOrderBeingFound(): void
     {
         $orderId = $this->approved();

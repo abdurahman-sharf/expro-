@@ -804,22 +804,24 @@ final class RecurringGeneratorTest extends CIUnitTestCase
     {
         $language = service('language');
         $original = $language->getLocale();
+        $typedIn  = $original === 'en' ? 'ar-EG' : 'en';
 
         try {
-            $language->setLocale('ar-EG');
-            $arabicCash = lang('Sales.cash');
-            $scheduleId = $this->expenseSchedule(['payment_type' => $arabicCash]);
-            $language->setLocale('en');
+            $language->setLocale($typedIn);
+            $typed      = lang('Sales.cash');
+            $scheduleId = $this->expenseSchedule(['payment_type' => $typed]);
+            $language->setLocale($original);
 
             $report = $this->generator->run();
+            $saved  = $this->accountingDb()->table('expenses')->where('expense_id', $this->runsOf($scheduleId)[0]->expense_id)->get()->getRow();
         } finally {
             $language->setLocale($original);
         }
 
-        $this->assertNotSame(lang('Sales.cash', [], 'en'), $arabicCash, 'the label typed is not the English one');
+        $this->assertNotSame(lang('Sales.cash'), $typed, 'the name typed is not the one of the language the run uses');
         $this->assertSame('cash', $this->scheduleRow($scheduleId)->payment_type);
         $this->assertSame(1, $report->generated(), 'a way of payment is kept by its type and not by the name it had when it was typed');
-        $this->assertSame(lang('Sales.cash', [], 'en'), $this->accountingDb()->table('expenses')->where('expense_id', $this->runsOf($scheduleId)[0]->expense_id)->get()->getRow()->payment_type);
+        $this->assertSame(lang('Sales.cash'), $saved->payment_type, 'the expense is saved with the name of the language the run uses');
     }
 
     public function testRun_LeavesAScheduleThatFailsUnexpectedlyForTheNextRunAndMakesTheOthers(): void

@@ -37,7 +37,7 @@ final class SalesOrders
 {
     use RunsInTransaction;
 
-    public const MODULE     = 'sales_orders';
+    public const MODULE     = 'customer_orders';
     public const ADD        = 'so_add';
     public const EDIT       = 'so_edit';
     public const DELETE     = 'so_delete';

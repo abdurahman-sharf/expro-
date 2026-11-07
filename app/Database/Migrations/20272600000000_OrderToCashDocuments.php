@@ -15,7 +15,7 @@ class OrderToCashDocuments extends Migration
 {
     private const TABLE_OPTIONS = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci';
     private const MODULES       = [
-        'sales_orders'       => [140, ['sales_orders', 'so_add', 'so_edit', 'so_delete', 'so_view_all', 'so_convert']],
+        'customer_orders'    => [140, ['customer_orders', 'so_add', 'so_edit', 'so_delete', 'so_view_all', 'so_convert']],
         'recurring_invoices' => [141, ['recurring_invoices', 'recurring_invoices_view', 'recurring_invoices_manage']],
         'recurring_expenses' => [142, ['recurring_expenses', 'recurring_expenses_view', 'recurring_expenses_manage']],
     ];

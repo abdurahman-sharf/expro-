@@ -15,13 +15,13 @@ use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\OSPOS;
 
-class Sales_orders extends DocumentScreen
+class Customer_orders extends DocumentScreen
 {
     private SalesOrders $orders;
 
     public function __construct()
     {
-        parent::__construct('sales_orders');
+        parent::__construct('customer_orders');
 
         $this->orders = new SalesOrders(null, null, $this->branchGuard());
     }
@@ -33,7 +33,7 @@ class Sales_orders extends DocumentScreen
         $enabled = $this->orders->isEnabled();
         $result  = $enabled ? $this->orders->search($filters, $this->employeeId(), self::PAGE_SIZE, $offset) : ['total' => 0, 'rows' => []];
 
-        return view('sales_orders/manage', [
+        return view('customer_orders/manage', [
             'rows'        => $result['rows'],
             'total'       => $result['total'],
             'offset'      => $offset,
@@ -68,7 +68,7 @@ class Sales_orders extends DocumentScreen
             throw PageNotFoundException::forPageNotFound();
         }
 
-        return view('sales_orders/form', [
+        return view('customer_orders/form', [
             'order'     => $order,
             'lines'     => $lines,
             'locations' => $this->locationOptions(),
@@ -88,7 +88,7 @@ class Sales_orders extends DocumentScreen
         $status   = $order->status_object;
         $invoices = $this->orders->invoicesOf($orderId);
 
-        return view('sales_orders/view', [
+        return view('customer_orders/view', [
             'order'      => $order,
             'status'     => $status,
             'number'     => $this->orders->numberOf($orderId),
@@ -126,12 +126,12 @@ class Sales_orders extends DocumentScreen
             if ($orderId === NEW_ENTRY) {
                 $orderId = $this->orders->create($input, $this->employeeId());
 
-                return ['success' => true, 'message' => lang('Sales_orders.successful_adding'), 'id' => $orderId, 'redirect' => site_url('sales_orders/view/' . $orderId)];
+                return ['success' => true, 'message' => lang('Sales_orders.successful_adding'), 'id' => $orderId, 'redirect' => site_url('customer_orders/view/' . $orderId)];
             }
 
             $this->orders->update($orderId, $input, $this->employeeId());
 
-            return ['success' => true, 'message' => lang('Sales_orders.successful_updating'), 'id' => $orderId, 'redirect' => site_url('sales_orders/view/' . $orderId)];
+            return ['success' => true, 'message' => lang('Sales_orders.successful_updating'), 'id' => $orderId, 'redirect' => site_url('customer_orders/view/' . $orderId)];
         });
     }
 
