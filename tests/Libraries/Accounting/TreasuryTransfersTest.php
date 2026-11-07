@@ -606,6 +606,7 @@ class TreasuryTransfersTest extends CIUnitTestCase
         $this->assertSame([$second], $ids($this->transfers->search(filters: ['treasury_id' => $this->main, 'date_from' => '2026-10-15'])));
         $this->assertSame(2, $this->transfers->search(filters: ['date_from' => '2026-10-15'])['total']);
         $this->assertSame([$third, $second, $first], $ids($this->transfers->search(filters: ['date_from' => 'garbage'])));
+        $this->assertSame([$third, $second, $first], $ids($this->transfers->search(filters: ['date_to' => 'garbage'])));
     }
 
     public function testSearch_KeepsTheBranchesOfTheReaderWhateverTheFilterAsks(): void

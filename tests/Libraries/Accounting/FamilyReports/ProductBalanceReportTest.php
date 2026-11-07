@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\FamilyReports\ProductBalanceReport;
+use CodeIgniter\Events\Events;
 use Tests\Support\FamilyReportTestCase;
 
 /**
@@ -115,5 +116,38 @@ final class ProductBalanceReportTest extends FamilyReportTestCase
         $this->assertSame(['Depot item'], $this->columnOf($limited, 'name'));
         $this->assertAmount('60.00', $this->grandOf($limited, 'net_value'));
         $this->assertReportTies($limited);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function queriesOfBuild(string $to, ?array $branches = null): array
+    {
+        $queries  = [];
+        $listener = static function ($query) use (&$queries): void {
+            $queries[] = (string) $query->getQuery();
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $this->built($this->report, ['from' => $this->ago(10), 'to' => $to], $branches === null ? null : $this->limitedTo(...$branches));
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $queries;
+    }
+
+    public function testBuild_ReadsTheStockAccountsThroughTheReconciliationOfTheLedgerForTheWholeCompanyNowAndNotOtherwise(): void
+    {
+        $this->cream();
+        $this->createBranch('PB2', 'Second balance branch');
+
+        $reconciles = static fn (array $queries): bool => array_filter($queries, static fn (string $query): bool => str_contains($query, 'SUM(value), 0) AS value') && str_contains($query, 'accounting_stock_entries')) !== [];
+
+        $this->assertTrue($reconciles($this->queriesOfBuild($this->today())), 'The whole company now');
+        $this->assertFalse($reconciles($this->queriesOfBuild($this->today(), [1])), 'A branch of the company');
+        $this->assertFalse($reconciles($this->queriesOfBuild($this->ago(2))), 'A day of the past');
     }
 }

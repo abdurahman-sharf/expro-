@@ -49,6 +49,18 @@ final class SupplierDirectoryReportTest extends FamilyReportTestCase
         $this->assertCount(2, $this->rowsOf($this->built($report, ['country' => 'KSA'])));
     }
 
+    public function testBuild_LeavesOutADeletedSupplier(): void
+    {
+        $gone = $this->anotherSupplier('Closed Trading');
+
+        $this->accountingDb()->table('suppliers')->where('person_id', $gone)->update(['deleted' => 1]);
+
+        $names = $this->columnOf($this->built(new SupplierDirectoryReport()), 'name');
+
+        $this->assertContains('Gulf Supplies', $names);
+        $this->assertNotContains('Closed Trading', $names);
+    }
+
     public function testBuild_IsTheSameForEveryScopeBecauseItHoldsNoFigures(): void
     {
         $report = new SupplierDirectoryReport();

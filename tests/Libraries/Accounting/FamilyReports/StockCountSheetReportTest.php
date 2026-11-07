@@ -122,6 +122,22 @@ final class StockCountSheetReportTest extends FamilyReportTestCase
         $this->assertGreaterThan(0, $items['cream']);
     }
 
+    public function testBuild_TiesALocationThatMovedToAnotherBranchWithAllItsMovements(): void
+    {
+        $branch = $this->createBranch('CS3', 'Moved to branch');
+        $depot  = $this->locationOfBranch(1, 'Moving depot');
+        $item   = $this->named('Moving item');
+
+        $this->bookStock($this->today(), 1, $item, '6', '60.00', $depot);
+        $this->putOnShelf($item, '6', $depot);
+        $this->accountingDb()->table('stock_locations')->where('location_id', $depot)->update(['branch_id' => $branch]);
+
+        $limited = $this->built($this->report, [], $this->limitedTo($branch));
+
+        $this->assertSame(['Moving item'], $this->columnOf($limited, 'name'));
+        $this->assertReportTies($limited);
+    }
+
     public function testBuild_DoesNotCompareACategoryWithTheMovements(): void
     {
         $this->shelves();

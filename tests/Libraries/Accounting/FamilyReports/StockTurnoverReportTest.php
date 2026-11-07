@@ -90,6 +90,19 @@ final class StockTurnoverReportTest extends FamilyReportTestCase
         $this->assertAmount('200.00', $table->ties[1]->book);
     }
 
+    public function testBuild_SaysSoWhenTheMovementsOfTheSalesCostMoreThanTheJournalsChargedToTheCostOfSales(): void
+    {
+        $this->trade();
+
+        $this->accountingDb()->table('accounting_stock_entries')->where('source_type', 'sale')->set('value', 'value - 5', false)->update();
+
+        $table = $this->built($this->report, $this->thisDay());
+
+        $this->assertFalse($table->ties());
+        $this->assertAmount('5.00', $table->ties[1]->difference());
+        $this->assertAmount('-5.00', $table->ties[0]->difference());
+    }
+
     public function testBuild_SpreadsTheDaysOfThePeriodAndGivesNoTurnoverToAnItemThatDidNotSell(): void
     {
         $this->trade();

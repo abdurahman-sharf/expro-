@@ -126,6 +126,9 @@ final class TreasuryStatementTest extends CashReportTestCase
 
         $this->assertSame((string) $last[count($last) - 1]['balance'], $before);
 
+        $this->assertSame($this->statement->page($this->drawer)['balance'], $dated['balance']);
+        $this->assertSame($this->statement->page($this->drawer)['balance'], $this->statement->page($this->drawer, ['amount_from' => '99999'])['balance']);
+
         $big = $this->statement->page($this->drawer, ['amount_from' => '100']);
 
         $this->assertSame(array_sum(array_map(static fn (array $row): int => bccomp((string) $row['debit'], '100', 2) >= 0 ? 1 : 0, $all)), $big['total']);

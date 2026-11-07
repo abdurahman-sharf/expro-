@@ -84,6 +84,15 @@ final class ChartReportTest extends FamilyReportTestCase
             branchId: $branch,
         ));
 
+        (new PostingService())->post(new JournalDraft(
+            date: $this->today(),
+            lines: [new JournalLineDraft($this->accountId('cash'), debit: '25.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '25.00')],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+            description: 'First branch cash',
+            currencyCode: 'SAR',
+            branchId: 1,
+        ));
+
         $all     = $this->built($this->report, ['balances' => '1']);
         $limited = $this->built($this->report, ['balances' => '1'], $this->limitedTo($branch));
         $cash    = (string) $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->accountId('cash'))->get()->getRow()->code;
@@ -91,7 +100,7 @@ final class ChartReportTest extends FamilyReportTestCase
         $this->assertReportTies($all);
         $this->assertReportTies($limited);
         $this->assertAmount('40.00', $this->rowWhere($limited, 'code', $cash)->cell('balance'));
-        $this->assertAmount('40.00', $this->rowWhere($all, 'code', $cash)->cell('balance'));
+        $this->assertAmount('65.00', $this->rowWhere($all, 'code', $cash)->cell('balance'));
         $this->assertContains('balance', array_map(static fn ($column): string => $column->key, $all->columns));
     }
 }

@@ -107,6 +107,21 @@ final class StockAgingReportTest extends FamilyReportTestCase
         $this->assertReportTies($table);
     }
 
+    public function testBuild_TakesBackTheQuantityOfTheReversedDocumentAndNotTheOldestQuantity(): void
+    {
+        $item = $this->named('Newer lot reversed');
+
+        $this->bookStock($this->ago(40), 1, $item, '5', '50.00');
+        $this->bookStock($this->ago(3), 1, $item, '3', '30.00');
+        (new StockLedger())->reverseSource('purchase', $this->lastBookedSource(), JournalEntryType::General, $this->today(), null);
+
+        $row = $this->rowWhere($this->built($this->report), 'name', 'Newer lot reversed');
+
+        $this->assertAmount('5', $row->cell('available'));
+        $this->assertAmount('5', $row->cell('b1'));
+        $this->assertAmount('0', $row->cell('b0'));
+    }
+
     public function testBuild_GivesTheTotalAsThePlainAverageOfTheItemsThatHoldStock(): void
     {
         $this->lots();

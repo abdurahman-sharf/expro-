@@ -132,6 +132,18 @@ final class ExpensesReportTest extends CashReportTestCase
         $this->assertAmount('100.00', $table->ties[0]->difference());
     }
 
+    public function testBuild_SaysSoWhenTheJournalOfAnExpenseHoldsAnotherAmountThanTheExpense(): void
+    {
+        $facts = $this->spending();
+
+        $this->accountingDb()->table('expenses')->where('expense_id', $facts['small'])->update(['amount' => '130.00']);
+
+        $table = $this->built($this->report, $this->thisDay());
+
+        $this->assertFalse($table->ties());
+        $this->assertAmount('30.00', $table->ties[0]->difference());
+    }
+
     public function testBuild_ListsEveryPeriodOnceThereIsADocumentAndNoneWhenThereIsNot(): void
     {
         $this->spending();

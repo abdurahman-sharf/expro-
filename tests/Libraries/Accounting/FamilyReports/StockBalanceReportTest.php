@@ -113,4 +113,19 @@ final class StockBalanceReportTest extends FamilyReportTestCase
         $this->assertAmount('9', $this->grandOf($limited, 'total'));
         $this->assertReportTies($limited);
     }
+
+    public function testBuild_TiesALocationThatMovedToAnotherBranchWithAllItsMovements(): void
+    {
+        $moving = $this->locationOfBranch(1, 'Moving depot');
+        $item   = $this->named('Moving item');
+
+        $this->bookStock($this->today(), 1, $item, '6', '60.00', $moving);
+        $this->putOnShelf($item, '6', $moving);
+        $this->accountingDb()->table('stock_locations')->where('location_id', $moving)->update(['branch_id' => $this->second]);
+
+        $limited = $this->built($this->report, [], $this->limitedTo($this->second));
+
+        $this->assertContains('Moving item', $this->columnOf($limited, 'name'));
+        $this->assertReportTies($limited);
+    }
 }

@@ -47,7 +47,9 @@ final class StockEntries
     }
 
     /**
-     * The quantity the movements of the branches add up to in some locations.
+     * The quantity the movements add up to in some locations, whichever branch wrote them: the shelves of
+     * a location do not remember the branch it was in when it was moved, so a location that changed
+     * branch is compared with all its movements.
      *
      * @param list<int> $locationIds
      *
@@ -62,7 +64,6 @@ final class StockEntries
         $row = $this->db->table('accounting_stock_entries e')
             ->select('COALESCE(SUM(e.quantity), 0) AS quantity', false)
             ->where('e.company_id', CompanyContext::id())
-            ->whereIn('e.branch_id', $scope->ids)
             ->whereIn('e.location_id', $locationIds)
             ->get()
             ->getRow();

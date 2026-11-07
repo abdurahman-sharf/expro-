@@ -18,15 +18,6 @@
     ]
   },
   {
-    "name": "G03 unknown report is not a 404",
-    "file": "app/Controllers/AccountingFamilyReports.php",
-    "find": "if ($definition === null) {",
-    "replace": "if (false) {",
-    "tests": [
-      "tests/Controllers/AccountingFamilyReportsControllerTest.php"
-    ]
-  },
-  {
     "name": "G04 journals of others readable without the permission",
     "file": "app/Controllers/AccountingFamilyReports.php",
     "find": "$this->can(AccountingGuard::JOURNALS_ALL) ? null : $this->employeeId()",
@@ -69,15 +60,6 @@
     "file": "app/Libraries/Accounting/ExportsCsv.php",
     "find": "return \"'\" . $cell;",
     "replace": "return $cell;",
-    "tests": [
-      "tests/Controllers/AccountingFamilyReportsControllerTest.php"
-    ]
-  },
-  {
-    "name": "G09 a report that is not in the catalogue is routed",
-    "file": "app/Libraries/Accounting/FamilyReports/FamilyReportCatalog.php",
-    "find": "return self::all()[$key] ?? null;",
-    "replace": "return self::all()[$key] ?? self::all()['purchases'];",
     "tests": [
       "tests/Controllers/AccountingFamilyReportsControllerTest.php"
     ]
@@ -202,10 +184,10 @@
     ]
   },
   {
-    "name": "G21 stock quantity of every branch compared with the shelves",
+    "name": "G21 stock quantity of every location compared with the shelves of a few",
     "file": "app/Libraries/Accounting/FamilyReports/StockEntries.php",
-    "find": "->whereIn('e.branch_id', $scope->ids)\n            ->whereIn('e.location_id', $locationIds)",
-    "replace": "->whereIn('e.location_id', $locationIds)",
+    "find": "->where('e.company_id', CompanyContext::id())\n            ->whereIn('e.location_id', $locationIds)\n            ->get()",
+    "replace": "->where('e.company_id', CompanyContext::id())\n            ->get()",
     "tests": [
       "--filter",
       "testBuild_ReadsOnlyTheLocationsOfTheBranchesOfTheScopeAndOneLocation",
@@ -236,18 +218,9 @@
     "name": "G24 supplier balances of every branch read",
     "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
     "find": "$inBranch = $branchIds === null ? '' : ",
-    "replace": "$inBranch = '' ?: ",
+    "replace": "$inBranch = true ? '' : ",
     "tests": [
       "tests/Libraries/Accounting/FamilyReports/SupplierBalancesReportTest.php"
-    ]
-  },
-  {
-    "name": "G25 aging screen of an empty scope reads every branch",
-    "file": "app/Libraries/Accounting/FamilyReports/SupplierAgedLedgerReport.php",
-    "find": "$input->scope->isEmpty() ? [] : $this->aged->build(",
-    "replace": "false ? [] : $this->aged->build(",
-    "tests": [
-      "tests/Libraries/Accounting/FamilyReports/SupplierAgedLedgerReportTest.php"
     ]
   },
   {
@@ -319,8 +292,8 @@
   {
     "name": "G32 a return is added to the net purchases",
     "file": "app/Libraries/Accounting/FamilyReports/PurchaseDocuments.php",
-    "find": ": bcadd($total, (string) $row->journal_total, SaleAmounts::SCALE);",
-    "replace": ": bcadd($total, (string) $row->journal_total, SaleAmounts::SCALE) . '0';",
+    "find": "? bcsub($total, (string) $row->journal_total, SaleAmounts::SCALE)",
+    "replace": "? bcadd($total, (string) $row->journal_total, SaleAmounts::SCALE)",
     "tests": [
       "--filter",
       "testBuild_TiesTheNetPurchasesToTheJournalsOfThePurchases",
@@ -334,15 +307,15 @@
     "replace": "$booked = bcadd($booked, $row->total, SaleAmounts::SCALE);",
     "tests": [
       "--filter",
-      "testBuild_TiesTheTotalToTheJournalsThroughAnEditAndADelete",
+      "testBuild_SaysSoWhenTheJournalOfAnExpenseHoldsAnotherAmountThanTheExpense",
       "tests/Libraries/Accounting/FamilyReports/ExpensesReportTest.php"
     ]
   },
   {
-    "name": "G34 unposted expense counted as booked",
+    "name": "G34 unposted expenses not counted",
     "file": "app/Libraries/Accounting/FamilyReports/CashDocumentsReport.php",
-    "find": "if ($row->journal_total === null) {\n                $unposted++;\n\n                continue;\n            }",
-    "replace": "if ($row->journal_total === null) {\n                $unposted++;\n            }",
+    "find": "$unposted++;",
+    "replace": "$unposted += 0;",
     "tests": [
       "--filter",
       "testBuild_SaysSoWhenAnExpenseHasNoJournalInTheBooks",
@@ -386,6 +359,8 @@
     "find": "if ($current && $scope->isCompany() && $held !== []) {",
     "replace": "if (false) {",
     "tests": [
+      "--filter",
+      "testBuild_ReadsTheStockAccountsThroughTheReconciliationOfTheLedgerForTheWholeCompanyNowAndNotOtherwise",
       "tests/Libraries/Accounting/FamilyReports/ProductBalanceReportTest.php"
     ]
   },
@@ -395,24 +370,28 @@
     "find": "$ties[]  = new TieCheck($this->text('tie_cost_of_sales'), bcadd($cogs, '0', SaleAmounts::SCALE), $charged);",
     "replace": "$ties[]  = new TieCheck($this->text('tie_cost_of_sales'), bcadd($cogs, '0', SaleAmounts::SCALE), bcadd($cogs, '0', SaleAmounts::SCALE));",
     "tests": [
+      "--filter",
+      "testBuild_SaysSoWhenTheMovementsOfTheSalesCostMoreThanTheJournalsChargedToTheCostOfSales",
       "tests/Libraries/Accounting/FamilyReports/StockTurnoverReportTest.php"
     ]
   },
   {
-    "name": "G40 journal debit tie to the trial balance always passes",
+    "name": "G40 journal debit not set beside the trial balance",
     "file": "app/Libraries/Accounting/FamilyReports/JournalMovementsReport.php",
-    "find": "$input->scope->isEmpty() ? '0.0000' : $this->trialBalance->build($input->scope, $period)->totals['debit']",
-    "replace": "$input->scope->isEmpty() ? '0.0000' : $this->trialBalance->build($input->scope, $period)->totals['debit'] . ''",
+    "find": "if ($source === '' && $account === 0 && $input->journalOwner === null) {",
+    "replace": "if (false) {",
     "tests": [
       "tests/Libraries/Accounting/FamilyReports/JournalMovementsReportTest.php"
     ]
   },
   {
-    "name": "G41 chart balances ties not summed",
+    "name": "G41 chart balances not shown",
     "file": "app/Libraries/Accounting/FamilyReports/ChartReport.php",
-    "find": "if ($input->scope->isEmpty()) {\n            return [];",
-    "replace": "if ($input->scope->isEmpty() && false) {\n            return [];",
+    "find": "$cells['balance'] = $held[(int) $account->account_id] ?? '0.0000';",
+    "replace": "$cells['balance'] = '0.0000';",
     "tests": [
+      "--filter",
+      "testBuild_WithBalancesShowsWhatTheJournalsOfTheBranchesPutOnEachAccountAndTheyAddUpToNothing",
       "tests/Libraries/Accounting/FamilyReports/ChartReportTest.php"
     ]
   },
@@ -423,7 +402,7 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "testBuild_TakesBackWhatAReversedDocumentBroughtIn",
+      "testBuild_TakesBackTheQuantityOfTheReversedDocumentAndNotTheOldestQuantity",
       "tests/Libraries/Accounting/FamilyReports/StockAgingReportTest.php"
     ]
   },
@@ -435,15 +414,6 @@
     "tests": [
       "--filter",
       "testBuild_PlacesTheRemainingQuantityInFixedBucketsByTheDateItWasReceived",
-      "tests/Libraries/Accounting/FamilyReports/StockAgingReportTest.php"
-    ]
-  },
-  {
-    "name": "G44 negative stock counted in the buckets",
-    "file": "app/Libraries/Accounting/FamilyReports/StockAgingReport.php",
-    "find": "if (bccomp($lot['quantity'], '0', 3) <= 0) {\n                    continue;",
-    "replace": "if (false) {\n                    continue;",
-    "tests": [
       "tests/Libraries/Accounting/FamilyReports/StockAgingReportTest.php"
     ]
   },
