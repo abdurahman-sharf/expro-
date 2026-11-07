@@ -109,7 +109,13 @@ final class ItemRoutingAccounts
             }
 
             $accountId = $this->accountId($value);
-            $problem   = $accountId === false ? AccountingError::AccountNotFound : $this->problem($key, $accountId, $existing);
+            $before    = isset($stored[$keyName]) ? (int) $stored[$keyName]->account_id : null;
+
+            if ($accountId === $before) {
+                continue;
+            }
+
+            $problem = $accountId === false ? AccountingError::AccountNotFound : $this->problem($key, $accountId, $existing);
 
             if ($problem !== null) {
                 $errors[$keyName] = $problem;
@@ -117,11 +123,7 @@ final class ItemRoutingAccounts
                 continue;
             }
 
-            $before = isset($stored[$keyName]) ? (int) $stored[$keyName]->account_id : null;
-
-            if ($before !== $accountId) {
-                $changes[$keyName] = ['before' => $before, 'after' => $accountId];
-            }
+            $changes[$keyName] = ['before' => $before, 'after' => $accountId];
         }
 
         if ($errors !== []) {
@@ -136,10 +138,8 @@ final class ItemRoutingAccounts
             foreach ($changes as $keyName => $change) {
                 if ($change['after'] === null) {
                     $this->db->table('item_routing_accounts')->where('item_id', $itemId)->where('routing_key', $keyName)->delete();
-                } elseif ($change['before'] === null) {
-                    $this->db->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => $keyName, 'account_id' => $change['after']]);
                 } else {
-                    $this->db->table('item_routing_accounts')->where('item_id', $itemId)->where('routing_key', $keyName)->update(['account_id' => $change['after']]);
+                    $this->db->table('item_routing_accounts')->upsert(['item_id' => $itemId, 'routing_key' => $keyName, 'account_id' => $change['after']]);
                 }
 
                 $this->audit->write('item', $itemId, 'item_routing_accounts_changed', $employeeId, JournalOrigin::User, [
@@ -185,14 +185,15 @@ final class ItemRoutingAccounts
 
     /**
      * The items that name an account which cannot take entries any more: it was deactivated, turned into
-     * a group, or reserved for another purpose after the item named it. Posting stops on such an item.
+     * a group, or reserved for another purpose after the item named it. Posting stops on such an item, and
+     * a deleted item is listed too: the sales and the returns that still hold it are posted with its account.
      *
-     * @return list<array{item_id: int, name: string, routing_key: string, account_id: int, code: string, problem: string}>
+     * @return list<array{item_id: int, name: string, deleted: bool, routing_key: string, account_id: int, code: string, problem: string}>
      */
     public function problems(): array
     {
         $existing = $this->accountsById();
-        $rows     = $this->builder()->select('it.name AS item_name')->join('items it', 'it.item_id = i.item_id')->where('it.deleted', 0)->orderBy('i.item_id', 'ASC')->orderBy('i.routing_key', 'ASC')->get()->getResult();
+        $rows     = $this->builder()->select('it.name AS item_name, it.deleted AS item_deleted')->join('items it', 'it.item_id = i.item_id')->orderBy('i.item_id', 'ASC')->orderBy('i.routing_key', 'ASC')->get()->getResult();
         $problems = [];
 
         foreach ($rows as $row) {
@@ -274,13 +275,14 @@ final class ItemRoutingAccounts
     }
 
     /**
-     * @return array{item_id: int, name: string, routing_key: string, account_id: int, code: string, problem: string}
+     * @return array{item_id: int, name: string, deleted: bool, routing_key: string, account_id: int, code: string, problem: string}
      */
     private function described(object $row, AccountingError $problem): array
     {
         return [
             'item_id'     => (int) $row->item_id,
             'name'        => (string) $row->item_name,
+            'deleted'     => (int) $row->item_deleted === 1,
             'routing_key' => (string) $row->routing_key,
             'account_id'  => (int) $row->account_id,
             'code'        => (string) $row->code,

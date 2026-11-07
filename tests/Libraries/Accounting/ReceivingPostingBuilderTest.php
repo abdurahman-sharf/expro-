@@ -651,7 +651,7 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         $this->assertSame($this->stockAccount($this->warehouse) . ':40.0000:0.0000', $automatic[0]);
     }
 
-    public function testPurchase_RefusesTheStockRowSetToPerItemBecauseTheTiesOfTheStockAreKeptByLocation(): void
+    public function testPurchase_RejectsTheStockRowSetToPerItemBecauseTheTiesOfTheStockAreKeptByLocation(): void
     {
         $this->routeRow(RoutingKey::StockLocations, RoutingType::PerItem);
 
@@ -662,7 +662,7 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         $this->assertSame('per_item', $failure->context['routing_type']);
     }
 
-    public function testPurchase_RefusesTheSupplierRowSetToPerItemOrToMainPerEntityBecauseNeitherAppliesToIt(): void
+    public function testPurchase_RejectsTheSupplierRowSetToPerItemOrToMainPerEntityBecauseNeitherAppliesToIt(): void
     {
         foreach ([RoutingType::PerItem, RoutingType::MainPerEntity] as $type) {
             $this->routeRow(RoutingKey::Suppliers, $type);
@@ -674,7 +674,7 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
         }
     }
 
-    public function testPurchase_RefusesTheCostOfSalesRowSetToPerItemBecauseTheRowDoesNotOfferIt(): void
+    public function testPurchase_RejectsTheCostOfSalesRowSetToPerItemBecauseTheRowDoesNotOfferIt(): void
     {
         $this->routeRow(RoutingKey::CostOfGoodsSold, RoutingType::PerItem);
 

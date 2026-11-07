@@ -250,7 +250,8 @@ final class AccountService
         return $this->db->table('accounting_routing')->where('account_id', $accountId)->countAllResults() > 0
             || $this->db->table('expense_categories')->where('account_id', $accountId)->countAllResults() > 0
             || $this->db->table('revenue_categories')->where('account_id', $accountId)->countAllResults() > 0
-            || $this->db->table('tax_definitions')->where('liability_account_id', $accountId)->countAllResults() > 0;
+            || $this->db->table('tax_definitions')->where('liability_account_id', $accountId)->countAllResults() > 0
+            || $this->db->table('item_routing_accounts')->where('account_id', $accountId)->countAllResults() > 0;
     }
 
     private function isStamped(int $accountId): bool

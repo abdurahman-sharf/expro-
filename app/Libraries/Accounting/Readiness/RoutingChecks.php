@@ -73,7 +73,7 @@ final class RoutingChecks extends CheckGroup
         }
 
         foreach ($items->problems() as $problem) {
-            $line = sprintf('item %d (%s) names the account %s for %s: %s', $problem['item_id'], $problem['name'], $problem['code'], $problem['routing_key'], $problem['problem']);
+            $line = sprintf('item %d (%s%s) names the account %s for %s: %s', $problem['item_id'], $problem['name'], $problem['deleted'] ? ', deleted' : '', $problem['code'], $problem['routing_key'], $problem['problem']);
 
             if (in_array($problem['routing_key'], $perItem, true)) {
                 $fails[] = $line;

@@ -6635,7 +6635,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame([(string) $this->saleRow($saleId)->branch_id], array_values($branches));
     }
 
-    public function testSaveValue_RefusesAPerItemSaleWhoseItemNamesAnAccountThatWasDeactivatedAndLeavesNoSale(): void
+    public function testSaveValue_RejectsAPerItemSaleWhoseItemNamesAnAccountThatWasDeactivatedAndLeavesNoSale(): void
     {
         $cycle = $this->perItemCycle();
         $this->accountingDb()->table('accounting_accounts')->where('account_id', $cycle['creamAccount'])->update(['active' => 0]);
@@ -6698,7 +6698,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(['revenue', 'general', 'cogs'], array_column($this->journals($perEntity), 'entry'));
     }
 
-    public function testSaveValue_RefusesAMainPerEntitySaleOfACustomerWithoutAnAccountAndLeavesNoSale(): void
+    public function testSaveValue_RejectsAMainPerEntitySaleOfACustomerWithoutAnAccountAndLeavesNoSale(): void
     {
         $cycle = $this->referenceInvoice();
         $this->routeRow(RoutingKey::Customers, RoutingType::MainPerEntity);
@@ -6766,7 +6766,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertContains($this->accountId('sales_revenue') . ':0.00:710.00', $third['lines']);
     }
 
-    public function testSaveValue_RefusesAPerItemSaleInAClosedPeriodWithoutLeavingAnyOfIt(): void
+    public function testSaveValue_RejectsAPerItemSaleInAClosedPeriodWithoutLeavingAnyOfIt(): void
     {
         $cycle = $this->perItemCycle();
         $this->closeThrough(date('Y-m-d'));

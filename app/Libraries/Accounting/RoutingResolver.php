@@ -217,10 +217,12 @@ final class RoutingResolver
         $problem = $this->items->refusal($key, $account);
 
         if ($problem !== null) {
+            $item = $this->db->table('items')->select('name')->where('item_id', $itemId)->get()->getRow();
+
             throw new PostingException(
                 PostingError::ItemAccountUnusable,
                 "The account the item names for {$key->value} cannot take entries.",
-                ['routing_key' => $key->value, 'item_id' => $itemId, 'account_id' => (int) $account->account_id, 'problem' => $problem->value],
+                ['routing_key' => $key->value, 'item_id' => $itemId, 'account_id' => (int) $account->account_id, 'problem' => $problem->value, 'code' => (string) $account->code, 'name' => (string) ($item->name ?? $itemId)],
             );
         }
 

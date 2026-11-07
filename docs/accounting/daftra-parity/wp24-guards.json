@@ -33,7 +33,7 @@
   "replace": "if (! in_array($type, $key->allowedTypes(), true)) {",
   "tests": [
    "--filter",
-   "testAccountFor_RefusesPerItemOnTheRowsWhoseTies",
+   "testAccountFor_RejectsPerItemOnTheRowsWhoseTies",
    "tests/Libraries/Accounting/RoutingResolverTest.php"
   ]
  },
@@ -44,7 +44,7 @@
   "replace": "if (! $key->applies($type)) {",
   "tests": [
    "--filter",
-   "testAccountFor_RefusesMainPerEntityOnARowTheReferenceSystemDoesNotOfferItOn",
+   "testAccountFor_RejectsMainPerEntityOnARowTheReferenceSystemDoesNotOfferItOn",
    "tests/Libraries/Accounting/RoutingResolverTest.php"
   ]
  },
@@ -55,7 +55,7 @@
   "replace": "return $this->mappedAccount($key->value, $route);",
   "tests": [
    "--filter",
-   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Rejects|Uses|Names)|testItemAccountsFor|testTypeOf",
    "tests/Libraries/Accounting/RoutingResolverTest.php"
   ]
  },
@@ -66,7 +66,7 @@
   "replace": "$accounts[$itemId] = new ItemRoutedAccount($fallback, true);",
   "tests": [
    "--filter",
-   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Rejects|Uses|Names)|testItemAccountsFor|testTypeOf",
    "tests/Libraries/Accounting/RoutingResolverTest.php"
   ]
  },
@@ -77,7 +77,7 @@
   "replace": "if (false) {",
   "tests": [
    "--filter",
-   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Rejects|Uses|Names)|testItemAccountsFor|testTypeOf",
    "tests/Libraries/Accounting/RoutingResolverTest.php"
   ]
  },
@@ -88,7 +88,7 @@
   "replace": "if (false) {",
   "tests": [
    "--filter",
-   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Rejects|Uses|Names)|testItemAccountsFor|testTypeOf",
    "tests/Libraries/Accounting/RoutingResolverTest.php"
   ]
  },
@@ -99,7 +99,7 @@
   "replace": "if ($route !== null && $route->account_id !== null",
   "tests": [
    "--filter",
-   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Rejects|Uses|Names)|testItemAccountsFor|testTypeOf",
    "tests/Libraries/Accounting/RoutingResolverTest.php"
   ]
  },
@@ -110,7 +110,7 @@
   "replace": "if (false) {\n            throw new PostingException(PostingError::EntityAccountMissing",
   "tests": [
    "--filter",
-   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Rejects|Uses|Names)|testItemAccountsFor|testTypeOf",
    "tests/Libraries/Accounting/RoutingResolverTest.php"
   ]
  },
@@ -121,7 +121,7 @@
   "replace": "if (false) {",
   "tests": [
    "--filter",
-   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Uses)|testItemAccountsFor|testTypeOf",
+   "testAccountFor_(Returns|Falls|Takes|Ignores|Refuses|Rejects|Uses|Names)|testItemAccountsFor|testTypeOf",
    "tests/Libraries/Accounting/RoutingResolverTest.php"
   ]
  },
@@ -207,10 +207,10 @@
   ]
  },
  {
-  "name": "G22 the problems leave out a deleted item",
+  "name": "G22 the problems list a deleted item, because the documents that hold it are still posted with its account",
   "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
-  "find": "->where('it.deleted', 0)->orderBy('i.item_id', 'ASC')",
-  "replace": "->orderBy('i.item_id', 'ASC')",
+  "find": "->select('it.name AS item_name, it.deleted AS item_deleted')->join('items it', 'it.item_id = i.item_id')->orderBy('i.item_id', 'ASC')",
+  "replace": "->select('it.name AS item_name, it.deleted AS item_deleted')->join('items it', 'it.item_id = i.item_id')->where('it.deleted', 0)->orderBy('i.item_id', 'ASC')",
   "tests": [
    "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
   ]
@@ -429,7 +429,7 @@
   "replace": "        return (new AccountingGuard())",
   "tests": [
    "--filter",
-   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RejectsAnAccountThatCannot|RejectsARowThatTakes|AcceptsTheForm)",
    "tests/Controllers/ItemsControllerTest.php"
   ]
  },
@@ -440,7 +440,7 @@
   "replace": "",
   "tests": [
    "--filter",
-   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RejectsAnAccountThatCannot|RejectsARowThatTakes|AcceptsTheForm)",
    "tests/Controllers/ItemsControllerTest.php"
   ]
  },
@@ -451,7 +451,7 @@
   "replace": "            && true;",
   "tests": [
    "--filter",
-   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RejectsAnAccountThatCannot|RejectsARowThatTakes|AcceptsTheForm)",
    "tests/Controllers/ItemsControllerTest.php"
   ]
  },
@@ -462,7 +462,7 @@
   "replace": "if (! is_array($posted)) {",
   "tests": [
    "--filter",
-   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RejectsAnAccountThatCannot|RejectsARowThatTakes|AcceptsTheForm)",
    "tests/Controllers/ItemsControllerTest.php"
   ]
  },
@@ -473,7 +473,7 @@
   "replace": "'An account of the item was refused.', ['item_id' => $itemId]);\n\n            return true;",
   "tests": [
    "--filter",
-   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RejectsAnAccountThatCannot|RejectsARowThatTakes|AcceptsTheForm)",
    "tests/Controllers/ItemsControllerTest.php"
   ]
  },
@@ -484,7 +484,7 @@
   "replace": "",
   "tests": [
    "--filter",
-   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RejectsAnAccountThatCannot|RejectsARowThatTakes|AcceptsTheForm)",
    "tests/Controllers/ItemsControllerTest.php"
   ]
  },
@@ -495,7 +495,7 @@
   "replace": "'used' => true,",
   "tests": [
    "--filter",
-   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RefusesAnAccountThatCannot|RefusesARowThatTakes)",
+   "testGetView_Offers(An|No)|testGetView_OffersAnAccount|testPostSave_(PutsTheAccounts|LeavesTheAccounts|IgnoresTheAccounts|RejectsAnAccountThatCannot|RejectsARowThatTakes|AcceptsTheForm)",
    "tests/Controllers/ItemsControllerTest.php"
   ]
  },
@@ -523,6 +523,7 @@
   "find": "`account_id`) ON DELETE RESTRICT",
   "replace": "`account_id`) ON DELETE CASCADE",
   "tests": [
+   "tests/Database/ItemRoutingAccountsMigrationTest.php",
    "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
   ]
  },
@@ -544,6 +545,97 @@
    "--filter",
    "PerItem|MainPerEntity|testDelete_Reversal",
    "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G58 an account an item names for a routing row cannot be deactivated or deleted",
+  "file": "app/Libraries/Accounting/AccountService.php",
+  "find": "\n            || $this->db->table('item_routing_accounts')->where('account_id', $accountId)->countAllResults() > 0;",
+  "replace": ";",
+  "tests": [
+   "tests/Libraries/Accounting/AccountServiceTest.php"
+  ]
+ },
+ {
+  "name": "G59 a row cannot be switched to per item while an item names an account for it that cannot take entries",
+  "file": "app/Libraries/Accounting/RoutingService.php",
+  "find": "$problem = in_array($key, $named, true) ? AccountingError::RoutingItemAccountsInvalid : null;",
+  "replace": "$problem = null;",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G60 that refusal is for the switch only, so a row that is per item already can still be corrected",
+  "file": "app/Libraries/Accounting/RoutingService.php",
+  "find": "$type === RoutingType::PerItem && $this->currentType($routingKey, $routes[$key] ?? null) !== RoutingType::PerItem) {",
+  "replace": "$type === RoutingType::PerItem) {",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G61 an account an item names is not checked again when the form sends it back as it was",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "            if ($accountId === $before) {\n                continue;\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G62 two requests naming the first account of the same row do not fail on the key",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "->upsert(['item_id' => $itemId, 'routing_key' => $keyName, 'account_id' => $change['after']]);",
+  "replace": "->insert(['item_id' => $itemId, 'routing_key' => $keyName, 'account_id' => $change['after']]);",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G63 the form lists the accounts of this company only",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "->select('account_id, code, name')\n            ->where('company_id', CompanyContext::id())\n            ->where('is_group', 0)",
+  "replace": "->select('account_id, code, name')\n            ->where('is_group', 0)",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
+  ]
+ },
+ {
+  "name": "G64 the failure for an unusable item account names the item and the account",
+  "file": "app/Libraries/Accounting/RoutingResolver.php",
+  "find": ", 'code' => (string) $account->code, 'name' => (string) ($item->name ?? $itemId)],",
+  "replace": "],",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingResolverTest.php"
+  ]
+ },
+ {
+  "name": "G65 deleting an item takes the accounts it named with it",
+  "file": "app/Database/Migrations/20272100000000_ItemRoutingAccounts.php",
+  "find": "REFERENCES `{$items}` (`item_id`) ON DELETE CASCADE",
+  "replace": "REFERENCES `{$items}` (`item_id`) ON DELETE RESTRICT",
+  "tests": [
+   "tests/Database/ItemRoutingAccountsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G66 the readiness line says that the item is deleted",
+  "file": "app/Libraries/Accounting/Readiness/RoutingChecks.php",
+  "find": "$problem['deleted'] ? ', deleted' : ''",
+  "replace": "''",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/RoutingChecksTest.php"
+  ]
+ },
+ {
+  "name": "G67 the problems say which items are deleted",
+  "file": "app/Libraries/Accounting/ItemRoutingAccounts.php",
+  "find": "'deleted'     => (int) $row->item_deleted === 1,",
+  "replace": "'deleted'     => false,",
+  "tests": [
+   "tests/Libraries/Accounting/ItemRoutingAccountsTest.php"
   ]
  }
 ]

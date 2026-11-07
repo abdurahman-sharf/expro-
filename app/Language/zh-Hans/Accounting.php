@@ -386,6 +386,7 @@ return [
     'error_routing_account_reserved'             => '',
     'error_routing_account_type_invalid'         => '',
     'error_routing_invalid'                      => '',
+    'error_routing_item_accounts_invalid'        => '',
     'error_routing_key_unknown'                  => '',
     'error_routing_type_invalid'                 => '',
     'error_sale_locked'                          => '',

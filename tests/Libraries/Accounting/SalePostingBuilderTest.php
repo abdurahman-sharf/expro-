@@ -806,7 +806,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $this->assertSame([$this->accountId('sales_returns') . ':100.00:0.00', $this->customerAccount() . ':0.00:100.00'], $this->shape($this->builder->invoice($return, 1)));
     }
 
-    public function testInvoice_RefusesAnAccountAnItemNamesThatCannotTakeEntriesAnyMore(): void
+    public function testInvoice_RejectsAnAccountAnItemNamesThatCannotTakeEntriesAnyMore(): void
     {
         [$first] = $this->itemsOfTwoAccountsAndOneWithout();
         $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
@@ -818,7 +818,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $this->assertSame($first, $failure->context['item_id']);
     }
 
-    public function testInvoice_RefusesGoodsTooSmallToBeSharedOverTheAccountsOfItsItems(): void
+    public function testInvoice_RejectsGoodsTooSmallToBeSharedOverTheAccountsOfItsItems(): void
     {
         [$first, $second, $plain] = $this->itemsOfTwoAccountsAndOneWithout();
         $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
@@ -841,7 +841,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $this->assertSame(['', ''], $this->notes($draft));
     }
 
-    public function testInvoice_StillRefusesARevenueRowThatIsCancelledWhenItemsNameAccounts(): void
+    public function testInvoice_RejectsARevenueRowThatIsCancelledWhenItemsNameAccounts(): void
     {
         [$first] = $this->itemsOfTwoAccountsAndOneWithout();
         $this->setRouting(RoutingKey::SalesRevenue, RoutingType::Cancelled);
@@ -861,7 +861,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $this->assertSame($this->customerAccount() . ':50.00:0.00', $this->shape($perEntity)[0]);
     }
 
-    public function testInvoice_RefusesACustomerWithoutAnAccountOnAMainPerEntityRow(): void
+    public function testInvoice_RejectsACustomerWithoutAnAccountOnAMainPerEntityRow(): void
     {
         $this->setRouting(RoutingKey::Customers, RoutingType::MainPerEntity);
         $other = $this->insertCustomer('No', 'Account');
@@ -893,7 +893,7 @@ class SalePostingBuilderTest extends CIUnitTestCase
         $this->assertSame([$this->accountId('cogs') . ':400.00:0.00', $this->locationAccount() . ':0.00:400.00'], $automatic);
     }
 
-    public function testCost_StillRefusesTheStockRowSetToPerItemBecauseItsTiesAreKeptByLocation(): void
+    public function testCost_RejectsTheStockRowSetToPerItemBecauseItsTiesAreKeptByLocation(): void
     {
         [$first] = $this->itemsOfTwoAccountsAndOneWithout();
         $this->setRouting(RoutingKey::StockLocations, RoutingType::PerItem);

@@ -2600,7 +2600,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame([], $this->itemAccounts((int) $result['id']));
     }
 
-    public function testPostSave_RefusesAnAccountThatCannotTakeEntriesAndSavesNoItem(): void
+    public function testPostSave_RejectsAnAccountThatCannotTakeEntriesAndSavesNoItem(): void
     {
         $this->accountingOnForItems();
 
@@ -2619,7 +2619,29 @@ class ItemsControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testPostSave_RefusesARowThatTakesNoAccountsOfProducts(): void
+    public function testPostSave_AcceptsTheFormThatSendsBackAnAccountThatCannotTakeEntriesAnyMoreAndSavesTheItem(): void
+    {
+        $this->accountingOnForItems();
+
+        try {
+            $itemId  = $this->createTestItem();
+            $account = $this->customAccount('41', '4101', 'Item revenue');
+            $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $account]);
+            $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+            $this->loginAsItemsEmployee($this->employeeOfItemsAnd('acc_routing_manage'));
+
+            $postData = ['unit_price' => '7.50', 'tax_names' => ['VAT'], 'item_accounts' => ['sales.revenue' => (string) $account, 'sales.returns' => '']] + $this->baseItemPostData();
+            $result   = json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true);
+
+            $this->assertTrue($result['success']);
+            $this->assertSame('7.50', number_format((float) $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->unit_price, 2, '.', ''));
+            $this->assertEquals(['sales.revenue' => $account], $this->itemAccounts($itemId));
+        } finally {
+            $this->accountingOffForItems();
+        }
+    }
+
+    public function testPostSave_RejectsARowThatTakesNoAccountsOfProducts(): void
     {
         $this->accountingOnForItems();
 

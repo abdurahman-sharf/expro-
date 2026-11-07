@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\PostingError;
@@ -396,7 +397,7 @@ class RoutingResolverTest extends CIUnitTestCase
         $this->assertSame($this->accountId('sales_revenue'), $this->resolver->accountFor(RoutingKey::SalesRevenue, null, $itemId));
     }
 
-    public function testAccountFor_RefusesAnAccountAnItemNamesThatWasDeactivated(): void
+    public function testAccountFor_RejectsAnAccountAnItemNamesThatWasDeactivated(): void
     {
         $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
         $itemId  = $this->createTestItem();
@@ -407,7 +408,48 @@ class RoutingResolverTest extends CIUnitTestCase
         $this->assertItemAccountRefused(RoutingKey::SalesRevenue, $itemId, 'routing_account_inactive');
     }
 
-    public function testAccountFor_RefusesAnAccountAnItemNamesThatBecameAGroup(): void
+    public function testAccountFor_NamesTheItemAndTheAccountInTheMessageOfAnAccountAnItemNamesThatCannotTakeEntries(): void
+    {
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+        $itemId  = $this->createTestItem();
+        $account = $this->customAccount('41', '4105', 'Item revenue');
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['name' => 'Olive oil 5L']);
+        $this->nameItemAccount($itemId, RoutingKey::SalesRevenue, $account);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+
+        try {
+            $this->resolver->accountFor(RoutingKey::SalesRevenue, null, $itemId);
+            $this->fail('An account that cannot take entries must stop the posting.');
+        } catch (PostingException $failure) {
+            $this->assertSame('Olive oil 5L', $failure->context['name']);
+            $this->assertSame('4105', $failure->context['code']);
+
+            $message = AccountingMessage::of($failure);
+
+            $this->assertStringContainsString('"Olive oil 5L"', $message);
+            $this->assertStringContainsString('4105', $message);
+        }
+    }
+
+    public function testItemAccountsFor_RejectsAnAccountNamedByADeletedItemBecauseTheDocumentsThatHoldItAreStillPosted(): void
+    {
+        $this->setRouting(RoutingKey::SalesReturns, RoutingType::PerItem);
+        $itemId  = $this->createTestItem();
+        $account = $this->customAccount('41', '4105', 'Item returns');
+        $this->nameItemAccount($itemId, RoutingKey::SalesReturns, $account);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['deleted' => 1]);
+
+        try {
+            $this->resolver->itemAccountsFor(RoutingKey::SalesReturns, [$itemId]);
+            $this->fail('A deleted item is resolved as any other.');
+        } catch (PostingException $failure) {
+            $this->assertSame(PostingError::ItemAccountUnusable, $failure->error);
+            $this->assertSame($itemId, $failure->context['item_id']);
+        }
+    }
+
+    public function testAccountFor_RejectsAnAccountAnItemNamesThatBecameAGroup(): void
     {
         $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
         $itemId  = $this->createTestItem();
@@ -418,7 +460,7 @@ class RoutingResolverTest extends CIUnitTestCase
         $this->assertItemAccountRefused(RoutingKey::SalesRevenue, $itemId, 'routing_account_not_postable');
     }
 
-    public function testAccountFor_RefusesAnAccountAnItemNamesThatIsOfAnotherType(): void
+    public function testAccountFor_RejectsAnAccountAnItemNamesThatIsOfAnotherType(): void
     {
         $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
         $itemId = $this->createTestItem();
@@ -427,7 +469,7 @@ class RoutingResolverTest extends CIUnitTestCase
         $this->assertItemAccountRefused(RoutingKey::SalesRevenue, $itemId, 'routing_account_type_invalid');
     }
 
-    public function testAccountFor_RefusesAnAccountAnItemNamesThatTheChartReservesForAnotherRow(): void
+    public function testAccountFor_RejectsAnAccountAnItemNamesThatTheChartReservesForAnotherRow(): void
     {
         $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
         $itemId = $this->createTestItem();
@@ -436,7 +478,7 @@ class RoutingResolverTest extends CIUnitTestCase
         $this->assertItemAccountRefused(RoutingKey::SalesRevenue, $itemId, 'routing_account_reserved');
     }
 
-    public function testAccountFor_RefusesAnAccountAnItemNamesThatBelongsToAnEntity(): void
+    public function testAccountFor_RejectsAnAccountAnItemNamesThatBelongsToAnEntity(): void
     {
         $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
         $itemId  = $this->createTestItem();
@@ -451,7 +493,7 @@ class RoutingResolverTest extends CIUnitTestCase
         }
     }
 
-    public function testAccountFor_RefusesAnAccountAnItemNamesThatBelongsToAnotherCompany(): void
+    public function testAccountFor_RejectsAnAccountAnItemNamesThatBelongsToAnotherCompany(): void
     {
         $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
         $db      = $this->accountingDb();
@@ -470,7 +512,7 @@ class RoutingResolverTest extends CIUnitTestCase
         }
     }
 
-    public function testAccountFor_RefusesAPerItemRowWhoseAccountIsMissingForAnItemThatNamesNone(): void
+    public function testAccountFor_RejectsAPerItemRowWhoseAccountIsMissingForAnItemThatNamesNone(): void
     {
         $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
         $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.revenue')->update(['account_id' => null]);
@@ -510,7 +552,7 @@ class RoutingResolverTest extends CIUnitTestCase
         }
     }
 
-    public function testItemAccountsFor_RefusesARowThatIsNotSetToPerItem(): void
+    public function testItemAccountsFor_RejectsARowThatIsNotSetToPerItem(): void
     {
         $itemId = $this->createTestItem();
 
@@ -532,7 +574,7 @@ class RoutingResolverTest extends CIUnitTestCase
         $this->assertSame($accountId, $this->resolver->accountFor(RoutingKey::Customers, $customerId));
     }
 
-    public function testAccountFor_RefusesAMainPerEntityRowForAnEntityWithoutAnAccountEvenWhenTheRowHasAPostableAccount(): void
+    public function testAccountFor_RejectsAMainPerEntityRowForAnEntityWithoutAnAccountEvenWhenTheRowHasAPostableAccount(): void
     {
         $this->setRouting(RoutingKey::Customers, RoutingType::MainPerEntity);
         $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['account_id' => $this->accountId('cash')]);
@@ -555,7 +597,7 @@ class RoutingResolverTest extends CIUnitTestCase
         $this->assertSame($this->accountId('counter_customers'), $this->resolver->accountFor(RoutingKey::Customers));
     }
 
-    public function testAccountFor_RefusesAMainPerEntityRowWithoutAnEntityWhenTheRowHasOnlyAMainAccount(): void
+    public function testAccountFor_RejectsAMainPerEntityRowWithoutAnEntityWhenTheRowHasOnlyAMainAccount(): void
     {
         $this->setRouting(RoutingKey::Customers, RoutingType::MainPerEntity);
 
@@ -567,7 +609,7 @@ class RoutingResolverTest extends CIUnitTestCase
         }
     }
 
-    public function testAccountFor_RefusesMainPerEntityOnARowTheReferenceSystemDoesNotOfferItOn(): void
+    public function testAccountFor_RejectsMainPerEntityOnARowTheReferenceSystemDoesNotOfferItOn(): void
     {
         $this->setRouting(RoutingKey::Suppliers, RoutingType::MainPerEntity);
         $supplierId = $this->insertSupplier();
@@ -582,7 +624,7 @@ class RoutingResolverTest extends CIUnitTestCase
         }
     }
 
-    public function testAccountFor_RefusesPerItemOnTheRowsWhoseTiesAreKeptByLocationAndOnTheEntityRows(): void
+    public function testAccountFor_RejectsPerItemOnTheRowsWhoseTiesAreKeptByLocationAndOnTheEntityRows(): void
     {
         foreach ([RoutingKey::StockLocations, RoutingKey::Customers, RoutingKey::Suppliers, RoutingKey::Treasuries, RoutingKey::ProductSales, RoutingKey::Purchases] as $key) {
             $this->setRouting($key, RoutingType::PerItem);

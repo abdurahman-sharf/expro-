@@ -178,7 +178,7 @@ class RoutingChecksTest extends CIUnitTestCase
         $this->assertStringContainsString('the row is not set to per item', $result->findings[0]);
     }
 
-    public function testItemRouting_IgnoresADeletedItem(): void
+    public function testItemRouting_FailsForADeletedItemBecauseTheDocumentsThatHoldItArePostedWithItsAccount(): void
     {
         $this->route('sales.revenue', 'per_item');
         $itemId  = $this->createTestItem();
@@ -187,7 +187,10 @@ class RoutingChecksTest extends CIUnitTestCase
         $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
         $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['deleted' => 1]);
 
-        $this->assertSame(CheckStatus::Pass, $this->check('item_routing')->status);
+        $result = $this->check('item_routing');
+
+        $this->assertSame(CheckStatus::Fail, $result->status);
+        $this->assertStringContainsString(', deleted)', $result->findings[0]);
     }
 
     public function testItemRouting_IsSkippedWhileTheMigrationHasNotRun(): void

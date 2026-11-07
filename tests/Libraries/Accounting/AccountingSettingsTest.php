@@ -307,7 +307,7 @@ class AccountingSettingsTest extends CIUnitTestCase
         $this->assertFalse($this->settings->isEnabled());
     }
 
-    public function testEnable_RefusesWhileARowIsSavedWithATypePostingDoesNotApply(): void
+    public function testEnable_RejectsWhileARowIsSavedWithATypePostingDoesNotApply(): void
     {
         $this->completeTheSettings();
         $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.customers')->update(['routing_type' => 'per_item']);

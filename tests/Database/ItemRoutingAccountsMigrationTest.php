@@ -52,6 +52,29 @@ final class ItemRoutingAccountsMigrationTest extends CIUnitTestCase
         )->getRow() !== null;
     }
 
+    private function deleteRuleOf(string $constraint): ?string
+    {
+        $row = $this->accountingDb()->query(
+            'SELECT DELETE_RULE FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?',
+            [$this->accountingDb()->prefixTable('item_routing_accounts'), $this->accountingDb()->prefixTable($constraint)],
+        )->getRow();
+
+        return $row === null ? null : (string) $row->DELETE_RULE;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function primaryKeyColumns(): array
+    {
+        $rows = $this->accountingDb()->query(
+            'SELECT COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? ORDER BY ORDINAL_POSITION',
+            [$this->accountingDb()->prefixTable('item_routing_accounts'), 'PRIMARY'],
+        )->getResultArray();
+
+        return array_column($rows, 'COLUMN_NAME');
+    }
+
     private function insertRow(int $itemId, string $key, int $accountId): void
     {
         $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => $key, 'account_id' => $accountId]);
@@ -67,6 +90,13 @@ final class ItemRoutingAccountsMigrationTest extends CIUnitTestCase
 
         $this->assertNotContains('routing_key', $columns);
         $this->assertNotContains('revenue_account_id', $columns);
+    }
+
+    public function testUp_BuildsTheKeyAndTheDeleteRulesThatProtectWhatItemsNamed(): void
+    {
+        $this->assertSame(['item_id', 'routing_key'], $this->primaryKeyColumns());
+        $this->assertSame('RESTRICT', $this->deleteRuleOf('item_routing_accounts_fk_account'));
+        $this->assertSame('CASCADE', $this->deleteRuleOf('item_routing_accounts_fk_item'));
     }
 
     public function testUp_KeepsOneAccountForAnItemAndARoutingKey(): void
@@ -90,7 +120,7 @@ final class ItemRoutingAccountsMigrationTest extends CIUnitTestCase
         $this->assertSame(2, $this->accountingDb()->table('item_routing_accounts')->countAllResults());
     }
 
-    public function testUp_RefusesAnAccountOrAnItemThatDoesNotExist(): void
+    public function testUp_RejectsAnAccountOrAnItemThatDoesNotExist(): void
     {
         $this->reinstallChart();
         $itemId = $this->createTestItem();
@@ -122,7 +152,7 @@ final class ItemRoutingAccountsMigrationTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('item_routing_accounts')->countAllResults());
     }
 
-    public function testDown_RefusesWhileItemsNameAccountsAndKeepsThem(): void
+    public function testDown_RejectsWhileItemsNameAccountsAndKeepsThem(): void
     {
         $this->reinstallChart();
         $itemId = $this->createTestItem();

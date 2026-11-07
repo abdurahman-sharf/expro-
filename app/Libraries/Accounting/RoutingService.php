@@ -109,6 +109,7 @@ final class RoutingService
         $required = $this->requiredPaymentTypes();
         $errors   = [];
         $changes  = [];
+        $named    = null;
 
         foreach ($input as $key => $value) {
             $key        = (string) $key;
@@ -129,6 +130,11 @@ final class RoutingService
                     $problem   = null;
                 } else {
                     $problem = $this->problem($accountId, $accounts, $routingKey->accountRequired(), $routingKey->allowedAccountTypes(), $routingKey->acceptedSystemKeys(), $routingKey->isEntity());
+
+                    if ($problem === null && $type === RoutingType::PerItem && $this->currentType($routingKey, $routes[$key] ?? null) !== RoutingType::PerItem) {
+                        $named ??= array_column((new ItemRoutingAccounts($this->db))->problems(), 'routing_key');
+                        $problem = in_array($key, $named, true) ? AccountingError::RoutingItemAccountsInvalid : null;
+                    }
                 }
             } elseif ($paymentKey !== null && ! $paymentKey->isLocked() && ! array_key_exists('type', $row)) {
                 $problem = $this->problem($accountId, $accounts, in_array($paymentKey, $required, true), $paymentKey->allowedAccountTypes(), $paymentKey->acceptedSystemKeys(), false);
