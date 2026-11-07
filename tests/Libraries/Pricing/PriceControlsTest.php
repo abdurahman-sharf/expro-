@@ -420,4 +420,37 @@ class PriceControlsTest extends CIUnitTestCase
         $this->assertSame('above_ceiling', json_decode($entry->details, true)['lines'][0]['rule']);
         $this->assertSame('25.00', json_decode($entry->details, true)['lines'][0]['percent']);
     }
+
+    public function testViolationsOf_ComparesAPriceInAForeignCurrencyWithTheMinimumInTheBaseAtTheRateOfTheSale(): void
+    {
+        $this->minimumOn();
+
+        $item = $this->item('50');
+
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '13')], '3.75000000'), '13 dollars at 3.75 are 48.75, under 50');
+        $this->assertSame([], $this->controls->violationsOf([$this->line($item, '14')], '3.75000000'), '14 dollars at 3.75 are 52.50');
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '40')]), 'in the base 40 is under 50');
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '1000')], '0.02500000'), '1000 yen at 0.025 are 25, under 50');
+    }
+
+    public function testViolationsOf_NamesWhatAForeignLineSellsForInTheBase(): void
+    {
+        $this->minimumOn();
+
+        $found = $this->controls->violationsOf([$this->line($this->item('50'), '13.00')], '3.75000000');
+
+        $this->assertSame('48.7500', $found[0]->net);
+        $this->assertSame('50.0000', $found[0]->bound);
+    }
+
+    public function testViolationsOf_TakesTheDiscountOfAForeignLineBeforeConvertingIt(): void
+    {
+        $this->minimumOn();
+
+        $item = $this->item('50');
+
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '15', '10')]), 'in the base 15 less 10% is 13.50, under 50');
+        $this->assertSame([], $this->controls->violationsOf([$this->line($item, '15', '10')], '3.75000000'), '13.50 dollars are 50.625');
+        $this->assertCount(1, $this->controls->violationsOf([$this->line($item, '15', '12')], '3.75000000'), '13.20 dollars are 49.50');
+    }
 }
