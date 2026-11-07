@@ -90,12 +90,16 @@ class StocktakeTest extends CIUnitTestCase
         $this->takes->count($stocktakeId, $counted, $this->keeperId);
     }
 
+    /**
+     * Held for sharing, which the foreign key of a stocktake to its location allows, so that only a request
+     * that locks the location for update waits for it.
+     */
     private function holdTheLocation(int $locationId): BaseConnection
     {
         $holder = $this->openSecondConnection();
 
         $holder->transStart();
-        $holder->query('SELECT location_id FROM ' . $holder->prefixTable('stock_locations') . ' WHERE location_id = ? FOR UPDATE', [$locationId]);
+        $holder->query('SELECT location_id FROM ' . $holder->prefixTable('stock_locations') . ' WHERE location_id = ? LOCK IN SHARE MODE', [$locationId]);
 
         return $holder;
     }
