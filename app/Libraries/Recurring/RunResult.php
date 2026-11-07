@@ -24,6 +24,6 @@ final readonly class RunResult
 
     public function stops(): bool
     {
-        return in_array($this->outcome, [self::BUSY, self::ENDED, self::FAILED], true);
+        return $this->outcome === self::BUSY || $this->outcome === self::ENDED;
     }
 }

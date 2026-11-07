@@ -768,6 +768,8 @@ final class RecurringGeneratorTest extends CIUnitTestCase
 
         $db->table('tax_categories')->insert(['tax_category' => 'Goods ' . uniqid(), 'tax_group_sequence' => 1]);
         $categoryId = (int) $db->insertID();
+        $db->table('tax_categories')->insert(['tax_category' => 'Untaxed ' . uniqid(), 'tax_group_sequence' => 1]);
+        $defaultCategoryId = (int) $db->insertID();
         $db->table('tax_jurisdictions')->insert(['jurisdiction_name' => 'Zone', 'tax_group' => 'ZG' . random_int(100000, 999999), 'tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'tax_group_sequence' => 1, 'cascade_sequence' => 0]);
         $jurisdictionId = (int) $db->insertID();
         $db->table('tax_codes')->insert(['tax_code' => 'Customer' . random_int(1000, 9999), 'tax_code_name' => 'Customer', 'city' => '', 'state' => '']);
@@ -781,7 +783,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $config     = config(OSPOS::class);
         $before     = $config->settings;
 
-        $config->settings = [...$before, 'use_destination_based_tax' => '1', 'default_tax_code' => $codeId, 'default_tax_category' => $categoryId];
+        $config->settings = [...$before, 'use_destination_based_tax' => '1', 'default_tax_code' => $codeId, 'default_tax_category' => $defaultCategoryId];
 
         try {
             $report = $this->generator->run();
@@ -791,6 +793,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
             $db->table('tax_rates')->where('rate_tax_code_id', $codeId)->delete();
             $db->table('tax_codes')->where('tax_code_id', $codeId)->delete();
             $db->table('tax_jurisdictions')->where('jurisdiction_id', $jurisdictionId)->delete();
+            $db->table('tax_categories')->whereIn('tax_category_id', [$categoryId, $defaultCategoryId])->delete();
         }
 
         $this->cleanSaleIds();
@@ -822,6 +825,18 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->assertSame('cash', $this->scheduleRow($scheduleId)->payment_type);
         $this->assertSame(1, $report->generated(), 'a way of payment is kept by its type and not by the name it had when it was typed');
         $this->assertSame(lang('Sales.cash'), $saved->payment_type, 'the expense is saved with the name of the language the run uses');
+    }
+
+    public function testRun_RefusesAnExpenseWhoseWayOfPaymentIsNotOneOfTheTypesByName(): void
+    {
+        $scheduleId = $this->expenseSchedule();
+        $this->accountingDb()->table('recurring_schedules')->where('schedule_id', $scheduleId)->update(['payment_type' => 'barter']);
+
+        $report = $this->generator->run();
+
+        $this->assertSame(1, $report->refused());
+        $this->assertSame([RunRefusal::SOURCE_POSTING, PostingError::PaymentTypeUnknown->value], [$this->runsOf($scheduleId)[0]->refusal_source, $this->runsOf($scheduleId)[0]->refusal_code]);
+        $this->assertSame(0, $this->countRows('expenses'));
     }
 
     public function testRun_LeavesAScheduleThatFailsUnexpectedlyForTheNextRunAndMakesTheOthers(): void

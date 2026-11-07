@@ -275,7 +275,7 @@ final class Customer_ordersControllerTest extends CIUnitTestCase
         $this->get('/customer_orders/add');
     }
 
-    public function testGetForm_OpensAnOrderOfTheBranchForEditingOnlyWhileItIsNotInvoiced(): void
+    public function testGetForm_OpensAnOpenOrderForEditingAndNotACancelledOne(): void
     {
         $orderId = $this->order();
 
@@ -289,7 +289,7 @@ final class Customer_ordersControllerTest extends CIUnitTestCase
         $this->get('/customer_orders/edit/' . $orderId);
     }
 
-    public function testGetShow_ShowsTheLinesWithWhatIsInvoicedAndWhatIsLeft(): void
+    public function testGetShow_ShowsTheHeaderTheStatusAndTheActionsOfAnApprovedOrder(): void
     {
         $orderId = $this->approved();
 
@@ -302,7 +302,7 @@ final class Customer_ordersControllerTest extends CIUnitTestCase
         $page->assertSee(lang('Sales_orders.status_approved'));
         $page->assertSee('id="order_convert"');
         $page->assertSee('id="order_cancel"');
-        $page->assertSee('10.000');
+        $page->assertSee('id="order_lines"');
     }
 
     public function testGetShow_ShowsWhatWasOrderedInvoicedAndLeftEachInItsOwnColumn(): void
@@ -343,6 +343,34 @@ final class Customer_ordersControllerTest extends CIUnitTestCase
 
         $page->assertStatus(200);
         $page->assertSee('id="sales_order_' . $orderId . '"');
+    }
+
+    public function testGetForm_GivesEveryFieldMadeByScriptAnAccessibleNameAndShowsASaveThatFailed(): void
+    {
+        $this->actAsWith([SalesOrders::ADD]);
+
+        $body = $this->get('/customer_orders/add')->getBody();
+
+        foreach (['item' => 'item', 'description' => 'description', 'unit_price' => 'unit_price', 'discount' => 'discount', 'discount_type' => 'discount_type'] as $label => $key) {
+            $this->assertStringContainsString($label . ': "' . esc(lang('Sales_orders.' . $key), 'js') . '"', $body, $label);
+        }
+
+        $this->assertStringContainsString('quantity: "' . esc(lang('Sales_orders.quantity'), 'js') . '"', $body);
+
+        foreach (["attr('aria-label', labels.item)", "'aria-label': labels[name]", "'aria-label': labels.discount_type", "'aria-label': labels.description"] as $attribute) {
+            $this->assertStringContainsString($attribute, $body, $attribute);
+        }
+
+        $this->assertStringContainsString('toast_support.show("' . esc(lang('Common.request_failed'), 'js') . '", \'danger\')', $body, 'a request that fails says so');
+    }
+
+    public function testGetShow_ShowsAFailedChangeInsteadOfNothing(): void
+    {
+        $orderId = $this->approved();
+
+        $this->actAsWith([SalesOrders::VIEW_ALL, SalesOrders::DELETE]);
+
+        $this->assertStringContainsString('.fail(function() {', $this->get('/customer_orders/view/' . $orderId)->getBody());
     }
 
     public function testGetShow_OffersOnlyWhatTheEmployeeMayDo(): void
@@ -535,6 +563,21 @@ final class Customer_ordersControllerTest extends CIUnitTestCase
         $this->saleIds[] = (int) $link->sale_id;
         $this->assertSame(SUSPENDED, (int) $this->saleRow((int) $link->sale_id)->sale_status);
         $this->assertSame(SalesOrderStatus::Approved, $this->orders->find($orderId, $this->clerk)->status_object, 'a draft takes nothing from the order');
+    }
+
+    public function testPostConvert_IsForgottenWhenTheRegisterChangesItsMode(): void
+    {
+        $orderId = $this->approved();
+
+        $this->actAsWith([SalesOrders::CONVERT, SalesOrders::VIEW_ALL, 'sales', 'sales_stock']);
+
+        $this->assertTrue($this->postJson('/customer_orders/convert/' . $orderId)['success']);
+        $this->assertSame($orderId, session()->get('sales_order_source'));
+
+        $this->withSession();
+        $this->post('/sales/changeMode', ['mode' => 'sale']);
+
+        $this->assertNull(session()->get('sales_order_source'), 'a sale that is no invoice does not take the quantity of an order');
     }
 
     public function testPostConvert_RefusesAnOrderThatIsNotApprovedAndAnEmployeeWithoutThePermission(): void

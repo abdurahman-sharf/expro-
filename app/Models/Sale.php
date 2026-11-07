@@ -71,9 +71,8 @@ class Sale extends Model
         'sale_type'
     ];
 
-    private ?Throwable $accountingFailure = null;
-    private bool $datedBySchedule         = false;
-
+    private ?Throwable $accountingFailure                   = null;
+    private bool $datedBySchedule                           = false;
     private ?InvoiceDiscountProblem $invoiceDiscountProblem = null;
 
     private ?RecordScope $recordScope = null;
@@ -132,7 +131,7 @@ class Sale extends Model
      */
     public function datedBySchedule(callable $work): mixed
     {
-        $before                 = $this->datedBySchedule;
+        $before                = $this->datedBySchedule;
         $this->datedBySchedule = true;
 
         try {

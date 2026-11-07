@@ -141,11 +141,11 @@ class OrderToCashDocumentsMigrationTest extends CIUnitTestCase
         $db       = $this->accountingDb();
         $employee = model(Employee::class);
 
-        foreach ([['customer_orders'], self::PERMISSIONS['customer_orders']] as $held) {
+        foreach ([['customer_orders'], ['customer_orders', 'sales_stock'], [...self::PERMISSIONS['customer_orders'], 'sales_stock']] as $held) {
             $personId = $this->employeeWithGrants($held);
 
             $this->assertTrue($employee->has_module_grant('customer_orders', $personId), implode(', ', $held));
-            $this->assertFalse($employee->has_module_grant('sales', $personId), 'whoever may only write orders does not get the register: ' . implode(', ', $held));
+            $this->assertFalse($employee->has_module_grant('sales', $personId), 'whoever may write orders, and sell from a location to do it, does not get the register: ' . implode(', ', $held));
             $this->assertFalse($employee->has_grant('sales', $personId));
         }
 

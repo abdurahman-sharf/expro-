@@ -339,6 +339,27 @@ class Recurring_invoicesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('<th scope="col" class="text-end">' . lang('Sales_orders.quantity') . '</th>', $this->get('/recurring_invoices/view/' . $scheduleId)->getBody());
     }
 
+    public function testGetForm_GivesTheFieldsOfTheLinesAndOfTheRemindersAnAccessibleNameAndShowsASaveThatFailed(): void
+    {
+        $this->actAsWith([RecurringKind::Invoice->managePermission()]);
+
+        $body = $this->get('/recurring_invoices/add')->getBody();
+
+        $this->assertStringContainsString("'aria-label': labels[name]", $body);
+        $this->assertStringContainsString("'aria-label': \"" . esc(lang('Recurring.reminders'), 'js') . '"', $body);
+        $this->assertStringContainsString("'aria-label': \"" . esc(lang('Recurring.reminder_days'), 'js') . '"', $body);
+        $this->assertStringContainsString('toast_support.show("' . esc(lang('Common.request_failed'), 'js') . '", \'danger\')', $body);
+    }
+
+    public function testGetShow_ShowsAFailedChangeInsteadOfNothing(): void
+    {
+        $scheduleId = $this->schedule();
+
+        $this->actAsWith([RecurringKind::Invoice->managePermission()]);
+
+        $this->assertStringContainsString('.fail(function() {', $this->get('/recurring_invoices/view/' . $scheduleId)->getBody());
+    }
+
     public function testGetIndex_ReadsAFilterThatCameAsAListAsNoFilter(): void
     {
         $scheduleId = $this->schedule();

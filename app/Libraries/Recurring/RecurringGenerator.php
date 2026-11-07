@@ -476,7 +476,7 @@ final class RecurringGenerator
 
     private function paymentLabel(string $stored): string
     {
-        $type = PaymentType::tryFrom($stored) ?? PaymentType::fromLabel($stored);
+        $type = PaymentType::tryFrom($stored);
 
         return $type === null ? $stored : lang($type->languageKey());
     }

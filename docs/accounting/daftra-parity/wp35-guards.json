@@ -200,8 +200,8 @@
   {
     "name": "G26 input: the payment terms are a number of days",
     "file": "app/Libraries/Recurring/ScheduleInput.php",
-    "find": "InvoiceTiming::terms($input['payment_terms_days'])",
-    "replace": "(int) $input['payment_terms_days']",
+    "find": "InvoiceTiming::terms(TextInput::of($input['payment_terms_days'] ?? null, AccountingError::PaymentTermsInvalid))",
+    "replace": "(int) ($input['payment_terms_days'] ?? 0)",
     "tests": [
       "tests/Libraries/Recurring/ScheduleInputTest.php"
     ]
@@ -245,7 +245,7 @@
   {
     "name": "G31 input: the way of payment is one of the list",
     "file": "app/Libraries/Recurring/ScheduleInput.php",
-    "find": "if (! array_key_exists($payment, get_payment_options())) {",
+    "find": "if ($payment === null) {",
     "replace": "if (false) {",
     "tests": [
       "tests/Libraries/Recurring/ScheduleInputTest.php"
@@ -794,7 +794,7 @@
   {
     "name": "G103 command: it says by its exit code that something was refused or left",
     "file": "app/Commands/AccountingGenerateRecurring.php",
-    "find": "return $report->refused() === 0 && $report->capped === [] && $report->count(RunResult::BUSY) === 0 ? EXIT_SUCCESS : EXIT_ERROR;",
+    "find": "return $report->refused() === 0 && $report->failed() === 0 && $report->capped === [] && $report->count(RunResult::BUSY) === 0 ? EXIT_SUCCESS : EXIT_ERROR;",
     "replace": "return EXIT_SUCCESS;",
     "tests": [
       "tests/Commands/AccountingGenerateRecurringTest.php"
@@ -821,8 +821,8 @@
   {
     "name": "G111 screen: an ended schedule has no form",
     "file": "app/Controllers/RecurringScreen.php",
-    "find": "if ($schedule === null || $schedule->status === ScheduleStatus::Ended->value) {",
-    "replace": "if ($schedule === null) {",
+    "find": "if ($schedule === null || $schedule->kind !== $kind->value || $schedule->status === ScheduleStatus::Ended->value) {",
+    "replace": "if ($schedule === null || $schedule->kind !== $kind->value) {",
     "tests": [
       "tests/Controllers/Recurring_invoicesControllerTest.php"
     ]
@@ -875,8 +875,8 @@
   {
     "name": "G117 screen: the reminders are on the list of invoices only",
     "file": "app/Controllers/RecurringScreen.php",
-    "find": "'reminders'  => $kind === RecurringKind::Invoice ? (new RecurringReminders(null, $this->branchGuard()))->due(date('Y-m-d'), $this->employeeId()) : [],",
-    "replace": "'reminders'  => (new RecurringReminders(null, $this->branchGuard()))->due(date('Y-m-d'), $this->employeeId()),",
+    "find": "'reminders' => $kind === RecurringKind::Invoice ? (new RecurringReminders(null, $this->branchGuard()))->due(date('Y-m-d'), $this->employeeId()) : [],",
+    "replace": "'reminders' => (new RecurringReminders(null, $this->branchGuard()))->due(date('Y-m-d'), $this->employeeId()),",
     "tests": [
       "tests/Controllers/Recurring_invoicesControllerTest.php"
     ]
@@ -1190,7 +1190,7 @@
   {
     "name": "G164 lines: a fixed discount is not more than the line",
     "file": "app/Libraries/SalesOrders/LineInput.php",
-    "find": "if ($type === 1 && bccomp($discount, bcmul($quantity, $price, 2), 2) > 0) {",
+    "find": "if ($type === 1 && bccomp($discount, $price, 2) > 0) {",
     "replace": "if (false) {",
     "tests": [
       "tests/Libraries/SalesOrders/LineInputTest.php"
@@ -1216,83 +1216,83 @@
   },
   {
     "name": "G170 order screen: the form goes to the register while the module is off",
-    "file": "app/Controllers/Sales_orders.php",
+    "file": "app/Controllers/Customer_orders.php",
     "find": "if (! $this->orders->isEnabled()) {\n            return redirect()->to(site_url('sales'));",
     "replace": "if (false) {\n            return redirect()->to(site_url('sales'));",
     "tests": [
-      "tests/Controllers/Sales_ordersControllerTest.php"
+      "tests/Controllers/Customer_ordersControllerTest.php"
     ]
   },
   {
     "name": "G171 order screen: the form is for who may add or edit",
-    "file": "app/Controllers/Sales_orders.php",
+    "file": "app/Controllers/Customer_orders.php",
     "find": "} elseif (! $this->can(SalesOrders::ADD)) {",
     "replace": "} elseif (false) {",
     "tests": [
-      "tests/Controllers/Sales_ordersControllerTest.php"
+      "tests/Controllers/Customer_ordersControllerTest.php"
     ]
   },
   {
     "name": "G172 order screen: an order is shown only while the module is on",
-    "file": "app/Controllers/Sales_orders.php",
+    "file": "app/Controllers/Customer_orders.php",
     "find": "$order = $this->orders->isEnabled() ? $this->orders->find($orderId, $this->employeeId()) : null;",
     "replace": "$order = $this->orders->find($orderId, $this->employeeId());",
     "tests": [
-      "tests/Controllers/Sales_ordersControllerTest.php"
+      "tests/Controllers/Customer_ordersControllerTest.php"
     ]
   },
   {
     "name": "G173 order screen: the lookups are for who may write an order",
-    "file": "app/Controllers/Sales_orders.php",
+    "file": "app/Controllers/Customer_orders.php",
     "find": "return $this->can(SalesOrders::ADD) || $this->can(SalesOrders::EDIT) ? $this->customerLookup() : $this->forbidden();",
     "replace": "return $this->customerLookup();",
     "tests": [
-      "tests/Controllers/Sales_ordersControllerTest.php"
+      "tests/Controllers/Customer_ordersControllerTest.php"
     ]
   },
   {
     "name": "G174 order screen: an order becomes an invoice only when invoices are on",
-    "file": "app/Controllers/Sales_orders.php",
+    "file": "app/Controllers/Customer_orders.php",
     "find": "if (! config(OSPOS::class)->settings['invoice_enable']) {",
     "replace": "if (false) {",
     "tests": [
-      "tests/Controllers/Sales_ordersControllerTest.php"
+      "tests/Controllers/Customer_ordersControllerTest.php"
     ]
   },
   {
     "name": "G175 order screen: the conversion asks the service first",
-    "file": "app/Controllers/Sales_orders.php",
+    "file": "app/Controllers/Customer_orders.php",
     "find": "$order = $this->orders->assertConvertible($orderId, $this->employeeId());",
     "replace": "$order = $this->orders->find($orderId, $this->employeeId());",
     "tests": [
-      "tests/Controllers/Sales_ordersControllerTest.php"
+      "tests/Controllers/Customer_ordersControllerTest.php"
     ]
   },
   {
     "name": "G176 order routes: a cancel is a POST",
     "file": "app/Config/Routes.php",
-    "find": "$routes->post('cancel/(:num)', 'Sales_orders::postCancel/$1');",
-    "replace": "$routes->get('cancel/(:num)', 'Sales_orders::postCancel/$1');",
+    "find": "$routes->post('cancel/(:num)', 'Customer_orders::postCancel/$1');",
+    "replace": "$routes->get('cancel/(:num)', 'Customer_orders::postCancel/$1');",
     "tests": [
-      "tests/Controllers/Sales_ordersControllerTest.php"
+      "tests/Controllers/Customer_ordersControllerTest.php"
     ]
   },
   {
     "name": "G177 order routes: a conversion is a POST",
     "file": "app/Config/Routes.php",
-    "find": "$routes->post('convert/(:num)', 'Sales_orders::postConvert/$1');",
-    "replace": "$routes->get('convert/(:num)', 'Sales_orders::postConvert/$1');",
+    "find": "$routes->post('convert/(:num)', 'Customer_orders::postConvert/$1');",
+    "replace": "$routes->get('convert/(:num)', 'Customer_orders::postConvert/$1');",
     "tests": [
-      "tests/Controllers/Sales_ordersControllerTest.php"
+      "tests/Controllers/Customer_ordersControllerTest.php"
     ]
   },
   {
     "name": "G178 order routes: the settings are a POST",
     "file": "app/Config/Routes.php",
-    "find": "$routes->post('settings', 'Sales_orders::postSettings');",
-    "replace": "$routes->get('settings', 'Sales_orders::postSettings');",
+    "find": "$routes->post('settings', 'Customer_orders::postSettings');",
+    "replace": "$routes->get('settings', 'Customer_orders::postSettings');",
     "tests": [
-      "tests/Controllers/Sales_ordersControllerTest.php"
+      "tests/Controllers/Customer_ordersControllerTest.php"
     ]
   },
   {
@@ -1315,6 +1315,829 @@
       "--filter",
       "DatedBySchedule",
       "tests/Libraries/Accounting/SalePostingTest.php"
+    ]
+  },
+  {
+    "name": "G182 text input: a field that came as a list is refused",
+    "file": "app/Libraries/Accounting/TextInput.php",
+    "find": "throw new AccountingException($error, 'The field is not a single value.');",
+    "replace": "return '';",
+    "tests": [
+      "tests/Libraries/Accounting/TextInputTest.php"
+    ]
+  },
+  {
+    "name": "G183 text input: a text is trimmed",
+    "file": "app/Libraries/Accounting/TextInput.php",
+    "find": "return trim($value);",
+    "replace": "return $value;",
+    "tests": [
+      "tests/Libraries/Accounting/TextInputTest.php"
+    ]
+  },
+  {
+    "name": "G184 text input: a number is read as its text",
+    "file": "app/Libraries/Accounting/TextInput.php",
+    "find": "if (is_int($value) || is_float($value)) {\n            return (string) $value;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/TextInputTest.php"
+    ]
+  },
+  {
+    "name": "G185 terms: the frequency is read without a cast",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "TextInput::of($input['frequency'] ?? null, AccountingError::RecurringFrequencyInvalid)",
+    "replace": "(string) ($input['frequency'] ?? '')",
+    "tests": [
+      "--filter",
+      "RefusesAFieldThatCameAsAList",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G186 terms: the end date is read without a cast",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "TextInput::of($input['end_date'] ?? null, AccountingError::RecurringDateInvalid) === ''",
+    "replace": "trim((string) ($input['end_date'] ?? '')) === ''",
+    "tests": [
+      "--filter",
+      "RefusesAFieldThatCameAsAList",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G187 terms: the number of dates is read without a cast",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "TextInput::of($input['max_repeats'] ?? null, AccountingError::RecurringMaxRepeatInvalid) === ''",
+    "replace": "trim((string) ($input['max_repeats'] ?? '')) === ''",
+    "tests": [
+      "--filter",
+      "RefusesAFieldThatCameAsAList",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G188 terms: the days before are read without a cast",
+    "file": "app/Libraries/Recurring/RecurrenceTerms.php",
+    "find": "TextInput::of($input['issue_before_days'] ?? null, AccountingError::RecurringIssueBeforeInvalid) === ''",
+    "replace": "trim((string) ($input['issue_before_days'] ?? '')) === ''",
+    "tests": [
+      "--filter",
+      "RefusesAFieldThatCameAsAList",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G189 input: the tax of an expense is read without a cast",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "TextInput::of($input['tax_amount'] ?? null, AccountingError::RecurringExpenseInvalid) === ''",
+    "replace": "trim((string) ($input['tax_amount'] ?? '')) === ''",
+    "tests": [
+      "--filter",
+      "RefusesAFieldThatCameAsAList",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G190 input: the supplier is read without a cast",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "TextInput::of($input['supplier_id'] ?? null, AccountingError::RecurringExpenseInvalid) === ''",
+    "replace": "trim((string) ($input['supplier_id'] ?? '')) === ''",
+    "tests": [
+      "--filter",
+      "RefusesAFieldThatCameAsAList",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G191 input: the terms are read without a cast",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "TextInput::of($input['payment_terms_days'] ?? null, AccountingError::PaymentTermsInvalid)",
+    "replace": "trim((string) ($input['payment_terms_days'] ?? ''))",
+    "tests": [
+      "--filter",
+      "RefusesAFieldThatCameAsAList",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G192 input: the when of a reminder is read without a cast",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "TextInput::of($row['send_when'] ?? null, AccountingError::RecurringRemindersInvalid)",
+    "replace": "trim((string) ($row['send_when'] ?? ''))",
+    "tests": [
+      "--filter",
+      "ReminderWhoseFieldsCameAsLists",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G193 input: the days of a reminder are read without a cast",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "TextInput::of($row['days'] ?? null, AccountingError::RecurringRemindersInvalid)",
+    "replace": "trim((string) ($row['days'] ?? ''))",
+    "tests": [
+      "--filter",
+      "ReminderWhoseFieldsCameAsLists",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G194 input: a way of payment is kept by its type or its name",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "$type    = PaymentType::tryFrom($text) ?? (array_key_exists($text, $options) ? PaymentType::fromLabel($text) : null);",
+    "replace": "$type    = PaymentType::fromLabel($text);",
+    "tests": [
+      "--filter",
+      "WayOfPayment",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G195 input: a way of payment is one the list offers",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "return $type !== null && array_key_exists(lang($type->languageKey()), $options) ? $type->value : null;",
+    "replace": "return $type?->value;",
+    "tests": [
+      "--filter",
+      "WayOfPayment",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G196 input: an expense takes the default branch of the owner of the schedule",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "$branches->defaultBranchId($ownerId)",
+    "replace": "$branches->defaultBranchId($employeeId)",
+    "tests": [
+      "--filter",
+      "DefaultBranchOfTheOwner",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G197 input: the owner of the schedule must work in the branch of an expense",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "$branches->requireBranch($branchId, $ownerId);",
+    "replace": "$branchId = $branchId;",
+    "tests": [
+      "--filter",
+      "OwnerOfTheScheduleCouldNotMake",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G198 input: the owner of the schedule must work in the branch of the stock location",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "$branches->requireBranch((int) $location->branch_id, $ownerId);",
+    "replace": "$ownerId = $ownerId;",
+    "tests": [
+      "--filter",
+      "OwnerOfTheScheduleCouldNotMake",
+      "tests/Libraries/Recurring/ScheduleInputTest.php"
+    ]
+  },
+  {
+    "name": "G199 schedules: an edit is checked against the owner of the schedule",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "$today, false, $this->ownerOf($scheduleId));",
+    "replace": "$today, false);",
+    "tests": [
+      "--filter",
+      "Update_",
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G200 schedules: the list names the category of an expense",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "->join('expense_categories c', 'c.expense_category_id = s.expense_category_id', 'left')",
+    "replace": "->join('expense_categories c', '1 = 0', 'left')",
+    "tests": [
+      "--filter",
+      "NamesTheCategory",
+      "tests/Libraries/Recurring/RecurringSchedulesTest.php"
+    ]
+  },
+  {
+    "name": "G201 lines: a description that came as a list is refused",
+    "file": "app/Libraries/SalesOrders/LineInput.php",
+    "find": "TextInput::of($line['description'] ?? null, $invalid)",
+    "replace": "trim((string) ($line['description'] ?? ''))",
+    "tests": [
+      "tests/Libraries/SalesOrders/LineInputTest.php"
+    ]
+  },
+  {
+    "name": "G202 generator: the scale of the register is set while a document is made",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "bcscale(max(2, totals_decimals() + tax_decimals()));",
+    "replace": "bcscale($scale);",
+    "tests": [
+      "--filter",
+      "ScaleOfTheRegister",
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G203 generator: the scale the process had is given back",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "} finally {\n            bcscale($scale);\n        }",
+    "replace": "} finally {\n        }",
+    "tests": [
+      "--filter",
+      "ScaleOfTheRegister",
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G204 generator: the cart carries the tax category of the item",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "'tax_category_id' => $line->tax_category_id === null ? null : (int) $line->tax_category_id,",
+    "replace": "'unused' => 0,",
+    "tests": [
+      "--filter",
+      "ByTheDestination",
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G205 generator: the tax category of the item is read",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "i.cost_price, i.tax_category_id",
+    "replace": "i.cost_price, NULL AS tax_category_id",
+    "tests": [
+      "--filter",
+      "ByTheDestination",
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G206 generator: the way of payment is said in the language in use",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "'payment_type'        => $this->paymentLabel((string) $schedule->payment_type),",
+    "replace": "'payment_type'        => (string) $schedule->payment_type,",
+    "tests": [
+      "--filter",
+      "LabelTypedInAnotherLanguage",
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G207 generator: a type that is not one is passed on as it is and refused by name",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "return $type === null ? $stored : lang($type->languageKey());",
+    "replace": "return $type === null ? 'cash' : lang($type->languageKey());",
+    "tests": [
+      "--filter",
+      "WayOfPaymentIsNotOneOfTheTypes",
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G208 generator: a schedule that fails unexpectedly does not stop the others",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "} catch (Throwable $unexpected) {",
+    "replace": "} catch (Throwable $unexpected) {\n                    throw $unexpected;",
+    "tests": [
+      "--filter",
+      "FailsUnexpectedly",
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G209 generator: what the sale answers is named",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "$saleId === INSUFFICIENT_STOCK                                              => RunRefusal::sale('insufficient_stock'),",
+    "replace": "$saleId === INSUFFICIENT_STOCK                                              => RunRefusal::sale('save_failed'),",
+    "tests": [
+      "--filter",
+      "NamesWhatTheSaleAnswers",
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G210 generator: the discount answer is named",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "$saleId === INVOICE_DISCOUNT_INVALID                                        => RunRefusal::sale('discount_invalid'),",
+    "replace": "$saleId === INVOICE_DISCOUNT_INVALID                                        => RunRefusal::sale('save_failed'),",
+    "tests": [
+      "--filter",
+      "NamesWhatTheSaleAnswers",
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G211 generator: the price of a line is the price of the template",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "'price'           => (string) $line->unit_price,",
+    "replace": "'price'           => (string) $line->cost_price,",
+    "tests": [
+      "--filter",
+      "PutsTheLinesOfTheTemplate",
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G212 generator: the discount of a line is the discount of the template",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "'discount'        => (string) $line->discount,",
+    "replace": "'discount'        => '0',",
+    "tests": [
+      "--filter",
+      "PutsTheLinesOfTheTemplate",
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G213 generator: a number the format gave twice is refused",
+    "file": "app/Libraries/Recurring/RecurringGenerator.php",
+    "find": "if ($this->sales->check_invoice_number_exists($number)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "NumberTheFormatGave",
+      "tests/Libraries/Recurring/RecurringGeneratorTest.php"
+    ]
+  },
+  {
+    "name": "G214 runtime: the time zone of the shop is applied",
+    "file": "app/Libraries/Recurring/GenerationRuntime.php",
+    "find": "date_default_timezone_set($zone);",
+    "replace": "$zone = $zone;",
+    "tests": [
+      "tests/Libraries/Recurring/GenerationRuntimeTest.php"
+    ]
+  },
+  {
+    "name": "G215 runtime: the language of the shop is applied",
+    "file": "app/Libraries/Recurring/GenerationRuntime.php",
+    "find": "Services::language()->setLocale($language);",
+    "replace": "$language = $language;",
+    "tests": [
+      "tests/Libraries/Recurring/GenerationRuntimeTest.php"
+    ]
+  },
+  {
+    "name": "G216 runtime: a time zone that does not exist is left alone",
+    "file": "app/Libraries/Recurring/GenerationRuntime.php",
+    "find": "$zone !== '' && in_array($zone, timezone_identifiers_list(), true)",
+    "replace": "$zone !== ''",
+    "tests": [
+      "tests/Libraries/Recurring/GenerationRuntimeTest.php"
+    ]
+  },
+  {
+    "name": "G217 runtime: a language that has no folder is left alone",
+    "file": "app/Libraries/Recurring/GenerationRuntime.php",
+    "find": " && is_dir(APPPATH . 'Language/' . $language)",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Recurring/GenerationRuntimeTest.php"
+    ]
+  },
+  {
+    "name": "G218 runtime: a language code is a code and not a path",
+    "file": "app/Libraries/Recurring/GenerationRuntime.php",
+    "find": "preg_match('/^[A-Za-z]{2,3}(-[A-Za-z]{2,4})?$/', $language) === 1 && ",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Recurring/GenerationRuntimeTest.php"
+    ]
+  },
+  {
+    "name": "G219 command: the day is the day of the shop",
+    "file": "app/Commands/AccountingGenerateRecurring.php",
+    "find": "GenerationRuntime::apply();\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "DayOfTheShop",
+      "tests/Commands/AccountingGenerateRecurringTest.php"
+    ]
+  },
+  {
+    "name": "G220 command: a schedule that failed makes the exit code one",
+    "file": "app/Commands/AccountingGenerateRecurring.php",
+    "find": "$report->failed() === 0 && ",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "ThatFailed",
+      "tests/Commands/AccountingGenerateRecurringTest.php"
+    ]
+  },
+  {
+    "name": "G221 phrase: the unit is said as the schedule has it",
+    "file": "app/Libraries/Recurring/RecurrencePhrase.php",
+    "find": "[$count, $unit->value, (string) $count]",
+    "replace": "[$count, 'months', (string) $count]",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrencePhraseTest.php"
+    ]
+  },
+  {
+    "name": "G222 phrase: the days of a reminder are printed as the count",
+    "file": "app/Libraries/Recurring/RecurrencePhrase.php",
+    "find": "[$count, (string) $count]",
+    "replace": "[$count, '1']",
+    "tests": [
+      "tests/Libraries/Recurring/RecurrencePhraseTest.php"
+    ]
+  },
+  {
+    "name": "G223 screen: the edit form is of the kind of the module",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "if ($schedule === null || $schedule->kind !== $kind->value || $schedule->status === ScheduleStatus::Ended->value) {",
+    "replace": "if ($schedule === null || $schedule->status === ScheduleStatus::Ended->value) {",
+    "tests": [
+      "--filter",
+      "IsNotFoundForAScheduleOfAnotherKindInEitherModule",
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G224 screen: the edit form keeps the stock location of the schedule",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": ", 'item_location' => (int) $line->item_location], $this->schedules->lines($scheduleId));",
+    "replace": "], $this->schedules->lines($scheduleId));",
+    "tests": [
+      "--filter",
+      "SelectsTheStockLocation",
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G225 screen: a new expense schedule repeats weekly",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "private const DEFAULT_FREQUENCY = 'weekly';",
+    "replace": "private const DEFAULT_FREQUENCY = 'monthly';",
+    "tests": [
+      "--filter",
+      "OffersWeeklyFirst",
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G226 screen: the ways of payment are offered by their type",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "$options[$type->value] = $label;",
+    "replace": "$options[$label] = $label;",
+    "tests": [
+      "--filter",
+      "OffersWeeklyFirst",
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G227 screen: the way of payment is said in the language in use",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "return $type === null ? $stored : lang($type->languageKey());",
+    "replace": "return $stored;",
+    "tests": [
+      "--filter",
+      "NamesTheWayOfPayment",
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G228 screen: a filter that came as a list is no filter",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "$filters = ['status' => $this->getText('status'), 'search' => $this->getText('search')];",
+    "replace": "$filters = ['status' => (string) $this->request->getGet('status'), 'search' => trim((string) $this->request->getGet('search'))];",
+    "tests": [
+      "--filter",
+      "ReadsAFilterThatCameAsAList",
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G229 screen: the list of expenses names the category",
+    "file": "app/Views/recurring/manage.php",
+    "find": "esc((string) ($invoice ? $row->customer_name : $row->category_name))",
+    "replace": "esc((string) $row->comment)",
+    "tests": [
+      "--filter",
+      "NamesTheCategory",
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G230 screen: the way of payment of the form is selected by type",
+    "file": "app/Views/recurring/form.php",
+    "find": "$value('payment_type') === $type ? ' selected' : ''",
+    "replace": "$value('payment_type') === $label ? ' selected' : ''",
+    "tests": [
+      "--filter",
+      "SelectsTheFrequencyAndTheWayOfPayment",
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G231 screen: the page shows the name of the way of payment",
+    "file": "app/Views/recurring/view.php",
+    "find": "<?= esc($payment) ?>",
+    "replace": "<?= esc((string) $schedule->payment_type) ?>",
+    "tests": [
+      "--filter",
+      "NamesTheWayOfPayment",
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G232 screen: the list says how often in the number the count asks for",
+    "file": "app/Views/recurring/manage.php",
+    "find": "RecurrencePhrase::every((int) $row->period_count, $terms->unit)",
+    "replace": "''",
+    "tests": [
+      "--filter",
+      "SaysHowOften",
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G233 screen: the page says how often in the number the count asks for",
+    "file": "app/Views/recurring/view.php",
+    "find": "RecurrencePhrase::every($terms->periodCount, $terms->unit)",
+    "replace": "''",
+    "tests": [
+      "--filter",
+      "SaysHowOften",
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G234 screen: the quantity of a line of the page is a quantity",
+    "file": "app/Views/recurring/view.php",
+    "find": "<?= lang('Sales.quantity') ?>",
+    "replace": "<?= lang('Sales_orders.quantity') ?>",
+    "tests": [
+      "--filter",
+      "LabelsTheQuantityColumn",
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G235 screen: the quantity column of the editor is named by the caller",
+    "file": "app/Views/partial/document_lines.php",
+    "find": "<th scope=\"col\" class=\"text-end\"><?= lang($quantityKey ?? 'Sales_orders.quantity') ?></th>",
+    "replace": "<th scope=\"col\" class=\"text-end\"><?= lang('Sales_orders.quantity') ?></th>",
+    "tests": [
+      "--filter",
+      "LabelsTheQuantityColumn",
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G236 screen: the item of a line has an accessible name",
+    "file": "app/Views/partial/document_lines.php",
+    "find": ".attr('aria-label', labels.item)",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "AccessibleName",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G237 screen: the figures of a line have an accessible name",
+    "file": "app/Views/partial/document_lines.php",
+    "find": "'aria-label': labels[name]",
+    "replace": "'title': labels[name]",
+    "tests": [
+      "--filter",
+      "AccessibleName",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G238 screen: the discount type of a line has an accessible name",
+    "file": "app/Views/partial/document_lines.php",
+    "find": "'aria-label': labels.discount_type",
+    "replace": "'title': labels.discount_type",
+    "tests": [
+      "--filter",
+      "AccessibleName",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G239 screen: the description of a line has an accessible name",
+    "file": "app/Views/partial/document_lines.php",
+    "find": "'aria-label': labels.description",
+    "replace": "'title': labels.description",
+    "tests": [
+      "--filter",
+      "AccessibleName",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G240 screen: the reminder select has an accessible name",
+    "file": "app/Views/recurring/form.php",
+    "find": "'aria-label': \"<?= esc(lang('Recurring.reminders'), 'js') ?>\"",
+    "replace": "'title': \"<?= esc(lang('Recurring.reminders'), 'js') ?>\"",
+    "tests": [
+      "--filter",
+      "AccessibleName",
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G241 screen: the days of a reminder have an accessible name",
+    "file": "app/Views/recurring/form.php",
+    "find": "'aria-label': \"<?= esc(lang('Recurring.reminder_days'), 'js') ?>\"",
+    "replace": "'title': \"<?= esc(lang('Recurring.reminder_days'), 'js') ?>\"",
+    "tests": [
+      "--filter",
+      "AccessibleName",
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G242 screen: a form that fails to save says so",
+    "file": "app/Views/customer_orders/form.php",
+    "find": "toast_support.show(\"<?= esc(lang('Common.request_failed'), 'js') ?>\", 'danger');\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "AccessibleName",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G243 screen: a change of an order that fails says so",
+    "file": "app/Views/customer_orders/view.php",
+    "find": "}, 'json').fail(function() {\n                toast_support.show(\"<?= esc(lang('Common.request_failed'), 'js') ?>\", 'danger');\n            });",
+    "replace": "}, 'json');",
+    "tests": [
+      "--filter",
+      "FailedChange",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G244 screen: a change of a schedule that fails says so",
+    "file": "app/Views/recurring/view.php",
+    "find": "}, 'json').fail(function() {\n                toast_support.show(\"<?= esc(lang('Common.request_failed'), 'js') ?>\", 'danger');\n            });",
+    "replace": "}, 'json');",
+    "tests": [
+      "--filter",
+      "FailedChange",
+      "tests/Controllers/Recurring_invoicesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G245 order screen: the new order button shows while the module is off for who may add",
+    "file": "app/Controllers/Customer_orders.php",
+    "find": "'canAdd'      => $this->can(SalesOrders::ADD),",
+    "replace": "'canAdd'      => $enabled && $this->can(SalesOrders::ADD),",
+    "tests": [
+      "--filter",
+      "ShowsTheEmptyStateAndNoOrderWhileTheModuleIsOff",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G246 order screen: the new order button leads to the invoice list while the module is off",
+    "file": "app/Views/customer_orders/manage.php",
+    "find": "base_url($enabled ? 'customer_orders/add' : 'sales/manage')",
+    "replace": "base_url('customer_orders/add')",
+    "tests": [
+      "--filter",
+      "ShowsTheEmptyStateAndNoOrderWhileTheModuleIsOff",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G247 order screen: a draft of the order opens as a draft",
+    "file": "app/Views/customer_orders/view.php",
+    "find": "((int) $invoice->sale_status === COMPLETED ? 'sales/invoice/' : 'sales/document/')",
+    "replace": "'sales/invoice/'",
+    "tests": [
+      "--filter",
+      "ShowsWhatWasOrderedInvoicedAndLeft",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G248 order screen: a filter that came as a list is no filter",
+    "file": "app/Controllers/Customer_orders.php",
+    "find": "$status = $this->getText('status');",
+    "replace": "$status = (string) $this->request->getGet('status');",
+    "tests": [
+      "--filter",
+      "ReadsAFilterThatCameAsAList",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G249 order screen: a date filter that came as a list is no filter",
+    "file": "app/Controllers/DocumentScreen.php",
+    "find": "$value = $this->getText($name);",
+    "replace": "$value = trim((string) $this->request->getGet($name));",
+    "tests": [
+      "--filter",
+      "ReadsAFilterThatCameAsAList",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G250 document screen: a text of the query is a single text",
+    "file": "app/Controllers/DocumentScreen.php",
+    "find": "return is_string($value) ? trim($value) : '';\n    }\n\n    protected function dateOf",
+    "replace": "return trim((string) $value);\n    }\n\n    protected function dateOf",
+    "tests": [
+      "--filter",
+      "ReadsAFilterThatCameAsAList",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G251 order module: no sub-permission or module id starts with the id of the register",
+    "file": "app/Database/Migrations/20272600000000_OrderToCashDocuments.php",
+    "find": "'customer_orders'    => [140, ['customer_orders', 'so_add'",
+    "replace": "'sales_orders'       => [140, ['sales_orders', 'so_add'",
+    "tests": [
+      "tests/Database/OrderToCashDocumentsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G252 register glue: the invoice saved from the register is linked to the order",
+    "file": "app/Controllers/Sales.php",
+    "find": "priceListId: $this->sale_lib->effectivePriceListId(), orderSourceId: $this->sale_lib->getOrderSource());",
+    "replace": "priceListId: $this->sale_lib->effectivePriceListId());",
+    "tests": [
+      "--filter",
+      "LinksTheInvoiceTheRegisterSaves",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G253 register glue: the draft suspended from the register is linked to the order",
+    "file": "app/Controllers/Sales.php",
+    "find": "orderSourceId: $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getOrderSource() : null);",
+    "replace": "orderSourceId: null);",
+    "tests": [
+      "--filter",
+      "LinksTheDraftTheRegisterSuspends",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G254 register glue: a change of mode forgets the order",
+    "file": "app/Controllers/Sales.php",
+    "find": "            $this->sale_lib->clearQuoteSource();\n            $this->sale_lib->clearOrderSource();",
+    "replace": "            $this->sale_lib->clearQuoteSource();",
+    "tests": [
+      "--filter",
+      "ForgottenWhenTheRegisterChangesItsMode",
+      "tests/Controllers/Customer_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G255 register glue: clearing the register forgets the order",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "        $this->clearQuoteSource();\n        $this->clearOrderSource();",
+    "replace": "        $this->clearQuoteSource();",
+    "tests": [
+      "--filter",
+      "ForgetsTheOrder",
+      "tests/Libraries/Sale_libTest.php"
+    ]
+  },
+  {
+    "name": "G256 register glue: the order the invoice is made from is kept",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "$orderId === null ? $this->session->remove('sales_order_source') : $this->session->set('sales_order_source', $orderId);",
+    "replace": "$this->session->remove('sales_order_source');",
+    "tests": [
+      "--filter",
+      "OrderSource",
+      "tests/Libraries/Sale_libTest.php"
+    ]
+  },
+  {
+    "name": "G257 register glue: the conversion names the order",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "        $this->session->set('sale_id', NEW_ENTRY);\n        $this->setOrderSource($orderId);",
+    "replace": "        $this->session->set('sale_id', NEW_ENTRY);",
+    "tests": [
+      "--filter",
+      "PrepareInvoiceFromOrder",
+      "tests/Libraries/Sale_libTest.php"
+    ]
+  },
+  {
+    "name": "G258 register glue: the conversion fills the lines with what is left at the order price",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "(string) $line->remaining, $discount, (int) $line->discount_type, PRICE_MODE_STANDARD, null, null, (string) $line->unit_price, (string) $line->description);",
+    "replace": "(string) $line->remaining, $discount, (int) $line->discount_type, PRICE_MODE_STANDARD, null, null, null, (string) $line->description);",
+    "tests": [
+      "--filter",
+      "PrepareInvoiceFromOrder",
+      "tests/Libraries/Sale_libTest.php"
     ]
   }
 ]
