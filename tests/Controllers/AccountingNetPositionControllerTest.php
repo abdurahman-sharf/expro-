@@ -59,13 +59,11 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
     private function sell(): void
     {
         $other    = $this->anotherCustomer();
-        $invoice  = $this->invoiceOf('115', $this->customerId, [$this->payment(lang('Sales.cash'), '90')]);
+        $this->invoiceOf('115', $this->customerId, [$this->payment(lang('Sales.cash'), '90')]);
         $returned = $this->invoiceOf('172.50', $other, [$this->payment(lang('Sales.cash'), '156.25')]);
 
         $this->refundInvoiceOf($returned, '86.25', $other);
         $this->save([$this->line($this->item('0', false), 0, '-1', '253')], [], [], SALE_TYPE_RETURN, $this->anotherCustomer('Third', 'Buyer'), true, null, COMPLETED, NEW_ENTRY, null, returnOverrideReason: 'test');
-
-        $this->assertGreaterThan(0, $invoice);
     }
 
     public function testGetIndex_ShowsNoTableUntilRunAndThenTheNetAfterReturns(): void
@@ -102,6 +100,51 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
 
         $this->assertGreaterThan(5, count($this->column($response, 'number')));
         $response->assertSee(lang('Accounting_operational_reports.row_credit_applied'));
+    }
+
+    public function testGetIndex_NestsOnlyThePaymentsThatStandAndAddsThemUpToWhatTheInvoiceShowsPaid(): void
+    {
+        $this->invoiceOf('100', $this->customerId, [$this->payment(lang('Sales.cash'), '40'), $this->payment(lang('Sales.due'), '60')]);
+        $this->reader();
+
+        $response = $this->fetch(self::NET . '?show=1&view=details');
+
+        $this->assertSame([lang('Accounting_operational_reports.kind_invoice'), lang('Accounting_operational_reports.row_payment')], $this->column($response, 'kind'));
+        $this->assertSame([$this->shown('40'), $this->shown('40')], $this->column($response, 'paid'));
+    }
+
+    public function testGetIndex_RunsNothingForADayThatIsNotOne(): void
+    {
+        $this->sell();
+        $this->reader();
+
+        foreach ([self::NET, self::CROSS] as $screen) {
+            $response = $this->fetch($screen . '?show=1&from=31%2F02%2F2026');
+
+            $response->assertSee('id="report_error"');
+            $response->assertDontSee('id="report_table"');
+        }
+    }
+
+    public function testGetIndex_CarriesEveryFilterToTheLinkOfItsFile(): void
+    {
+        $this->reader();
+
+        $this->assertFileCarries(self::NET, ['view', 'preset', 'mode', 'from', 'to', 'date', 'hide_credit_notes', 'status', 'customer', 'show']);
+        $this->assertFileCarries(self::CROSS, ['group', 'view', 'order', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'type', 'status', 'show']);
+    }
+
+    public function testGetIndex_GivesTheGrandTotalOneRowHeaderOverTheColumnsOfTextAndNoneForTheStatus(): void
+    {
+        $this->sell();
+        $this->reader();
+
+        $response = $this->fetch(self::NET . '?show=1');
+        $page     = $this->pageOf($response);
+
+        $response->assertDontSee('<th scope="row"></th>');
+        $this->assertSame('4', $page->query("//table[@id='report_table']/tfoot//th[@scope='row']/@colspan")->item(0)?->nodeValue);
+        $this->assertSame(1, $page->query("//table[@id='report_table']/tfoot//th")->length);
     }
 
     public function testGetIndex_TiesTheNetAndTheSettledAmountsToTheLedger(): void

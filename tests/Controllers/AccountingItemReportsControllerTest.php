@@ -143,6 +143,72 @@ class AccountingItemReportsControllerTest extends CIUnitTestCase
         $this->assertSame([], $this->tieRows($creams));
     }
 
+    public function testGetIndex_ReadsEveryDayBeforeADayForAGroupingByPeriodAsForOneByItem(): void
+    {
+        $this->invoiceDated('10', $this->daysAgo(400), null, $this->customerId);
+        $this->invoiceDated('20', $this->daysAgo(5), null, $this->customerId);
+        $this->reader();
+
+        $before = '&mode=before&date=' . date('Y-m-d');
+
+        foreach (['day', 'week', 'month', 'year', 'item', 'category'] as $group) {
+            $this->assertSame($this->shown('30'), $this->grandTotal($this->fetch(self::SCREEN . '?show=1&group=' . $group . $before), 'total'), $group);
+        }
+
+        $this->assertSame($this->shown('20'), $this->grandTotal($this->fetch(self::SCREEN . '?show=1&group=month'), 'total'));
+    }
+
+    public function testGetIndex_SaysThereIsNothingWhenAFilterLeavesNoLine(): void
+    {
+        $this->sell();
+        $this->reader();
+
+        $this->fetch(self::SCREEN . '?show=1&group=item&category=Oils')->assertSee('id="report_empty"');
+        $this->fetch(self::SCREEN . '?show=1&group=item&item=999999')->assertSee('id="report_empty"');
+        $this->fetch(self::SCREEN . '?show=1&group=item&category=Creams')->assertDontSee('id="report_empty"');
+    }
+
+    public function testGetIndex_OpensTheFirstGroupingTheEmployeeMayReadWhenGivenNone(): void
+    {
+        $this->reader(['accounting_reports', 'reports_categories']);
+
+        $response = $this->fetch(self::SCREEN);
+
+        $response->assertStatus(200);
+        $this->assertSame('category', $this->pageOf($response)->query("//select[@id='f_group']/option[@selected]/@value")->item(0)?->nodeValue);
+        $this->fetch(self::SCREEN . '?show=1')->assertStatus(200);
+    }
+
+    public function testGetIndex_RedirectsSomeoneWithoutThePermissionOfTheCustomerTheEmployeeOrTheCategoryTheyFilterBy(): void
+    {
+        $this->sell();
+        $this->reader(['accounting_reports', 'reports_items']);
+
+        $this->fetch(self::SCREEN . '?show=1&group=item&customer=' . $this->customerId)->assertRedirect();
+        $this->fetch(self::SCREEN . '?show=1&group=item&user=' . $this->employeeId)->assertRedirect();
+        $this->fetch(self::SCREEN . '?show=1&group=item&category=Creams')->assertRedirect();
+        $this->fetch(self::SCREEN . '/csv?group=item&user=' . $this->employeeId)->assertRedirect();
+
+        $response = $this->fetch(self::SCREEN . '?show=1&group=item');
+
+        $response->assertStatus(200);
+        $response->assertDontSee('id="f_customer"');
+        $response->assertDontSee('id="f_user"');
+        $response->assertDontSee('id="f_category"');
+        $response->assertSee('id="f_item"');
+
+        $this->reader();
+
+        $this->assertSame($this->shown('310.50'), $this->grandTotal($this->fetch(self::SCREEN . '?show=1&group=item&category=Creams&user=' . $this->employeeId . '&customer=' . $this->customerId), 'total'));
+    }
+
+    public function testGetIndex_CarriesEveryFilterToTheLinkOfItsFile(): void
+    {
+        $this->reader();
+
+        $this->assertFileCarries(self::SCREEN, ['group', 'view', 'preset', 'mode', 'from', 'to', 'date', 'type', 'status', 'customer', 'user', 'item', 'category', 'location', 'show']);
+    }
+
     public function testGetCsv_GivesTheLinesWithTheirTotalsAndNeutralisesAFormula(): void
     {
         $item = $this->item('1');

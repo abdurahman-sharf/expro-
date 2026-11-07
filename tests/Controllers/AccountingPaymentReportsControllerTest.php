@@ -150,6 +150,77 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
         $this->assertSame($this->shown('170'), $this->grandTotal($this->fetch(self::PAYMENTS . '?show=1&group=customer'), 'amount'));
     }
 
+    public function testGetIndex_ReadsEveryDayBeforeADayForAGroupingByPeriodAsForOneByCustomer(): void
+    {
+        $this->invoiceOf('10', $this->customerId, [$this->payment(lang('Sales.cash'), '10')]);
+        $this->invoiceOf('20', $this->customerId, [$this->payment(lang('Sales.cash'), '20')]);
+
+        $old = (int) $this->accountingDb()->table('sales_payments')->selectMin('payment_id', 'first')->get()->getRow()->first;
+
+        $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'sale_payment', 'source_id' => $old])->update(['journal_date' => $this->daysAgo(400)]);
+        $this->reader();
+
+        $before = '&mode=before&date=' . date('Y-m-d', strtotime('+1 day'));
+
+        foreach (['day', 'week', 'month', 'year', 'customer', 'method', 'treasury'] as $group) {
+            $this->assertSame($this->shown('30'), $this->grandTotal($this->fetch(self::PAYMENTS . '?show=1&group=' . $group . $before), 'amount'), $group);
+        }
+
+        $this->assertSame($this->shown('20'), $this->grandTotal($this->fetch(self::PAYMENTS . '?show=1&group=month'), 'amount'));
+    }
+
+    public function testGetIndex_RedirectsSomeoneWithoutThePermissionOfEmployeesFromWhatShowsTheTakingsOfOne(): void
+    {
+        $this->pay();
+        $this->reader(['accounting_reports', 'reports_payments']);
+
+        $this->fetch(self::PAYMENTS . '?show=1&group=user')->assertRedirect();
+        $this->fetch(self::PAYMENTS . '?show=1&group=collector')->assertRedirect();
+        $this->fetch(self::PAYMENTS . '/csv?group=collector')->assertRedirect();
+        $this->fetch(self::PAYMENTS . '?show=1&group=customer&user=' . $this->employeeId)->assertRedirect();
+        $this->fetch(self::PAYMENTS . '?show=1&group=customer&collector=' . $this->employeeId)->assertRedirect();
+        $this->fetch(self::PAYMENTS . '/csv?group=customer&collector=' . $this->employeeId)->assertRedirect();
+        $this->fetch(self::ADVANCES . '?show=1&user=' . $this->employeeId)->assertRedirect();
+        $this->fetch(self::ADVANCES . '/csv?user=' . $this->employeeId)->assertRedirect();
+
+        $response = $this->fetch(self::PAYMENTS . '?show=1&group=customer');
+
+        $response->assertStatus(200);
+        $response->assertDontSee('value="collector"');
+        $response->assertDontSee('value="user"');
+        $response->assertDontSee('id="f_user"');
+        $response->assertDontSee('id="f_collector"');
+        $response->assertSee('id="f_treasury"');
+        $this->fetch(self::ADVANCES)->assertDontSee('id="f_user"');
+
+        $this->reader(['accounting_reports', 'reports_payments', 'reports_employees']);
+
+        $this->assertSame($this->shown('100'), $this->grandTotal($this->fetch(self::PAYMENTS . '?show=1&group=collector'), 'amount'));
+        $this->assertSame($this->shown('100'), $this->grandTotal($this->fetch(self::PAYMENTS . '?show=1&group=user&collector=' . $this->employeeId), 'amount'));
+        $this->fetch(self::PAYMENTS)->assertSee('id="f_collector"');
+        $this->fetch(self::ADVANCES)->assertSee('id="f_user"');
+    }
+
+    public function testGetIndex_CarriesEveryFilterToTheLinkOfItsFile(): void
+    {
+        $this->reader();
+
+        $this->assertFileCarries(self::PAYMENTS, ['group', 'view', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'user', 'collector', 'method', 'treasury', 'show']);
+        $this->assertFileCarries(self::ADVANCES, ['preset', 'mode', 'from', 'to', 'date', 'customer', 'user', 'method', 'state', 'show']);
+    }
+
+    public function testGetIndex_RunsNothingForADayThatIsNotOne(): void
+    {
+        $this->pay();
+        $this->reader();
+
+        $response = $this->fetch(self::PAYMENTS . '?show=1&from=31%2F02%2F2026');
+
+        $response->assertSee('id="report_error"');
+        $response->assertDontSee('id="report_table"');
+        $this->fetch(self::ADVANCES . '?show=1&from=31%2F02%2F2026')->assertDontSee('id="report_table"');
+    }
+
     public function testGetCsv_GivesThePaymentsWithTheirReferenceAndTheCheck(): void
     {
         $this->pay();

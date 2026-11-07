@@ -59,9 +59,9 @@ class AdvancePaymentsReportTest extends CIUnitTestCase
         return $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE]);
     }
 
-    private function table(string $state = '', ?int $customerId = null): ReportTable
+    private function table(string $state = '', ?int $customerId = null, ?int $createdBy = null, string $method = ''): ReportTable
     {
-        return (new AdvancePaymentsReport())->build(ReportScope::resolve(null, null), '2020-01-01', date('Y-m-d'), $customerId, null, '', $state);
+        return (new AdvancePaymentsReport())->build(ReportScope::resolve(null, null), '2020-01-01', date('Y-m-d'), $customerId, $createdBy, $method, $state);
     }
 
     public function testBuild_ListsAnAdvanceWithWhatIsLeftOfIt(): void
@@ -120,6 +120,21 @@ class AdvancePaymentsReportTest extends CIUnitTestCase
         $this->assertSame(['50.0000', '120.0000'], [$table->ties[0]->reported, $table->ties[0]->ledger]);
         $this->assertCount(1, $this->table('open')->blocks[0]->rows);
         $this->assertCount(0, $this->table('spent')->blocks[0]->rows);
+    }
+
+    public function testBuild_FiltersByTheEmployeeWhoMadeTheAdvanceAndByTheMethod(): void
+    {
+        $other  = $this->teller();
+        $advances = new CustomerAdvances();
+
+        $advances->receive($this->customerId, '50', date('Y-m-d'), 'Cash', null, '', '', $this->teller());
+        $advances->receive($this->customerId, '70', date('Y-m-d'), 'Check', null, '', '', $other);
+
+        $this->assertSame('120.0000', $this->table()->total['amount']);
+        $this->assertSame('70.0000', $this->table('', null, $other)->total['amount']);
+        $this->assertSame('0.0000', $this->table('', null, $this->employeeId + 1000)->total['amount']);
+        $this->assertSame('70.0000', $this->table('', null, null, 'check')->total['amount']);
+        $this->assertSame('50.0000', $this->table('', null, null, 'cash')->total['amount']);
     }
 
     public function testBuild_ReadsNothingForAScopeOfNoBranch(): void

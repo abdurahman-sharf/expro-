@@ -198,6 +198,23 @@ class PaymentsReportTest extends CIUnitTestCase
         $this->assertSame('0.0000', $this->table(PaymentGroup::Customer, false, ['collector' => $this->employeeId + 1000])->total['amount']);
     }
 
+    public function testBuild_TellsTheEmployeeOfTheInvoiceFromTheOneWhoTookThePayment(): void
+    {
+        $collector = $this->createEmployee('Cora', 'Collector');
+
+        $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [$this->payment(lang('Sales.cash'), '60')], SALE_TYPE_INVOICE, $this->customerId);
+        $other = $this->save([$this->line($this->item('0', false), 0, '1', '50')], [], [$this->payment(lang('Sales.cash'), '50')], SALE_TYPE_INVOICE, $this->customerId);
+
+        $this->accountingDb()->table('sales_payments')->where('sale_id', $other)->update(['employee_id' => $collector]);
+
+        $this->assertEquals(['Temp Employee' => '110.0000'], $this->byLabel($this->table(PaymentGroup::User), 'user'));
+        $this->assertEquals(['Temp Employee' => '60.0000', 'Cora Collector' => '50.0000'], $this->byLabel($this->table(PaymentGroup::Collector), 'collector'));
+        $this->assertSame('110.0000', $this->table(PaymentGroup::Customer, false, ['user' => $this->employeeId])->total['amount']);
+        $this->assertSame('0.0000', $this->table(PaymentGroup::Customer, false, ['user' => $collector])->total['amount']);
+        $this->assertSame('50.0000', $this->table(PaymentGroup::Customer, false, ['collector' => $collector])->total['amount']);
+        $this->assertSame('60.0000', $this->table(PaymentGroup::Customer, false, ['collector' => $this->employeeId])->total['amount']);
+    }
+
     public function testBuild_FillsEmptyDaysAndStartsAWeekOnMonday(): void
     {
         $this->payments();

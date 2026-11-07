@@ -102,6 +102,79 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
         $this->fetch(self::PROFIT . '?show=1&group=day')->assertRedirect();
     }
 
+    public function testGetIndex_ReadsEveryDayBeforeADayForAGroupingByPeriodAsForOneByItem(): void
+    {
+        $this->grantInvoiceDate();
+
+        $goods = $this->item('10');
+
+        foreach ([400, 5] as $days) {
+            $this->save([$this->line($goods, 0, '2', '30', '10')], [], [], SALE_TYPE_INVOICE, $this->customerId, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo($days));
+        }
+
+        $this->reader();
+
+        $before = '&mode=before&date=' . date('Y-m-d');
+
+        foreach (['day', 'week', 'month', 'year', 'item', 'category', 'customer', 'user'] as $group) {
+            $this->assertSame($this->shown('80'), $this->grandTotal($this->fetch(self::PROFIT . '?show=1&group=' . $group . $before), 'profit'), $group);
+        }
+
+        $this->assertSame($this->shown('40'), $this->grandTotal($this->fetch(self::PROFIT . '?show=1&group=month'), 'profit'));
+    }
+
+    public function testGetIndex_OpensTheFirstGroupingTheEmployeeMayReadWhenGivenNoneAndOffersOnlyTheReportsItMayOpen(): void
+    {
+        $this->reader(['accounting_reports', 'reports_categories']);
+
+        $profit = $this->fetch(self::PROFIT);
+        $items  = $this->fetch(self::ITEMS);
+        $links  = fn ($response): array => array_values(array_filter($this->titleBarLinks($response), static fn (string $href): bool => ! str_contains($href, '/csv')));
+
+        $this->assertSame('category', $this->pageOf($profit)->query("//select[@id='f_group']/option[@selected]/@value")->item(0)?->nodeValue);
+        $this->assertSame('category', $this->pageOf($items)->query("//select[@id='f_group']/option[@selected]/@value")->item(0)?->nodeValue);
+        $this->assertSame([base_url('accounting_reports/item_profit')], $links($profit));
+        $this->assertSame([base_url('accounting_reports/profit')], $links($items));
+        $this->fetch(self::PROFIT . '?show=1')->assertStatus(200);
+
+        $this->reader(['accounting_reports']);
+
+        $this->fetch(self::PROFIT)->assertRedirect();
+    }
+
+    public function testGetIndex_RedirectsSomeoneWithoutThePermissionOfTheCustomerTheEmployeeOrTheCategoryTheyFilterBy(): void
+    {
+        $this->sell();
+        $this->reader(['accounting_reports', 'reports_items']);
+
+        foreach ([self::PROFIT, self::ITEMS] as $screen) {
+            $this->fetch($screen . '?show=1&group=item&customer=' . $this->customerId)->assertRedirect();
+            $this->fetch($screen . '?show=1&group=item&user=' . $this->employeeId)->assertRedirect();
+            $this->fetch($screen . '?show=1&group=item&category=Creams')->assertRedirect();
+            $this->fetch($screen . '/csv?group=item&user=' . $this->employeeId)->assertRedirect();
+        }
+
+        $response = $this->fetch(self::PROFIT . '?show=1&group=item');
+
+        $response->assertStatus(200);
+        $response->assertDontSee('id="f_user"');
+        $response->assertDontSee('id="f_customer"');
+        $response->assertDontSee('id="f_category"');
+        $response->assertSee('id="f_item"');
+
+        $this->reader();
+
+        $this->assertSame($this->shown('480'), $this->grandTotal($this->fetch(self::PROFIT . '?show=1&group=item&user=' . $this->employeeId . '&category=Creams&customer=' . $this->customerId), 'profit'));
+    }
+
+    public function testGetIndex_CarriesEveryFilterToTheLinkOfItsFile(): void
+    {
+        $this->reader();
+
+        $this->assertFileCarries(self::PROFIT, ['group', 'view', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'user', 'item', 'category', 'show']);
+        $this->assertFileCarries(self::ITEMS, ['group', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'user', 'item', 'category', 'show']);
+    }
+
     public function testGetIndex_IsNotFoundWhileAccountingIsOff(): void
     {
         $this->reader();
