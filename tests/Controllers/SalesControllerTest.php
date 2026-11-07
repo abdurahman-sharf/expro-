@@ -8021,4 +8021,26 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertNull(Services::session()->get('sales_currency'));
         $this->assertSame('375.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
     }
+
+    public function testGetItemSearch_LeavesOutAnInactiveAndASuspendedItemFromTheRegisterList(): void
+    {
+        $this->loginAs($this->createCashierEmployee());
+        $token     = 'Regsearch' . uniqid();
+        $active    = $this->createTestItem();
+        $inactive  = $this->createTestItem();
+        $suspended = $this->createTestItem();
+        $db        = $this->accountingDb();
+
+        foreach ([[$active, 0], [$inactive, 1], [$suspended, 2]] as [$itemId, $status]) {
+            $db->table('items')->where('item_id', $itemId)->update(['name' => $token . ' ' . $status, 'status' => $status]);
+        }
+
+        $found = array_map('intval', array_column(json_decode($this->get('/sales/itemSearch', ['term' => $token])->getJSON(), true), 'value'));
+
+        $this->assertContains($active, $found);
+        $this->assertNotContains($inactive, $found);
+        $this->assertNotContains($suspended, $found);
+
+        $db->table('items')->whereIn('item_id', [$active, $inactive, $suspended])->update(['deleted' => 1]);
+    }
 }

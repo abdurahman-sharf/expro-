@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
@@ -18,6 +19,10 @@ use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Barcode_lib;
 use App\Libraries\Item_lib;
+use App\Libraries\MasterData\ItemFields;
+use App\Libraries\MasterData\ItemStatus;
+use App\Libraries\MasterData\LookupKind;
+use App\Libraries\MasterData\NamedLookup;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\SalesControlSettings;
@@ -115,7 +120,11 @@ class Items extends Secure_Controller
             'no_description' => lang('Items.no_description_items'),
             'search_custom'  => lang('Items.search_attributes'),
             'is_deleted'     => lang('Items.is_deleted'),
-            'temporary'      => lang('Items.temp')
+            'temporary'      => lang('Items.temp'),
+            'available'        => lang('Items.status_available_items'),
+            'out_of_stock'     => lang('Items.status_out_of_stock_items'),
+            'status_inactive'  => lang('Items.status_inactive_items'),
+            'status_suspended' => lang('Items.status_suspended_items'),
         ];
 
         // Restore filters from URL
@@ -153,6 +162,10 @@ class Items extends Secure_Controller
             'search_custom'     => false,
             'is_deleted'        => false,
             'temporary'         => false,
+            'available'         => false,
+            'out_of_stock'      => false,
+            'status_inactive'   => false,
+            'status_suspended'  => false,
             'definition_ids'    => $definitionIds
         ];
 
@@ -302,7 +315,7 @@ class Items extends Secure_Controller
     public function getSuggest(): ResponseInterface
     {
         $search = $this->request->getGet('term');
-        $suggestions = $this->item->get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false], true);
+        $suggestions = $this->item->get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true], true);
 
         return $this->response->setJSON($suggestions);
     }
@@ -510,7 +523,31 @@ class Items extends Secure_Controller
             $data['selected_low_sell_item'] = '';
         }
 
-        return view('items/form', $data + $this->pricingFormData($item_id) + $this->itemAccountsFormData($item_id));
+        return view('items/form', $data + $this->pricingFormData($item_id) + $this->itemAccountsFormData($item_id) + $this->masterDataFormData($item_info));
+    }
+
+    /**
+     * What the form of an item shows of the fields that the books never read: the brands to choose from (an
+     * inactive brand the item holds stays on offer), the three statuses and the values the item holds.
+     *
+     * @return array<string, mixed>
+     */
+    private function masterDataFormData(object $itemInfo): array
+    {
+        $held   = (int) ($itemInfo->brand_id ?? 0);
+        $brands = [0 => lang('Items.brand_none')];
+
+        foreach ((new NamedLookup(LookupKind::ItemBrand))->all() as $row) {
+            if ((int) $row->status === 1 || (int) $row->brand_id === $held) {
+                $brands[(int) $row->brand_id] = $row->name . ((int) $row->status === 1 ? '' : ' (' . lang('Lookups.inactive') . ')');
+            }
+        }
+
+        return [
+            'brandOptions'  => $brands,
+            'statusOptions' => ItemStatus::options(),
+            'masterItem'    => ['brand_id' => $held, 'status' => (int) ($itemInfo->status ?? 0), 'supplier_code' => (string) ($itemInfo->supplier_code ?? '')],
+        ];
     }
 
     /**
@@ -995,6 +1032,18 @@ class Items extends Secure_Controller
             $itemData['reorder_level'] = 0;
         }
 
+        $master = [];
+
+        if ($this->request->getPost(ItemFields::MARKER) === '1') {
+            try {
+                $master = (new ItemFields())->read($this->request->getPost(), $itemId === NEW_ENTRY ? null : $this->item->get_info($itemId));
+            } catch (AccountingException $failure) {
+                return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($failure), 'id' => $itemId]);
+            }
+
+            $itemData += $master;
+        }
+
         if (is_array($this->request->getPost('purchase_tax_percents'))) {
             $itemData += $this->postedPurchaseTaxes();
         }
@@ -1025,7 +1074,7 @@ class Items extends Secure_Controller
 
         $employeeId = $this->employee->get_logged_in_employee_info()->person_id;
 
-        if ($itemData['deleted'] && $itemId !== NEW_ENTRY && ! (int) $this->item->get_info($itemId)->deleted && $this->item->holdsStockOutsideTheEmployeesBranches([$itemId])) {
+        if ($itemData['deleted'] && $itemId !== NEW_ENTRY && ! (int) $this->item->get_info($itemId)->deleted && ($this->item->isMentionedInOpenDocuments([$itemId]) || $this->item->holdsStockOutsideTheEmployeesBranches([$itemId]))) {
             $this->adjustmentFailure = $this->item->accountingFailure();
 
             return $this->response->setJSON(['success' => false, 'message' => lang('Items.error_adding_updating') . ' ' . $itemData['name'] . $this->adjustmentFailureNote(), 'id' => $itemId]);
@@ -1036,6 +1085,7 @@ class Items extends Secure_Controller
         $db->transBegin();
 
         $boundsBefore = $this->priceBoundsOf($itemId);
+        $masterBefore = $itemId === NEW_ENTRY || $master === [] ? null : $this->item->get_info($itemId);
         $success      = $this->item->save_value($itemData, $itemId);
         $newItem      = false;
 
@@ -1111,6 +1161,10 @@ class Items extends Secure_Controller
 
             if ($success) {
                 $this->auditPriceBounds($itemId, $boundsBefore, $itemData, (int) $employeeId);
+
+                if ($master !== []) {
+                    (new ItemFields())->audit($itemId, $masterBefore, $master, (int) $employeeId);
+                }
             }
         }
 
@@ -1563,6 +1617,13 @@ class Items extends Secure_Controller
                             $isFailedRow = $this->item->item_number_exists($itemData['item_number'], $itemId);
                         }
 
+                        try {
+                            $itemData += $this->optionalColumnsOfImportRow($row);
+                        } catch (AccountingException $failure) {
+                            $isFailedRow = true;
+                            log_message('error', 'CSV import: ' . $failure->getMessage());
+                        }
+
                         if (!$isFailedRow) {
                             $allowedStockLocations = $this->itemLocations();
                             $isFailedRow           = $this->validateCSVData($row, $itemData, $allowedStockLocations, $attributeDefinitionNames, $attributeData);
@@ -1630,6 +1691,65 @@ class Items extends Secure_Controller
             return $this->response->setJSON(['success' => false, 'message' => $e->getMessage()]);
         }
 
+    }
+
+    /**
+     * The columns an import row may add at its end: the brand (by name), the status (a number or a word),
+     * the supplier code and the two purchase taxes of the item. A cell that is empty leaves the item as it
+     * is; a value that is not allowed refuses the row. A file that does not have the columns imports as it
+     * always did.
+     *
+     * @param array<string, string|null> $row
+     *
+     * @return array<string, int|string|null>
+     *
+     * @throws AccountingException
+     */
+    private function optionalColumnsOfImportRow(array $row): array
+    {
+        $cell    = static fn (string $name): string => trim((string) ($row[$name] ?? ''));
+        $posted  = [];
+        $columns = [];
+
+        if ($cell('Brand') !== '') {
+            $found = array_search(mb_strtolower($cell('Brand')), array_map('mb_strtolower', (new NamedLookup(LookupKind::ItemBrand))->options()), true);
+
+            if ($found === false) {
+                throw new AccountingException(AccountingError::ItemBrandInvalid, 'The brand does not exist or is inactive.');
+            }
+
+            $posted['brand_id'] = (string) $found;
+        }
+
+        if ($cell('Status') !== '') {
+            $posted['status'] = $cell('Status');
+        }
+
+        if ($cell('Supplier Code') !== '') {
+            $posted['supplier_code'] = $cell('Supplier Code');
+        }
+
+        $columns += (new ItemFields())->read($posted, null, true);
+
+        foreach ([1, 2] as $slot) {
+            $percent = $cell("Purchase Tax $slot Percent");
+            $name    = $cell("Purchase Tax $slot Name");
+
+            if ($percent === '') {
+                continue;
+            }
+
+            $parsed = parse_tax($percent);
+
+            if (! is_numeric($parsed) || (float) $parsed < 0 || (float) $parsed > 100 || mb_strlen($name) > 255) {
+                throw new AccountingException(AccountingError::ItemFieldTooLong, 'The purchase tax is a rate from 0 to 100 with a name of at most 255 characters.', ['max' => 255, 'name' => lang("Items.purchase_tax_$slot")]);
+            }
+
+            $columns["purchase_tax_{$slot}_percent"] = $parsed;
+            $columns["purchase_tax_{$slot}_name"]    = $name === '' ? null : $name;
+        }
+
+        return $columns;
     }
 
     private function extractAttributeData(array $row): array

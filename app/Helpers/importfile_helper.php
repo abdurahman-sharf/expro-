@@ -11,8 +11,20 @@ function generate_import_items_csv(array $stock_locations, array $attributes): s
     $csv_headers .= 'Id,Barcode,"Item Name",Category,"Supplier ID","Cost Price","Unit Price","Tax 1 Name","Tax 1 Percent","Tax 2 Name","Tax 2 Percent","Reorder Level",Description,"Allow Alt Description","Item has Serial Number",Image,HSN';
     $csv_headers .= generate_stock_location_headers($stock_locations);
     $csv_headers .= generate_attribute_headers($attributes);
+    $csv_headers .= ',' . implode(',', array_map(static fn (string $column): string => '"' . $column . '"', optional_item_import_columns()));
 
     return $csv_headers;
+}
+
+/**
+ * The columns the template ends with that an import file may leave out: a file made before they were added
+ * imports as it always did.
+ *
+ * @return list<string>
+ */
+function optional_item_import_columns(): array
+{
+    return ['Brand', 'Status', 'Supplier Code', 'Purchase Tax 1 Name', 'Purchase Tax 1 Percent', 'Purchase Tax 2 Name', 'Purchase Tax 2 Percent'];
 }
 
 /**
@@ -121,7 +133,7 @@ function csvImportHasRequiredItemHeaders(array $csv_rows, array $stock_locations
     }
 
     $template_header_line = substr(generate_import_items_csv($stock_locations, $attribute_names), 3);
-    $required_headers = str_getcsv($template_header_line);
+    $required_headers = array_diff(str_getcsv($template_header_line), optional_item_import_columns());
 
     $present_headers = array_keys(reset($csv_rows));
 

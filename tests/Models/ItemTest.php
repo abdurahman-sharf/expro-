@@ -2,6 +2,8 @@
 
 namespace Tests\Models;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Organization\BranchException;
 use App\Models\Item;
 use App\Models\Item_quantity;
@@ -720,5 +722,180 @@ class ItemTest extends CIUnitTestCase
 
         $this->assertNull($info->max_discount_percent);
         $this->assertSame(0, $info->unit_price);
+    }
+
+    // ========== the status of an item hides it from new documents and a named item is not deleted ==========
+
+    /** @var list<int> */
+    private array $statusItems = [];
+
+    /** @var list<int> */
+    private array $statusSales = [];
+
+    private function itemWithStatus(int $status, string $name): int
+    {
+        $itemId = $this->createTestItem();
+        $this->statusItems[] = $itemId;
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['status' => $status, 'name' => $name, 'item_number' => 'ST-' . uniqid()]);
+
+        return $itemId;
+    }
+
+    private function saleNamingItem(int $itemId, int $saleStatus, ?string $time = null): int
+    {
+        $db = $this->accountingDb();
+
+        $db->table('sales')->insert(['sale_status' => $saleStatus, 'sale_type' => SALE_TYPE_INVOICE, 'employee_id' => 1, 'comment' => '', 'sale_time' => $time ?? date('Y-m-d H:i:s')]);
+        $saleId = (int) $db->insertID();
+        $db->table('sales_items')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 1, 'quantity_purchased' => 3, 'item_cost_price' => 1, 'item_unit_price' => 5, 'item_location' => 1]);
+
+        return $this->statusSales[] = $saleId;
+    }
+
+    private function cleanStatusFixtures(): void
+    {
+        $db = $this->accountingDb();
+
+        foreach ($this->statusSales as $saleId) {
+            $db->table('sales_items')->where('sale_id', $saleId)->delete();
+            $db->table('sales')->where('sale_id', $saleId)->delete();
+        }
+
+        foreach ($this->statusItems as $itemId) {
+            $db->table('item_quantities')->where('item_id', $itemId)->delete();
+            $db->table('inventory')->where('trans_items', $itemId)->delete();
+            $db->table('items')->where('item_id', $itemId)->delete();
+        }
+
+        $this->statusSales = [];
+        $this->statusItems = [];
+    }
+
+    public function testGetInfoByIdOrNumber_LeavesOutAnInactiveAndASuspendedItemForANewDocumentButFindsThemWhenOldDocumentsAreIncluded(): void
+    {
+        $model     = model(Item::class);
+        $active    = $this->itemWithStatus(0, 'Visible ' . uniqid());
+        $inactive  = $this->itemWithStatus(1, 'Inactive ' . uniqid());
+        $suspended = $this->itemWithStatus(2, 'Suspended ' . uniqid());
+
+        $this->assertSame($active, (int) $model->get_info_by_id_or_number((string) $active, false)->item_id);
+        $this->assertSame('', $model->get_info_by_id_or_number((string) $inactive, false));
+        $this->assertSame('', $model->get_info_by_id_or_number((string) $suspended, false));
+        $this->assertSame($inactive, (int) $model->get_info_by_id_or_number((string) $inactive, true)->item_id);
+        $this->assertSame($suspended, (int) $model->get_info_by_id_or_number((string) $suspended, true)->item_id);
+        $this->cleanStatusFixtures();
+    }
+
+    public function testGetSearchSuggestions_LeavesOutInactiveAndSuspendedItemsOnlyWhenAskedTo(): void
+    {
+        $model     = model(Item::class);
+        $token     = 'Suggest' . uniqid();
+        $active    = $this->itemWithStatus(0, $token . ' active');
+        $inactive  = $this->itemWithStatus(1, $token . ' inactive');
+        $suspended = $this->itemWithStatus(2, $token . ' suspended');
+        $values    = static fn (array $found): array => array_values(array_intersect(array_map('intval', array_column($found, 'value')), [$active, $inactive, $suspended]));
+
+        $hidden = $model->get_search_suggestions($token, ['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true], true);
+        $all    = $model->get_search_suggestions($token, ['search_custom' => false, 'is_deleted' => false], true);
+
+        $this->assertSame([$active], $values($hidden));
+        $this->assertEqualsCanonicalizing([$active, $inactive, $suspended], $values($all));
+
+        $stockHidden = $model->get_stock_search_suggestions($token, ['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true], true);
+        $stockAll    = $model->get_stock_search_suggestions($token, ['search_custom' => false, 'is_deleted' => false], true);
+
+        $this->assertSame([$active], $values($stockHidden));
+        $this->assertEqualsCanonicalizing([$active, $inactive, $suspended], $values($stockAll));
+        $this->cleanStatusFixtures();
+    }
+
+    public function testGetSearchSuggestions_LeavesOutAnInactiveItemFoundByItsNumberOrItsCategory(): void
+    {
+        $model    = model(Item::class);
+        $token    = 'Findme' . uniqid();
+        $inactive = $this->itemWithStatus(1, 'Plain ' . uniqid());
+        $this->accountingDb()->table('items')->where('item_id', $inactive)->update(['item_number' => $token . '-NO', 'description' => $token . ' words', 'category' => $token . ' cat']);
+        $hide = ['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true];
+        $show = ['search_custom' => false, 'is_deleted' => false];
+
+        foreach ([$token . '-NO'] as $term) {
+            $this->assertNotContains($inactive, array_map('intval', array_column($model->get_search_suggestions($term, $hide), 'value')), $term);
+            $this->assertContains($inactive, array_map('intval', array_column($model->get_search_suggestions($term, $show), 'value')), $term);
+        }
+
+        $this->assertNotContains($token . ' cat', array_column($model->get_search_suggestions($token . ' cat', $hide), 'label'));
+        $this->assertContains($token . ' cat', array_column($model->get_search_suggestions($token . ' cat', $show), 'label'));
+        $this->cleanStatusFixtures();
+    }
+
+    public function testGetTopSellers_LeavesOutInactiveAndSuspendedItems(): void
+    {
+        $model     = model(Item::class);
+        $active    = $this->itemWithStatus(0, 'Top ' . uniqid());
+        $inactive  = $this->itemWithStatus(1, 'Top ' . uniqid());
+        $suspended = $this->itemWithStatus(2, 'Top ' . uniqid());
+
+        foreach ([$active, $inactive, $suspended] as $itemId) {
+            $this->saleNamingItem($itemId, COMPLETED);
+        }
+
+        $ids = array_map(static fn (object $row): int => (int) $row->item_id, $model->get_top_sellers(200));
+
+        $this->assertContains($active, $ids);
+        $this->assertNotContains($inactive, $ids);
+        $this->assertNotContains($suspended, $ids);
+        $this->cleanStatusFixtures();
+    }
+
+    public function testDelete_RefusesAnItemASuspendedSaleStillNamesAndKeepsItWithItsStock(): void
+    {
+        $model  = model(Item::class);
+        $itemId = $this->itemWithStatus(0, 'Named ' . uniqid());
+        $this->saleNamingItem($itemId, SUSPENDED);
+        $this->accountingDb()->table('item_quantities')->replace(['item_id' => $itemId, 'location_id' => 1, 'quantity' => 4]);
+
+        $this->assertFalse($model->delete($itemId));
+        $this->assertInstanceOf(AccountingException::class, $model->accountingFailure());
+        $this->assertSame(AccountingError::ItemInOpenDocuments, $model->accountingFailure()->error);
+        $this->assertSame(1, $model->accountingFailure()->context['count']);
+        $this->assertSame('0', (string) $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->deleted);
+        $this->assertSame('4.000', (string) $this->accountingDb()->table('item_quantities')->where(['item_id' => $itemId, 'location_id' => 1])->get()->getRow()->quantity);
+        $this->cleanStatusFixtures();
+    }
+
+    public function testDelete_DeletesAnItemOnlyCompletedSalesName(): void
+    {
+        $model  = model(Item::class);
+        $itemId = $this->itemWithStatus(0, 'Done ' . uniqid());
+        $this->saleNamingItem($itemId, COMPLETED);
+
+        $this->assertNotFalse($model->delete($itemId));
+        $this->assertNull($model->accountingFailure());
+        $this->assertSame('1', (string) $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->deleted);
+        $this->cleanStatusFixtures();
+    }
+
+    public function testDeleteList_RefusesTheWholeListWhenOneItemIsNamedInADraftAndNamesIt(): void
+    {
+        $model = model(Item::class);
+        $free  = $this->itemWithStatus(0, 'Free ' . uniqid());
+        $named = $this->itemWithStatus(0, 'Named ' . uniqid());
+        $this->saleNamingItem($named, SUSPENDED);
+
+        $this->assertFalse($model->delete_list([$free, $named]));
+        $this->assertSame($this->accountingDb()->table('items')->where('item_id', $named)->get()->getRow()->name, $model->accountingFailure()->context['name']);
+        $this->assertSame(['0', '0'], [(string) $this->accountingDb()->table('items')->where('item_id', $free)->get()->getRow()->deleted, (string) $this->accountingDb()->table('items')->where('item_id', $named)->get()->getRow()->deleted]);
+        $this->cleanStatusFixtures();
+    }
+
+    public function testIsMentionedInOpenDocuments_IsFalseForAnItemNoDocumentNamesAndForNoItems(): void
+    {
+        $model  = model(Item::class);
+        $itemId = $this->itemWithStatus(0, 'Alone ' . uniqid());
+
+        $this->assertFalse($model->isMentionedInOpenDocuments([$itemId]));
+        $this->assertFalse($model->isMentionedInOpenDocuments([]));
+        $this->cleanStatusFixtures();
     }
 }

@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\MasterData\ItemStatus;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Stock_location;
@@ -107,7 +108,7 @@ abstract class DocumentScreen extends Secure_Controller
 
     protected function itemLookup(): ResponseInterface
     {
-        $builder = Database::connect()->table('items')->select('item_id, name, item_number, unit_price')->where('deleted', 0);
+        $builder = Database::connect()->table('items')->select('item_id, name, item_number, unit_price')->where('deleted', 0)->where('status', ItemStatus::Active->value);
         $term    = $this->getText('term');
 
         if ($term !== '') {

@@ -278,7 +278,7 @@ class Sales extends Secure_Controller
             // If a valid receipt or invoice was found the search term will be replaced with a receipt number (POS #)
             $suggestions[] = $receipt;
         }
-        $suggestions = array_merge($suggestions, $this->item->get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false], true));
+        $suggestions = array_merge($suggestions, $this->item->get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true], true));
         $suggestions = array_merge($suggestions, $this->item_kit->get_search_suggestions($search));
 
         return $this->response->setJSON($suggestions);

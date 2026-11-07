@@ -674,4 +674,24 @@ final class Customer_ordersControllerTest extends CIUnitTestCase
         $page->assertRedirect();
         $this->assertStringContainsString('no_access/customer_orders', $page->getRedirectUrl());
     }
+
+    public function testGetItems_LeavesOutAnInactiveAndASuspendedItem(): void
+    {
+        $this->actAsWith([SalesOrders::ADD]);
+
+        $db = $this->accountingDb();
+        $db->table('items')->where('item_id', $this->service)->update(['name' => 'Orderlist ' . $this->service, 'status' => 0]);
+        $found = static fn (array $items): array => array_map('intval', array_column($items, 'value'));
+        $term  = rawurlencode('Orderlist ' . $this->service);
+
+        $this->assertContains($this->service, $found(json_decode($this->get('/customer_orders/items?term=' . $term)->getJSON(), true)));
+
+        foreach ([1, 2] as $status) {
+            $db->table('items')->where('item_id', $this->service)->update(['status' => $status]);
+
+            $this->assertNotContains($this->service, $found(json_decode($this->get('/customer_orders/items?term=' . $term)->getJSON(), true)), "status {$status}");
+        }
+
+        $db->table('items')->where('item_id', $this->service)->update(['status' => 0]);
+    }
 }

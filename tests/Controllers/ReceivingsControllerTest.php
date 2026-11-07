@@ -3625,4 +3625,28 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertNotSame($other, (int) Services::session()->get('recv_stock_source'), 'A location the employee holds no permission for is never preselected');
         $this->assertContains((int) Services::session()->get('recv_stock_source'), [1, $depot], 'The screen starts in one of the locations the employee may receive into, as it always did');
     }
+
+    public function testGetItemSearchAndGetStockItemSearch_LeaveOutAnInactiveAndASuspendedItem(): void
+    {
+        $this->loginAs($this->buyer());
+        $token     = 'Recvsearch' . uniqid();
+        $active    = $this->createTestItem();
+        $inactive  = $this->createTestItem();
+        $suspended = $this->createTestItem();
+        $db        = $this->accountingDb();
+
+        foreach ([[$active, 0], [$inactive, 1], [$suspended, 2]] as [$itemId, $status]) {
+            $db->table('items')->where('item_id', $itemId)->update(['name' => $token . ' ' . $status, 'status' => $status]);
+        }
+
+        foreach (['/receivings/itemSearch', '/receivings/stockItemSearch'] as $path) {
+            $found = array_map('intval', array_column(json_decode($this->get($path, ['term' => $token])->getJSON(), true), 'value'));
+
+            $this->assertContains($active, $found, $path);
+            $this->assertNotContains($inactive, $found, $path);
+            $this->assertNotContains($suspended, $found, $path);
+        }
+
+        $db->table('items')->whereIn('item_id', [$active, $inactive, $suspended])->update(['deleted' => 1]);
+    }
 }
