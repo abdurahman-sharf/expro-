@@ -348,4 +348,5 @@ enum AccountingError: string
     case BankReconciliationReopened       = 'bank_reconciliation_reopened';
     case BankDirectoryCodeInvalid         = 'bank_directory_code_invalid';
     case ReportTooLarge                   = 'report_too_large';
+    case StatementAmountInvalid           = 'statement_amount_invalid';
 }

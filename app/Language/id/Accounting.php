@@ -398,6 +398,7 @@ return [
     'error_settlement_treasury_required'         => '',
     'error_shipping_tax_percent_invalid'         => '',
     'error_start_date_outside_fiscal_year'       => '',
+    'error_statement_amount_invalid'             => '',
     'error_supplier_busy'                        => '',
     'error_supplier_payment_needs_supplier'      => '',
     'error_supplier_payment_not_on_invoice'      => '',

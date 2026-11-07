@@ -398,6 +398,7 @@ return [
     'error_settlement_treasury_required'         => 'A cash settlement needs the treasury the money comes out of and the one it goes into.',
     'error_shipping_tax_percent_invalid'         => 'The tax on shipping must be a percentage from 0 to 100.',
     'error_start_date_outside_fiscal_year'       => 'The start date {0} is outside every fiscal year.',
+    'error_statement_amount_invalid'             => 'An amount of the filter is not a valid amount, or the least amount is more than the most.',
     'error_supplier_busy'                        => 'Another change to this supplier is still running. Try again in a moment.',
     'error_supplier_payment_needs_supplier'      => 'A payment to a supplier needs the purchase to have a supplier.',
     'error_supplier_payment_not_on_invoice'      => 'A payment is made against a purchase, not against a return or a transfer, and it must belong to that purchase.',

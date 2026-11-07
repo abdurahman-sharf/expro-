@@ -398,6 +398,7 @@ return [
     'error_settlement_treasury_required'         => 'التسوية النقدية تحتاج إلى الخزينة التي يخرج منها المال والخزينة التي يدخل فيها.',
     'error_shipping_tax_percent_invalid'         => 'ضريبة الشحن نسبة مئوية من 0 إلى 100.',
     'error_start_date_outside_fiscal_year'       => 'تاريخ البدء {0} خارج كل السنوات المالية.',
+    'error_statement_amount_invalid'             => 'مبلغ في المرشح غير صالح، أو الحد الأدنى أكبر من الحد الأقصى.',
     'error_supplier_busy'                        => 'تغيير آخر على هذا المورد لم ينتهِ بعد. أعد المحاولة بعد لحظة.',
     'error_supplier_payment_needs_supplier'      => 'الدفعة إلى مورد تحتاج شراءً له مورد.',
     'error_supplier_payment_not_on_invoice'      => 'تُسجَّل الدفعة على استلام شراء لا على مرتجع أو تحويل، ويجب أن تخص ذلك الشراء.',
