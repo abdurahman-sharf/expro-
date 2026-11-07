@@ -3,15 +3,23 @@
 namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\ItemPurchaseTax;
+use App\Libraries\Accounting\ItemRoutingAccounts;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\RoutingException;
+use App\Libraries\Accounting\RoutingKey;
+use App\Libraries\Accounting\RoutingResolver;
+use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Barcode_lib;
 use App\Libraries\Item_lib;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Models\Attribute;
 use App\Models\Inventory;
@@ -502,7 +510,7 @@ class Items extends Secure_Controller
             $data['selected_low_sell_item'] = '';
         }
 
-        return view('items/form', $data + $this->pricingFormData($item_id));
+        return view('items/form', $data + $this->pricingFormData($item_id) + $this->itemAccountsFormData($item_id));
     }
 
     /**
@@ -1099,6 +1107,7 @@ class Items extends Secure_Controller
 
             $success = $success && $this->saveItemAttributes($itemId);
             $success = $success && $this->saveListPrices($itemId);
+            $success = $success && $this->saveItemAccounts($itemId);
 
             if ($success) {
                 $this->auditPriceBounds($itemId, $boundsBefore, $itemData, (int) $employeeId);
@@ -1176,6 +1185,74 @@ class Items extends Secure_Controller
         try {
             $this->priceList->saveItemPrices($itemId, $prices, (int) $this->employee->get_logged_in_employee_info()->person_id);
         } catch (AccountingException $failure) {
+            $this->adjustmentFailure = $failure;
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private function mayEditItemAccounts(): bool
+    {
+        $employeeId = (int) $this->employee->get_logged_in_employee_info()->person_id;
+
+        return (new AccountingSettings())->isEnabled()
+            && (new AccountingGuard())->has(AccountingGuard::ROUTING_MANAGE, $employeeId)
+            && (new BranchGuard())->isUnrestricted($employeeId);
+    }
+
+    /**
+     * What the form of an item shows of the accounts it names for the routing rows that take the accounts
+     * of products: for an employee who may change the routing, with accounting on, a choice of account
+     * for each such row, and whether the row is set to use them.
+     *
+     * @return array{itemAccountRows: list<array{key: string, selected: ?int, used: bool, options: list<object>}>}
+     */
+    private function itemAccountsFormData(int $itemId): array
+    {
+        if (! $this->mayEditItemAccounts()) {
+            return ['itemAccountRows' => []];
+        }
+
+        $accounts = new ItemRoutingAccounts();
+        $resolver = new RoutingResolver();
+        $own      = $itemId === NEW_ENTRY ? [] : $accounts->ofItem($itemId);
+        $rows     = [];
+
+        foreach (RoutingKey::perItemKeys() as $key) {
+            $current = $own[$key->value] ?? null;
+            $options = $accounts->candidates($key);
+
+            if ($current !== null && ! in_array((int) $current->account_id, array_map(static fn (object $option): int => (int) $option->account_id, $options), true)) {
+                $options[] = $current;
+            }
+
+            $rows[] = ['key' => $key->value, 'selected' => $current === null ? null : (int) $current->account_id, 'used' => $resolver->typeOf($key) === RoutingType::PerItem, 'options' => $options];
+        }
+
+        return ['itemAccountRows' => $rows];
+    }
+
+    /**
+     * Puts the accounts of the form in the item, in the transaction that saves it. Only an employee who
+     * may change the routing is heard, and the accounts are checked as the routing checks its own.
+     */
+    private function saveItemAccounts(int $itemId): bool
+    {
+        $posted = $this->request->getPost('item_accounts');
+
+        if (! is_array($posted) || ! $this->mayEditItemAccounts()) {
+            return true;
+        }
+
+        try {
+            (new ItemRoutingAccounts())->save($itemId, $posted, (int) $this->employee->get_logged_in_employee_info()->person_id);
+        } catch (RoutingException $failure) {
+            $this->adjustmentFailure = new AccountingException(array_values($failure->errors)[0], 'An account of the item was refused.', ['item_id' => $itemId]);
+
+            return false;
+        } catch (AccountingException|BranchException $failure) {
             $this->adjustmentFailure = $failure;
 
             return false;

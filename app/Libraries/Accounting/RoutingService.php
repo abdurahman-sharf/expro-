@@ -42,6 +42,7 @@ final class RoutingService
         $routes   = $this->routes();
         $defaults = $this->defaultAccounts();
         $required = $this->requiredPaymentTypes();
+        $named    = (new ItemRoutingAccounts($this->db))->counts();
         $items    = [];
 
         foreach (RoutingKey::GROUPS as $group) {
@@ -58,6 +59,7 @@ final class RoutingService
                     locked: false,
                     allowedTypes: array_map(static fn (AccountType $type): string => $type->value, $key->allowedAccountTypes()),
                     routingKey: $key,
+                    itemAccounts: $key->takesItemAccounts() ? ($named[$key->value] ?? 0) : null,
                 );
             }
         }
@@ -107,6 +109,7 @@ final class RoutingService
         $required = $this->requiredPaymentTypes();
         $errors   = [];
         $changes  = [];
+        $named    = null;
 
         foreach ($input as $key => $value) {
             $key        = (string) $key;
@@ -127,6 +130,11 @@ final class RoutingService
                     $problem   = null;
                 } else {
                     $problem = $this->problem($accountId, $accounts, $routingKey->accountRequired(), $routingKey->allowedAccountTypes(), $routingKey->acceptedSystemKeys(), $routingKey->isEntity());
+
+                    if ($problem === null && $type === RoutingType::PerItem && $this->currentType($routingKey, $routes[$key] ?? null) !== RoutingType::PerItem) {
+                        $named ??= array_column((new ItemRoutingAccounts($this->db))->problems(), 'routing_key');
+                        $problem = in_array($key, $named, true) ? AccountingError::RoutingItemAccountsInvalid : null;
+                    }
                 }
             } elseif ($paymentKey !== null && ! $paymentKey->isLocked() && ! array_key_exists('type', $row)) {
                 $problem = $this->problem($accountId, $accounts, in_array($paymentKey, $required, true), $paymentKey->allowedAccountTypes(), $paymentKey->acceptedSystemKeys(), false);
@@ -254,7 +262,8 @@ final class RoutingService
 
     /**
      * What stops accounting from being turned on: a payment type in use with no usable account,
-     * and a stock location sold from that belongs to no active branch.
+     * a stock location sold from that belongs to no active branch, and an account an item names for
+     * a row set to per item that cannot take entries.
      *
      * @return list<ReadinessIssue>
      */
@@ -276,6 +285,12 @@ final class RoutingService
 
         foreach ($this->soldFromLocationsWithoutBranch() as $name) {
             $issues[] = new ReadinessIssue(ReadinessCode::StockLocationWithoutBranch, $name);
+        }
+
+        $unusable = $this->unusableItemAccounts();
+
+        if ($unusable > 0) {
+            $issues[] = new ReadinessIssue(ReadinessCode::ItemAccountInvalid, (string) $unusable);
         }
 
         return $issues;
@@ -389,13 +404,13 @@ final class RoutingService
     /**
      * @param list<string> $allowedTypes
      */
-    private function item(string $key, string $group, string $label, ?object $route, ?object $default, bool $required, bool $locked, array $allowedTypes, ?string $lockedTo = null, ?RoutingKey $routingKey = null, bool $entityAccount = false): RoutingItem
+    private function item(string $key, string $group, string $label, ?object $route, ?object $default, bool $required, bool $locked, array $allowedTypes, ?string $lockedTo = null, ?RoutingKey $routingKey = null, bool $entityAccount = false, ?int $itemAccounts = null): RoutingItem
     {
         $mapped = $route !== null && $route->account_id !== null;
         $type   = $routingKey === null ? RoutingType::Auto : $this->currentType($routingKey, $route);
         $entity = $routingKey?->isEntity() ?? $entityAccount;
 
-        if (! ($routingKey === null ? $type->isImplemented() : $routingKey->applies($type))) {
+        if ($routingKey !== null && ! $routingKey->applies($type)) {
             $status = RoutingItem::UNSUPPORTED;
         } elseif ($type === RoutingType::Cancelled) {
             $status = RoutingItem::COMPLETE;
@@ -426,6 +441,7 @@ final class RoutingService
             routingTypes: $routingKey === null ? [] : array_map(static fn (RoutingType $routingType): string => $routingType->value, $routingKey->allowedTypes()),
             isEntity: $entity,
             cancelMeansNone: $routingKey?->cancelMeansNone() ?? false,
+            itemAccounts: $itemAccounts,
         );
     }
 
@@ -435,11 +451,13 @@ final class RoutingService
     }
 
     /**
+     * What is wrong with an account chosen for a row, or null when the row may take it.
+     *
      * @param array<int, object> $accounts
      * @param list<AccountType>  $allowedTypes
      * @param list<string>       $acceptedSystemKeys
      */
-    private function problem(?int $accountId, array $accounts, bool $required, array $allowedTypes, array $acceptedSystemKeys, bool $needsGroup): ?AccountingError
+    public static function accountProblem(?int $accountId, array $accounts, bool $required, array $allowedTypes, array $acceptedSystemKeys, bool $needsGroup): ?AccountingError
     {
         if ($accountId === null) {
             return $required ? AccountingError::RoutingAccountRequired : null;
@@ -456,6 +474,16 @@ final class RoutingService
             $account->system_key !== null && ! in_array($account->system_key, $acceptedSystemKeys, true) => AccountingError::RoutingAccountReserved,
             default                                                                                      => null,
         };
+    }
+
+    /**
+     * @param array<int, object> $accounts
+     * @param list<AccountType>  $allowedTypes
+     * @param list<string>       $acceptedSystemKeys
+     */
+    private function problem(?int $accountId, array $accounts, bool $required, array $allowedTypes, array $acceptedSystemKeys, bool $needsGroup): ?AccountingError
+    {
+        return self::accountProblem($accountId, $accounts, $required, $allowedTypes, $acceptedSystemKeys, $needsGroup);
     }
 
     private function accountId(mixed $value): ?int
@@ -526,6 +554,26 @@ final class RoutingService
         }
 
         return $labels;
+    }
+
+    /**
+     * How many accounts items name that cannot take entries, on the rows that are set to use them: a
+     * sale of one of those items would stop.
+     */
+    private function unusableItemAccounts(): int
+    {
+        $routes = $this->routes();
+        $count  = 0;
+
+        foreach ((new ItemRoutingAccounts($this->db))->problems() as $problem) {
+            $key = RoutingKey::tryFrom($problem['routing_key']);
+
+            if ($key !== null && $this->currentType($key, $routes[$key->value] ?? null) === RoutingType::PerItem) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     /**

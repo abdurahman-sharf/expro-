@@ -14,6 +14,7 @@ final readonly class RoutingItem
      * @param self::*      $status
      * @param list<string> $allowedTypes The account types the row accepts, as stored.
      * @param list<string> $routingTypes The routing types the row offers, as stored.
+     * @param int|null     $itemAccounts How many items name an account of their own for the row, or null for a row that takes none.
      */
     public function __construct(
         public string $key,
@@ -34,6 +35,7 @@ final readonly class RoutingItem
         public array $routingTypes = [],
         public bool $isEntity = false,
         public bool $cancelMeansNone = false,
+        public ?int $itemAccounts = null,
     ) {
     }
 }

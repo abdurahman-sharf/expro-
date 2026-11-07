@@ -5,6 +5,13 @@ namespace App\Libraries\Accounting;
 /**
  * How a routing row decides the account of its posting line. The numbers are the ones the
  * reference system shows next to the same choices.
+ *
+ * Auto uses the account of the row, and for a party, stock location or treasury it opens one
+ * sub-account of that account for every entity. PerItem lets each product name its own account on
+ * the rows that take one, and an item without its own falls back to the account of the row.
+ * Cancelled writes no line for the row, so the amount nets into the line it belongs to.
+ * MainPerEntity resolves the row to the account of the entity the document is for. Which rows a
+ * type applies to is decided by RoutingKey::applies().
  */
 enum RoutingType: string
 {
@@ -12,25 +19,6 @@ enum RoutingType: string
     case PerItem       = 'per_item';
     case Cancelled     = 'cancelled';
     case MainPerEntity = 'main_per_entity';
-
-    /**
-     * Auto uses the row's account, and for a party, stock location or treasury it opens one
-     * sub-account of that account for every entity. PerItem lets each product or entity name
-     * its own account. Cancelled writes no line for the row, so the amount nets into the
-     * line it belongs to. MainPerEntity lets each customer name its own main account.
-     */
-    /**
-     * Whether posting acts on this type today. A row may be saved with any type it offers, but
-     * only these two change what a journal does: the others are kept as settings until the
-     * phases that apply them, and a posting that meets one stops instead of guessing.
-     */
-    public function isImplemented(): bool
-    {
-        return match ($this) {
-            self::Auto, self::Cancelled => true,
-            self::PerItem, self::MainPerEntity => false,
-        };
-    }
 
     public function number(): int
     {

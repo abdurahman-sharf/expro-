@@ -65,6 +65,7 @@ return [
     'payment_wallet'                => 'Wallet',
     'payments_desc'                 => 'The account each way of paying is posted to. Credit sales and gift cards follow their own accounts and cannot be changed here.',
     'payments_title'                => 'Payment types',
+    'per_item_note'                 => '{0} item(s) name an account of their own. The others are posted to the account chosen here.',
     'permission_note'               => 'You can view the routing. Changing it needs the routing permission, which an administrator grants.',
     'purchases_desc'                => 'The account each part of a purchase is posted to.',
     'purchases_title'               => 'Purchases',

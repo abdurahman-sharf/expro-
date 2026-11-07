@@ -82,8 +82,9 @@ final class EntityAccountService
     }
 
     /**
-     * Whether new entities of this kind get a sub-account of their own: only while the routing
-     * row is automatic. A row that lets each entity name its account leaves them alone.
+     * Whether new entities of this kind get a sub-account of their own: while the routing row is
+     * automatic, and while it resolves to the account of the entity, which is that sub-account. A
+     * row that lets each entity name its account leaves them alone.
      */
     public function isAutomatic(string $kind): bool
     {
@@ -100,7 +101,7 @@ final class EntityAccountService
             ->get()
             ->getRow();
 
-        return ($row === null ? $key->defaultType() : RoutingType::tryFrom((string) $row->routing_type)) === RoutingType::Auto;
+        return in_array($row === null ? $key->defaultType() : RoutingType::tryFrom((string) $row->routing_type), [RoutingType::Auto, RoutingType::MainPerEntity], true);
     }
 
     /**

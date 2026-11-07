@@ -125,16 +125,37 @@ enum RoutingKey: string
     }
 
     /**
+     * The rows whose lines are made up of the goods of a document, so that each product may name its
+     * own account for them. The cost of sales row and the stock row are not among them: the valuation
+     * of the stock and what it ties to are kept by location, and a product with an account of its own
+     * would split the stock of a location over accounts that no tie reads.
+     *
+     * @return list<self>
+     */
+    public static function perItemKeys(): array
+    {
+        return [self::SalesRevenue, self::SalesReturns];
+    }
+
+    public function takesItemAccounts(): bool
+    {
+        return in_array($this, self::perItemKeys(), true);
+    }
+
+    /**
      * Whether posting applies the type on this row. The purchase adjustment row takes amounts that no
-     * document produces yet, so choosing "automatic" there would change nothing and look done.
+     * document produces yet, so choosing "automatic" there would change nothing and look done. A row
+     * may be saved with a type it offers that nothing applies on it: posting then stops with a named
+     * failure and the readiness check says so.
      */
     public function applies(RoutingType $type): bool
     {
-        if ($type === RoutingType::Auto && $this === self::PurchaseAdjustment) {
-            return false;
-        }
-
-        return $type->isImplemented();
+        return match ($type) {
+            RoutingType::Auto          => $this !== self::PurchaseAdjustment,
+            RoutingType::Cancelled     => true,
+            RoutingType::PerItem       => $this->takesItemAccounts(),
+            RoutingType::MainPerEntity => $this->isEntity(),
+        };
     }
 
     public function defaultType(): RoutingType

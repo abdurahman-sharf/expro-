@@ -12,6 +12,7 @@ enum ReadinessCode: string
     case RoutingUnmapped            = 'routing_unmapped';
     case RoutingAccountInvalid      = 'routing_account_invalid';
     case RoutingTypeUnsupported     = 'routing_type_unsupported';
+    case ItemAccountInvalid         = 'item_account_invalid';
     case PaymentTypeUnrouted        = 'payment_type_unrouted';
     case PaymentTypeUnknown         = 'payment_type_unknown';
     case StockLocationWithoutBranch = 'stock_location_without_branch';

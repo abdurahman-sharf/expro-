@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'accounting_account_default'         => '',
+    'accounting_account_not_used'        => '',
+    'accounting_account_sales_returns'   => '',
+    'accounting_account_sales_revenue'   => '',
+    'accounting_accounts_hint'           => '',
+    'accounting_accounts_title'          => '',
     'add_minus'                          => 'موجودی برای اضافه یا تفریق.',
     'allow_alt_description'              => 'اجازه توضیحات جایگزین',
     'amount_entry'                       => 'مقدار ورود',

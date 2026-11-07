@@ -82,6 +82,10 @@ trait AccountingFixtureTrait
             $db->table($table)->truncate();
         }
 
+        if ($db->tableExists($db->prefixTable('item_routing_accounts'), false)) {
+            $db->table('item_routing_accounts')->truncate();
+        }
+
         $this->removeTreasuries();
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
         $db->table('accounting_sequences')->where('series', 'manual')->update(['last_number' => 0]);

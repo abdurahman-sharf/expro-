@@ -18,12 +18,14 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleFixtureTrait;
 
 class RoutingServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ItemFixtureTrait;
     use SaleFixtureTrait;
 
     protected $migrate     = true;
@@ -196,13 +198,39 @@ class RoutingServiceTest extends CIUnitTestCase
 
     public function testItems_MarksARowSavedWithATypeNothingAppliesAsNotAppliedYet(): void
     {
-        $this->service->save(['sales.revenue' => ['type' => 'per_item'], 'sales.customers' => ['type' => 'main_per_entity']], $this->manager);
+        $this->service->save(['sales.customers' => ['type' => 'per_item'], 'purchases.suppliers' => ['type' => 'per_item'], 'inventory.locations' => ['type' => 'per_item']], $this->manager);
 
         $items = $this->itemsByKey();
 
-        $this->assertSame(RoutingItem::UNSUPPORTED, $items['sales.revenue']->status);
         $this->assertSame(RoutingItem::UNSUPPORTED, $items['sales.customers']->status);
+        $this->assertSame(RoutingItem::UNSUPPORTED, $items['purchases.suppliers']->status);
+        $this->assertSame(RoutingItem::UNSUPPORTED, $items['inventory.locations']->status);
         $this->assertSame(RoutingItem::COMPLETE, $items['sales.returns']->status);
+    }
+
+    public function testItems_MarksTheTypesThatPostingAppliesAsAppliedAndCountsTheItemsThatNameAnAccount(): void
+    {
+        $itemId = $this->createTestItem();
+        $this->service->save(['sales.revenue' => ['type' => 'per_item'], 'sales.returns' => ['type' => 'per_item'], 'sales.customers' => ['type' => 'main_per_entity']], $this->manager);
+        $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $this->accountId('sales_revenue')]);
+
+        $items = $this->itemsByKey();
+
+        $this->assertSame(RoutingItem::COMPLETE, $items['sales.revenue']->status);
+        $this->assertSame(RoutingItem::COMPLETE, $items['sales.returns']->status);
+        $this->assertSame(RoutingItem::COMPLETE, $items['sales.customers']->status);
+        $this->assertSame(1, $items['sales.revenue']->itemAccounts);
+        $this->assertSame(0, $items['sales.returns']->itemAccounts);
+        $this->assertNull($items['sales.customers']->itemAccounts);
+        $this->assertNull($items['sales.cogs']->itemAccounts);
+    }
+
+    public function testItems_MarksAPerItemRowWithoutAnAccountToFallBackToMissing(): void
+    {
+        $this->service->save(['sales.revenue' => ['type' => 'per_item']], $this->manager);
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.revenue')->update(['account_id' => null]);
+
+        $this->assertSame(RoutingItem::MISSING, $this->itemsByKey()['sales.revenue']->status);
     }
 
     public function testItems_MarksAnUnmappedSalesRowMissing(): void
@@ -261,6 +289,51 @@ class RoutingServiceTest extends CIUnitTestCase
         $details = json_decode($this->accountingDb()->table('accounting_audit_log')->where('action', 'routing_changed')->get()->getRow()->details, true);
         $this->assertSame('auto', $details['type_before']);
         $this->assertSame('per_item', $details['type_after']);
+    }
+
+    private function itemNamingAnInactiveAccount(string $routingKey): int
+    {
+        $itemId  = $this->createTestItem();
+        $account = $this->customAccount('41', '4101', 'Item revenue');
+        $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => $routingKey, 'account_id' => $account]);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+
+        return $itemId;
+    }
+
+    public function testSave_RejectsSwitchingARowToPerItemWhileAnItemNamesAnAccountForItThatCannotTakeEntries(): void
+    {
+        $this->itemNamingAnInactiveAccount('sales.revenue');
+
+        try {
+            $this->service->save(['sales.revenue' => ['type' => 'per_item']], $this->manager);
+            $this->fail('The sales of that item would stop the moment the row is switched.');
+        } catch (RoutingException $exception) {
+            $this->assertSame(['sales.revenue' => AccountingError::RoutingItemAccountsInvalid], $exception->errors);
+        }
+
+        $this->assertSame('auto', $this->itemsByKey()['sales.revenue']->type);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'routing_changed')->countAllResults());
+    }
+
+    public function testSave_AcceptsSwitchingARowToPerItemWhenTheAccountThatCannotTakeEntriesIsNamedForAnotherRow(): void
+    {
+        $this->itemNamingAnInactiveAccount('sales.returns');
+
+        $this->service->save(['sales.revenue' => ['type' => 'per_item']], $this->manager);
+
+        $this->assertSame('per_item', $this->itemsByKey()['sales.revenue']->type);
+    }
+
+    public function testSave_AcceptsChangingTheAccountOfARowThatIsPerItemAlreadyWhileAnItemNamesOneThatCannotTakeEntries(): void
+    {
+        $other = $this->customAccount('41', '4110', 'Other sales');
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.revenue')->update(['routing_type' => 'per_item']);
+        $this->itemNamingAnInactiveAccount('sales.revenue');
+
+        $this->service->save(['sales.revenue' => ['account' => (string) $other]], $this->manager);
+
+        $this->assertSame($other, $this->itemsByKey()['sales.revenue']->accountId);
     }
 
     public function testSave_KeepsTheCurrentTypeWhenOnlyTheAccountIsSent(): void
@@ -552,6 +625,42 @@ class RoutingServiceTest extends CIUnitTestCase
 
         $this->assertSame([ReadinessCode::RoutingAccountInvalid], array_column($issues, 'code'));
         $this->assertSame('payment.check', $issues[0]->subject);
+    }
+
+    public function testBlockingIssues_ReportsAnAccountAnItemNamesThatCannotTakeEntriesWhenTheRowIsPerItem(): void
+    {
+        $itemId  = $this->createTestItem();
+        $account = $this->customAccount('41', '4101', 'Item revenue');
+        $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $account]);
+        $this->service->save(['sales.revenue' => ['type' => 'per_item']], $this->manager);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+
+        $issues = $this->service->blockingIssues();
+
+        $this->assertSame([ReadinessCode::ItemAccountInvalid], array_column($issues, 'code'));
+        $this->assertSame('1', $issues[0]->subject);
+    }
+
+    public function testBlockingIssues_IgnoresAnAccountAnItemNamesWhenTheRowIsNotPerItem(): void
+    {
+        $itemId  = $this->createTestItem();
+        $account = $this->customAccount('41', '4101', 'Item revenue');
+        $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $account]);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+
+        $this->assertSame([], $this->service->blockingIssues());
+    }
+
+    public function testBlockingIssues_ReportAnAccountWhoseItemWasDeletedBecauseItsSalesAreStillPosted(): void
+    {
+        $itemId  = $this->createTestItem();
+        $account = $this->customAccount('41', '4101', 'Item revenue');
+        $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $account]);
+        $this->service->save(['sales.revenue' => ['type' => 'per_item']], $this->manager);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['deleted' => 1]);
+
+        $this->assertSame([ReadinessCode::ItemAccountInvalid], array_column($this->service->blockingIssues(), 'code'));
     }
 
     public function testBlockingIssues_ReportAStockLocationSoldFromThatBelongsToNoActiveBranch(): void

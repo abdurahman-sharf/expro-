@@ -64,6 +64,7 @@ return [
     'readiness_cashups_unposted'               => '{0} cash-up(s) are not in the books and will not be posted until the back-posting phase.',
     'readiness_entity_accounts_missing'        => '{0} customer, supplier or stock location account(s) are not opened yet. Run "php spark accounting:fill_accounts".',
     'readiness_expenses_unposted'              => '{0} expense(s) are not in the books and will not be posted until the back-posting phase.',
+    'readiness_item_account_invalid'           => '{0} item(s) name an account for their sales that is inactive, a group or reserved. Fix them on the item form before turning accounting on.',
     'readiness_no_accounts'                    => 'The chart of accounts is empty.',
     'readiness_no_fiscal_year'                 => 'Create a fiscal year.',
     'readiness_notices_title'                  => 'Worth knowing (these do not stop you):',

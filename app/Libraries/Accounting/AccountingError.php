@@ -347,4 +347,7 @@ enum AccountingError: string
     case BankReconciliationNotLatest      = 'bank_reconciliation_not_latest';
     case BankReconciliationReopened       = 'bank_reconciliation_reopened';
     case BankDirectoryCodeInvalid         = 'bank_directory_code_invalid';
+    case ItemRoutingKeyInvalid            = 'item_routing_key_invalid';
+    case ItemRoutingItemNotFound          = 'item_routing_item_not_found';
+    case RoutingItemAccountsInvalid       = 'routing_item_accounts_invalid';
 }

@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'accounting_account_default'         => 'حساب بند التوجيه',
+    'accounting_account_not_used'        => 'بند التوجيه غير مضبوط على "تعيين لكل منها"، فيُحفظ هذا الحساب ولا يُستعمل.',
+    'accounting_account_sales_returns'   => 'حساب مردودات المبيعات',
+    'accounting_account_sales_revenue'   => 'حساب إيراد المبيعات',
+    'accounting_accounts_hint'           => 'الحساب الذي يُرحَّل إليه إيراد مبيعات هذا الصنف ومردودات مبيعاته عندما يكون بند التوجيه مضبوطًا على "تعيين لكل منها". وبلا حساب خاص يذهب الصنف إلى حساب بند التوجيه.',
+    'accounting_accounts_title'          => 'المحاسبة',
     'add_minus'                          => 'الكمية المطلوب خصمها أو اضافتها.',
     'allow_alt_description'              => 'السماح بوصف بديل',
     'amount_entry'                       => 'إدخال القيمة',

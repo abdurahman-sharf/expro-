@@ -2394,6 +2394,269 @@ class ItemsControllerTest extends CIUnitTestCase
         return $personId;
     }
 
+    private function accountingOnForItems(): void
+    {
+        $this->reinstallChart();
+        $this->setConfigValue('accounting_base_currency', 'SAR');
+        $this->setConfigValue('accounting_enabled', '1');
+    }
+
+    private function accountingOffForItems(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->accountingDb()->table('accounting_audit_log')->where('action', 'item_routing_accounts_changed')->delete();
+        $this->accountingDb()->table('item_routing_accounts')->truncate();
+    }
+
+    /**
+     * @return array<string, string> The accounts of an item by routing key.
+     */
+    private function itemAccounts(int $itemId): array
+    {
+        $rows = $this->accountingDb()->table('item_routing_accounts')->where('item_id', $itemId)->get()->getResult();
+
+        return array_column($rows, 'account_id', 'routing_key');
+    }
+
+    public function testGetView_OffersAnAccountForEachRowThatTakesAccountsOfProductsToAnEmployeeWhoMayChangeTheRouting(): void
+    {
+        $this->accountingOnForItems();
+
+        try {
+            $itemId  = $this->createTestItem();
+            $account = $this->customAccount('41', '4101', 'Item revenue');
+            $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $account]);
+            $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.revenue')->update(['routing_type' => 'per_item']);
+            $this->loginAsItemsEmployee($this->employeeOfItemsAnd('acc_routing_manage'));
+
+            $page = $this->get('/items/view/' . $itemId);
+
+            $page->assertSee(lang('Items.accounting_accounts_title'));
+            $page->assertSee('name="item_accounts[sales.revenue]"');
+            $page->assertSee('name="item_accounts[sales.returns]"');
+            $this->assertStringContainsString('<option value="' . $account . '" selected>4101 - Item revenue</option>', $page->getBody());
+            $page->assertSee(lang('Items.accounting_account_default'));
+            $this->assertSame(1, substr_count($page->getBody(), lang('Items.accounting_account_not_used')));
+            $this->assertStringNotContainsString('value="' . $this->accountId('cogs') . '"', $page->getBody());
+        } finally {
+            $this->accountingOffForItems();
+        }
+    }
+
+    public function testGetView_OffersAnAccountThatCannotTakeEntriesAnyMoreSoThatItCanBeChanged(): void
+    {
+        $this->accountingOnForItems();
+
+        try {
+            $itemId  = $this->createTestItem();
+            $account = $this->customAccount('41', '4101', 'Item revenue');
+            $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $account]);
+            $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+            $this->loginAsItemsEmployee($this->employeeOfItemsAnd('acc_routing_manage'));
+
+            $this->assertStringContainsString('<option value="' . $account . '" selected>4101 - Item revenue</option>', $this->get('/items/view/' . $itemId)->getBody());
+        } finally {
+            $this->accountingOffForItems();
+        }
+    }
+
+    public function testGetView_OffersNoAccountsToAnEmployeeWithoutTheRoutingPermission(): void
+    {
+        $this->accountingOnForItems();
+
+        try {
+            $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+            $page = $this->get('/items/view');
+
+            $page->assertDontSee('item_accounts[');
+            $page->assertDontSee(lang('Items.accounting_accounts_title'));
+        } finally {
+            $this->accountingOffForItems();
+        }
+    }
+
+    public function testGetView_OffersNoAccountsToAnEmployeeOfSomeBranchesOnly(): void
+    {
+        $this->accountingOnForItems();
+
+        try {
+            $employee = $this->createItemsEmployee([1]);
+            $this->accountingDb()->table('grants')->insert(['person_id' => $employee, 'permission_id' => 'acc_routing_manage', 'menu_group' => 'home']);
+            $this->loginAsItemsEmployee($employee);
+
+            $this->get('/items/view')->assertDontSee('item_accounts[');
+        } finally {
+            $this->accountingOffForItems();
+        }
+    }
+
+    public function testGetView_OffersNoAccountsWhileAccountingIsOff(): void
+    {
+        $this->reinstallChart();
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->loginAsItemsEmployee($this->employeeOfItemsAnd('acc_routing_manage'));
+
+        $this->get('/items/view')->assertDontSee('item_accounts[');
+    }
+
+    public function testPostSave_PutsTheAccountsOfTheFormInTheItemAuditsThemAndTakesOutTheEmptyOnes(): void
+    {
+        $this->accountingOnForItems();
+
+        try {
+            $revenue  = $this->customAccount('41', '4101', 'Item revenue');
+            $returns  = $this->customAccount('41', '4102', 'Item returns');
+            $employee = $this->employeeOfItemsAnd('acc_routing_manage');
+            $this->loginAsItemsEmployee($employee);
+
+            $postData = $this->baseItemPostData() + ['tax_names' => ['VAT']];
+            $result   = json_decode($this->post('/items/save', $postData + ['item_accounts' => ['sales.revenue' => (string) $revenue, 'sales.returns' => (string) $returns]])->getJSON(), true);
+
+            $this->assertTrue($result['success']);
+
+            $itemId = (int) $result['id'];
+
+            $this->assertEquals(['sales.revenue' => $revenue, 'sales.returns' => $returns], $this->itemAccounts($itemId));
+
+            $this->post('/items/save/' . $itemId, $postData + ['item_accounts' => ['sales.revenue' => '', 'sales.returns' => (string) $returns]]);
+
+            $this->assertEquals(['sales.returns' => $returns], $this->itemAccounts($itemId));
+
+            $entry = $this->accountingDb()->table('accounting_audit_log')->where('action', 'item_routing_accounts_changed')->orderBy('audit_id', 'DESC')->get()->getRow();
+
+            $this->assertSame($employee, (int) $entry->employee_id);
+            $this->assertSame($itemId, (int) $entry->entity_id);
+        } finally {
+            $this->accountingOffForItems();
+        }
+    }
+
+    public function testPostSave_LeavesTheAccountsAloneWhenTheFormSendsNone(): void
+    {
+        $this->accountingOnForItems();
+
+        try {
+            $itemId  = $this->createTestItem();
+            $account = $this->customAccount('41', '4101', 'Item revenue');
+            $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $account]);
+            $this->loginAsItemsEmployee($this->employeeOfItemsAnd('acc_routing_manage'));
+
+            $result = json_decode($this->post('/items/save/' . $itemId, $this->baseItemPostData() + ['tax_names' => ['VAT']])->getJSON(), true);
+
+            $this->assertTrue($result['success']);
+            $this->assertEquals(['sales.revenue' => $account], $this->itemAccounts($itemId));
+        } finally {
+            $this->accountingOffForItems();
+        }
+    }
+
+    public function testPostSave_IgnoresTheAccountsFromAnEmployeeWithoutTheRoutingPermission(): void
+    {
+        $this->accountingOnForItems();
+
+        try {
+            $account = $this->customAccount('41', '4101', 'Item revenue');
+            $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+            $result = json_decode($this->post('/items/save', $this->baseItemPostData() + ['tax_names' => ['VAT'], 'item_accounts' => ['sales.revenue' => (string) $account]])->getJSON(), true);
+
+            $this->assertTrue($result['success']);
+            $this->assertSame([], $this->itemAccounts((int) $result['id']));
+        } finally {
+            $this->accountingOffForItems();
+        }
+    }
+
+    public function testPostSave_IgnoresTheAccountsFromAnEmployeeOfSomeBranchesOnly(): void
+    {
+        $this->accountingOnForItems();
+
+        try {
+            $account  = $this->customAccount('41', '4101', 'Item revenue');
+            $employee = $this->createItemsEmployee([1]);
+            $this->accountingDb()->table('grants')->insert(['person_id' => $employee, 'permission_id' => 'acc_routing_manage', 'menu_group' => 'home']);
+            $this->loginAsItemsEmployee($employee);
+
+            $result = json_decode($this->post('/items/save', $this->baseItemPostData() + ['tax_names' => ['VAT'], 'item_accounts' => ['sales.revenue' => (string) $account]])->getJSON(), true);
+
+            $this->assertTrue($result['success']);
+            $this->assertSame([], $this->itemAccounts((int) $result['id']));
+        } finally {
+            $this->accountingOffForItems();
+        }
+    }
+
+    public function testPostSave_IgnoresTheAccountsWhileAccountingIsOff(): void
+    {
+        $this->reinstallChart();
+        $this->setConfigValue('accounting_enabled', '0');
+        $account = $this->customAccount('41', '4101', 'Item revenue');
+        $this->loginAsItemsEmployee($this->employeeOfItemsAnd('acc_routing_manage'));
+
+        $result = json_decode($this->post('/items/save', $this->baseItemPostData() + ['tax_names' => ['VAT'], 'item_accounts' => ['sales.revenue' => (string) $account]])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([], $this->itemAccounts((int) $result['id']));
+    }
+
+    public function testPostSave_RejectsAnAccountThatCannotTakeEntriesAndSavesNoItem(): void
+    {
+        $this->accountingOnForItems();
+
+        try {
+            $this->loginAsItemsEmployee($this->employeeOfItemsAnd('acc_routing_manage'));
+            $items = $this->accountingDb()->table('items')->countAllResults();
+
+            $result = json_decode($this->post('/items/save', $this->baseItemPostData() + ['tax_names' => ['VAT'], 'item_accounts' => ['sales.revenue' => (string) $this->accountId('cash')]])->getJSON(), true);
+
+            $this->assertFalse($result['success']);
+            $this->assertStringContainsString(lang('Accounting.error_routing_account_type_invalid'), $result['message']);
+            $this->assertSame($items, $this->accountingDb()->table('items')->countAllResults());
+            $this->assertSame(0, $this->accountingDb()->table('item_routing_accounts')->countAllResults());
+        } finally {
+            $this->accountingOffForItems();
+        }
+    }
+
+    public function testPostSave_AcceptsTheFormThatSendsBackAnAccountThatCannotTakeEntriesAnyMoreAndSavesTheItem(): void
+    {
+        $this->accountingOnForItems();
+
+        try {
+            $itemId  = $this->createTestItem();
+            $account = $this->customAccount('41', '4101', 'Item revenue');
+            $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $account]);
+            $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+            $this->loginAsItemsEmployee($this->employeeOfItemsAnd('acc_routing_manage'));
+
+            $postData = ['unit_price' => '7.50', 'tax_names' => ['VAT'], 'item_accounts' => ['sales.revenue' => (string) $account, 'sales.returns' => '']] + $this->baseItemPostData();
+            $result   = json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true);
+
+            $this->assertTrue($result['success']);
+            $this->assertSame('7.50', number_format((float) $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->unit_price, 2, '.', ''));
+            $this->assertEquals(['sales.revenue' => $account], $this->itemAccounts($itemId));
+        } finally {
+            $this->accountingOffForItems();
+        }
+    }
+
+    public function testPostSave_RejectsARowThatTakesNoAccountsOfProducts(): void
+    {
+        $this->accountingOnForItems();
+
+        try {
+            $this->loginAsItemsEmployee($this->employeeOfItemsAnd('acc_routing_manage'));
+
+            $result = json_decode($this->post('/items/save', $this->baseItemPostData() + ['tax_names' => ['VAT'], 'item_accounts' => ['sales.cogs' => (string) $this->accountId('cogs')]])->getJSON(), true);
+
+            $this->assertFalse($result['success']);
+            $this->assertStringContainsString(lang('Accounting.error_item_routing_key_invalid'), $result['message']);
+        } finally {
+            $this->accountingOffForItems();
+        }
+    }
+
     public function testGetView_OffersNoMinimumPriceNoHighestDiscountAndNoListPriceWhileTheControlsAreOff(): void
     {
         $this->loginAsItemsEmployee($this->employeeOfItemsAnd('price_lists'));

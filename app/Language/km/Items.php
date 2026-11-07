@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'accounting_account_default'         => '',
+    'accounting_account_not_used'        => '',
+    'accounting_account_sales_returns'   => '',
+    'accounting_account_sales_revenue'   => '',
+    'accounting_accounts_hint'           => '',
+    'accounting_accounts_title'          => '',
     'add_minus'                          => 'ស្តុក​ សំរាប់បន្ថែម រឺក៏ដកទំនិញ។',
     'allow_alt_description'              => 'យល់ព្រម ចំពោះការពិព៌ណនា ផ្សេងទៀត',
     'amount_entry'                       => 'ចំនួន ត្រូវបញ្ជូល',

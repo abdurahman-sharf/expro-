@@ -105,6 +105,7 @@ class AccountingRouting extends AccountingController
                 'type'         => $item->type,
                 'types'        => $types,
                 'entity'       => $item->isEntity,
+                'item_count'   => $item->itemAccounts,
             ];
         }
 

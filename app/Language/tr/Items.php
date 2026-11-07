@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'accounting_account_default'         => '',
+    'accounting_account_not_used'        => '',
+    'accounting_account_sales_returns'   => '',
+    'accounting_account_sales_revenue'   => '',
+    'accounting_accounts_hint'           => '',
+    'accounting_accounts_title'          => '',
     'add_minus'                          => 'Eklenen/Çıkarılan Adet.',
     'allow_alt_description'              => 'Dip Nota izin ver',
     'amount_entry'                       => 'Miktar Girişi',

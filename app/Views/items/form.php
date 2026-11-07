@@ -25,6 +25,7 @@
  * @var bool $minimumPriceEnabled
  * @var bool $maxDiscountEnabled
  * @var list<array{id: int, name: string, active: bool, price: string}> $priceListRows
+ * @var list<array{key: string, selected: ?int, used: bool, options: list<object>}> $itemAccountRows
  */
 
 use App\Models\Item;
@@ -32,6 +33,7 @@ use App\Models\Item;
 $minimumPriceEnabled ??= false;
 $maxDiscountEnabled  ??= false;
 $priceListRows       ??= [];
+$itemAccountRows     ??= [];
 
 $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_info->cost_price);
 ?>
@@ -290,6 +292,33 @@ $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_in
                 </div>
             </div>
         <?php endforeach; ?>
+
+        <?php if ($itemAccountRows !== []): ?>
+            <div class="field item-accounts">
+                <span class="form-label fw-semibold"><?= lang('Items.accounting_accounts_title') ?></span>
+                <div class="field-control">
+                    <p class="form-text mb-0"><?= lang('Items.accounting_accounts_hint') ?></p>
+                </div>
+            </div>
+
+            <?php foreach ($itemAccountRows as $row): ?>
+                <?php $fieldId = 'item_account_' . str_replace('.', '_', $row['key']); ?>
+                <div class="field item-account">
+                    <?= form_label(lang('Items.accounting_account_' . str_replace('.', '_', $row['key'])), $fieldId, ['class' => 'form-label']) ?>
+                    <div class="field-control">
+                        <select name="item_accounts[<?= esc($row['key'], 'attr') ?>]" id="<?= esc($fieldId, 'attr') ?>" class="form-select form-select-sm">
+                            <option value=""><?= lang('Items.accounting_account_default') ?></option>
+                            <?php foreach ($row['options'] as $option): ?>
+                                <option value="<?= (int) $option->account_id ?>"<?= $row['selected'] === (int) $option->account_id ? ' selected' : '' ?>><?= esc($option->code . ' - ' . $option->name) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <?php if (! $row['used']): ?>
+                            <p class="form-text mb-0"><?= lang('Items.accounting_account_not_used') ?></p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
 
         <?php if (!$use_destination_based_tax) { ?>
             <div class="field">

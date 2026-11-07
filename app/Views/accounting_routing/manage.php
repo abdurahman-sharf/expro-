@@ -126,6 +126,9 @@ $slug = static fn (string $key): string => 'route_' . str_replace('.', '_', $key
                                                     <option value="<?= (int) $row['account_id'] ?>" selected><?= esc($row['account_text']) ?></option>
                                                 <?php endif; ?>
                                             </select>
+                                            <?php if ($row['item_count'] !== null && $row['type'] === 'per_item'): ?>
+                                                <p class="form-text mb-0"><?= lang('Accounting_routing.per_item_note', [(string) $row['item_count']]) ?></p>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </td>
                                     <td data-label="<?= esc(lang('Accounting_routing.column_default'), 'attr') ?>">

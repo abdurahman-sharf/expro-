@@ -631,4 +631,56 @@ class ReceivingPostingBuilderTest extends CIUnitTestCase
 
         $this->assertSame(['net' => '9.7000', 'tax' => '0.1050', 'total' => '9.81'], $totals);
     }
+
+    private function routeRow(RoutingKey $key, RoutingType $type): void
+    {
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', $key->value)->update(['routing_type' => $type->value]);
+    }
+
+    public function testPurchase_PostsTheGoodsToTheStockAccountOfTheLocationWhateverTheSalesRowsAreSetTo(): void
+    {
+        $purchase = $this->purchase([$this->line('10', '4', tax: '6', itemId: 3)]);
+
+        $automatic = $this->shape($this->builder->purchase($purchase, 1)->journal);
+
+        $this->routeRow(RoutingKey::SalesRevenue, RoutingType::PerItem);
+        $this->routeRow(RoutingKey::SalesReturns, RoutingType::PerItem);
+        $this->routeRow(RoutingKey::Customers, RoutingType::MainPerEntity);
+
+        $this->assertSame($automatic, $this->shape($this->builder->purchase($purchase, 1)->journal));
+        $this->assertSame($this->stockAccount($this->warehouse) . ':40.0000:0.0000', $automatic[0]);
+    }
+
+    public function testPurchase_RejectsTheStockRowSetToPerItemBecauseTheTiesOfTheStockAreKeptByLocation(): void
+    {
+        $this->routeRow(RoutingKey::StockLocations, RoutingType::PerItem);
+
+        $failure = $this->failureOf(fn () => $this->builder->purchase($this->purchase([$this->line('10', '4', itemId: 3)]), 1));
+
+        $this->assertSame(PostingError::RoutingTypeUnsupported, $failure->error);
+        $this->assertSame('inventory.locations', $failure->context['routing_key']);
+        $this->assertSame('per_item', $failure->context['routing_type']);
+    }
+
+    public function testPurchase_RejectsTheSupplierRowSetToPerItemOrToMainPerEntityBecauseNeitherAppliesToIt(): void
+    {
+        foreach ([RoutingType::PerItem, RoutingType::MainPerEntity] as $type) {
+            $this->routeRow(RoutingKey::Suppliers, $type);
+
+            $failure = $this->failureOf(fn () => $this->builder->purchase($this->purchase([$this->line('10', '4', itemId: 3)]), 1));
+
+            $this->assertSame(PostingError::RoutingTypeUnsupported, $failure->error, $type->value);
+            $this->assertSame('purchases.suppliers', $failure->context['routing_key']);
+        }
+    }
+
+    public function testPurchase_RejectsTheCostOfSalesRowSetToPerItemBecauseTheRowDoesNotOfferIt(): void
+    {
+        $this->routeRow(RoutingKey::CostOfGoodsSold, RoutingType::PerItem);
+
+        $failure = $this->failureOf(fn () => $this->builder->purchase($this->purchase([$this->line('1', '9', stock: false, itemId: 4)]), 1));
+
+        $this->assertSame(PostingError::RoutingTypeUnsupported, $failure->error);
+        $this->assertSame('sales.cogs', $failure->context['routing_key']);
+    }
 }

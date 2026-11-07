@@ -14,11 +14,13 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
 
 class AccountServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ItemFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -441,6 +443,67 @@ class AccountServiceTest extends CIUnitTestCase
         } finally {
             $db->table('tax_definitions')->truncate();
         }
+    }
+
+    private function itemNaming(int $accountId, bool $deleted = false): int
+    {
+        $itemId = $this->createTestItem();
+        $db     = $this->accountingDb();
+
+        $db->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $accountId]);
+        $db->table('items')->where('item_id', $itemId)->update(['deleted' => (int) $deleted]);
+
+        return $itemId;
+    }
+
+    public function testDeactivate_RejectsTheAccountAnItemNamesForARoutingRow(): void
+    {
+        $accountId = $this->customAccount('41', '4105', 'Item revenue');
+        $itemId    = $this->itemNaming($accountId);
+
+        try {
+            $this->assertFailsWith(AccountingError::AccountRouted, fn () => $this->service->deactivate($accountId));
+            $this->assertSame('1', (string) $this->account($accountId)->active);
+        } finally {
+            $this->accountingDb()->table('item_routing_accounts')->where('item_id', $itemId)->delete();
+        }
+    }
+
+    public function testDeactivate_RejectsTheAccountOnlyADeletedItemNames(): void
+    {
+        $accountId = $this->customAccount('41', '4105', 'Item revenue');
+        $itemId    = $this->itemNaming($accountId, true);
+
+        try {
+            $this->assertFailsWith(AccountingError::AccountRouted, fn () => $this->service->deactivate($accountId));
+            $this->assertSame('1', (string) $this->account($accountId)->active);
+        } finally {
+            $this->accountingDb()->table('item_routing_accounts')->where('item_id', $itemId)->delete();
+        }
+    }
+
+    public function testDelete_RejectsTheAccountAnItemNamesForARoutingRowWithANamedFailure(): void
+    {
+        $accountId = $this->customAccount('41', '4105', 'Item revenue');
+        $itemId    = $this->itemNaming($accountId);
+
+        try {
+            $this->assertFailsWith(AccountingError::AccountRouted, fn () => $this->service->delete($accountId));
+            $this->assertNotNull($this->service->find($accountId));
+        } finally {
+            $this->accountingDb()->table('item_routing_accounts')->where('item_id', $itemId)->delete();
+        }
+    }
+
+    public function testDeactivate_AcceptsTheAccountOnceNoItemNamesItAny(): void
+    {
+        $accountId = $this->customAccount('41', '4105', 'Item revenue');
+        $itemId    = $this->itemNaming($accountId);
+        $this->accountingDb()->table('item_routing_accounts')->where('item_id', $itemId)->delete();
+
+        $this->service->deactivate($accountId);
+
+        $this->assertSame('0', (string) $this->account($accountId)->active);
     }
 
     public function testDeactivate_FreesTheAccountOfATaxThatWasDeleted(): void

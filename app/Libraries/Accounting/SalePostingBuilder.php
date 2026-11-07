@@ -19,6 +19,7 @@ final class SalePostingBuilder
     public const SOURCE_SALE    = 'sale';
     public const SOURCE_PAYMENT = 'sale_payment';
     private const TOLERANCE     = '0.005';
+    public const FALLBACK_NOTE  = 'Account of the routing row: the item names none';
 
     public function __construct(
         private readonly RoutingResolver $resolver,
@@ -60,7 +61,9 @@ final class SalePostingBuilder
         $incomeSide   = [];
 
         if (bccomp($goods, '0', SaleAmounts::SCALE) !== 0) {
-            $incomeSide[] = [$this->required($sale->isReturn() ? RoutingKey::SalesReturns : RoutingKey::SalesRevenue), $goods];
+            foreach ($this->goodsLines($sale, $sale->isReturn() ? RoutingKey::SalesReturns : RoutingKey::SalesRevenue, $goods, $discount !== null) as $goodsLine) {
+                $incomeSide[] = $goodsLine;
+            }
         }
 
         foreach ($this->taxLines($sale, $figures['tax']) as $taxLine) {
@@ -383,6 +386,52 @@ final class SalePostingBuilder
     }
 
     /**
+     * The lines of the goods of the invoice: one for the row of the routing, or when the row is set to per
+     * item one for each account the items name, and one for the items that name none, which go to the
+     * account of the row and say so in the description of their line. The parts add up to the goods.
+     *
+     * @param numeric-string $goods
+     *
+     * @return list<array{int, string, 2?: ?string}>
+     *
+     * @throws PostingException
+     */
+    private function goodsLines(SaleDocument $sale, RoutingKey $key, string $goods, bool $discountHasAccount): array
+    {
+        if ($this->resolver->typeOf($key) !== RoutingType::PerItem || bccomp($goods, '0', SaleAmounts::SCALE) < 0) {
+            return [[$this->required($key), $goods]];
+        }
+
+        $accounts = $this->resolver->itemAccountsFor($key, array_map(static fn (SaleLine $line): int => $line->itemId, $sale->lines));
+        $shares   = [];
+        $routed   = [];
+
+        foreach ($sale->lines as $line) {
+            $choice = $accounts[$line->itemId];
+            $group  = $choice->accountId . ($choice->own ? ':item' : ':row');
+
+            $routed[$group] = $choice;
+            $shares[$group] = bcadd($shares[$group] ?? '0', SaleAmounts::lineGoods($line, $this->decimals, $discountHasAccount), 8);
+        }
+
+        $parts = GoodsSplit::parts($shares, $goods);
+
+        if ($parts === null) {
+            throw new PostingException(PostingError::SaleNotPostable, 'The goods of the sale are too small to be shared over the accounts of its items.', ['sale_id' => $sale->saleId, 'routing_key' => $key->value]);
+        }
+
+        $lines = [];
+
+        foreach ($parts as $group => $amount) {
+            if (bccomp($amount, '0', SaleAmounts::SCALE) !== 0) {
+                $lines[] = [$routed[$group]->accountId, $amount, $routed[$group]->own ? null : self::FALLBACK_NOTE];
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
      * The credit lines of the tax: what taxes with a liability account of their own took goes to
      * that account, and the rest to the account of tax collected, so that the lines add up to the tax
      * of the sale. A sale whose taxes have no account of their own has the one line it always had.
@@ -434,9 +483,9 @@ final class SalePostingBuilder
     }
 
     /**
-     * @param array{int, string}       $customer
-     * @param list<array{int, string}> $income
-     * @param array{int, string}|null  $against  A negative adjustment, which takes from the income.
+     * @param array{int, string}                    $customer
+     * @param list<array{int, string, 2?: ?string}> $income
+     * @param array{int, string}|null               $against  A negative adjustment, which takes from the income.
      *
      * @return list<JournalLineDraft>
      */
@@ -452,17 +501,17 @@ final class SalePostingBuilder
             $lines[] = new JournalLineDraft($against[0], debit: $against[1]);
         }
 
-        foreach ($income as [$account, $amount]) {
-            $lines[] = new JournalLineDraft($account, credit: $amount);
+        foreach ($income as $entry) {
+            $lines[] = new JournalLineDraft($entry[0], credit: $entry[1], description: $entry[2] ?? null);
         }
 
         return $lines;
     }
 
     /**
-     * @param array{int, string}       $customer
-     * @param list<array{int, string}> $income
-     * @param array{int, string}|null  $against  A negative adjustment, which takes from the income.
+     * @param array{int, string}                    $customer
+     * @param list<array{int, string, 2?: ?string}> $income
+     * @param array{int, string}|null               $against  A negative adjustment, which takes from the income.
      *
      * @return list<JournalLineDraft>
      */
@@ -470,8 +519,8 @@ final class SalePostingBuilder
     {
         $lines = [];
 
-        foreach ($income as [$account, $amount]) {
-            $lines[] = new JournalLineDraft($account, debit: $amount);
+        foreach ($income as $entry) {
+            $lines[] = new JournalLineDraft($entry[0], debit: $entry[1], description: $entry[2] ?? null);
         }
 
         if ($discountAccount !== null) {

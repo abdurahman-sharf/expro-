@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'accounting_account_default'         => '',
+    'accounting_account_not_used'        => '',
+    'accounting_account_sales_returns'   => '',
+    'accounting_account_sales_revenue'   => '',
+    'accounting_accounts_hint'           => '',
+    'accounting_accounts_title'          => '',
     'add_minus'                          => 'கையிருப்பு பொருட்களை கூட்டு அல்லது கழி',
     'allow_alt_description'              => 'மாற்று விளக்கத்தை அனுமதி',
     'amount_entry'                       => 'தொகை உள்ளிடு',
