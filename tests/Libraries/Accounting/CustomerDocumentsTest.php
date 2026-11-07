@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerDocuments;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\TreasuryService;
@@ -149,6 +150,57 @@ class CustomerDocumentsTest extends CIUnitTestCase
         $this->assertSame('HQ', $row->branch_code);
         $this->assertSame('60.00', bcadd($result['amount'], '0', 2));
         $this->assertSame('60.00', bcadd($result['posted'], '0', 2));
+    }
+
+    private function dollarInvoiceWithAPaymentAtAnotherRate(): int
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => $this->daysAgo(30)]);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.60', 'effective_date' => $this->daysAgo(5)]);
+        $this->grantInvoiceDate();
+
+        $service = $this->item('0', false);
+
+        $this->sales->useCurrency('USD');
+
+        $saleId = $this->save([$this->line($service, 0, '1', '100')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+
+        $this->addPayment($saleId, '100.00');
+
+        return $saleId;
+    }
+
+    public function testPayments_ListsAForeignPaymentInItsCurrencyAndTotalsTheListInTheBaseTiedToTheJournal(): void
+    {
+        $foreign = $this->dollarInvoiceWithAPaymentAtAnotherRate();
+        $this->invoiceOf('50.00', null, [$this->payment(lang('Sales.cash'), '50.00')]);
+
+        $result = $this->payments();
+        $rows   = [];
+
+        foreach ($result['rows'] as $row) {
+            $rows[(int) $row->sale_id] = $row;
+        }
+
+        $dollars = $rows[$foreign];
+
+        $this->assertSame(2, $result['total']);
+        $this->assertSame(['100.00', '360.00', 'USD', '3.60000000', '360.00'], [bcadd((string) $dollars->amount, '0', 2), bcadd((string) $dollars->amount_base, '0', 2), $dollars->currency_code, $dollars->currency_rate, bcadd((string) $dollars->posted, '0', 2)]);
+        $this->assertSame('410.00', bcadd($result['amount'], '0', 2), 'a hundred dollars at 3.60 and fifty of the base');
+        $this->assertSame($result['amount'], $result['posted']);
+    }
+
+    public function testPayments_ListsAPaymentOfASaleInTheBaseWithNoCurrencyAndNoRate(): void
+    {
+        $saleId = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '60.00')]);
+
+        $row = $this->payments()['rows'][0];
+
+        $this->assertSame($saleId, (int) $row->sale_id);
+        $this->assertNull($row->currency_code);
+        $this->assertNull($row->currency_rate);
+        $this->assertSame('60.00', bcadd((string) $row->amount_base, '0', 2));
     }
 
     public function testPayments_NamesTheTreasuryTheMoneyWentInto(): void
