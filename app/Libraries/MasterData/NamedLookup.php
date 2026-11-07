@@ -115,11 +115,11 @@ final class NamedLookup
                 $this->db->table($table)->insert(['name' => $name, 'status' => $active ? 1 : 0, 'created_by' => $employeeId]);
                 $id = (int) $this->db->insertID();
 
-                $this->audit->write($this->kind->value, $id, $this->kind->value . '_created', $employeeId, JournalOrigin::User, ['name' => $name, 'active' => $active]);
+                $this->audit->write($this->kind->value, $id, 'lookup_created', $employeeId, JournalOrigin::User, ['name' => $name, 'active' => $active]);
             } elseif ($before->name !== $name || (int) $before->status !== ($active ? 1 : 0)) {
                 $this->db->table($table)->where($column, $id)->update(['name' => $name, 'status' => $active ? 1 : 0]);
 
-                $this->audit->write($this->kind->value, $id, $this->kind->value . '_changed', $employeeId, JournalOrigin::User, ['before' => ['name' => $before->name, 'active' => (int) $before->status === 1], 'after' => ['name' => $name, 'active' => $active]]);
+                $this->audit->write($this->kind->value, $id, 'lookup_changed', $employeeId, JournalOrigin::User, ['before' => ['name' => $before->name, 'active' => (int) $before->status === 1], 'after' => ['name' => $name, 'active' => $active]]);
             }
 
             return $id;
@@ -143,7 +143,7 @@ final class NamedLookup
             }
 
             $this->db->table($this->kind->table())->where($this->kind->idColumn(), $id)->update(['status' => $active ? 1 : 0]);
-            $this->audit->write($this->kind->value, $id, $this->kind->value . ($active ? '_activated' : '_deactivated'), $employeeId, JournalOrigin::User, ['name' => $row->name]);
+            $this->audit->write($this->kind->value, $id, $active ? 'lookup_activated' : 'lookup_deactivated', $employeeId, JournalOrigin::User, ['name' => $row->name]);
         });
     }
 
@@ -167,7 +167,7 @@ final class NamedLookup
                 }
 
                 $this->db->table($this->kind->table())->where($this->kind->idColumn(), $id)->delete();
-                $this->audit->write($this->kind->value, $id, $this->kind->value . '_deleted', $employeeId, JournalOrigin::User, ['name' => $row->name]);
+                $this->audit->write($this->kind->value, $id, 'lookup_deleted', $employeeId, JournalOrigin::User, ['name' => $row->name]);
             }
         });
     }

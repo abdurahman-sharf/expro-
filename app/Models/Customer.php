@@ -495,7 +495,7 @@ class Customer extends Person
         } else {
             $visible = $filters['visible_employee_ids'] ?? null;
             $builder->select("customers.*, people.*, customer_classifications.name AS classification_name, TRIM(CONCAT(assigned_person.first_name, ' ', assigned_person.last_name)) AS assigned_employee_name", false);
-            $builder->join('customer_classifications', 'customer_classifications.classification_id = customers.classification_id', 'left');
+            $builder->join('customer_classifications AS customer_classifications', 'customer_classifications.classification_id = customers.classification_id', 'left');
             $builder->join(
                 'people AS assigned_person',
                 'assigned_person.person_id = customers.assigned_employee_id' . ($visible === null ? '' : ($visible === [] ? ' AND 1 = 0' : ' AND customers.assigned_employee_id IN (' . implode(',', array_map('intval', $visible)) . ')')),
@@ -503,7 +503,7 @@ class Customer extends Person
             );
         }
 
-        $builder->join('people', 'customers.person_id = people.person_id');
+        $builder->join('people AS people', 'customers.person_id = people.person_id');
         $builder->groupStart();
         $builder->like('people.first_name', $search);
         $builder->orLike('people.last_name', $search);

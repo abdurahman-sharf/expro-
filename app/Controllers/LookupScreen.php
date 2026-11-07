@@ -125,9 +125,9 @@ abstract class LookupScreen extends Secure_Controller
     {
         return [
             [$this->kind->idColumn() => lang('Lookups.id'), 'sortable' => true],
-            ['name'                  => lang('Lookups.name'), 'sortable' => true],
-            ['status'                => lang('Lookups.status'), 'sortable' => true, 'escape' => false],
-            ['uses'                  => lang('Lookups.' . $this->kind->value . '_uses'), 'sortable' => true],
+            ['name'   => lang('Lookups.name'), 'sortable' => true],
+            ['status' => lang('Lookups.status'), 'sortable' => true, 'escape' => false],
+            ['uses'   => lang('Lookups.' . $this->kind->value . '_uses'), 'sortable' => true],
         ];
     }
 

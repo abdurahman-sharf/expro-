@@ -6,6 +6,10 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
+use App\Libraries\MasterData\CustomerStatus;
+use App\Libraries\MasterData\CustomerType;
+use App\Libraries\MasterData\LookupKind;
+use App\Libraries\MasterData\NamedLookup;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Pricing\SalesControlSettings;
@@ -15,8 +19,10 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
 use Config\OSPOS;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
 
 /**
  * The customer form and what it saves: the account number a customer is given by the numbering,
@@ -28,6 +34,7 @@ class CustomersControllerTest extends CIUnitTestCase
     use FeatureTestTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
+    use ItemFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -937,5 +944,651 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertSame('300.0000', $this->openingOf((int) $result['id'])?->amount, 'the opening balance is entered all the same');
 
         $this->resetCustomerControls();
+    }
+
+    // ========== master data: classification, status, employee, area, country, type, billing ==========
+
+    /** @var list<int> */
+    private array $masterItems = [];
+
+    private function classification(string $name, bool $active = true): int
+    {
+        return (new NamedLookup(LookupKind::CustomerClassification))->save($name, $active, null, 1);
+    }
+
+    /**
+     * @param array<string, string> $extra
+     *
+     * @return array<string, mixed>
+     */
+    private function saveMaster(array $extra = [], int $customerId = NEW_ENTRY, array $form = []): array
+    {
+        return $this->save(['master_data' => '1'] + $extra + $form, $customerId);
+    }
+
+    private function customerRow(int $customerId): array
+    {
+        return $this->accountingDb()->table('customers')->where('person_id', $customerId)->get()->getRowArray();
+    }
+
+    /**
+     * @param array<string, string> $query
+     *
+     * @return array{total: int, rows: list<array<string, mixed>>}
+     */
+    private function directory(array $query = []): array
+    {
+        return json_decode($this->get('/customers/search', $query + ['search' => '', 'limit' => '500', 'offset' => '0', 'order' => 'asc', 'sort' => 'people.person_id'])->getJSON(), true);
+    }
+
+    /**
+     * @param array<string, string> $query
+     *
+     * @return list<int>
+     */
+    private function directoryIds(array $query = []): array
+    {
+        return array_map('intval', array_column($this->directory($query)['rows'], 'people.person_id'));
+    }
+
+    private function cleanMaster(): void
+    {
+        $db = $this->accountingDb();
+
+        $db->table('customers')->update(['classification_id' => null, 'assigned_employee_id' => null]);
+        $db->query('DELETE FROM ' . $db->prefixTable('customer_classifications'));
+        $db->table('accounting_audit_log')->whereIn('entity_type', ['customer', 'customer_classification'])->delete();
+
+        foreach ($this->masterItems as $itemId) {
+            $db->table('item_quantities')->where('item_id', $itemId)->delete();
+            $db->table('items')->where('item_id', $itemId)->delete();
+        }
+
+        $this->masterItems = [];
+    }
+
+    public function testPostSave_SavesTheMasterDataOfANewCustomerAndAuditsIt(): void
+    {
+        $classification = $this->classification('Wholesale');
+        $employee       = $this->employeeWithGrants(['customers']);
+
+        $result = $this->saveMaster([
+            'classification_id'    => (string) $classification,
+            'manual_status'        => 'requires_follow_up',
+            'assigned_employee_id' => (string) $employee,
+            'area'                 => 'Olaya',
+            'country_code'         => 'sa',
+            'customer_type'        => 'commercial',
+            'is_government_entity' => '1',
+            'billing_method'       => 'email',
+        ]);
+
+        $this->assertTrue($result['success']);
+
+        $row = $this->customerRow($result['id']);
+
+        $this->assertSame([$classification, 'requires_follow_up', $employee, 'Olaya', 'SA', 'commercial', 1, 'email'], [(int) $row['classification_id'], $row['manual_status'], (int) $row['assigned_employee_id'], $row['area'], $row['country_code'], $row['customer_type'], (int) $row['is_government_entity'], $row['billing_method']]);
+
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer', 'entity_id' => $result['id'], 'action' => 'customer_master_data_changed'])->get()->getRow();
+
+        $this->assertNotNull($audit);
+        $this->assertSame(1, (int) $audit->employee_id);
+        $this->cleanMaster();
+    }
+
+    public function testPostSave_ChangesTheMasterDataOfACustomerAndClearsWhatTheFormLeavesEmpty(): void
+    {
+        $first  = $this->classification('Retail');
+        $result = $this->saveMaster(['classification_id' => (string) $first, 'manual_status' => 'served', 'area' => 'Malaz', 'customer_type' => 'individual']);
+
+        $this->saveMaster(['classification_id' => '', 'manual_status' => 'archived', 'area' => '', 'customer_type' => ''], (int) $result['id']);
+
+        $row = $this->customerRow((int) $result['id']);
+
+        $this->assertSame([null, 'archived', null, null], [$row['classification_id'], $row['manual_status'], $row['area'], $row['customer_type']]);
+        $this->assertSame(2, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer', 'entity_id' => $result['id'], 'action' => 'customer_master_data_changed'])->countAllResults());
+        $this->cleanMaster();
+    }
+
+    public function testPostSave_LeavesTheMasterDataAloneWhenTheFormDoesNotCarryIt(): void
+    {
+        $result = $this->saveMaster(['manual_status' => 'interested', 'area' => 'Olaya', 'customer_type' => 'commercial', 'is_government_entity' => '1']);
+
+        $this->save(['first_name' => 'Omar'], (int) $result['id']);
+
+        $row = $this->customerRow((int) $result['id']);
+
+        $this->assertSame(['interested', 'Olaya', 'commercial', '1'], [$row['manual_status'], $row['area'], $row['customer_type'], (string) $row['is_government_entity']]);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer', 'entity_id' => $result['id']])->countAllResults(), 'Only the first save changed anything');
+        $this->cleanMaster();
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function invalidMasterValueProvider(): array
+    {
+        return [
+            'a classification that does not exist' => ['classification_id', '987654'],
+            'a status outside the five'            => ['manual_status', 'vip'],
+            'an employee that does not exist'      => ['assigned_employee_id', '987654'],
+            'an area over one hundred characters'  => ['area', 'ا'],
+            'a country code of three letters'      => ['country_code', 'SAU'],
+            'a type outside the two'               => ['customer_type', 'both'],
+            'a billing method outside the two'     => ['billing_method', 'fax'],
+        ];
+    }
+
+    #[DataProvider('invalidMasterValueProvider')]
+    public function testPostSave_RejectsAnInvalidMasterValueWithANamedMessageAndSavesNothing(string $field, string $value): void
+    {
+        $value  = $field === 'area' ? str_repeat($value, 101) : $value;
+        $before = $this->countRows('customers');
+
+        $result = $this->saveMaster([$field => $value]);
+
+        $this->assertFalse($result['success']);
+        $this->assertNotSame('', $result['message']);
+        $this->assertStringNotContainsString('Accounting.error_', $result['message']);
+        $this->assertSame($before, $this->countRows('customers'));
+    }
+
+    public function testPostSave_RejectsAChangeThatTheValidationRefusesAndKeepsTheCustomerAsItWas(): void
+    {
+        $result = $this->saveMaster(['manual_status' => 'served', 'area' => 'Olaya']);
+
+        $refused = $this->saveMaster(['manual_status' => 'vip', 'area' => 'Malaz'], (int) $result['id']);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(['served', 'Olaya'], [$this->customerRow((int) $result['id'])['manual_status'], $this->customerRow((int) $result['id'])['area']]);
+        $this->cleanMaster();
+    }
+
+    public function testPostSave_RequiresAnEmailForTheEmailBillingMethod(): void
+    {
+        $refused = $this->saveMaster(['billing_method' => 'email', 'email' => '']);
+
+        $this->assertFalse($refused['success']);
+        $this->assertStringContainsString('e-mail', strtolower($refused['message']));
+
+        $accepted = $this->saveMaster(['billing_method' => 'email']);
+
+        $this->assertTrue($accepted['success']);
+        $this->assertSame('email', $this->customerRow((int) $accepted['id'])['billing_method']);
+        $this->cleanMaster();
+    }
+
+    public function testPostSave_AcceptsAnEmptyEmailForPrintBilling(): void
+    {
+        $result = $this->saveMaster(['billing_method' => 'print', 'email' => '']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('print', $this->customerRow((int) $result['id'])['billing_method']);
+        $this->cleanMaster();
+    }
+
+    public function testPostSave_RejectsAnInactiveClassificationForANewCustomerButKeepsOneTheCustomerHolds(): void
+    {
+        $classification = $this->classification('Retired');
+        $result         = $this->saveMaster(['classification_id' => (string) $classification]);
+        (new NamedLookup(LookupKind::CustomerClassification))->setStatus($classification, false, 1);
+
+        $this->assertFalse($this->saveMaster(['classification_id' => (string) $classification])['success']);
+        $this->assertTrue($this->saveMaster(['classification_id' => (string) $classification, 'area' => 'Olaya'], (int) $result['id'])['success']);
+        $this->assertSame($classification, (int) $this->customerRow((int) $result['id'])['classification_id']);
+        $this->cleanMaster();
+    }
+
+    public function testPostSave_RejectsAnEmployeeOfAnotherBranchForAViewerLimitedToABranch(): void
+    {
+        $this->resetBranches();
+        $branch   = $this->createBranch('B2');
+        $other    = $this->createBranch('B3');
+        $viewer   = $this->employeeWithGrants(['customers'], [$branch]);
+        $stranger = $this->employeeWithGrants(['customers'], [$other]);
+        $mate     = $this->employeeWithGrants(['customers'], [$branch]);
+        $this->withSession(['person_id' => $viewer, 'menu_group' => 'office']);
+
+        $this->assertFalse($this->saveMaster(['assigned_employee_id' => (string) $stranger])['success']);
+        $this->assertTrue($this->saveMaster(['assigned_employee_id' => (string) $mate])['success']);
+
+        $this->resetBranches();
+        $this->cleanMaster();
+    }
+
+    public function testPostSave_SetsTheCreationDateOnceAndKeepsItWhenTheCustomerIsEdited(): void
+    {
+        $created = $this->save(['date' => '01/01/2001 00:00:00']);
+        $row     = $this->customerRow((int) $created['id']);
+
+        $this->assertSame(date('Y-m-d'), substr($row['date'], 0, 10), 'A new customer is created today whatever the form says');
+
+        $this->accountingDb()->table('customers')->where('person_id', $created['id'])->update(['date' => '2020-05-17 09:30:00']);
+
+        $this->save(['date' => date('m/d/Y H:i:s')], (int) $created['id']);
+
+        $this->assertSame('2020-05-17 09:30:00', $this->customerRow((int) $created['id'])['date']);
+    }
+
+    public function testPostSave_SavesACustomerWhoseFormCarriesNoDateAtAll(): void
+    {
+        $response = $this->post('/customers/save/-1', [
+            'first_name'   => 'Nada',
+            'last_name'    => 'Z' . uniqid(),
+            'email'        => '',
+            'phone_number' => '',
+            'address_1'    => '',
+            'address_2'    => '',
+            'city'         => '',
+            'state'        => '',
+            'zip'          => '',
+            'country'      => '',
+            'comments'     => '',
+            'employee_id'  => '1',
+            'tax_id'       => '',
+            'taxable'      => '1',
+        ]);
+        $result = json_decode($response->getJSON(), true);
+
+        $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+        $this->customerIds[] = (int) $result['id'];
+        $this->assertSame(date('Y-m-d'), substr($this->customerRow((int) $result['id'])['date'], 0, 10));
+    }
+
+    public function testPostSave_ChangingTheTypeAndTheOtherMasterDataLeavesThePostedDocumentsAndTheLedgerUntouched(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+        $created = $this->saveMaster(['customer_type' => 'individual', 'opening_side' => 'owes_us', 'opening_amount' => '750.00', 'opening_date' => date('Y-m-d', strtotime('-20 days'))]);
+        $this->assertTrue($created['success']);
+
+        $before   = $this->documentFigures((int) $created['id']);
+        $classify = $this->classification('Strategic');
+
+        $this->saveMaster(['customer_type' => 'commercial', 'classification_id' => (string) $classify, 'manual_status' => 'archived', 'is_government_entity' => '1'], (int) $created['id']);
+
+        $this->assertSame($before, $this->documentFigures((int) $created['id']));
+        $this->assertSame('commercial', $this->customerRow((int) $created['id'])['customer_type']);
+        $this->cleanMaster();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function documentFigures(int $customerId): array
+    {
+        $db       = $this->accountingDb();
+        $position = (new CustomerLedger())->position($customerId);
+        $tables   = ['accounting_journals', 'accounting_journal_lines', 'customer_openings', 'accounting_stock_entries', 'sales', 'sales_items', 'sales_payments'];
+        $checksum = [];
+
+        foreach ($tables as $table) {
+            $checksum[$table] = $db->query('CHECKSUM TABLE `' . $db->prefixTable($table) . '`')->getRow()->Checksum . '/' . $db->table($table)->countAllResults();
+        }
+
+        return ['open' => $position->open(), 'agrees' => $position->agrees(), 'tables' => $checksum, 'opening' => $db->table('customer_openings')->where('customer_id', $customerId)->get()->getResultArray()];
+    }
+
+    public function testGetView_OffersTheMasterDataFieldsWithTheFiveStatusesAndTheTwoTypes(): void
+    {
+        $this->classification('Retail');
+
+        $page = $this->get('/customers/view/-1');
+
+        foreach (['name="master_data"', 'name="customer_type"', 'name="classification_id"', 'name="manual_status"', 'name="assigned_employee_id"', 'name="area"', 'name="country_code"', 'name="is_government_entity"', 'name="billing_method"'] as $field) {
+            $this->assertStringContainsString($field, $page->getBody());
+        }
+
+        foreach (CustomerStatus::cases() as $status) {
+            $this->assertStringContainsString('value="' . $status->value . '"', $page->getBody());
+        }
+
+        $page->assertSee('Retail');
+        $this->assertStringContainsString('value="individual"', $page->getBody());
+        $this->assertStringContainsString('value="commercial"', $page->getBody());
+        $this->cleanMaster();
+    }
+
+    public function testGetView_OffersAnInactiveClassificationTheCustomerHoldsButNoOtherInactiveOne(): void
+    {
+        $held   = $this->classification('Held and retired');
+        $loose  = $this->classification('Loose and retired');
+        $result = $this->saveMaster(['classification_id' => (string) $held]);
+        $lookup = new NamedLookup(LookupKind::CustomerClassification);
+        $lookup->setStatus($held, false, 1);
+        $lookup->setStatus($loose, false, 1);
+
+        $page = $this->get('/customers/view/' . $result['id']);
+
+        $page->assertSee('Held and retired');
+        $page->assertDontSee('Loose and retired');
+        $this->cleanMaster();
+    }
+
+    public function testGetView_ShowsTheCreationDateOfTheCustomerAsAFieldThatCannotBeTyped(): void
+    {
+        $result = $this->save();
+        $this->accountingDb()->table('customers')->where('person_id', $result['id'])->update(['date' => '2020-05-17 09:30:00']);
+
+        $page = $this->get('/customers/view/' . $result['id']);
+
+        $this->assertStringContainsString('id="datetime"', $page->getBody());
+        $this->assertStringContainsString('readonly', $page->getBody());
+        $this->assertStringContainsString(esc(to_datetime(strtotime('2020-05-17 09:30:00'))), $page->getBody());
+    }
+
+    public function testGetView_OffersOnlyTheEmployeesOfTheViewersBranches(): void
+    {
+        $this->resetBranches();
+        $branch   = $this->createBranch('B2');
+        $other    = $this->createBranch('B3');
+        $viewer   = $this->employeeWithGrants(['customers'], [$branch]);
+        $stranger = $this->employeeWithGrants(['customers'], [$other]);
+        $this->accountingDb()->table('people')->where('person_id', $stranger)->update(['first_name' => 'Strangerzed']);
+        $this->withSession(['person_id' => $viewer, 'menu_group' => 'office']);
+
+        $page = $this->get('/customers/view/-1');
+
+        $page->assertDontSee('Strangerzed');
+
+        $this->resetBranches();
+    }
+
+    public function testGetIndex_OffersTheFiltersOfTheDirectory(): void
+    {
+        $this->classification('Retail');
+
+        $page = $this->get('/customers');
+
+        foreach (['filter_classification_id', 'filter_manual_status', 'filter_assigned_employee_id', 'filter_customer_type', 'filter_area', 'filter_city', 'filter_country_code', 'filter_created_from', 'filter_created_to'] as $id) {
+            $this->assertStringContainsString('id="' . $id . '"', $page->getBody());
+        }
+
+        $page->assertSee('Retail');
+        $this->cleanMaster();
+    }
+
+    public function testGetSearch_NarrowsTheDirectoryByEachFilterAndByTheirCombination(): void
+    {
+        $gold     = $this->classification('Gold');
+        $employee = $this->employeeWithGrants(['customers']);
+
+        $a = $this->saveMaster(['classification_id' => (string) $gold, 'manual_status' => 'interested', 'assigned_employee_id' => (string) $employee, 'area' => 'Olaya', 'country_code' => 'SA', 'customer_type' => 'commercial'], NEW_ENTRY, ['city' => 'Riyadh']);
+        $b = $this->saveMaster(['manual_status' => 'served', 'area' => 'Malaz', 'country_code' => 'EG', 'customer_type' => 'individual'], NEW_ENTRY, ['city' => 'Jeddah']);
+        $c = $this->saveMaster([], NEW_ENTRY, ['city' => 'Riyadh']);
+        $mine = [(int) $a['id'], (int) $b['id'], (int) $c['id']];
+        $only = static fn (array $ids): array => array_values(array_intersect($ids, $mine));
+
+        $this->assertSame([$a['id']], $only($this->directoryIds(['classification_id' => (string) $gold])));
+        $this->assertSame([$a['id']], $only($this->directoryIds(['manual_status' => 'interested'])));
+        $this->assertSame([$a['id']], $only($this->directoryIds(['assigned_employee_id' => (string) $employee])));
+        $this->assertSame([$a['id']], $only($this->directoryIds(['area' => 'Olaya'])));
+        $this->assertSame([$b['id']], $only($this->directoryIds(['country_code' => 'eg'])));
+        $this->assertSame([$b['id']], $only($this->directoryIds(['customer_type' => 'individual'])));
+        $this->assertSame([$a['id'], $c['id']], $only($this->directoryIds(['city' => 'Riyadh'])));
+        $this->assertSame([$a['id']], $only($this->directoryIds(['city' => 'Riyadh', 'customer_type' => 'commercial'])));
+        $this->assertSame($mine, $only($this->directoryIds([])));
+        $this->cleanMaster();
+    }
+
+    public function testGetSearch_NarrowsTheDirectoryByTheDayTheCustomerWasCreatedInclusively(): void
+    {
+        $old   = $this->save();
+        $newer = $this->save();
+        $db    = $this->accountingDb();
+        $db->table('customers')->where('person_id', $old['id'])->update(['date' => '2020-03-10 08:00:00']);
+        $db->table('customers')->where('person_id', $newer['id'])->update(['date' => '2020-03-20 23:59:59']);
+        $mine = [(int) $old['id'], (int) $newer['id']];
+        $only = static fn (array $ids): array => array_values(array_intersect($ids, $mine));
+
+        $this->assertSame([(int) $newer['id']], $only($this->directoryIds(['created_from' => '2020-03-20', 'created_to' => '2020-03-20'])));
+        $this->assertSame([(int) $old['id']], $only($this->directoryIds(['created_from' => '2020-03-10', 'created_to' => '2020-03-19'])));
+        $this->assertSame($mine, $only($this->directoryIds(['created_from' => '2020-03-10', 'created_to' => '2020-03-20'])));
+        $this->assertSame($mine, $only($this->directoryIds(['created_from' => 'not a day', 'created_to' => '2020-13-45'])), 'A day that is not a day is left out');
+    }
+
+    public function testGetSearch_LeavesOutAFilterValueTheListsDoNotOffer(): void
+    {
+        $a    = $this->saveMaster(['manual_status' => 'served']);
+        $mine = [(int) $a['id']];
+
+        $ids = $this->directoryIds(['manual_status' => 'vip', 'customer_type' => 'both', 'country_code' => 'SAU', 'classification_id' => 'x']);
+
+        $this->assertContains((int) $a['id'], $ids);
+        $this->assertSame($mine, array_values(array_intersect($ids, $mine)));
+        $this->cleanMaster();
+    }
+
+    public function testGetSearch_ShowsTheColumnsOfTheDirectoryAsLabelsAndNames(): void
+    {
+        $gold     = $this->classification('Gold');
+        $employee = $this->employeeWithGrants(['customers']);
+        $this->accountingDb()->table('people')->where('person_id', $employee)->update(['first_name' => 'Rania', 'last_name' => 'Assigned']);
+        $a = $this->saveMaster(['classification_id' => (string) $gold, 'manual_status' => 'under_review', 'assigned_employee_id' => (string) $employee, 'area' => 'Olaya', 'country_code' => 'SA', 'customer_type' => 'commercial']);
+
+        $row = $this->directory(['classification_id' => (string) $gold])['rows'][0];
+
+        $this->assertSame(['Gold', CustomerStatus::UnderReview->label(), 'Rania Assigned', 'Olaya', 'SA', CustomerType::Commercial->label()], [$row['classification_name'], $row['manual_status'], $row['assigned_employee_name'], $row['area'], $row['country_code'], $row['customer_type']]);
+        $this->assertNotSame('', $row['created']);
+        $this->assertSame((int) $a['id'], (int) $row['people.person_id']);
+        $this->cleanMaster();
+    }
+
+    public function testGetSearch_SortsByTheNewColumns(): void
+    {
+        $token = 'Sorted' . uniqid();
+        $a     = $this->saveMaster(['area' => 'Zeta', 'company_name' => $token . ' A']);
+        $b     = $this->saveMaster(['area' => 'Alpha', 'company_name' => $token . ' B']);
+
+        $ascending  = $this->directoryIds(['search' => $token, 'sort' => 'area', 'order' => 'asc']);
+        $descending = $this->directoryIds(['search' => $token, 'sort' => 'area', 'order' => 'desc']);
+
+        $this->assertSame([(int) $b['id'], (int) $a['id']], $ascending);
+        $this->assertSame([(int) $a['id'], (int) $b['id']], $descending);
+        $this->assertNotEmpty($this->directoryIds(['sort' => 'city']));
+        $this->assertNotEmpty($this->directoryIds(['sort' => 'created']));
+        $this->cleanMaster();
+    }
+
+    private function completedSale(int $customerId, int $branchId, string $amount): void
+    {
+        $db     = $this->accountingDb();
+        $itemId = $this->masterItems[] = $this->createTestItem();
+
+        $db->table('sales')->insert(['customer_id' => $customerId, 'employee_id' => 1, 'comment' => '', 'sale_status' => COMPLETED, 'branch_id' => $branchId]);
+        $saleId = (int) $db->insertID();
+        $db->table('sales_items')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 1, 'quantity_purchased' => 1, 'item_cost_price' => 1, 'item_unit_price' => $amount, 'item_location' => 1]);
+        $db->table('sales_payments')->insert(['sale_id' => $saleId, 'payment_type' => 'Cash', 'payment_amount' => $amount, 'employee_id' => 1]);
+    }
+
+    private function cleanSales(): void
+    {
+        $db = $this->accountingDb();
+
+        $db->query('DELETE FROM ' . $db->prefixTable('sales_payments'));
+        $db->query('DELETE FROM ' . $db->prefixTable('sales_items'));
+        $db->query('DELETE FROM ' . $db->prefixTable('sales'));
+    }
+
+    public function testGetSearch_ShowsTheTotalSpentOfEveryBranchToAViewerOfEveryBranchAndOfHisOwnBranchesToAViewerLimitedToThem(): void
+    {
+        $this->resetBranches();
+        $branch = $this->createBranch('B2');
+        $other  = $this->createBranch('B3');
+        $c      = $this->save();
+        $this->completedSale((int) $c['id'], $branch, '30.00');
+        $this->completedSale((int) $c['id'], $other, '12.00');
+
+        $total = static fn (array $rows, int $id): string => (string) array_column($rows, 'total', 'people.person_id')[$id];
+
+        $this->assertSame(to_currency(42), $total($this->directory()['rows'], (int) $c['id']));
+
+        $viewer = $this->employeeWithGrants(['customers'], [$branch]);
+        $this->withSession(['person_id' => $viewer, 'menu_group' => 'office']);
+
+        $this->assertSame(to_currency(30), $total($this->directory()['rows'], (int) $c['id']));
+        $this->assertSame(to_currency(30), (string) json_decode($this->get('/customers/row/' . $c['id'])->getJSON(), true)['total']);
+
+        $this->cleanSales();
+        $this->resetBranches();
+        $this->cleanMaster();
+    }
+
+    public function testGetSearch_ReturnsNothingWhenAViewerLimitedToABranchFiltersByAnEmployeeOfAnotherBranch(): void
+    {
+        $this->resetBranches();
+        $branch   = $this->createBranch('B2');
+        $other    = $this->createBranch('B3');
+        $stranger = $this->employeeWithGrants(['customers'], [$other]);
+        $a        = $this->saveMaster(['assigned_employee_id' => (string) $stranger]);
+
+        $this->assertSame([(int) $a['id']], array_values(array_intersect($this->directoryIds(['assigned_employee_id' => (string) $stranger]), [(int) $a['id']])));
+
+        $viewer = $this->employeeWithGrants(['customers'], [$branch]);
+        $this->withSession(['person_id' => $viewer, 'menu_group' => 'office']);
+
+        $this->assertSame([], $this->directoryIds(['assigned_employee_id' => (string) $stranger]));
+        $this->assertSame('', (string) array_column($this->directory()['rows'], 'assigned_employee_name', 'people.person_id')[(int) $a['id']], 'The name of an employee outside the branches stays hidden');
+
+        $this->resetBranches();
+        $this->cleanMaster();
+    }
+
+    public function testGetRow_ReturnsTheRowOfOneCustomerWithTheDirectoryColumns(): void
+    {
+        $a = $this->saveMaster(['area' => 'Olaya', 'customer_type' => 'individual']);
+
+        $row = json_decode($this->get('/customers/row/' . $a['id'])->getJSON(), true);
+
+        $this->assertSame([(int) $a['id'], 'Olaya', CustomerType::Individual->label()], [(int) $row['people.person_id'], $row['area'], $row['customer_type']]);
+        $this->assertSame([], json_decode($this->get('/customers/row/987654')->getJSON(), true));
+        $this->cleanMaster();
+    }
+
+    // ========== CSV import and the template: the new columns are appended and optional ==========
+
+    private const IMPORT_BASE_HEADERS = ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable'];
+
+    /**
+     * Imports the rows as given, each after the name and the e-mail address that make it a customer of its own.
+     *
+     * @param list<list<string>> $extraCells The cells after the eighteenth of each row.
+     *
+     * @return array{result: array<string, mixed>, emails: list<string>}
+     */
+    private function importWithExtraCells(array $extraCells, bool $withExtraHeaders = true): array
+    {
+        $file   = tempnam(sys_get_temp_dir(), 'customers_');
+        $header = $withExtraHeaders ? [...self::IMPORT_BASE_HEADERS, 'Classification', 'Status', 'Assigned Employee', 'Area', 'Country Code', 'Type', 'Government Entity', 'Billing Method'] : self::IMPORT_BASE_HEADERS;
+        $rows   = [$header];
+        $emails = [];
+
+        foreach ($extraCells as $cells) {
+            $emails[] = 'csv.' . uniqid() . '@test.com';
+            $rows[]   = ['Imported', 'K' . uniqid(), '1', '1', end($emails), '', '', '', '', '', '', '', '', '', '', '', '', '', ...$cells];
+        }
+
+        $handle = fopen($file, 'w');
+
+        foreach ($rows as $row) {
+            fputcsv($handle, $row);
+        }
+
+        fclose($handle);
+
+        $_FILES['file_path'] = ['name' => 'customers.csv', 'type' => 'text/csv', 'tmp_name' => $file, 'error' => UPLOAD_ERR_OK, 'size' => filesize($file)];
+
+        try {
+            $result = json_decode($this->post('/customers/importCsvFile')->getJSON(), true);
+        } finally {
+            unset($_FILES['file_path']);
+            unlink($file);
+        }
+
+        foreach ($emails as $email) {
+            foreach ($this->accountingDb()->table('people')->select('person_id')->where('email', $email)->get()->getResult() as $person) {
+                $this->customerIds[] = (int) $person->person_id;
+            }
+        }
+
+        return ['result' => $result, 'emails' => $emails];
+    }
+
+    private function customerByEmail(string $email): ?array
+    {
+        return $this->accountingDb()->table('customers')->join('people', 'people.person_id = customers.person_id')->where('people.email', $email)->get()->getRowArray();
+    }
+
+    public function testPostImportCsvFile_ImportsTheAppendedColumnsOfARow(): void
+    {
+        $gold     = $this->classification('Gold');
+        $employee = $this->employeeWithGrants(['customers']);
+        $username = $this->accountingDb()->table('employees')->where('person_id', $employee)->get()->getRow()->username;
+
+        $imported = $this->importWithExtraCells([['gold', 'served', $username, 'Olaya', 'sa', 'commercial', 'y', 'print']]);
+        $row      = $this->customerByEmail($imported['emails'][0]);
+
+        $this->assertTrue($imported['result']['success']);
+        $this->assertSame([$gold, 'served', $employee, 'Olaya', 'SA', 'commercial', 1, 'print'], [(int) $row['classification_id'], $row['manual_status'], (int) $row['assigned_employee_id'], $row['area'], $row['country_code'], $row['customer_type'], (int) $row['is_government_entity'], $row['billing_method']]);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer', 'entity_id' => $row['person_id'], 'action' => 'customer_master_data_changed'])->countAllResults());
+        $this->cleanMaster();
+    }
+
+    public function testPostImportCsvFile_ImportsAFileWithoutTheAppendedColumnsAsItAlwaysDid(): void
+    {
+        $imported = $this->importWithExtraCells([[]], false);
+        $row      = $this->customerByEmail($imported['emails'][0]);
+
+        $this->assertTrue($imported['result']['success']);
+        $this->assertSame([null, null, null, null, null, null, '0', 'print'], [$row['classification_id'], $row['manual_status'], $row['assigned_employee_id'], $row['area'], $row['country_code'], $row['customer_type'], (string) $row['is_government_entity'], $row['billing_method']]);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer', 'entity_id' => $row['person_id']])->countAllResults());
+    }
+
+    public function testPostImportCsvFile_ImportsARowWhoseAppendedColumnsAreAllEmpty(): void
+    {
+        $imported = $this->importWithExtraCells([['', '', '', '', '', '', '', '']]);
+
+        $this->assertTrue($imported['result']['success']);
+        $this->assertSame('print', $this->customerByEmail($imported['emails'][0])['billing_method']);
+    }
+
+    /**
+     * @return array<string, array{0: list<string>}>
+     */
+    public static function refusedImportCellsProvider(): array
+    {
+        return [
+            'a classification that does not exist' => [['nobody', '', '', '', '', '', '', '']],
+            'a status outside the five'            => [['', 'vip', '', '', '', '', '', '']],
+            'an employee that does not exist'      => [['', '', 'no-such-user', '', '', '', '', '']],
+            'a country code of three letters'      => [['', '', '', '', 'SAU', '', '', '']],
+            'a type outside the two'               => [['', '', '', '', '', 'both', '', '']],
+            'a billing method outside the two'     => [['', '', '', '', '', '', '', 'fax']],
+        ];
+    }
+
+    /**
+     * @param list<string> $cells
+     */
+    #[DataProvider('refusedImportCellsProvider')]
+    public function testPostImportCsvFile_RefusesARowWhoseAppendedValueIsNotAllowedAndStillImportsTheGoodRow(array $cells): void
+    {
+        $this->classification('Gold');
+
+        $imported = $this->importWithExtraCells([$cells, ['', '', '', '', '', '', '', '']]);
+
+        $this->assertFalse($imported['result']['success']);
+        $this->assertNull($this->customerByEmail($imported['emails'][0]));
+        $this->assertNotNull($this->customerByEmail($imported['emails'][1]));
+        $this->cleanMaster();
+    }
+
+    public function testGetCsv_OffersATemplateThatKeepsTheOldColumnsFirstAndAppendsTheNewOnesAtTheEnd(): void
+    {
+        $template = (string) file_get_contents(WRITEPATH . 'uploads/importCustomers.csv');
+        $header   = str_getcsv(strtok($template, "\n") ?: '');
+
+        $this->assertSame(self::IMPORT_BASE_HEADERS[0], $header[0]);
+        $this->assertSame(['Classification', 'Status', 'Assigned Employee', 'Area', 'Country Code', 'Type', 'Government Entity', 'Billing Method'], array_slice($header, 18));
+        $this->assertSame(['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone Number', 'Address 1', 'Address2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount_Type', 'Taxable'], array_slice($header, 0, 18));
     }
 }
