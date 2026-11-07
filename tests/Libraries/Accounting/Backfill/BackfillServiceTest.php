@@ -13,6 +13,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CashupPosting;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\Backfill\BackfillStatus;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingError;
@@ -1091,6 +1092,8 @@ final class BackfillServiceTest extends CIUnitTestCase
         $this->legacyPurchase('500', '2026-03-11');
         $this->legacyExpense();
         $this->legacyCashup();
+
+        (new Currencies())->ensureBase();
 
         $before = $this->databaseFingerprint();
         $report = $this->backfill->dryRun(['from' => '2026-01-01', 'to' => '2026-12-31'], $this->backfillManager);

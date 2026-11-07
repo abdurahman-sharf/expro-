@@ -592,8 +592,10 @@ class TreasuryServiceTest extends CIUnitTestCase
             $this->assertSame(AccountingError::TreasuryInUse, $this->refusal(fn () => $this->treasuries->delete($expenseDrawer, $manager))->error);
             $this->assertSame(AccountingError::TreasuryInUse, $this->refusal(fn () => $this->treasuries->delete($cashupDrawer, $manager))->error);
         } finally {
+            $db->query('SET FOREIGN_KEY_CHECKS = 0');
             $db->table('expenses')->truncate();
             $db->table('cash_up')->truncate();
+            $db->query('SET FOREIGN_KEY_CHECKS = 1');
             $db->table('expense_categories')->where('expense_category_id', $categoryId)->delete();
         }
     }

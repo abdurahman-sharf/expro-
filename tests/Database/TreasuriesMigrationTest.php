@@ -9,6 +9,7 @@ use App\Database\Migrations\ChequesAndRevenues;
 use App\Database\Migrations\ExpensesAccounting;
 use App\Database\Migrations\InterBranchSettlements;
 use App\Database\Migrations\InterBranchTransfers;
+use App\Database\Migrations\OrderToCashDocuments;
 use App\Database\Migrations\SupplierAdvances;
 use App\Database\Migrations\Treasuries;
 use App\Database\Migrations\TreasuryScopes as TreasuryScopesMigration;
@@ -235,8 +236,10 @@ class TreasuriesMigrationTest extends CIUnitTestCase
         $credit    = new CreditFlows();
         $cheques   = new ChequesAndRevenues();
         $bank      = new BankReconciliation();
+        $orders    = new OrderToCashDocuments();
 
         try {
+            $orders->down();
             $bank->down();
             $cheques->down();
             $credit->down();
@@ -268,6 +271,7 @@ class TreasuriesMigrationTest extends CIUnitTestCase
             $credit->up();
             $cheques->up();
             $bank->up();
+            $orders->up();
         }
 
         $this->assertTrue($this->hasTable('treasuries'));

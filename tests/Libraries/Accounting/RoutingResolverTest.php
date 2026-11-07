@@ -239,6 +239,8 @@ class RoutingResolverTest extends CIUnitTestCase
             'Libraries/Accounting/BankAccountPlacement.php',
             'Libraries/Accounting/DefaultChart.php',
             'Libraries/Accounting/EntityAccountService.php',
+            'Libraries/Accounting/FamilyReports/CashDocumentRows.php',
+            'Libraries/Accounting/FamilyReports/ControlAccounts.php',
             'Libraries/Accounting/InventoryValuation.php',
             'Libraries/Accounting/OpeningBalanceService.php',
             'Libraries/Accounting/Readiness/RoutingChecks.php',

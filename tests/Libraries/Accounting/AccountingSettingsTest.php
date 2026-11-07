@@ -709,8 +709,10 @@ class AccountingSettingsTest extends CIUnitTestCase
         $db         = $this->accountingDb();
         $employeeId = $this->employeeWithGrants([]);
 
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
         $db->table('expenses')->truncate();
         $db->table('cash_up')->truncate();
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
         $db->table('expense_categories')->insert(['category_name' => 'Notice ' . uniqid(), 'category_description' => '']);
         $categoryId = (int) $db->insertID();
 
@@ -727,8 +729,10 @@ class AccountingSettingsTest extends CIUnitTestCase
             $this->assertSame(['expenses_unposted' => '2', 'cashups_unposted' => '1'], array_intersect_key($notices, ['expenses_unposted' => 1, 'cashups_unposted' => 1]));
             $this->assertSame([], array_intersect($this->codesOf($this->settings->readiness()), ['expenses_unposted', 'cashups_unposted']));
         } finally {
+            $db->query('SET FOREIGN_KEY_CHECKS = 0');
             $db->table('expenses')->truncate();
             $db->table('cash_up')->truncate();
+            $db->query('SET FOREIGN_KEY_CHECKS = 1');
             $db->table('expense_categories')->where('expense_category_id', $categoryId)->delete();
         }
     }

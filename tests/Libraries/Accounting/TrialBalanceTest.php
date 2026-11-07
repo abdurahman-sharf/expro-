@@ -971,7 +971,9 @@ class TrialBalanceTest extends CIUnitTestCase
             $this->assertSame('-300.0000', $this->row($this->build(expand: true), '120101')->closing(), 'The company holds what its branches hold');
         } finally {
             $this->setConfigValue('accounting_enabled', '0');
+            $db->query('SET FOREIGN_KEY_CHECKS = 0');
             $db->table('expenses')->truncate();
+            $db->query('SET FOREIGN_KEY_CHECKS = 1');
             $db->table('expense_categories')->where('expense_category_id', $categoryId)->delete();
         }
     }
