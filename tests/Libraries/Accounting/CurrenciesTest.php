@@ -45,6 +45,7 @@ class CurrenciesTest extends CIUnitTestCase
     {
         $this->releaseOpenTransactions();
         $this->clearJournals();
+        $this->accountingDb()->table('treasuries')->whereIn('name', ['EUR box', 'USD box'])->delete();
         $this->removeInsertedEntities();
 
         parent::tearDown();
@@ -340,5 +341,112 @@ class CurrenciesTest extends CIUnitTestCase
         $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'EUR box', 'kind' => 'cash', 'currency_code' => 'EUR']);
 
         $this->assertTrue($this->currencies->inUse('EUR'));
+    }
+
+    public function testInUse_NamesEveryColumnOfTheSchemaThatHoldsACurrencyCode(): void
+    {
+        $db     = $this->accountingDb();
+        $prefix = $db->getPrefix();
+        $found  = [];
+
+        foreach ($db->query("SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME IN ('currency_code', 'from_currency', 'to_currency')")->getResultArray() as $row) {
+            $table = substr((string) $row['TABLE_NAME'], strlen($prefix));
+
+            if (! in_array($table, ['accounting_currencies', 'accounting_currency_rates'], true)) {
+                $found[] = $table . '.' . $row['COLUMN_NAME'];
+            }
+        }
+
+        $listed = array_map(static fn (array $pair): string => $pair[0] . '.' . $pair[1], Currencies::USED_BY);
+
+        sort($found);
+        sort($listed);
+
+        $this->assertSame($found, $listed, 'A column that holds a currency fixes its decimals once it is written');
+    }
+
+    public function testInUse_SeesADraftSaleThatHasNoJournalYetAndFixesTheDecimalsOfItsCurrency(): void
+    {
+        $db = $this->accountingDb();
+
+        $db->table('sales')->insert(['sale_time' => date('Y-m-d H:i:s'), 'employee_id' => $this->manager(), 'comment' => '', 'sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_POS, 'branch_id' => 1, 'currency_code' => 'EUR', 'currency_rate' => '4.10000000']);
+
+        $saleId = (int) $db->insertID();
+
+        try {
+            $this->assertTrue($this->currencies->inUse('EUR'));
+            $this->assertRefused(AccountingError::CurrencyInUse, fn () => $this->currencies->update('EUR', ['decimals' => 3], $this->manager()));
+        } finally {
+            $db->table('sales')->where('sale_id', $saleId)->delete();
+        }
+
+        $this->assertFalse($this->currencies->inUse('EUR'));
+    }
+
+    public function testInUse_SeesATreasuryTransferInTheCurrencyOnEitherSide(): void
+    {
+        $db = $this->accountingDb();
+
+        foreach (['from_currency', 'to_currency'] as $column) {
+            $db->query('SET FOREIGN_KEY_CHECKS = 0');
+            $db->table('treasury_transfers')->insert(['company_id' => 1, 'branch_id' => 1, 'from_treasury_id' => 1, 'to_treasury_id' => 2, 'amount' => '1.0000', 'transfer_date' => '2026-10-21', $column => 'EUR']);
+            $transferId = (int) $db->insertID();
+            $db->query('SET FOREIGN_KEY_CHECKS = 1');
+
+            try {
+                $this->assertTrue($this->currencies->inUse('EUR'), $column);
+            } finally {
+                $db->table('treasury_transfers')->where('transfer_id', $transferId)->delete();
+            }
+        }
+    }
+
+    public function testIsBase_IgnoresTheCaseAndTheSpacesOfTheCode(): void
+    {
+        $this->assertTrue($this->currencies->isBase('sar'));
+        $this->assertTrue($this->currencies->isBase(' Sar '));
+        $this->assertFalse($this->currencies->isBase('usd'));
+        $this->assertFalse($this->currencies->isBase(''));
+    }
+
+    public function testFind_ReadsACurrencyWhateverTheCaseOfItsCode(): void
+    {
+        $this->assertSame('EUR', $this->currencies->find('eur')?->code);
+        $this->assertSame('EUR', $this->currencies->find(' eUr ')?->code);
+        $this->assertNull($this->currencies->find('qqq'));
+    }
+
+    public function testSetActive_RefusesToSwitchOffTheBaseCurrencyWrittenInLowerCase(): void
+    {
+        $this->assertRefused(AccountingError::CurrencyIsBase, fn () => $this->currencies->setActive('sar', false, $this->manager()));
+
+        $this->assertTrue($this->currencies->find('SAR')->active);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'currency', 'action' => 'deactivated'])->countAllResults());
+    }
+
+    public function testSetActive_SwitchesACurrencyOnWhateverTheCaseOfItsCode(): void
+    {
+        $this->currencies->setActive('eur', true, $this->manager());
+
+        $this->assertTrue($this->currencies->find('EUR')->active);
+    }
+
+    public function testUpdate_ChangesACurrencyWhateverTheCaseOfItsCodeAndHoldsTheBaseToItsDecimals(): void
+    {
+        (new PostingService())->post($this->balancedDraft());
+
+        $this->currencies->update('eur', ['name_en' => 'Euro (lower case)'], $this->manager());
+
+        $this->assertSame('Euro (lower case)', $this->currencies->find('EUR')->nameEn);
+        $this->assertRefused(AccountingError::CurrencyInUse, fn () => $this->currencies->update('sar', ['decimals' => 3], $this->manager()));
+        $this->assertSame(2, $this->currencies->decimalsOf('SAR'));
+        $this->currencies->update('EUR', ['name_en' => 'Euro'], $this->manager());
+    }
+
+    public function testInUse_IgnoresTheCaseOfTheCode(): void
+    {
+        $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'EUR box', 'kind' => 'cash', 'currency_code' => 'EUR']);
+
+        $this->assertTrue($this->currencies->inUse('eur'));
     }
 }

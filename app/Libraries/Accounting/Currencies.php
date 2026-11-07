@@ -19,9 +19,7 @@ final class Currencies
     use RunsInTransaction;
 
     public const DOCUMENT_DECIMALS = 2;
-    private const CODE_PATTERN     = '/^[A-Z]{3}$/';
-    private const NAME_MAX         = 100;
-    private const USED_BY          = [
+    public const USED_BY           = [
         ['sales', 'currency_code'],
         ['sales_payments', 'currency_code'],
         ['receivings', 'currency_code'],
@@ -34,6 +32,8 @@ final class Currencies
         ['accounting_journal_lines', 'currency_code'],
         ['accounting_journals', 'currency_code'],
     ];
+    private const CODE_PATTERN     = '/^[A-Z]{3}$/';
+    private const NAME_MAX         = 100;
 
     private BaseConnection $db;
     private AccountingGuard $guard;

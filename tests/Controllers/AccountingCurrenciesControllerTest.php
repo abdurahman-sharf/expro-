@@ -4,6 +4,7 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\PostingService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -151,9 +152,22 @@ class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->manager();
         $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'EUR box', 'kind' => 'cash', 'currency_code' => 'EUR']);
 
-        $this->get('/accounting_currencies/form/JPY')->assertDontSee('name="decimals" id="decimals" class="form-select form-select-sm" disabled');
-        $this->get('/accounting_currencies/form/EUR')->assertSee('disabled');
+        $selectLocked = '/<select name="decimals"[^>]*\sdisabled/';
+
+        $this->assertDoesNotMatchRegularExpression($selectLocked, $this->get('/accounting_currencies/form/JPY')->getBody());
+        $this->assertMatchesRegularExpression($selectLocked, $this->get('/accounting_currencies/form/EUR')->getBody());
         $this->get('/accounting_currencies/form')->assertSee('name="code"');
+    }
+
+    public function testGetForm_LocksTheDecimalsOfTheBaseCurrencyOnceAJournalIsPosted(): void
+    {
+        $this->manager();
+
+        $this->assertDoesNotMatchRegularExpression('/<select name="decimals"[^>]*\sdisabled/', $this->get('/accounting_currencies/form/SAR')->getBody());
+
+        (new PostingService())->post($this->balancedDraft());
+
+        $this->assertMatchesRegularExpression('/<select name="decimals"[^>]*\sdisabled/', $this->get('/accounting_currencies/form/SAR')->getBody());
     }
 
     public function testPostStore_CreatesACurrencyWithTheDecimalsChosen(): void
@@ -194,6 +208,74 @@ class AccountingCurrenciesControllerTest extends CIUnitTestCase
 
         $this->assertTrue($result['success']);
         $this->assertSame('Dollar', (new Currencies())->find('USD')->nameEn);
+    }
+
+    public function testPostStore_UpdatesTheNamesOfACurrencyThatATreasuryUsedWhenTheLockedFormSendsNoDecimals(): void
+    {
+        $this->manager();
+        $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'EUR box', 'kind' => 'cash', 'currency_code' => 'EUR']);
+
+        try {
+            $result = $this->jsonOf($this->post('/accounting_currencies/store/EUR', ['name_ar' => 'يورو', 'name_en' => 'Euro (renamed)']));
+
+            $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+            $this->assertSame('Euro (renamed)', (new Currencies())->find('EUR')->nameEn);
+            $this->assertSame(2, (new Currencies())->find('EUR')->decimals);
+        } finally {
+            $this->accountingDb()->table('treasuries')->where('name', 'EUR box')->delete();
+            (new Currencies())->update('EUR', ['name_en' => 'Euro'], $this->manager());
+        }
+    }
+
+    public function testPostStore_UpdatesTheNamesOfTheBaseCurrencyOnceAJournalIsPostedWhenTheLockedFormSendsNoDecimals(): void
+    {
+        $this->manager();
+        (new PostingService())->post($this->balancedDraft());
+
+        $before = (new Currencies())->find('SAR');
+
+        try {
+            $result = $this->jsonOf($this->post('/accounting_currencies/store/SAR', ['name_ar' => $before->nameAr, 'name_en' => 'Saudi Riyal (renamed)']));
+
+            $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+            $this->assertSame('Saudi Riyal (renamed)', (new Currencies())->find('SAR')->nameEn);
+        } finally {
+            $this->accountingDb()->table('accounting_currencies')->where('currency_code', 'SAR')->update(['name_en' => $before->nameEn]);
+        }
+    }
+
+    public function testPostStore_RejectsNewDecimalsOfACurrencyThatATreasuryUsedWhenTheyAreSentByHand(): void
+    {
+        $this->manager();
+        $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'EUR box', 'kind' => 'cash', 'currency_code' => 'EUR']);
+
+        try {
+            $result = $this->jsonOf($this->post('/accounting_currencies/store/EUR', ['name_ar' => 'يورو', 'name_en' => 'Euro', 'decimals' => '3']));
+
+            $this->assertFalse($result['success']);
+            $this->assertSame(lang('Accounting.error_currency_in_use'), $result['message']);
+            $this->assertSame(2, (new Currencies())->find('EUR')->decimals);
+        } finally {
+            $this->accountingDb()->table('treasuries')->where('name', 'EUR box')->delete();
+        }
+    }
+
+    public function testPostDeactivate_RefusesTheBaseCurrencyWrittenInLowerCase(): void
+    {
+        $this->manager();
+
+        $this->assertFalse($this->jsonOf($this->post('/accounting_currencies/deactivate/sar'))['success']);
+        $this->assertTrue((new Currencies())->find('SAR')->active);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'currency', 'action' => 'deactivated'])->countAllResults());
+    }
+
+    public function testGetRates_IsNotFoundForTheBaseCurrencyWrittenInLowerCase(): void
+    {
+        $this->manager();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_currencies/rates/sar');
     }
 
     public function testPostActivate_SwitchesACurrencyOnAndPostDeactivateOffButNeverTheBase(): void
