@@ -24,10 +24,10 @@ final class PaymentsReport
         $this->payments = $payments ?? new PaymentRows($db);
     }
 
-    public function build(ReportScope $scope, PaymentGroup $group, bool $details, ?string $from, string $to, ?int $customerId = null, ?int $userId = null, ?int $collectorId = null, string $method = '', ?int $moneyAccountId = null): ReportTable
+    public function build(ReportScope $scope, PaymentGroup $group, bool $details, ?string $from, string $to, ?int $customerId = null, ?int $userId = null, ?int $collectorId = null, string $method = '', ?int $moneyAccountId = null, bool $allDates = false): ReportTable
     {
         $period = $group->period();
-        $from ??= $period?->defaultFrom($to);
+        $from ??= $allDates ? null : $period?->defaultFrom($to);
 
         $payments = $this->payments->read($scope, $from, $to, $customerId, $userId, $collectorId, $method, $moneyAccountId);
         $groups   = $this->grouped($payments, $group, $from, $to);

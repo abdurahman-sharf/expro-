@@ -34,8 +34,8 @@ final class ClientsSalesReport
 
         usort($documents, static fn (ReportDocument $a, ReportDocument $b): int => match ($order) {
             'date_asc'    => [$a->date, $a->id] <=> [$b->date, $b->id],
-            'number_desc' => [$b->number, $b->id] <=> [$a->number, $a->id],
-            'number_asc'  => [$a->number, $a->id] <=> [$b->number, $b->id],
+            'number_desc' => strnatcasecmp($b->number, $a->number) ?: $b->id <=> $a->id,
+            'number_asc'  => strnatcasecmp($a->number, $b->number) ?: $a->id <=> $b->id,
             default       => [$b->date, $b->id] <=> [$a->date, $a->id],
         });
 

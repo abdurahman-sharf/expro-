@@ -133,6 +133,153 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $response->assertDontSee('value="user"');
     }
 
+    public function testGetRevenue_ReadsEveryDayBeforeADayForAGroupingByPeriodAsForOneByCustomer(): void
+    {
+        $this->invoiceDated('10', $this->daysAgo(400), null, $this->customerId);
+        $this->invoiceDated('20', $this->daysAgo(5), null, $this->customerId);
+        $this->reader();
+
+        $before = '&mode=before&date=' . date('Y-m-d');
+
+        foreach (['day', 'week', 'month', 'year', 'customer'] as $group) {
+            $this->assertSame($this->shown('30'), $this->grandTotal($this->fetch(self::REVENUE . '?show=1&group=' . $group . $before), 'total'), $group);
+        }
+
+        $this->assertSame($this->shown('20'), $this->grandTotal($this->fetch(self::REVENUE . '?show=1&group=month'), 'total'));
+        $this->fetch(self::REVENUE . '?show=1&group=month' . $before)->assertSee(lang('Accounting_operational_reports.all_dates_until'));
+    }
+
+    public function testGetRevenue_OpensTheFirstGroupingTheEmployeeMayReadWhenGivenNone(): void
+    {
+        $this->reader(['accounting_reports', 'reports_customers']);
+
+        $response = $this->fetch(self::REVENUE);
+
+        $response->assertStatus(200);
+        $this->assertSame('customer', $this->pageOf($response)->query("//select[@id='f_group']/option[@selected]/@value")->item(0)?->nodeValue);
+        $response->assertSee('id="report_reset"');
+        $this->fetch(self::REVENUE . '?show=1')->assertStatus(200);
+    }
+
+    public function testGetRevenue_OffersTheOtherReportOnlyToWhoMayOpenIt(): void
+    {
+        $links = fn (string $route): array => array_values(array_filter($this->titleBarLinks($this->fetch($route)), static fn (string $href): bool => ! str_contains($href, '/csv')));
+
+        $this->reader(['accounting_reports', 'reports_sales']);
+        $this->assertSame([], $links(self::REVENUE));
+
+        $this->reader(['accounting_reports', 'reports_sales', 'reports_customers']);
+        $this->assertSame([base_url('accounting_reports/clients_sales')], $links(self::REVENUE));
+        $this->assertSame([base_url('accounting_reports/revenue')], $links(self::CLIENTS));
+
+        $this->reader(['accounting_reports', 'reports_employees']);
+        $this->assertSame([], $links(self::REVENUE));
+
+        $this->reader(['accounting_reports', 'reports_customers']);
+        $this->assertSame([base_url('accounting_reports/revenue')], $links(self::CLIENTS));
+    }
+
+    public function testGetRevenue_RedirectsSomeoneWithoutThePermissionOfTheCustomerOrTheEmployeeTheyFilterBy(): void
+    {
+        $this->reader(['accounting_reports', 'reports_sales']);
+
+        $this->fetch(self::REVENUE . '?show=1&group=day&customer=' . $this->customerId)->assertRedirect();
+        $this->fetch(self::REVENUE . '?show=1&group=day&user=' . $this->employeeId)->assertRedirect();
+        $this->fetch(self::REVENUE . '/csv?group=day&user=' . $this->employeeId)->assertRedirect();
+
+        $response = $this->fetch(self::REVENUE . '?show=1&group=day&customer=');
+
+        $response->assertStatus(200);
+        $response->assertDontSee('id="f_customer"');
+        $response->assertDontSee('id="f_user"');
+    }
+
+    public function testGetRevenue_FiltersByTheCustomerAndTheEmployeeForWhoMayReadThem(): void
+    {
+        $this->sell();
+        $this->reader();
+
+        $mine  = $this->fetch(self::REVENUE . '?show=1&group=day&customer=' . $this->customerId);
+        $byMe  = $this->fetch(self::REVENUE . '?show=1&group=day&user=' . $this->employeeId);
+        $other = $this->fetch(self::REVENUE . '?show=1&group=day&user=999999');
+
+        $mine->assertSee('id="f_customer"');
+        $this->assertSame($this->shown('57.50'), $this->grandTotal($mine, 'total'));
+        $this->assertSame($this->shown('287.50'), $this->grandTotal($byMe, 'total'));
+        $this->assertSame($this->shown('0'), $this->grandTotal($other, 'total'));
+    }
+
+    public function testGetRevenue_ShowsTheDaysAsAFormTakesThemAndRunsNothingForADayThatIsNotOne(): void
+    {
+        $this->sell();
+        $this->reader();
+
+        $typed = $this->fetch(self::REVENUE . '?show=1&group=customer&from=01%2F01%2F2020&to=' . urlencode(date('d/m/Y')));
+        $bad   = $this->fetch(self::REVENUE . '?show=1&group=customer&from=31%2F02%2026');
+
+        $typed->assertSee('name="from" class="form-control form-control-sm" value="2020-01-01"');
+        $typed->assertSee('name="to" class="form-control form-control-sm" value="' . date('Y-m-d') . '"');
+        $bad->assertSee('id="report_error"');
+        $bad->assertSee('id="report_not_run"');
+        $bad->assertDontSee('id="report_table"');
+        $bad->assertDontSee('id="report_csv"');
+    }
+
+    public function testGetRevenue_GivesTheGrandTotalARowHeaderOnlyWhereItHasText(): void
+    {
+        $this->sell();
+        $this->reader();
+
+        $response = $this->fetch(self::REVENUE . '?show=1&group=customer&view=details');
+
+        $response->assertDontSee('<th scope="row"></th>');
+        $this->assertSame(1, $this->pageOf($response)->query("//table[@id='report_table']/tfoot//th[@scope='row'][@colspan]")->length);
+        $this->assertSame(lang('Accounting_operational_reports.grand_total'), trim($this->pageOf($response)->query("//table[@id='report_table']/tfoot//th")->item(0)->textContent));
+    }
+
+    public function testGetRevenue_SaysWhenTheReaderHasNoBranchAndWhenTheReaderSeesSomeOfThem(): void
+    {
+        $second = $this->createBranch('RB4', 'Fourth report branch');
+        $third  = $this->createBranch('RB5', 'Fifth report branch');
+        $this->invoiceInBranch($second, '70', [], $this->customerId);
+        $this->invoiceInBranch($third, '30', [], $this->customerId);
+
+        $this->reader($this->everyReportPermission(), []);
+        $none = $this->fetch(self::REVENUE . '?show=1&group=customer');
+
+        $this->reader($this->everyReportPermission(), [1, $second]);
+        $some = $this->fetch(self::REVENUE . '?show=1&group=customer');
+
+        $this->reader();
+        $all = $this->fetch(self::REVENUE . '?show=1&group=customer');
+
+        $none->assertSee('id="report_no_branches"');
+        $this->assertSame($this->shown('0'), $this->grandTotal($none, 'total'));
+        $some->assertSee('id="report_scope"');
+        $some->assertDontSee('id="report_no_branches"');
+        $this->assertSame($this->shown('70'), $this->grandTotal($some, 'total'));
+        $all->assertDontSee('id="report_no_branches"');
+    }
+
+    public function testGetRevenue_ShowsAnEmptyPeriodWithItsMessage(): void
+    {
+        $this->reader();
+
+        $response = $this->fetch(self::REVENUE . '?show=1&group=customer&preset=last_year');
+
+        $response->assertSee('id="report_empty"');
+        $this->sell();
+        $this->fetch(self::REVENUE . '?show=1&group=customer')->assertDontSee('id="report_empty"');
+    }
+
+    public function testGetRevenue_CarriesEveryFilterToTheLinkOfItsFile(): void
+    {
+        $this->reader();
+
+        $this->assertFileCarries(self::REVENUE, ['group', 'view', 'preset', 'mode', 'from', 'to', 'date', 'status', 'customer', 'user', 'not_taxed', 'show']);
+        $this->assertFileCarries(self::CLIENTS, ['type', 'group', 'view', 'order', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'show']);
+    }
+
     public function testGetRevenue_IsNotFoundWhileAccountingIsOff(): void
     {
         $this->reader();

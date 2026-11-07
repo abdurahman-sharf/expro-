@@ -9,9 +9,9 @@ use DateTimeImmutable;
 /**
  * The days a report of the family reads from the request: a range, one day, every day before a day
  * or every day after it, or one of the shortcuts (last week, last month, the month so far, last year,
- * the year so far). A day is typed as year-month-day or as day/month/year. What is not a day, or a range
- * that ends before it starts, is refused and the report is read up to today instead, with the refusal
- * left to say why.
+ * the year so far). A day is typed as year-month-day or as day/month/year and given back to the form as
+ * year-month-day, which is what a date field takes. What is not a day, or a range that ends before it
+ * starts, is refused and no report is read, with the refusal left to say why.
  */
 final readonly class DateFilter
 {
@@ -37,9 +37,9 @@ final readonly class DateFilter
 
         $mode   = in_array($text('mode'), self::MODES, true) ? $text('mode') : 'between';
         $preset = in_array($text('preset'), self::PRESETS, true) ? $text('preset') : '';
-        $echo   = [$text('from'), $text('to'), $text('date')];
+        $echo   = [self::echoed($text('from')), self::echoed($text('to')), self::echoed($text('date'))];
 
-        if ($preset === '' && $defaultPreset !== '' && $echo === ['', '', ''] && $text('preset') === '') {
+        if ($preset === '' && $defaultPreset !== '' && $text('from') === '' && $text('to') === '' && $text('date') === '' && $text('preset') === '') {
             $preset = $defaultPreset;
         }
 
@@ -55,6 +55,11 @@ final readonly class DateFilter
     public function isRun(): bool
     {
         return $this->refusal === null;
+    }
+
+    public function isOpenStart(): bool
+    {
+        return $this->refusal === null && $this->from === null && $this->mode === 'before';
     }
 
     /**
@@ -98,6 +103,15 @@ final readonly class DateFilter
             'last_year'     => [((int) $day->format('Y') - 1) . '-01-01', ((int) $day->format('Y') - 1) . '-12-31'],
             default         => [$day->format('Y-01-01'), $today],
         };
+    }
+
+    private static function echoed(string $value): string
+    {
+        try {
+            return $value === '' ? '' : self::day($value);
+        } catch (AccountingException) {
+            return '';
+        }
     }
 
     /**

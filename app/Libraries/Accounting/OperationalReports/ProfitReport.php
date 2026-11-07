@@ -27,10 +27,10 @@ final class ProfitReport
         $this->movements = $movements ?? new ProfitMovements($db);
     }
 
-    public function build(ReportScope $scope, ItemGroup $group, bool $details, ?string $from, string $to, ?int $customerId = null, ?int $employeeId = null, ?int $itemId = null, string $category = ''): ReportTable
+    public function build(ReportScope $scope, ItemGroup $group, bool $details, ?string $from, string $to, ?int $customerId = null, ?int $employeeId = null, ?int $itemId = null, string $category = '', bool $allDates = false): ReportTable
     {
         $period = $group->period();
-        $from ??= $period?->defaultFrom($to);
+        $from ??= $allDates ? null : $period?->defaultFrom($to);
 
         $profits = $this->movements->read($scope, $from, $to, $customerId, $employeeId, $itemId, $category);
         $groups  = $this->grouped($profits, $group, $from, $to);

@@ -51,6 +51,58 @@ abstract class AccountingOperationalReport extends AccountingController
         return $this->query('show') === '1';
     }
 
+    protected function runs(DateFilter $dates): bool
+    {
+        return $this->isRun() && $dates->isRun();
+    }
+
+    /**
+     * The filters that show the figures of one customer, one employee or one category are read under the
+     * permission of the grouping by it, as the grouping is.
+     *
+     * @param array<string, string> $permissions The permission by the name of the filter.
+     */
+    protected function allowFilters(array $permissions): void
+    {
+        foreach ($permissions as $name => $permissionId) {
+            if ($this->query($name) !== '') {
+                $this->allow($permissionId);
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fields
+     * @param array<string, string>      $permissions The permission by the name of the filter.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected function permittedFields(array $fields, array $permissions): array
+    {
+        return array_values(array_filter($fields, fn (array $field): bool => ! isset($permissions[$field['name']]) || $this->can($permissions[$field['name']])));
+    }
+
+    /**
+     * The first grouping of the list that the employee may read, so that a screen opened with no grouping
+     * is not one that sends the employee away.
+     *
+     * @template T of object
+     *
+     * @param non-empty-list<T> $groups Each with the permission it is read under.
+     *
+     * @return T
+     */
+    protected function firstReadable(array $groups): object
+    {
+        foreach ($groups as $group) {
+            if ($this->can($group->permission())) {
+                return $group;
+            }
+        }
+
+        return $groups[0];
+    }
+
     protected function wantsDetails(): bool
     {
         return $this->query('view') === 'details';

@@ -49,6 +49,16 @@ $headingText = static function (array $heading) use ($date): string {
 
     return esc((string) $heading['label']);
 };
+
+$leading = 0;
+
+foreach ($table?->columns ?? [] as $column) {
+    if ($column->kind->isNumber()) {
+        break;
+    }
+
+    $leading++;
+}
 ?>
 
 <?= view('partial/header') ?>
@@ -152,7 +162,7 @@ $headingText = static function (array $heading) use ($date): string {
         <?php endif; ?>
         <div class="acc-filter acc-filter-actions">
             <button type="submit" class="btn btn-primary btn-sm" id="report_run"><span class="bi bi-search" aria-hidden="true">&nbsp;</span><?= lang('Accounting_operational_reports.show_report') ?></button>
-            <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url($route), 'attr') ?>"><?= lang('Accounting_reports.reset') ?></a>
+            <a class="btn btn-outline-secondary btn-sm" id="report_reset" href="<?= esc(base_url($route), 'attr') ?>"><?= lang('Accounting_reports.reset') ?></a>
         </div>
     </div>
 </form>
@@ -222,8 +232,10 @@ $headingText = static function (array $heading) use ($date): string {
                         <?php foreach ($table->columns as $index => $column): ?>
                             <?php if ($column->kind->isNumber()): ?>
                                 <td data-label="<?= esc(lang($column->labelKey), 'attr') ?>" data-cell="<?= esc($column->key, 'attr') ?>" class="text-end acc-amount"><?= $cell($column->kind, (string) ($table->total[$column->key] ?? '')) ?></td>
-                            <?php else: ?>
-                                <th scope="row"><?= $index === 0 ? lang('Accounting_operational_reports.grand_total') : '' ?></th>
+                            <?php elseif ($index === 0): ?>
+                                <th scope="row" colspan="<?= $leading ?>"><?= lang('Accounting_operational_reports.grand_total') ?></th>
+                            <?php elseif ($index >= $leading): ?>
+                                <td class="d-none d-md-table-cell"></td>
                             <?php endif; ?>
                         <?php endforeach; ?>
                     </tr>

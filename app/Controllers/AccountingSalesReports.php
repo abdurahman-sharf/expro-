@@ -21,6 +21,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 class AccountingSalesReports extends AccountingOperationalReport
 {
     private const REVENUE_CARRIED = ['group', 'view', 'preset', 'mode', 'from', 'to', 'date', 'status', 'customer', 'user', 'not_taxed', 'show'];
+    private const REVENUE_FILTERS = ['customer' => 'reports_customers', 'user' => 'reports_employees'];
     private const CLIENTS_CARRIED = ['type', 'group', 'view', 'order', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'show'];
 
     private RevenueReport $revenue;
@@ -36,13 +37,14 @@ class AccountingSalesReports extends AccountingOperationalReport
 
     public function getRevenue(): ResponseInterface|string
     {
-        $group = RevenueGroup::tryFrom($this->query('group')) ?? RevenueGroup::Day;
+        $group = $this->revenueGroup();
 
         $this->allow($group->permission());
+        $this->allowFilters(self::REVENUE_FILTERS);
 
         $scope = $this->requestedScope();
         $dates = $this->dates();
-        $table = $this->isRun() ? $this->revenueTable($scope, $group, $dates) : null;
+        $table = $this->runs($dates) ? $this->revenueTable($scope, $group, $dates) : null;
 
         return $this->page([
             'titleKey'      => 'Accounting_operational_reports.revenue_title',
@@ -58,12 +60,12 @@ class AccountingSalesReports extends AccountingOperationalReport
             'groupLabelKey' => 'Accounting_operational_reports.group_by',
             'details'       => $this->wantsDetails(),
             'offersView'    => true,
-            'fields'        => [
+            'fields'        => $this->permittedFields([
                 ['type' => 'multi', 'name' => 'status', 'labelKey' => 'Accounting_operational_reports.status', 'options' => $this->statusChoices(), 'value' => array_map(static fn (StatusFilter $filter): string => $filter->value, StatusFilter::fromRequest($this->request->getGet('status')))],
                 ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
                 ['type' => 'select', 'name' => 'user', 'labelKey' => 'Accounting_operational_reports.user', 'options' => $this->employeeChoices(), 'value' => $this->query('user')],
                 ['type' => 'check', 'name' => 'not_taxed', 'labelKey' => 'Accounting_operational_reports.show_not_taxed', 'value' => $this->flag('not_taxed')],
-            ],
+            ], self::REVENUE_FILTERS),
             'csvUrl'   => base_url('accounting_reports/revenue/csv') . $this->queryString(self::REVENUE_CARRIED, $scope),
             'siblings' => $this->siblings('revenue'),
         ]);
@@ -71,9 +73,10 @@ class AccountingSalesReports extends AccountingOperationalReport
 
     public function getRevenueCsv(): ResponseInterface
     {
-        $group = RevenueGroup::tryFrom($this->query('group')) ?? RevenueGroup::Day;
+        $group = $this->revenueGroup();
 
         $this->allow($group->permission());
+        $this->allowFilters(self::REVENUE_FILTERS);
 
         $dates = $this->dates();
 
@@ -90,7 +93,7 @@ class AccountingSalesReports extends AccountingOperationalReport
 
         $scope = $this->requestedScope();
         $dates = $this->dates();
-        $table = $this->isRun() ? $this->clientsTable($scope, $dates) : null;
+        $table = $this->runs($dates) ? $this->clientsTable($scope, $dates) : null;
 
         return $this->page([
             'titleKey'      => 'Accounting_operational_reports.clients_title',
@@ -142,7 +145,13 @@ class AccountingSalesReports extends AccountingOperationalReport
             $this->positiveId('customer'),
             $this->positiveId('user'),
             $this->flag('not_taxed'),
+            $dates->isOpenStart(),
         );
+    }
+
+    private function revenueGroup(): RevenueGroup
+    {
+        return RevenueGroup::tryFrom($this->query('group')) ?? $this->firstReadable(RevenueGroup::cases());
     }
 
     private function clientsTable(ReportScope $scope, DateFilter $dates): ReportTable
@@ -228,14 +237,18 @@ class AccountingSalesReports extends AccountingOperationalReport
     }
 
     /**
-     * @return list<array{label: string, url: string}>
+     * @return list<array{label: string, url: string}> The other report, when the employee may open it.
      */
     private function siblings(string $current): array
     {
+        $opens = [
+            'revenue'       => array_filter(RevenueGroup::cases(), fn (RevenueGroup $group): bool => $this->can($group->permission())) !== [],
+            'clients_sales' => $this->can('reports_customers'),
+        ];
         $links = [];
 
         foreach (['revenue' => 'revenue_title', 'clients_sales' => 'clients_title'] as $route => $key) {
-            if ($route !== $current) {
+            if ($route !== $current && $opens[$route]) {
                 $links[] = ['label' => lang('Accounting_operational_reports.' . $key), 'url' => base_url('accounting_reports/' . $route)];
             }
         }

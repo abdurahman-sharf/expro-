@@ -141,6 +141,21 @@ class ClientsSalesReportTest extends CIUnitTestCase
         $this->assertSame(['30.0000', '20.0000', '10.0000'], array_column($this->rows($this->table(null, false, true, 'date_desc')), 'total'));
     }
 
+    public function testBuild_OrdersByTheNumberOfTheDocumentAsPeopleReadIt(): void
+    {
+        foreach (['INV-9' => '10', 'INV-10' => '20', 'INV-2' => '30'] as $number => $total) {
+            $sale = $this->invoiceOf($total, $this->customerId);
+
+            $this->accountingDb()->table('sales')->where('sale_id', $sale)->update(['invoice_number' => $number]);
+        }
+
+        $ascending  = $this->rows($this->table(null, false, true, 'number_asc'));
+        $descending = $this->rows($this->table(null, false, true, 'number_desc'));
+
+        $this->assertSame(['INV-2', 'INV-9', 'INV-10'], array_column($ascending, 'number'));
+        $this->assertSame(['INV-10', 'INV-9', 'INV-2'], array_column($descending, 'number'));
+    }
+
     public function testBuild_TiesTheTotalTheTaxAndTheRevenueToTheJournals(): void
     {
         $cycle = $this->referenceInvoice();

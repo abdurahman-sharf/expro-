@@ -23,6 +23,8 @@ class AccountingPaymentReports extends AccountingOperationalReport
 {
     private const PERMISSION      = 'reports_payments';
     private const PAYMENT_CARRIED = ['group', 'view', 'preset', 'mode', 'from', 'to', 'date', 'customer', 'user', 'collector', 'method', 'treasury', 'show'];
+    private const FILTERS         = ['user' => 'reports_employees', 'collector' => 'reports_employees'];
+    private const ADVANCE_FILTERS = ['user' => 'reports_employees'];
     private const ADVANCE_CARRIED = ['preset', 'mode', 'from', 'to', 'date', 'customer', 'user', 'method', 'state', 'show'];
 
     private PaymentsReport $payments;
@@ -41,9 +43,13 @@ class AccountingPaymentReports extends AccountingOperationalReport
         $this->allow(self::PERMISSION);
 
         $group = PaymentGroup::tryFrom($this->query('group')) ?? PaymentGroup::Customer;
+
+        $this->allow($group->permission());
+        $this->allowFilters(self::FILTERS);
+
         $scope = $this->requestedScope();
         $dates = $this->dates();
-        $table = $this->isRun() ? $this->paymentsTable($scope, $group, $dates) : null;
+        $table = $this->runs($dates) ? $this->paymentsTable($scope, $group, $dates) : null;
         $query = $this->carried(self::PAYMENT_CARRIED, $scope);
 
         return $this->page([
@@ -55,18 +61,18 @@ class AccountingPaymentReports extends AccountingOperationalReport
             'branches'      => $this->branchChoices($scope),
             'scopeLabel'    => $this->scopeLabel($scope),
             'error'         => $dates->refusal === null ? null : $this->messageFor($dates->refusal),
-            'groups'        => array_combine(array_map(static fn (PaymentGroup $option): string => $option->value, PaymentGroup::cases()), array_map(static fn (PaymentGroup $option): string => lang($option->languageKey()), PaymentGroup::cases())),
+            'groups'        => $this->groupChoices(),
             'group'         => $group->value,
             'groupLabelKey' => 'Accounting_operational_reports.group_by',
             'details'       => $this->wantsDetails(),
             'offersView'    => true,
-            'fields'        => [
+            'fields'        => $this->permittedFields([
                 ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
                 ['type' => 'select', 'name' => 'user', 'labelKey' => 'Accounting_operational_reports.invoice_user', 'options' => $this->employeeChoices(), 'value' => $this->query('user')],
                 ['type' => 'select', 'name' => 'collector', 'labelKey' => 'Accounting_operational_reports.collector', 'options' => $this->employeeChoices(), 'value' => $this->query('collector')],
                 ['type' => 'select', 'name' => 'method', 'labelKey' => 'Accounting_operational_reports.method', 'options' => $this->methodChoices(), 'value' => $this->query('method')],
                 ['type' => 'select', 'name' => 'treasury', 'labelKey' => 'Accounting_operational_reports.treasury', 'options' => $this->moneyChoices(), 'value' => $this->query('treasury')],
-            ],
+            ], self::FILTERS),
             'csvUrl'   => base_url('accounting_reports/payments/csv') . ($query === [] ? '' : '?' . http_build_query($query)),
             'siblings' => [['label' => lang('Accounting_operational_reports.advances_title'), 'url' => base_url('accounting_reports/advance_payments')]],
         ]);
@@ -77,6 +83,10 @@ class AccountingPaymentReports extends AccountingOperationalReport
         $this->allow(self::PERMISSION);
 
         $group = PaymentGroup::tryFrom($this->query('group')) ?? PaymentGroup::Customer;
+
+        $this->allow($group->permission());
+        $this->allowFilters(self::FILTERS);
+
         $dates = $this->dates();
 
         if ($dates->refusal !== null) {
@@ -89,10 +99,11 @@ class AccountingPaymentReports extends AccountingOperationalReport
     public function getAdvances(): ResponseInterface|string
     {
         $this->allow(self::PERMISSION);
+        $this->allowFilters(self::ADVANCE_FILTERS);
 
         $scope = $this->requestedScope();
         $dates = $this->dates();
-        $table = $this->isRun() ? $this->advancesTable($scope, $dates) : null;
+        $table = $this->runs($dates) ? $this->advancesTable($scope, $dates) : null;
         $query = $this->carried(self::ADVANCE_CARRIED, $scope);
 
         return $this->page([
@@ -109,12 +120,12 @@ class AccountingPaymentReports extends AccountingOperationalReport
             'groupLabelKey' => 'Accounting_operational_reports.group_by',
             'details'       => false,
             'offersView'    => false,
-            'fields'        => [
+            'fields'        => $this->permittedFields([
                 ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
                 ['type' => 'select', 'name' => 'user', 'labelKey' => 'Accounting_operational_reports.created_by', 'options' => $this->employeeChoices(), 'value' => $this->query('user')],
                 ['type' => 'select', 'name' => 'method', 'labelKey' => 'Accounting_operational_reports.method', 'options' => $this->methodChoices(), 'value' => $this->query('method')],
                 ['type' => 'select', 'name' => 'state', 'labelKey' => 'Accounting_operational_reports.advance_state', 'options' => ['' => lang('Accounting_operational_reports.state_any'), 'open' => lang('Accounting_operational_reports.state_open'), 'spent' => lang('Accounting_operational_reports.state_spent')], 'value' => $this->choice('state', AdvancePaymentsReport::STATES, '')],
-            ],
+            ], self::ADVANCE_FILTERS),
             'csvUrl'   => base_url('accounting_reports/advance_payments/csv') . ($query === [] ? '' : '?' . http_build_query($query)),
             'siblings' => [['label' => lang('Accounting_operational_reports.payments_title'), 'url' => base_url('accounting_reports/payments')]],
         ]);
@@ -123,6 +134,7 @@ class AccountingPaymentReports extends AccountingOperationalReport
     public function getAdvancesCsv(): ResponseInterface
     {
         $this->allow(self::PERMISSION);
+        $this->allowFilters(self::ADVANCE_FILTERS);
 
         $dates = $this->dates();
 
@@ -146,12 +158,29 @@ class AccountingPaymentReports extends AccountingOperationalReport
             $this->positiveId('collector'),
             $this->query('method'),
             $this->positiveId('treasury'),
+            $dates->isOpenStart(),
         );
     }
 
     private function advancesTable(ReportScope $scope, DateFilter $dates): ReportTable
     {
         return $this->advances->build($scope, $dates->from, $dates->to, $this->positiveId('customer'), $this->positiveId('user'), $this->query('method'), $this->choice('state', AdvancePaymentsReport::STATES, ''));
+    }
+
+    /**
+     * @return array<string, string> The groupings the employee may open.
+     */
+    private function groupChoices(): array
+    {
+        $choices = [];
+
+        foreach (PaymentGroup::cases() as $option) {
+            if ($this->can($option->permission())) {
+                $choices[$option->value] = lang($option->languageKey());
+            }
+        }
+
+        return $choices;
     }
 
     /**

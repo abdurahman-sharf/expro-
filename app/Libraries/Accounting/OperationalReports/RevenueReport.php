@@ -31,10 +31,10 @@ final class RevenueReport
     /**
      * @param list<StatusFilter> $statuses
      */
-    public function build(ReportScope $scope, RevenueGroup $group, bool $details, ?string $from, string $to, string $today, array $statuses = [], ?int $customerId = null, ?int $employeeId = null, bool $notTaxed = false): ReportTable
+    public function build(ReportScope $scope, RevenueGroup $group, bool $details, ?string $from, string $to, string $today, array $statuses = [], ?int $customerId = null, ?int $employeeId = null, bool $notTaxed = false, bool $allDates = false): ReportTable
     {
         $period = $group->period();
-        $from ??= $period?->defaultFrom($to);
+        $from ??= $allDates ? null : $period?->defaultFrom($to);
 
         $documents = array_values(array_filter(
             $this->documents->read($scope, $from, $to, [], $customerId, $employeeId),

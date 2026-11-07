@@ -100,6 +100,60 @@ trait OperationalReportFixtureTrait
         return $rows;
     }
 
+    /**
+     * The addresses of the buttons of the title bar of a screen, the file and the other reports.
+     *
+     * @return list<string>
+     */
+    protected function titleBarLinks(TestResponse $response): array
+    {
+        $links = [];
+
+        foreach ($this->pageOf($response)->query("//div[@id='title_bar']//a/@href") as $node) {
+            $links[] = $node->nodeValue;
+        }
+
+        return $links;
+    }
+
+    /**
+     * The filters the link of the file of a screen carries, as the address gives them.
+     *
+     * @return array<string, mixed>
+     */
+    protected function fileQuery(TestResponse $response): array
+    {
+        $nodes = $this->pageOf($response)->query("//a[@id='report_csv']/@href");
+
+        $this->assertSame(1, $nodes->length, 'The screen has no link to its file.');
+
+        parse_str((string) parse_url($nodes->item(0)->nodeValue, PHP_URL_QUERY), $query);
+
+        return $query;
+    }
+
+    /**
+     * Gives every filter name a value in the address of the screen and says the link of its file carries
+     * each, so that a filter left out of the list of what is carried is found.
+     *
+     * @param list<string> $names
+     */
+    protected function assertFileCarries(string $route, array $names, string $extra = ''): void
+    {
+        $values = ['group' => 'day', 'view' => 'details', 'preset' => 'last_month', 'mode' => 'between', 'from' => '2020-01-01', 'to' => '2020-01-31', 'date' => '2020-01-15', 'status' => ['paid'], 'customer' => '7', 'user' => '8', 'collector' => '9', 'not_taxed' => '1', 'type' => 'invoice', 'order' => 'date_asc', 'item' => '10', 'category' => 'Oils', 'location' => '1', 'method' => 'cash', 'treasury' => '11', 'state' => 'open', 'hide_credit_notes' => '1', 'show' => '1'];
+        $query  = [];
+
+        foreach ($names as $name) {
+            $query[$name] = $values[$name];
+        }
+
+        $carried = $this->fileQuery($this->fetch($route . '?' . http_build_query($query) . $extra));
+
+        foreach ($names as $name) {
+            $this->assertArrayHasKey($name, $carried, "The file of {$route} does not carry the filter {$name}.");
+        }
+    }
+
     protected function shown(string $amount): string
     {
         return to_currency_no_money($amount);

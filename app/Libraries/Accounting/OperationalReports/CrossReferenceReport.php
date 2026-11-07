@@ -116,26 +116,26 @@ final class CrossReferenceReport
             columns: $this->columns($byCustomer && ! $details, $scope),
             blocks: $blocks,
             total: $total,
-            ties: $kind === null && $states === [] && $customerId === null ? [$this->tie(array_map(static fn (array $entry): ReportDocument => $entry[0], $entries))] : [],
+            ties: $kind === null && $states === [] && $customerId === null ? [$this->tie($entries)] : [],
             notes: ['Accounting_operational_reports.note_cross_reference'],
             documents: count($entries),
         );
     }
 
     /**
-     * What was taken back from the invoices of customers beside what the position of each customer in the
+     * What the returns listed under the invoices come to beside what the position of each customer in the
      * ledger says was taken back from the same invoices.
      *
-     * @param list<ReportDocument> $invoices
+     * @param list<array{0: ReportDocument, 1: list<ReportDocument>}> $entries
      */
-    private function tie(array $invoices): TieCheck
+    private function tie(array $entries): TieCheck
     {
         $ledger   = new CustomerLedger($this->db);
         $reported = '0';
         $held     = '0';
         $position = [];
 
-        foreach ($invoices as $invoice) {
+        foreach ($entries as [$invoice, $listed]) {
             if ($invoice->customerId === null) {
                 continue;
             }
@@ -143,7 +143,7 @@ final class CrossReferenceReport
             $position[$invoice->customerId] ??= $ledger->position($invoice->customerId);
             $figures = $position[$invoice->customerId]->invoice($invoice->id);
 
-            $reported = Amounts::add($reported, $invoice->returnedAll());
+            $reported = Amounts::add($reported, Amounts::negate(Amounts::sum(array_map(static fn (ReportDocument $return): string => $return->total, $listed))));
             $held     = Amounts::add($held, $figures === null ? Amounts::ZERO : $figures->returned);
         }
 

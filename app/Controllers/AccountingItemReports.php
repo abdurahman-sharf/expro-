@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\OperationalReports\DateFilter;
 use App\Libraries\Accounting\OperationalReports\DocumentKind;
 use App\Libraries\Accounting\OperationalReports\ItemGroup;
 use App\Libraries\Accounting\OperationalReports\ItemSalesReport;
@@ -19,6 +20,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 class AccountingItemReports extends AccountingOperationalReport
 {
     private const CARRIED = ['group', 'view', 'preset', 'mode', 'from', 'to', 'date', 'type', 'status', 'customer', 'user', 'item', 'category', 'location', 'show'];
+    private const FILTERS = ['customer' => 'reports_customers', 'user' => 'reports_employees', 'category' => 'reports_categories'];
 
     private ItemSalesReport $report;
 
@@ -31,13 +33,14 @@ class AccountingItemReports extends AccountingOperationalReport
 
     public function getIndex(): ResponseInterface|string
     {
-        $group = ItemGroup::tryFrom($this->query('group')) ?? ItemGroup::Item;
+        $group = $this->itemGroup();
 
         $this->allow($group->permission());
+        $this->allowFilters(self::FILTERS);
 
         $scope = $this->requestedScope();
         $dates = $this->dates();
-        $table = $this->isRun() ? $this->table($scope, $group, $dates->from, $dates->to) : null;
+        $table = $this->runs($dates) ? $this->table($scope, $group, $dates) : null;
 
         return $this->page([
             'titleKey'      => 'Accounting_operational_reports.items_title',
@@ -53,7 +56,7 @@ class AccountingItemReports extends AccountingOperationalReport
             'groupLabelKey' => 'Accounting_operational_reports.group_by',
             'details'       => $this->wantsDetails(),
             'offersView'    => true,
-            'fields'        => [
+            'fields'        => $this->permittedFields([
                 ['type' => 'select', 'name' => 'type', 'labelKey' => 'Accounting_operational_reports.type', 'options' => $this->typeChoices(), 'value' => $this->query('type')],
                 ['type' => 'multi', 'name' => 'status', 'labelKey' => 'Accounting_operational_reports.status', 'options' => $this->statusChoices(), 'value' => array_map(static fn (StatusFilter $filter): string => $filter->value, StatusFilter::fromRequest($this->request->getGet('status')))],
                 ['type' => 'select', 'name' => 'item', 'labelKey' => 'Accounting_operational_reports.item', 'options' => $this->itemChoices(), 'value' => $this->query('item')],
@@ -61,7 +64,7 @@ class AccountingItemReports extends AccountingOperationalReport
                 ['type' => 'select', 'name' => 'location', 'labelKey' => 'Accounting_operational_reports.location', 'options' => $this->locationChoices(), 'value' => $this->query('location')],
                 ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
                 ['type' => 'select', 'name' => 'user', 'labelKey' => 'Accounting_operational_reports.user', 'options' => $this->employeeChoices(), 'value' => $this->query('user')],
-            ],
+            ], self::FILTERS),
             'csvUrl'   => base_url('accounting_reports/item_sales/csv') . $this->queryString($scope),
             'siblings' => [],
         ]);
@@ -69,9 +72,10 @@ class AccountingItemReports extends AccountingOperationalReport
 
     public function getCsv(): ResponseInterface
     {
-        $group = ItemGroup::tryFrom($this->query('group')) ?? ItemGroup::Item;
+        $group = $this->itemGroup();
 
         $this->allow($group->permission());
+        $this->allowFilters(self::FILTERS);
 
         $dates = $this->dates();
 
@@ -79,10 +83,15 @@ class AccountingItemReports extends AccountingOperationalReport
             return $this->refused($this->messageFor($dates->refusal));
         }
 
-        return $this->csvResponse('item_sales_' . $group->value, $this->table($this->requestedScope(), $group, $dates->from, $dates->to), 'Accounting_operational_reports.items_title');
+        return $this->csvResponse('item_sales_' . $group->value, $this->table($this->requestedScope(), $group, $dates), 'Accounting_operational_reports.items_title');
     }
 
-    private function table(ReportScope $scope, ItemGroup $group, ?string $from, string $to): ReportTable
+    private function itemGroup(): ItemGroup
+    {
+        return ItemGroup::tryFrom($this->query('group')) ?? $this->firstReadable(ItemGroup::cases());
+    }
+
+    private function table(ReportScope $scope, ItemGroup $group, DateFilter $dates): ReportTable
     {
         $kind = DocumentKind::tryFrom($this->query('type'));
 
@@ -90,8 +99,8 @@ class AccountingItemReports extends AccountingOperationalReport
             $scope,
             $group,
             $this->wantsDetails(),
-            $from,
-            $to,
+            $dates->from,
+            $dates->to,
             $this->today(),
             $kind === DocumentKind::DebitNote ? null : $kind,
             StatusFilter::fromRequest($this->request->getGet('status')),
@@ -100,6 +109,7 @@ class AccountingItemReports extends AccountingOperationalReport
             $this->positiveId('item'),
             $this->query('category'),
             $this->positiveId('location'),
+            $dates->isOpenStart(),
         );
     }
 

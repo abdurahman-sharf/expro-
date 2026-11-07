@@ -36,7 +36,33 @@ class DateFilterTest extends CIUnitTestCase
         $filter = $this->read(['from' => '01/09/2026', 'to' => '30/09/2026']);
 
         $this->assertSame(['2026-09-01', '2026-09-30'], [$filter->from, $filter->to]);
-        $this->assertSame('01/09/2026', $filter->fromInput);
+    }
+
+    public function testRead_GivesTheFormTheDaysAsYearMonthDayWhateverWayTheyWereTyped(): void
+    {
+        $typed = $this->read(['from' => '01/09/2026', 'to' => '30/09/2026']);
+        $iso   = $this->read(['mode' => 'before', 'date' => '2026-10-20']);
+
+        $this->assertSame(['2026-09-01', '2026-09-30', ''], [$typed->fromInput, $typed->toInput, $typed->dateInput]);
+        $this->assertSame('2026-10-20', $iso->dateInput);
+    }
+
+    public function testRead_GivesTheFormNothingForADayThatIsNotOne(): void
+    {
+        $filter = $this->read(['from' => '31/02/2026', 'to' => 'yesterday', 'date' => '2026-13-01']);
+
+        $this->assertSame(['', '', ''], [$filter->fromInput, $filter->toInput, $filter->dateInput]);
+        $this->assertNotNull($filter->refusal);
+    }
+
+    public function testIsOpenStart_IsTrueForEveryDayBeforeADayAndForNothingElse(): void
+    {
+        $this->assertTrue($this->read(['mode' => 'before', 'date' => '2026-10-20'])->isOpenStart());
+        $this->assertFalse($this->read(['from' => '2026-10-01'])->isOpenStart());
+        $this->assertFalse($this->read([])->isOpenStart());
+        $this->assertFalse($this->read(['mode' => 'on', 'date' => '2026-10-20'])->isOpenStart());
+        $this->assertFalse($this->read(['mode' => 'before', 'date' => '31/02/2026'])->isOpenStart());
+        $this->assertFalse($this->read(['mode' => 'before', 'date' => '2026-10-20', 'preset' => 'last_month'])->isOpenStart());
     }
 
     public function testRead_ReadsASingleDayAndEveryDayBeforeOrAfter(): void

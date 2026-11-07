@@ -32,10 +32,10 @@ final class ItemSalesReport
     /**
      * @param list<StatusFilter> $statuses
      */
-    public function build(ReportScope $scope, ItemGroup $group, bool $details, ?string $from, string $to, string $today, ?DocumentKind $kind = null, array $statuses = [], ?int $customerId = null, ?int $employeeId = null, ?int $itemId = null, string $category = '', ?int $locationId = null): ReportTable
+    public function build(ReportScope $scope, ItemGroup $group, bool $details, ?string $from, string $to, string $today, ?DocumentKind $kind = null, array $statuses = [], ?int $customerId = null, ?int $employeeId = null, ?int $itemId = null, string $category = '', ?int $locationId = null, bool $allDates = false): ReportTable
     {
         $period = $group->period();
-        $from ??= $period?->defaultFrom($to);
+        $from ??= $allDates ? null : $period?->defaultFrom($to);
 
         $documents = array_values(array_filter(
             $this->documents->read($scope, $from, $to, $kind === null ? [] : [$kind], $customerId, $employeeId, true),
@@ -111,7 +111,7 @@ final class ItemSalesReport
             total: $total,
             ties: $filtered ? [] : [$this->tie($documents, $total['total'])],
             notes: ['Accounting_operational_reports.note_items'],
-            documents: count($documents),
+            documents: count(array_unique(array_map(static fn (array $row): int => $row['document']->id, $rows))),
         );
     }
 

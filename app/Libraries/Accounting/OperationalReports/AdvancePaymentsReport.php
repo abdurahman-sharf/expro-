@@ -6,7 +6,6 @@ use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\ReportScope;
-use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Database\BaseConnection;
@@ -52,12 +51,12 @@ final class AdvancePaymentsReport
             $customer = (int) $advance->customer_id;
             $credits[$customer] ??= $this->creditsOf($position, $customer);
             $source   = $credits[$customer][(int) $advance->advance_id] ?? null;
-            $amount   = $source?->amount ?? bcadd((string) $advance->amount, '0', SaleAmounts::SCALE);
+            $amount   = $source?->amount ?? Amounts::ZERO;
             $applied  = $source?->applied ?? Amounts::ZERO;
             $refunded = $source?->refunded ?? Amounts::ZERO;
-            $left     = $source?->available() ?? $amount;
+            $left     = $source?->available() ?? Amounts::ZERO;
 
-            if (($state === 'open' && Amounts::isZero($left)) || ($state === 'spent' && ! Amounts::isZero($left))) {
+            if (($state === 'open' && Amounts::isZero($left)) || ($state === 'spent' && ($source === null || ! Amounts::isZero($left)))) {
                 continue;
             }
 

@@ -39,7 +39,7 @@ class AccountingNetPosition extends AccountingOperationalReport
 
         $scope = $this->requestedScope();
         $dates = $this->dates();
-        $table = $this->isRun() ? $this->netTable($scope, $dates) : null;
+        $table = $this->runs($dates) ? $this->netTable($scope, $dates) : null;
         $query = $this->carried(self::NET_CARRIED, $scope);
 
         return $this->page([
@@ -85,7 +85,7 @@ class AccountingNetPosition extends AccountingOperationalReport
 
         $scope = $this->requestedScope();
         $dates = $this->dates();
-        $table = $this->isRun() ? $this->crossTable($scope, $dates) : null;
+        $table = $this->runs($dates) ? $this->crossTable($scope, $dates) : null;
         $query = $this->carried(self::CROSS_CARRIED, $scope);
 
         return $this->page([

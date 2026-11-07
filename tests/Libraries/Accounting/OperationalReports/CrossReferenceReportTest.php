@@ -80,6 +80,7 @@ class CrossReferenceReportTest extends CIUnitTestCase
         sort($counts);
 
         $this->assertSame([2, 3], $counts);
+        $this->assertNotContains('POS ' . $this->without, array_merge(...array_map(static fn ($block): array => array_column($block->rows, 'number'), $table->blocks)));
     }
 
     public function testBuild_ShowsTheAmountTakenBackAndWhatIsLeft(): void
@@ -116,13 +117,36 @@ class CrossReferenceReportTest extends CIUnitTestCase
         $this->assertCount(2, $this->table(false, true)->blocks[0]->rows);
     }
 
+    public function testBuild_OrdersByDateCustomerAndNetAmount(): void
+    {
+        $numbers = fn (string $order): array => array_column(array_map(static fn ($block): array => $block->rows[0], $this->table(true, false, null, [], $order)->blocks), 'total');
+
+        $this->assertSame(['575.0000', '172.5000'], $numbers('net_desc'));
+        $this->assertSame(['172.5000', '575.0000'], $numbers('net_asc'));
+        $this->assertSame(['172.5000', '575.0000'], $numbers('date_desc'));
+        $this->assertSame(['575.0000', '172.5000'], $numbers('date_asc'));
+        $this->assertSame(['172.5000', '575.0000'], $numbers('customer'));
+    }
+
     public function testBuild_TiesWhatWasTakenBackToTheLedger(): void
     {
         $table = $this->table();
 
         $this->assertTrue($table->ties());
         $this->assertSame('431.2500', $table->ties[0]->ledger);
-        $this->assertGreaterThan(0, $this->without);
+    }
+
+    public function testBuild_SaysTheyDifferWhenTheReturnsShownAreNotWhatTheLedgerHolds(): void
+    {
+        $refund = (int) $this->accountingDb()->table('sales')->select('sale_id')->where('return_of_sale_id', $this->withOne)->get()->getRow()->sale_id;
+
+        $this->accountingDb()->table('sales_items')->where('sale_id', $refund)->update(['item_unit_price' => '10']);
+
+        $table = $this->table();
+
+        $this->assertFalse($table->ties());
+        $this->assertSame($table->total['returns'], $table->ties[0]->reported);
+        $this->assertSame('431.2500', $table->ties[0]->ledger);
     }
 
     public function testBuild_ReadsNothingForAScopeOfNoBranch(): void

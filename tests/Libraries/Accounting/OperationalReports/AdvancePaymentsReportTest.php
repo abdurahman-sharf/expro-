@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\OperationalReports\AdvancePaymentsReport;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
@@ -100,6 +101,25 @@ class AdvancePaymentsReportTest extends CIUnitTestCase
         $this->assertSame('50.0000', $this->table()->total['amount']);
         $this->assertSame('0.0000', $this->table('', $other)->total['amount']);
         $this->assertGreaterThan(0, $kept);
+    }
+
+    public function testBuild_ShowsAnAdvanceWhoseJournalDoesNotStandAsNothingTheBooksHoldAndSaysTheyDiffer(): void
+    {
+        $advances = new CustomerAdvances();
+        $advances->receive($this->customerId, '50', date('Y-m-d'), 'Cash', null, '', '', $this->teller());
+        $lost = $advances->receive($this->customerId, '70', date('Y-m-d'), 'Cash', null, '', '', $this->teller());
+
+        $this->accountingDb()->table('accounting_journals')->where(['source_type' => CreditSource::CUSTOMER_ADVANCE, 'source_id' => $lost])->update(['status' => 'reversed']);
+
+        $table = $this->table();
+        $rows  = $table->blocks[0]->rows;
+
+        $this->assertSame(['50.0000', '0.0000'], array_column($rows, 'amount'));
+        $this->assertSame('50.0000', $table->total['unsettled']);
+        $this->assertFalse($table->ties());
+        $this->assertSame(['50.0000', '120.0000'], [$table->ties[0]->reported, $table->ties[0]->ledger]);
+        $this->assertCount(1, $this->table('open')->blocks[0]->rows);
+        $this->assertCount(0, $this->table('spent')->blocks[0]->rows);
     }
 
     public function testBuild_ReadsNothingForAScopeOfNoBranch(): void
