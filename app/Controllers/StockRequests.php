@@ -97,8 +97,8 @@ class StockRequests extends StockDocumentController
             $id = $this->requests->create([
                 'from_location_id' => (int) $this->request->getPost('from_location_id'),
                 'to_location_id'   => (int) $this->request->getPost('to_location_id'),
-                'date'             => trim((string) $this->request->getPost('request_date')),
-                'note'             => (string) $this->request->getPost('note'),
+                'date'             => trim($this->postedText('request_date')),
+                'note'             => $this->postedText('note'),
                 'lines'            => $this->postedLines(),
             ], $this->employeeId());
 
@@ -133,7 +133,7 @@ class StockRequests extends StockDocumentController
         return $this->attempt(function () use ($requestId): array {
             $this->assertVisible($requestId);
 
-            $this->requests->cancel($requestId, (string) $this->request->getPost('reason'), $this->employeeId());
+            $this->requests->cancel($requestId, $this->postedText('reason'), $this->employeeId());
 
             return ['success' => true, 'message' => lang('Stock_documents.request_cancelled'), 'id' => $requestId];
         });
@@ -167,11 +167,11 @@ class StockRequests extends StockDocumentController
      */
     private function filters(): array
     {
-        $status = (string) $this->request->getGet('status');
+        $status = $this->queryText('status');
 
         return [
             'status' => in_array($status, ['requested', 'approved', 'fulfilled', 'cancelled'], true) ? $status : '',
-            'search' => trim((string) $this->request->getGet('search')),
+            'search' => trim($this->queryText('search')),
             'from'   => $this->dateOf('from'),
             'to'     => $this->dateOf('to'),
         ];

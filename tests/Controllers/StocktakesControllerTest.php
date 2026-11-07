@@ -86,6 +86,27 @@ class StocktakesControllerTest extends CIUnitTestCase
         return json_decode($this->post($url, $data)->getJSON(), true);
     }
 
+    private function itemNameOf(int $itemId): string
+    {
+        return (string) $this->accountingDb()->table('items')->select('name')->where('item_id', $itemId)->get()->getRow()->name;
+    }
+
+    /**
+     * @param list<int> $itemIds
+     *
+     * @return list<object>
+     */
+    private function orderedByItem(int $stocktakeId, array $itemIds): array
+    {
+        $lines = [];
+
+        foreach ($this->takes->lines($stocktakeId) as $line) {
+            $lines[(int) $line->item_id] = $line;
+        }
+
+        return array_map(static fn (int $itemId): object => $lines[$itemId], $itemIds);
+    }
+
     private function started(int $itemId, array $more = []): int
     {
         return $this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d'), 'item_ids' => [$itemId], ...$more], $this->keeperId);
@@ -119,7 +140,7 @@ class StocktakesControllerTest extends CIUnitTestCase
 
         $this->actAsWith([]);
 
-        $this->assertNotSame(200, $this->get('/stock_documents/stocktakes')->response()->getStatusCode());
+        $this->assertSame(302, $this->get('/stock_documents/stocktakes')->response()->getStatusCode());
     }
 
     public function testGetIndex_ShowsOnlyTheBranchesOfTheEmployeeFiltersAndPages(): void
@@ -206,7 +227,7 @@ class StocktakesControllerTest extends CIUnitTestCase
         $this->assertTrue($counted['success']);
         $this->assertSame(lang('Stock_documents.counts_saved'), $counted['message']);
 
-        $approved = $this->postJson('/stock_documents/stocktakes/approve/' . $stocktakeId);
+        $approved = $this->postJson('/stock_documents/stocktakes/approve/' . $stocktakeId, ['digest' => $this->takes->digest($stocktakeId)]);
 
         $this->assertTrue($approved['success']);
         $this->assertSame(lang('Stock_documents.stocktake_approved'), $approved['message']);
@@ -217,7 +238,8 @@ class StocktakesControllerTest extends CIUnitTestCase
 
         $page->assertDontSee('id="stocktake_approve"');
         $page->assertDontSee('id="counts_save"');
-        $page->assertSee('-2');
+        $this->assertStringContainsString('<bdi dir="ltr">-2</bdi>', $page->getBody(), 'the difference column shows what the count found short');
+        $this->assertStringContainsString('<bdi dir="ltr">8</bdi>', $page->getBody(), 'and the counted quantity beside it');
     }
 
     public function testPostCountAndPostApprove_SayInWordsWhatTheBooksRefuse(): void
@@ -235,10 +257,97 @@ class StocktakesControllerTest extends CIUnitTestCase
 
         $this->postJson('/stock_documents/stocktakes/count/' . $stocktakeId, ['counted' => [(string) $first => '8']]);
 
-        $refused = $this->postJson('/stock_documents/stocktakes/approve/' . $stocktakeId);
+        $refused = $this->postJson('/stock_documents/stocktakes/approve/' . $stocktakeId, ['digest' => $this->takes->digest($stocktakeId)]);
 
         $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_stocktake_not_counted', [$this->itemNameOf($second)]), $refused['message']);
         $this->assertSame('10.000', $this->onHand($first));
+    }
+
+    public function testPostApprove_RejectsAnApprovalThatCarriesNoDigestOrAStaleOne(): void
+    {
+        $itemId      = $this->stocked('10', '50');
+        $stocktakeId = $this->started($itemId);
+
+        $this->takes->count($stocktakeId, [$itemId => '8'], $this->keeperId);
+
+        $reviewed = $this->takes->digest($stocktakeId);
+
+        $this->takes->count($stocktakeId, [$itemId => '0'], $this->keeperId);
+        $this->actAsKeeper();
+
+        foreach ([[], ['digest' => $reviewed], ['digest' => ['x']]] as $data) {
+            $answer = $this->postJson('/stock_documents/stocktakes/approve/' . $stocktakeId, $data);
+
+            $this->assertFalse($answer['success']);
+            $this->assertSame(lang('Accounting.error_stocktake_changed'), $answer['message']);
+        }
+
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
+    }
+
+    public function testGetDocument_CarriesTheDigestAndWhatEachCountShowedAndGuardsTypedCountsThatWereNotSaved(): void
+    {
+        $itemId      = $this->stocked('10', '50');
+        $stocktakeId = $this->started($itemId);
+
+        $this->takes->count($stocktakeId, [$itemId => '8'], $this->keeperId);
+        $this->actAsKeeper();
+
+        $body = $this->get('/stock_documents/stocktakes/view/' . $stocktakeId)->getBody();
+
+        $this->assertStringContainsString('digest: "' . $this->takes->digest($stocktakeId) . '"', $body);
+        $this->assertStringContainsString('name="seen[' . $itemId . ']" value="8"', $body);
+        $this->assertStringContainsString('data-saved="8"', $body);
+        $this->assertStringContainsString(esc(lang('Stock_documents.save_counts_first'), 'js'), $body);
+    }
+
+    public function testPostCount_KeepsACountSavedAfterTheSheetWasOpenedAndSaysWhichCountChanged(): void
+    {
+        $first       = $this->stocked('10', '50');
+        $second      = $this->stocked('3', '20');
+        $stocktakeId = $this->takes->create(['location_id' => self::LOCATION_ID, 'item_ids' => [$first, $second]], $this->keeperId);
+
+        $this->takes->count($stocktakeId, [$first => '8'], $this->keeperId);
+        $this->actAsKeeper();
+
+        $kept = $this->postJson('/stock_documents/stocktakes/count/' . $stocktakeId, ['counted' => [(string) $first => '', (string) $second => '2'], 'seen' => [(string) $first => '', (string) $second => '']]);
+
+        $this->assertTrue($kept['success']);
+        $this->assertSame(['8.000', '2.000'], array_map(static fn (object $line): string => bcadd((string) $line->counted_quantity, '0', 3), $this->orderedByItem($stocktakeId, [$first, $second])));
+
+        $clash = $this->postJson('/stock_documents/stocktakes/count/' . $stocktakeId, ['counted' => [(string) $first => '9'], 'seen' => [(string) $first => '']]);
+
+        $this->assertFalse($clash['success']);
+        $this->assertSame(lang('Accounting.error_stocktake_count_changed', [$this->itemNameOf($first)]), $clash['message']);
+    }
+
+    public function testPostSaveStocktakeAndPostCount_AnswerInWordsWhenAFieldIsAListInsteadOfAText(): void
+    {
+        $itemId      = $this->stocked('10', '50');
+        $stocktakeId = $this->started($itemId);
+
+        $this->actAsKeeper();
+
+        $date = $this->postJson('/stock_documents/stocktakes/save', ['location_id' => (string) self::LOCATION_ID, 'count_date' => ['2026-01-01'], 'note' => ['x']]);
+
+        $this->assertFalse($date['success']);
+        $this->assertSame(lang('Accounting.error_invalid_date'), $date['message']);
+
+        $note = $this->postJson('/stock_documents/stocktakes/save', ['location_id' => (string) self::LOCATION_ID, 'count_date' => date('Y-m-d', strtotime('-1 day')), 'note' => ['x']]);
+
+        $this->assertTrue($note['success'], 'a note that is a list is taken as no note');
+
+        $count = $this->postJson('/stock_documents/stocktakes/count/' . $stocktakeId, ['counted' => [(string) $itemId => ['1']]]);
+
+        $this->assertFalse($count['success']);
+        $this->assertSame(lang('Accounting.error_stocktake_lines_invalid', [(string) $itemId]), $count['message']);
+
+        $reason = $this->postJson('/stock_documents/stocktakes/cancel/' . $stocktakeId, ['reason' => ['x']]);
+
+        $this->assertFalse($reason['success']);
+        $this->assertSame(lang('Accounting.error_reason_required'), $reason['message']);
     }
 
     public function testPostApprove_NeedsThePermissionToApproveAndTheSheetOffersNoButtonWithoutIt(): void

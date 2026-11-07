@@ -78,6 +78,21 @@ while (!file_exists($goFile)) {
     usleep(1000);
 }
 
+$attempt = static function (callable $action, string $outcomeFile): bool {
+    try {
+        $action();
+        $outcome = 'done';
+    } catch (AccountingException $exception) {
+        $outcome = $exception->error->value;
+    } catch (Throwable $exception) {
+        $outcome = get_class($exception) . ' ' . $exception->getMessage();
+    }
+
+    file_put_contents($outcomeFile, $outcome);
+
+    return $outcome === 'done';
+};
+
 $result = match ($method) {
     'giftcard' => model(App\Models\Giftcard::class)
         ->decrementGiftcardValue((string) $args[0], (float) $args[1]),
@@ -206,47 +221,16 @@ $result = match ($method) {
             return false;
         }
     })($args),
-    'issuePermit' => (static function (array $args): bool {
-        try {
-            (new StockPermit())->create([
-                'type'        => 'issue',
-                'date'        => date('Y-m-d'),
-                'location_id' => 1,
-                'lines'       => [['item_id' => (int) $args[0], 'quantity' => (string) $args[1]]],
-            ], (int) $args[2]);
-
-            return true;
-        } catch (Throwable) {
-            return false;
-        }
-    })($args),
-    'cancelPermit' => (static function (array $args): bool {
-        try {
-            (new StockPermit())->cancel((int) $args[0], 'race', (int) $args[1]);
-
-            return true;
-        } catch (Throwable) {
-            return false;
-        }
-    })($args),
-    'fulfilRequest' => (static function (array $args): bool {
-        try {
-            (new StockRequest())->fulfil((int) $args[0], (int) $args[1]);
-
-            return true;
-        } catch (Throwable) {
-            return false;
-        }
-    })($args),
-    'approveStocktake' => (static function (array $args): bool {
-        try {
-            (new Stocktake())->approve((int) $args[0], (int) $args[1]);
-
-            return true;
-        } catch (Throwable) {
-            return false;
-        }
-    })($args),
+    'issuePermit' => $attempt(static fn () => (new StockPermit())->create([
+        'type'        => 'issue',
+        'date'        => date('Y-m-d'),
+        'location_id' => 1,
+        'lines'       => [['item_id' => (int) $args[0], 'quantity' => (string) $args[1]]],
+    ], (int) $args[2]), (string) $args[3]),
+    'cancelPermit' => $attempt(static fn () => (new StockPermit())->cancel((int) $args[0], 'race', (int) $args[1]), (string) $args[2]),
+    'fulfilRequest' => $attempt(static fn () => (new StockRequest())->fulfil((int) $args[0], (int) $args[1]), (string) $args[2]),
+    'approveStocktake' => $attempt(static fn () => (new Stocktake())->approve((int) $args[0], (int) $args[1]), (string) $args[2]),
+    'createStocktake' => $attempt(static fn () => (new Stocktake())->create(['location_id' => (int) $args[0], 'date' => (string) $args[1], 'item_ids' => [(int) $args[2]]], (int) $args[3]), (string) $args[4]),
     'assignNumber' => (static function (array $args): bool {
         $db = Database::connect();
 

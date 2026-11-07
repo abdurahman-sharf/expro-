@@ -123,14 +123,14 @@ class StockPermits extends StockDocumentController
     {
         return $this->attempt(function (): array {
             $id = $this->permits->create([
-                'type'           => (string) $this->request->getPost('type'),
-                'date'           => trim((string) $this->request->getPost('permit_date')),
+                'type'           => $this->postedText('type'),
+                'date'           => trim($this->postedText('permit_date')),
                 'location_id'    => (int) $this->request->getPost('location_id'),
                 'to_location_id' => (int) $this->request->getPost('to_location_id'),
                 'supplier_id'    => (int) $this->request->getPost('supplier_id'),
                 'customer_id'    => (int) $this->request->getPost('customer_id'),
                 'account_id'     => (int) $this->request->getPost('account_id'),
-                'note'           => (string) $this->request->getPost('note'),
+                'note'           => $this->postedText('note'),
                 'lines'          => $this->postedLines(),
             ], $this->employeeId());
 
@@ -144,11 +144,11 @@ class StockPermits extends StockDocumentController
             $this->assertVisible($permitId);
 
             $this->permits->update($permitId, [
-                'date'        => trim((string) $this->request->getPost('permit_date')),
+                'date'        => trim($this->postedText('permit_date')),
                 'supplier_id' => (int) $this->request->getPost('supplier_id'),
                 'customer_id' => (int) $this->request->getPost('customer_id'),
                 'account_id'  => (int) $this->request->getPost('account_id'),
-                'note'        => (string) $this->request->getPost('note'),
+                'note'        => $this->postedText('note'),
                 'lines'       => $this->postedLines(),
             ], $this->employeeId());
 
@@ -161,7 +161,7 @@ class StockPermits extends StockDocumentController
         return $this->attempt(function () use ($permitId): array {
             $this->assertVisible($permitId);
 
-            $this->permits->cancel($permitId, (string) $this->request->getPost('reason'), $this->employeeId());
+            $this->permits->cancel($permitId, $this->postedText('reason'), $this->employeeId());
 
             return ['success' => true, 'message' => lang('Stock_documents.permit_cancelled'), 'id' => $permitId];
         });
@@ -195,8 +195,8 @@ class StockPermits extends StockDocumentController
             return $this->forbidden();
         }
 
-        $kind  = (string) $this->request->getGet('kind') === 'customer' ? 'customers' : 'suppliers';
-        $term  = trim((string) $this->request->getGet('term'));
+        $kind  = $this->queryText('kind') === 'customer' ? 'customers' : 'suppliers';
+        $term  = trim($this->queryText('term'));
         $query = Database::connect()->table($kind . ' x')
             ->select("x.person_id, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS name, x.company_name", false)
             ->join('people p', 'p.person_id = x.person_id')
@@ -239,13 +239,13 @@ class StockPermits extends StockDocumentController
      */
     private function filters(): array
     {
-        $status = (string) $this->request->getGet('status');
-        $type   = (string) $this->request->getGet('type');
+        $status = $this->queryText('status');
+        $type   = $this->queryText('type');
 
         return [
             'status' => in_array($status, ['posted', 'cancelled'], true) ? $status : '',
             'type'   => StockPermitType::tryFrom($type) !== null ? $type : '',
-            'search' => trim((string) $this->request->getGet('search')),
+            'search' => trim($this->queryText('search')),
             'from'   => $this->dateOf('from'),
             'to'     => $this->dateOf('to'),
         ];

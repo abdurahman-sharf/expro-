@@ -106,6 +106,37 @@ trait StockDocumentFixtureTrait
         return $itemId;
     }
 
+    /**
+     * Two processes make the same kind of change at the same moment, each over a connection of its own,
+     * and say how it ended: done, or the error of the books that refused it. A class that uses it also
+     * uses ConcurrentDbRaceTrait.
+     *
+     * @param list<string> $firstArguments
+     * @param list<string> $secondArguments
+     *
+     * @return list<string> The two answers, sorted.
+     */
+    protected function raceStockWorkers(string $method, array $firstArguments, array $secondArguments): array
+    {
+        $files = [(string) tempnam(sys_get_temp_dir(), 'race_out_'), (string) tempnam(sys_get_temp_dir(), 'race_out_')];
+
+        try {
+            $this->raceTwoProcesses($method, [...$firstArguments, $files[0]], [...$secondArguments, $files[1]]);
+
+            $answers = [trim((string) file_get_contents($files[0])), trim((string) file_get_contents($files[1]))];
+
+            sort($answers);
+
+            return $answers;
+        } finally {
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
+            }
+        }
+    }
+
     protected function switchOnTransferPermit(): void
     {
         $this->setConfigValue(StockDocumentSettings::TRANSFER_PERMIT, '1');

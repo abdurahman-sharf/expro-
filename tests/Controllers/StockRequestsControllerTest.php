@@ -92,6 +92,16 @@ class StockRequestsControllerTest extends CIUnitTestCase
         return json_decode($this->post($url, $data)->getJSON(), true);
     }
 
+    private function itemNameOf(int $itemId): string
+    {
+        return (string) $this->accountingDb()->table('items')->select('name')->where('item_id', $itemId)->get()->getRow()->name;
+    }
+
+    private function locationNameOf(int $locationId): string
+    {
+        return (string) $this->accountingDb()->table('stock_locations')->select('location_name')->where('location_id', $locationId)->get()->getRow()->location_name;
+    }
+
     private function asked(int $itemId, string $quantity = '4'): int
     {
         return $this->requests->create(['from_location_id' => self::LOCATION_ID, 'to_location_id' => $this->shop, 'lines' => [['item_id' => $itemId, 'quantity' => $quantity]]], $this->keeperId);
@@ -137,7 +147,7 @@ class StockRequestsControllerTest extends CIUnitTestCase
 
         $this->actAsWith([]);
 
-        $this->assertNotSame(200, $this->get('/stock_documents/requests')->response()->getStatusCode());
+        $this->assertSame(302, $this->get('/stock_documents/requests')->response()->getStatusCode());
 
         $this->actAsWith([StockPermissions::MODULE], [$other]);
 
@@ -276,7 +286,8 @@ class StockRequestsControllerTest extends CIUnitTestCase
 
     public function testPostFulfil_SaysInWordsWhyTheShelvesRefuseAndLeavesTheRequestApproved(): void
     {
-        $requestId = $this->asked($this->stocked('10', '50'), '11');
+        $itemId    = $this->stocked('10', '50');
+        $requestId = $this->asked($itemId, '11');
 
         $this->requests->approve($requestId, $this->keeperId);
         $this->actAsKeeper();
@@ -284,6 +295,7 @@ class StockRequestsControllerTest extends CIUnitTestCase
         $answer = $this->postJson('/stock_documents/requests/fulfil/' . $requestId);
 
         $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.error_purchase_stock_would_go_negative', [$this->itemNameOf($itemId), $this->locationNameOf(self::LOCATION_ID)]), $answer['message']);
         $this->assertSame('approved', $this->requests->find($requestId)->status);
         $this->assertSame(0, $this->countRows('stock_permits'));
     }

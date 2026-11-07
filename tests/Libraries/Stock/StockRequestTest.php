@@ -321,9 +321,9 @@ class StockRequestTest extends CIUnitTestCase
 
         $this->requests->approve($requestId, $this->keeperId);
 
-        [$first, $second] = $this->raceTwoProcesses('fulfilRequest', [(string) $requestId, (string) $this->keeperId], [(string) $requestId, (string) $this->keeperId]);
+        $answers = $this->raceStockWorkers('fulfilRequest', [(string) $requestId, (string) $this->keeperId], [(string) $requestId, (string) $this->keeperId]);
 
-        $this->assertSame(1, (int) $first + (int) $second);
+        $this->assertSame(['done', AccountingError::StockRequestStatusInvalid->value], $answers);
         $this->assertSame(1, $this->countRows('stock_permits'));
         $this->assertSame('6.000', $this->onHand($itemId));
         $this->assertBooksTie();

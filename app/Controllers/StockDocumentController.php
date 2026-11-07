@@ -29,9 +29,24 @@ abstract class StockDocumentController extends AccountingController
         return max(0, (int) $this->request->getGet('offset'));
     }
 
+    protected function postedText(string $name): string
+    {
+        return $this->textOf($this->request->getPost($name));
+    }
+
+    protected function queryText(string $name): string
+    {
+        return $this->textOf($this->request->getGet($name));
+    }
+
+    protected function textOf(mixed $value): string
+    {
+        return is_scalar($value) ? (string) $value : '';
+    }
+
     protected function dateOf(string $name): string
     {
-        $value = trim((string) $this->request->getGet($name));
+        $value = trim($this->queryText($name));
 
         return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $value : '';
     }
@@ -79,7 +94,7 @@ abstract class StockDocumentController extends AccountingController
             ->select('item_id, name, item_number')
             ->where(['deleted' => 0, 'stock_type' => HAS_STOCK]);
 
-        $term   = trim((string) $this->request->getGet('term'));
+        $term   = trim($this->queryText('term'));
         $itemId = (int) $this->request->getGet('item_id');
 
         if ($term !== '') {
@@ -126,9 +141,9 @@ abstract class StockDocumentController extends AccountingController
             }
 
             $row = [
-                'item_id'   => trim((string) ($line['item_id'] ?? '')),
-                'quantity'  => trim((string) ($line['quantity'] ?? '')),
-                'unit_cost' => trim((string) ($line['unit_cost'] ?? '')),
+                'item_id'   => trim($this->textOf($line['item_id'] ?? '')),
+                'quantity'  => trim($this->textOf($line['quantity'] ?? '')),
+                'unit_cost' => trim($this->textOf($line['unit_cost'] ?? '')),
             ];
 
             if ($row['item_id'] !== '' || $row['quantity'] !== '') {

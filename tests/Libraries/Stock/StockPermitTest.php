@@ -1089,9 +1089,9 @@ class StockPermitTest extends CIUnitTestCase
     {
         $itemId = $this->stocked('10', '50');
 
-        [$first, $second] = $this->raceTwoProcesses('issuePermit', [(string) $itemId, '7', (string) $this->keeperId], [(string) $itemId, '7', (string) $this->keeperId]);
+        $answers = $this->raceStockWorkers('issuePermit', [(string) $itemId, '7', (string) $this->keeperId], [(string) $itemId, '7', (string) $this->keeperId]);
 
-        $this->assertSame(1, (int) $first + (int) $second, 'Of two issues of seven from ten, one is made and the other is refused');
+        $this->assertSame(['done', AccountingError::PurchaseStockWouldGoNegative->value], $answers, 'Of two issues of seven from ten, one is made and the other is refused for the shelf, not for a deadlock');
         $this->assertSame('3.000', $this->onHand($itemId));
         $this->assertSame(1, $this->countRows('stock_permits'));
         $this->assertSame(['quantity' => '3.000', 'value' => '150.00'], $this->stockOf($itemId));
@@ -1103,9 +1103,9 @@ class StockPermitTest extends CIUnitTestCase
         $itemId   = $this->stocked('10', '50');
         $permitId = $this->add($itemId, '5', '50');
 
-        [$first, $second] = $this->raceTwoProcesses('cancelPermit', [(string) $permitId, (string) $this->keeperId], [(string) $permitId, (string) $this->keeperId]);
+        $answers = $this->raceStockWorkers('cancelPermit', [(string) $permitId, (string) $this->keeperId], [(string) $permitId, (string) $this->keeperId]);
 
-        $this->assertSame(1, (int) $first + (int) $second);
+        $this->assertSame(['done', AccountingError::StockPermitCancelled->value], $answers);
         $this->assertSame('10.000', $this->onHand($itemId));
         $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->countAllResults());
         $this->assertBooksTie();

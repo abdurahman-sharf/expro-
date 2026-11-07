@@ -81,6 +81,7 @@ return [
     'requests_off'            => 'Stock requests are not turned on. Turn them on in the settings of the stock documents.',
     'requests_title'          => 'Stock requests',
     'save_counts'             => 'Save counts',
+    'save_counts_first'       => 'Save the counts first: some counted quantities were typed but not saved.',
     'scope_notice'            => 'You see only the documents of the branches you work in.',
     'search'                  => 'Number or note',
     'setting_requests'        => 'Stock requests between locations',

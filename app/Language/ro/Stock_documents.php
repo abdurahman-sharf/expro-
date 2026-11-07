@@ -81,6 +81,7 @@ return [
     'requests_off'            => '',
     'requests_title'          => '',
     'save_counts'             => '',
+    'save_counts_first'       => '',
     'scope_notice'            => '',
     'search'                  => '',
     'setting_requests'        => '',

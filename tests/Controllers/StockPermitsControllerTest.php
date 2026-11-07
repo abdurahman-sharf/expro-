@@ -146,7 +146,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([]);
 
-        $this->assertNotSame(200, $this->get('/stock_documents/permits')->response()->getStatusCode());
+        $this->assertSame(302, $this->get('/stock_documents/permits')->response()->getStatusCode());
     }
 
     public function testGetIndex_OpensWhileAccountingIsOffAndAPermitIsSavedThen(): void
@@ -380,6 +380,26 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->assertSame(AccountingMessage::of(new AccountingException(AccountingError::PurchaseStockWouldGoNegative, 'x', ['name' => $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->name, 'scope_name' => 'stock'])), $answer['message']);
         $this->assertSame(0, $this->countRows('stock_permits'));
         $this->assertSame('10.000', $this->onHand($itemId));
+    }
+
+    public function testPostSave_AnswersInWordsWhenAFieldIsAListInsteadOfATextAndSavesNothing(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $this->actAsKeeper();
+
+        $line = $this->postJson('/stock_documents/permits/save', ['type' => 'add', 'permit_date' => date('Y-m-d'), 'location_id' => (string) self::LOCATION_ID, 'lines' => [['item_id' => [(string) $itemId], 'quantity' => '2', 'unit_cost' => '1']]]);
+
+        $this->assertFalse($line['success']);
+        $this->assertSame(lang('Accounting.error_stock_permit_lines_invalid', ['1']), $line['message']);
+
+        $type = $this->postJson('/stock_documents/permits/save', ['type' => ['add'], 'permit_date' => ['x'], 'location_id' => (string) self::LOCATION_ID, 'note' => ['x'], 'lines' => [['item_id' => (string) $itemId, 'quantity' => ['2'], 'unit_cost' => '1']]]);
+
+        $this->assertFalse($type['success']);
+        $this->assertSame(lang('Accounting.error_stock_permit_type_invalid'), $type['message']);
+
+        $this->assertSame(0, $this->countRows('stock_permits'));
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame(200, $this->get('/stock_documents/permits?status[]=x&type[]=y&search[]=z')->response()->getStatusCode(), 'a filter that is a list is no filter');
     }
 
     public function testPostSave_RefusesAnEmployeeWithoutThePermissionEvenIfTheyHoldTheModule(): void

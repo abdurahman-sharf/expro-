@@ -41,11 +41,13 @@ use DateTimeImmutable;
  * The stocktake: a count of the stock of one location on one day. Starting it freezes what the system
  * holds of each item listed, and the counts are entered against that. Only the items listed are
  * counted, so a partial count is allowed, and a location has one stocktake for a day while it stands.
- * Approving it needs a permission of its own: each difference between the count and the frozen quantity
- * becomes a stock adjustment, up for what was found over and down for what was found short, valued at
- * what a unit is worth in that location now, and posted in one journal against the accounts of the stock
- * count that the routing names, the way a quantity adjustment is posted. The shelves change by the
- * difference, so what was sold or bought after the count began stays counted.
+ * An item is on one count of a location at a time while it is being made, so that two counts never
+ * apply the same difference. Approving it needs a permission of its own: each difference between the
+ * count and the frozen quantity becomes a stock adjustment, up for what was found over and down for
+ * what was found short, valued at what a unit is worth in that location now, and posted in one journal
+ * against the accounts of the stock count that the routing names, the way a quantity adjustment is
+ * posted. The shelves change by the difference, so what was sold or bought after the count began stays
+ * counted.
  *
  * An approved stocktake is never edited or deleted. It is cancelled by reversing its journal and its
  * movements, which is refused when that would leave a location with less than nothing of an item, as a
@@ -116,6 +118,8 @@ final class Stocktake
         $itemIds  = ! empty($input['all_items']) ? $this->itemsOf((int) $location->location_id) : $this->checkedItems($input['item_ids'] ?? []);
 
         return $this->transactional(function () use ($location, $date, $note, $itemIds, $employeeId): int {
+            $this->lockLocation((int) $location->location_id);
+
             $slot = $location->location_id . '|' . $date;
 
             try {
@@ -162,12 +166,18 @@ final class Stocktake
     {
         $this->guard->require(StockPermissions::STOCKTAKE_MANAGE, $employeeId);
 
-        $itemIds = $this->checkedItems($itemIds);
+        $itemIds    = $this->checkedItems($itemIds);
+        $locationId = (int) ($this->db->table('stocktakes')->select('location_id')->where('stocktake_id', $stocktakeId)->get()->getRow()->location_id ?? 0);
 
-        $this->transactional(function () use ($stocktakeId, $itemIds, $employeeId): void {
+        $this->transactional(function () use ($stocktakeId, $itemIds, $employeeId, $locationId): void {
+            $this->lockLocation($locationId);
+
             $stocktake = $this->counting($stocktakeId, $employeeId);
+            $added     = $this->freeze($stocktakeId, (int) $stocktake->location_id, $itemIds);
 
-            $this->freeze($stocktakeId, (int) $stocktake->location_id, $itemIds);
+            if ($added !== []) {
+                $this->audit->write(self::ENTITY, $stocktakeId, 'stocktake_items_added', $employeeId, JournalOrigin::User, ['items' => $added], (int) $stocktake->branch_id);
+            }
         });
     }
 
@@ -179,40 +189,82 @@ final class Stocktake
         $this->guard->require(StockPermissions::STOCKTAKE_MANAGE, $employeeId);
 
         $this->transactional(function () use ($stocktakeId, $itemId, $employeeId): void {
-            $this->counting($stocktakeId, $employeeId);
+            $stocktake = $this->counting($stocktakeId, $employeeId);
+            $line      = $this->db->table('stocktake_lines')->where(['stocktake_id' => $stocktakeId, 'item_id' => $itemId])->get()->getRow();
+
+            if ($line === null) {
+                return;
+            }
 
             $this->db->table('stocktake_lines')->where(['stocktake_id' => $stocktakeId, 'item_id' => $itemId])->delete();
+            $this->audit->write(self::ENTITY, $stocktakeId, 'stocktake_item_removed', $employeeId, JournalOrigin::User, [
+                'item_id'         => $itemId,
+                'system_quantity' => bcadd((string) $line->system_quantity, '0', 3),
+                'counted'         => $line->counted_quantity === null ? null : bcadd((string) $line->counted_quantity, '0', 3),
+            ], (int) $stocktake->branch_id);
         });
     }
 
     /**
-     * Enters what was counted for the items listed. An empty count takes a quantity back.
+     * Enters what was counted for the items listed. An empty count takes a quantity back. When the
+     * sheet says what it showed for an item, an item whose typed figure is the one shown is left as
+     * it is, so that saving a sheet never blanks what another person counted after it was opened, and
+     * a figure typed over a count that changed since is refused, whole.
      *
-     * @param array<int|string, int|string|null> $counted The quantity counted, by the id of the item.
+     * @param array<int|string, mixed> $counted The quantity counted, by the id of the item.
+     * @param array<int|string, mixed> $seen    The quantity the sheet showed, by the id of the item.
      *
      * @throws AccountingException|BranchException
      */
-    public function count(int $stocktakeId, array $counted, int $employeeId): void
+    public function count(int $stocktakeId, array $counted, int $employeeId, array $seen = []): void
     {
         $this->guard->require(StockPermissions::STOCKTAKE_MANAGE, $employeeId);
 
-        $this->transactional(function () use ($stocktakeId, $counted, $employeeId): void {
-            $this->counting($stocktakeId, $employeeId);
+        $this->transactional(function () use ($stocktakeId, $counted, $employeeId, $seen): void {
+            $stocktake = $this->counting($stocktakeId, $employeeId);
 
-            $listed = array_map('intval', array_column($this->db->table('stocktake_lines')->select('item_id')->where('stocktake_id', $stocktakeId)->get()->getResultArray(), 'item_id'));
+            $stored = [];
 
-            foreach ($counted as $itemId => $quantity) {
-                $quantity = trim((string) $quantity);
+            foreach ($this->db->table('stocktake_lines l')->select('l.item_id, l.counted_quantity, i.name')->join('items i', 'i.item_id = l.item_id')->where('l.stocktake_id', $stocktakeId)->get()->getResult() as $row) {
+                $stored[(int) $row->item_id] = ['quantity' => $row->counted_quantity === null ? null : bcadd((string) $row->counted_quantity, '0', 3), 'name' => (string) $row->name];
+            }
 
-                if (! in_array((int) $itemId, $listed, true)) {
-                    throw new AccountingException(AccountingError::StocktakeLinesInvalid, 'The item is not on this stocktake.', ['line' => (int) $itemId]);
+            $changes = [];
+
+            foreach ($counted as $itemId => $typed) {
+                $itemId = (int) $itemId;
+
+                if (! array_key_exists($itemId, $stored)) {
+                    throw new AccountingException(AccountingError::StocktakeLinesInvalid, 'The item is not on this stocktake.', ['line' => $itemId]);
                 }
 
-                if ($quantity !== '' && (preg_match(self::QUANTITY, $quantity) !== 1)) {
-                    throw new AccountingException(AccountingError::StocktakeLinesInvalid, 'A counted quantity is a number of zero or more.', ['line' => (int) $itemId]);
+                $quantity = $this->countedQuantity($typed, $itemId);
+
+                if ($quantity === $stored[$itemId]['quantity']) {
+                    continue;
                 }
 
-                $this->db->table('stocktake_lines')->where(['stocktake_id' => $stocktakeId, 'item_id' => (int) $itemId])->update(['counted_quantity' => $quantity === '' ? null : bcadd($quantity, '0', 3)]);
+                if (array_key_exists($itemId, $seen)) {
+                    $shown = $this->countedQuantity($seen[$itemId], $itemId);
+
+                    if ($shown === $quantity) {
+                        continue;
+                    }
+
+                    if ($shown !== $stored[$itemId]['quantity']) {
+                        throw new AccountingException(AccountingError::StocktakeCountChanged, 'The count of the item was changed after the sheet was opened.', ['name' => $stored[$itemId]['name']]);
+                    }
+                }
+
+                $changes[$itemId] = ['from' => $stored[$itemId]['quantity'], 'to' => $quantity];
+            }
+
+            foreach ($changes as $itemId => $change) {
+                $this->db->table('stocktake_lines')->where(['stocktake_id' => $stocktakeId, 'item_id' => $itemId])->update(['counted_quantity' => $change['to']]);
+            }
+
+            if ($changes !== []) {
+                $this->audit->write(self::ENTITY, $stocktakeId, 'stocktake_counted', $employeeId, JournalOrigin::User, ['counts' => $changes], (int) $stocktake->branch_id);
             }
         });
     }
@@ -221,9 +273,12 @@ final class Stocktake
      * Approves the count: what it found over and short is posted as stock adjustments and the shelves
      * change by the difference.
      *
+     * @param string|null $reviewed The digest of the lines the approver reviewed, as the sheet showed it:
+     *                              an approval is refused when the lines are not those any more.
+     *
      * @throws AccountingException|BranchException|PostingException
      */
-    public function approve(int $stocktakeId, int $employeeId): void
+    public function approve(int $stocktakeId, int $employeeId, ?string $reviewed = null): void
     {
         $this->guard->require(StockPermissions::STOCKTAKE_APPROVE, $employeeId);
 
@@ -232,12 +287,17 @@ final class Stocktake
         $items           = $this->itemsOnCount($stocktakeId);
 
         try {
-            $this->transactional(function () use ($stocktakeId, $employeeId, $items, &$branchId): void {
+            $this->transactional(function () use ($stocktakeId, $employeeId, $items, $reviewed, &$branchId): void {
                 $this->shelves->lockItems($items);
 
                 $stocktake = $this->counting($stocktakeId, $employeeId);
                 $branchId  = (int) $stocktake->branch_id;
                 $lines     = $this->lines($stocktakeId);
+                $digest    = $this->digest($stocktakeId);
+
+                if ($reviewed !== null && ! hash_equals($digest, $reviewed)) {
+                    throw new AccountingException(AccountingError::StocktakeChanged, 'The counts changed after the stocktake was opened.', ['stocktake_id' => $stocktakeId]);
+                }
 
                 if ($lines === []) {
                     throw new AccountingException(AccountingError::StocktakeNothingToApprove, 'A stocktake with no items has nothing to approve.');
@@ -302,6 +362,7 @@ final class Stocktake
                     'items'       => count($lines),
                     'differences' => count($deltas),
                     'booked'      => $follows,
+                    'digest'      => $digest,
                 ], $branchId);
             });
         } catch (PostingException $failure) {
@@ -372,6 +433,21 @@ final class Stocktake
             ->where('s.stocktake_id', $stocktakeId)
             ->get()
             ->getRow();
+    }
+
+    /**
+     * A fingerprint of the lines as they stand, the items with the quantity frozen and the quantity
+     * counted, that the sheet carries to the approval so that what is approved is what was reviewed.
+     */
+    public function digest(int $stocktakeId): string
+    {
+        $parts = [];
+
+        foreach ($this->db->table('stocktake_lines')->select('item_id, system_quantity, counted_quantity')->where('stocktake_id', $stocktakeId)->orderBy('item_id', 'ASC')->get()->getResult() as $line) {
+            $parts[] = $line->item_id . ':' . bcadd((string) $line->system_quantity, '0', 3) . ':' . ($line->counted_quantity === null ? '-' : bcadd((string) $line->counted_quantity, '0', 3));
+        }
+
+        return hash('sha256', implode('|', $parts));
     }
 
     /**
@@ -675,22 +751,88 @@ final class Stocktake
     }
 
     /**
-     * Lists the items on a count with what the system holds of each now, the ones listed already left alone.
+     * Lists the items on a count with what the system holds of each now, the ones listed already left
+     * alone, and says which items it listed. An item that is on another count of the same location that
+     * is still being made is refused: both counts would apply the same difference to the shelf.
      *
      * @param list<int> $itemIds
+     *
+     * @return list<int>
+     *
+     * @throws AccountingException
      */
-    private function freeze(int $stocktakeId, int $locationId, array $itemIds): void
+    private function freeze(int $stocktakeId, int $locationId, array $itemIds): array
     {
         $listed = array_map('intval', array_column($this->db->table('stocktake_lines')->select('item_id')->where('stocktake_id', $stocktakeId)->get()->getResultArray(), 'item_id'));
-        $rows   = [];
+        $fresh  = array_values(array_diff($itemIds, $listed));
 
-        foreach (array_diff($itemIds, $listed) as $itemId) {
+        if ($fresh === []) {
+            return [];
+        }
+
+        $this->assertOnNoOtherCount($stocktakeId, $locationId, $fresh);
+
+        $rows = [];
+
+        foreach ($fresh as $itemId) {
             $rows[] = ['stocktake_id' => $stocktakeId, 'item_id' => $itemId, 'system_quantity' => $this->shelves->onHand($itemId, $locationId)];
         }
 
-        if ($rows !== []) {
-            $this->db->table('stocktake_lines')->insertBatch($rows);
+        $this->db->table('stocktake_lines')->insertBatch($rows);
+
+        return $fresh;
+    }
+
+    /**
+     * @param list<int> $itemIds
+     *
+     * @throws AccountingException
+     */
+    private function assertOnNoOtherCount(int $stocktakeId, int $locationId, array $itemIds): void
+    {
+        $other = $this->db->table('stocktake_lines l')
+            ->select('l.stocktake_id, l.item_id')
+            ->join('stocktakes s', 's.stocktake_id = l.stocktake_id')
+            ->where(['s.company_id' => CompanyContext::id(), 's.location_id' => $locationId, 's.status' => 'counting'])
+            ->where('s.stocktake_id !=', $stocktakeId)
+            ->whereIn('l.item_id', $itemIds)
+            ->orderBy('l.item_id', 'ASC')
+            ->limit(1)
+            ->get()
+            ->getRow();
+
+        if ($other !== null) {
+            $item = $this->db->table('items')->select('name')->where('item_id', (int) $other->item_id)->get()->getRow();
+
+            throw new AccountingException(AccountingError::StocktakeItemOpen, 'The item is on another stocktake of this location that is still being counted.', [
+                'code' => $this->numberOf((int) $other->stocktake_id),
+                'name' => $item === null ? (string) $other->item_id : (string) $item->name,
+            ]);
         }
+    }
+
+    private function lockLocation(int $locationId): void
+    {
+        LockedRead::row($this->db, 'SELECT location_id FROM ' . $this->db->prefixTable('stock_locations') . ' WHERE location_id = ? FOR UPDATE', [$locationId]);
+    }
+
+    private function countedQuantity(mixed $typed, int $itemId): ?string
+    {
+        if ($typed !== null && ! is_scalar($typed)) {
+            throw new AccountingException(AccountingError::StocktakeLinesInvalid, 'A counted quantity is a number of zero or more.', ['line' => $itemId]);
+        }
+
+        $text = trim((string) $typed);
+
+        if ($text === '') {
+            return null;
+        }
+
+        if (preg_match(self::QUANTITY, $text) !== 1) {
+            throw new AccountingException(AccountingError::StocktakeLinesInvalid, 'A counted quantity is a number of zero or more.', ['line' => $itemId]);
+        }
+
+        return bcadd($text, '0', 3);
     }
 
     /**
@@ -701,13 +843,13 @@ final class Stocktake
     private function checkedItems(mixed $itemIds): array
     {
         if (! is_array($itemIds)) {
-            throw new AccountingException(AccountingError::StocktakeLinesInvalid, 'The items to count are a list.', ['line' => 0]);
+            throw new AccountingException(AccountingError::StocktakeItemsInvalid, 'The items to count are a list.', ['max' => self::ITEMS_MAX]);
         }
 
         $ids = array_values(array_unique(array_map('intval', $itemIds)));
 
         if (count($ids) > self::ITEMS_MAX) {
-            throw new AccountingException(AccountingError::StocktakeLinesInvalid, 'A stocktake lists up to 5000 items.', ['line' => 0]);
+            throw new AccountingException(AccountingError::StocktakeItemsInvalid, 'A stocktake lists up to 5000 items.', ['max' => self::ITEMS_MAX]);
         }
 
         foreach ($ids as $itemId) {

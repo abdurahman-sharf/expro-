@@ -70,8 +70,9 @@ class Stocktakes extends StockDocumentController
             'lines'       => $this->takes->lines($stocktakeId),
             'journals'    => $this->can('accounting_journals') ? $this->takes->journals($stocktakeId) : [],
             'number'      => $this->takes->numberOf($stocktakeId),
-            'can_manage'  => $this->can(StockPermissions::STOCKTAKE_MANAGE),
-            'can_approve' => $this->can(StockPermissions::STOCKTAKE_APPROVE),
+            'digest'      => $this->takes->digest($stocktakeId),
+            'canManage'   => $this->can(StockPermissions::STOCKTAKE_MANAGE),
+            'canApprove'  => $this->can(StockPermissions::STOCKTAKE_APPROVE),
             'active'      => 'stocktakes',
             'requestsOn'  => $this->stockSettings()->requestsEnabled(),
         ]);
@@ -108,8 +109,8 @@ class Stocktakes extends StockDocumentController
         return $this->attempt(function (): array {
             $id = $this->takes->create([
                 'location_id' => (int) $this->request->getPost('location_id'),
-                'date'        => trim((string) $this->request->getPost('count_date')),
-                'note'        => (string) $this->request->getPost('note'),
+                'date'        => trim($this->postedText('count_date')),
+                'note'        => $this->postedText('note'),
                 'all_items'   => $this->request->getPost('all_items') === '1',
             ], $this->employeeId());
 
@@ -123,8 +124,9 @@ class Stocktakes extends StockDocumentController
             $this->assertVisible($stocktakeId);
 
             $counted = $this->request->getPost('counted');
+            $seen    = $this->request->getPost('seen');
 
-            $this->takes->count($stocktakeId, is_array($counted) ? $counted : [], $this->employeeId());
+            $this->takes->count($stocktakeId, is_array($counted) ? $counted : [], $this->employeeId(), is_array($seen) ? $seen : []);
 
             return ['success' => true, 'message' => lang('Stock_documents.counts_saved'), 'id' => $stocktakeId];
         });
@@ -159,7 +161,7 @@ class Stocktakes extends StockDocumentController
         return $this->attempt(function () use ($stocktakeId): array {
             $this->assertVisible($stocktakeId);
 
-            $this->takes->approve($stocktakeId, $this->employeeId());
+            $this->takes->approve($stocktakeId, $this->employeeId(), $this->postedText('digest'));
 
             return ['success' => true, 'message' => lang('Stock_documents.stocktake_approved'), 'id' => $stocktakeId];
         });
@@ -170,7 +172,7 @@ class Stocktakes extends StockDocumentController
         return $this->attempt(function () use ($stocktakeId): array {
             $this->assertVisible($stocktakeId);
 
-            $this->takes->cancel($stocktakeId, (string) $this->request->getPost('reason'), $this->employeeId());
+            $this->takes->cancel($stocktakeId, $this->postedText('reason'), $this->employeeId());
 
             return ['success' => true, 'message' => lang('Stock_documents.stocktake_cancelled'), 'id' => $stocktakeId];
         });
@@ -198,12 +200,12 @@ class Stocktakes extends StockDocumentController
      */
     private function filters(): array
     {
-        $status = (string) $this->request->getGet('status');
+        $status = $this->queryText('status');
 
         return [
             'status'      => in_array($status, ['counting', 'approved', 'cancelled'], true) ? $status : '',
             'location_id' => (int) $this->request->getGet('location_id'),
-            'search'      => trim((string) $this->request->getGet('search')),
+            'search'      => trim($this->queryText('search')),
             'from'        => $this->dateOf('from'),
             'to'          => $this->dateOf('to'),
         ];

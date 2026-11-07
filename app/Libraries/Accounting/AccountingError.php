@@ -365,6 +365,10 @@ enum AccountingError: string
     case StocktakeLinesInvalid        = 'stocktake_lines_invalid';
     case StocktakeNotCounted          = 'stocktake_not_counted';
     case StocktakeNothingToApprove    = 'stocktake_nothing_to_approve';
+    case StocktakeItemsInvalid        = 'stocktake_items_invalid';
+    case StocktakeItemOpen            = 'stocktake_item_open';
+    case StocktakeCountChanged        = 'stocktake_count_changed';
+    case StocktakeChanged             = 'stocktake_changed';
     case StockRequestNotFound         = 'stock_request_not_found';
     case StockRequestStatusInvalid    = 'stock_request_status_invalid';
     case StockRequestLocationsInvalid = 'stock_request_locations_invalid';

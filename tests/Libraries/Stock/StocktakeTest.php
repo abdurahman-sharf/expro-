@@ -115,6 +115,11 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame($this->keeperId, (int) $this->takes->find($stocktakeId)->created_by);
     }
 
+    private function itemName(int $itemId): string
+    {
+        return (string) $this->accountingDb()->table('items')->select('name')->where('item_id', $itemId)->get()->getRow()->name;
+    }
+
     /**
      * @param list<int> $itemIds
      *
@@ -226,8 +231,8 @@ class StocktakeTest extends CIUnitTestCase
             $this->start(range(1, Stocktake::ITEMS_MAX + 1));
             $this->fail('A stocktake with more than 5000 items must be refused.');
         } catch (AccountingException $exception) {
-            $this->assertSame(AccountingError::StocktakeLinesInvalid, $exception->error);
-            $this->assertSame(0, $exception->context['line'], 'refused for how many there are, not for one of them');
+            $this->assertSame(AccountingError::StocktakeItemsInvalid, $exception->error);
+            $this->assertSame(Stocktake::ITEMS_MAX, $exception->context['max'], 'refused for how many there are, not for one of them');
         }
 
         $this->assertSame(0, $this->countRows('stocktakes'));
@@ -306,7 +311,6 @@ class StocktakeTest extends CIUnitTestCase
 
         $this->refusedWith(AccountingError::StocktakeLinesInvalid, fn () => $this->countAll($stocktakeId, [$second => '1']));
         $this->assertNull($this->orderedLines($stocktakeId, [$first])[0]->counted_quantity);
-        $this->assertGreaterThan(0, bccomp('1', '0'));
         $this->countAll($stocktakeId, [$first => '0']);
         $this->assertSame('0.000', bcadd((string) $this->orderedLines($stocktakeId, [$first])[0]->counted_quantity, '0', 3), 'a count of nothing is a count');
     }
@@ -586,9 +590,9 @@ class StocktakeTest extends CIUnitTestCase
 
         $this->countAll($stocktakeId, [$itemId => '8']);
 
-        [$first, $second] = $this->raceTwoProcesses('approveStocktake', [(string) $stocktakeId, (string) $this->keeperId], [(string) $stocktakeId, (string) $this->keeperId]);
+        $answers = $this->raceStockWorkers('approveStocktake', [(string) $stocktakeId, (string) $this->keeperId], [(string) $stocktakeId, (string) $this->keeperId]);
 
-        $this->assertSame(1, (int) $first + (int) $second);
+        $this->assertSame(['done', AccountingError::StocktakeNotCounting->value], $answers);
         $this->assertSame('8.000', $this->onHand($itemId));
         $this->assertCount(1, $this->journalsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId));
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'stocktake', 'entity_id' => $stocktakeId, 'action' => 'stocktake_approved'])->countAllResults());
@@ -599,11 +603,12 @@ class StocktakeTest extends CIUnitTestCase
     {
         $itemId = $this->stocked('10', '50');
 
-        $discarded = $this->start([$itemId]);
-        $approved  = $this->start([$itemId], ['date' => date('Y-m-d', strtotime('-1 day'))]);
+        $approved = $this->start([$itemId], ['date' => date('Y-m-d', strtotime('-1 day'))]);
 
         $this->countAll($approved, [$itemId => '8']);
         $this->takes->approve($approved, $this->keeperId);
+
+        $discarded = $this->start([$itemId]);
 
         $this->takes->cancel($discarded, 'wrong day', $this->keeperId);
         $this->takes->cancel($approved, 'wrong shelf', $this->keeperId);
@@ -706,11 +711,12 @@ class StocktakeTest extends CIUnitTestCase
     {
         $itemId = $this->stocked('10', '50');
 
-        $counting = $this->start([$itemId]);
         $approved = $this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d', strtotime('-1 day')), 'item_ids' => [$itemId]], $this->keeperId);
 
         $this->countAll($approved, [$itemId => '9']);
         $this->takes->approve($approved, $this->keeperId);
+
+        $counting = $this->start([$itemId]);
 
         $manager  = $this->keeper(null, [StockPermissions::STOCKTAKE_MANAGE, 'items_stock']);
         $approver = $this->keeper(null, [StockPermissions::STOCKTAKE_APPROVE, 'items_stock']);
@@ -782,6 +788,269 @@ class StocktakeTest extends CIUnitTestCase
         $this->takes->approve($stocktakeId, $this->keeperId);
 
         $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'stock_adjustment')->countAllResults());
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function auditOf(int $stocktakeId, string $action): array
+    {
+        return array_map(
+            static fn (object $row): array => (array) json_decode((string) $row->details, true),
+            $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'stocktake', 'entity_id' => $stocktakeId, 'action' => $action])->orderBy('audit_id', 'ASC')->get()->getResult(),
+        );
+    }
+
+    private function countedOf(int $stocktakeId, int $itemId): ?string
+    {
+        $count = $this->orderedLines($stocktakeId, [$itemId])[0]->counted_quantity;
+
+        return $count === null ? null : bcadd((string) $count, '0', 3);
+    }
+
+    public function testCreate_RejectsAnItemThatIsOnAnotherStocktakeOfTheLocationStillBeingCounted(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $other  = $this->stocked('6', '20');
+
+        $first = $this->start([$itemId]);
+
+        try {
+            $this->start([$other, $itemId], ['date' => date('Y-m-d', strtotime('-1 day'))]);
+            $this->fail('An item on an open count must be refused on a second one.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::StocktakeItemOpen, $exception->error);
+            $this->assertSame($this->takes->numberOf($first), $exception->context['code']);
+            $this->assertSame($this->itemName($itemId), $exception->context['name']);
+        }
+
+        $this->assertSame(1, $this->countRows('stocktakes'), 'the refused count leaves no stocktake behind');
+        $this->assertSame(1, $this->countRows('stocktake_lines'));
+    }
+
+    public function testCreate_RejectsEveryItemOfTheLocationWhenOneOfThemIsOnAnOpenCount(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $this->start([$itemId]);
+
+        $this->refusedWith(AccountingError::StocktakeItemOpen, fn () => $this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d', strtotime('-1 day')), 'all_items' => true], $this->keeperId));
+    }
+
+    public function testAddItems_RejectsAnItemThatIsOnAnotherStocktakeOfTheLocationStillBeingCounted(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $this->start([$itemId]);
+
+        $second = $this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d', strtotime('-1 day'))], $this->keeperId);
+
+        $this->refusedWith(AccountingError::StocktakeItemOpen, fn () => $this->takes->addItems($second, [$itemId], $this->keeperId));
+        $this->assertSame([], $this->takes->lines($second));
+    }
+
+    public function testCreate_AcceptsAnItemOnceTheOtherCountIsApprovedOrCancelledAndInAnotherLocation(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $second = $this->openLocation();
+
+        $first = $this->start([$itemId]);
+
+        $this->assertGreaterThan(0, $this->takes->create(['location_id' => $second, 'date' => date('Y-m-d'), 'item_ids' => [$itemId]], $this->keeperId), 'another location counts its own shelf of the item');
+
+        $this->countAll($first, [$itemId => '8']);
+        $this->takes->approve($first, $this->keeperId);
+
+        $afterApproval = $this->start([$itemId], ['date' => date('Y-m-d', strtotime('-1 day'))]);
+
+        $this->assertSame('8.000', bcadd((string) $this->orderedLines($afterApproval, [$itemId])[0]->system_quantity, '0', 3), 'the next count freezes the shelf the approval left');
+
+        $this->takes->cancel($afterApproval, 'not needed', $this->keeperId);
+
+        $this->assertGreaterThan(0, $this->start([$itemId], ['date' => date('Y-m-d', strtotime('-2 days'))]), 'a cancelled count lets go of its items');
+    }
+
+    public function testCreate_TwoCountsOfOneItemAtTheSameMomentListItOnceAndTheOtherIsRefusedForIt(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $answers = $this->raceStockWorkers(
+            'createStocktake',
+            [(string) self::LOCATION_ID, date('Y-m-d'), (string) $itemId, (string) $this->keeperId],
+            [(string) self::LOCATION_ID, date('Y-m-d', strtotime('-1 day')), (string) $itemId, (string) $this->keeperId],
+        );
+
+        $this->assertSame(['done', AccountingError::StocktakeItemOpen->value], $answers);
+        $this->assertSame(1, $this->countRows('stocktake_lines'));
+    }
+
+    public function testCount_AcceptsATypedFigureOverTheCountTheSheetShowed(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first, $second]);
+
+        $this->countAll($stocktakeId, [$first => '8']);
+        $this->takes->count($stocktakeId, [$first => '7', $second => '3'], $this->keeperId, [$first => '8', $second => '']);
+
+        $this->assertSame(['7.000', '3.000'], [$this->countedOf($stocktakeId, $first), $this->countedOf($stocktakeId, $second)]);
+
+        $this->takes->count($stocktakeId, [$first => ''], $this->keeperId, [$first => '7']);
+
+        $this->assertNull($this->countedOf($stocktakeId, $first), 'a figure typed away takes the count back when the sheet showed it');
+    }
+
+    public function testCount_AcceptsASheetThatShowedACountAnotherPersonSavedLaterWithoutBlankingIt(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first, $second]);
+
+        $this->countAll($stocktakeId, [$first => '8']);
+        $this->takes->count($stocktakeId, [$first => '', $second => '3'], $this->keeperId, [$first => '', $second => '']);
+
+        $this->assertSame(['8.000', '3.000'], [$this->countedOf($stocktakeId, $first), $this->countedOf($stocktakeId, $second)], 'the row the saver left alone keeps what another person counted');
+    }
+
+    public function testCount_RejectsAFigureTypedOverACountThatChangedAfterTheSheetWasOpened(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first, $second]);
+
+        $this->countAll($stocktakeId, [$first => '8']);
+
+        try {
+            $this->takes->count($stocktakeId, [$first => '9', $second => '3'], $this->keeperId, [$first => '', $second => '']);
+            $this->fail('A figure typed over a count that changed since must be refused.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::StocktakeCountChanged, $exception->error);
+            $this->assertSame($this->itemName($first), $exception->context['name']);
+        }
+
+        $this->assertSame(['8.000', null], [$this->countedOf($stocktakeId, $first), $this->countedOf($stocktakeId, $second)], 'the whole save is refused, the rows that were fine too');
+        $this->assertCount(1, $this->auditOf($stocktakeId, 'stocktake_counted'));
+    }
+
+    public function testCount_AcceptsTheSameFigureAnotherPersonSavedAlreadyWithoutWritingItAgain(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '8']);
+        $this->takes->count($stocktakeId, [$itemId => '8.000'], $this->keeperId, [$itemId => '']);
+
+        $this->assertSame('8.000', $this->countedOf($stocktakeId, $itemId));
+        $this->assertCount(1, $this->auditOf($stocktakeId, 'stocktake_counted'), 'a figure that is the stored one changes nothing and is not logged');
+    }
+
+    public function testCount_RejectsAQuantityThatIsAList(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->refusedWith(AccountingError::StocktakeLinesInvalid, fn () => $this->takes->count($stocktakeId, [$itemId => ['1']], $this->keeperId));
+        $this->refusedWith(AccountingError::StocktakeLinesInvalid, fn () => $this->takes->count($stocktakeId, [$itemId => '1'], $this->keeperId, [$itemId => ['1']]));
+        $this->assertNull($this->countedOf($stocktakeId, $itemId));
+    }
+
+    public function testCount_WritesTheAuditLogOfEachChangedCountWithTheFigureBeforeAndAfter(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first, $second]);
+
+        $this->countAll($stocktakeId, [$first => '8', $second => '']);
+        $this->countAll($stocktakeId, [$first => '7', $second => '']);
+
+        $this->assertSame(
+            [
+                ['counts' => [(string) $first => ['from' => null, 'to' => '8.000']]],
+                ['counts' => [(string) $first => ['from' => '8.000', 'to' => '7.000']]],
+            ],
+            $this->auditOf($stocktakeId, 'stocktake_counted'),
+            'only the rows that changed are logged, with what they were and what they became',
+        );
+    }
+
+    public function testAddItems_WritesTheAuditLogOfTheItemsThatWereListed(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first]);
+
+        $this->takes->addItems($stocktakeId, [$first, $second], $this->keeperId);
+        $this->takes->addItems($stocktakeId, [$first], $this->keeperId);
+
+        $this->assertSame([['items' => [$second]]], $this->auditOf($stocktakeId, 'stocktake_items_added'), 'an item listed already is not logged again');
+    }
+
+    public function testRemoveItem_WritesTheAuditLogOfTheLineWithWhatWasFrozenAndCounted(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first, $second]);
+
+        $this->countAll($stocktakeId, [$second => '2']);
+        $this->takes->removeItem($stocktakeId, $second, $this->keeperId);
+        $this->takes->removeItem($stocktakeId, $second, $this->keeperId);
+
+        $this->assertSame([['item_id' => $second, 'system_quantity' => '4.000', 'counted' => '2.000']], $this->auditOf($stocktakeId, 'stocktake_item_removed'), 'a line that was not there leaves no entry');
+    }
+
+    public function testApprove_AcceptsLinesAsTheApproverReviewedThemAndLogsTheirDigest(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $this->countAll($stocktakeId, [$itemId => '8']);
+
+        $digest = $this->takes->digest($stocktakeId);
+
+        $this->takes->approve($stocktakeId, $this->keeperId, $digest);
+
+        $this->assertSame('approved', $this->takes->find($stocktakeId)->status);
+        $this->assertSame([$digest], array_column($this->auditOf($stocktakeId, 'stocktake_approved'), 'digest'));
+    }
+
+    public function testApprove_RejectsLinesThatChangedAfterTheApproverReviewedThem(): void
+    {
+        $first  = $this->stocked('10', '50');
+        $second = $this->stocked('4', '20');
+
+        $stocktakeId = $this->start([$first]);
+
+        $this->countAll($stocktakeId, [$first => '8']);
+
+        $reviewed = $this->takes->digest($stocktakeId);
+
+        $this->countAll($stocktakeId, [$first => '0']);
+        $this->refusedWith(AccountingError::StocktakeChanged, fn () => $this->takes->approve($stocktakeId, $this->keeperId, $reviewed));
+
+        $afterCount = $this->takes->digest($stocktakeId);
+
+        $this->assertNotSame($reviewed, $afterCount);
+
+        $this->takes->addItems($stocktakeId, [$second], $this->keeperId);
+        $this->refusedWith(AccountingError::StocktakeChanged, fn () => $this->takes->approve($stocktakeId, $this->keeperId, $afterCount));
+
+        $afterAdd = $this->takes->digest($stocktakeId);
+
+        $this->takes->removeItem($stocktakeId, $second, $this->keeperId);
+        $this->refusedWith(AccountingError::StocktakeChanged, fn () => $this->takes->approve($stocktakeId, $this->keeperId, $afterAdd));
+        $this->refusedWith(AccountingError::StocktakeChanged, fn () => $this->takes->approve($stocktakeId, $this->keeperId, ''));
+
+        $this->assertSame('10.000', $this->onHand($first), 'nothing was posted by the refusals');
+        $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
     }
 
     /**
