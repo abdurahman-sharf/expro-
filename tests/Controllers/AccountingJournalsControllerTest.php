@@ -924,22 +924,123 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Accounting_journals.audit_limited_branches'), $body);
     }
 
+    /**
+     * @return list<int> The entity numbers of the entries a file holds, in the order of the file.
+     */
+    private function entriesOfFile(string $body): array
+    {
+        $handle = fopen('php://temp', 'r+b');
+        fwrite($handle, substr($body, 3));
+        rewind($handle);
+
+        $numbers = [];
+
+        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
+            foreach ($row as $cell) {
+                if (preg_match('/ #(\d+)$/', $cell, $found) === 1) {
+                    $numbers[] = (int) $found[1];
+                }
+            }
+        }
+
+        fclose($handle);
+
+        return $numbers;
+    }
+
+    private function writeLog(int $count, int $first = 1): void
+    {
+        $rows = [];
+
+        for ($index = 0; $index < $count; $index++) {
+            $rows[] = ['entity_type' => 'journal', 'entity_id' => $first + $index, 'action' => 'posted', 'origin' => 'system'];
+        }
+
+        foreach (array_chunk($rows, 5000) as $chunk) {
+            $this->accountingDb()->table('accounting_audit_log')->insertBatch($chunk);
+        }
+    }
+
     public function testGetAuditCsv_RefusesALogLargerThanOneFileCanCarry(): void
     {
         $this->accountant();
-        $db   = $this->accountingDb();
-        $rows = array_fill(0, 5000, ['entity_type' => 'journal', 'entity_id' => 1, 'action' => 'posted', 'origin' => 'system']);
+        $this->writeLog(20001);
 
-        for ($chunk = 0; $chunk < 4; $chunk++) {
-            $db->table('accounting_audit_log')->insertBatch($rows);
-        }
-
-        $db->table('accounting_audit_log')->insertBatch([$rows[0], $rows[0]]);
-
-        $response = $this->get('/accounting_journals/audit/csv');
+        $response = $this->get('/accounting_journals/audit/csv?entity_type=journal');
 
         $response->assertStatus(422);
         $this->assertStringContainsString(lang('Accounting.error_export_too_large'), $response->response()->getBody());
+    }
+
+    public function testGetAuditCsv_WritesALogOfExactlyTheLimitWholeAndOnceEach(): void
+    {
+        $this->accountant();
+        $this->writeLog(20000);
+
+        $response = $this->get('/accounting_journals/audit/csv?entity_type=journal&order=asc');
+
+        $response->assertStatus(200);
+
+        $numbers = $this->entriesOfFile($response->response()->getBody());
+
+        $this->assertCount(20000, $numbers);
+        $this->assertSame(range(1, 20000), $numbers);
+    }
+
+    public function testGetAuditCsv_WritesEveryEntryOfALogOfSeveralPagesOnceInTheOrderAsked(): void
+    {
+        $this->accountant();
+        $this->writeLog(1203);
+
+        $newest = $this->entriesOfFile($this->get('/accounting_journals/audit/csv?entity_type=journal')->response()->getBody());
+        $oldest = $this->entriesOfFile($this->get('/accounting_journals/audit/csv?entity_type=journal&order=asc')->response()->getBody());
+
+        $this->assertSame(range(1203, 1), $newest);
+        $this->assertSame(range(1, 1203), $oldest);
+    }
+
+    public function testGetAuditCsv_IgnoresAFilterThatIsNotASingleText(): void
+    {
+        $this->accountant();
+        (new AuditLog())->write('journal', 5, 'posted', null, JournalOrigin::User);
+
+        $response = $this->get('/accounting_journals/audit/csv?preset[]=today&action[]=posted&entity_type[]=journal&origin[]=user&date_from[]=1&date_to[]=2&order[]=asc');
+
+        $response->assertStatus(200);
+        $this->assertContains(5, $this->entriesOfFile($response->response()->getBody()));
+    }
+
+    public function testGetAuditSearch_IgnoresAFilterThatIsNotASingleText(): void
+    {
+        $this->accountant();
+        (new AuditLog())->write('journal', 5, 'posted', null, JournalOrigin::User);
+
+        $result = $this->jsonOf($this->get('/accounting_journals/audit/search?preset[]=today&action[]=posted&entity_type[]=journal&origin[]=user&date_from[]=1&date_to[]=2&order[]=asc'));
+
+        $this->assertGreaterThanOrEqual(1, $result['total']);
+    }
+
+    public function testGetAudit_OffersTheKindsOfRecordsTheLogHoldsAndNamesTheOnesTheCodeWrites(): void
+    {
+        $this->accountant();
+
+        $log = new AuditLog();
+        $log->write('treasury_transfer', 1, 'created', null, JournalOrigin::User);
+        $log->write('made_up_kind', 2, 'made_up_action', null, JournalOrigin::User);
+
+        $page = $this->get('/accounting_journals/audit');
+
+        $page->assertSee('<option value="made_up_kind">made_up_kind</option>');
+
+        foreach (['treasury', 'treasury_transfer', 'supplier_advance', 'receiving', 'interbranch_settlement'] as $entity) {
+            $page->assertSee('<option value="' . $entity . '">' . lang('Accounting.entity_' . $entity) . '</option>');
+            $this->assertNotSame('Accounting.entity_' . $entity, lang('Accounting.entity_' . $entity));
+        }
+
+        foreach (['default_treasury_set', 'moved', 'opening_balance_created', 'opening_balance_cancelled'] as $action) {
+            $page->assertSee('<option value="' . $action . '">' . lang('Accounting.action_' . $action) . '</option>');
+            $this->assertNotSame('Accounting.action_' . $action, lang('Accounting.action_' . $action));
+        }
     }
 
     private function recordFailure(string $source = 'sale', int $sourceId = 7, string $code = 'period_closed', ?int $branchId = 1): void

@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting\FamilyReports;
 
+use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\FamilyReports\StockTurnoverReport;
 use Tests\Support\FamilyReportTestCase;
@@ -129,6 +130,43 @@ final class StockTurnoverReportTest extends FamilyReportTestCase
         $this->assertSame([], $this->rowsOf($limited));
         $this->assertAmount('0', $this->grandOf($limited, 'cogs'));
         $this->assertSame([], $narrow->ties);
+    }
+
+    public function testBuild_RefusesADayThatIsNotOneWhenOnlyTheEndOfThePeriodIsGiven(): void
+    {
+        foreach (['abc', '2026-13-45', '2026-02-30'] as $day) {
+            try {
+                $this->built($this->report, ['to' => $day]);
+                $this->fail('The day ' . $day . ' was accepted');
+            } catch (AccountingException $refusal) {
+                $this->assertSame(AccountingError::InvalidDate, $refusal->error, $day);
+            }
+        }
+    }
+
+    public function testBuild_StartsAYearThatIsGivenOnlyItsEndOnTheFirstDayOfThatYear(): void
+    {
+        $table = $this->built($this->report, ['to' => '2026-03-15']);
+
+        $this->assertMatchesRegularExpression('/\b74\b/u', implode(' ', $table->notes));
+    }
+
+    public function testBuild_GivesTheDaysToSellWithoutDividingByATurnoverTooSmallToShow(): void
+    {
+        $item = $this->named('Bulk', 'Care');
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '1000000', '10.00')]));
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '0.1', '20.00', '10.00')], [], [$this->payment(lang('Sales.cash'), '2')]));
+
+        $table = $this->built($this->report, $this->thisDay());
+        $row   = $this->rowWhere($table, 'name', 'Bulk');
+
+        $this->assertNotNull($row);
+        $this->assertAmount('1.00', $row->cell('cogs'));
+        $this->assertSame('0.00', $row->cell('ratio'));
+        $this->assertAmount('4999999.50', $row->cell('days'));
+        $this->assertSame('0.00', $this->grandOf($table, 'ratio'));
+        $this->assertAmount('4999999.50', $this->grandOf($table, 'days'));
     }
 
     public function testBuild_RefusesAPeriodThatEndsBeforeItStarts(): void

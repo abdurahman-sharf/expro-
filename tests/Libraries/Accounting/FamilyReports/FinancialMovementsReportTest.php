@@ -6,6 +6,8 @@ use App\Libraries\Accounting\FamilyReports\FinancialMovementsReport;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Roles\RoleService;
 use Tests\Support\FamilyReportTestCase;
 
 /**
@@ -88,7 +90,46 @@ final class FinancialMovementsReportTest extends FamilyReportTestCase
 
         $this->assertCount(2, $table->ties);
         $this->assertReportTies($table);
+        $this->assertAmount('-120.00', $table->ties[0]->book);
         $this->assertAmount('180.00', $table->ties[1]->book);
+    }
+
+    public function testBuild_ComparesTheSupplierPaymentsForAReaderOfEveryonesRecordsAndNotForOneOfTheirOwn(): void
+    {
+        $author = $this->employeeId;
+
+        $this->movements();
+        $this->workInEveryBranch();
+
+        (new RoleService())->setRecordScope($author, 'own', null);
+
+        $own      = $this->built($this->report, $this->thisDay(), null, $author);
+        $everyone = $this->built($this->report, $this->thisDay(), null, $this->employeeId);
+
+        $this->assertCount(1, $own->ties);
+        $this->assertCount(2, $everyone->ties);
+        $this->assertReportTies($everyone);
+    }
+
+    public function testBuild_CountsAPaymentOutOfATreasuryOfAnotherBranchOnceThroughTheJournalOfThatBranch(): void
+    {
+        $branch   = $this->createBranch('FM3', 'Far treasury branch');
+        $treasury = (new TreasuryService())->create(['name' => 'Far drawer', 'kind' => 'cash', 'branch_id' => $branch]);
+
+        $this->workInBranches(1, $branch);
+
+        $id = $this->purchaseOf('300.00');
+
+        $this->assertTrue($this->purchases->update($id, ['comment' => 'paid far', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '100.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => '', 'treasury_id' => $treasury],
+        ]]));
+
+        $table = $this->built($this->report, $this->thisDay());
+
+        $this->assertCount(2, $table->ties);
+        $this->assertReportTies($table);
+        $this->assertAmount('-100.00', $table->ties[0]->book);
+        $this->assertAmount('100.00', $table->ties[1]->book);
     }
 
     public function testBuild_ReadsOnlyTheBranchesOfTheScope(): void

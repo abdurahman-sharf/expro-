@@ -146,6 +146,21 @@ class SupplierBalanceReportTest extends CIUnitTestCase
         $this->assertSame($this->owed(), bcadd($row['balance'], '0', 2));
     }
 
+    public function testBuild_CountsAnOpeningBalanceOwedUnderOtherWhenAskedToKeepItApart(): void
+    {
+        $clerk = $this->employeeWithGrants([AccountingGuard::PAYABLES_MANAGE]);
+
+        $this->receivingIds[] = (new SupplierAdvances())->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '500.00', date('Y-m-d'), '', $clerk);
+        $this->purchaseOf('100.00');
+
+        $today = ReportPeriod::of(date('Y-m-d'), date('Y-m-d'));
+        $apart = $this->rowOf((new SupplierBalanceReport())->build($today, true, null, true), $this->supplierId);
+        $as    = $this->rowOf((new SupplierBalanceReport())->build($today), $this->supplierId);
+
+        $this->assertSame(['100.0000', '500.0000', '600.0000'], [$apart['sales'], $apart['other'], $apart['balance']]);
+        $this->assertSame(['600.0000', '0.0000', '600.0000'], [$as['sales'], $as['other'], $as['balance']]);
+    }
+
     public function testBuild_TotalsEveryColumnOverTheSuppliersAndTheBalanceIsTheOfTheirAccounts(): void
     {
         $other = $this->anotherSupplier();

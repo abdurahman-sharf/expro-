@@ -39,6 +39,18 @@ final class SupplierAgedLedgerReportTest extends FamilyReportTestCase
         $this->assertReportTies($table);
     }
 
+    public function testBuild_NamesTheAccountOfASupplierByItsCodeInTheChartNotByItsNumberInTheDatabase(): void
+    {
+        $this->purchaseDated('100.00', $this->ago(3));
+
+        $row    = $this->rowsOf($this->built($this->report, ['to' => $this->today()]))[0];
+        $stored = $this->accountingDb()->table('accounting_accounts')->where(['entity_type' => 'supplier', 'entity_id' => $this->supplierId])->get()->getRow();
+
+        $this->assertSame((string) $stored->code, $row->cell('account'));
+        $this->assertNotSame((string) $stored->account_id, $row->cell('account'));
+        $this->assertSame((string) $this->supplierId, $row->cell('code'));
+    }
+
     public function testBuild_ChangesTheLengthOfTheBucketsAndTheDayOfTheReport(): void
     {
         $this->purchaseDated('100.00', $this->ago(7));

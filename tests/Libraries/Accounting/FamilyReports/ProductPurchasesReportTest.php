@@ -97,6 +97,26 @@ final class ProductPurchasesReportTest extends FamilyReportTestCase
         $this->assertCount(1, $this->rowsOf($narrow));
     }
 
+    public function testBuild_SetsTheNetPurchasesBesideTheJournalsAndSaysSoWhenAJournalIsMissing(): void
+    {
+        $id = $this->buy([$this->purchaseLine($this->named('Cream', 'Care'), 0, '1', '100.00')]);
+
+        $whole = $this->built($this->report, $this->thisDay());
+
+        $this->assertCount(2, $whole->ties);
+        $this->assertReportTies($whole);
+        $this->assertAmount('100.00', $whole->ties[1]->book);
+
+        $this->accountingDb()->table('accounting_journals')->where('source_type', 'purchase')->where('source_id', $id)->update(['status' => 'reversed']);
+
+        $missing = $this->built($this->report, $this->thisDay());
+
+        $this->assertTrue($missing->ties[0]->ties());
+        $this->assertFalse($missing->ties[1]->ties());
+        $this->assertAmount('100.00', $missing->ties[1]->difference());
+        $this->assertFalse($missing->ties());
+    }
+
     public function testBuild_ReadsOnlyTheBranchesOfTheScope(): void
     {
         $cream  = $this->named('Cream');

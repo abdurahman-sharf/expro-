@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\FamilyReports\PurchasePaymentsReport;
+use App\Libraries\Roles\RoleService;
 use Tests\Support\FamilyReportTestCase;
 
 /**
@@ -80,6 +81,25 @@ final class PurchasePaymentsReportTest extends FamilyReportTestCase
         $this->assertNotSame([], $this->built($this->report, ['to' => $this->today()])->ties);
         $this->assertSame([], $this->built($this->report, $this->thisDay())->ties);
         $this->assertSame([], $this->built($this->report, ['to' => $this->today()], $this->limitedTo(1))->ties);
+    }
+
+    public function testBuild_ComparesWithTheAccountsForAReaderOfEveryonesRecordsAndNotForOneOfTheirOwn(): void
+    {
+        $author = $this->employeeId;
+
+        $this->market();
+        $this->workInEveryBranch();
+
+        $other = $this->employeeId;
+
+        (new RoleService())->setRecordScope($author, 'own', null);
+
+        $own      = $this->built($this->report, ['to' => $this->today()], null, $author);
+        $everyone = $this->built($this->report, ['to' => $this->today()], null, $other);
+
+        $this->assertSame([], $own->ties);
+        $this->assertStringContainsString(lang('Accounting_family_reports.note_remaining_not_compared'), implode(' ', $own->notes));
+        $this->assertReportTies($everyone);
     }
 
     public function testBuild_ReadsOnlyTheBranchesOfTheScope(): void

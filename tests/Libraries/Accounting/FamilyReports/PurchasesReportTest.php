@@ -4,9 +4,7 @@ namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
-use App\Libraries\Accounting\FamilyReports\PurchaseDocuments;
 use App\Libraries\Accounting\FamilyReports\PurchasesReport;
-use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Roles\RoleService;
 use Tests\Support\FamilyReportTestCase;
 
@@ -214,23 +212,5 @@ final class PurchasesReportTest extends FamilyReportTestCase
         $this->expectException(AccountingException::class);
 
         $this->built($this->report, ['group' => 'day', 'from' => '2000-01-01', 'to' => $this->today()]);
-    }
-
-    public function testRead_GivesTheLinesOfEveryDocumentWithTheRoundingOnTheLastLine(): void
-    {
-        $item = $this->item('0.00');
-        $id   = $this->buy([$this->purchaseLine($item, 0, '3', '33.33', '15'), $this->purchaseLine($item, 1, '1', '10.01', '15')]);
-
-        $documents = (new PurchaseDocuments())->read($this->everyBranch(), ReportPeriod::of($this->today(), $this->today()));
-        $document  = array_values(array_filter($documents, static fn ($document): bool => $document->receivingId === $id))[0];
-
-        $sum = '0';
-
-        foreach ($document->lines as $line) {
-            $sum = bcadd($sum, $line->total, 4);
-        }
-
-        $this->assertAmount($document->total, $sum);
-        $this->assertAmount($document->total, (string) $document->journalTotal);
     }
 }

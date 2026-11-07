@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\FamilyReports\ChartReport;
 use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Roles\RoleService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Test\TestResponse;
@@ -124,6 +125,7 @@ final class AccountingFamilyReportsControllerTest extends FamilyReportTestCase
             $response->assertStatus(200);
             $response->assertSee('id="family_report"');
             $response->assertSee('data-report="' . $key . '"');
+            $response->assertSee(lang('Accounting_family_reports.' . FamilyReportCatalog::titleKey($key)));
             $response->assertDontSee('Accounting_family_reports.');
             $response->assertDontSee('id="report_error"');
         }
@@ -351,6 +353,45 @@ final class AccountingFamilyReportsControllerTest extends FamilyReportTestCase
 
         $differs->assertSee('data-status="differs"');
         $differs->assertDontSee('data-status="ties"');
+    }
+
+    public function testGetShow_ShowsTheTiesToTheLedgerOfThePaymentReportsToWhoReadsEveryonesRecords(): void
+    {
+        $ids = $this->market();
+
+        $this->payPurchase($ids['big'], '80.00', lang('Sales.cash'));
+        $this->viewer($this->everyReportPermission());
+
+        $day = '?from=' . $this->today() . '&to=' . $this->today();
+
+        foreach (['supplier_payments' => [$day, 1, 'tie_treasury_payments'], 'purchase_payments' => ['', 1, 'tie_remaining_account'], 'financial_movements' => [$day, 2, 'tie_supplier_payments']] as $key => [$query, $ties, $label]) {
+            $page = $this->get('/accounting_reports/' . $key . $query)->getBody();
+
+            $this->assertSame($ties, substr_count($page, 'data-status="ties"'), $key . ' on the screen');
+            $this->assertStringNotContainsString('data-status="differs"', $page, $key);
+            $this->assertNotSame('', $this->csvCell($this->get('/accounting_reports/' . $key . '/csv' . $query), lang('Accounting_family_reports.' . $label), 1), $key . ' in the file');
+        }
+    }
+
+    public function testGetShow_LeavesTheTiesToTheLedgerOutForWhoReadsOnlyTheirOwnRecords(): void
+    {
+        $ids = $this->market();
+
+        $this->payPurchase($ids['big'], '80.00', lang('Sales.cash'));
+
+        $reader = $this->viewer($this->everyReportPermission());
+
+        (new RoleService())->setRecordScope($reader, 'own', null);
+
+        $day = '?from=' . $this->today() . '&to=' . $this->today();
+
+        foreach (['supplier_payments' => $day, 'purchase_payments' => ''] as $key => $query) {
+            $page = $this->get('/accounting_reports/' . $key . $query)->getBody();
+
+            $this->assertStringNotContainsString('data-status=', $page, $key);
+        }
+
+        $this->assertSame(1, substr_count($this->get('/accounting_reports/financial_movements' . $day)->getBody(), 'data-status="ties"'));
     }
 
     public function testGetShow_CutsTheFiltersDownToWhatTheRequestCarriesAndKeepsThemInTheFile(): void

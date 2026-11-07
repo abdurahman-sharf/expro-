@@ -259,6 +259,31 @@ final class report_helperTest extends CIUnitTestCase
         }
     }
 
+    public function testFamilyReportCatalog_LabelsEveryLinkWithTheTitleOfItsReport(): void
+    {
+        $every  = ['accounting_reports', ...array_map(static fn (array $definition): string => $definition['permission'], array_values(FamilyReportCatalog::all()))];
+        $labels = [];
+
+        foreach (familyReportCatalog($every, true) as $group) {
+            foreach ($group['subjects'] as $subject) {
+                foreach ($subject['links'] as $link) {
+                    $labels[$link['path']] = $link['label'];
+                }
+            }
+        }
+
+        $messages = include APPPATH . 'Language/en/Accounting_family_reports.php';
+
+        foreach (FamilyReportCatalog::keys() as $key) {
+            $label = $labels[site_url('accounting_reports/' . $key)] ?? '';
+
+            $this->assertNotSame('', $label, $key);
+            $this->assertStringNotContainsString('Accounting_family_reports.', $label, $key);
+            $this->assertArrayHasKey(FamilyReportCatalog::titleKey($key), $messages, $key);
+            $this->assertSame(lang('Accounting_family_reports.' . FamilyReportCatalog::titleKey($key)), $label, $key);
+        }
+    }
+
     public function testFamilyReportCatalog_OffersNothingWithoutTheModuleOfTheFinancialReports(): void
     {
         $permissions = array_map(static fn (array $definition): string => $definition['permission'], array_values(FamilyReportCatalog::all()));

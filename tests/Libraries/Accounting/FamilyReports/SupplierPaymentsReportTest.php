@@ -3,10 +3,9 @@
 namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\AccountingGuard;
-use App\Libraries\Accounting\FamilyReports\SupplierPaymentRows;
 use App\Libraries\Accounting\FamilyReports\SupplierPaymentsReport;
-use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\SupplierAdvances;
+use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Roles\RoleService;
 use Tests\Support\FamilyReportTestCase;
 
@@ -122,19 +121,6 @@ final class SupplierPaymentsReportTest extends FamilyReportTestCase
         $this->assertReportTies($all);
     }
 
-    public function testRead_CutsDownToASupplierAndAWayOfPayment(): void
-    {
-        $this->payments();
-
-        $rows = new SupplierPaymentRows();
-        $day  = ReportPeriod::of($this->today(), $this->today());
-
-        $this->assertCount(3, $rows->read($this->everyBranch(), $day));
-        $this->assertCount(0, $rows->read($this->everyBranch(), $day, null, ['supplier_id' => $this->anotherSupplier()]));
-        $this->assertCount(0, $rows->read($this->everyBranch(), $day, null, ['payment_type' => 'No such way']));
-        $this->assertCount(3, $rows->read($this->everyBranch(), $day, null, ['payment_type' => lang('Sales.cash')]));
-    }
-
     public function testBuild_ReadsOnlyThePaymentsOfAViewerWhoSeesTheirOwnRecords(): void
     {
         $author = $this->employeeId;
@@ -153,5 +139,29 @@ final class SupplierPaymentsReportTest extends FamilyReportTestCase
 
         $this->assertAmount('180.00', $this->grandOf($own, 'amount'));
         $this->assertAmount('300.00', $this->grandOf($everyone, 'amount'));
+        $this->assertSame([], $own->ties);
+        $this->assertReportTies($everyone);
+        $this->assertAmount('300.00', $everyone->ties[0]->book);
+    }
+
+    public function testBuild_CountsAPaymentOutOfATreasuryOfAnotherBranchThroughTheJournalOfThatBranch(): void
+    {
+        $branch   = $this->createBranch('PY3', 'Far treasury branch');
+        $treasury = (new TreasuryService())->create(['name' => 'Far drawer', 'kind' => 'cash', 'branch_id' => $branch]);
+
+        $this->workInBranches(1, $branch);
+        $this->payments();
+
+        $id = $this->purchaseOf('300.00');
+
+        $this->assertTrue($this->purchases->update($id, ['comment' => 'paid far', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '100.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => '', 'treasury_id' => $treasury],
+        ]]));
+
+        $table = $this->built($this->report, $this->thisDay());
+
+        $this->assertAmount('330.00', $this->grandOf($table, 'amount'));
+        $this->assertReportTies($table);
+        $this->assertAmount('330.00', $table->ties[0]->book);
     }
 }

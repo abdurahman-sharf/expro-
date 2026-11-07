@@ -3,7 +3,10 @@
 namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\FamilyReports\PurchasesReport;
 use App\Libraries\Accounting\FamilyReports\SupplierBalancesReport;
+use App\Libraries\Accounting\SupplierAdvances;
 use Tests\Support\FamilyReportTestCase;
 
 /**
@@ -47,6 +50,37 @@ final class SupplierBalancesReportTest extends FamilyReportTestCase
         $this->market();
 
         $this->assertAmount('395.00', $this->grandOf($this->built($this->report, $this->thisDay()), 'net'));
+    }
+
+    public function testBuild_KeepsAnOpeningBalanceOwedOutOfThePurchasesSoTheNetPurchasesAreThoseOfEveryReport(): void
+    {
+        $this->market();
+
+        $clerk = $this->employeeWithGrants([AccountingGuard::PAYABLES_MANAGE]);
+
+        $this->receivingIds[] = (new SupplierAdvances())->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '500.00', $this->today(), '', $clerk);
+
+        $table     = $this->built($this->report, $this->thisDay());
+        $purchases = $this->built(new PurchasesReport(), $this->thisDay());
+
+        $this->assertAmount($this->grandOf($purchases, 'net'), $this->grandOf($table, 'net'));
+        $this->assertAmount('395.00', $this->grandOf($table, 'net'));
+        $this->assertAmount('500.00', $this->grandOf($table, 'other'));
+        $this->assertAmount('895.00', $this->grandOf($table, 'balance'));
+        $this->assertReportTies($table);
+    }
+
+    public function testBuild_NamesTheAccountOfASupplierByItsCodeInTheChartNotByItsNumberInTheDatabase(): void
+    {
+        $this->market();
+
+        $row    = $this->rowWhere($this->built($this->report, $this->thisDay()), 'name', 'Gulf Supplies');
+        $stored = $this->accountingDb()->table('accounting_accounts')->where(['entity_type' => 'supplier', 'entity_id' => $this->supplierId])->get()->getRow();
+
+        $this->assertNotNull($row);
+        $this->assertSame((string) $stored->code, $row->cell('account'));
+        $this->assertNotSame((string) $stored->account_id, $row->cell('account'));
+        $this->assertSame((string) $this->supplierId, $row->cell('code'));
     }
 
     public function testBuild_TiesTheBalancesAndTheBalancesBeforeToTheAccountOfTheSuppliers(): void

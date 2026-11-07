@@ -627,6 +627,20 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->assertSame(1, $count('?treasury_id=' . $drawer . '&date_from=2026-10-21'));
     }
 
+    public function testGetTransfersSearch_IgnoresAFilterThatIsNotASingleText(): void
+    {
+        $manager = $this->manager();
+        $main    = $this->treasuries->ensureMain();
+        $drawer  = $this->treasuries->create(['name' => 'Drawer', 'kind' => 'cash'], $manager);
+
+        (new TreasuryTransfers())->transfer($main, $drawer, '10', '2026-10-10', '', $manager);
+
+        $response = $this->get('/accounting_treasuries/transfers/search?date_from[]=2030-01-01&date_to[]=2000-01-01&treasury_id[]=1');
+
+        $response->assertStatus(200);
+        $this->assertSame(1, json_decode($response->getJSON(), true)['total']);
+    }
+
     public function testGetTransfers_OffersTheTreasuriesAndTheDaysAsFilters(): void
     {
         $manager = $this->manager();
@@ -1131,6 +1145,19 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString("\xEF\xBB\xBF=Busy", $body);
 
         $this->get('/accounting_treasuries/statement/' . $treasury . '/csv?amount_from=abc')->assertStatus(422);
+    }
+
+    public function testGetStatementCsv_GivesEveryMovementTheFiltersLeaveNotOnlyThePageOfTheScreen(): void
+    {
+        $treasury = $this->busyTreasury();
+        $base     = '/accounting_treasuries/statement/' . $treasury . '/csv';
+
+        $all    = $this->get($base)->response()->getBody();
+        $oldest = $this->get($base . '?order=asc')->response()->getBody();
+
+        $this->assertSame(1 + 1 + 28, substr_count($all, "\n"));
+        $this->assertSame(1 + 1 + 28, substr_count($oldest, "\n"));
+        $this->assertSame(1 + 1 + 4, substr_count($this->get($base . '?from=' . date('Y-m-d', strtotime('-4 days')))->response()->getBody(), "\n"));
     }
 
     public function testGetStatementCsv_IsNotFoundForATreasuryOfAnotherBranch(): void

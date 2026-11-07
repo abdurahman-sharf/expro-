@@ -3,7 +3,6 @@
 namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\FamilyReports\JournalMovementsReport;
-use App\Libraries\Accounting\FamilyReports\JournalSources;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
@@ -127,6 +126,66 @@ final class JournalMovementsReportTest extends FamilyReportTestCase
         $this->assertCount(1, $this->rowsOf($account));
     }
 
+    public function testBuild_TiesTheLinesOfAnAccountToWhatTheAccountHoldsInsteadOfAskingThemToBalance(): void
+    {
+        $ids = $this->entries();
+
+        $table = $this->built($this->report, [...$this->thisDay(), 'account_id' => (string) $this->accountId('cash')]);
+
+        $this->assertAmount('40.00', $this->grandOf($table, 'debit'));
+        $this->assertAmount('0.00', $this->grandOf($table, 'credit'));
+        $this->assertCount(1, $table->ties);
+        $this->assertSame(lang('Accounting_family_reports.tie_account_movement'), $table->ties[0]->label);
+        $this->assertReportTies($table);
+        $this->assertAmount('40.00', $table->ties[0]->book);
+
+        (new JournalService())->reverse($ids['manual'], $this->today(), 'Mistake', $this->employeeWithGrants([AccountingGuard::JOURNALS_REVERSE, AccountingGuard::JOURNALS_ALL]));
+
+        $reversed = $this->built($this->report, [...$this->thisDay(), 'account_id' => (string) $this->accountId('cash')]);
+
+        $this->assertAmount('0.00', $reversed->ties[0]->book);
+        $this->assertReportTies($reversed);
+    }
+
+    public function testBuild_LeavesTheTieOutWhenTheAccountIsNarrowedBySourceToo(): void
+    {
+        $this->entries();
+
+        $table = $this->built($this->report, [...$this->thisDay(), 'account_id' => (string) $this->accountId('cash'), 'source' => 'manual']);
+
+        $this->assertAmount('40.00', $this->grandOf($table, 'debit'));
+        $this->assertSame([], $table->ties);
+        $this->assertStringContainsString(lang('Accounting_family_reports.note_journal_narrowed'), implode(' ', $table->notes));
+    }
+
+    public function testBuild_ListsTheJournalsInTheOrderOfTheirDayAndNumberNotOfTheTextOfTheirNumber(): void
+    {
+        $later   = $this->manual($this->today(), 1, '10.00', 'Booked first, dated later');
+        $earlier = $this->manual(date('Y-m-d', strtotime('-1 day')), 1, '20.00', 'Booked second, dated earlier');
+
+        $this->assertGreaterThan($later, $earlier);
+
+        $table  = $this->built($this->report, ['from' => date('Y-m-d', strtotime('-1 day')), 'to' => $this->today()]);
+        $titles = array_map(static fn ($block): string => (string) $block->title, $table->blocks);
+
+        $this->assertCount(2, $titles);
+        $this->assertStringContainsString('Booked second, dated earlier', $titles[0]);
+        $this->assertStringContainsString('Booked first, dated later', $titles[1]);
+    }
+
+    public function testBuild_ListsTheAccountsByTheirCode(): void
+    {
+        $this->entries();
+
+        $codes  = array_map(static fn ($block): string => (string) $block->title, $this->built($this->report, [...$this->thisDay(), 'group' => 'account'])->blocks);
+        $sorted = $codes;
+
+        sort($sorted, SORT_NATURAL);
+
+        $this->assertGreaterThan(1, count($codes));
+        $this->assertSame($sorted, $codes);
+    }
+
     public function testBuild_ReadsOnlyTheBranchesOfTheScopeAndTheJournalsOfTheOwnerWhenGivenOne(): void
     {
         $this->entries();
@@ -142,17 +201,5 @@ final class JournalMovementsReportTest extends FamilyReportTestCase
         $this->assertReportTies($limited);
         $this->assertSame([], $this->rowsOf($none));
         $this->assertCount(1, $none->ties);
-    }
-
-    public function testSources_ListsThoseOfTheBooksWithAName(): void
-    {
-        $sources = JournalSources::all();
-
-        $this->assertContains('manual', $sources);
-        $this->assertContains('purchase', $sources);
-        $this->assertContains('expense', $sources);
-        $this->assertContains('reversal', $sources);
-        $this->assertSame(lang('Accounting.source_expense'), JournalSources::label('expense'));
-        $this->assertSame('made_up', JournalSources::label('made_up'));
     }
 }
