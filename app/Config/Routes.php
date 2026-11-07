@@ -163,7 +163,7 @@ $routes->group('sales_orders', static function (RouteCollection $routes): void {
     $routes->get('/', 'Sales_orders::getIndex');
     $routes->get('add', 'Sales_orders::getForm');
     $routes->get('edit/(:num)', 'Sales_orders::getForm/$1');
-    $routes->get('view/(:num)', 'Sales_orders::getView/$1');
+    $routes->get('view/(:num)', 'Sales_orders::getShow/$1');
     $routes->get('customers', 'Sales_orders::getCustomers');
     $routes->get('items', 'Sales_orders::getItems');
     $routes->post('save', 'Sales_orders::postSave');

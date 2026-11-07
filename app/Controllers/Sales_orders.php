@@ -80,7 +80,7 @@ class Sales_orders extends DocumentScreen
         ]);
     }
 
-    public function getView(int $orderId): string
+    public function getShow(int $orderId): string
     {
         $order = $this->orders->isEnabled() ? $this->orders->find($orderId, $this->employeeId()) : null;
 
