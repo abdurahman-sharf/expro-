@@ -238,6 +238,7 @@ class PaymentsReportTest extends CIUnitTestCase
         $this->assertTrue($table->isEmpty());
         $this->assertSame('0.0000', $table->total['amount']);
     }
+
     public function testBuild_ShowsAPaymentIntoTheDefaultCashAccountThatIsNoTreasury(): void
     {
         $this->save([$this->line($this->item('0', false), 0, '1', '10')], [], [$this->payment(lang('Sales.cash'), '10')], SALE_TYPE_INVOICE, $this->customerId);

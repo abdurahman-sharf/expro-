@@ -150,7 +150,7 @@ class NetPositionReportTest extends CIUnitTestCase
 
     public function testBuild_FiltersByStateAndByCustomer(): void
     {
-        $ids = $this->documents();
+        $this->documents();
 
         $partial = $this->table(false, false, ['partial']);
         $excess  = $this->table(false, false, ['excess']);
@@ -161,7 +161,6 @@ class NetPositionReportTest extends CIUnitTestCase
         $this->assertSame(['172.5000'], array_column($partly->blocks[0]->rows, 'total'));
         $this->assertSame(['172.5000'], array_column($this->table(false, false, ['paid'])->blocks[0]->rows, 'total'));
         $this->assertSame(1, $this->table(false, false, [], $this->customerId)->documents);
-        $this->assertGreaterThan(0, $ids['orphan']);
     }
 
     public function testBuild_NestsThePaymentsAndTheReturnsUnderTheirInvoice(): void

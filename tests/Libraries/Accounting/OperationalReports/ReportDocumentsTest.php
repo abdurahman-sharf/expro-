@@ -150,7 +150,7 @@ class ReportDocumentsTest extends CIUnitTestCase
 
         $this->assertSame([$first], array_keys($found));
         $this->assertNotSame([], $found[$first]->lines);
-        $this->assertGreaterThan(0, $second);
+        $this->assertNotContains($second, array_keys($found));
         $this->assertSame([], (new ReportDocuments())->byIds(ReportScope::resolve(null, []), [$first]));
     }
 
@@ -165,6 +165,7 @@ class ReportDocumentsTest extends CIUnitTestCase
         $this->assertSame([$note], array_map(static fn ($document): int => $document->id, $reader->returnsOf($scope, [$invoice])[$invoice]));
         $this->assertSame([$orphan], array_map(static fn ($document): int => $document->id, $reader->orphanReturns($scope, '2020-01-01', date('Y-m-d'))));
     }
+
     public function testRead_LeavesOutASaleThatIsNotCompletedEvenWhileAJournalStandsForIt(): void
     {
         $sale = $this->invoiceOf('10', $this->customerId);
@@ -226,6 +227,7 @@ class ReportDocumentsTest extends CIUnitTestCase
         $this->assertSame(['refund_invoice'], $kinds($this->read(null, '2020-01-01', null, [DocumentKind::RefundInvoice])));
         $this->assertCount(3, $this->read());
     }
+
     public function testRead_ReadsADebitNoteOfTheBranchesOfTheScopeOnly(): void
     {
         $this->setConfigValue('accounting_debit_note', '1');
@@ -246,6 +248,7 @@ class ReportDocumentsTest extends CIUnitTestCase
 
         $this->accountingDb()->table('app_config')->where('key', 'accounting_debit_note')->delete();
     }
+
     public function testRead_LeavesOutADocumentWhoseJournalWasReversedWhileItsSaleStaysCompleted(): void
     {
         $sale    = $this->invoiceOf('10', $this->customerId);
@@ -260,7 +263,7 @@ class ReportDocumentsTest extends CIUnitTestCase
 
     public function testRead_CountsOnlyAPaymentWhoseJournalWasNotReversed(): void
     {
-        $invoice = $this->invoiceOf('100', $this->customerId, [$this->payment(lang('Sales.cash'), '60')]);
+        $this->invoiceOf('100', $this->customerId, [$this->payment(lang('Sales.cash'), '60')]);
         $journal = $this->accountingDb()->table('accounting_journals')->select('journal_id')->where(['source_type' => 'sale_payment', 'status' => 'posted'])->get()->getRow();
 
         $this->assertSame('60.0000', $this->read()[0]->paid());
@@ -268,7 +271,6 @@ class ReportDocumentsTest extends CIUnitTestCase
         (new JournalService())->reverseAutomatic((int) $journal->journal_id, date('Y-m-d'), 'Taken back', null);
 
         $this->assertSame('0.0000', $this->read()[0]->paid());
-        $this->assertGreaterThan(0, $invoice);
     }
 
     public function testRead_ReadsOnlyTheDocumentsFromTheFirstDay(): void

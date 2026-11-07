@@ -296,6 +296,7 @@ class RevenueReportTest extends CIUnitTestCase
         $this->assertSame(4, $table->documents);
         $this->assertTrue($table->ties());
     }
+
     public function testBuild_EqualsTheAccountOfSalesTheAccountOfTaxAndTheAccountOfTheCustomer(): void
     {
         $cycle = $this->referenceInvoice();

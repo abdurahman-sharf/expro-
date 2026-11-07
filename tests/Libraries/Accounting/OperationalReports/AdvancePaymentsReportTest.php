@@ -100,7 +100,7 @@ class AdvancePaymentsReportTest extends CIUnitTestCase
 
         $this->assertSame('50.0000', $this->table()->total['amount']);
         $this->assertSame('0.0000', $this->table('', $other)->total['amount']);
-        $this->assertGreaterThan(0, $kept);
+        $this->assertSame([(string) $kept], array_column($this->table()->blocks[0]->rows, 'number'));
     }
 
     public function testBuild_ShowsAnAdvanceWhoseJournalDoesNotStandAsNothingTheBooksHoldAndSaysTheyDiffer(): void
@@ -124,7 +124,7 @@ class AdvancePaymentsReportTest extends CIUnitTestCase
 
     public function testBuild_FiltersByTheEmployeeWhoMadeTheAdvanceAndByTheMethod(): void
     {
-        $other  = $this->teller();
+        $other    = $this->teller();
         $advances = new CustomerAdvances();
 
         $advances->receive($this->customerId, '50', date('Y-m-d'), 'Cash', null, '', '', $this->teller());
@@ -145,6 +145,7 @@ class AdvancePaymentsReportTest extends CIUnitTestCase
 
         $this->assertTrue($table->isEmpty());
     }
+
     public function testBuild_ReadsOnlyTheAdvancesOfTheBranchesOfTheScope(): void
     {
         $second = $this->createBranch('ADB', 'Second advances branch');

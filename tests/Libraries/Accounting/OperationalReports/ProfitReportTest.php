@@ -156,7 +156,7 @@ class ProfitReportTest extends CIUnitTestCase
         $cost = $this->accountingDb()->table('accounting_journals')->select('journal_date')->where(['source_type' => 'sale', 'source_id' => $sale, 'entry_type' => 'cogs', 'status' => 'posted'])->get()->getRow();
 
         $this->assertCount(1, $rows);
-        $this->assertSame($cost->journal_date, $rows[0]['date'] ?? $day);
+        $this->assertSame($cost->journal_date, $rows[0]['date']);
         $this->assertSame('40.0000', $this->table()->total['profit']);
     }
 
@@ -188,6 +188,7 @@ class ProfitReportTest extends CIUnitTestCase
         $this->assertTrue($table->isEmpty());
         $this->assertSame('0.0000', $table->total['profit']);
     }
+
     public function testBuild_ReadsOnlyTheBranchesOfTheScopeAndTiesTheCostOfThem(): void
     {
         $second = $this->createBranch('PFB', 'Second profit branch');
@@ -215,7 +216,7 @@ class ProfitReportTest extends CIUnitTestCase
     public function testBuild_LeavesOutTheMovementsOfASaleThatWasCancelled(): void
     {
         $item = $this->item('10');
-        $kept = $this->save([$this->line($item, 0, '1', '30', '10')], [], [], SALE_TYPE_POS, $this->customerId);
+        $this->save([$this->line($item, 0, '1', '30', '10')], [], [], SALE_TYPE_POS, $this->customerId);
         $gone = $this->save([$this->line($item, 0, '2', '30', '10')], [], [], SALE_TYPE_POS, $this->customerId);
 
         $this->assertSame('30.0000', $this->table()->total['cost']);
@@ -226,7 +227,7 @@ class ProfitReportTest extends CIUnitTestCase
         $this->assertSame('10.0000', $table->total['cost']);
         $this->assertSame('20.0000', $table->total['profit']);
         $this->assertTrue($table->ties());
-        $this->assertGreaterThan(0, $kept);
+        $this->assertSame(1, $table->documents);
     }
 
     public function testBuild_CountsOnlyTheUnitsThatMovedWhenSomeOfThemCameBackBeforeTheDelivery(): void
@@ -244,6 +245,7 @@ class ProfitReportTest extends CIUnitTestCase
         $this->assertSame(['1.0000', '10.0000', '30.0000', '20.0000'], [$rows[0]['quantity'], $rows[0]['cost'], $rows[0]['sale_price'], $rows[0]['profit']]);
         $this->assertTrue($table->ties());
     }
+
     public function testBuild_ReadsOnlyTheMovementsThatStandAfterASaleWasCancelledAndCompletedAgain(): void
     {
         $item = $this->item('10');

@@ -164,9 +164,8 @@ class ItemSalesReportTest extends CIUnitTestCase
         $this->assertCount(2, $this->table(ItemGroup::Customer)->blocks[0]->rows);
         $this->assertSame('50.0000', $this->table(ItemGroup::Item, false, ['customer' => $this->customerId])->total['total']);
         $this->assertSame('100.0000', $this->table(ItemGroup::User)->total['total']);
-        $this->assertSame('50.0000', $this->table(ItemGroup::Item, false, ['item' => $that = $this->oil])->total['total']);
+        $this->assertSame('50.0000', $this->table(ItemGroup::Item, false, ['item' => $this->oil])->total['total']);
         $this->assertSame('50.0000', $this->table(ItemGroup::Category, false, ['category' => 'Oils'])->total['total']);
-        $this->assertGreaterThan(0, $that);
     }
 
     public function testBuild_TiesTheLinesToTheJournalsWithoutTheHeaderChargesWithinACent(): void
@@ -194,6 +193,7 @@ class ItemSalesReportTest extends CIUnitTestCase
         $this->assertNotContains('date', $byDay);
         $this->assertSame(['item', 'unit_price', 'quantity', 'discount', 'tax', 'total'], $sum);
     }
+
     public function testBuild_SplitsTheTaxThatIsInsideThePriceFromTheValue(): void
     {
         $this->save([$this->line($this->cream, 0, '1', '115', '40')], [$this->taxRow($this->cream, 0, 'VAT', '15', 0, '15')], [], SALE_TYPE_INVOICE, $this->customerId);
