@@ -2,6 +2,7 @@
 
 namespace Tests\Helpers;
 
+use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
 use App\Libraries\Accounting\ReportScopeKind;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -225,5 +226,61 @@ final class report_helperTest extends CIUnitTestCase
             $this->assertStringNotContainsString('accounting_reports/tax', $path);
             $this->assertStringNotContainsString('accounting_statements', $path);
         }
+    }
+
+    /**
+     * @param list<string> $permissionIds
+     *
+     * @return list<string>
+     */
+    private function familyPaths(array $permissionIds, bool $accountingOn = true): array
+    {
+        $paths = [];
+
+        foreach (familyReportCatalog($permissionIds, $accountingOn) as $group) {
+            foreach ($group['subjects'] as $subject) {
+                foreach ($subject['links'] as $link) {
+                    $paths[] = $link['path'];
+                }
+            }
+        }
+
+        return $paths;
+    }
+
+    public function testFamilyReportCatalog_OffersEveryReportToWhoHoldsTheModuleAndThePermissionOfIt(): void
+    {
+        $every = ['accounting_reports', ...array_map(static fn (array $definition): string => $definition['permission'], array_values(FamilyReportCatalog::all()))];
+
+        $this->assertCount(count(FamilyReportCatalog::keys()), $this->familyPaths($every));
+
+        foreach (FamilyReportCatalog::keys() as $key) {
+            $this->assertContains(site_url('accounting_reports/' . $key), $this->familyPaths($every), $key);
+        }
+    }
+
+    public function testFamilyReportCatalog_OffersNothingWithoutTheModuleOfTheFinancialReports(): void
+    {
+        $permissions = array_map(static fn (array $definition): string => $definition['permission'], array_values(FamilyReportCatalog::all()));
+
+        $this->assertSame([], familyReportCatalog($permissions, true));
+        $this->assertSame([], $this->familyPaths(['accounting_reports']));
+    }
+
+    public function testFamilyReportCatalog_OffersOnlyTheReportsOfThePermissionsHeld(): void
+    {
+        $paths = $this->familyPaths(['accounting_reports', 'reports_suppliers']);
+
+        $this->assertContains(site_url('accounting_reports/supplier_balances'), $paths);
+        $this->assertNotContains(site_url('accounting_reports/expenses'), $paths);
+        $this->assertNotContains(site_url('accounting_reports/stock_aging'), $paths);
+        $this->assertNotContains(site_url('accounting_reports/journals'), $paths);
+    }
+
+    public function testFamilyReportCatalog_LeavesOutEveryReportWhileAccountingIsOff(): void
+    {
+        $every = ['accounting_reports', ...array_map(static fn (array $definition): string => $definition['permission'], array_values(FamilyReportCatalog::all()))];
+
+        $this->assertSame([], familyReportCatalog($every, false));
     }
 }

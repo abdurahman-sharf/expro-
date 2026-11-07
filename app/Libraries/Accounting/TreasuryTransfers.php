@@ -240,7 +240,7 @@ final class TreasuryTransfers
      * The transfers a reader may see, the newest first: those that leave a branch of theirs and
      * those that go into one, cut down to the days of the transfer and to one treasury, on either side.
      *
-     * @param list<int>|null                                                   $branchIds Null for every branch.
+     * @param list<int>|null                                                        $branchIds Null for every branch.
      * @param array{date_from?: string, date_to?: string, treasury_id?: int|string} $filters
      *
      * @return array{total: int, rows: list<object>}
@@ -251,7 +251,7 @@ final class TreasuryTransfers
             return ['total' => 0, 'rows' => []];
         }
 
-        $restrict = function (BaseBuilder $builder) use ($branchIds, $filters): BaseBuilder {
+        $restrict = static function (BaseBuilder $builder) use ($branchIds, $filters): BaseBuilder {
             if ($branchIds !== null) {
                 $builder->groupStart()->whereIn('tt.branch_id', $branchIds)->orWhereIn('tt.to_branch_id', $branchIds)->groupEnd();
             }

@@ -4,13 +4,13 @@ namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
-use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\Bank\BankDirectory;
 use App\Libraries\Accounting\Bank\BankMatches;
+use App\Libraries\Accounting\ExportsCsv;
+use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryStatement;
-use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Organization\BranchService;
 use App\Libraries\Roles\RoleService;
@@ -279,10 +279,10 @@ class AccountingTreasuries extends AccountingController
         ));
 
         return view('accounting_treasuries/transfers', [
-            'table_headers'    => transform_headers($this->transferHeaders(), true, true),
-            'can_manage'       => $this->can(AccountingGuard::TREASURIES_MANAGE),
-            'treasuries'       => $this->treasuries->all($this->branchIds(), true),
-            'branch_balances'  => array_map(fn (object $row): array => [
+            'table_headers'   => transform_headers($this->transferHeaders(), true, true),
+            'can_manage'      => $this->can(AccountingGuard::TREASURIES_MANAGE),
+            'treasuries'      => $this->treasuries->all($this->branchIds(), true),
+            'branch_balances' => array_map(fn (object $row): array => [
                 'code'       => $row->code,
                 'receivable' => $this->formatAmount($row->receivable),
                 'payable'    => $this->formatAmount($row->payable),

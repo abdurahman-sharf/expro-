@@ -15,8 +15,8 @@ use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\JournalAttachments;
 use App\Libraries\Accounting\JournalEntryType;
-use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalOrigin;
+use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PeriodGuard;
 use App\Libraries\Accounting\PostingException;
@@ -408,10 +408,10 @@ class AccountingJournals extends AccountingController
             throw PageNotFoundException::forPageNotFound();
         }
 
-        $log     = new AuditLog();
-        $filters = $this->auditFilters();
-        $order   = $this->auditOrder();
-        $handle  = fopen('php://temp', 'r+b');
+        $log        = new AuditLog();
+        $filters    = $this->auditFilters();
+        $order      = $this->auditOrder();
+        $handle     = fopen('php://temp', 'r+b');
         $withBranch = $this->seesBranches();
 
         $this->csvRow($handle, [lang('Accounting_journals.audit_title')]);
@@ -503,7 +503,7 @@ class AccountingJournals extends AccountingController
     }
 
     /**
-     * @return array<string, string|int>
+     * @return array<string, int|string>
      */
     private function auditFilters(): array
     {
