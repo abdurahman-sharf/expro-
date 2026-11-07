@@ -14,8 +14,7 @@ final class AuditPeriods
     public const TODAY         = 'today';
     public const CURRENT_MONTH = 'current_month';
     public const LAST_MONTH    = 'last_month';
-
-    public const ALL = [self::TODAY, self::CURRENT_MONTH, self::LAST_MONTH];
+    public const ALL           = [self::TODAY, self::CURRENT_MONTH, self::LAST_MONTH];
 
     /**
      * @return array{from: string, to: string}|null Null for a name that is not one of them.

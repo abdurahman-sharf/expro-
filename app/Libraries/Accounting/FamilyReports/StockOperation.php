@@ -8,8 +8,7 @@ namespace App\Libraries\Accounting\FamilyReports;
  */
 final class StockOperation
 {
-    public const KEYS = ['in_purchase', 'in_sale_return', 'in_transfer', 'in_manual', 'out_sale', 'out_purchase_return', 'out_transfer', 'out_manual'];
-
+    public const KEYS     = ['in_purchase', 'in_sale_return', 'in_transfer', 'in_manual', 'out_sale', 'out_purchase_return', 'out_transfer', 'out_manual'];
     private const SOURCES = [
         'purchase'               => ['in_purchase', 'out_purchase_return'],
         'sale'                   => ['in_sale_return', 'out_sale'],

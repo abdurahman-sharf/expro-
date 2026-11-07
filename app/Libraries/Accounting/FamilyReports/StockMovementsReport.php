@@ -44,7 +44,7 @@ final class StockMovementsReport implements FamilyReport
             $key = (int) $entry->item_id . ':' . (int) $entry->location_id;
 
             $sets[$key] ??= ['title' => $entry->item_name . ' - ' . $entry->location_name, 'opening' => null, 'moves' => []];
-            $sets[$key]['moves'][] = $entry;
+            $sets[$key]['moves'][]                = $entry;
             $locations[(int) $entry->location_id] = true;
         }
 
@@ -75,7 +75,7 @@ final class StockMovementsReport implements FamilyReport
             $value = bcadd($value, $worth, SaleAmounts::SCALE);
 
             $shown[(int) explode(':', $key)[1]] = true;
-            $blocks[] = new ReportBlock($set['title'], $rows);
+            $blocks[]                           = new ReportBlock($set['title'], $rows);
         }
 
         $columns = $valued

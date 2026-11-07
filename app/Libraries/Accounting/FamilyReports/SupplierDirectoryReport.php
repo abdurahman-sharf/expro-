@@ -42,13 +42,13 @@ final class SupplierDirectoryReport implements FamilyReport
             $address = trim(implode(', ', array_filter([(string) $supplier->address_1, (string) $supplier->address_2, (string) $supplier->city, (string) $supplier->country], static fn (string $part): bool => trim($part) !== '')));
 
             $rows[] = new ReportRow([
-                'code'         => (string) $supplier->person_id,
-                'name'         => (string) $supplier->name,
-                'tax_number'   => (string) ($supplier->tax_id ?? ''),
-                'registry'     => (string) ($supplier->commercial_registry ?? ''),
-                'address'      => $address,
-                'phone'        => (string) ($supplier->phone_number ?? ''),
-                'email'        => (string) ($supplier->email ?? ''),
+                'code'       => (string) $supplier->person_id,
+                'name'       => (string) $supplier->name,
+                'tax_number' => (string) ($supplier->tax_id ?? ''),
+                'registry'   => (string) ($supplier->commercial_registry ?? ''),
+                'address'    => $address,
+                'phone'      => (string) ($supplier->phone_number ?? ''),
+                'email'      => (string) ($supplier->email ?? ''),
             ]);
         }
 

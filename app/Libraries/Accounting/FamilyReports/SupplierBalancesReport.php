@@ -2,7 +2,6 @@
 
 namespace App\Libraries\Accounting\FamilyReports;
 
-use App\Libraries\Accounting\BalanceRow;
 use App\Libraries\Accounting\PartyReportQuery;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\SaleAmounts;

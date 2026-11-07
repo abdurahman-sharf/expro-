@@ -22,9 +22,9 @@ final class JournalsReport implements FamilyReport
 
     public function build(ReportInput $input): ReportTable
     {
-        $period  = $input->period();
-        $source  = $input->choice('source', JournalSources::all(), '');
-        $search  = $input->text('search');
+        $period   = $input->period();
+        $source   = $input->choice('source', JournalSources::all(), '');
+        $search   = $input->text('search');
         $journals = $this->lines->journals($input->scope, $period, $source === '' ? null : $source, $input->journalOwner, $search);
 
         $rows = [];

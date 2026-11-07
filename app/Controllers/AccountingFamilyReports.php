@@ -47,9 +47,9 @@ class AccountingFamilyReports extends AccountingController
             $table = $this->table($definition, $this->input($scope, []));
         }
 
-        $page  = $this->input($scope, $this->request->getGet())->page();
-        $pages = $table->pages(ReportInput::PAGE_SIZE);
-        $page  = min($page, $pages);
+        $page    = $this->input($scope, $this->request->getGet())->page();
+        $pages   = $table->pages(ReportInput::PAGE_SIZE);
+        $page    = min($page, $pages);
         $choices = new FilterChoices();
 
         return view('accounting_reports/family', [
@@ -60,7 +60,7 @@ class AccountingFamilyReports extends AccountingController
             'error'       => $error,
             'filters'     => $definition['filters'],
             'values'      => $this->values($definition['filters']),
-            'choices'     => fn (string $source): array => $choices->of($source, $scope),
+            'choices'     => static fn (string $source): array => $choices->of($source, $scope),
             'branches'    => $this->branchChoices($scope),
             'selected'    => $scope->ids,
             'scope'       => $scope,
@@ -174,7 +174,7 @@ class AccountingFamilyReports extends AccountingController
         $this->csvNote($handle, $scopeLabel);
         $this->csvRow($handle, array_map(static fn (ReportColumn $column): string => $column->label, $table->columns));
 
-        $cells = fn (ReportRow $row): array => array_map(static fn (ReportColumn $column): string => $row->cell($column->key), $table->columns);
+        $cells = static fn (ReportRow $row): array => array_map(static fn (ReportColumn $column): string => $row->cell($column->key), $table->columns);
 
         foreach ($table->blocks as $block) {
             if ($block->title !== null) {

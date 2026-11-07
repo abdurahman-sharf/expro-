@@ -7,8 +7,8 @@ use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
-use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RevenuePostingBuilder;
+use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -46,15 +46,15 @@ final class CashDocumentRows
             return [];
         }
 
-        $expense  = $kind === self::EXPENSE;
-        $table    = $expense ? 'expenses' : 'revenues';
-        $key      = $expense ? 'expense_id' : 'revenue_id';
-        $day      = $expense ? 'DATE(d.date)' : 'd.date';
-        $category = $expense ? 'expense_categories' : 'revenue_categories';
+        $expense     = $kind === self::EXPENSE;
+        $table       = $expense ? 'expenses' : 'revenues';
+        $key         = $expense ? 'expense_id' : 'revenue_id';
+        $day         = $expense ? 'DATE(d.date)' : 'd.date';
+        $category    = $expense ? 'expense_categories' : 'revenue_categories';
         $categoryKey = $expense ? 'expense_category_id' : 'revenue_category_id';
-        $journals = $this->db->prefixTable('accounting_journals');
-        $where    = [ScopeSql::branches('d.branch_id', $scope, true), 'd.deleted = 0', "{$day} >= ?", "{$day} <= ?"];
-        $bindings = [CompanyContext::id(), $expense ? ExpensePostingBuilder::SOURCE : RevenuePostingBuilder::SOURCE, JournalEntryType::General->value, JournalStatus::Posted->value, $period->from ?? '1000-01-01', $period->to];
+        $journals    = $this->db->prefixTable('accounting_journals');
+        $where       = [ScopeSql::branches('d.branch_id', $scope, true), 'd.deleted = 0', "{$day} >= ?", "{$day} <= ?"];
+        $bindings    = [CompanyContext::id(), $expense ? ExpensePostingBuilder::SOURCE : RevenuePostingBuilder::SOURCE, JournalEntryType::General->value, JournalStatus::Posted->value, $period->from ?? '1000-01-01', $period->to];
 
         [$mine, $mineBindings] = (new RecordScope($this->db))->condition('d.employee_id', $viewerId ?? RecordScope::sessionEmployee());
 

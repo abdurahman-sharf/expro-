@@ -28,7 +28,7 @@ final class SupplierPurchasesReport implements FamilyReport
         $sets = [];
 
         foreach ($docs as $document) {
-            $key        = $document->supplierId ?? 0;
+            $key = $document->supplierId ?? 0;
             $sets[$key] ??= ['name' => $document->supplierName === '' ? $this->text('no_supplier') : $document->supplierName, 'documents' => []];
             $sets[$key]['documents'][] = $document;
         }

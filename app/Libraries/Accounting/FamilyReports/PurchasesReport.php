@@ -144,7 +144,7 @@ final class PurchasesReport implements FamilyReport
                 ]);
             }
 
-            $all    = [...$all, ...$rows];
+            $all      = [...$all, ...$rows];
             $blocks[] = new ReportBlock((string) $set['label'], $rows, $this->totalRow($rows, ['total', 'paid', 'open'], 'number', $this->text('total')));
         }
 

@@ -67,7 +67,7 @@ final class JournalSources
 
     public static function label(string $source): string
     {
-        $key = 'Accounting.source_' . $source;
+        $key  = 'Accounting.source_' . $source;
         $line = lang($key);
 
         return $line === $key ? $source : $line;

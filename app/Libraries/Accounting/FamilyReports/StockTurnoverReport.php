@@ -90,9 +90,9 @@ final class StockTurnoverReport implements FamilyReport
             $this->column('days', ColumnKind::Plain, 'col_days_to_sell'),
         );
 
-        $ties    = [];
-        $notes   = [$this->text('note_turnover_definition', $days), $this->text('note_turnover_total')];
-        $whole   = $filters['item_id'] === 0 && $filters['category'] === '';
+        $ties  = [];
+        $notes = [$this->text('note_turnover_definition', $days), $this->text('note_turnover_total')];
+        $whole = $filters['item_id'] === 0 && $filters['category'] === '';
 
         if ($whole) {
             $ties[] = $this->ties->closing($input->scope, $total->cell('closing'), $period->to, $input->today, $filters['location_id'] > 0 ? [$filters['location_id']] : null);

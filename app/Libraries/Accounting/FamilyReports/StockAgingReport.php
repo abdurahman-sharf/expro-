@@ -49,7 +49,7 @@ final class StockAgingReport implements FamilyReport
         foreach ($lots as $key => $state) {
             $remaining = $state['lots'];
             $entry     = $named[$key];
-            $rowKey  = $split ? $key : (string) (int) $entry->item_id;
+            $rowKey    = $split ? $key : (string) (int) $entry->item_id;
             $items[$rowKey] ??= ['name' => (string) $entry->item_name, 'code' => (string) ($entry->item_number ?? ''), 'location' => $split ? (string) $entry->location_name : '', 'lots' => []];
             $items[$rowKey]['lots'] = [...$items[$rowKey]['lots'], ...array_values($remaining)];
         }
@@ -71,11 +71,11 @@ final class StockAgingReport implements FamilyReport
                     continue;
                 }
 
-                $age     = max(0, AgingBuckets::ageInDays($lot['date'], $day));
-                $slot    = $age <= 30 ? 'b0' : ($age <= 60 ? 'b1' : ($age <= 90 ? 'b2' : 'b3'));
+                $age            = max(0, AgingBuckets::ageInDays($lot['date'], $day));
+                $slot           = $age <= 30 ? 'b0' : ($age <= 60 ? 'b1' : ($age <= 90 ? 'b2' : 'b3'));
                 $buckets[$slot] = bcadd($buckets[$slot], $lot['quantity'], 3);
-                $units   = bcadd($units, $lot['quantity'], 3);
-                $aged    = bcadd($aged, bcmul($lot['quantity'], (string) $age, 3), 3);
+                $units          = bcadd($units, $lot['quantity'], 3);
+                $aged           = bcadd($aged, bcmul($lot['quantity'], (string) $age, 3), 3);
             }
 
             $average = bccomp($units, '0', 3) > 0 ? SaleAmounts::round(bcdiv($aged, $units, 6), 1) : '0.0';
@@ -84,9 +84,9 @@ final class StockAgingReport implements FamilyReport
                 $ages[] = $average;
             }
 
-            $onHand   = bcadd($onHand, $units, 3);
-            $netSums  = bcadd($netSums, $units, 3);
-            $rows[]   = new ReportRow(['code' => $item['code'], 'name' => $item['name'], 'location' => $item['location'], 'available' => $units, ...$buckets, 'age' => $average]);
+            $onHand  = bcadd($onHand, $units, 3);
+            $netSums = bcadd($netSums, $units, 3);
+            $rows[]  = new ReportRow(['code' => $item['code'], 'name' => $item['name'], 'location' => $item['location'], 'available' => $units, ...$buckets, 'age' => $average]);
         }
 
         $columns = [$this->column('code'), $this->column('name')];
@@ -95,7 +95,7 @@ final class StockAgingReport implements FamilyReport
             $columns[] = $this->column('location');
         }
 
-        array_push($columns, $this->column('available', ColumnKind::Quantity, 'col_quantity_available'));
+        $columns[] = $this->column('available', ColumnKind::Quantity, 'col_quantity_available');
 
         foreach (self::BUCKETS as $index => $bucket) {
             $columns[] = new ReportColumn($bucket, ['0 - 30', '31 - 60', '61 - 90', '90+'][$index] . ' ' . lang('Accounting_family_reports.age_days'), ColumnKind::Quantity);
@@ -121,7 +121,7 @@ final class StockAgingReport implements FamilyReport
     }
 
     /**
-     * @param array{lots: array<string, array{date: string, quantity: string}>, deficit: string} $state
+     * @param array{lots: array<string, array{date: string, quantity: string}>, deficit: string}                                                                              $state
      * @param object{kind: string, quantity: string, entry_date: string, source_type: string, source_id: int, entry_type: string, revision: int, line_no: int, entry_id: int} $entry
      *
      * @return array{lots: array<string, array{date: string, quantity: string}>, deficit: string}
@@ -150,9 +150,9 @@ final class StockAgingReport implements FamilyReport
         $out = ltrim($quantity, '-');
 
         if ($entry->kind === 'reversal' && isset($lots[$key])) {
-            $taken                 = bccomp($lots[$key]['quantity'], $out, 3) < 0 ? $lots[$key]['quantity'] : $out;
+            $taken                  = bccomp($lots[$key]['quantity'], $out, 3) < 0 ? $lots[$key]['quantity'] : $out;
             $lots[$key]['quantity'] = bcsub($lots[$key]['quantity'], $taken, 3);
-            $out                   = bcsub($out, $taken, 3);
+            $out                    = bcsub($out, $taken, 3);
         }
 
         foreach ($lots as $id => $lot) {

@@ -145,8 +145,8 @@ final class SupplierPaymentsReport implements FamilyReport
                 $this->column('number'), $this->column('kind'), $this->column('date', ColumnKind::Date), $this->column('user'), $this->column('supplier'),
                 $this->column('method'), $this->column('reference'), $this->column('treasury'), $this->column('amount', ColumnKind::Amount),
             ],
-            'blocks'  => $blocks,
-            'grand'   => $this->totalRow($all, ['amount'], 'number', $this->text('grand_total')),
+            'blocks' => $blocks,
+            'grand'  => $this->totalRow($all, ['amount'], 'number', $this->text('grand_total')),
         ];
     }
 }

@@ -1,24 +1,24 @@
 <?php
 /**
- * @var string                      $key
- * @var string                      $family
- * @var ReportTable                 $table
- * @var ReportTable                 $all
- * @var string|null                 $error
- * @var list<array<string, mixed>>  $filters
- * @var array<string, string>       $values
- * @var Closure                     $choices
- * @var list<object>                $branches
- * @var list<int>                   $selected
- * @var ReportScope                 $scope
- * @var string|null                 $scope_label
- * @var int                         $page
- * @var int                         $pages
- * @var string                      $csv_url
- * @var Closure                     $page_url
- * @var Closure                     $amount
- * @var Closure                     $quantity
- * @var Closure                     $date
+ * @var string                     $key
+ * @var string                     $family
+ * @var ReportTable                $table
+ * @var ReportTable                $all
+ * @var string|null                $error
+ * @var list<array<string, mixed>> $filters
+ * @var array<string, string>      $values
+ * @var Closure                    $choices
+ * @var list<object>               $branches
+ * @var list<int>                  $selected
+ * @var ReportScope                $scope
+ * @var string|null                $scope_label
+ * @var int                        $page
+ * @var int                        $pages
+ * @var string                     $csv_url
+ * @var Closure                    $page_url
+ * @var Closure                    $amount
+ * @var Closure                    $quantity
+ * @var Closure                    $date
  */
 
 use App\Libraries\Accounting\FamilyReports\ColumnKind;
@@ -83,7 +83,8 @@ $head = static function (array $columns): string {
 <form id="report_filters" class="acc-filters print_hide" method="get" action="<?= esc($address, 'attr') ?>" role="search" aria-label="<?= esc(lang('Accounting_reports.filters'), 'attr') ?>">
     <div class="acc-filter-row">
         <?php foreach ($filters as $filter): ?>
-            <?php $name = (string) $filter['name']; $value = $values[$name] ?? ''; ?>
+            <?php $name = (string) $filter['name'];
+            $value      = $values[$name] ?? ''; ?>
             <?php if ($filter['type'] === 'flag'): ?>
                 <fieldset class="acc-filter acc-filter-status">
                     <legend class="form-label"><?= lang('Accounting_reports.show') ?></legend>

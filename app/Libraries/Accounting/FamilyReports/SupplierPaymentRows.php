@@ -28,7 +28,6 @@ final class SupplierPaymentRows
     public const PAYMENT = 'payment';
     public const ADVANCE = 'advance';
     public const REFUND  = 'refund';
-
     public const SOURCES = [ReceivingPostingBuilder::SOURCE_PAYMENT, ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, SupplierAdvances::SOURCE, CreditRefunds::SUPPLIER_SOURCE];
 
     private BaseConnection $db;
@@ -50,7 +49,7 @@ final class SupplierPaymentRows
         }
 
         $journals = $this->db->prefixTable('accounting_journals');
-        $standing = fn (string $source, string $key): string => "JOIN {$journals} j ON j.company_id = ? AND j.source_type = '{$source}' AND j.source_id = {$key} AND j.status = ? AND j.entry_type = ?";
+        $standing = static fn (string $source, string $key): string => "JOIN {$journals} j ON j.company_id = ? AND j.source_type = '{$source}' AND j.source_id = {$key} AND j.status = ? AND j.entry_type = ?";
         $company  = CompanyContext::id();
         $posted   = [$company, JournalStatus::Posted->value, JournalEntryType::General->value];
 
@@ -91,19 +90,19 @@ final class SupplierPaymentRows
         [$mine, $mineBindings] = (new RecordScope($this->db))->condition('d.employee_id', $viewerId ?? RecordScope::sessionEmployee());
 
         if ($mine !== '') {
-            $sql     .= " AND {$mine}";
+            $sql .= " AND {$mine}";
             $bindings = [...$bindings, ...$mineBindings];
         }
 
         foreach (['supplier_id' => 'd.supplier_id', 'employee_id' => 'd.employee_id'] as $name => $column) {
             if (($filters[$name] ?? 0) > 0) {
-                $sql       .= " AND {$column} = ?";
+                $sql .= " AND {$column} = ?";
                 $bindings[] = (int) $filters[$name];
             }
         }
 
         if (($filters['payment_type'] ?? '') !== '') {
-            $sql       .= ' AND d.payment_type = ?';
+            $sql .= ' AND d.payment_type = ?';
             $bindings[] = $filters['payment_type'];
         }
 

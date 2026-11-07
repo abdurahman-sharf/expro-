@@ -26,15 +26,15 @@ final class TreasuryStatement
      */
     public function page(int $treasuryId, array $filters = [], string $order = 'desc', int $page = 1, int $size = self::PAGE_SIZE): array
     {
-        $all      = $this->treasuries->movements($treasuryId)['rows'];
-        $rows     = $this->filtered($all, $filters);
-        $size     = max(1, $size);
-        $pages    = max(1, (int) ceil(count($rows) / $size));
-        $page     = max(1, min($page, $pages));
-        $ordered  = $order === 'asc' ? $rows : array_reverse($rows);
-        $slice    = array_slice($ordered, ($page - 1) * $size, $size);
-        $oldest   = $order === 'asc' ? ($slice[0] ?? null) : ($slice === [] ? null : $slice[count($slice) - 1]);
-        $balance  = $all === [] ? '0.0000' : (string) $all[count($all) - 1]['balance'];
+        $all     = $this->treasuries->movements($treasuryId)['rows'];
+        $rows    = $this->filtered($all, $filters);
+        $size    = max(1, $size);
+        $pages   = max(1, (int) ceil(count($rows) / $size));
+        $page    = max(1, min($page, $pages));
+        $ordered = $order === 'asc' ? $rows : array_reverse($rows);
+        $slice   = array_slice($ordered, ($page - 1) * $size, $size);
+        $oldest  = $order === 'asc' ? ($slice[0] ?? null) : ($slice === [] ? null : $slice[count($slice) - 1]);
+        $balance = $all === [] ? '0.0000' : (string) $all[count($all) - 1]['balance'];
 
         return [
             'rows'    => $slice,

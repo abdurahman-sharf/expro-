@@ -29,7 +29,7 @@ final class ProductBalanceReport implements FamilyReport
         $items   = [];
 
         foreach ($this->entries->totals($input->scope, $period->from, null, $filters) as $row) {
-            $items[(int) $row->item_id] = $this->fresh((string) $row->item_name, (string) ($row->item_number ?? ''), $items[(int) $row->item_id] ?? null);
+            $items[(int) $row->item_id]                    = $this->fresh((string) $row->item_name, (string) ($row->item_number ?? ''), $items[(int) $row->item_id] ?? null);
             $items[(int) $row->item_id]['before_quantity'] = bcadd($items[(int) $row->item_id]['before_quantity'], (string) $row->quantity, 3);
             $items[(int) $row->item_id]['before_value']    = bcadd($items[(int) $row->item_id]['before_value'], (string) $row->value, SaleAmounts::SCALE);
         }
@@ -37,12 +37,12 @@ final class ProductBalanceReport implements FamilyReport
         $locations = [];
 
         foreach ($this->entries->movements($input->scope, $period->from, $period->to, $filters) as $entry) {
-            $id    = (int) $entry->item_id;
-            $items[$id] = $this->fresh((string) $entry->item_name, (string) ($entry->item_number ?? ''), $items[$id] ?? null);
-            $in    = bccomp((string) $entry->quantity, '0', 3) > 0;
-            $slot  = $in ? 'in' : 'out';
-            $items[$id][$slot . '_quantity'] = bcadd($items[$id][$slot . '_quantity'], ltrim((string) $entry->quantity, '-') === '' ? '0' : ltrim((string) $entry->quantity, '-'), 3);
-            $items[$id][$slot . '_value']    = bcadd($items[$id][$slot . '_value'], ltrim((string) $entry->value, '-') === '' ? '0' : ltrim((string) $entry->value, '-'), SaleAmounts::SCALE);
+            $id                                   = (int) $entry->item_id;
+            $items[$id]                           = $this->fresh((string) $entry->item_name, (string) ($entry->item_number ?? ''), $items[$id] ?? null);
+            $in                                   = bccomp((string) $entry->quantity, '0', 3) > 0;
+            $slot                                 = $in ? 'in' : 'out';
+            $items[$id][$slot . '_quantity']      = bcadd($items[$id][$slot . '_quantity'], ltrim((string) $entry->quantity, '-') === '' ? '0' : ltrim((string) $entry->quantity, '-'), 3);
+            $items[$id][$slot . '_value']         = bcadd($items[$id][$slot . '_value'], ltrim((string) $entry->value, '-') === '' ? '0' : ltrim((string) $entry->value, '-'), SaleAmounts::SCALE);
             $locations[(int) $entry->location_id] = true;
         }
 
@@ -57,11 +57,11 @@ final class ProductBalanceReport implements FamilyReport
             ];
 
             $row = new ReportRow([
-                'code' => $item['code'], 'name' => $item['name'],
+                'code'            => $item['code'], 'name' => $item['name'],
                 'before_quantity' => $item['before_quantity'], 'before_value' => $item['before_value'],
-                'in_quantity' => $item['in_quantity'], 'in_value' => $item['in_value'],
-                'out_quantity' => $item['out_quantity'], 'out_value' => $item['out_value'],
-                'net_quantity' => $net[0], 'net_value' => $net[1],
+                'in_quantity'     => $item['in_quantity'], 'in_value' => $item['in_value'],
+                'out_quantity'    => $item['out_quantity'], 'out_value' => $item['out_value'],
+                'net_quantity'    => $net[0], 'net_value' => $net[1],
             ]);
 
             if ($input->flag('empty') || array_filter($row->cells, static fn (string $cell, string $key): bool => $key !== 'code' && $key !== 'name' && is_numeric($cell) && bccomp($cell, '0', 4) !== 0, ARRAY_FILTER_USE_BOTH) !== []) {

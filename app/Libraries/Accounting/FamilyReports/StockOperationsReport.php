@@ -28,9 +28,9 @@ final class StockOperationsReport implements FamilyReport
             $raw              = bcadd($raw, (string) $entry->quantity, 3);
             [$key, $quantity] = StockOperation::of((string) $entry->source_type, (string) $entry->kind, (string) $entry->quantity);
 
-            $items[(int) $entry->item_id]['name']          = (string) $entry->item_name;
-            $items[(int) $entry->item_id]['code']          = (string) ($entry->item_number ?? '');
-            $items[(int) $entry->item_id]['sums'][$key]    = bcadd($items[(int) $entry->item_id]['sums'][$key] ?? '0', $quantity, 3);
+            $items[(int) $entry->item_id]['name']       = (string) $entry->item_name;
+            $items[(int) $entry->item_id]['code']       = (string) ($entry->item_number ?? '');
+            $items[(int) $entry->item_id]['sums'][$key] = bcadd($items[(int) $entry->item_id]['sums'][$key] ?? '0', $quantity, 3);
         }
 
         uasort($items, static fn (array $first, array $second): int => mb_strtolower($first['name']) <=> mb_strtolower($second['name']));

@@ -137,8 +137,8 @@ abstract class CashDocumentsReport implements FamilyReport
      */
     private function detail(array $sets): array
     {
-        $blocks = [];
-        $all    = [];
+        $blocks  = [];
+        $all     = [];
         $expense = $this->kind() === CashDocumentRows::EXPENSE;
 
         foreach ($sets as $set) {

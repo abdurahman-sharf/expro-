@@ -53,10 +53,10 @@ final class ProductPurchasesReport implements FamilyReport
 
         foreach ($entries as [$document, $line]) {
             [$key, $label] = match (true) {
-                $unit !== null     => [$unit->start($document->date), $unit->label($unit->start($document->date))],
-                $group === 'product' => ['i' . $line->itemId, $line->itemName],
+                $unit !== null        => [$unit->start($document->date), $unit->label($unit->start($document->date))],
+                $group === 'product'  => ['i' . $line->itemId, $line->itemName],
                 $group === 'supplier' => ['s' . ($document->supplierId ?? 0), $document->supplierName === '' ? $this->text('no_supplier') : $document->supplierName],
-                default            => ['u' . ($document->employeeId ?? 0), $document->employeeName === '' ? $this->text('no_user') : $document->employeeName],
+                default               => ['u' . ($document->employeeId ?? 0), $document->employeeName === '' ? $this->text('no_user') : $document->employeeName],
             };
 
             $sets[$key] ??= ['label' => $label, 'entries' => []];
@@ -172,8 +172,8 @@ final class ProductPurchasesReport implements FamilyReport
                 $this->column('number'), $this->column('item'), $this->column('item_number'), $this->column('date', ColumnKind::Date), $this->column('kind'), $this->column('user'), $this->column('supplier'),
                 $this->column('unit_price', ColumnKind::Amount), $this->column('tax', ColumnKind::Amount), $this->column('quantity', ColumnKind::Quantity), $this->column('total', ColumnKind::Amount),
             ],
-            'blocks'  => $blocks,
-            'grand'   => $this->totalRow($all, ['tax', 'quantity', 'total'], 'number', $this->text('grand_total')),
+            'blocks' => $blocks,
+            'grand'  => $this->totalRow($all, ['tax', 'quantity', 'total'], 'number', $this->text('grand_total')),
         ];
     }
 }

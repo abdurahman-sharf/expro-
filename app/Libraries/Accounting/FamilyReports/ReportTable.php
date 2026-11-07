@@ -8,7 +8,7 @@ final readonly class ReportTable
      * @param list<ReportColumn> $columns
      * @param list<ReportBlock>  $blocks
      * @param list<TieCheck>     $ties
-     * @param list<string>       $notes The sentences that say what the report does not show or counts another way, already in the language of the reader.
+     * @param list<string>       $notes   The sentences that say what the report does not show or counts another way, already in the language of the reader.
      */
     public function __construct(
         public string $title,

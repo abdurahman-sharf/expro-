@@ -193,8 +193,8 @@ final class PurchaseDocuments
                     s.tax_id, b.code AS branch_code,
                     COALESCE(NULLIF(s.company_name, ''), TRIM(CONCAT(COALESCE(sp.first_name, ''), ' ', COALESCE(sp.last_name, '')))) AS supplier_name,
                     TRIM(CONCAT(COALESCE(ep.first_name, ''), ' ', COALESCE(ep.last_name, ''))) AS employee_name
-             FROM " . $this->db->prefixTable('receivings') . " r
-             LEFT JOIN " . $this->db->prefixTable('accounting_accounts') . " sa ON sa.entity_type = ? AND sa.entity_id = r.supplier_id AND sa.company_id = ?
+             FROM " . $this->db->prefixTable('receivings') . ' r
+             LEFT JOIN ' . $this->db->prefixTable('accounting_accounts') . " sa ON sa.entity_type = ? AND sa.entity_id = r.supplier_id AND sa.company_id = ?
              LEFT JOIN {$journals} j ON j.company_id = ? AND j.source_type = ? AND j.source_id = r.receiving_id AND j.entry_type = ? AND j.status = ?
              LEFT JOIN " . $this->db->prefixTable('suppliers') . ' s ON s.person_id = r.supplier_id
              LEFT JOIN ' . $this->db->prefixTable('people') . ' sp ON sp.person_id = r.supplier_id

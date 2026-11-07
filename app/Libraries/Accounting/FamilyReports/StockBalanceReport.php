@@ -78,10 +78,10 @@ final class StockBalanceReport implements FamilyReport
     private function statusOf(object $item, string $total): string
     {
         return match (true) {
-            $item->deleted                                                                                                                 => 'inactive',
-            bccomp($total, '0', 3) <= 0                                                                                                    => 'out',
-            bccomp($item->reorder_level, '0', 3) > 0 && bccomp($total, $item->reorder_level, 3) <= 0                                      => 'low',
-            default                                                                                                                        => 'available',
+            $item->deleted                                                                           => 'inactive',
+            bccomp($total, '0', 3) <= 0                                                              => 'out',
+            bccomp($item->reorder_level, '0', 3) > 0 && bccomp($total, $item->reorder_level, 3) <= 0 => 'low',
+            default                                                                                  => 'available',
         };
     }
 }
