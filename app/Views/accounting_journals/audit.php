@@ -2,6 +2,9 @@
 /**
  * @var string $table_headers
  * @var list<string> $actions
+ * @var list<string> $entities
+ * @var list<string> $origins
+ * @var list<string> $presets
  * @var list<object> $employees
  * @var list<object> $branches
  * @var int|null $current_branch
@@ -13,6 +16,13 @@ $actionLabel = static function (string $action): string {
     $line = lang($key);
 
     return $line === $key ? $action : $line;
+};
+
+$entityLabel = static function (string $entity): string {
+    $key  = 'Accounting.entity_' . $entity;
+    $line = lang($key);
+
+    return $line === $key ? $entity : $line;
 };
 ?>
 
@@ -36,6 +46,8 @@ $actionLabel = static function (string $action): string {
                     date_to: $('#a_date_to').val(),
                     action: $('#a_action').val(),
                     entity_type: $('#a_entity').val(),
+                    origin: $('#a_origin').val(),
+                    preset: $('#a_preset').val(),
                     employee_id: $('#a_employee').val(),
                     branch_id: $('#a_branch').val() || ''
                 });
@@ -51,12 +63,34 @@ $actionLabel = static function (string $action): string {
             $('#audit_filters')[0].reset();
             table_support.refresh();
         });
+
+        $('#a_date_from, #a_date_to').on('change', function() {
+            $('#a_preset').val('');
+        });
+
+        $('#audit_export').on('click', function(event) {
+            event.preventDefault();
+            const query = $.param({
+                date_from: $('#a_date_from').val(),
+                date_to: $('#a_date_to').val(),
+                action: $('#a_action').val(),
+                entity_type: $('#a_entity').val(),
+                origin: $('#a_origin').val(),
+                preset: $('#a_preset').val(),
+                employee_id: $('#a_employee').val(),
+                branch_id: $('#a_branch').val() || ''
+            });
+            window.location.href = <?= json_encode(base_url('accounting_journals/audit/csv'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + '?' + query;
+        });
     });
 </script>
 
 <div id="title_bar" class="print_hide btn-toolbar">
     <a class="btn btn-outline-secondary btn-sm float-end" href="<?= esc(base_url('accounting_journals'), 'attr') ?>">
         <span class="bi bi-arrow-<?= isRtl() ? 'right' : 'left' ?>" aria-hidden="true">&nbsp;</span><?= lang('Accounting_journals.back') ?>
+    </a>
+    <a id="audit_export" class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_journals/audit/csv'), 'attr') ?>">
+        <span class="bi bi-download" aria-hidden="true">&nbsp;</span><?= lang('Accounting_journals.audit_export') ?>
     </a>
 </div>
 
@@ -75,6 +109,15 @@ $actionLabel = static function (string $action): string {
                 </select>
             </div>
         <?php endif; ?>
+        <div class="acc-filter">
+            <label class="form-label" for="a_preset"><?= lang('Accounting_journals.audit_period') ?></label>
+            <select id="a_preset" class="form-select form-select-sm">
+                <option value=""><?= lang('Accounting_journals.period_any') ?></option>
+                <?php foreach ($presets as $preset): ?>
+                    <option value="<?= esc($preset, 'attr') ?>"><?= esc(lang('Accounting_journals.period_' . $preset)) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
         <div class="acc-filter">
             <label class="form-label" for="a_date_from"><?= lang('Accounting_journals.date_from') ?></label>
             <input type="date" id="a_date_from" class="form-control form-control-sm">
@@ -96,27 +139,9 @@ $actionLabel = static function (string $action): string {
             <label class="form-label" for="a_entity"><?= lang('Accounting_journals.audit_entity') ?></label>
             <select id="a_entity" class="form-select form-select-sm">
                 <option value=""><?= lang('Accounting_journals.all_entities') ?></option>
-                <option value="account"><?= lang('Accounting.entity_account') ?></option>
-                <option value="cost_center"><?= lang('Accounting.entity_cost_center') ?></option>
-                <option value="journal"><?= lang('Accounting.entity_journal') ?></option>
-                <option value="settings"><?= lang('Accounting.entity_settings') ?></option>
-                <option value="branch"><?= lang('Accounting.entity_branch') ?></option>
-                <option value="employee_scope"><?= lang('Accounting.entity_employee_scope') ?></option>
-                <option value="routing"><?= lang('Accounting.entity_routing') ?></option>
-                <option value="document_numbering"><?= lang('Accounting.entity_document_numbering') ?></option>
-                <option value="expense"><?= lang('Accounting.entity_expense') ?></option>
-                <option value="cashup"><?= lang('Accounting.entity_cashup') ?></option>
-                <option value="expense_category"><?= lang('Accounting.entity_expense_category') ?></option>
-                <option value="sale"><?= lang('Accounting.entity_sale') ?></option>
-                <option value="customer_advance"><?= lang('Accounting.entity_customer_advance') ?></option>
-                <option value="customer_refund"><?= lang('Accounting.entity_customer_refund') ?></option>
-                <option value="supplier_refund"><?= lang('Accounting.entity_supplier_refund') ?></option>
-                <option value="cheque"><?= lang('Accounting.entity_cheque') ?></option>
-                <option value="cheque_book"><?= lang('Accounting.entity_cheque_book') ?></option>
-                <option value="revenue"><?= lang('Accounting.entity_revenue') ?></option>
-                <option value="revenue_category"><?= lang('Accounting.entity_revenue_category') ?></option>
-                <option value="tax_definition"><?= lang('Accounting.entity_tax_definition') ?></option>
-                <option value="item"><?= lang('Accounting.entity_item') ?></option>
+                <?php foreach ($entities as $entity): ?>
+                    <option value="<?= esc($entity, 'attr') ?>"><?= esc($entityLabel($entity)) ?></option>
+                <?php endforeach; ?>
             </select>
         </div>
         <div class="acc-filter">
@@ -125,6 +150,15 @@ $actionLabel = static function (string $action): string {
                 <option value=""><?= lang('Accounting_journals.all_creators') ?></option>
                 <?php foreach ($employees as $employee): ?>
                     <option value="<?= (int) $employee->employee_id ?>"><?= esc($employee->name) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="acc-filter">
+            <label class="form-label" for="a_origin"><?= lang('Accounting_journals.audit_origin') ?></label>
+            <select id="a_origin" class="form-select form-select-sm">
+                <option value=""><?= lang('Accounting_journals.all_origins') ?></option>
+                <?php foreach ($origins as $origin): ?>
+                    <option value="<?= esc($origin, 'attr') ?>"><?= esc(lang('Accounting.origin_' . $origin)) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>

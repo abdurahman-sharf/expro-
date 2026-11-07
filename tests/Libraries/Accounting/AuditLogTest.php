@@ -111,6 +111,24 @@ class AuditLogTest extends CIUnitTestCase
         $this->assertSame(['4', '5'], array_map('strval', array_column($page['rows'], 'entity_id')));
     }
 
+    public function testKnown_NamesEveryActionAndEveryKindOfRecordTheLanguageFileHas(): void
+    {
+        $actions  = AuditLog::known('action');
+        $entities = AuditLog::known('entity');
+
+        $this->assertContains('period_closed', $actions);
+        $this->assertContains('permission_granted', $actions);
+        $this->assertContains('year_end_reversed', $actions);
+        $this->assertContains('employee_permission', $entities);
+        $this->assertContains('role', $entities);
+        $this->assertNotContains('', $actions);
+        $this->assertSame($actions, array_values(array_unique($actions)));
+
+        $sorted = $actions;
+        sort($sorted);
+        $this->assertSame($sorted, $actions);
+    }
+
     public function testActions_ListsTheDistinctActionsInOrder(): void
     {
         $this->audit->write('journal', 1, 'posted', null, JournalOrigin::System);

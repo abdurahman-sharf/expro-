@@ -8,6 +8,8 @@ use Config\Database;
 
 final class AuditLog
 {
+    public const EXPORT_LIMIT = 20000;
+
     private BaseConnection $db;
 
     public function __construct(?BaseConnection $db = null)
@@ -92,6 +94,30 @@ final class AuditLog
         $rows  = $builder->orderBy('a.created_at', $dir)->orderBy('a.audit_id', $dir)->limit(max(1, min($limit, 500)), $offset)->get()->getResult();
 
         return ['total' => $total, 'rows' => $rows];
+    }
+
+    /**
+     * Every action and every kind of record the log can hold, named in the language file whether or
+     * not an entry of it was ever written, so that a filter never offers fewer choices than the log
+     * can hold.
+     *
+     * @return list<string>
+     */
+    public static function known(string $kind): array
+    {
+        $messages = include APPPATH . 'Language/en/Accounting.php';
+        $prefix   = $kind . '_';
+        $names    = [];
+
+        foreach (array_keys($messages) as $key) {
+            if (str_starts_with($key, $prefix)) {
+                $names[] = substr($key, strlen($prefix));
+            }
+        }
+
+        sort($names);
+
+        return $names;
     }
 
     /**

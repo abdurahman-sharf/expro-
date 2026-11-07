@@ -781,6 +781,162 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->get('/accounting_journals/audit/search');
     }
 
+    public function testGetAuditSearch_FiltersByTheOriginOfTheEntry(): void
+    {
+        $accountant = $this->accountant();
+        $log        = new AuditLog();
+        $log->write('journal', 1, 'posted', $accountant, JournalOrigin::User);
+        $log->write('journal', 2, 'posted', $accountant, JournalOrigin::User);
+        $log->write('sale', 3, 'cancelled', null, JournalOrigin::System);
+
+        $system = $this->jsonOf($this->get('/accounting_journals/audit/search?origin=system'));
+        $user   = $this->jsonOf($this->get('/accounting_journals/audit/search?origin=user'));
+
+        $this->assertSame(1, $system['total']);
+        $this->assertSame(lang('Accounting.origin_system'), $system['rows'][0]['origin']);
+        $this->assertSame(2, $user['total']);
+    }
+
+    public function testGetAuditSearch_PagesWithTheTotalOfEveryEntry(): void
+    {
+        $accountant = $this->accountant();
+
+        for ($entityId = 1; $entityId <= 7; $entityId++) {
+            (new AuditLog())->write('journal', $entityId, 'posted', $accountant, JournalOrigin::User);
+        }
+
+        $first  = $this->jsonOf($this->get('/accounting_journals/audit/search?order=asc&limit=3&offset=0'));
+        $second = $this->jsonOf($this->get('/accounting_journals/audit/search?order=asc&limit=3&offset=3'));
+        $last   = $this->jsonOf($this->get('/accounting_journals/audit/search?order=asc&limit=3&offset=6'));
+
+        $this->assertSame([7, 3, 3], [$first['total'], count($first['rows']), count($second['rows'])]);
+        $this->assertSame(7, $second['total']);
+        $this->assertCount(1, $last['rows']);
+        $this->assertNotSame($first['rows'][0]['audit_id'], $second['rows'][0]['audit_id']);
+    }
+
+    public function testGetAuditSearch_ReadsThePresetsAsTheObservedRanges(): void
+    {
+        $accountant = $this->accountant();
+        $log        = new AuditLog();
+        $db         = $this->accountingDb();
+
+        foreach ([0, 20, 45] as $daysAgo) {
+            $log->write('journal', $daysAgo, 'posted', $accountant, JournalOrigin::User);
+            $db->table('accounting_audit_log')->update(['created_at' => date('Y-m-d 12:00:00', strtotime("-{$daysAgo} days"))], ['entity_id' => $daysAgo]);
+        }
+
+        $today        = $this->jsonOf($this->get('/accounting_journals/audit/search?preset=today'));
+        $lastMonth    = $this->jsonOf($this->get('/accounting_journals/audit/search?preset=last_month'));
+        $overridesDay = $this->jsonOf($this->get('/accounting_journals/audit/search?preset=today&date_from=2000-01-01'));
+        $unknown      = $this->jsonOf($this->get('/accounting_journals/audit/search?preset=nonsense'));
+
+        $this->assertSame(1, $today['total']);
+        $this->assertSame(2, $lastMonth['total']);
+        $this->assertSame(1, $overridesDay['total']);
+        $this->assertSame(3, $unknown['total']);
+    }
+
+    public function testGetAudit_OffersEveryKnownActionAndEntityBeforeAnythingWasLogged(): void
+    {
+        $this->accountant();
+
+        $page = $this->get('/accounting_journals/audit');
+
+        foreach (['period_closed', 'permission_granted', 'year_end_reversed'] as $action) {
+            $page->assertSee('<option value="' . $action . '">' . lang('Accounting.action_' . $action) . '</option>');
+        }
+
+        foreach (['employee_permission', 'role', 'price_list', 'year_end_closing'] as $entity) {
+            $page->assertSee('<option value="' . $entity . '">' . lang('Accounting.entity_' . $entity) . '</option>');
+        }
+
+        $page->assertSee('<option value="system">' . lang('Accounting.origin_system') . '</option>');
+        $page->assertSee('<option value="current_month">' . lang('Accounting_journals.period_current_month') . '</option>');
+        $page->assertSee('audit/csv');
+    }
+
+    public function testGetAuditSearch_ShowsAReaderLimitedToABranchOnlyItsEntries(): void
+    {
+        $other = $this->createBranch('B2');
+        $log   = new AuditLog();
+        $log->write('journal', 1, 'posted', null, JournalOrigin::User, [], 1);
+        $log->write('journal', 2, 'posted', null, JournalOrigin::User, [], $other);
+        $log->write('settings', null, 'settings_updated', null, JournalOrigin::User);
+        $this->actAs($this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_AUDIT], [$other]));
+
+        $result = $this->jsonOf($this->get('/accounting_journals/audit/search'));
+
+        $this->assertSame(1, $result['total']);
+        $this->assertStringContainsString('#2', $result['rows'][0]['entity']);
+    }
+
+    public function testGetAuditCsv_IsNotFoundWithoutTheAuditPermission(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL]));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/audit/csv');
+    }
+
+    public function testGetAuditCsv_WritesTheFilteredEntriesWithTheTextOfAFormulaNeutralised(): void
+    {
+        $this->accountant();
+        $typist = $this->createEmployee('=cmd|calc', 'Typist');
+        $log    = new AuditLog();
+        $log->write('journal', 5, 'posted', $typist, JournalOrigin::User, ['total' => '10.0000']);
+        $log->write('account', 6, 'created', $typist, JournalOrigin::System);
+
+        $response = $this->get('/accounting_journals/audit/csv?origin=user');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('text/csv', $response->getHeaderLine('Content-Type'));
+        $this->assertStringContainsString('activity_log_', $response->getHeaderLine('Content-Disposition'));
+        $body = $response->getBody();
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
+        $this->assertStringContainsString("'=cmd|calc Typist", $body);
+        $this->assertStringNotContainsString(',=cmd|calc', $body);
+        $this->assertStringContainsString(lang('Accounting.action_posted'), $body);
+        $this->assertStringContainsString('total: 10.0000', $body);
+        $this->assertStringNotContainsString(lang('Accounting.action_created'), $body);
+    }
+
+    public function testGetAuditCsv_ListsOnlyTheEntriesOfTheBranchesOfALimitedReader(): void
+    {
+        $other = $this->createBranch('B2');
+        $log   = new AuditLog();
+        $log->write('journal', 11, 'posted', null, JournalOrigin::User, [], 1);
+        $log->write('journal', 22, 'posted', null, JournalOrigin::User, [], $other);
+        $log->write('settings', null, 'settings_updated', null, JournalOrigin::User);
+        $this->actAs($this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_AUDIT], [$other]));
+
+        $body = $this->get('/accounting_journals/audit/csv')->getBody();
+
+        $this->assertStringContainsString('#22', $body);
+        $this->assertStringNotContainsString('#11', $body);
+        $this->assertStringNotContainsString(lang('Accounting.action_settings_updated'), $body);
+        $this->assertStringContainsString(lang('Accounting_journals.audit_limited_branches'), $body);
+    }
+
+    public function testGetAuditCsv_RefusesALogLargerThanOneFileCanCarry(): void
+    {
+        $this->accountant();
+        $db   = $this->accountingDb();
+        $rows = array_fill(0, 5000, ['entity_type' => 'journal', 'entity_id' => 1, 'action' => 'posted', 'origin' => 'system']);
+
+        for ($chunk = 0; $chunk < 4; $chunk++) {
+            $db->table('accounting_audit_log')->insertBatch($rows);
+        }
+
+        $db->table('accounting_audit_log')->insertBatch([$rows[0], $rows[0]]);
+
+        $response = $this->get('/accounting_journals/audit/csv');
+
+        $response->assertStatus(422);
+        $this->assertStringContainsString(lang('Accounting.error_export_too_large'), $response->getBody());
+    }
+
     private function recordFailure(string $source = 'sale', int $sourceId = 7, string $code = 'period_closed', ?int $branchId = 1): void
     {
         $this->accountingDb()->table('accounting_posting_failures')->insert([

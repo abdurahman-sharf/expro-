@@ -605,6 +605,41 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->get('/accounting_treasuries/transfers')->assertSee(lang('Accounting_treasuries.between_difference', ['50.00']));
     }
 
+    public function testGetTransfersSearch_FiltersByTheDateOfTheTransferAndByTheTreasury(): void
+    {
+        $manager = $this->manager();
+        $main    = $this->treasuries->ensureMain();
+        $drawer  = $this->treasuries->create(['name' => 'Drawer', 'kind' => 'cash'], $manager);
+        $third   = $this->treasuries->create(['name' => 'Third', 'kind' => 'cash'], $manager);
+
+        (new TreasuryTransfers())->transfer($main, $drawer, '10', '2026-10-10', '', $manager);
+        (new TreasuryTransfers())->transfer($main, $drawer, '20', '2026-10-20', '', $manager);
+        (new TreasuryTransfers())->transfer($drawer, $third, '5', '2026-10-25', '', $manager);
+
+        $count = fn (string $query): int => json_decode($this->get('/accounting_treasuries/transfers/search' . $query)->getJSON(), true)['total'];
+
+        $this->assertSame(3, $count(''));
+        $this->assertSame(2, $count('?date_from=2026-10-15'));
+        $this->assertSame(1, $count('?date_to=2026-10-15'));
+        $this->assertSame(1, $count('?date_from=2026-10-20&date_to=2026-10-20'));
+        $this->assertSame(1, $count('?treasury_id=' . $third));
+        $this->assertSame(3, $count('?treasury_id=' . $drawer));
+        $this->assertSame(1, $count('?treasury_id=' . $drawer . '&date_from=2026-10-21'));
+    }
+
+    public function testGetTransfers_OffersTheTreasuriesAndTheDaysAsFilters(): void
+    {
+        $manager = $this->manager();
+
+        $this->treasuries->create(['name' => 'Cashier drawer', 'kind' => 'cash'], $manager);
+
+        $response = $this->get('/accounting_treasuries/transfers');
+
+        $response->assertSee('id="transfer_filters"');
+        $response->assertSee('id="t_date_from"');
+        $response->assertSee('Cashier drawer');
+    }
+
     public function testGetTransfersSearch_OffersTheCancelIconOnlyToWhoWorksInEveryBranchOfTheTransfer(): void
     {
         $manager          = $this->manager();

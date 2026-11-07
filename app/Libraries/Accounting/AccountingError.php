@@ -349,4 +349,5 @@ enum AccountingError: string
     case BankDirectoryCodeInvalid         = 'bank_directory_code_invalid';
     case ReportTooLarge                   = 'report_too_large';
     case StatementAmountInvalid           = 'statement_amount_invalid';
+    case ExportTooLarge                   = 'export_too_large';
 }

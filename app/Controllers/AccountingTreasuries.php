@@ -281,6 +281,7 @@ class AccountingTreasuries extends AccountingController
         return view('accounting_treasuries/transfers', [
             'table_headers'    => transform_headers($this->transferHeaders(), true, true),
             'can_manage'       => $this->can(AccountingGuard::TREASURIES_MANAGE),
+            'treasuries'       => $this->treasuries->all($this->branchIds(), true),
             'branch_balances'  => array_map(fn (object $row): array => [
                 'code'       => $row->code,
                 'receivable' => $this->formatAmount($row->receivable),
@@ -294,7 +295,11 @@ class AccountingTreasuries extends AccountingController
     {
         $limit  = max(1, min((int) $this->request->getGet('limit') ?: self::DEFAULT_PAGE_SIZE, self::MAX_PAGE_SIZE));
         $offset = max(0, (int) $this->request->getGet('offset'));
-        $result = $this->transfers->search($this->branchIds(), $limit, $offset);
+        $result = $this->transfers->search($this->branchIds(), $limit, $offset, [
+            'date_from'   => (string) $this->request->getGet('date_from'),
+            'date_to'     => (string) $this->request->getGet('date_to'),
+            'treasury_id' => (int) $this->request->getGet('treasury_id'),
+        ]);
 
         return $this->response->setJSON([
             'total' => $result['total'],

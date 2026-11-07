@@ -376,6 +376,7 @@ $routes->group('accounting_journals', static function (RouteCollection $routes):
     $routes->get('attachment/(:num)', 'AccountingJournals::getAttachment/$1');
     $routes->get('audit', 'AccountingJournals::getAudit');
     $routes->get('audit/search', 'AccountingJournals::getAuditSearch');
+    $routes->get('audit/csv', 'AccountingJournals::getAuditCsv');
     $routes->get('failures', 'AccountingJournals::getFailures');
     $routes->get('failures/search', 'AccountingJournals::getFailuresSearch');
     $routes->post('save_draft', 'AccountingJournals::postSaveDraft');

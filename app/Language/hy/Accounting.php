@@ -273,6 +273,7 @@ return [
     'error_entity_main_account_invalid'          => '',
     'error_expense_category_account_invalid'     => '',
     'error_expense_category_account_required'    => '',
+    'error_export_too_large'                     => '',
     'error_fiscal_year_boundary'                 => '',
     'error_fiscal_year_closed'                   => '',
     'error_fiscal_year_gap'                      => '',

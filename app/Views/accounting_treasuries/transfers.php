@@ -2,6 +2,7 @@
 /**
  * @var string $table_headers
  * @var bool $can_manage
+ * @var list<object> $treasuries
  * @var list<array{code: string, receivable: string, payable: string}> $branch_balances
  * @var string|null $branch_unmatched
  * @var array $config
@@ -22,9 +23,26 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             pageSize: <?= $config['lines_per_page'] ?>,
             uniqueId: 'transfer_id',
             cardTitle: ['transfer_id'],
+            queryParams: function(params) {
+                return $.extend(params, {
+                    date_from: $('#t_date_from').val(),
+                    date_to: $('#t_date_to').val(),
+                    treasury_id: $('#t_treasury').val()
+                });
+            },
             formatNoMatches: function() {
                 return <?= json_encode('<p class="mb-0">' . esc(lang('Accounting_treasuries.empty_transfers')) . '</p>', $jsonFlags) ?>;
             }
+        });
+
+        $('#transfer_filters').on('submit', function(event) {
+            event.preventDefault();
+            table_support.refresh();
+        });
+
+        $('#transfer_reset').on('click', function() {
+            $('#transfer_filters')[0].reset();
+            table_support.refresh();
         });
     });
 </script>
@@ -67,6 +85,32 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         </table>
     </div>
 <?php endif; ?>
+
+<form id="transfer_filters" class="acc-filters print_hide" role="search" aria-label="<?= esc(lang('Accounting_treasuries.transfers_filter'), 'attr') ?>">
+    <div class="acc-filter-row">
+        <div class="acc-filter">
+            <label class="form-label" for="t_date_from"><?= esc(lang('Accounting_treasuries.transfers_date_from')) ?></label>
+            <input type="date" id="t_date_from" class="form-control form-control-sm">
+        </div>
+        <div class="acc-filter">
+            <label class="form-label" for="t_date_to"><?= esc(lang('Accounting_treasuries.transfers_date_to')) ?></label>
+            <input type="date" id="t_date_to" class="form-control form-control-sm">
+        </div>
+        <div class="acc-filter">
+            <label class="form-label" for="t_treasury"><?= esc(lang('Accounting_treasuries.transfers_treasury')) ?></label>
+            <select id="t_treasury" class="form-select form-select-sm">
+                <option value=""><?= esc(lang('Accounting_treasuries.transfers_all_treasuries')) ?></option>
+                <?php foreach ($treasuries as $treasury): ?>
+                    <option value="<?= (int) $treasury->treasury_id ?>"><?= esc($treasury->name) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="acc-filter acc-filter-actions">
+            <button type="submit" class="btn btn-primary btn-sm"><span class="bi bi-search" aria-hidden="true">&nbsp;</span><?= esc(lang('Common.search')) ?></button>
+            <button type="button" id="transfer_reset" class="btn btn-outline-secondary btn-sm"><?= esc(lang('Accounting_treasuries.transfers_reset')) ?></button>
+        </div>
+    </div>
+</form>
 
 <div id="toolbar"></div>
 

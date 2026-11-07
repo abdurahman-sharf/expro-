@@ -273,6 +273,7 @@ return [
     'error_entity_main_account_invalid'          => 'The main account chosen in the routing is missing, inactive or not a group. Fix the routing first.',
     'error_expense_category_account_invalid'     => 'Choose an active expense account that takes entries and is not kept for another purpose.',
     'error_expense_category_account_required'    => 'The category of this expense has no account. Choose a category that has one, or give the category an account.',
+    'error_export_too_large'                     => 'The log holds more entries than one file can carry. Narrow the filters.',
     'error_fiscal_year_boundary'                 => 'Only the start of the first year and the end of the last year can change, and only those years can be deleted.',
     'error_fiscal_year_closed'                   => 'A closed period lies in that part of the year.',
     'error_fiscal_year_gap'                      => 'A fiscal year must start the day after the last one ends, {0}.',
