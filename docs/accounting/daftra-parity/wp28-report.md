@@ -44,6 +44,26 @@
 | دفعة ثانية أوسع (47 ملف مكتبات ومنها الخمسة المصحَّحة + 10 متحكمات + `RolesPermissionsMigrationTest` + `Libraries/Roles`) | سجلات ومخزون وإشعارات وشيكات وتقارير وكشوف | 2,166 اختبارًا: **فشل واحد** (قائمة أكواد في `AccountingStatementsControllerTest`) فصُحِّح وأُعيد: **OK: 67 اختبارًا** |
 | المتحكمات والنماذج | الخزائن والذمم والإعدادات والتوجيه والقيود والموظفين والأدوار والمبيعات والمشتريات + `SaleTest` و`ReceivingTest` و`Sale_libTest` و`Sale_libPaymentTest` | 1,436 اختبارًا: كل شيء ناجح **عدا `ReceivingTest` (75 خطأ)** لأن `$refresh = true` يرجع الترحيلات و`QuoteLifecycle::down()` يرفض ما دام في القاعدة عروض بقيت من ملفات سبقته في **التشغيل نفسه**؛ أُعيد ومعه ملف يزرع القاعدة نظيفة: **OK: 94 اختبارًا** (انظر الملاحظات) |
 
+**جولة المراجعة (2026-11-07)** (من `/home/user/wt/WP28`، قاعدة `ospos_test_wp28`، **ملفًا بعد ملف على معالج واحد**، آخر تشغيل على الالتزام الأخير؛ **لم تُشغَّل المجموعة الكاملة**):
+
+| الملفات | النتيجة |
+|---|---|
+| `ParityFixtureTest` | **OK: 411** |
+| `ParityNotImplementedTest` | 4 من 5 تمرّ؛ **`T-63` (WP29) يفشل على الأساس نفسه** وليس من هذه الحزمة (القسم 7 البند 8) |
+| `LanguageFilesTest` | **OK: 2,444** |
+| `MultiCurrencyMigrationTest` | **OK: 39** |
+| `CurrenciesTest` و`CurrencyRatesTest` و`CurrencyDisplayTest` و`DocumentCurrencyTest` و`ForeignConversionTest` و`MoneyTest` | **OK: 39 + 21 + 5 + 6 + 10 + 19** |
+| `PostingServiceTest` و`JournalServiceTest` و`SalePostingBuilderTest` و`ReceivingPostingBuilderTest` | **OK: 117 + 165 + 131 + 59** |
+| `TreasuryServiceTest` و`TreasuryTransfersTest` و`CashupExpectationTest` و`CashupPostingTest` | **OK: 97 + 64 + 29 + 53** |
+| `TrialBalanceTest` و`AccountLedgerTest` و`CustomerDocumentsTest` و`CustomerBalanceReportTest` و`SupplierBalanceReportTest` و`CreditSettlementTest` | **OK: 66 + 45 + 40 + 19 + 15 + 44** |
+| `DefaultChartTest` و`RoutingServiceTest` و`SensitivePermissionsTest` و`StatementFiguresTest` و`YearEndClosingTest` و`ExpensePostingTest` و`RevenueVouchersTest` و`ReceivingLineEditTest` | **OK: 77 + 53 + 14 + 25 + 78 + 116 + 44 + 30** |
+| `PriceControlsTest` و`Sale_libTest` و`Sale_libPaymentTest` و`Models/SaleTest` | **OK: 34 + 85 + 12 + 110** |
+| `AccountingCurrenciesControllerTest` و`AccountingJournalsControllerTest` و`AccountingTreasuriesControllerTest` و`AccountingReceivablesControllerTest` و`AccountingStatementsControllerTest` | **OK: 29 + 127 + 66 + 135 + 67** |
+| `SalePostingTest` و`ReceivingPostingTest` و`SalesControllerTest` | **OK: 424 + 313 + 479** |
+| `Models/ReceivingTest` (بعد ملف يزرع القاعدة نظيفة: القسم 7 البند 7) | **OK: 75** |
+
+**الاختبارات المضافة في الجولة:** 112 طريقة جديدة (ومعها مزوّدو بيانات: 17 عمودًا و8 جداول للترحيل) في 30 ملفًا منها ملفان جديدان (`DocumentCurrencyTest` و`CurrencyDisplayTest`)، وست طرق أُعيدت تسميتها أو قُسِّمت؛ **المجموع للحزمة 328 طريقة اختبار** (8 ملفات جديدة وبقية الطرق في ملفات قائمة)، ملف واحد لكل صنف والتسمية `test{الدالة}_{السلوك}`.
+
 **التصحيحات التي طلبها الخط الأساسي القائم** (قوائم مكتوبة باليد لا خلل في المنطق): `DefaultChartTest` (الحسابان `4209` و`5410`)، `StatementFiguresTest` و`AccountingStatementsControllerTest` (القائمتان تعرضان `4209` و`5410`)، `RoutingServiceTest` (`fx.gain` و`fx.loss`)، `SensitivePermissionsTest` (`acc_currencies_manage`)، `YearEndClosingTest` (استعمل الرمز `5410` لحساب «إيجار» فصار محجوزًا فأخذ `5411`).
 
 **الاختبارات المضافة:** 6 ملفات جديدة (`CurrenciesTest` 24، `CurrencyRatesTest` 16، `MoneyTest` 6، `ForeignConversionTest` 10، `AccountingCurrenciesControllerTest` 23، `MultiCurrencyMigrationTest` 14) و**129 اختبارًا مضافًا** إلى ملفات قائمة (`PostingServiceTest` 17 و`JournalServiceTest` 1 و`SalePostingBuilderTest` 23 و`SalePostingTest` 26 و`ReceivingPostingBuilderTest` 17 و`ReceivingPostingTest` 18 و`TreasuryServiceTest` 9 و`TreasuryTransfersTest` 11 و`ExpensePostingTest` 1 و`RevenueVouchersTest` 1 و`CreditSettlementTest` 3 و`CustomerBalanceReportTest` 1 و`SupplierBalanceReportTest` 1). **ملف اختبار واحد لكل صنف**؛ التسمية `test{الدالة}_{السلوك}`.
@@ -52,7 +72,7 @@
 
 ## 3. الحراس
 
-كل حارس أُضيف في هذه الحزمة له **طفرة** في `docs/accounting/daftra-parity/wp28-guards.json` (`find` يقع **مرة واحدة** في الملف، و`replace` يعطّل الحارس)، ويُثبت `tools/dev/guard_mutations.py` أن الاختبارات **تفشل** حين يُعطَّل. الأمر:
+كل حارس أُضيف في هذه الحزمة (**بما فيه حراس جولة المراجعة**: سجل البيع وعملته وقيمته المخزنة وضوابط أسعاره، والإغلاق اليومي، وحد التحويل بين عملتين، ورموز العملات، وقائمة ما يثبّت المنازل، والنماذج المقفلة، وترحيل الأعمدة، وعرض الخزائن والقيود) له **طفرة** في `docs/accounting/daftra-parity/wp28-guards.json` (`find` يقع **مرة واحدة** في الملف، و`replace` يعطّل الحارس)، ويُثبت `tools/dev/guard_mutations.py` أن الاختبارات **تفشل** حين يُعطَّل. **المرجع الأول** كان يقول «لكل حارس طفرة» بينما طفرات «Sale و Sale_lib» الخمس كلها على `Sale.php`: **صحّحتُه** بالمجموعة `V01` إلى `V20` على `Sales.php` و`Sale_lib.php`. الأمر:
 
 ```
 MYSQL_DB_NAME=ospos_test_wp28 python3 tools/dev/guard_mutations.py docs/accounting/daftra-parity/wp28-guards.json [بادئات الأسماء]
@@ -76,9 +96,17 @@ MYSQL_DB_NAME=ospos_test_wp28 python3 tools/dev/guard_mutations.py docs/accounti
 | الدفاتر وتقارير الأرصدة | 4 |
 | شاشة العملات (`AccountingCurrencies`) | 5 |
 | ترحيل `DocumentCurrencyColumns` | 1 |
-| **المجموع** | **119** |
+| سجل البيع (`Sales` و`Sale_lib`): العملة والتعليق والمرتجع والعرض (جولة المراجعة، `V01` إلى `V20`) | 20 |
+| `Sale` و`PriceControls` و`CashupExpectation` و`Receiving` (جولة المراجعة، `V21` إلى `V28`) | 8 |
+| `TreasuryTransfers` حد التحويل بين عملتين (`V29` إلى `V32`) | 4 |
+| `Currencies` رموز العملات وقائمة الجداول (`V33` إلى `V47`) | 15 |
+| `AccountingCurrencies` و`AccountingJournals` وعرض القيد (`V48` إلى `V51`) | 4 |
+| ترحيل `DocumentCurrencyColumns` أربعة جداول (`V52` إلى `V55`) | 4 |
+| شاشة الخزائن وقائمة الدفعات (`V56` إلى `V60`) | 5 |
+| `CurrencyDisplay` و`DocumentCurrency` (`V61` إلى `V64`) | 4 |
+| **المجموع** | **183** (119 + 64) |
 
-**نتيجة التشغيل:** **119 من 119 مكتشفة (`DETECTED`)، صفر `UNDETECTED`، صفر `INVALID`.**
+**نتيجة التشغيل (جولة المراجعة): تشغيل واحد لكل الطفرات (183) على الالتزام الأخير: 183 من 183 مكتشفة (`DETECTED`)، صفر `UNDETECTED`، صفر `INVALID`** (`{"DETECTED": 183, "UNDETECTED": 0, "INVALID": 0}`). الطفرات الـ64 الجديدة شُغِّلت أولًا وحدها فاكتُشفت 63 وبقيت **واحدة غير مكتشفة (`V20`)**: كانت تعطّل `clearCurrency()` داخل `copy_entire_sale` فاتضح أن السطر **زائد** لأن كل من ينادي الدالة يستدعي `clear_all()` قبلها؛ **حُذف السطر الزائد** وصارت `V20` تعطّل `clearCurrency()` في `clear_all` وتكتشفها الاختبارات. **التاريخ السابق (قبل الجولة):** تشغيلان مقطوعان بلا سبب أعرفه (القسم أدناه) أثبتا 119 من 119، **ولم يُعتمد عليهما هنا**:
 
 - **التشغيل الأول** (117 طفرة يومئذٍ): قُطع بعد 104 طفرة بمقاطعة (`KeyboardInterrupt`) لا أعرف مصدرها، والأداة تعيد الملف المعدَّل دائمًا فبقيت الشجرة نظيفة (تحقّقتُ بـ`git status`)، فكانت **92 مكتشفة و12 غير مكتشفة**. غير المكتشفة قادت إلى اختبارات جديدة: نطاق الشركة لتعديل العملة وتفعيلها وتعديل السعر وحذفه (`C04` و`C06` و`R05` و`R06`)؛ قيد بالأساسية ومعه سطر بعملة أخرى وسعر غير واحد (`P05`)؛ **التقريب التراكمي لدفعات جزئية** عند العميل والمورد، وبعد دفعة عند الشراء (`S03` و`B09` و`B07`: دفعتان من 0.10 على 0.20 تُسوّيان 0.75 لا 0.76)؛ إجمالي شراء بالين بلا كسور (`B10`)؛ دفعة مورد في يوم بلا سعر (`Q05`)؛ نسيان العملة بعد حفظ واحد في الشراء (`N05`).
 - **الحارس `S06` كان فرعًا ميتًا** (`$account === null` بعد التوجيه: مفتاحا `fx.gain` و`fx.loss` يقبلان النوع «تلقائي» وحده فيرمي المُحلِّل قبل أن يعيد `null`). **استُبدلت طفرته** بالحارس الحقيقي (تغليف رفض التوجيه باسم `FxAccountsMissing`)، وأُضيفت الطفرتان المناظرتان للشراء (`B11`) والتحويل (`T11`) مع اختبارَيهما. **الفرع الميت نفسه بقي حماية دفاعية ولا يُدَّعى حارسًا** (القسم 5).
@@ -206,6 +234,70 @@ MYSQL_DB_NAME=ospos_test_wp28 python3 tools/dev/guard_mutations.py docs/accounti
 - `U04` a rate is changed only through its own currency (`AccountingCurrencies.php`)
 - `U05` a reader is offered no edit (`AccountingCurrencies.php`)
 - `D01` the columns are not dropped while a row carries a currency (`20272300000001_DocumentCurrencyColumns.php`)
+- `V01` a suspended foreign sale keeps its currency (`Sales.php`)
+- `V02` a foreign sale of the register is completed in its currency (`Sales.php`)
+- `V03` a return takes no currency from the register (`Sales.php`)
+- `V04` the register chooses a currency only while the books are on (`Sales.php`)
+- `V05` the register chooses no currency in return mode (`Sales.php`)
+- `V06` the register chooses a currency before the first item only (`Sales.php`)
+- `V07` the register chooses a currency that has a rate today (`Sales.php`)
+- `V08` the base currency chosen takes the choice back (`Sales.php`)
+- `V09` a return is not started over foreign items (`Sales.php`)
+- `V10` a return started on an empty cart forgets the currency (`Sales.php`)
+- `V11` a gift card or reward points do not pay a foreign sale at the register (`Sales.php`)
+- `V12` the register says why an item cannot be added in a currency (`Sales.php`)
+- `V13` the tiles of the register are priced in the currency of the sale (`Sales.php`)
+- `V14` the amounts of the register are shown with the currency of the sale (`Sales.php`)
+- `V15` the minimum price of a foreign line is compared at the rate of the sale at the register (`Sales.php`)
+- `V16` every price of the catalog is converted to the currency of the sale (`Sale_lib.php`)
+- `V17` a return is not priced from the catalog in a currency (`Sale_lib.php`)
+- `V18` the rate of a return is one (`Sale_lib.php`)
+- `V19` an unsuspended sale takes back its currency (`Sale_lib.php`)
+- `V20` the register forgets its currency when it is cleared (`Sale_lib.php`)
+- `V21` a gift card or reward points do not pay a foreign sale in the model (`Sale.php`)
+- `V22` the minimum price of a foreign sale is compared in the base (`Sale.php`)
+- `V23` the reward points of a foreign sale are earned on its value in the base (`Sale.php`)
+- `V24` the minimum price is compared with the price in the base (`PriceControls.php`)
+- `V25` a foreign payment without a rate of its own counts at the rate of its sale at the cash-up (`CashupExpectation.php`)
+- `V26` a foreign payment counts in the base at the cash-up (`CashupExpectation.php`)
+- `V27` the line correction of a foreign purchase knows the rate (`Receiving.php`)
+- `V28` the cost of the line correction of a foreign purchase is in the base (`Receiving.php`)
+- `V29` a transfer between currencies is refused when its amounts are far from the rates (`TreasuryTransfers.php`)
+- `V30` a difference of exactly the tolerance is accepted (`TreasuryTransfers.php`)
+- `V31` the tolerance of a transfer is ten per cent (`TreasuryTransfers.php`)
+- `V32` a difference of a transfer is refused in both directions (`TreasuryTransfers.php`)
+- `V33` the code of a currency is read in capitals for the base (`Currencies.php`)
+- `V34` the code of a currency is read in capitals when it is found (`Currencies.php`)
+- `V35` the code of a currency is read in capitals when it is changed (`Currencies.php`)
+- `V36` the code of a currency is read in capitals when it is switched on or off (`Currencies.php`)
+- `V37` the code of a currency is read in capitals when its use is asked (`Currencies.php`)
+- `V38` a draft sale fixes the decimals of its currency (`Currencies.php`)
+- `V39` a payment of a sale fixes the decimals of its currency (`Currencies.php`)
+- `V40` a purchase fixes the decimals of its currency (`Currencies.php`)
+- `V41` a payment of a purchase fixes the decimals of its currency (`Currencies.php`)
+- `V42` an expense fixes the decimals of its currency (`Currencies.php`)
+- `V43` a voucher fixes the decimals of its currency (`Currencies.php`)
+- `V44` a treasury fixes the decimals of its currency (`Currencies.php`)
+- `V45` the sending side of a transfer fixes the decimals of its currency (`Currencies.php`)
+- `V46` the receiving side of a transfer fixes the decimals of its currency (`Currencies.php`)
+- `V47` a line of a journal fixes the decimals of its currency (`Currencies.php`)
+- `V48` the locked form of a currency sends no decimals and still saves its names (`AccountingCurrencies.php`)
+- `V49` the exchange difference journal is not offered for a reversal by hand (`AccountingJournals.php`)
+- `V50` a journal in a foreign currency is not offered for a reversal by hand (`AccountingJournals.php`)
+- `V51` the journal screen shows the foreign amount of a line (`view.php`)
+- `V52` the columns are not dropped while a sale carries a currency (`20272300000001_DocumentCurrencyColumns.php`)
+- `V53` the columns are not dropped while a treasury carries a currency (`20272300000001_DocumentCurrencyColumns.php`)
+- `V54` the columns are not dropped while a journal line carries a currency (`20272300000001_DocumentCurrencyColumns.php`)
+- `V55` the columns are not dropped while a payment of a purchase carries a currency (`20272300000001_DocumentCurrencyColumns.php`)
+- `V56` the list of treasuries shows the balance in the currency of the treasury (`AccountingTreasuries.php`)
+- `V57` the statement of a treasury shows the balance in its currency (`AccountingTreasuries.php`)
+- `V58` the list of payments totals the foreign payments in the base (`CustomerDocuments.php`)
+- `V59` a foreign payment ties to the books in the base (`AccountingReceivables.php`)
+- `V60` a foreign payment is shown in its currency (`AccountingReceivables.php`)
+- `V61` the settings of the shop are put back after a screen in a currency (`CurrencyDisplay.php`)
+- `V62` a screen in a currency takes the decimals of the currency (`CurrencyDisplay.php`)
+- `V63` a posted document keeps its rate down to the stored decimal (`DocumentCurrency.php`)
+- `V64` a posted document keeps its currency (`DocumentCurrency.php`)
 
 
 ## 4. ما افترضتُه
