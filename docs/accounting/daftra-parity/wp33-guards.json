@@ -513,8 +513,8 @@
   {
     "name": "G53 activity log file of every branch for a reader of some",
     "file": "app/Controllers/AccountingJournals.php",
-    "find": "$page = $log->search($filters, $order, 500, $offset, $this->branchIds());",
-    "replace": "$page = $log->search($filters, $order, 500, $offset, null);",
+    "find": "foreach ($log->stream($filters, $order, $this->branchIds()) as $entry) {",
+    "replace": "foreach ($log->stream($filters, $order, null) as $entry) {",
     "tests": [
       "--filter",
       "testGetAuditCsv_ListsOnlyTheEntriesOfTheBranchesOfALimitedReader",
