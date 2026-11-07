@@ -75,6 +75,7 @@ return [
     'refused'                          => '',
     'reminder_choice_3'                => '',
     'reminder_choice_4'                => '',
+    'reminder_days'                    => '',
     'reminder_when_0'                  => '',
     'reminder_when_1'                  => '',
     'reminder_when_2'                  => '',

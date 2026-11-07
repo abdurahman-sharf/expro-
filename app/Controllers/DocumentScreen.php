@@ -50,9 +50,16 @@ abstract class DocumentScreen extends Secure_Controller
         return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Accounting.error_permission_denied'), 'id' => NEW_ENTRY]);
     }
 
+    protected function getText(string $name): string
+    {
+        $value = $this->request->getGet($name);
+
+        return is_string($value) ? trim($value) : '';
+    }
+
     protected function dateOf(string $name): string
     {
-        $value = trim((string) $this->request->getGet($name));
+        $value = $this->getText($name);
 
         return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $value : '';
     }
@@ -87,7 +94,7 @@ abstract class DocumentScreen extends Secure_Controller
             ->join('people p', 'p.person_id = c.person_id')
             ->where('c.deleted', 0);
 
-        $term = trim((string) $this->request->getGet('term'));
+        $term = $this->getText('term');
 
         if ($term !== '') {
             $builder->groupStart()->like('p.first_name', $term)->orLike('p.last_name', $term)->orLike("CONCAT(p.first_name, ' ', p.last_name)", $term)->groupEnd();
@@ -101,7 +108,7 @@ abstract class DocumentScreen extends Secure_Controller
     protected function itemLookup(): ResponseInterface
     {
         $builder = Database::connect()->table('items')->select('item_id, name, item_number, unit_price')->where('deleted', 0);
-        $term    = trim((string) $this->request->getGet('term'));
+        $term    = $this->getText('term');
 
         if ($term !== '') {
             $builder->groupStart()->like('name', $term)->orLike('item_number', $term)->groupEnd();

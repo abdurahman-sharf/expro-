@@ -1,5 +1,6 @@
 <?php
 
+use App\Libraries\Recurring\RecurrencePhrase;
 use App\Libraries\Recurring\RecurrenceTerms;
 use App\Libraries\Recurring\RecurringKind;
 use App\Libraries\Recurring\ScheduleStatus;
@@ -13,7 +14,8 @@ use App\Libraries\Recurring\ScheduleStatus;
  * @var list<object>    $runs
  * @var list<string>    $upcoming
  * @var string          $category
- * @var bool            $can_manage
+ * @var string          $payment
+ * @var bool            $canManage
  */
 $module     = $kind->moduleId();
 $invoice    = $kind === RecurringKind::Invoice;
@@ -26,7 +28,7 @@ $status     = ScheduleStatus::from((string) $schedule->status);
 <div id="title_bar" class="print_hide btn-toolbar gap-2">
     <h1 class="h5 me-auto mb-0"><?= esc((string) $schedule->name) ?></h1>
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url($module), 'attr') ?>"><?= lang('Recurring.back') ?></a>
-    <?php if ($can_manage && $status !== ScheduleStatus::Ended): ?>
+    <?php if ($canManage && $status !== ScheduleStatus::Ended): ?>
         <a class="btn btn-outline-secondary btn-sm" id="schedule_edit" href="<?= esc(base_url($module . '/edit/' . $scheduleId), 'attr') ?>"><?= lang('Recurring.edit') ?></a>
         <?php foreach ($status->next() as $to): ?>
             <button type="button" class="btn btn-outline-<?= $to === ScheduleStatus::Ended ? 'danger' : 'primary' ?> btn-sm schedule-status" data-status="<?= esc($to->value, 'attr') ?>" data-confirm="<?= $to === ScheduleStatus::Ended ? '1' : '0' ?>"><?= lang('Recurring.move_to_' . $to->value) ?></button>
@@ -54,10 +56,10 @@ $status     = ScheduleStatus::from((string) $schedule->status);
         <dt class="col-sm-3"><?= lang('Recurring.amount') ?></dt>
         <dd class="col-sm-9"><bdi dir="ltr"><?= to_currency($schedule->amount) ?></bdi> (<?= lang('Recurring.tax_amount') ?>: <bdi dir="ltr"><?= to_currency($schedule->tax_amount ?? '0') ?></bdi>)</dd>
         <dt class="col-sm-3"><?= lang('Recurring.payment_type') ?></dt>
-        <dd class="col-sm-9"><?= esc((string) $schedule->payment_type) ?></dd>
+        <dd class="col-sm-9"><?= esc($payment) ?></dd>
     <?php endif; ?>
     <dt class="col-sm-3"><?= lang('Recurring.period') ?></dt>
-    <dd class="col-sm-9"><?= $terms->frequency() !== null && ! $invoice ? lang('Recurring.frequency_' . $terms->frequency()) : lang('Recurring.every', [$terms->periodCount, lang($terms->unit->languageKey())]) ?></dd>
+    <dd class="col-sm-9"><?= $terms->frequency() !== null && ! $invoice ? lang('Recurring.frequency_' . $terms->frequency()) : RecurrencePhrase::every($terms->periodCount, $terms->unit) ?></dd>
     <dt class="col-sm-3"><?= lang('Recurring.start_date') ?></dt>
     <dd class="col-sm-9"><bdi dir="ltr"><?= esc($terms->startDate) ?></bdi></dd>
     <dt class="col-sm-3"><?= lang('Recurring.end_date') ?></dt>
@@ -83,7 +85,7 @@ $status     = ScheduleStatus::from((string) $schedule->status);
             <thead>
                 <tr>
                     <th scope="col"><?= lang('Sales_orders.item') ?></th>
-                    <th scope="col" class="text-end"><?= lang('Sales_orders.quantity') ?></th>
+                    <th scope="col" class="text-end"><?= lang('Sales.quantity') ?></th>
                     <th scope="col" class="text-end"><?= lang('Sales_orders.unit_price') ?></th>
                     <th scope="col" class="text-end"><?= lang('Sales_orders.discount') ?></th>
                 </tr>
@@ -107,7 +109,7 @@ $status     = ScheduleStatus::from((string) $schedule->status);
             <li class="text-body-secondary"><?= lang('Recurring.no_reminders') ?></li>
         <?php endif; ?>
         <?php foreach ($reminders as $reminder): ?>
-            <li><?= esc(lang('Recurring.reminder_when_' . (int) $reminder->send_when, [$reminder->days ?? 0])) ?></li>
+            <li><?= esc(RecurrencePhrase::reminder((int) $reminder->send_when, $reminder->days === null ? null : (int) $reminder->days)) ?></li>
         <?php endforeach; ?>
     </ul>
 <?php endif; ?>
@@ -151,7 +153,7 @@ $status     = ScheduleStatus::from((string) $schedule->status);
                     </td>
                     <td><?= (int) $run->attempts ?></td>
                     <td>
-                        <?php if ($can_manage && $run->status === 'refused'): ?>
+                        <?php if ($canManage && $run->status === 'refused'): ?>
                             <button type="button" class="btn btn-outline-primary btn-sm run-retry" data-run="<?= (int) $run->run_id ?>"><?= lang('Recurring.retry') ?></button>
                         <?php endif; ?>
                     </td>
@@ -169,7 +171,9 @@ $status     = ScheduleStatus::from((string) $schedule->status);
                 if (response.success) {
                     window.location.reload();
                 }
-            }, 'json');
+            }, 'json').fail(function() {
+                toast_support.show("<?= esc(lang('Common.request_failed'), 'js') ?>", 'danger');
+            });
         };
 
         $('.schedule-status').on('click', function() {

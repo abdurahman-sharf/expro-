@@ -6,12 +6,12 @@ use App\Libraries\SalesOrders\SalesOrderStatus;
  * @var list<object>                                                    $rows
  * @var int                                                             $total
  * @var int                                                             $offset
- * @var int                                                             $page_size
+ * @var int                                                             $pageSize
  * @var array{status: string, search: string, from: string, to: string} $filters
  * @var bool                                                            $enabled
- * @var bool                                                            $allow_excess
- * @var bool                                                            $can_add
- * @var bool                                                            $can_settings
+ * @var bool                                                            $allowExcess
+ * @var bool                                                            $canAdd
+ * @var bool                                                            $canSettings
  * @var list<SalesOrderStatus>                                          $statuses
  */
 $query = static fn (array $extra): string => http_build_query(array_filter([...$filters, ...$extra], static fn ($value): bool => $value !== '' && $value !== 0));
@@ -21,8 +21,8 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
 
 <div id="title_bar" class="print_hide btn-toolbar">
     <h1 class="h5 me-auto mb-0"><?= lang('Sales_orders.title') ?></h1>
-    <?php if ($can_add): ?>
-        <a class="btn btn-primary btn-sm" id="sales_order_new" href="<?= esc(base_url('sales_orders/add'), 'attr') ?>">
+    <?php if ($canAdd): ?>
+        <a class="btn btn-primary btn-sm" id="sales_order_new" href="<?= esc(base_url($enabled ? 'sales_orders/add' : 'sales/manage'), 'attr') ?>">
             <span class="bi bi-plus-circle" aria-hidden="true">&nbsp;</span><?= lang('Sales_orders.new') ?>
         </a>
     <?php endif; ?>
@@ -32,7 +32,7 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
     <div class="alert alert-info" id="sales_orders_off"><?= lang('Sales_orders.off') ?></div>
 <?php endif; ?>
 
-<?php if ($can_settings): ?>
+<?php if ($canSettings): ?>
     <?= form_open('sales_orders/settings', ['id' => 'sales_order_settings', 'class' => 'app-form card card-body mb-3']) ?>
         <h2 class="h6"><?= lang('Sales_orders.settings') ?></h2>
         <div class="form-check form-switch">
@@ -42,7 +42,7 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
         </div>
         <div class="form-check form-switch">
             <input type="hidden" name="allow_excess" value="0">
-            <input type="checkbox" class="form-check-input" role="switch" id="so_allow_excess" name="allow_excess" value="1"<?= $allow_excess ? ' checked' : '' ?>>
+            <input type="checkbox" class="form-check-input" role="switch" id="so_allow_excess" name="allow_excess" value="1"<?= $allowExcess ? ' checked' : '' ?>>
             <label class="form-check-label" for="so_allow_excess"><?= lang('Sales_orders.setting_allow_excess') ?></label>
         </div>
         <p class="small text-body-secondary mb-2"><?= lang('Sales_orders.setting_note') ?></p>
@@ -109,10 +109,10 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
     <nav class="d-flex gap-2 align-items-center" aria-label="<?= lang('Sales_orders.title') ?>">
         <span class="text-body-secondary small"><?= lang('Sales_orders.count', [$total]) ?></span>
         <?php if ($offset > 0): ?>
-            <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('sales_orders?' . $query(['offset' => max(0, $offset - $page_size)])), 'attr') ?>"><?= lang('Sales_orders.previous') ?></a>
+            <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('sales_orders?' . $query(['offset' => max(0, $offset - $pageSize)])), 'attr') ?>"><?= lang('Sales_orders.previous') ?></a>
         <?php endif; ?>
-        <?php if ($offset + $page_size < $total): ?>
-            <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('sales_orders?' . $query(['offset' => $offset + $page_size])), 'attr') ?>"><?= lang('Sales_orders.next') ?></a>
+        <?php if ($offset + $pageSize < $total): ?>
+            <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('sales_orders?' . $query(['offset' => $offset + $pageSize])), 'attr') ?>"><?= lang('Sales_orders.next') ?></a>
         <?php endif; ?>
     </nav>
 <?php endif; ?>

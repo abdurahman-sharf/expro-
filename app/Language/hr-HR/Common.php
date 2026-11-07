@@ -88,6 +88,7 @@ return [
     'price'                          => 'Ár',
     'print'                          => 'Štampati',
     'remove'                         => 'Ukloni',
+    'request_failed'                 => '',
     'required'                       => 'Potreban',
     'restore'                        => '',
     'return_policy'                  => 'Povratne obavijesti',

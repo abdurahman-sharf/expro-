@@ -88,6 +88,7 @@ return [
     'price'                          => 'តម្លៃ',
     'print'                          => 'បោះពុម្ព',
     'remove'                         => 'យកចេញ',
+    'request_failed'                 => '',
     'required'                       => 'ចាំបាច់',
     'restore'                        => 'ស្ដារ',
     'return_policy'                  => 'គោលការណ៍ប្រគល់វិញ',

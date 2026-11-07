@@ -88,6 +88,7 @@ return [
     'price'                          => 'قیمت',
     'print'                          => 'چاپ',
     'remove'                         => 'برداشتن',
+    'request_failed'                 => '',
     'required'                       => 'ضروری',
     'restore'                        => 'بازگرداندن',
     'return_policy'                  => 'خط مشی بازگشت',

@@ -97,7 +97,7 @@ final class RecurringSchedules
         $this->guard->require($kind->managePermission(), $employeeId);
 
         $today ??= date('Y-m-d');
-        $data = ScheduleInput::normalise($kind, $input, $this->db, $this->branches, $employeeId, $today, false);
+        $data = ScheduleInput::normalise($kind, $input, $this->db, $this->branches, $employeeId, $today, false, $this->ownerOf($scheduleId));
 
         $this->transactional(function () use ($scheduleId, $kind, $data, $employeeId, $today): void {
             $row = $this->lock($scheduleId, $employeeId);
@@ -213,7 +213,8 @@ final class RecurringSchedules
 
         $count = $this->searched($kind, $filters, $reach)->countAllResults();
         $rows  = $this->searched($kind, $filters, $reach)
-            ->select("s.*, b.code AS branch_code, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS customer_name, (SELECT COUNT(*) FROM {$runs} r WHERE r.schedule_id = s.schedule_id AND r.status = 'generated') AS generated_count, (SELECT COUNT(*) FROM {$runs} r WHERE r.schedule_id = s.schedule_id AND r.status = 'refused') AS refused_count", false)
+            ->join('expense_categories c', 'c.expense_category_id = s.expense_category_id', 'left')
+            ->select("s.*, b.code AS branch_code, c.category_name, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS customer_name, (SELECT COUNT(*) FROM {$runs} r WHERE r.schedule_id = s.schedule_id AND r.status = 'generated') AS generated_count, (SELECT COUNT(*) FROM {$runs} r WHERE r.schedule_id = s.schedule_id AND r.status = 'refused') AS refused_count", false)
             ->orderBy('s.schedule_id', 'DESC')
             ->limit(max(1, $limit), max(0, $offset))
             ->get()
@@ -303,6 +304,13 @@ final class RecurringSchedules
         }
 
         return RecurringKind::from((string) $row->kind);
+    }
+
+    private function ownerOf(int $scheduleId): ?int
+    {
+        $row = $this->db->table('recurring_schedules')->select('employee_id')->where('schedule_id', $scheduleId)->get()->getRow();
+
+        return $row === null ? null : (int) $row->employee_id;
     }
 
     /**

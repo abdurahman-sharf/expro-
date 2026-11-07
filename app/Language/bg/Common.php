@@ -88,6 +88,7 @@ return [
     'price'                          => 'Цена',
     'print'                          => 'Принтиране',
     'remove'                         => 'Премахване',
+    'request_failed'                 => '',
     'required'                       => 'Необходим',
     'restore'                        => 'Въстановяване',
     'return_policy'                  => 'Условия за връщане',

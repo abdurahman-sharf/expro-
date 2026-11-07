@@ -12,7 +12,7 @@ use App\Libraries\Recurring\ScheduleInput;
  * @var string                     $frequency
  * @var array<int, string>         $locations
  * @var array<int, string>         $categories
- * @var list<string>               $payments
+ * @var array<string, string>      $payments
  * @var array<int, string>         $suppliers
  * @var array<int, string>         $treasuries
  * @var string                     $today
@@ -198,8 +198,8 @@ $locationId = $isNew ? (int) array_key_first($locations) : (int) ($lines[0]['ite
                 <label class="form-label text-danger required" for="payment_type"><?= lang('Recurring.payment_type') ?></label>
                 <div class="field-control">
                     <select name="payment_type" id="payment_type" class="form-select form-select-sm">
-                        <?php foreach ($payments as $payment): ?>
-                            <option value="<?= esc($payment, 'attr') ?>"<?= $value('payment_type') === $payment ? ' selected' : '' ?>><?= esc($payment) ?></option>
+                        <?php foreach ($payments as $type => $label): ?>
+                            <option value="<?= esc($type, 'attr') ?>"<?= $value('payment_type') === $type ? ' selected' : '' ?>><?= esc($label) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -244,7 +244,7 @@ $locationId = $isNew ? (int) array_key_first($locations) : (int) ($lines[0]['ite
     </div>
 
     <?php if ($invoice): ?>
-        <?= view('partial/document_lines', ['rows' => $lines, 'items_url' => $module . '/items']) ?>
+        <?= view('partial/document_lines', ['rows' => $lines, 'itemsUrl' => $module . '/items', 'quantityKey' => 'Sales.quantity']) ?>
 
         <h2 class="h6 mt-3"><?= lang('Recurring.reminders') ?></h2>
         <p class="small text-body-secondary"><?= lang('Recurring.reminders_note') ?></p>
@@ -277,12 +277,12 @@ $locationId = $isNew ? (int) array_key_first($locations) : (int) ($lines[0]['ite
             }
 
             const index = nextReminder++;
-            const select = $('<select class="form-select form-select-sm"></select>').attr('name', 'reminders[' + index + '][send_when]');
+            const select = $('<select class="form-select form-select-sm"></select>').attr({name: 'reminders[' + index + '][send_when]', 'aria-label': "<?= esc(lang('Recurring.reminders'), 'js') ?>"});
             reminderOptions.forEach(function(option) {
                 select.append($('<option></option>').val(option[0]).text(option[1]));
             });
             select.val(String(data.send_when === undefined ? 1 : data.send_when));
-            const days = $('<input type="text" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="numeric" autocomplete="off">').attr('name', 'reminders[' + index + '][days]').val(data.days || '');
+            const days = $('<input type="text" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="numeric" autocomplete="off">').attr({name: 'reminders[' + index + '][days]', 'aria-label': "<?= esc(lang('Recurring.reminder_days'), 'js') ?>"}).val(data.days || '');
             const remove = $('<button type="button" class="btn btn-outline-danger btn-sm remove-reminder"></button>').text("<?= esc(lang('Sales_orders.remove_line'), 'js') ?>");
             const toggle = function() {
                 days.toggle(parseInt(select.val(), 10) >= 3);
@@ -337,6 +337,7 @@ $locationId = $isNew ? (int) array_key_first($locations) : (int) ($lines[0]['ite
                     }
                 },
                 error: function() {
+                    toast_support.show("<?= esc(lang('Common.request_failed'), 'js') ?>", 'danger');
                     $('#submit_schedule').prop('disabled', false);
                 }
             });

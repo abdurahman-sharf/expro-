@@ -88,6 +88,7 @@ return [
     'price'                          => 'Prijs',
     'print'                          => 'Print',
     'remove'                         => 'Verwijder',
+    'request_failed'                 => '',
     'required'                       => 'Vereist',
     'restore'                        => 'Herstel',
     'return_policy'                  => 'Retourvoorwaarden',

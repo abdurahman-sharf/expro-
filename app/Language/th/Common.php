@@ -88,6 +88,7 @@ return [
     'price'                          => 'ราคา',
     'print'                          => 'พิมพ์',
     'remove'                         => 'ลบ',
+    'request_failed'                 => '',
     'required'                       => 'จำเป็นต้องป้อน',
     'restore'                        => 'เรียกคืน',
     'return_policy'                  => 'นโยบายคืนสินค้า',

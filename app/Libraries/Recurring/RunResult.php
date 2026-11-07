@@ -9,6 +9,7 @@ final readonly class RunResult
     public const ENDED     = 'ended';
     public const EXISTING  = 'existing';
     public const BUSY      = 'busy';
+    public const FAILED    = 'failed';
 
     public function __construct(
         public int $scheduleId,
@@ -17,11 +18,12 @@ final readonly class RunResult
         public ?int $saleId = null,
         public ?int $expenseId = null,
         public ?RunRefusal $refusal = null,
+        public ?string $failure = null,
     ) {
     }
 
     public function stops(): bool
     {
-        return $this->outcome === self::BUSY || $this->outcome === self::ENDED;
+        return in_array($this->outcome, [self::BUSY, self::ENDED, self::FAILED], true);
     }
 }

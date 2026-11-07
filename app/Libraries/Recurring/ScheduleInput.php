@@ -5,6 +5,8 @@ namespace App\Libraries\Recurring;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\InvoiceTiming;
+use App\Libraries\Accounting\PaymentType;
+use App\Libraries\Accounting\TextInput;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\SalesOrders\LineInput;
@@ -29,8 +31,10 @@ final class ScheduleInput
      *
      * @throws AccountingException|BranchException
      */
-    public static function normalise(RecurringKind $kind, array $input, BaseConnection $db, BranchGuard $branches, ?int $employeeId, string $today, bool $isNew): array
+    public static function normalise(RecurringKind $kind, array $input, BaseConnection $db, BranchGuard $branches, ?int $employeeId, string $today, bool $isNew, ?int $ownerId = null): array
     {
+        $ownerId ??= $employeeId;
+
         $name = is_string($input['name'] ?? null) ? trim($input['name']) : '';
 
         if ($name === '' || mb_strlen($name) > RecurrenceTerms::MAX_NAME_LENGTH) {
@@ -64,10 +68,10 @@ final class ScheduleInput
         $reminders = [];
 
         if ($kind === RecurringKind::Invoice) {
-            [$template, $lines] = self::invoice($input, $db, $branches, $employeeId);
+            [$template, $lines] = self::invoice($input, $db, $branches, $employeeId, $ownerId);
             $reminders          = self::reminders($input['reminders'] ?? []);
         } else {
-            $template = self::expense($input, $db, $branches, $employeeId);
+            $template = self::expense($input, $db, $branches, $employeeId, $ownerId);
         }
 
         return [
@@ -86,7 +90,7 @@ final class ScheduleInput
      *
      * @throws AccountingException|BranchException
      */
-    private static function invoice(array $input, BaseConnection $db, BranchGuard $branches, ?int $employeeId): array
+    private static function invoice(array $input, BaseConnection $db, BranchGuard $branches, ?int $employeeId, ?int $ownerId): array
     {
         $customerId = (int) ($input['customer_id'] ?? 0);
 
@@ -103,8 +107,12 @@ final class ScheduleInput
 
         $branches->requireBranch((int) $location->branch_id, $employeeId);
 
+        if ($ownerId !== $employeeId) {
+            $branches->requireBranch((int) $location->branch_id, $ownerId);
+        }
+
         $lines = LineInput::normalise($input['lines'] ?? null, (int) $location->location_id, $db, AccountingError::RecurringNoLines, AccountingError::RecurringLineInvalid);
-        $terms = trim((string) ($input['payment_terms_days'] ?? '')) === '' ? null : InvoiceTiming::terms($input['payment_terms_days']);
+        $terms = InvoiceTiming::terms(TextInput::of($input['payment_terms_days'] ?? null, AccountingError::PaymentTermsInvalid));
         $mode  = ($input['issue_mode'] ?? self::ISSUE_DRAFT) === self::ISSUE_NOW ? self::ISSUE_NOW : self::ISSUE_DRAFT;
 
         return [[
@@ -122,7 +130,7 @@ final class ScheduleInput
      *
      * @throws AccountingException|BranchException
      */
-    private static function expense(array $input, BaseConnection $db, BranchGuard $branches, ?int $employeeId): array
+    private static function expense(array $input, BaseConnection $db, BranchGuard $branches, ?int $employeeId, ?int $ownerId): array
     {
         $invalid    = static fn (string $why): AccountingException => new AccountingException(AccountingError::RecurringExpenseInvalid, $why);
         $categoryId = (int) ($input['expense_category_id'] ?? 0);
@@ -132,19 +140,19 @@ final class ScheduleInput
         }
 
         $amount = self::money($input['amount'] ?? '');
-        $tax    = self::money(trim((string) ($input['tax_amount'] ?? '')) === '' ? '0' : $input['tax_amount']);
+        $tax    = self::money(TextInput::of($input['tax_amount'] ?? null, AccountingError::RecurringExpenseInvalid) === '' ? '0' : $input['tax_amount']);
 
         if ($amount === null || $tax === null || bccomp($amount, '0', 2) <= 0 || bccomp($tax, $amount, 2) > 0) {
             throw $invalid('The amount is above zero and the tax is not more than the amount.');
         }
 
-        $payment = is_string($input['payment_type'] ?? null) ? $input['payment_type'] : '';
+        $payment = self::paymentKey($input['payment_type'] ?? null);
 
-        if (! array_key_exists($payment, get_payment_options())) {
+        if ($payment === null) {
             throw $invalid('The way of payment is not one of the list.');
         }
 
-        $supplierId = trim((string) ($input['supplier_id'] ?? '')) === '' ? null : (int) $input['supplier_id'];
+        $supplierId = TextInput::of($input['supplier_id'] ?? null, AccountingError::RecurringExpenseInvalid) === '' ? null : (int) $input['supplier_id'];
 
         if ($supplierId !== null && $db->table('suppliers')->where(['person_id' => $supplierId, 'deleted' => 0])->countAllResults() === 0) {
             throw $invalid('The supplier does not exist.');
@@ -158,13 +166,17 @@ final class ScheduleInput
         }
 
         $taxCode  = is_string($input['supplier_tax_code'] ?? null) ? trim($input['supplier_tax_code']) : '';
-        $branchId = $treasury === null ? $branches->defaultBranchId($employeeId) : (int) $treasury->branch_id;
+        $branchId = $treasury === null ? $branches->defaultBranchId($ownerId) : (int) $treasury->branch_id;
 
         if (mb_strlen($taxCode) > 255) {
             throw $invalid('The tax code of the supplier is too long.');
         }
 
         $branches->requireBranch($branchId, $employeeId);
+
+        if ($ownerId !== $employeeId) {
+            $branches->requireBranch($branchId, $ownerId);
+        }
 
         return [
             'branch_id'           => $branchId,
@@ -198,7 +210,7 @@ final class ScheduleInput
                 throw $invalid();
             }
 
-            $when = trim((string) ($row['send_when'] ?? ''));
+            $when = TextInput::of($row['send_when'] ?? null, AccountingError::RecurringRemindersInvalid);
 
             if ($when === '') {
                 continue;
@@ -209,7 +221,7 @@ final class ScheduleInput
             }
 
             $needsDays = (int) $when >= 3;
-            $days      = trim((string) ($row['days'] ?? ''));
+            $days      = TextInput::of($row['days'] ?? null, AccountingError::RecurringRemindersInvalid);
 
             if ($needsDays && preg_match('/^\d{1,4}$/', $days) !== 1) {
                 throw $invalid();
@@ -223,6 +235,15 @@ final class ScheduleInput
         }
 
         return $rows;
+    }
+
+    private static function paymentKey(mixed $typed): ?string
+    {
+        $text    = is_string($typed) ? trim($typed) : '';
+        $options = get_payment_options();
+        $type    = PaymentType::tryFrom($text) ?? (array_key_exists($text, $options) ? PaymentType::fromLabel($text) : null);
+
+        return $type !== null && array_key_exists(lang($type->languageKey()), $options) ? $type->value : null;
     }
 
     private static function money(mixed $value): ?string

@@ -4,6 +4,7 @@ namespace App\Libraries\Recurring;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\TextInput;
 use DateTimeImmutable;
 use DateTimeZone;
 
@@ -72,26 +73,26 @@ final readonly class RecurrenceTerms
         $count = null;
 
         if ($kind === RecurringKind::Expense) {
-            [$count, $unit] = self::EXPENSE_FREQUENCIES[(string) ($input['frequency'] ?? '')] ?? throw new AccountingException(AccountingError::RecurringFrequencyInvalid, 'The frequency is not one of the nine.');
+            [$count, $unit] = self::EXPENSE_FREQUENCIES[TextInput::of($input['frequency'] ?? null, AccountingError::RecurringFrequencyInvalid)] ?? throw new AccountingException(AccountingError::RecurringFrequencyInvalid, 'The frequency is not one of the nine.');
         } else {
             $unit  = RecurrenceUnit::tryFrom(is_string($input['period_unit'] ?? null) ? $input['period_unit'] : '') ?? throw new AccountingException(AccountingError::RecurringPeriodInvalid, 'The period unit is days, weeks, months or years.', ['max' => self::MAX_COUNT]);
             $count = self::wholeNumber($input['period_count'] ?? '1', AccountingError::RecurringPeriodInvalid, 1, self::MAX_COUNT);
         }
 
         $start = self::day($input['start_date'] ?? null, AccountingError::RecurringDateInvalid);
-        $end   = trim((string) ($input['end_date'] ?? '')) === '' ? null : self::day($input['end_date'], AccountingError::RecurringDateInvalid);
+        $end   = TextInput::of($input['end_date'] ?? null, AccountingError::RecurringDateInvalid) === '' ? null : self::day($input['end_date'], AccountingError::RecurringDateInvalid);
 
         if ($end !== null && $end < $start) {
             throw new AccountingException(AccountingError::RecurringEndBeforeStart, 'The end date is before the start date.', ['date' => $end, 'from' => $start]);
         }
 
-        $max = trim((string) ($input['max_repeats'] ?? '')) === '' ? 0 : self::wholeNumber($input['max_repeats'], AccountingError::RecurringMaxRepeatInvalid, 0, 1_000_000);
+        $max = TextInput::of($input['max_repeats'] ?? null, AccountingError::RecurringMaxRepeatInvalid) === '' ? 0 : self::wholeNumber($input['max_repeats'], AccountingError::RecurringMaxRepeatInvalid, 0, 1_000_000);
 
         $before = 0;
 
         if ($kind === RecurringKind::Invoice) {
             $limit  = $count * $unit->daysPerUnit();
-            $before = trim((string) ($input['issue_before_days'] ?? '')) === '' ? 0 : self::wholeNumber($input['issue_before_days'], AccountingError::RecurringIssueBeforeInvalid, 0, $limit - 1);
+            $before = TextInput::of($input['issue_before_days'] ?? null, AccountingError::RecurringIssueBeforeInvalid) === '' ? 0 : self::wholeNumber($input['issue_before_days'], AccountingError::RecurringIssueBeforeInvalid, 0, $limit - 1);
         }
 
         return new self($count, $unit, $start, $end, $max, $before);

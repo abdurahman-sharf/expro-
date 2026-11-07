@@ -88,6 +88,7 @@ return [
     'price'                          => 'Prezzo',
     'print'                          => 'Stampa',
     'remove'                         => 'Rimuovi',
+    'request_failed'                 => '',
     'required'                       => 'Richiesto',
     'restore'                        => 'Ripristina',
     'return_policy'                  => 'Politica di restituzione',

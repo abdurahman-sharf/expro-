@@ -82,8 +82,11 @@ class LineInputTest extends CIUnitTestCase
             ['quantity' => '0'], ['quantity' => '-1'], ['quantity' => 'abc'], ['quantity' => '1.2345'], ['quantity' => ''],
             ['unit_price' => '-1'], ['unit_price' => '1.234'], ['unit_price' => 'x'],
             ['discount' => '-5'], ['discount' => '100.01'], ['discount' => 'x'],
-            ['discount_type' => 1, 'quantity' => '2', 'unit_price' => '10', 'discount' => '20.01'],
+            ['discount_type' => 1, 'quantity' => '2', 'unit_price' => '10', 'discount' => '10.01'],
+            ['discount_type' => 1, 'quantity' => '10', 'unit_price' => '5', 'discount' => '20'],
             ['discount_type' => 7],
+            ['description' => ['x']],
+            ['quantity' => ['1']],
             ['description' => str_repeat('x', LineInput::DESCRIPTION_MAX + 1)],
             ['item_id' => 0],
         ] as $change) {
@@ -97,12 +100,12 @@ class LineInputTest extends CIUnitTestCase
     {
         $lines = $this->normalise([
             ['item_id' => $this->itemId, 'quantity' => '0.001', 'unit_price' => '0', 'discount' => '100', 'discount_type' => 0],
-            ['item_id' => $this->itemId, 'quantity' => '2', 'unit_price' => '10', 'discount' => '20.00', 'discount_type' => 1],
+            ['item_id' => $this->itemId, 'quantity' => '2', 'unit_price' => '10', 'discount' => '10.00', 'discount_type' => 1],
             ['item_id' => $this->itemId, 'quantity' => 3, 'unit_price' => 1.5],
         ]);
 
         $this->assertSame(['0.001', '2.000', '3.000'], array_column($lines, 'quantity'));
-        $this->assertSame(['100.00', '20.00', '0.00'], array_column($lines, 'discount'));
+        $this->assertSame(['100.00', '10.00', '0.00'], array_column($lines, 'discount'));
         $this->assertSame(['1.50'], [$lines[2]['unit_price']]);
     }
 

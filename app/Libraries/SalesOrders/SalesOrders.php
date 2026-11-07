@@ -38,11 +38,11 @@ final class SalesOrders
     use RunsInTransaction;
 
     public const MODULE     = 'sales_orders';
-    public const ADD        = 'sales_orders_add';
-    public const EDIT       = 'sales_orders_edit';
-    public const DELETE     = 'sales_orders_delete';
-    public const VIEW_ALL   = 'sales_orders_view_all';
-    public const CONVERT    = 'sales_orders_convert';
+    public const ADD        = 'so_add';
+    public const EDIT       = 'so_edit';
+    public const DELETE     = 'so_delete';
+    public const VIEW_ALL   = 'so_view_all';
+    public const CONVERT    = 'so_convert';
     public const NOTE_MAX   = 500;
     public const REASON_MAX = 255;
     private const ENTITY    = 'sales_order';

@@ -88,6 +88,7 @@ return [
     'price'                          => 'Giá',
     'print'                          => 'In',
     'remove'                         => 'Xóa bỏ',
+    'request_failed'                 => '',
     'required'                       => 'Yêu cầu',
     'restore'                        => 'Khôi phục',
     'return_policy'                  => 'Chính sách hoàn trả',

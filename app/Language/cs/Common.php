@@ -88,6 +88,7 @@ return [
     'price'                          => 'Cena',
     'print'                          => 'Tisk',
     'remove'                         => 'Vyjmout',
+    'request_failed'                 => '',
     'required'                       => 'Vyžadováno',
     'restore'                        => 'Obnovit',
     'return_policy'                  => 'Podmínky pro vrácení',

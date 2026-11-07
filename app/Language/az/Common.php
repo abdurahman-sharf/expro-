@@ -88,6 +88,7 @@ return [
     'price'                          => 'Qiymət',
     'print'                          => 'Çap',
     'remove'                         => 'Silmək',
+    'request_failed'                 => '',
     'required'                       => 'Vacib',
     'restore'                        => 'Bərpa Etmək',
     'return_policy'                  => 'Qaytarma siyasəti',

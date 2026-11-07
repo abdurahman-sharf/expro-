@@ -34,16 +34,16 @@ class Sales_orders extends DocumentScreen
         $result  = $enabled ? $this->orders->search($filters, $this->employeeId(), self::PAGE_SIZE, $offset) : ['total' => 0, 'rows' => []];
 
         return view('sales_orders/manage', [
-            'rows'         => $result['rows'],
-            'total'        => $result['total'],
-            'offset'       => $offset,
-            'page_size'    => self::PAGE_SIZE,
-            'filters'      => $filters,
-            'enabled'      => $enabled,
-            'allow_excess' => $this->orders->allowsExcess(),
-            'can_add'      => $enabled && $this->can(SalesOrders::ADD),
-            'can_settings' => $this->can(SalesOrderSettings::PERMISSION),
-            'statuses'     => SalesOrderStatus::cases(),
+            'rows'        => $result['rows'],
+            'total'       => $result['total'],
+            'offset'      => $offset,
+            'pageSize'    => self::PAGE_SIZE,
+            'filters'     => $filters,
+            'enabled'     => $enabled,
+            'allowExcess' => $this->orders->allowsExcess(),
+            'canAdd'      => $this->can(SalesOrders::ADD),
+            'canSettings' => $this->can(SalesOrderSettings::PERMISSION),
+            'statuses'    => SalesOrderStatus::cases(),
         ]);
     }
 
@@ -89,16 +89,16 @@ class Sales_orders extends DocumentScreen
         $invoices = $this->orders->invoicesOf($orderId);
 
         return view('sales_orders/view', [
-            'order'       => $order,
-            'status'      => $status,
-            'number'      => $this->orders->numberOf($orderId),
-            'lines'       => $this->orders->lines($orderId),
-            'invoices'    => $invoices,
-            'can_edit'    => $this->can(SalesOrders::EDIT) && $status->isEditable() && $invoices === [],
-            'can_status'  => $this->can(SalesOrders::EDIT) && $status->manualNext() !== [],
-            'can_cancel'  => $this->can(SalesOrders::DELETE) && $status->canCancel(),
-            'can_convert' => $this->can(SalesOrders::CONVERT) && $status->canConvert(),
-            'next'        => $status->manualNext(),
+            'order'      => $order,
+            'status'     => $status,
+            'number'     => $this->orders->numberOf($orderId),
+            'lines'      => $this->orders->lines($orderId),
+            'invoices'   => $invoices,
+            'canEdit'    => $this->can(SalesOrders::EDIT) && $status->isEditable() && $invoices === [],
+            'canStatus'  => $this->can(SalesOrders::EDIT) && $status->manualNext() !== [],
+            'canCancel'  => $this->can(SalesOrders::DELETE) && $status->canCancel(),
+            'canConvert' => $this->can(SalesOrders::CONVERT) && $status->canConvert(),
+            'next'       => $status->manualNext(),
         ]);
     }
 
@@ -193,11 +193,11 @@ class Sales_orders extends DocumentScreen
      */
     private function filters(): array
     {
-        $status = (string) $this->request->getGet('status');
+        $status = $this->getText('status');
 
         return [
             'status' => SalesOrderStatus::tryFrom($status) !== null ? $status : '',
-            'search' => trim((string) $this->request->getGet('search')),
+            'search' => $this->getText('search'),
             'from'   => $this->dateOf('from'),
             'to'     => $this->dateOf('to'),
         ];

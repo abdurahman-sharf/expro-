@@ -1,5 +1,6 @@
 <?php
 
+use App\Libraries\Recurring\RecurrencePhrase;
 use App\Libraries\Recurring\RecurrenceTerms;
 use App\Libraries\Recurring\RecurringKind;
 use App\Libraries\Recurring\ScheduleStatus;
@@ -9,11 +10,11 @@ use App\Libraries\Recurring\ScheduleStatus;
  * @var list<object>                                                                                                    $rows
  * @var int                                                                                                             $total
  * @var int                                                                                                             $offset
- * @var int                                                                                                             $page_size
+ * @var int                                                                                                             $pageSize
  * @var array{status: string, search: string}                                                                           $filters
  * @var list<ScheduleStatus>                                                                                            $statuses
  * @var list<array{schedule_id: int, name: string, send_when: int, days: int|null, date: string, invoice_date: string}> $reminders
- * @var bool                                                                                                            $can_manage
+ * @var bool                                                                                                            $canManage
  */
 $module  = $kind->moduleId();
 $invoice = $kind === RecurringKind::Invoice;
@@ -24,7 +25,7 @@ $query   = static fn (array $extra): string => http_build_query(array_filter([..
 
 <div id="title_bar" class="print_hide btn-toolbar">
     <h1 class="h5 me-auto mb-0"><?= lang('Recurring.title_' . $kind->value) ?></h1>
-    <?php if ($can_manage): ?>
+    <?php if ($canManage): ?>
         <a class="btn btn-primary btn-sm" id="schedule_new" href="<?= esc(base_url($module . '/add'), 'attr') ?>">
             <span class="bi bi-plus-circle" aria-hidden="true">&nbsp;</span><?= lang('Recurring.new_' . $kind->value) ?>
         </a>
@@ -40,7 +41,7 @@ $query   = static fn (array $extra): string => http_build_query(array_filter([..
             <?php foreach ($reminders as $reminder): ?>
                 <li>
                     <a href="<?= esc(base_url($module . '/view/' . (int) $reminder['schedule_id']), 'attr') ?>"><?= esc($reminder['name']) ?></a>:
-                    <?= esc(lang('Recurring.reminder_when_' . $reminder['send_when'], [$reminder['days'] ?? 0])) ?>
+                    <?= esc(RecurrencePhrase::reminder((int) $reminder['send_when'], $reminder['days'])) ?>
                     (<bdi dir="ltr"><?= esc($reminder['invoice_date']) ?></bdi>)
                 </li>
             <?php endforeach; ?>
@@ -88,8 +89,8 @@ $query   = static fn (array $extra): string => http_build_query(array_filter([..
                 <?php $terms = RecurrenceTerms::of($row); ?>
                 <tr id="schedule_<?= (int) $row->schedule_id ?>">
                     <td><a href="<?= esc(base_url($module . '/view/' . (int) $row->schedule_id), 'attr') ?>"><?= esc((string) $row->name) ?></a></td>
-                    <td><?= $invoice ? esc((string) $row->customer_name) : esc((string) $row->comment) ?></td>
-                    <td><?= $terms->frequency() !== null && ! $invoice ? lang('Recurring.frequency_' . $terms->frequency()) : lang('Recurring.every', [(int) $row->period_count, lang($terms->unit->languageKey())]) ?></td>
+                    <td><?= esc((string) ($invoice ? $row->customer_name : $row->category_name)) ?></td>
+                    <td><?= $terms->frequency() !== null && ! $invoice ? lang('Recurring.frequency_' . $terms->frequency()) : RecurrencePhrase::every((int) $row->period_count, $terms->unit) ?></td>
                     <td><bdi dir="ltr"><?= esc((string) ($row->next_due_date ?? '')) ?></bdi></td>
                     <td><bdi dir="ltr"><?= esc((string) $row->branch_code) ?></bdi></td>
                     <td class="text-end"><?= (int) $row->generated_count ?></td>
@@ -104,10 +105,10 @@ $query   = static fn (array $extra): string => http_build_query(array_filter([..
 <nav class="d-flex gap-2 align-items-center" aria-label="<?= lang('Recurring.title_' . $kind->value) ?>">
     <span class="text-body-secondary small"><?= lang('Recurring.count', [$total]) ?></span>
     <?php if ($offset > 0): ?>
-        <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url($module . '?' . $query(['offset' => max(0, $offset - $page_size)])), 'attr') ?>"><?= lang('Recurring.previous') ?></a>
+        <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url($module . '?' . $query(['offset' => max(0, $offset - $pageSize)])), 'attr') ?>"><?= lang('Recurring.previous') ?></a>
     <?php endif; ?>
-    <?php if ($offset + $page_size < $total): ?>
-        <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url($module . '?' . $query(['offset' => $offset + $page_size])), 'attr') ?>"><?= lang('Recurring.next') ?></a>
+    <?php if ($offset + $pageSize < $total): ?>
+        <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url($module . '?' . $query(['offset' => $offset + $pageSize])), 'attr') ?>"><?= lang('Recurring.next') ?></a>
     <?php endif; ?>
 </nav>
 

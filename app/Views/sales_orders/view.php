@@ -8,10 +8,10 @@ use App\Libraries\SalesOrders\SalesOrderStatus;
  * @var string                 $number
  * @var list<object>           $lines
  * @var list<object>           $invoices
- * @var bool                   $can_edit
- * @var bool                   $can_status
- * @var bool                   $can_cancel
- * @var bool                   $can_convert
+ * @var bool                   $canEdit
+ * @var bool                   $canStatus
+ * @var bool                   $canCancel
+ * @var bool                   $canConvert
  * @var list<SalesOrderStatus> $next
  */
 $orderId = (int) $order->order_id;
@@ -22,18 +22,18 @@ $orderId = (int) $order->order_id;
 <div id="title_bar" class="print_hide btn-toolbar gap-2">
     <h1 class="h5 me-auto mb-0"><?= lang('Sales_orders.order') ?> <bdi dir="ltr"><?= esc($number) ?></bdi></h1>
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('sales_orders'), 'attr') ?>"><?= lang('Sales_orders.back') ?></a>
-    <?php if ($can_edit): ?>
+    <?php if ($canEdit): ?>
         <a class="btn btn-outline-secondary btn-sm" id="order_edit" href="<?= esc(base_url('sales_orders/edit/' . $orderId), 'attr') ?>"><?= lang('Sales_orders.edit') ?></a>
     <?php endif; ?>
-    <?php if ($can_status): ?>
+    <?php if ($canStatus): ?>
         <?php foreach ($next as $to): ?>
             <button type="button" class="btn btn-outline-primary btn-sm order-status" data-status="<?= esc($to->value, 'attr') ?>"><?= lang('Sales_orders.move_to_' . $to->value) ?></button>
         <?php endforeach; ?>
     <?php endif; ?>
-    <?php if ($can_convert): ?>
+    <?php if ($canConvert): ?>
         <button type="button" class="btn btn-primary btn-sm" id="order_convert"><?= lang('Sales_orders.convert') ?></button>
     <?php endif; ?>
-    <?php if ($can_cancel): ?>
+    <?php if ($canCancel): ?>
         <button type="button" class="btn btn-outline-danger btn-sm" id="order_cancel"><?= lang('Sales_orders.cancel') ?></button>
     <?php endif; ?>
 </div>
@@ -95,7 +95,7 @@ $orderId = (int) $order->order_id;
     <?php endif; ?>
     <?php foreach ($invoices as $invoice): ?>
         <li id="order_invoice_<?= (int) $invoice->sale_id ?>">
-            <a href="<?= esc(base_url('sales/invoice/' . (int) $invoice->sale_id), 'attr') ?>"><bdi dir="ltr">POS <?= (int) $invoice->sale_id ?></bdi></a>
+            <a href="<?= esc(base_url(((int) $invoice->sale_status === COMPLETED ? 'sales/invoice/' : 'sales/document/') . (int) $invoice->sale_id), 'attr') ?>"><bdi dir="ltr">POS <?= (int) $invoice->sale_id ?></bdi></a>
             <span class="badge text-bg-<?= (int) $invoice->sale_status === COMPLETED ? 'success' : 'secondary' ?>"><?= lang((int) $invoice->sale_status === COMPLETED ? 'Sales_orders.invoice_completed' : 'Sales_orders.invoice_waiting') ?></span>
         </li>
     <?php endforeach; ?>
@@ -113,7 +113,9 @@ $orderId = (int) $order->order_id;
                         window.location.reload();
                     }
                 }
-            }, 'json');
+            }, 'json').fail(function() {
+                toast_support.show("<?= esc(lang('Common.request_failed'), 'js') ?>", 'danger');
+            });
         };
 
         $('.order-status').on('click', function() {

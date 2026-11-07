@@ -10,6 +10,7 @@ use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\CustomerLock;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\LockedRead;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\RunsInTransaction;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -24,6 +25,7 @@ use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use Config\OSPOS;
 use DateTimeImmutable;
+use Throwable;
 
 /**
  * Makes the documents of the dates that have come. For each active schedule it makes the document of its
@@ -35,7 +37,9 @@ use DateTimeImmutable;
  * period, no stock, a credit limit, a missing account) leaves nothing behind but a named refusal for that
  * date, after which the schedule goes on with the next. The day that counts is the day of this application
  * and never the clock of the database. An invoice is dated with its due date, but never a day that has not
- * come yet; with the books off it is a plain legacy sale and a plain expense, which post nothing.
+ * come yet; with the books off it is a plain legacy sale and a plain expense, which post nothing. A schedule
+ * that fails in a way nobody named (a broken row, a bug) is left as it is for the next run and reported, and
+ * the schedules after it are made all the same.
  */
 final class RecurringGenerator
 {
@@ -69,7 +73,14 @@ final class RecurringGenerator
 
         foreach ($this->due($today, $scheduleId) as $id) {
             for ($done = 0; $done < $cap; $done++) {
-                $result = $this->next($id, $today);
+                try {
+                    $result = $this->next($id, $today);
+                } catch (Throwable $unexpected) {
+                    log_message('error', 'The recurring schedule ' . $id . ' is left for the next run: ' . $unexpected->getMessage());
+                    $report->add(new RunResult($id, RunResult::FAILED, failure: $unexpected->getMessage()));
+
+                    break;
+                }
 
                 if ($result === null) {
                     break;
@@ -347,6 +358,10 @@ final class RecurringGenerator
      */
     private function make(object $schedule, string $due, string $today, int $occurrence): array
     {
+        $scale = bcscale();
+
+        bcscale(max(2, totals_decimals() + tax_decimals()));
+
         try {
             $this->guard->require(RecurringKind::from((string) $schedule->kind)->managePermission(), (int) $schedule->employee_id);
             (new BranchGuard($this->db))->requireBranch((int) $schedule->branch_id, (int) $schedule->employee_id);
@@ -356,6 +371,8 @@ final class RecurringGenerator
             throw $refusal->forDate($due, $occurrence);
         } catch (AccountingException|BranchException|PostingException $failure) {
             throw RunRefusal::from($failure)->forDate($due, $occurrence);
+        } finally {
+            bcscale($scale);
         }
     }
 
@@ -370,19 +387,20 @@ final class RecurringGenerator
         $customerId = (int) $schedule->customer_id;
         $cart       = [];
 
-        foreach ($this->db->table('recurring_schedule_lines l')->select('l.*, i.name AS item_name, i.cost_price')->join('items i', 'i.item_id = l.item_id')->where('l.schedule_id', $schedule->schedule_id)->orderBy('l.line_no', 'ASC')->get()->getResult() as $index => $line) {
+        foreach ($this->db->table('recurring_schedule_lines l')->select('l.*, i.name AS item_name, i.cost_price, i.tax_category_id')->join('items i', 'i.item_id = l.item_id')->where('l.schedule_id', $schedule->schedule_id)->orderBy('l.line_no', 'ASC')->get()->getResult() as $index => $line) {
             $cart[] = [
-                'item_id'       => (int) $line->item_id,
-                'line'          => $index + 1,
-                'description'   => (string) $line->description === '' ? (string) $line->item_name : (string) $line->description,
-                'serialnumber'  => '',
-                'quantity'      => (string) $line->quantity,
-                'discount'      => (string) $line->discount,
-                'discount_type' => (int) $line->discount_type,
-                'cost_price'    => (string) $line->cost_price,
-                'price'         => (string) $line->unit_price,
-                'item_location' => (int) $line->item_location,
-                'print_option'  => 0,
+                'item_id'         => (int) $line->item_id,
+                'line'            => $index + 1,
+                'description'     => (string) $line->description === '' ? (string) $line->item_name : (string) $line->description,
+                'serialnumber'    => '',
+                'quantity'        => (string) $line->quantity,
+                'discount'        => (string) $line->discount,
+                'discount_type'   => (int) $line->discount_type,
+                'cost_price'      => (string) $line->cost_price,
+                'price'           => (string) $line->unit_price,
+                'item_location'   => (int) $line->item_location,
+                'print_option'    => 0,
+                'tax_category_id' => $line->tax_category_id === null ? null : (int) $line->tax_category_id,
             ];
         }
 
@@ -437,7 +455,7 @@ final class RecurringGenerator
             'supplier_tax_code'   => $schedule->supplier_tax_code,
             'amount'              => (string) $schedule->amount,
             'tax_amount'          => (string) ($schedule->tax_amount ?? '0'),
-            'payment_type'        => (string) $schedule->payment_type,
+            'payment_type'        => $this->paymentLabel((string) $schedule->payment_type),
             'expense_category_id' => (int) $schedule->expense_category_id,
             'description'         => mb_substr($comment, 0, 255),
             'employee_id'         => (int) $schedule->employee_id,
@@ -454,6 +472,13 @@ final class RecurringGenerator
         }
 
         return ['sale_id' => null, 'expense_id' => (int) $data['expense_id'], 'generated_as' => null];
+    }
+
+    private function paymentLabel(string $stored): string
+    {
+        $type = PaymentType::tryFrom($stored) ?? PaymentType::fromLabel($stored);
+
+        return $type === null ? $stored : lang($type->languageKey());
     }
 
     /**

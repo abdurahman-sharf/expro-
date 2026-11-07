@@ -6,17 +6,25 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Organization\BranchError;
+use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\Recurring\RecurringGenerator;
 use App\Libraries\Recurring\RecurringKind;
 use App\Libraries\Recurring\RecurringSchedules;
 use App\Libraries\Recurring\RunRefusal;
 use App\Libraries\Recurring\RunResult;
 use App\Libraries\Recurring\ScheduleStatus;
+use App\Libraries\Tax_lib;
+use App\Models\Enums\Rounding_mode;
+use App\Models\Sale;
+use CodeIgniter\Config\Factories;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\OSPOS;
 use DateTimeImmutable;
 use DateTimeZone;
+use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -618,6 +626,230 @@ final class RecurringGeneratorTest extends CIUnitTestCase
         $this->expectException(AccountingException::class);
 
         $this->generator->run('2026-02-30');
+    }
+
+    public function testRun_WorksOutTheTaxOfAnIssuedInvoiceWithTheScaleOfTheRegisterWhateverScaleTheProcessHas(): void
+    {
+        $taxed = $this->item('0', false);
+        $this->accountingDb()->table('items_taxes')->insert(['item_id' => $taxed, 'name' => 'VAT', 'percent' => '15.000']);
+        $scheduleId = $this->invoiceSchedule(['issue_mode' => 'issue', 'lines' => [['item_id' => $taxed, 'quantity' => '1', 'unit_price' => '100.00']]]);
+        $before     = bcscale();
+
+        bcscale(0);
+
+        try {
+            $report = $this->generator->run();
+            $during = bcscale();
+        } finally {
+            bcscale($before);
+        }
+
+        $this->cleanSaleIds();
+
+        $this->assertSame(1, $report->generated());
+        $this->assertSame(0, $during, 'the scale the process had is given back');
+        $saleId = (int) $this->runsOf($scheduleId)[0]->sale_id;
+        $tax    = $this->accountingDb()->table('sales_items_taxes')->where('sale_id', $saleId)->get()->getRow();
+
+        $this->assertSame('15.0000', bcadd((string) $tax->item_tax_amount, '0', 4));
+        $this->assertSame('115.00', $this->balance($this->customerAccount()));
+        $this->assertTies();
+    }
+
+    public function testRun_PutsTheLinesOfTheTemplateOnTheInvoiceWithTheirPriceDiscountAndDescription(): void
+    {
+        $stocked = $this->item('12.50');
+        $this->accountingDb()->table('item_quantities')->ignore(true)->insert(['item_id' => $stocked, 'location_id' => self::LOCATION_ID, 'quantity' => 20]);
+        $scheduleId = $this->invoiceSchedule([
+            'issue_mode' => 'issue',
+            'lines'      => [
+                ['item_id' => $stocked, 'quantity' => '3', 'unit_price' => '40.00', 'discount' => '10', 'discount_type' => '0', 'description' => 'Bag of grain'],
+                ['item_id' => $this->service, 'quantity' => '2', 'unit_price' => '15.00', 'discount' => '5', 'discount_type' => '1'],
+            ],
+        ]);
+
+        $this->generator->run();
+        $this->cleanSaleIds();
+
+        $saleId = (int) $this->runsOf($scheduleId)[0]->sale_id;
+        $rows   = $this->accountingDb()->table('sales_items')->where('sale_id', $saleId)->orderBy('line', 'ASC')->get()->getResult();
+
+        $this->assertCount(2, $rows);
+        $this->assertSame([$stocked, 3.0, 40.0, 10.0, PERCENT, 12.5, 'Bag of grain', self::LOCATION_ID], [(int) $rows[0]->item_id, (float) $rows[0]->quantity_purchased, (float) $rows[0]->item_unit_price, (float) $rows[0]->discount, (int) $rows[0]->discount_type, (float) $rows[0]->item_cost_price, $rows[0]->description, (int) $rows[0]->item_location]);
+        $this->assertSame([$this->service, 2.0, 15.0, 5.0, 1], [(int) $rows[1]->item_id, (float) $rows[1]->quantity_purchased, (float) $rows[1]->item_unit_price, (float) $rows[1]->discount, (int) $rows[1]->discount_type]);
+        $this->assertSame('128.00', $this->balance($this->customerAccount()), '3 at 40 less 10 percent is 108 and 2 at 15 less 5 a unit is 20');
+        $this->assertSame(17.0, $this->stock($stocked));
+    }
+
+    #[DataProvider('provideRun_NamesWhatTheSaleAnswersWhenItDoesNotSaveTheInvoiceAndMakesTheNextSchedule')]
+    public function testRun_NamesWhatTheSaleAnswersWhenItDoesNotSaveTheInvoiceAndMakesTheNextSchedule(int $answer, string $code): void
+    {
+        $refused = $this->invoiceSchedule(['name' => 'Refused by the sale']);
+        $expense = $this->expenseSchedule();
+        $model   = $this->getMockBuilder(Sale::class)->disableOriginalConstructor()->onlyMethods(['save_value'])->getMock();
+        $model->method('save_value')->willReturn($answer);
+
+        try {
+            Factories::injectMock('models', Sale::class, $model);
+            $report = (new RecurringGenerator($this->accountingDb()))->run();
+        } finally {
+            Factories::reset('models');
+        }
+
+        $run = $this->runsOf($refused)[0];
+
+        $this->assertSame(1, $report->refused());
+        $this->assertSame(1, $report->generated());
+        $this->assertSame(['refused', RunRefusal::SOURCE_SALE, $code, null], [$run->status, $run->refusal_source, $run->refusal_code, $run->sale_id]);
+        $this->assertSame(lang('Recurring.refusal_' . $code), RunRefusal::wordsOf($run->refusal_source, $run->refusal_code, null));
+        $this->assertSame(1, (int) $this->scheduleRow($refused)->next_occurrence, 'the schedule goes on after the refused date');
+        $this->assertCount(1, $this->runsOf($expense));
+    }
+
+    public static function provideRun_NamesWhatTheSaleAnswersWhenItDoesNotSaveTheInvoiceAndMakesTheNextSchedule(): iterable
+    {
+        return [
+            'no stock'         => [INSUFFICIENT_STOCK, 'insufficient_stock'],
+            'discount'         => [INVOICE_DISCOUNT_INVALID, 'discount_invalid'],
+            'nothing is saved' => [NEW_ENTRY, 'save_failed'],
+        ];
+    }
+
+    public function testRun_RefusesAnInvoiceWhoseNumberTheFormatGaveAlreadyByNameAndGoesOn(): void
+    {
+        $first  = $this->invoiceSchedule(['name' => 'First', 'issue_mode' => 'issue']);
+        $second = $this->invoiceSchedule(['name' => 'Second', 'issue_mode' => 'issue']);
+        $format = $this->accountingDb()->table('app_config')->where('key', 'sales_invoice_format')->get()->getRow();
+
+        $this->setConfigValue('sales_invoice_format', 'RECURRING-FIXED');
+
+        try {
+            $report = $this->generator->run();
+        } finally {
+            $this->setConfigValue('sales_invoice_format', $format === null ? '' : (string) $format->value);
+        }
+
+        $this->cleanSaleIds();
+
+        $this->assertSame(1, $report->generated());
+        $this->assertSame(1, $report->refused());
+        $this->assertSame('RECURRING-FIXED', $this->saleRow((int) $this->runsOf($first)[0]->sale_id)->invoice_number);
+        $this->assertSame([RunRefusal::SOURCE_SALE, 'invoice_number_duplicate'], [$this->runsOf($second)[0]->refusal_source, $this->runsOf($second)[0]->refusal_code]);
+        $this->assertSame(1, (int) $this->scheduleRow($second)->next_occurrence, 'the schedule goes on after the refused date');
+    }
+
+    public function testRun_RefusesAnInvoiceAboveTheCreditLimitOfTheCustomerByName(): void
+    {
+        $scheduleId = $this->invoiceSchedule(['issue_mode' => 'issue']);
+
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['credit_limit' => 50]);
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        try {
+            $report = $this->generator->run();
+        } finally {
+            $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '0');
+            $this->accountingDb()->table('customers')->update(['credit_limit' => 0]);
+        }
+
+        $this->cleanSaleIds();
+
+        $this->assertSame(1, $report->refused());
+        $run = $this->runsOf($scheduleId)[0];
+
+        $this->assertSame([RunRefusal::SOURCE_ACCOUNTING, AccountingError::CreditLimitExceeded->value], [$run->refusal_source, $run->refusal_code]);
+        $this->assertSame(0, $this->countSales());
+        $this->assertSame('active', $this->scheduleRow($scheduleId)->status);
+    }
+
+    public function testRun_TaxesAnInvoiceByTheDestinationOfTheCustomerWithTheTaxCategoryOfTheItem(): void
+    {
+        $db = $this->accountingDb();
+
+        $db->table('tax_categories')->insert(['tax_category' => 'Goods ' . uniqid(), 'tax_group_sequence' => 1]);
+        $categoryId = (int) $db->insertID();
+        $db->table('tax_jurisdictions')->insert(['jurisdiction_name' => 'Zone', 'tax_group' => 'ZG' . random_int(100000, 999999), 'tax_type' => Tax_lib::TAX_TYPE_EXCLUDED, 'tax_group_sequence' => 1, 'cascade_sequence' => 0]);
+        $jurisdictionId = (int) $db->insertID();
+        $db->table('tax_codes')->insert(['tax_code' => 'Customer' . random_int(1000, 9999), 'tax_code_name' => 'Customer', 'city' => '', 'state' => '']);
+        $codeId = (int) $db->insertID();
+        $db->table('tax_rates')->insert(['rate_tax_code_id' => $codeId, 'rate_tax_category_id' => $categoryId, 'rate_jurisdiction_id' => $jurisdictionId, 'tax_rate' => '10', 'tax_rounding_code' => Rounding_mode::HALF_UP]);
+        $db->table('customers')->where('person_id', $this->customerId)->update(['sales_tax_code_id' => $codeId]);
+
+        $taxed = $this->item('0', false);
+        $db->table('items')->where('item_id', $taxed)->update(['tax_category_id' => $categoryId]);
+        $scheduleId = $this->invoiceSchedule(['issue_mode' => 'issue', 'lines' => [['item_id' => $taxed, 'quantity' => '1', 'unit_price' => '100.00']]]);
+        $config     = config(OSPOS::class);
+        $before     = $config->settings;
+
+        $config->settings = [...$before, 'use_destination_based_tax' => '1', 'default_tax_code' => $codeId, 'default_tax_category' => $categoryId];
+
+        try {
+            $report = $this->generator->run();
+        } finally {
+            $config->settings = $before;
+            $db->table('customers')->where('person_id', $this->customerId)->update(['sales_tax_code_id' => null]);
+            $db->table('tax_rates')->where('rate_tax_code_id', $codeId)->delete();
+            $db->table('tax_codes')->where('tax_code_id', $codeId)->delete();
+            $db->table('tax_jurisdictions')->where('jurisdiction_id', $jurisdictionId)->delete();
+        }
+
+        $this->cleanSaleIds();
+
+        $this->assertSame(0, $report->failed());
+        $this->assertSame(1, $report->generated());
+        $this->assertSame('110.00', $this->balance($this->customerAccount()), 'the tax of the category of the item at the rate of the code of the customer');
+    }
+
+    public function testRun_MakesTheExpenseOfALabelTypedInAnotherLanguageThanTheOneTheRunUses(): void
+    {
+        $language = service('language');
+        $original = $language->getLocale();
+
+        try {
+            $language->setLocale('ar-EG');
+            $arabicCash = lang('Sales.cash');
+            $scheduleId = $this->expenseSchedule(['payment_type' => $arabicCash]);
+            $language->setLocale('en');
+
+            $report = $this->generator->run();
+        } finally {
+            $language->setLocale($original);
+        }
+
+        $this->assertNotSame(lang('Sales.cash', [], 'en'), $arabicCash, 'the label typed is not the English one');
+        $this->assertSame('cash', $this->scheduleRow($scheduleId)->payment_type);
+        $this->assertSame(1, $report->generated(), 'a way of payment is kept by its type and not by the name it had when it was typed');
+        $this->assertSame(lang('Sales.cash', [], 'en'), $this->accountingDb()->table('expenses')->where('expense_id', $this->runsOf($scheduleId)[0]->expense_id)->get()->getRow()->payment_type);
+    }
+
+    public function testRun_LeavesAScheduleThatFailsUnexpectedlyForTheNextRunAndMakesTheOthers(): void
+    {
+        $broken  = $this->invoiceSchedule(['name' => 'Broken']);
+        $expense = $this->expenseSchedule();
+        $model   = $this->getMockBuilder(Sale::class)->disableOriginalConstructor()->onlyMethods(['save_value'])->getMock();
+        $model->method('save_value')->willThrowException(new RuntimeException('unexpected'));
+
+        try {
+            Factories::injectMock('models', Sale::class, $model);
+            $report = (new RecurringGenerator($this->accountingDb()))->run();
+        } finally {
+            Factories::reset('models');
+        }
+
+        $this->assertSame(1, $report->failed());
+        $this->assertSame(1, $report->generated());
+        $failed = array_values(array_filter($report->results, static fn (RunResult $result): bool => $result->outcome === RunResult::FAILED))[0];
+
+        $this->assertSame([$broken, 'unexpected'], [$failed->scheduleId, $failed->failure]);
+        $this->assertSame([], $this->runsOf($broken), 'nothing is recorded for a date nobody named a reason for');
+        $this->assertSame([0, 'active'], [(int) $this->scheduleRow($broken)->next_occurrence, $this->scheduleRow($broken)->status]);
+        $this->assertCount(1, $this->runsOf($expense));
+
+        $again = $this->generator->run();
+        $this->cleanSaleIds();
+
+        $this->assertSame(1, $again->generated());
+        $this->assertCount(1, $this->runsOf($broken));
     }
 
     public function testRetry_MakesTheDocumentOfARefusedDateWhenTheCauseIsGone(): void

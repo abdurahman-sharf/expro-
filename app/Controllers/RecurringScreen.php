@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Recurring\RecurrenceTerms;
 use App\Libraries\Recurring\RecurringGenerator;
@@ -24,6 +25,7 @@ abstract class RecurringScreen extends DocumentScreen
         'customer_id', 'location_id', 'payment_terms_days', 'issue_mode', 'lines', 'reminders',
         'expense_category_id', 'amount', 'tax_amount', 'payment_type', 'supplier_id', 'supplier_tax_code', 'treasury_id',
     ];
+    private const DEFAULT_FREQUENCY = 'weekly';
 
     protected RecurringSchedules $schedules;
 
@@ -39,20 +41,20 @@ abstract class RecurringScreen extends DocumentScreen
     public function getIndex(): string
     {
         $kind    = $this->kind();
-        $filters = ['status' => (string) $this->request->getGet('status'), 'search' => trim((string) $this->request->getGet('search'))];
+        $filters = ['status' => $this->getText('status'), 'search' => $this->getText('search')];
         $offset  = max(0, (int) $this->request->getGet('offset'));
         $result  = $this->schedules->search($kind, $filters, $this->employeeId(), self::PAGE_SIZE, $offset);
 
         return view('recurring/manage', [
-            'kind'       => $kind,
-            'rows'       => $result['rows'],
-            'total'      => $result['total'],
-            'offset'     => $offset,
-            'page_size'  => self::PAGE_SIZE,
-            'filters'    => $filters,
-            'statuses'   => ScheduleStatus::cases(),
-            'reminders'  => $kind === RecurringKind::Invoice ? (new RecurringReminders(null, $this->branchGuard()))->due(date('Y-m-d'), $this->employeeId()) : [],
-            'can_manage' => $this->can($kind->managePermission()),
+            'kind'      => $kind,
+            'rows'      => $result['rows'],
+            'total'     => $result['total'],
+            'offset'    => $offset,
+            'pageSize'  => self::PAGE_SIZE,
+            'filters'   => $filters,
+            'statuses'  => ScheduleStatus::cases(),
+            'reminders' => $kind === RecurringKind::Invoice ? (new RecurringReminders(null, $this->branchGuard()))->due(date('Y-m-d'), $this->employeeId()) : [],
+            'canManage' => $this->can($kind->managePermission()),
         ]);
     }
 
@@ -69,7 +71,7 @@ abstract class RecurringScreen extends DocumentScreen
         if ($scheduleId !== NEW_ENTRY) {
             $schedule = $this->schedules->find($scheduleId, $this->employeeId());
 
-            if ($schedule === null || $schedule->status === ScheduleStatus::Ended->value) {
+            if ($schedule === null || $schedule->kind !== $kind->value || $schedule->status === ScheduleStatus::Ended->value) {
                 throw PageNotFoundException::forPageNotFound();
             }
         }
@@ -77,7 +79,7 @@ abstract class RecurringScreen extends DocumentScreen
         $lines = [];
 
         if ($schedule !== null && $kind === RecurringKind::Invoice) {
-            $lines = array_map(static fn (object $line): array => ['item_id' => (int) $line->item_id, 'label' => (string) $line->item_name, 'quantity' => rtrim(rtrim((string) $line->quantity, '0'), '.'), 'unit_price' => (string) $line->unit_price, 'discount' => (string) $line->discount, 'discount_type' => (int) $line->discount_type, 'description' => (string) $line->description], $this->schedules->lines($scheduleId));
+            $lines = array_map(static fn (object $line): array => ['item_id' => (int) $line->item_id, 'label' => (string) $line->item_name, 'quantity' => rtrim(rtrim((string) $line->quantity, '0'), '.'), 'unit_price' => (string) $line->unit_price, 'discount' => (string) $line->discount, 'discount_type' => (int) $line->discount_type, 'description' => (string) $line->description, 'item_location' => (int) $line->item_location], $this->schedules->lines($scheduleId));
         }
 
         return view('recurring/form', [
@@ -85,10 +87,10 @@ abstract class RecurringScreen extends DocumentScreen
             'schedule'   => $schedule,
             'lines'      => $lines,
             'reminders'  => $schedule === null ? [] : $this->schedules->reminders($scheduleId),
-            'frequency'  => $schedule === null ? 'monthly' : (RecurrenceTerms::of($schedule)->frequency() ?? 'monthly'),
+            'frequency'  => $schedule === null ? self::DEFAULT_FREQUENCY : (RecurrenceTerms::of($schedule)->frequency() ?? self::DEFAULT_FREQUENCY),
             'locations'  => $kind === RecurringKind::Invoice ? $this->locationOptions() : [],
             'categories' => $kind === RecurringKind::Expense ? $this->categoryOptions() : [],
-            'payments'   => $kind === RecurringKind::Expense ? array_keys(get_payment_options()) : [],
+            'payments'   => $kind === RecurringKind::Expense ? $this->paymentOptions() : [],
             'suppliers'  => $kind === RecurringKind::Expense ? $this->supplierOptions() : [],
             'treasuries' => $kind === RecurringKind::Expense ? $this->treasuryOptions() : [],
             'today'      => date('Y-m-d'),
@@ -105,15 +107,16 @@ abstract class RecurringScreen extends DocumentScreen
         }
 
         return view('recurring/view', [
-            'kind'       => $kind,
-            'schedule'   => $schedule,
-            'terms'      => RecurrenceTerms::of($schedule),
-            'lines'      => $kind === RecurringKind::Invoice ? $this->schedules->lines($scheduleId) : [],
-            'reminders'  => $this->schedules->reminders($scheduleId),
-            'runs'       => $this->schedules->runs($scheduleId),
-            'upcoming'   => $this->schedules->upcoming($schedule),
-            'category'   => $kind === RecurringKind::Expense ? $this->categoryName((int) $schedule->expense_category_id) : '',
-            'can_manage' => $this->can($kind->managePermission()),
+            'kind'      => $kind,
+            'schedule'  => $schedule,
+            'terms'     => RecurrenceTerms::of($schedule),
+            'lines'     => $kind === RecurringKind::Invoice ? $this->schedules->lines($scheduleId) : [],
+            'reminders' => $this->schedules->reminders($scheduleId),
+            'runs'      => $this->schedules->runs($scheduleId),
+            'upcoming'  => $this->schedules->upcoming($schedule),
+            'category'  => $kind === RecurringKind::Expense ? $this->categoryName((int) $schedule->expense_category_id) : '',
+            'payment'   => $kind === RecurringKind::Expense ? $this->paymentName((string) $schedule->payment_type) : '',
+            'canManage' => $this->can($kind->managePermission()),
         ]);
     }
 
@@ -189,6 +192,31 @@ abstract class RecurringScreen extends DocumentScreen
         if ($this->schedules->kindOf($scheduleId) !== $this->kind()) {
             throw new AccountingException(AccountingError::RecurringNotFound, 'There is no such schedule.', ['name' => (string) $scheduleId]);
         }
+    }
+
+    /**
+     * @return array<string, string> The way of payment by its type and its name in the language in use.
+     */
+    private function paymentOptions(): array
+    {
+        $options = [];
+
+        foreach (array_keys(get_payment_options()) as $label) {
+            $type = PaymentType::fromLabel($label);
+
+            if ($type !== null) {
+                $options[$type->value] = $label;
+            }
+        }
+
+        return $options;
+    }
+
+    private function paymentName(string $stored): string
+    {
+        $type = PaymentType::tryFrom($stored);
+
+        return $type === null ? $stored : lang($type->languageKey());
     }
 
     /**

@@ -88,6 +88,7 @@ return [
     'price'                          => 'نرخ',
     'print'                          => 'چاپکردن',
     'remove'                         => 'لابردن',
+    'request_failed'                 => '',
     'required'                       => 'پێویستە',
     'restore'                        => 'گەڕاندنەوە',
     'return_policy'                  => 'سیاسەتی گەڕانەوە',

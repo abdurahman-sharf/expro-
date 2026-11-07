@@ -37,4 +37,9 @@ final class GenerationReport
     {
         return $this->count(RunResult::REFUSED);
     }
+
+    public function failed(): int
+    {
+        return $this->count(RunResult::FAILED);
+    }
 }

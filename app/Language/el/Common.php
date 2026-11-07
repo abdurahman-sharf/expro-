@@ -88,6 +88,7 @@ return [
     'price'                          => 'Τιμή',
     'print'                          => 'Εκτύπωση',
     'remove'                         => 'Αφαίρεση',
+    'request_failed'                 => '',
     'required'                       => 'Απαιτείται',
     'restore'                        => 'Επαναφορά',
     'return_policy'                  => 'Πολιτική Επιστροφών',

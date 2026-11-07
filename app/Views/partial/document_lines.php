@@ -4,7 +4,8 @@
  * each with an item found by name, a quantity, a price and a discount, sent as lines[n][field].
  *
  * @var list<array{item_id: int, label: string, quantity: string, unit_price: string, discount: string, discount_type: int, description: string}> $rows
- * @var string                                                                                                                                    $items_url
+ * @var string                                                                                                                                    $itemsUrl
+ * @var string|null                                                                                                                               $quantityKey
  */
 ?>
 <h2 class="h6 mt-3"><?= lang('Sales_orders.lines') ?></h2>
@@ -14,7 +15,7 @@
             <tr>
                 <th scope="col"><?= lang('Sales_orders.item') ?></th>
                 <th scope="col"><?= lang('Sales_orders.description') ?></th>
-                <th scope="col" class="text-end"><?= lang('Sales_orders.quantity') ?></th>
+                <th scope="col" class="text-end"><?= lang($quantityKey ?? 'Sales_orders.quantity') ?></th>
                 <th scope="col" class="text-end"><?= lang('Sales_orders.unit_price') ?></th>
                 <th scope="col" class="text-end"><?= lang('Sales_orders.discount') ?></th>
                 <th scope="col"><?= lang('Sales_orders.discount_type') ?></th>
@@ -29,25 +30,35 @@
 <script type="text/javascript">
     $(document).ready(function() {
         const initial = <?= json_encode($rows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
-        const labels = {percent: "<?= esc(lang('Sales_orders.discount_percent'), 'js') ?>", fixed: "<?= esc(lang('Sales_orders.discount_fixed'), 'js') ?>", remove: "<?= esc(lang('Sales_orders.remove_line'), 'js') ?>"};
+        const labels = {
+            percent: "<?= esc(lang('Sales_orders.discount_percent'), 'js') ?>",
+            fixed: "<?= esc(lang('Sales_orders.discount_fixed'), 'js') ?>",
+            remove: "<?= esc(lang('Sales_orders.remove_line'), 'js') ?>",
+            item: "<?= esc(lang('Sales_orders.item'), 'js') ?>",
+            description: "<?= esc(lang('Sales_orders.description'), 'js') ?>",
+            quantity: "<?= esc(lang($quantityKey ?? 'Sales_orders.quantity'), 'js') ?>",
+            unit_price: "<?= esc(lang('Sales_orders.unit_price'), 'js') ?>",
+            discount: "<?= esc(lang('Sales_orders.discount'), 'js') ?>",
+            discount_type: "<?= esc(lang('Sales_orders.discount_type'), 'js') ?>"
+        };
         let next = 0;
 
         const addLine = function(data) {
             const index = next++;
             const row = $('<tr class="document-line"></tr>');
-            const itemName = $('<input type="text" class="form-control form-control-sm line-item" autocomplete="off">').val(data.label || '');
+            const itemName = $('<input type="text" class="form-control form-control-sm line-item" autocomplete="off">').attr('aria-label', labels.item).val(data.label || '');
             const itemId = $('<input type="hidden">').attr('name', 'lines[' + index + '][item_id]').val(data.item_id || '');
             const field = function(name, value) {
-                return $('<input type="text" class="form-control form-control-sm ltr-input text-end" dir="ltr" inputmode="decimal" autocomplete="off">').attr('name', 'lines[' + index + '][' + name + ']').val(value);
+                return $('<input type="text" class="form-control form-control-sm ltr-input text-end" dir="ltr" inputmode="decimal" autocomplete="off">').attr({name: 'lines[' + index + '][' + name + ']', 'aria-label': labels[name]}).val(value);
             };
-            const type = $('<select class="form-select form-select-sm"></select>').attr('name', 'lines[' + index + '][discount_type]')
+            const type = $('<select class="form-select form-select-sm"></select>').attr({name: 'lines[' + index + '][discount_type]', 'aria-label': labels.discount_type})
                 .append($('<option value="0"></option>').text(labels.percent))
                 .append($('<option value="1"></option>').text(labels.fixed))
                 .val(String(data.discount_type || 0));
             const remove = $('<button type="button" class="btn btn-outline-danger btn-sm remove-line"></button>').text(labels.remove);
 
             row.append($('<td></td>').append(itemName, itemId))
-                .append($('<td></td>').append($('<input type="text" class="form-control form-control-sm" maxlength="255">').attr('name', 'lines[' + index + '][description]').val(data.description || '')))
+                .append($('<td></td>').append($('<input type="text" class="form-control form-control-sm" maxlength="255">').attr({name: 'lines[' + index + '][description]', 'aria-label': labels.description}).val(data.description || '')))
                 .append($('<td></td>').append(field('quantity', data.quantity || '1')))
                 .append($('<td></td>').append(field('unit_price', data.unit_price || '')))
                 .append($('<td></td>').append(field('discount', data.discount || '0')))
@@ -57,7 +68,7 @@
             $('#document_lines tbody').append(row);
 
             itemName.autocomplete({
-                source: "<?= esc($items_url, 'js') ?>",
+                source: "<?= esc($itemsUrl, 'js') ?>",
                 minChars: 0,
                 delay: 100,
                 select: function(event, ui) {

@@ -88,6 +88,7 @@ return [
     'price'                          => 'Ár',
     'print'                          => 'Nyomtat',
     'remove'                         => 'Eltávolít',
+    'request_failed'                 => '',
     'required'                       => 'Kötelező',
     'restore'                        => '',
     'return_policy'                  => 'Visszatérítési politika',

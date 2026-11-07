@@ -88,6 +88,7 @@ return [
     'price'                          => 'Cijena',
     'print'                          => 'Štampanje',
     'remove'                         => 'Ukloni',
+    'request_failed'                 => '',
     'required'                       => 'Obavezan',
     'restore'                        => 'Vrati',
     'return_policy'                  => 'Povratna informacija',

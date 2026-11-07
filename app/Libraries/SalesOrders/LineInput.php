@@ -4,6 +4,7 @@ namespace App\Libraries\SalesOrders;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\TextInput;
 use CodeIgniter\Database\BaseConnection;
 
 /**
@@ -19,7 +20,7 @@ final class LineInput
     private const MONEY          = '/^\d{1,13}(\.\d{1,2})?$/';
 
     /**
-     * @param mixed $raw The lines as they were typed: item_id, quantity, unit_price, and optionally discount, discount_type (0 percent, 1 fixed) and description.
+     * @param mixed $raw The lines as they were typed: item_id, quantity, unit_price, and optionally discount, discount_type (0 percent, 1 fixed, which is taken off every unit as the register takes it) and description.
      *
      * @return list<array{item_id: int, description: string, quantity: string, unit_price: string, discount: string, discount_type: int, item_location: int}>
      *
@@ -50,7 +51,7 @@ final class LineInput
             $price    = self::amount($line['unit_price'] ?? '', self::MONEY, 2, $number, $invalid);
             $discount = self::amount(($line['discount'] ?? '') === '' ? '0' : $line['discount'], self::MONEY, 2, $number, $invalid);
             $type     = (int) ($line['discount_type'] ?? 0);
-            $text     = trim((string) ($line['description'] ?? ''));
+            $text     = TextInput::of($line['description'] ?? null, $invalid);
 
             if ($itemId <= 0 || bccomp($quantity, '0', 3) <= 0 || ! in_array($type, [0, 1], true) || mb_strlen($text) > self::DESCRIPTION_MAX) {
                 throw new AccountingException($invalid, "Line {$number} is not valid.", ['line' => $number]);
@@ -60,8 +61,8 @@ final class LineInput
                 throw new AccountingException($invalid, "The discount of line {$number} is more than a hundred percent.", ['line' => $number]);
             }
 
-            if ($type === 1 && bccomp($discount, bcmul($quantity, $price, 2), 2) > 0) {
-                throw new AccountingException($invalid, "The discount of line {$number} is more than the line.", ['line' => $number]);
+            if ($type === 1 && bccomp($discount, $price, 2) > 0) {
+                throw new AccountingException($invalid, "The discount of line {$number} is more than the price of a unit.", ['line' => $number]);
             }
 
             $ids[]   = $itemId;

@@ -64,7 +64,7 @@ $action     = $isNew ? 'sales_orders/save' : 'sales_orders/save/' . (int) $order
         </div>
     </div>
 
-    <?= view('partial/document_lines', ['rows' => $rows, 'items_url' => 'sales_orders/items']) ?>
+    <?= view('partial/document_lines', ['rows' => $rows, 'itemsUrl' => 'sales_orders/items']) ?>
 
     <div class="mt-3">
         <button type="submit" class="btn btn-primary btn-sm" id="submit_order"><?= lang('Common.submit') ?></button>
@@ -106,6 +106,7 @@ $action     = $isNew ? 'sales_orders/save' : 'sales_orders/save/' . (int) $order
                     }
                 },
                 error: function() {
+                    toast_support.show("<?= esc(lang('Common.request_failed'), 'js') ?>", 'danger');
                     $('#submit_order').prop('disabled', false);
                 }
             });

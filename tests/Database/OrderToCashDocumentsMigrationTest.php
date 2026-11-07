@@ -27,7 +27,7 @@ class OrderToCashDocumentsMigrationTest extends CIUnitTestCase
     private const TABLES = ['sales_orders', 'sales_order_lines', 'sales_order_invoices', 'sales_order_invoice_lines', 'recurring_schedules', 'recurring_schedule_lines', 'recurring_schedule_reminders', 'recurring_runs'];
 
     private const PERMISSIONS = [
-        'sales_orders'       => ['sales_orders', 'sales_orders_add', 'sales_orders_edit', 'sales_orders_delete', 'sales_orders_view_all', 'sales_orders_convert'],
+        'sales_orders'       => ['sales_orders', 'so_add', 'so_edit', 'so_delete', 'so_view_all', 'so_convert'],
         'recurring_invoices' => ['recurring_invoices', 'recurring_invoices_view', 'recurring_invoices_manage'],
         'recurring_expenses' => ['recurring_expenses', 'recurring_expenses_view', 'recurring_expenses_manage'],
     ];
@@ -246,7 +246,7 @@ class OrderToCashDocumentsMigrationTest extends CIUnitTestCase
 
     public function testDown_DropsTheTablesAndRemovesTheModulesTheirPermissionsAndTheirGrants(): void
     {
-        $this->accountingDb()->table('grants')->insert(['permission_id' => 'sales_orders_add', 'person_id' => $this->employee(), 'menu_group' => 'home']);
+        $this->accountingDb()->table('grants')->insert(['permission_id' => 'so_add', 'person_id' => $this->employee(), 'menu_group' => 'home']);
 
         (new OrderToCashDocuments())->down();
 

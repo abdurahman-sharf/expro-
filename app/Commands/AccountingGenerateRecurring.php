@@ -5,6 +5,7 @@ namespace App\Commands;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Recurring\GenerationReport;
+use App\Libraries\Recurring\GenerationRuntime;
 use App\Libraries\Recurring\RecurringGenerator;
 use App\Libraries\Recurring\RunResult;
 use CodeIgniter\CLI\BaseCommand;
@@ -16,7 +17,7 @@ class AccountingGenerateRecurring extends BaseCommand
     protected $group       = 'Accounting';
     protected $name        = 'accounting:generate_recurring';
     protected $usage       = 'accounting:generate_recurring [--schedule ID] [--cap N] [--date YYYY-MM-DD]';
-    protected $description = 'Makes the invoices and the expenses of the dates of the active schedules that have come, in order, up to a cap for each schedule. It is safe to run again and to run twice at once: a date has one document. A date that is refused (a closed period, no stock, a credit limit) is recorded with its reason and the schedule goes on. Exits 0 when nothing was refused and every schedule is caught up, 1 otherwise, and 7 for an option it refuses.';
+    protected $description = 'Makes the invoices and the expenses of the dates of the active schedules that have come, in order, up to a cap for each schedule, on the day of the shop in its time zone. It is safe to run again and to run twice at once: a date has one document. A date that is refused (a closed period, no stock, a credit limit) is recorded with its reason and the schedule goes on. A schedule that fails in a way nobody named is left for the next run and the others are made. Exits 0 when nothing was refused or failed and every schedule is caught up, 1 otherwise, and 7 for an option it refuses.';
     protected $options     = [
         '--schedule' => 'Only this schedule.',
         '--cap'      => 'The most dates made for one schedule in one run (default 12).',
@@ -25,6 +26,8 @@ class AccountingGenerateRecurring extends BaseCommand
 
     public function run(array $params): int
     {
+        GenerationRuntime::apply();
+
         $schedule = $this->option($params, 'schedule');
         $cap      = $this->option($params, 'cap');
         $date     = $this->option($params, 'date');
@@ -51,7 +54,7 @@ class AccountingGenerateRecurring extends BaseCommand
 
         $this->print($report);
 
-        return $report->refused() === 0 && $report->capped === [] && $report->count(RunResult::BUSY) === 0 ? EXIT_SUCCESS : EXIT_ERROR;
+        return $report->refused() === 0 && $report->failed() === 0 && $report->capped === [] && $report->count(RunResult::BUSY) === 0 ? EXIT_SUCCESS : EXIT_ERROR;
     }
 
     private function print(GenerationReport $report): void
@@ -64,17 +67,18 @@ class AccountingGenerateRecurring extends BaseCommand
                 RunResult::REFUSED   => sprintf('schedule %d, %s: REFUSED (%s) %s', $result->scheduleId, $result->dueDate, $result->refusal?->error, $result->refusal?->words()),
                 RunResult::EXISTING  => sprintf('schedule %d, %s: already made', $result->scheduleId, $result->dueDate),
                 RunResult::ENDED     => sprintf('schedule %d: ended', $result->scheduleId),
+                RunResult::FAILED    => sprintf('schedule %d: FAILED, left for the next run (%s)', $result->scheduleId, $result->failure),
                 default              => sprintf('schedule %d: busy, left for the next run', $result->scheduleId),
             };
 
-            CLI::write($line, $result->outcome === RunResult::REFUSED ? 'red' : ($result->outcome === RunResult::BUSY ? 'yellow' : null));
+            CLI::write($line, in_array($result->outcome, [RunResult::REFUSED, RunResult::FAILED], true) ? 'red' : ($result->outcome === RunResult::BUSY ? 'yellow' : null));
         }
 
         foreach ($report->capped as $scheduleId) {
             CLI::write(sprintf('schedule %d: more dates are due than the cap, run again to go on', $scheduleId), 'yellow');
         }
 
-        CLI::write(sprintf('RESULT: %d made, %d refused, %d already made, %d ended, %d busy, %d over the cap.', $report->generated(), $report->refused(), $report->count(RunResult::EXISTING), $report->count(RunResult::ENDED), $report->count(RunResult::BUSY), count($report->capped)));
+        CLI::write(sprintf('RESULT: %d made, %d refused, %d failed, %d already made, %d ended, %d busy, %d over the cap.', $report->generated(), $report->refused(), $report->failed(), $report->count(RunResult::EXISTING), $report->count(RunResult::ENDED), $report->count(RunResult::BUSY), count($report->capped)));
     }
 
     /**
