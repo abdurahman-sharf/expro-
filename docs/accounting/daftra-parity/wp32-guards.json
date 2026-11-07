@@ -1120,5 +1120,27 @@
       "OperationalReportCatalog",
       "tests/helpers/report_helperTest.php"
     ]
+  },
+  {
+    "name": "W32-G103 the payments nested under an invoice are those whose journals stand",
+    "file": "app/Libraries/Accounting/OperationalReports/ReportDocuments.php",
+    "find": "j ON j.source_type = ? AND j.source_id = p.payment_id AND {$standing}",
+    "replace": "j ON j.source_type = ? AND j.source_id = p.payment_id AND 1 = 1",
+    "tests": [
+      "--filter",
+      "NestsNoPaymentWhoseJournalWasReversed",
+      "tests/Libraries/Accounting/OperationalReports/NetPositionReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G104 the payments nested under an invoice leave out a payment with no journal, the credit sold on due",
+    "file": "app/Libraries/Accounting/OperationalReports/ReportDocuments.php",
+    "find": "'SELECT p.sale_id, p.payment_id, p.payment_time, SUM(l.credit - l.debit) AS paid\n                 FROM ' . $this->db->prefixTable('sales_payments') . ' p\n                 JOIN ' . $this->db->prefixTable('accounting_journals') . \" j ON j.source_type = ? AND j.source_id = p.payment_id AND {$standing}\n                 JOIN \" . $this->db->prefixTable('accounting_journal_lines') . ' l ON l.journal_id = j.journal_id\n                 JOIN ' . $this->db->prefixTable('accounting_accounts') . ' a ON a.account_id = l.account_id AND (a.entity_type = ? OR a.account_id = ?)\n                 WHERE p.sale_id IN (' . implode(',', array_map('intval', $chunk)) . ')\n                 ",
+    "replace": "'SELECT p.sale_id, p.payment_id, p.payment_time, COALESCE(SUM(l.credit - l.debit), p.payment_amount) AS paid\n                 FROM ' . $this->db->prefixTable('sales_payments') . ' p\n                 LEFT JOIN ' . $this->db->prefixTable('accounting_journals') . \" j ON j.source_type = ? AND j.source_id = p.payment_id AND {$standing}\n                 LEFT JOIN \" . $this->db->prefixTable('accounting_journal_lines') . ' l ON l.journal_id = j.journal_id\n                 LEFT JOIN ' . $this->db->prefixTable('accounting_accounts') . ' a ON a.account_id = l.account_id AND (a.entity_type = ? OR a.account_id = ?)\n                 WHERE p.sale_id IN (' . implode(',', array_map('intval', $chunk)) . ')\n                 ",
+    "tests": [
+      "--filter",
+      "NestsOnlyThePaymentsThatSettledTheInvoice",
+      "tests/Libraries/Accounting/OperationalReports/NetPositionReportTest.php"
+    ]
   }
 ]

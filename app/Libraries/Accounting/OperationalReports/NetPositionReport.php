@@ -208,7 +208,8 @@ final class NetPositionReport
     }
 
     /**
-     * The payments and the credit applied that settled each invoice, as rows to put under it.
+     * The payments that stand and the credit applied that settled each invoice, as rows to put under it, the
+     * payments as what their journals credited the customer, so that the rows add up to what the invoice shows paid.
      *
      * @param list<ReportDocument> $invoices
      *
@@ -220,11 +221,11 @@ final class NetPositionReport
         $nested = [];
 
         foreach (array_chunk($ids, 400) as $chunk) {
-            foreach ($this->db->table('sales_payments')->select('payment_id, sale_id, payment_amount, cash_refund, payment_time')->whereIn('sale_id', $chunk)->where('cash_adjustment', 0)->where('payment_status', 'completed')->orderBy('payment_id', 'ASC')->get()->getResult() as $payment) {
-                $amount = bcsub((string) $payment->payment_amount, (string) $payment->cash_refund, SaleAmounts::SCALE);
-
-                if (! Amounts::isZero($amount)) {
-                    $nested[(int) $payment->sale_id][] = ['number' => '#' . $payment->payment_id, 'kind' => lang('Accounting_operational_reports.row_payment'), 'date' => substr((string) $payment->payment_time, 0, 10), 'customer' => '', 'paid' => bcadd($amount, '0', SaleAmounts::SCALE), 'status' => ''];
+            foreach ($this->documents->paymentsOf($chunk) as $saleId => $payments) {
+                foreach ($payments as $payment) {
+                    if (! Amounts::isZero($payment['amount'])) {
+                        $nested[$saleId][] = ['number' => '#' . $payment['id'], 'kind' => lang('Accounting_operational_reports.row_payment'), 'date' => $payment['date'], 'customer' => '', 'paid' => $payment['amount'], 'status' => ''];
+                    }
                 }
             }
 

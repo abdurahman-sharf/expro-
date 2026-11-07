@@ -384,6 +384,41 @@ final class ReportDocuments
     }
 
     /**
+     * The payments that stand on each sale, one per payment, as what its journal credited the account of the
+     * customer or the counter account, oldest first. A payment with no journal that stands, or none on those
+     * accounts, as a sale on credit is, is not one.
+     *
+     * @param list<int> $saleIds
+     *
+     * @return array<int, list<array{id: int, date: string, amount: numeric-string}>> By sale.
+     */
+    public function paymentsOf(array $saleIds): array
+    {
+        $payments                      = [];
+        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', null);
+
+        foreach (array_chunk(array_values(array_unique($saleIds)), 400) as $chunk) {
+            $rows = $this->db->query(
+                'SELECT p.sale_id, p.payment_id, p.payment_time, SUM(l.credit - l.debit) AS paid
+                 FROM ' . $this->db->prefixTable('sales_payments') . ' p
+                 JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = p.payment_id AND {$standing}
+                 JOIN " . $this->db->prefixTable('accounting_journal_lines') . ' l ON l.journal_id = j.journal_id
+                 JOIN ' . $this->db->prefixTable('accounting_accounts') . ' a ON a.account_id = l.account_id AND (a.entity_type = ? OR a.account_id = ?)
+                 WHERE p.sale_id IN (' . implode(',', array_map('intval', $chunk)) . ')
+                 GROUP BY p.sale_id, p.payment_id, p.payment_time
+                 ORDER BY p.payment_id ASC',
+                [SalePostingBuilder::SOURCE_PAYMENT, ...$standingBindings, EntityAccountService::CUSTOMER, $this->counterAccountId()],
+            )->getResult();
+
+            foreach ($rows as $row) {
+                $payments[(int) $row->sale_id][] = ['id' => (int) $row->payment_id, 'date' => substr((string) $row->payment_time, 0, 10), 'amount' => bcadd((string) $row->paid, '0', SaleAmounts::SCALE)];
+            }
+        }
+
+        return $payments;
+    }
+
+    /**
      * What the payments that stand credited the account of the customer or the counter account, by sale.
      *
      * @param list<int> $saleIds
@@ -392,24 +427,10 @@ final class ReportDocuments
      */
     private function paid(array $saleIds): array
     {
-        $paid                          = [];
-        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', null);
+        $paid = [];
 
-        foreach (array_chunk($saleIds, 400) as $chunk) {
-            $rows = $this->db->query(
-                'SELECT p.sale_id, SUM(l.credit - l.debit) AS paid
-                 FROM ' . $this->db->prefixTable('sales_payments') . ' p
-                 JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = p.payment_id AND {$standing}
-                 JOIN " . $this->db->prefixTable('accounting_journal_lines') . ' l ON l.journal_id = j.journal_id
-                 JOIN ' . $this->db->prefixTable('accounting_accounts') . ' a ON a.account_id = l.account_id AND (a.entity_type = ? OR a.account_id = ?)
-                 WHERE p.sale_id IN (' . implode(',', array_map('intval', $chunk)) . ')
-                 GROUP BY p.sale_id',
-                [SalePostingBuilder::SOURCE_PAYMENT, ...$standingBindings, EntityAccountService::CUSTOMER, $this->counterAccountId()],
-            )->getResult();
-
-            foreach ($rows as $row) {
-                $paid[(int) $row->sale_id] = bcadd((string) $row->paid, '0', SaleAmounts::SCALE);
-            }
+        foreach ($this->paymentsOf($saleIds) as $saleId => $payments) {
+            $paid[$saleId] = array_reduce($payments, static fn (string $sum, array $payment): string => Amounts::add($sum, $payment['amount']), Amounts::ZERO);
         }
 
         return $paid;

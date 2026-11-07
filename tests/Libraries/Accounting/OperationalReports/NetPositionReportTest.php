@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting\OperationalReports;
 
 use App\Libraries\Accounting\OperationalReports\NetPositionReport;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
+use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\ReportScope;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -178,6 +179,66 @@ class NetPositionReportTest extends CIUnitTestCase
 
         $this->assertNotNull($block);
         $this->assertSame([lang('Accounting_operational_reports.kind_invoice'), lang('Accounting_operational_reports.row_payment'), lang('Accounting_operational_reports.row_credit_applied'), lang('Accounting_operational_reports.kind_refund_invoice')], array_column($block->rows, 'kind'));
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function paymentRowsOf(ReportTable $table, int $saleId): array
+    {
+        foreach ($table->blocks as $block) {
+            if ($block->rows[0]['number'] === $this->numberOf($saleId)) {
+                return array_values(array_filter($block->rows, static fn (array $row): bool => $row['kind'] === lang('Accounting_operational_reports.row_payment')));
+            }
+        }
+
+        $this->fail("No block for sale {$saleId}.");
+    }
+
+    public function testBuild_NestsOnlyThePaymentsThatSettledTheInvoiceAndNotTheCreditSoldOnDue(): void
+    {
+        $invoice = $this->invoiceOf('100', $this->customerId, [$this->payment(lang('Sales.cash'), '40'), $this->payment(lang('Sales.due'), '60')]);
+        $table   = $this->table(true);
+
+        $rows = $this->paymentRowsOf($table, $invoice);
+
+        $this->assertSame(['40.0000'], array_column($rows, 'paid'));
+        $this->assertSame('40.0000', $this->rowOf($table, $this->numberOf($invoice))['paid']);
+    }
+
+    public function testBuild_NestsNoPaymentWhoseJournalWasReversed(): void
+    {
+        $invoice = $this->invoiceOf('100', $this->customerId, [$this->payment(lang('Sales.cash'), '60')]);
+        $journal = $this->accountingDb()->table('accounting_journals')->select('journal_id')->where(['source_type' => 'sale_payment', 'status' => 'posted'])->get()->getRow();
+
+        $this->assertSame(['60.0000'], array_column($this->paymentRowsOf($this->table(true), $invoice), 'paid'));
+
+        (new JournalService())->reverseAutomatic((int) $journal->journal_id, date('Y-m-d'), 'Taken back', null);
+
+        $table = $this->table(true);
+
+        $this->assertSame([], $this->paymentRowsOf($table, $invoice));
+        $this->assertSame('0.0000', $this->rowOf($table, $this->numberOf($invoice))['paid']);
+    }
+
+    public function testBuild_TiesTheNestedPaymentsOfEveryInvoiceToItsSettledAmount(): void
+    {
+        $ids   = $this->documents();
+        $table = $this->table(true);
+
+        foreach (['paid', 'returned'] as $name) {
+            $block = null;
+
+            foreach ($table->blocks as $candidate) {
+                if ($candidate->rows[0]['number'] === $this->numberOf($ids[$name])) {
+                    $block = $candidate;
+                }
+            }
+
+            $settled = array_sum(array_map('floatval', array_column(array_filter($block->rows, static fn (array $row): bool => in_array($row['kind'], [lang('Accounting_operational_reports.row_payment'), lang('Accounting_operational_reports.row_credit_applied')], true)), 'paid')));
+
+            $this->assertEqualsWithDelta((float) $block->rows[0]['paid'], $settled, 0.00001);
+        }
     }
 
     public function testBuild_TiesTheNetAndTheSettledAmountsToTheLedgerOfEachCustomer(): void
