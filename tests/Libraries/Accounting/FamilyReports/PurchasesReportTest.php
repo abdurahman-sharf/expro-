@@ -188,7 +188,7 @@ final class PurchasesReportTest extends FamilyReportTestCase
 
         $this->expectException(AccountingException::class);
 
-        $this->built($this->report, ['group' => 'day', 'from' => '2000-01-01', 'to' => '2026-01-01']);
+        $this->built($this->report, ['group' => 'day', 'from' => '2000-01-01', 'to' => $this->today()]);
     }
 
     public function testRead_GivesTheLinesOfEveryDocumentWithTheRoundingOnTheLastLine(): void
