@@ -7952,4 +7952,26 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
             $this->accountingDb()->table('item_kits')->where('item_kit_id', $kitId)->delete();
         }
     }
+
+    public function testGetIndex_PricesTheQuickItemTilesInTheCurrencyOfTheSale(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+        $key        = 'sales_quick_items_' . DEFAULT_QUICK_ITEMS;
+
+        cache()->save($key, [(object) ['item_id' => $itemId, 'item_number' => null, 'name' => 'Tile item', 'unit_price' => '375.00']], 300);
+
+        try {
+            $base = $this->get('/sales')->getBody();
+
+            $this->chooseCurrency('USD');
+
+            $foreign = $this->get('/sales')->getBody();
+        } finally {
+            cache()->delete($key);
+        }
+
+        $this->assertMatchesRegularExpression('/pos-top-tile-price num">[^<]*375\.00/', $base);
+        $this->assertMatchesRegularExpression('/pos-top-tile-price num">[^<]*USD[^<]*100\.00|pos-top-tile-price num">[^<]*100\.00[^<]*USD/', $foreign);
+        $this->assertDoesNotMatchRegularExpression('/pos-top-tile-price num">[^<]*375/', $foreign);
+    }
 }
