@@ -13,6 +13,7 @@ use App\Libraries\Accounting\JournalAttachments;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\JournalSettings;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\RevenuePostingBuilder;
 use App\Libraries\Accounting\TreasuryService;
@@ -41,6 +42,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         parent::setUp();
 
         $this->prepareAccounting();
+        $this->resetJournalSettings();
     }
 
     protected function tearDown(): void
@@ -2200,5 +2202,253 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
 
         $this->assertSame(1, substr_count($body, '<option value="tax_definition">' . lang('Accounting.entity_tax_definition') . '</option>'));
         $this->assertSame([lang('Accounting.action_mode_changed'), lang('Accounting.action_tax_account_changed')], array_column($rows, 'action'));
+    }
+
+    /**
+     * @return array{0: int, 1: int}
+     */
+    private function twoCenters(): array
+    {
+        $centers = new CostCenterService();
+
+        return [$centers->create(['code' => 'A', 'name' => 'Alpha']), $centers->create(['code' => 'B', 'name' => 'Beta'])];
+    }
+
+    public function testGetNew_OffersTheDistributionOfEveryLineOverTheCostCenters(): void
+    {
+        $this->accountant();
+        $this->twoCenters();
+
+        $body = $this->get('/accounting_journals/new')->response()->getBody();
+
+        $this->assertSame(3, substr_count($body, 'class="acc-dist"'));
+        $this->assertStringContainsString('name="' . esc('lines[0][cost_center_id]', 'attr') . '"', $body);
+        $this->assertStringContainsString('data-name="' . esc('lines[__INDEX__]', 'attr') . '"', $body);
+        $this->assertStringContainsString('const journal_distribution', $body);
+        $this->assertStringContainsString('title="' . esc(lang('Accounting_journals.distribute'), 'attr') . '"', $body);
+    }
+
+    public function testGetNew_OffersTagsAndTheTaxNoteOnlyWhileTheirSettingsAreOn(): void
+    {
+        $this->accountant();
+        $name = static fn (int $line, string $field): string => 'name="' . esc("lines[{$line}][{$field}]", 'attr') . '"';
+
+        $off = $this->get('/accounting_journals/new')->response()->getBody();
+
+        $this->assertStringNotContainsString($name(0, 'tags'), $off);
+        $this->assertStringNotContainsString($name(0, 'tax_code'), $off);
+
+        $this->setConfigValue(JournalSettings::LINE_TAGS, '1');
+        $tags = $this->get('/accounting_journals/new')->response()->getBody();
+
+        $this->assertStringContainsString($name(0, 'tags'), $tags);
+        $this->assertStringNotContainsString($name(0, 'tax_code'), $tags);
+
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+        $both = $this->get('/accounting_journals/new')->response()->getBody();
+
+        $this->assertStringContainsString($name(1, 'tax_code'), $both);
+        $this->assertStringContainsString($name(1, 'tax_percent'), $both);
+        $this->assertStringContainsString($name(1, 'tax_included'), $both);
+        $this->assertStringContainsString(lang('Accounting_journals.tax_note_hint'), $both);
+    }
+
+    public function testGetNew_CarriesTheDefaultDistributionOfTheAccountsThatHaveOneAndOnlyOfCentersThatAreOn(): void
+    {
+        $this->accountant();
+        [$a, $b] = $this->twoCenters();
+        $centers = new CostCenterService();
+        $revenue = $this->accountId('sales_revenue');
+
+        $centers->setDefaults($revenue, [['cost_center_id' => $a, 'percent' => '25'], ['cost_center_id' => $b, 'percent' => '75']]);
+        $centers->deactivate($b);
+
+        $this->assertStringContainsString('"' . $revenue . '":[{"cost_center_id":' . $a . ',"percent":"25.0000"}]', $this->get('/accounting_journals/new')->response()->getBody());
+    }
+
+    public function testGetNew_ExplainsTheLimitOfADistributionOverOneHundredPercent(): void
+    {
+        $this->accountant();
+
+        $this->assertStringContainsString('const overAllowed = false', $this->get('/accounting_journals/new')->response()->getBody());
+
+        $this->setConfigValue(JournalSettings::OVER_100, '1');
+
+        $this->assertStringContainsString('const overAllowed = true', $this->get('/accounting_journals/new')->response()->getBody());
+    }
+
+    public function testPostPost_PostsTheDistributionOfALineTheFormSent(): void
+    {
+        $this->accountant();
+        [$a, $b] = $this->twoCenters();
+        $input   = $this->formInput();
+
+        $input['lines'][1]['distribution'] = [['cost_center_id' => (string) $a, 'percent' => '33.3333'], ['cost_center_id' => (string) $b, 'percent' => '66.6667'], ['cost_center_id' => '', 'percent' => '', 'amount' => '']];
+
+        $result = $this->jsonOf($this->post('/accounting_journals/post', $input));
+
+        $this->assertTrue($result['success']);
+
+        $rows = $this->accountingDb()->table('accounting_journal_line_distributions')->select('percent, amount')->orderBy('distribution_id')->get()->getResultArray();
+
+        $this->assertSame([['percent' => '33.3333', 'amount' => '33.3300'], ['percent' => '66.6667', 'amount' => '66.6700']], $rows);
+    }
+
+    public function testPostPost_NamesTheLineWhenItsDistributionDoesNotAddUpTo100(): void
+    {
+        $this->accountant();
+        [$a, $b] = $this->twoCenters();
+        $input   = $this->formInput();
+
+        $input['lines'][1]['distribution'] = [['cost_center_id' => (string) $a, 'percent' => '60'], ['cost_center_id' => (string) $b, 'percent' => '30']];
+
+        $result = $this->jsonOf($this->post('/accounting_journals/post', $input));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('2', $result['message']);
+        $this->assertStringContainsString('90.0000', $result['message']);
+        $this->assertStringContainsString('100', $result['message']);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPostPost_NamesTheLineThatNeedsACostCenterWhenTheSettingAsksForOne(): void
+    {
+        $this->accountant();
+        $this->setConfigValue(JournalSettings::CENTER_REQUIRED, '1');
+
+        $result = $this->jsonOf($this->post('/accounting_journals/post', $this->formInput()));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_cost_center_required', ['2']), $result['message']);
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPostPost_SavesTheTagsAndTheTaxNoteOfALineAndShowsThemEscaped(): void
+    {
+        $this->accountant();
+        $this->setConfigValue(JournalSettings::LINE_TAGS, '1');
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+        $input = $this->formInput();
+
+        $input['lines'][1]['tags']         = 'rent, <script>alert(1)</script>';
+        $input['lines'][1]['tax_code']     = 'VAT15';
+        $input['lines'][1]['tax_percent']  = '15';
+        $input['lines'][1]['tax_included'] = '1';
+
+        $result = $this->jsonOf($this->post('/accounting_journals/post', $input));
+
+        $this->assertTrue($result['success']);
+
+        $page = $this->get('/accounting_journals/view/' . $result['id'])->response()->getBody();
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $page);
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $page);
+        $this->assertStringContainsString('VAT15', $page);
+        $this->assertStringContainsString(lang('Accounting_journals.tax_note'), $page);
+    }
+
+    public function testGetShow_ListsTheSharesOfADistributedLineWithTheirPercentAndAmount(): void
+    {
+        $this->accountant();
+        [$a, $b] = $this->twoCenters();
+        $input   = $this->journalInput();
+
+        $input['lines'][1]['distribution'] = [['cost_center_id' => $a, 'percent' => '60'], ['cost_center_id' => $b, 'percent' => '40']];
+
+        $journalId = (new JournalService())->postNew($input);
+
+        $page = $this->get('/accounting_journals/view/' . $journalId)->response()->getBody();
+
+        $this->assertStringContainsString('A - Alpha', $page);
+        $this->assertStringContainsString('60%', $page);
+        $this->assertStringContainsString('B - Beta', $page);
+        $this->assertStringContainsString('40%', $page);
+    }
+
+    public function testGetEditDetails_ShowsTheDistributionOfTheLineAndKeepsTheCenterThatWasSwitchedOff(): void
+    {
+        [$a, $b]   = $this->twoCenters();
+        $journalId = $this->automaticJournal();
+        [$first]   = $this->lineIdsOf($journalId);
+        $editor    = $this->detailsEditor();
+
+        (new JournalService())->updateDetails($journalId, ['lines' => [$first => ['distribution' => [['cost_center_id' => $a, 'percent' => '60'], ['cost_center_id' => $b, 'percent' => '40']]]]], $editor);
+        (new CostCenterService())->deactivate($b);
+
+        $body = $this->get('/accounting_journals/edit_details/' . $journalId)->response()->getBody();
+
+        $rows = json_encode([['id' => $a, 'percent' => '60'], ['id' => $b, 'percent' => '40']], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+
+        $this->assertStringContainsString('data-rows="' . esc($rows, 'attr') . '"', $body);
+        $this->assertStringContainsString('data-amount="100.0000"', $body);
+        $this->assertStringContainsString('name="' . esc('lines[' . $first . '][cost_center_id]', 'attr') . '"', $body);
+    }
+
+    public function testPostSaveDetails_SavesADistributionAndWritesItToTheAuditLog(): void
+    {
+        [$a, $b]   = $this->twoCenters();
+        $journalId = $this->automaticJournal();
+        [$first]   = $this->lineIdsOf($journalId);
+        $employee  = $this->detailsEditor();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, [
+            'description' => 'Invoice 7',
+            'lines'       => [$first => ['description' => 'Cash received', 'cost_center_id' => '', 'distribution' => [['cost_center_id' => (string) $a, 'percent' => '70'], ['cost_center_id' => (string) $b, 'percent' => '30']]]],
+        ]));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_journals.details_saved'), $result['message']);
+        $this->assertSame(2, $this->countRows('accounting_journal_line_distributions'));
+
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where('action', 'details_edited')->get()->getRow();
+
+        $this->assertSame((string) $employee, (string) $audit->employee_id);
+        $this->assertStringContainsString('"percent":"70.0000"', $audit->details);
+    }
+
+    public function testPostSaveDetails_RejectsADistributionThatDoesNotAddUpTo100AndChangesNothing(): void
+    {
+        [$a, $b]   = $this->twoCenters();
+        $journalId = $this->automaticJournal();
+        [$first]   = $this->lineIdsOf($journalId);
+        $this->detailsEditor();
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, [
+            'description' => 'Changed',
+            'lines'       => [$first => ['distribution' => [['cost_center_id' => (string) $a, 'percent' => '70'], ['cost_center_id' => (string) $b, 'percent' => '20']]]],
+        ]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, $this->countRows('accounting_journal_line_distributions'));
+        $this->assertSame('Invoice 7', (new JournalService())->find($journalId)->description);
+    }
+
+    public function testPostSaveDetails_RejectsADistributionWithoutThePermissionToEditDetails(): void
+    {
+        [$a]       = $this->twoCenters();
+        $journalId = $this->automaticJournal();
+        [$first]   = $this->lineIdsOf($journalId);
+        $this->actAs($this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_ALL]));
+
+        $result = $this->jsonOf($this->post('/accounting_journals/save_details/' . $journalId, ['lines' => [$first => ['cost_center_id' => (string) $a]]]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $result['message']);
+        $this->assertNull((new JournalService())->find($journalId)->lines[0]->cost_center_id);
+    }
+
+    public function testPostReverse_GivesTheReversalTheDistributionOfTheJournal(): void
+    {
+        $this->accountant();
+        [$a, $b] = $this->twoCenters();
+        $input   = $this->journalInput();
+
+        $input['lines'][1]['distribution'] = [['cost_center_id' => $a, 'percent' => '60'], ['cost_center_id' => $b, 'percent' => '40']];
+
+        $journalId = (new JournalService())->postNew($input);
+        $result    = $this->jsonOf($this->post('/accounting_journals/reverse/' . $journalId, ['date' => '2026-10-22', 'reason' => 'Mistake']));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(4, $this->countRows('accounting_journal_line_distributions'));
     }
 }

@@ -978,7 +978,7 @@ final class JournalService
      * distribution keeps it unless the input gives rows or a cost center, and a tag or a tax note
      * that is left out of the input stays as it is.
      *
-     * @param list<object>                                                  $lines
+     * @param list<object>                                                          $lines
      * @param array{description?: ?string, lines: array<int, array<string, mixed>>} $details
      *
      * @return array{journal?: array<string, ?string>, lines: array<int, array<string, mixed>>, analysis: array<int, LineAnalysis>, before: array<string, mixed>, after: array<string, mixed>}
@@ -1037,7 +1037,7 @@ final class JournalService
                     }
 
                     $before += $this->chargeOf($stored);
-                    $after  += $this->chargeOf($desired);
+                    $after += $this->chargeOf($desired);
                 }
 
                 foreach (['tags' => 'tags', 'tax' => 'tax'] as $property => $key) {

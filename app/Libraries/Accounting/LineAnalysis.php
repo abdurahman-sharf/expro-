@@ -12,8 +12,8 @@ namespace App\Libraries\Accounting;
 final readonly class LineAnalysis
 {
     /**
-     * @param list<array{cost_center_id: int, percent: numeric-string, amount: numeric-string}> $distribution
-     * @param list<string>                                                                       $tags
+     * @param list<array{cost_center_id: int, percent: numeric-string, amount: numeric-string}>         $distribution
+     * @param list<string>                                                                              $tags
      * @param array{code: string, percent: numeric-string, included: bool, amount: numeric-string}|null $tax
      */
     public function __construct(

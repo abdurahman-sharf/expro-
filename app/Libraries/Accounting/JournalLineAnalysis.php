@@ -33,8 +33,8 @@ final class JournalLineAnalysis
     /**
      * What a person asked for on a line, cleaned and checked. Nothing is written.
      *
-     * @param array<string, mixed> $line   The input of the line: cost_center_id, distribution rows, tags, tax_code, tax_percent and tax_included.
-     * @param numeric-string       $amount The debit or the credit of the line.
+     * @param array<string, mixed> $line     The input of the line: cost_center_id, distribution rows, tags, tax_code, tax_percent and tax_included.
+     * @param numeric-string       $amount   The debit or the credit of the line.
      * @param bool                 $complete Whether a distribution must be whole, as it must be to post.
      *
      * @throws AccountingException
@@ -233,7 +233,7 @@ final class JournalLineAnalysis
      */
     private function tagsOf(mixed $raw, int $lineNumber): array
     {
-        $parts = is_array($raw) ? $raw : (is_string($raw) ? preg_split('/[,\x{060C};\n]+/u', $raw) : []);
+        $parts = is_array($raw) ? $raw : (is_string($raw) ? preg_split('/[,\x{060C}\x{061B};\n]+/u', $raw) : []);
         $tags  = [];
 
         foreach ((array) $parts as $part) {

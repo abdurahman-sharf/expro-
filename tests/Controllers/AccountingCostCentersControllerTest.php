@@ -281,4 +281,105 @@ class AccountingCostCentersControllerTest extends CIUnitTestCase
         $this->assertFalse($result['success']);
         $this->assertSame(0, $this->countRows('accounting_cost_centers'));
     }
+
+    public function testGetDefaults_ListsTheAccountsThatHaveADefaultDistributionAndShowsTheRowsOfTheOneChosen(): void
+    {
+        $this->manager();
+        $service = new CostCenterService();
+        $a       = $service->create(['code' => 'A', 'name' => 'Alpha']);
+        $b       = $service->create(['code' => 'B', 'name' => 'Beta']);
+        $cash    = $this->accountId('cash');
+
+        $service->setDefaults($cash, [['cost_center_id' => $a, 'percent' => '25'], ['cost_center_id' => $b, 'percent' => '75']]);
+
+        $list = $this->get('/accounting_cost_centers/defaults')->response()->getBody();
+
+        $this->assertStringContainsString('href="' . esc(base_url('accounting_cost_centers/defaults/' . $cash), 'attr') . '"', $list);
+        $this->assertStringNotContainsString('id="defaults_form"', $list);
+
+        $one = $this->get('/accounting_cost_centers/defaults/' . $cash)->response()->getBody();
+
+        $this->assertStringContainsString('id="defaults_form"', $one);
+        $this->assertStringContainsString('[{"id":' . $a . ',"percent":"25"},{"id":' . $b . ',"percent":"75"}]', $one);
+    }
+
+    public function testGetDefaults_ShowsTheRowsButNoSaveToAUserWhoMayNotManageCostCenters(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_cost_centers']));
+
+        $page = $this->get('/accounting_cost_centers/defaults/' . $this->accountId('cash'))->response()->getBody();
+
+        $this->assertStringContainsString('id="defaults_form"', $page);
+        $this->assertStringNotContainsString('id="defaults_add"', $page);
+        $this->assertStringContainsString(lang('Accounting_cost_centers.defaults_permission_note'), $page);
+    }
+
+    public function testGetDefaults_IsNotFoundWhileAccountingIsOffAndRedirectsAUserWithoutTheModuleGrant(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_chart']));
+
+        $this->get('/accounting_cost_centers/defaults')->assertRedirect();
+
+        $this->prepareAccounting(false);
+        $this->actAs($this->employeeWithGrants(['accounting_cost_centers']));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_cost_centers/defaults');
+    }
+
+    public function testPostSaveDefaults_StoresTheRowsOfAnAccountAndSaysWhenNothingChanged(): void
+    {
+        $this->manager();
+        $service = new CostCenterService();
+        $a       = $service->create(['code' => 'A', 'name' => 'Alpha']);
+        $b       = $service->create(['code' => 'B', 'name' => 'Beta']);
+        $cash    = $this->accountId('cash');
+        $rows    = ['rows' => [['cost_center_id' => (string) $a, 'percent' => '40'], ['cost_center_id' => (string) $b, 'percent' => '60']]];
+
+        $result = $this->jsonOf($this->post('/accounting_cost_centers/save_defaults/' . $cash, $rows));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_cost_centers.defaults_saved'), $result['message']);
+        $this->assertCount(2, $service->defaultsOf($cash));
+        $this->assertSame(lang('Accounting_cost_centers.defaults_unchanged'), $this->jsonOf($this->post('/accounting_cost_centers/save_defaults/' . $cash, $rows))['message']);
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_cost_centers/save_defaults/' . $cash, []))['success']);
+        $this->assertSame([], $service->defaultsOf($cash));
+    }
+
+    public function testPostSaveDefaults_SaysWhyTheRowsAreRefusedAndKeepsWhatWasThere(): void
+    {
+        $this->manager();
+        $service = new CostCenterService();
+        $a       = $service->create(['code' => 'A', 'name' => 'Alpha']);
+        $cash    = $this->accountId('cash');
+
+        $service->setDefaults($cash, [['cost_center_id' => $a, 'percent' => '100']]);
+
+        $result = $this->jsonOf($this->post('/accounting_cost_centers/save_defaults/' . $cash, ['rows' => [['cost_center_id' => (string) $a, 'percent' => '50']]]));
+
+        $account = $this->accountingDb()->table('accounting_accounts')->where('account_id', $cash)->get()->getRow();
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_default_distribution_invalid', [$account->code . ' ' . $account->name]), $result['message']);
+        $this->assertSame(['100.0000'], array_map(static fn (object $row): string => $row->percent, $service->defaultsOf($cash)));
+    }
+
+    public function testPostSaveDefaults_RefusesAUserWithoutThePermissionAndAnEmployeeLimitedToBranches(): void
+    {
+        $service = new CostCenterService();
+        $a       = $service->create(['code' => 'A', 'name' => 'Alpha']);
+        $cash    = $this->accountId('cash');
+        $rows    = ['rows' => [['cost_center_id' => (string) $a, 'percent' => '100']]];
+
+        $this->actAs($this->employeeWithGrants(['accounting_cost_centers']));
+
+        $this->assertSame(lang('Accounting.error_permission_denied'), $this->jsonOf($this->post('/accounting_cost_centers/save_defaults/' . $cash, $rows))['message']);
+
+        $this->actAs($this->employeeWithGrants(['accounting_cost_centers', AccountingGuard::COST_CENTERS_MANAGE], [1]));
+
+        $this->assertFalse($this->jsonOf($this->post('/accounting_cost_centers/save_defaults/' . $cash, $rows))['success']);
+        $this->assertSame([], $service->defaultsOf($cash));
+    }
 }

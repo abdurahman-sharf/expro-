@@ -143,13 +143,13 @@ class AccountingCostCenters extends AccountingController
         $rows = $accountId > 0 ? $this->costCenters->defaultsOf($accountId) : [];
 
         return view('accounting_cost_centers/defaults', [
-            'accounts'    => $accounts,
-            'account_id'  => isset($accounts[$accountId]) || $rows !== [] ? $accountId : 0,
-            'rows'        => array_map(static fn (object $row): array => ['id' => (int) $row->cost_center_id, 'percent' => rtrim(rtrim($row->percent, '0'), '.')], $rows),
-            'centers'     => $this->costCenters->selectable(),
-            'labels'      => $this->costCenters->labels(),
-            'defaults'    => $this->costCenters->accountsWithDefaults(),
-            'can_manage'  => $this->canManage(AccountingGuard::COST_CENTERS_MANAGE),
+            'accounts'   => $accounts,
+            'account_id' => isset($accounts[$accountId]) || $rows !== [] ? $accountId : 0,
+            'rows'       => array_map(static fn (object $row): array => ['id' => (int) $row->cost_center_id, 'percent' => rtrim(rtrim($row->percent, '0'), '.')], $rows),
+            'centers'    => $this->costCenters->selectable(),
+            'labels'     => $this->costCenters->labels(),
+            'defaults'   => $this->costCenters->accountsWithDefaults(),
+            'can_manage' => $this->canManage(AccountingGuard::COST_CENTERS_MANAGE),
         ]);
     }
 

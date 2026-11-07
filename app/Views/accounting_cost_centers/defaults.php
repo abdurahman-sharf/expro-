@@ -1,14 +1,13 @@
 <?php
 /**
- * @var array<int, string>                         $accounts   The accounts a default can be set on, by id.
- * @var int                                        $account_id The account being set, or 0.
- * @var list<array{id: int, percent: string}>      $rows       Its default distribution now.
- * @var list<object>                               $centers    The cost centers that may be chosen.
- * @var array<int, string>                         $labels
- * @var list<object>                               $defaults   The accounts that have a default.
- * @var bool                                       $can_manage
+ * @var array<int, string>                    $accounts   The accounts a default can be set on, by id.
+ * @var int                                   $account_id The account being set, or 0.
+ * @var list<array{id: int, percent: string}> $rows       Its default distribution now.
+ * @var list<object>                          $centers    The cost centers that may be chosen.
+ * @var array<int, string>                    $labels
+ * @var list<object>                          $defaults   The accounts that have a default.
+ * @var bool                                  $can_manage
  */
-
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
 

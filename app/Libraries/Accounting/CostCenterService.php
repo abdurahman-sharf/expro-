@@ -10,9 +10,8 @@ final class CostCenterService
 {
     use RunsInTransaction;
 
-    public const MAX_ROWS = 20;
-    public const TOTAL_CAP = '200';
-
+    public const MAX_ROWS         = 20;
+    public const TOTAL_CAP        = '200';
     private const CODE_PATTERN    = '/^[0-9A-Za-z][0-9A-Za-z\-]{0,31}$/';
     private const NAME_MAX        = 255;
     private const PERCENT_PATTERN = '/^\d{1,3}(\.\d{1,4})?$/';
@@ -250,10 +249,10 @@ final class CostCenterService
      * only while the setting allows it, up to the cap. An incomplete one, which a draft may keep, may
      * add up to less. A row may give an amount instead of a percent, and then the percent follows from it.
      *
-     * @param list<mixed> $rows       Each row names a cost center and gives a percent or an amount.
+     * @param list<mixed>    $rows       Each row names a cost center and gives a percent or an amount.
      * @param numeric-string $lineAmount The debit or the credit of the line.
-     * @param int         $lineNumber The line the rows belong to, which a refusal names.
-     * @param bool|null   $allowOver  What the setting says when null.
+     * @param int            $lineNumber The line the rows belong to, which a refusal names.
+     * @param bool|null      $allowOver  What the setting says when null.
      *
      * @return list<array{cost_center_id: int, percent: numeric-string, amount: numeric-string}>
      *
@@ -266,9 +265,9 @@ final class CostCenterService
         }
 
         $allowOver ??= (new JournalSettings($this->db))->allowOver100();
-        $limit       = $allowOver ? self::TOTAL_CAP : '100';
-        $parsed      = [];
-        $total       = '0.0000';
+        $limit  = $allowOver ? self::TOTAL_CAP : '100';
+        $parsed = [];
+        $total  = '0.0000';
 
         foreach ($rows as $row) {
             $centerId = is_array($row) && isset($row['cost_center_id']) && is_scalar($row['cost_center_id']) && ctype_digit((string) $row['cost_center_id']) ? (int) $row['cost_center_id'] : 0;
@@ -307,7 +306,7 @@ final class CostCenterService
     }
 
     /**
-     * @param array<int, numeric-string> $percents The percent of each cost center, in order.
+     * @param array<int, numeric-string> $percents   The percent of each cost center, in order.
      * @param numeric-string             $total
      * @param numeric-string             $lineAmount
      *
@@ -330,9 +329,9 @@ final class CostCenterService
             $largest            = $largest === null || bccomp($percent, $percents[$largest], 4) > 0 ? $centerId : $largest;
         }
 
-        $target             = Money::round(bcdiv(bcmul($lineAmount, $total, self::WORK_SCALE), '100', self::WORK_SCALE), 4);
-        $amounts[$largest]  = bcadd($amounts[$largest], bcsub($target, $sum, 4), 4);
-        $shares             = [];
+        $target            = Money::round(bcdiv(bcmul($lineAmount, $total, self::WORK_SCALE), '100', self::WORK_SCALE), 4);
+        $amounts[$largest] = bcadd($amounts[$largest], bcsub($target, $sum, 4), 4);
+        $shares            = [];
 
         foreach ($percents as $centerId => $percent) {
             $shares[] = ['cost_center_id' => $centerId, 'percent' => bcadd($percent, '0', 4), 'amount' => bcadd($amounts[$centerId], '0', 4)];

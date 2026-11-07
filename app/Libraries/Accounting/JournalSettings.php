@@ -22,13 +22,12 @@ final class JournalSettings
     public const AUTOMATIC_DEFAULT = 'accounting_journal_default_distribution_automatic';
     public const LINE_TAGS         = 'accounting_journal_line_tags';
     public const LINE_TAX          = 'accounting_journal_line_tax';
-
-    private const KEYS = [
-        'allow_over_100'     => self::OVER_100,
+    private const KEYS             = [
+        'allow_over_100'       => self::OVER_100,
         'cost_center_required' => self::CENTER_REQUIRED,
-        'automatic_default'  => self::AUTOMATIC_DEFAULT,
-        'line_tags'          => self::LINE_TAGS,
-        'line_tax'           => self::LINE_TAX,
+        'automatic_default'    => self::AUTOMATIC_DEFAULT,
+        'line_tags'            => self::LINE_TAGS,
+        'line_tax'             => self::LINE_TAX,
     ];
 
     private BaseConnection $db;

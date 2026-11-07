@@ -10,23 +10,22 @@
  * @var bool         $overAllowed
  * @var string       $cap
  */
-
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
 <script type="text/javascript">
     const journal_distribution = (function() {
         const SCALE = 10000n;
         const text = <?= json_encode([
-            'center' => lang('Accounting_journals.distribution_center'),
-            'percent' => lang('Accounting_journals.distribution_percent'),
-            'amount' => lang('Accounting_journals.distribution_amount'),
-            'total' => lang('Accounting_journals.distribution_total'),
-            'add' => lang('Accounting_journals.distribution_add_row'),
-            'remove' => lang('Accounting_journals.distribution_remove_row'),
-            'choose' => lang('Accounting_journals.no_cost_center'),
-            'whole' => lang('Accounting_journals.distribution_whole'),
+            'center'    => lang('Accounting_journals.distribution_center'),
+            'percent'   => lang('Accounting_journals.distribution_percent'),
+            'amount'    => lang('Accounting_journals.distribution_amount'),
+            'total'     => lang('Accounting_journals.distribution_total'),
+            'add'       => lang('Accounting_journals.distribution_add_row'),
+            'remove'    => lang('Accounting_journals.distribution_remove_row'),
+            'choose'    => lang('Accounting_journals.no_cost_center'),
+            'whole'     => lang('Accounting_journals.distribution_whole'),
             'not_whole' => lang('Accounting_journals.distribution_not_whole'),
-            'over' => lang('Accounting_journals.distribution_over', [$cap]),
+            'over'      => lang('Accounting_journals.distribution_over', [$cap]),
         ], $jsonFlags) ?>;
         const centers = <?= json_encode(array_map(static fn (object $center): array => ['id' => (int) $center->cost_center_id, 'label' => $center->code . ' - ' . $center->name], $centers), $jsonFlags) ?>;
         const decimals = <?= (int) $decimals ?>;

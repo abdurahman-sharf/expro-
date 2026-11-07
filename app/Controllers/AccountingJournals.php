@@ -17,8 +17,8 @@ use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\JournalAttachments;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalOrigin;
-use App\Libraries\Accounting\JournalSettings;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\JournalSettings;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PeriodGuard;
 use App\Libraries\Accounting\PostingException;
@@ -136,18 +136,18 @@ class AccountingJournals extends AccountingController
         }
 
         return view('accounting_journals/edit_details', [
-            'journal'     => $journal,
-            'costCenters' => $costCenters,
+            'journal'      => $journal,
+            'costCenters'  => $costCenters,
             'centerLabels' => $service->labels(),
-            'settings'    => $settings->all(),
-            'decimals'    => (new Currencies())->baseDecimals(),
-            'cap'         => CostCenterService::TOTAL_CAP,
-            'currency'    => (new AccountingSettings())->baseCurrency(),
-            'numberLabel' => $this->displayNumber($journal->series, $journal->number),
-            'sourceLabel' => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
-            'showBranch'  => $this->seesBranches(),
-            'version'     => $this->journals->detailsVersion($journal, $journal->lines),
-            'notice'      => session()->getFlashdata('accounting_notice'),
+            'settings'     => $settings->all(),
+            'decimals'     => (new Currencies())->baseDecimals(),
+            'cap'          => CostCenterService::TOTAL_CAP,
+            'currency'     => (new AccountingSettings())->baseCurrency(),
+            'numberLabel'  => $this->displayNumber($journal->series, $journal->number),
+            'sourceLabel'  => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
+            'showBranch'   => $this->seesBranches(),
+            'version'      => $this->journals->detailsVersion($journal, $journal->lines),
+            'notice'       => session()->getFlashdata('accounting_notice'),
         ]);
     }
 
