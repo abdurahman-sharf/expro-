@@ -3,10 +3,10 @@
  * @var list<object>                                                    $rows
  * @var int                                                             $total
  * @var int                                                             $offset
- * @var int                                                             $page_size
+ * @var int                                                             $pageSize
  * @var array{status: string, search: string, from: string, to: string} $filters
  * @var bool                                                            $enabled
- * @var bool                                                            $can_manage
+ * @var bool                                                            $canManage
  * @var bool                                                            $scopeNotice
  * @var string                                                          $active
  * @var bool                                                            $requestsOn
@@ -28,7 +28,7 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
 
 <div id="title_bar" class="print_hide btn-toolbar">
     <h1 class="h5 me-auto mb-0"><?= lang('Stock_documents.requests_title') ?></h1>
-    <?php if ($can_manage && $enabled): ?>
+    <?php if ($canManage && $enabled): ?>
         <button class="btn btn-primary btn-sm modal-dlg request-dialog" id="request_new" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc(base_url('stock_documents/requests/form'), 'attr') ?>" title="<?= lang('Stock_documents.new_request') ?>">
             <span class="bi bi-plus-circle" aria-hidden="true">&nbsp;</span><?= lang('Stock_documents.new_request') ?>
         </button>
@@ -87,7 +87,7 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
             <?php endif; ?>
             <?php foreach ($rows as $row): ?>
                 <tr id="request_<?= (int) $row->request_id ?>">
-                    <td><bdi dir="ltr"><?= esc($row->document_number ?? '#' . $row->request_id) ?></bdi></td>
+                    <td><bdi dir="ltr"><?= esc($row->label) ?></bdi></td>
                     <td><bdi dir="ltr"><?= esc((string) $row->request_date) ?></bdi></td>
                     <td><?= esc((string) $row->from_location_name) ?> <bdi dir="ltr">(<?= esc((string) $row->from_branch_code) ?>)</bdi></td>
                     <td><?= esc((string) $row->to_location_name) ?> <bdi dir="ltr">(<?= esc((string) $row->branch_code) ?>)</bdi></td>
@@ -103,10 +103,10 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
 <nav class="d-flex gap-2 align-items-center" aria-label="<?= lang('Stock_documents.requests_title') ?>">
     <span class="text-body-secondary small"><?= lang('Stock_documents.count', [$total]) ?></span>
     <?php if ($offset > 0): ?>
-        <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('stock_documents/requests?' . $query(['offset' => max(0, $offset - $page_size)])), 'attr') ?>"><?= lang('Stock_documents.previous') ?></a>
+        <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('stock_documents/requests?' . $query(['offset' => max(0, $offset - $pageSize)])), 'attr') ?>"><?= lang('Stock_documents.previous') ?></a>
     <?php endif; ?>
-    <?php if ($offset + $page_size < $total): ?>
-        <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('stock_documents/requests?' . $query(['offset' => $offset + $page_size])), 'attr') ?>"><?= lang('Stock_documents.next') ?></a>
+    <?php if ($offset + $pageSize < $total): ?>
+        <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('stock_documents/requests?' . $query(['offset' => $offset + $pageSize])), 'attr') ?>"><?= lang('Stock_documents.next') ?></a>
     <?php endif; ?>
 </nav>
 

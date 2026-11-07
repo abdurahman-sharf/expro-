@@ -5,7 +5,7 @@
  * @var list<object>    $journals
  * @var string          $number
  * @var StockPermitType $type
- * @var bool            $can_manage
+ * @var bool            $canManage
  */
 use App\Libraries\Stock\StockPermitType;
 
@@ -26,7 +26,7 @@ $withCost = $type !== StockPermitType::Transfer;
     <h1 class="h5 me-auto mb-0"><?= lang($type->labelKey()) ?> <bdi dir="ltr"><?= esc($number) ?></bdi></h1>
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('stock_documents/permits'), 'attr') ?>"><?= lang('Stock_documents.back') ?></a>
     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Stock_documents.print') ?></button>
-    <?php if ($can_manage && $permit->status === 'posted'): ?>
+    <?php if ($canManage && $permit->status === 'posted'): ?>
         <button class="btn btn-outline-primary btn-sm modal-dlg permit-dialog" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc(base_url('stock_documents/permits/edit/' . (int) $permit->permit_id), 'attr') ?>"><?= lang('Stock_documents.edit') ?></button>
         <button class="btn btn-outline-danger btn-sm modal-dlg permit-dialog" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc(base_url('stock_documents/permits/cancel_form/' . (int) $permit->permit_id), 'attr') ?>"><?= lang('Stock_documents.cancel') ?></button>
     <?php endif; ?>

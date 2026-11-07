@@ -266,7 +266,7 @@ class LanguageFilesTest extends CIUnitTestCase
             $this->assertNotSame('', $module[$key] ?? '', "{$locale} lacks the module label {$key}");
         }
 
-        foreach (['action_stock_permit_created', 'action_stock_permit_edited', 'action_stock_permit_cancelled', 'action_stocktake_started', 'action_stocktake_approved', 'action_stocktake_cancelled', 'action_stock_request_created', 'action_stock_request_approved', 'action_stock_request_fulfilled', 'action_stock_request_cancelled', 'entity_stock_permit', 'entity_stocktake', 'entity_stock_request', 'source_stock_permit', 'source_stock_transfer_permit', 'source_stock_transfer_permit_receipt', 'source_stocktake'] as $key) {
+        foreach (['action_stock_permit_created', 'action_stock_permit_edited', 'action_stock_permit_cancelled', 'action_stocktake_started', 'action_stocktake_counted', 'action_stocktake_items_added', 'action_stocktake_item_removed', 'action_stocktake_approved', 'action_stocktake_cancelled', 'action_stock_request_created', 'action_stock_request_approved', 'action_stock_request_fulfilled', 'action_stock_request_cancelled', 'entity_stock_permit', 'entity_stocktake', 'entity_stock_request', 'source_stock_permit', 'source_stock_transfer_permit', 'source_stock_transfer_permit_receipt', 'source_stocktake'] as $key) {
             $this->assertNotSame('', $audit[$key] ?? '', "{$locale} lacks {$key}");
         }
     }
@@ -280,6 +280,26 @@ class LanguageFilesTest extends CIUnitTestCase
         foreach ($english as $key => $line) {
             $this->assertNotSame($line, $messages[$key], "{$locale} shows English for {$key}");
             $this->assertSame(substr_count($line, '{0}'), substr_count($messages[$key], '{0}'), "{$locale} keeps the placeholder of {$key}");
+        }
+
+        $this->assertStringNotContainsString('مستندًا', $messages['count'], "{$locale}: a counted noun in the accusative is wrong for most numbers");
+        $this->assertStringNotContainsString('إهمال', $messages['stocktake_manage'], "{$locale}: discarding a stocktake is cancelling it, not neglecting it");
+        $this->assertStringContainsString('ذلك الحين', $messages['cancel_approved_note'], $locale);
+        $this->assertStringContainsString('يُفعَّلا', $messages['settings_note'], "{$locale}: both of them are turned on");
+    }
+
+    #[DataProvider('arabicLocaleProvider')]
+    public function testAccountingFile_KeepsThePlaceholdersOfTheStocktakeRefusalsInArabic(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting.php";
+        $english  = include __DIR__ . '/../app/Language/en/Accounting.php';
+
+        foreach (['error_stocktake_changed', 'error_stocktake_count_changed', 'error_stocktake_item_open', 'error_stocktake_items_invalid'] as $key) {
+            $this->assertNotSame($english[$key], $messages[$key], "{$locale} shows English for {$key}");
+
+            foreach (['{0}', '{1}'] as $placeholder) {
+                $this->assertSame(substr_count($english[$key], $placeholder), substr_count($messages[$key], $placeholder), "{$locale} keeps {$placeholder} of {$key}");
+            }
         }
     }
 }

@@ -107,7 +107,7 @@ final class StockAdjustment
      * happens: what the movements of the location say a unit is worth, or the cost the item carries
      * when they do not account for the shelves.
      *
-     * @param numeric-string $quantityChange   Positive when the shelves gain units, negative when they lose them.
+     * @param numeric-string $quantityChange  Positive when the shelves gain units, negative when they lose them.
      * @param numeric-string $pendingQuantity What the shelves changed by that is not yet a movement.
      */
     public function valued(int $itemId, int $locationId, string $quantityChange, string $itemCost, string $pendingQuantity = '0'): StockMovement

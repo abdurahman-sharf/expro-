@@ -26,6 +26,7 @@ use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\StockPostingPlan;
 use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
@@ -329,6 +330,10 @@ final class StockPermit
             ->get()
             ->getResult();
 
+        foreach ($rows as $row) {
+            $row->label = $row->document_number ?? StockPermitType::from((string) $row->permit_type)->documentType()->fallback((int) $row->permit_id);
+        }
+
         return ['total' => $total, 'rows' => $rows];
     }
 
@@ -374,7 +379,21 @@ final class StockPermit
         $search = trim((string) ($filters['search'] ?? ''));
 
         if ($search !== '') {
-            $builder->groupStart()->like('d.number', $search)->orLike('p.note', $search)->groupEnd();
+            $builder->groupStart()->like('d.number', $search)->orLike('p.note', $search);
+
+            $labelled = StockDocumentSearch::labelled($search, array_map(static fn (StockPermitType $type): DocumentType => $type->documentType(), StockPermitType::cases()));
+
+            if ($labelled !== null) {
+                $builder->orGroupStart()->where('p.permit_id', $labelled['id'])->where('d.number IS NULL', null, false);
+
+                if ($labelled['type'] !== null) {
+                    $builder->where('p.permit_type', array_values(array_filter(StockPermitType::cases(), static fn (StockPermitType $type): bool => $type->documentType() === $labelled['type']))[0]->value);
+                }
+
+                $builder->groupEnd();
+            }
+
+            $builder->groupEnd();
         }
 
         return $builder;

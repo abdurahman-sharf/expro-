@@ -120,6 +120,30 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $page->assertSee('id="stock_tab_stocktakes"');
     }
 
+    public function testGetIndex_PointsTheArrowFromTheSendingLocationToTheReceivingOneInBothReadingDirections(): void
+    {
+        $this->switchOnTransferPermit();
+
+        $second = $this->openLocation('Second warehouse');
+        $itemId = $this->stocked('10', '50');
+
+        $this->permits->create(['type' => 'transfer', 'date' => date('Y-m-d'), 'location_id' => self::LOCATION_ID, 'to_location_id' => $second, 'lines' => [['item_id' => $itemId, 'quantity' => '1']]], $this->keeperId);
+
+        $personId = $this->actAsKeeper();
+
+        $english = $this->get('/stock_documents/permits')->getBody();
+
+        $this->assertStringContainsString('</bdi> &rarr; <bdi>Second warehouse</bdi>', $english);
+        $this->assertStringNotContainsString('&larr;', $english);
+
+        $this->accountingDb()->table('employees')->where('person_id', $personId)->update(['language_code' => 'ar-EG', 'language' => 'arabic-egypt']);
+
+        $arabic = $this->get('/stock_documents/permits')->getBody();
+
+        $this->assertStringContainsString('</bdi> &larr; <bdi>Second warehouse</bdi>', $arabic, 'the sending side is on the right and the arrow points to the receiving side on the left');
+        $this->assertStringNotContainsString('&rarr;', $arabic);
+    }
+
     public function testGetIndex_OffersNoFormAndNoChangeToWhoMayOnlyLook(): void
     {
         $this->addPermit($this->stocked('10', '50'));
@@ -228,7 +252,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'settings', 'action' => 'settings_updated'])->countAllResults());
     }
 
-    public function testPostSettings_RefusesWhoMayNotChangeTheSettings(): void
+    public function testPostSettings_RejectsWhoMayNotChangeTheSettings(): void
     {
         $this->actAsKeeper();
 
@@ -239,7 +263,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('app_config')->where('key', 'stock_transfer_permit_enabled')->countAllResults());
     }
 
-    public function testGetForm_ServesTheFormsToWhoMayManagePermitsAndRefusesWhatIsNotAllowed(): void
+    public function testGetForm_ServesTheFormsToWhoMayManagePermitsAndRejectsWhatIsNotAllowed(): void
     {
         $this->actAsKeeper();
 
@@ -287,7 +311,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
         service('filters')->enableFilters(['csrf'], 'before');
 
         try {
-            $html = view('stock_permits/cancel_form', ['permit_id' => 5, 'number' => 'X']);
+            $html = view('stock_permits/cancel_form', ['permitId' => 5, 'number' => 'X']);
         } finally {
             Services::resetSingle('filters');
         }
@@ -295,7 +319,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('name="' . csrf_token() . '"', $html);
     }
 
-    public function testGetEditFormAndGetCancelFormAndGetView_ServeAVisiblePermitAndRefuseTheRest(): void
+    public function testGetEditForm_ServesAVisiblePermitAndRejectsTheRest(): void
     {
         $other    = $this->createBranch();
         $itemId   = $this->stocked('10', '50');
@@ -347,7 +371,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $cancelled->assertDontSee('stock_documents/permits/edit/');
     }
 
-    public function testPostSave_SavesThePermitAndTheStockMovesAndTheBooksFollow(): void
+    public function testPostSavePermit_SavesThePermitMovesTheStockAndPostsTheBooks(): void
     {
         $itemId = $this->stocked('10', '50');
         $this->actAsKeeper();
@@ -369,7 +393,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->assertCount(1, $this->permits->lines((int) $answer['id']), 'a row left blank is no line');
     }
 
-    public function testPostSave_SaysInWordsWhyTheShelvesRefuseAndSavesNothing(): void
+    public function testPostSavePermit_RejectsInWordsWhatTheShelvesCannotGiveAndSavesNothing(): void
     {
         $itemId = $this->stocked('10', '50');
         $this->actAsKeeper();
@@ -382,7 +406,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->assertSame('10.000', $this->onHand($itemId));
     }
 
-    public function testPostSave_AnswersInWordsWhenAFieldIsAListInsteadOfATextAndSavesNothing(): void
+    public function testPostSavePermit_RejectsAFieldThatIsAListInWordsAndSavesNothing(): void
     {
         $itemId = $this->stocked('10', '50');
         $this->actAsKeeper();
@@ -402,7 +426,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->assertSame(200, $this->get('/stock_documents/permits?status[]=x&type[]=y&search[]=z')->response()->getStatusCode(), 'a filter that is a list is no filter');
     }
 
-    public function testPostSave_RefusesAnEmployeeWithoutThePermissionEvenIfTheyHoldTheModule(): void
+    public function testPostSavePermit_RejectsAnEmployeeWithoutThePermissionEvenIfTheyHoldTheModule(): void
     {
         $itemId = $this->stocked('10', '50');
         $this->actAsWith([StockPermissions::MODULE, 'items_stock']);
@@ -414,7 +438,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('stock_permits'));
     }
 
-    public function testPostUpdateAndPostCancel_CorrectAndCancelAPermitOfTheBranchesOfTheEmployeeOnly(): void
+    public function testPostUpdate_CorrectsAndCancelsAPermitOfTheBranchesOfTheEmployeeOnly(): void
     {
         $other    = $this->createBranch();
         $itemId   = $this->stocked('10', '50');
@@ -528,7 +552,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->assertSame(403, $this->get('/stock_documents/parties')->response()->getStatusCode());
     }
 
-    public function testRoutes_EveryChangeOfAStockDocumentIsAPostAndAGlobalFilterCoversIt(): void
+    public function testRoutes_RequiresPostAndTheGlobalFilterForEveryChangeOfAStockDocument(): void
     {
         $source = (string) file_get_contents(APPPATH . 'Config/Routes.php');
 

@@ -113,7 +113,7 @@ class StockPermitTest extends CIUnitTestCase
         }
     }
 
-    public function testCreate_AddPermitPutsTheUnitsInTheLocationAtTheCostTypedAndCreditsTheAutomaticAccount(): void
+    public function testCreate_PutsTheUnitsOfAnAddPermitInTheLocationAtTheCostTypedAndCreditsTheAutomaticAccount(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -129,7 +129,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCreate_AddPermitAtNoCostPostsNoJournalYetBringsTheUnitsInAndLowersTheAverage(): void
+    public function testCreate_BringsTheUnitsOfAnAddPermitAtNoCostInWithoutAJournalAndLowersTheAverage(): void
     {
         $itemId = $this->stocked('10', '100');
 
@@ -143,7 +143,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCreate_AddPermitWeighsTheCostOfTheItemWithWhatItBringsIn(): void
+    public function testCreate_WeighsTheCostOfTheItemWithWhatAnAddPermitBringsIn(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -152,7 +152,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame('60.000000', $this->exactCostOf($itemId));
     }
 
-    public function testCreate_AddPermitCreditsTheAccountChosenInsteadOfTheAutomaticOne(): void
+    public function testCreate_CreditsTheAccountChosenOnAnAddPermitInsteadOfTheAutomaticOne(): void
     {
         $itemId  = $this->stocked('10', '50');
         $account = $this->customAccount('211', '2299', 'Permit creditors');
@@ -165,7 +165,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame($account, (int) $this->permits->find($permitId)->account_id);
     }
 
-    public function testCreate_AddPermitNamesTheSupplierWithoutTouchingTheirAccount(): void
+    public function testCreate_NamesTheSupplierOfAnAddPermitWithoutTouchingTheirAccount(): void
     {
         $itemId = $this->stocked('10', '50');
         $before = $this->balance($this->supplierAccount());
@@ -176,7 +176,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame($before, $this->balance($this->supplierAccount()), 'the permit posts to no party account');
     }
 
-    public function testCreate_IssuePermitTakesTheUnitsOutAtTheAverageAndDebitsTheAutomaticAccount(): void
+    public function testCreate_TakesTheUnitsOfAnIssuePermitOutAtTheAverageAndDebitsTheAutomaticAccount(): void
     {
         $itemId = $this->stocked('10', '50');
         $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '70')]));
@@ -192,7 +192,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCreate_IssuePermitDebitsTheAccountChosenAndNamesTheCustomer(): void
+    public function testCreate_DebitsTheAccountChosenOnAnIssuePermitAndNamesTheCustomer(): void
     {
         $itemId  = $this->stocked('10', '50');
         $account = $this->customAccount('12', '1299', 'Permit debtors');
@@ -205,7 +205,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame($this->customerId, (int) $this->permits->find($permitId)->customer_id);
     }
 
-    public function testCreate_IssuePermitRefusesMoreThanTheShelfHoldsAndLeavesNothingBehind(): void
+    public function testCreate_RejectsAnIssueOfMoreThanTheShelfHoldsAndLeavesNothingBehind(): void
     {
         $itemId  = $this->stocked('10', '50');
         $permits = $this->countRows('stock_permits');
@@ -218,7 +218,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame('10.000', $this->onHand($itemId));
     }
 
-    public function testCreate_IssuePermitCanTakeTheWholeShelf(): void
+    public function testCreate_AcceptsAnIssueOfTheWholeShelf(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -229,7 +229,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCreate_IssuePermitOfAnItemThatCostsNothingPostsNoJournal(): void
+    public function testCreate_PostsNoJournalForAnIssueOfAnItemThatCostsNothing(): void
     {
         $itemId = $this->item('0.00');
         $this->putOnShelf($itemId, '5');
@@ -241,7 +241,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertCount(1, $this->movementsOfSource(StockPermitSources::PERMIT, $permitId));
     }
 
-    public function testCreate_TransferWithinABranchMovesTheStockAtWhatItIsWorthWhereItLeaves(): void
+    public function testCreate_MovesTheStockOfATransferWithinABranchAtWhatItIsWorthWhereItLeaves(): void
     {
         $this->switchOnTransferPermit();
 
@@ -263,7 +263,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCreate_TransferBetweenTwoBranchesPostsAJournalInEachThatMeetInTheAccountsBetweenBranches(): void
+    public function testCreate_PostsAJournalInEachBranchOfATransferThatMeetInTheAccountsBetweenBranches(): void
     {
         $this->switchOnTransferPermit();
 
@@ -289,7 +289,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCreate_TransferOfAnItemThatCostsNothingPostsNoJournalButMovesTheUnits(): void
+    public function testCreate_MovesTheUnitsOfATransferOfAnItemThatCostsNothingWithoutAJournal(): void
     {
         $this->switchOnTransferPermit();
 
@@ -304,7 +304,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame('2.000', $this->onHand($itemId, $second));
     }
 
-    public function testCreate_TransferRefusesMoreThanTheSourceHoldsAndTheSameLocationTwice(): void
+    public function testCreate_RejectsATransferOfMoreThanTheSourceHoldsOrToTheSameLocation(): void
     {
         $this->switchOnTransferPermit();
 
@@ -317,7 +317,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('stock_permits'));
     }
 
-    public function testCreate_TransferWorksOnlyWhileItsSettingIsOn(): void
+    public function testCreate_AcceptsATransferOnlyWhileItsSettingIsOn(): void
     {
         $second = $this->openLocation();
         $itemId = $this->stocked('10', '50');
@@ -328,7 +328,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('stock_permits'));
     }
 
-    public function testCreate_AddAndIssueNeedNoSettingAndAnAddPermitRefusesASecondLocation(): void
+    public function testCreate_AcceptsAddAndIssueWithoutASettingAndRejectsASecondLocationOnAnAddPermit(): void
     {
         $second = $this->openLocation();
         $itemId = $this->stocked('10', '50');
@@ -371,7 +371,7 @@ class StockPermitTest extends CIUnitTestCase
         }
     }
 
-    public function testCreate_ATransferBetweenBranchesNeedsTheEmployeeInBothBranchesAndBothLocations(): void
+    public function testCreate_RequiresTheEmployeeInBothBranchesAndBothLocationsOfATransfer(): void
     {
         $this->switchOnTransferPermit();
 
@@ -397,7 +397,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame($posted, $this->countRows('accounting_journals'));
     }
 
-    public function testCreate_ARefusedPostingLeavesNoPermitNoShelfChangeAndNoMovement(): void
+    public function testCreate_RollsBackThePermitTheShelvesAndTheMovementsWhenThePostingIsRefused(): void
     {
         $itemId = $this->stocked('10', '50');
         $this->closeThrough(date('Y-m-d', strtotime('-1 day')));
@@ -418,7 +418,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('accounting_posting_failures'), 'the refusal is written to the failure log');
     }
 
-    public function testCreate_APermitWorthNothingIsRefusedInAClosedPeriodToo(): void
+    public function testCreate_RejectsAPermitWorthNothingInAClosedPeriodToo(): void
     {
         $itemId = $this->stocked('10', '50');
         $this->closeThrough(date('Y-m-d', strtotime('-1 day')));
@@ -433,7 +433,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame('10.000', $this->onHand($itemId));
     }
 
-    public function testCreate_ARefusalInTheClosedPeriodOfTheOtherBranchOfATransferLeavesNothing(): void
+    public function testCreate_RollsBackATransferWhenTheOtherBranchIsInAClosedPeriod(): void
     {
         $this->switchOnTransferPermit();
 
@@ -455,7 +455,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_interbranch_legs'));
     }
 
-    public function testCreate_APermitDatedBeforeTheBooksStartMovesTheShelvesAndPostsNothing(): void
+    public function testCreate_MovesTheShelvesAndPostsNothingForAPermitDatedBeforeTheBooksStart(): void
     {
         $itemId = $this->stocked('10', '50');
         $this->setConfigValue('accounting_start_date', date('Y-m-d'));
@@ -468,7 +468,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame(0, (int) $this->permits->find($permitId)->booked);
     }
 
-    public function testCreate_WithAccountingOffMovesTheShelvesAndNumbersThePermitAndPostsNothing(): void
+    public function testCreate_MovesTheShelvesAndNumbersThePermitWithAccountingOffAndPostsNothing(): void
     {
         $itemId = $this->stocked('10', '50');
         $this->numberWith(DocumentType::StockPermitAdd, 'ADD-', 4);
@@ -491,7 +491,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame($journals, $this->countRows('accounting_journals'));
     }
 
-    public function testCreate_WithAccountingOffAnIssueIsStillRefusedBelowZero(): void
+    public function testCreate_RejectsAnIssueBelowZeroWithAccountingOffToo(): void
     {
         $itemId = $this->stocked('10', '50');
         $this->setConfigValue('accounting_enabled', '0');
@@ -526,7 +526,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame('add', json_decode((string) $entry->details, true)['type']);
     }
 
-    public function testCreate_RefusesWhatIsNotAValidPermit(): void
+    public function testCreate_RejectsWhatIsNotAValidPermit(): void
     {
         $itemId  = $this->stocked('10', '50');
         $service = $this->item('1.00', false);
@@ -563,7 +563,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame('10.000', $this->onHand($itemId));
     }
 
-    public function testCreate_RefusesASupplierOnAnIssueAndACustomerOnAnAddAndTheAccountOfAnotherSide(): void
+    public function testCreate_RejectsASupplierOnAnIssueACustomerOnAnAddAndTheAccountOfAnotherSide(): void
     {
         $itemId  = $this->stocked('10', '50');
         $revenue = $this->customAccount('42', '4299', 'Some revenue');
@@ -731,7 +731,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCancel_IsRefusedWhenTheUnitsTheAddPermitBroughtInAreGoneAndChangesNothing(): void
+    public function testCancel_RejectsAnAddPermitWhoseUnitsAreGoneAndChangesNothing(): void
     {
         $itemId   = $this->stocked('10', '50');
         $permitId = $this->add($itemId, '5', '50');
@@ -748,7 +748,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCancel_AnAddPermitWhoseUnitsAreStillThereIsCancelledAfterOthersWereSold(): void
+    public function testCancel_AcceptsAnAddPermitWhoseUnitsAreStillThereAfterOthersWereSold(): void
     {
         $itemId   = $this->stocked('10', '50');
         $permitId = $this->add($itemId, '5', '50');
@@ -760,7 +760,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCancel_RefusesAPermitThatIsCancelledAlreadyAndOneThatDoesNotExistAndAMissingReason(): void
+    public function testCancel_RejectsACancelledPermitAMissingOneAndAMissingReason(): void
     {
         $itemId   = $this->stocked('10', '50');
         $permitId = $this->add($itemId, '2', '10');
@@ -910,7 +910,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testUpdate_IsRefusedWhenTheNetChangeWouldLeaveTheShelfBelowZero(): void
+    public function testUpdate_RejectsANetChangeThatWouldLeaveTheShelfBelowZero(): void
     {
         $itemId   = $this->stocked('10', '50');
         $permitId = $this->add($itemId, '5', '50');
@@ -938,7 +938,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testUpdate_IsRefusedInAClosedPeriodAndLeavesTheOldPostingStanding(): void
+    public function testUpdate_RejectsAClosedPeriodAndLeavesTheOldPostingStanding(): void
     {
         $itemId   = $this->stocked('10', '50');
         $day      = date('Y-m-d', strtotime('-3 days'));
@@ -974,7 +974,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testUpdate_RefusesACancelledPermitAndOneThatNeedsAnotherTypeOfLine(): void
+    public function testUpdate_RejectsACancelledPermitAndOneThatNeedsAnotherTypeOfLine(): void
     {
         $itemId   = $this->stocked('10', '50');
         $permitId = $this->add($itemId, '2', '10');
@@ -1002,7 +1002,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame('3.000', $details['after'][0]['quantity']);
     }
 
-    public function testNumbering_GivesEachKindOfPermitASequenceOfItsOwnAndKeepsTheNumberWhenThePermitIsCorrected(): void
+    public function testNumberOf_GivesEachKindOfPermitASequenceOfItsOwnAndKeepsTheNumberWhenThePermitIsCorrected(): void
     {
         $this->switchOnTransferPermit();
 
@@ -1030,7 +1030,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame('IN-001', $this->permits->find($first)->document_number);
     }
 
-    public function testNumbering_ShowsTheKindAndTheIdWhileTheSequenceIsOff(): void
+    public function testNumberOf_ShowsTheKindAndTheIdWhileTheSequenceIsOff(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -1065,6 +1065,28 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertCount(1, $this->permits->search([], $this->keeperId, 1, 1)['rows']);
     }
 
+    public function testSearch_AcceptsTheLabelAndTheIdOfAPermitWhileNumberingIsOffAndOnlyThen(): void
+    {
+        $itemId = $this->stocked('20', '10');
+
+        $added  = $this->add($itemId, '1', '1');
+        $issued = $this->issue($itemId, '1');
+
+        $ids = static fn (array $result): array => array_map(static fn (object $row): int => (int) $row->permit_id, $result['rows']);
+
+        $this->assertSame(['STK-OUT ' . $issued, 'STK-IN ' . $added], array_map(static fn (object $row): string => $row->label, $this->permits->search([], $this->keeperId)['rows']), 'the list says what the page of the permit says');
+        $this->assertSame([$added], $ids($this->permits->search(['search' => 'STK-IN ' . $added], $this->keeperId)));
+        $this->assertSame([$added], $ids($this->permits->search(['search' => (string) $added], $this->keeperId)));
+        $this->assertSame([], $ids($this->permits->search(['search' => 'STK-OUT ' . $added], $this->keeperId)), 'the kind of the label counts');
+
+        $this->numberWith(DocumentType::StockPermitAdd, 'IN-', 3);
+
+        $numbered = $this->add($itemId, '1', '1');
+
+        $this->assertSame('IN-001', $this->permits->search(['search' => 'IN-001'], $this->keeperId)['rows'][0]->label);
+        $this->assertSame([], $ids($this->permits->search(['search' => (string) $numbered], $this->keeperId)), 'a permit that has a number is found by it, not by its id');
+    }
+
     public function testSearch_ShowsAPermitOnlyToTheBranchesItBelongsToAndATransferToBoth(): void
     {
         $this->switchOnTransferPermit();
@@ -1085,7 +1107,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame([], $this->permits->search([], $this->keeper([]))['rows']);
     }
 
-    public function testCreate_TwoPermitsAtTheSameMomentCannotTakeMoreThanTheShelfHolds(): void
+    public function testCreate_RejectsTheSecondOfTwoPermitsAtTheSameMomentThatTakeMoreThanTheShelfHolds(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -1098,7 +1120,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCancel_TwoCancellationsAtTheSameMomentReverseThePermitOnce(): void
+    public function testCancel_ReversesThePermitOnceWhenTwoCancellationsComeAtTheSameMoment(): void
     {
         $itemId   = $this->stocked('10', '50');
         $permitId = $this->add($itemId, '5', '50');
@@ -1121,7 +1143,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'purchase')->countAllResults());
     }
 
-    public function testCreate_TransferBetweenBranchesPostsTheFiguresOfTheLegacyTransferThroughARequisitionReceiving(): void
+    public function testCreate_PostsTheFiguresOfTheLegacyTransferBetweenBranchesThroughARequisitionReceiving(): void
     {
         $this->switchOnTransferPermit();
 
@@ -1144,7 +1166,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCreate_ATransferBetweenTwoBranchesTakesThePeriodLocksInTheOrderOfTheBranchIdsWhicheverWayTheStockGoes(): void
+    public function testCreate_TakesThePeriodLocksOfATransferInTheOrderOfTheBranchIds(): void
     {
         $this->switchOnTransferPermit();
 
@@ -1159,48 +1181,6 @@ class StockPermitTest extends CIUnitTestCase
 
         $this->assertSame([1, $other, 1, $other], $this->periodLocksTakenBy($back), 'the lower branch first, in the check of the periods and in the posting, when the stock comes back too');
         $this->assertSame([1, $other, 1, $other], $this->periodLocksTakenBy(fn (): int => $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '1']], ['to_location_id' => $store]), $this->keeperId)));
-    }
-
-    /**
-     * @return list<string> The queries the action runs, in order.
-     */
-    private function queriesOf(callable $action): array
-    {
-        $queries  = [];
-        $listener = static function ($query) use (&$queries): void {
-            $queries[] = (string) $query->getQuery();
-        };
-
-        Events::on('DBQuery', $listener);
-
-        try {
-            $action();
-        } finally {
-            Events::removeListener('DBQuery', $listener);
-        }
-
-        return $queries;
-    }
-
-    /**
-     * @param list<string> $queries
-     * @param list<string> $needles Every one of them must be in the query.
-     */
-    private function firstQuery(array $queries, array $needles): ?int
-    {
-        foreach ($queries as $index => $sql) {
-            $all = true;
-
-            foreach ($needles as $needle) {
-                $all = $all && str_contains($sql, $needle);
-            }
-
-            if ($all) {
-                return $index;
-            }
-        }
-
-        return null;
     }
 
     public function testCreate_TakesTheLockOfTheItemsBeforeItReadsWhatTheBooksSayAboutThem(): void
@@ -1242,7 +1222,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertLessThan($row, $lock);
     }
 
-    public function testCreate_TheJournalsOfAPermitCannotBeReversedByHandAndAreLeftToItsCancellation(): void
+    public function testCreate_RejectsAReversalByHandOfTheJournalsOfAPermit(): void
     {
         $this->switchOnTransferPermit();
 
@@ -1302,7 +1282,7 @@ class StockPermitTest extends CIUnitTestCase
         }
     }
 
-    public function testCancel_IsAskedToBeMadeAgainWhenAnotherRequestChangedTheItemsOfThePermitAfterTheyWereRead(): void
+    public function testCancel_AsksToBeMadeAgainWhenAnotherRequestChangedTheItemsOfThePermit(): void
     {
         $first    = $this->stocked('10', '50');
         $second   = $this->stocked('10', '50');
@@ -1315,7 +1295,7 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame('10.000', $this->onHand($second));
     }
 
-    public function testUpdate_IsAskedToBeMadeAgainWhenAnotherRequestChangedTheItemsOfThePermitAfterTheyWereRead(): void
+    public function testUpdate_AsksToBeMadeAgainWhenAnotherRequestChangedTheItemsOfThePermit(): void
     {
         $first    = $this->stocked('10', '50');
         $second   = $this->stocked('10', '50');

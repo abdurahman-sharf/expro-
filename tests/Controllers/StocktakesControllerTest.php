@@ -171,7 +171,7 @@ class StocktakesControllerTest extends CIUnitTestCase
         $filtered->assertDontSee('id="stocktakes_scope"');
     }
 
-    public function testGetForm_ServesTheFormToWhoMayManageStocktakesAndRefusesEveryoneElse(): void
+    public function testGetForm_ServesTheFormToWhoMayManageStocktakesAndRejectsEveryoneElse(): void
     {
         $this->actAsKeeper();
 
@@ -187,7 +187,7 @@ class StocktakesControllerTest extends CIUnitTestCase
         $this->assertSame(403, $this->get('/stock_documents/stocktakes/form')->response()->getStatusCode());
     }
 
-    public function testPostSaveStocktakeAndTheSheet_StartTheCountAndShowWhatTheSystemFroze(): void
+    public function testPostSaveStocktake_StartsTheCountAndTheSheetShowsWhatTheSystemFroze(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -242,7 +242,7 @@ class StocktakesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('<bdi dir="ltr">8</bdi>', $page->getBody(), 'and the counted quantity beside it');
     }
 
-    public function testPostCountAndPostApprove_SayInWordsWhatTheBooksRefuse(): void
+    public function testPostApprove_RejectsInWordsAnUncountedItemAndACountThatIsNotANumber(): void
     {
         $first       = $this->stocked('10', '50');
         $second      = $this->stocked('3', '20');
@@ -323,7 +323,7 @@ class StocktakesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_stocktake_count_changed', [$this->itemNameOf($first)]), $clash['message']);
     }
 
-    public function testPostSaveStocktakeAndPostCount_AnswerInWordsWhenAFieldIsAListInsteadOfAText(): void
+    public function testPostCount_RejectsAFieldThatIsAListInWords(): void
     {
         $itemId      = $this->stocked('10', '50');
         $stocktakeId = $this->started($itemId);
@@ -401,7 +401,7 @@ class StocktakesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('>10<', $sheet->getBody());
     }
 
-    public function testSheetAndCancelFormAndCancel_AreRefusedToABranchOutsideTheScopeAndToWhoLacksThePermission(): void
+    public function testGetSheet_RejectsABranchOutsideTheScopeAndWhoLacksThePermission(): void
     {
         $other       = $this->createBranch();
         $itemId      = $this->stocked('10', '50');
@@ -423,7 +423,7 @@ class StocktakesControllerTest extends CIUnitTestCase
         $this->assertSame(403, $this->get('/stock_documents/stocktakes/cancel_form/' . $stocktakeId)->response()->getStatusCode());
     }
 
-    public function testPostCountAndPostApproveAndPostCancel_AnswerThatAStocktakeOfAnotherBranchDoesNotExist(): void
+    public function testPostCount_RejectsAStocktakeOfAnotherBranchAsMissingLikeApproveAndCancel(): void
     {
         $other       = $this->createBranch();
         $itemId      = $this->stocked('10', '50');

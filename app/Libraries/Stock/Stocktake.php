@@ -486,6 +486,10 @@ final class Stocktake
             ->get()
             ->getResult();
 
+        foreach ($rows as $row) {
+            $row->label = $row->document_number ?? DocumentType::Stocktake->fallback((int) $row->stocktake_id);
+        }
+
         return ['total' => $total, 'rows' => $rows];
     }
 
@@ -525,7 +529,15 @@ final class Stocktake
         $search = trim((string) ($filters['search'] ?? ''));
 
         if ($search !== '') {
-            $builder->groupStart()->like('d.number', $search)->orLike('s.note', $search)->groupEnd();
+            $labelled = StockDocumentSearch::labelled($search, [DocumentType::Stocktake]);
+
+            $builder->groupStart()->like('d.number', $search)->orLike('s.note', $search);
+
+            if ($labelled !== null) {
+                $builder->orGroupStart()->where('s.stocktake_id', $labelled['id'])->where('d.number IS NULL', null, false)->groupEnd();
+            }
+
+            $builder->groupEnd();
         }
 
         return $builder;

@@ -158,7 +158,7 @@ class StockRequestsControllerTest extends CIUnitTestCase
         $page->assertSee('id="requests_scope"');
     }
 
-    public function testGetForm_ServesTheFormToWhoMayManageRequestsAndRefusesEveryoneElse(): void
+    public function testGetForm_ServesTheFormToWhoMayManageRequestsAndRejectsEveryoneElse(): void
     {
         $this->actAsKeeper();
 
@@ -196,7 +196,7 @@ class StockRequestsControllerTest extends CIUnitTestCase
         $this->assertCount(1, $this->requests->lines((int) $answer['id']));
     }
 
-    public function testPostSaveRequest_SaysInWordsWhyItIsRefused(): void
+    public function testPostSaveRequest_RejectsAnInvalidRequestInWords(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -252,7 +252,7 @@ class StockRequestsControllerTest extends CIUnitTestCase
         $this->assertSame(403, $this->get('/stock_documents/requests/view/999999')->response()->getStatusCode());
     }
 
-    public function testPostApproveAndPostFulfil_TakeTheRequestThroughItsStatesAndMakeTheTransferPermit(): void
+    public function testPostFulfil_TakesTheRequestThroughItsStatesAndMakesTheTransferPermit(): void
     {
         $itemId    = $this->stocked('10', '50');
         $requestId = $this->asked($itemId);
@@ -284,7 +284,7 @@ class StockRequestsControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_stock_request_status_invalid'), $again['message']);
     }
 
-    public function testPostFulfil_SaysInWordsWhyTheShelvesRefuseAndLeavesTheRequestApproved(): void
+    public function testPostFulfil_RejectsInWordsWhenTheShelvesHoldTooLittleAndLeavesTheRequestApproved(): void
     {
         $itemId    = $this->stocked('10', '50');
         $requestId = $this->asked($itemId, '11');
@@ -300,7 +300,7 @@ class StockRequestsControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('stock_permits'));
     }
 
-    public function testPostApproveAndPostFulfilAndPostCancel_AnswerThatARequestOfAnotherBranchDoesNotExist(): void
+    public function testPostApprove_RejectsARequestOfAnotherBranchAsMissingLikeFulfilAndCancel(): void
     {
         $other     = $this->createBranch();
         $requestId = $this->asked($this->stocked('10', '50'));
@@ -319,7 +319,7 @@ class StockRequestsControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('stock_permits'));
     }
 
-    public function testPostCancelAndTheCancelForm_CancelARequestWithAReasonForWhoMayAndNoOneElse(): void
+    public function testPostCancel_CancelsARequestWithAReasonForWhoMayAndNoOneElse(): void
     {
         $other     = $this->createBranch();
         $requestId = $this->asked($this->stocked('10', '50'));

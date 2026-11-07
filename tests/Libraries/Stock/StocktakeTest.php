@@ -188,7 +188,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->start([$itemId]), 'a cancelled stocktake frees its day');
     }
 
-    public function testCreate_ARefusedSecondStocktakeLeavesTheFirstAsItWas(): void
+    public function testCreate_KeepsTheFirstStocktakeAsItWasWhenASecondIsRejected(): void
     {
         $itemId = $this->stocked('10', '50');
         $first  = $this->start([$itemId]);
@@ -225,7 +225,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'stocktake', 'entity_id' => $stocktakeId, 'action' => 'stocktake_started'])->countAllResults());
     }
 
-    public function testCreate_RefusesMoreItemsThanAStocktakeHoldsBeforeLookingAtAnyOfThem(): void
+    public function testCreate_RejectsMoreItemsThanAStocktakeHoldsBeforeLookingAtAnyOfThem(): void
     {
         try {
             $this->start(range(1, Stocktake::ITEMS_MAX + 1));
@@ -268,7 +268,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertNull($this->takes->lines($stocktakeId)[0]->counted_quantity);
     }
 
-    public function testCreate_RefusesWhatIsNotAValidCount(): void
+    public function testCreate_RejectsWhatIsNotAValidCount(): void
     {
         $itemId  = $this->stocked('10', '50');
         $service = $this->item('1.00', false);
@@ -298,7 +298,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertNull($this->orderedLines($stocktakeId, [$first])[0]->counted_quantity);
     }
 
-    public function testCount_RefusesAQuantityThatIsNotANumberOfZeroOrMoreAndAnItemNotOnTheSheet(): void
+    public function testCount_RejectsAQuantityThatIsNotANumberOfZeroOrMoreAndAnItemNotOnTheSheet(): void
     {
         $first  = $this->stocked('10', '50');
         $second = $this->stocked('4', '20');
@@ -327,7 +327,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame([$first], array_map(static fn (object $line): int => (int) $line->item_id, $this->takes->lines($stocktakeId)));
     }
 
-    public function testAddItemsAndCountAndRemoveItem_AreRefusedOnceTheStocktakeIsApprovedOrCancelled(): void
+    public function testAddItems_RejectsAnApprovedOrCancelledStocktakeLikeCountAndRemoveItem(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -412,7 +412,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testApprove_IsRefusedWhenTheShortfallIsMoreThanTheShelfHoldsNowAndChangesNothing(): void
+    public function testApprove_RejectsAShortfallOfMoreThanTheShelfHoldsNowAndChangesNothing(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -431,7 +431,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
     }
 
-    public function testApprove_AFindingOfNothingPostsNoJournalAndMovesNoStock(): void
+    public function testApprove_PostsNoJournalAndMovesNoStockForAFindingOfNothing(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -450,7 +450,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame('0.000', bcadd((string) $this->orderedLines($stocktakeId, [$itemId])[0]->difference, '0', 3));
     }
 
-    public function testApprove_AnItemThatCostsNothingMovesTheShelfAndPostsNoJournal(): void
+    public function testApprove_MovesTheShelfAndPostsNoJournalForAnItemThatCostsNothing(): void
     {
         $itemId = $this->item('0.00');
         $this->putOnShelf($itemId, '5');
@@ -465,7 +465,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertCount(1, $this->movementsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId));
     }
 
-    public function testApprove_WithAccountingOffMovesTheShelvesAndPostsNothing(): void
+    public function testApprove_MovesTheShelvesAndPostsNothingWithAccountingOff(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -488,7 +488,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame($journals, $this->countRows('accounting_journals'));
     }
 
-    public function testApprove_AStocktakeThatFoundNothingWorthAnythingIsRefusedInAClosedPeriodToo(): void
+    public function testApprove_RejectsAStocktakeThatFoundNothingWorthAnythingInAClosedPeriodToo(): void
     {
         $itemId = $this->item('0.00');
         $this->putOnShelf($itemId, '10');
@@ -509,7 +509,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
     }
 
-    public function testApprove_ADayBeforeTheBooksStartMovesTheShelvesAndPostsNothing(): void
+    public function testApprove_MovesTheShelvesAndPostsNothingForADayBeforeTheBooksStart(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -525,7 +525,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame(0, (int) $this->takes->find($stocktakeId)->booked);
     }
 
-    public function testApprove_IsRefusedInAClosedPeriodAndTheStocktakeKeepsCounting(): void
+    public function testApprove_RejectsAClosedPeriodAndTheStocktakeKeepsCounting(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -664,7 +664,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCancel_IsRefusedWhenTheUnitsFoundOverHaveGoneSinceAndChangesNothing(): void
+    public function testCancel_RejectsWhenTheUnitsFoundOverHaveGoneSinceAndChangesNothing(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -684,7 +684,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame('approved', $this->takes->find($stocktakeId)->status);
     }
 
-    public function testCancel_IsRefusedWhenTheDayItWouldBeReversedOnIsClosedAndChangesNothing(): void
+    public function testCancel_RejectsWhenTheDayOfTheReversalIsClosedAndChangesNothing(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -707,7 +707,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCancel_RequiresThePermissionThatFitsTheStateAndRefusesWhatIsCancelledOrMissingOrWithoutAReason(): void
+    public function testCancel_RequiresThePermissionThatFitsTheStateAndRejectsACancelledOrMissingOneOrNoReason(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -733,7 +733,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame('10.000', $this->onHand($itemId));
     }
 
-    public function testNumbering_NumbersAStocktakeWithItsOwnSequenceAndShowsTheKindAndTheIdWhileItIsOff(): void
+    public function testNumberOf_NumbersAStocktakeWithItsOwnSequenceAndShowsTheKindAndTheIdWhileItIsOff(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -776,6 +776,20 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame([$ofOther], $ids($this->takes->search([], $this->keeper([$other]))));
         $this->assertSame([], $this->takes->search([], $this->keeper([]))['rows']);
         $this->assertSame(3, $this->takes->search([], $this->keeperId)['total']);
+    }
+
+    public function testSearch_AcceptsTheLabelAndTheIdOfAStocktakeWhileNumberingIsOff(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+        $other       = $this->takes->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d', strtotime('-1 day'))], $this->keeperId);
+
+        $ids = static fn (array $result): array => array_map(static fn (object $row): int => (int) $row->stocktake_id, $result['rows']);
+
+        $this->assertSame(['STKT ' . $stocktakeId, 'STKT ' . $other], array_map(static fn (object $row): string => $row->label, $this->takes->search([], $this->keeperId)['rows']));
+        $this->assertSame([$stocktakeId], $ids($this->takes->search(['search' => 'STKT ' . $stocktakeId], $this->keeperId)));
+        $this->assertSame([$other], $ids($this->takes->search(['search' => '#' . $other], $this->keeperId)));
     }
 
     public function testApprove_LeavesTheQuantityAdjustmentsOfTheItemScreensAlone(): void
@@ -870,7 +884,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->start([$itemId], ['date' => date('Y-m-d', strtotime('-2 days'))]), 'a cancelled count lets go of its items');
     }
 
-    public function testCreate_TwoCountsOfOneItemAtTheSameMomentListItOnceAndTheOtherIsRefusedForIt(): void
+    public function testCreate_ListsAnItemOnceWhenTwoCountsOfItComeAtTheSameMoment(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -1083,7 +1097,7 @@ class StocktakeTest extends CIUnitTestCase
         }
     }
 
-    public function testApprove_IsAskedToBeMadeAgainWhenAnotherRequestListedMoreItemsAfterTheyWereRead(): void
+    public function testApprove_AsksToBeMadeAgainWhenAnotherRequestListedMoreItemsAfterTheyWereRead(): void
     {
         $first  = $this->stocked('10', '50');
         $second = $this->stocked('4', '20');
@@ -1098,7 +1112,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame('10.000', $this->onHand($first));
     }
 
-    public function testCancel_OfAnApprovedStocktakeIsAskedToBeMadeAgainWhenMoreItemsWereListedAfterTheyWereRead(): void
+    public function testCancel_AsksToBeMadeAgainWhenMoreItemsWereListedAfterTheyWereRead(): void
     {
         $first  = $this->stocked('10', '50');
         $second = $this->stocked('4', '20');
@@ -1114,7 +1128,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame('8.000', $this->onHand($first));
     }
 
-    public function testCreate_ReportsASecondStocktakeOfTheDayInWordsEvenWhenTheConnectionReturnsFalseInsteadOfThrowing(): void
+    public function testCreate_ReportsASecondStocktakeOfTheDayEvenWhenTheConnectionReturnsFalse(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -1127,7 +1141,7 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('stocktake_lines'));
     }
 
-    public function testApprove_TheJournalOfAStocktakeCannotBeReversedByHand(): void
+    public function testApprove_RejectsAReversalByHandOfTheJournalOfAStocktake(): void
     {
         $itemId = $this->stocked('10', '50');
 

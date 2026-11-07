@@ -101,7 +101,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
         return array_map(static fn (JournalLineDraft $line): string => $line->accountId . ':' . bcadd($line->debit, '0', 2) . ':' . bcadd($line->credit, '0', 2), $draft?->lines ?? []);
     }
 
-    public function testPlan_AnAddPermitPutsEachLineInAtItsCostAndCreditsTheAutomaticAccountOnce(): void
+    public function testPlan_PutsEachLineOfAnAddPermitInAtItsCostAndCreditsTheAutomaticAccountOnce(): void
     {
         $first  = $this->item('0.00');
         $second = $this->item('0.00');
@@ -130,7 +130,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
         $this->assertSame(JournalEntryType::General, $journal->entryType);
     }
 
-    public function testPlan_AnAddPermitCreditsTheAccountChosenAndIsWorthNothingAtNoCost(): void
+    public function testPlan_CreditsTheAccountChosenOnAnAddPermitAndValuesAFreeOneAtNothing(): void
     {
         $itemId  = $this->item('0.00');
         $account = $this->customAccount('211', '2296', 'Chosen');
@@ -146,7 +146,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
         $this->assertSame('0.0000', $free->movements[0]->value);
     }
 
-    public function testPlan_AnAddPermitRoundsEachLineToTheScaleOfValues(): void
+    public function testPlan_RoundsEachLineOfAnAddPermitToTheScaleOfValues(): void
     {
         $itemId = $this->item('0.00');
 
@@ -155,7 +155,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
         $this->assertSame('1.0000', $plan->movements[0]->value);
     }
 
-    public function testPlan_AnIssuePermitTakesEachLineOutAtTheAverageOfTheLocationAndDebitsTheAutomaticAccount(): void
+    public function testPlan_TakesEachLineOfAnIssuePermitOutAtTheAverageAndDebitsTheAutomaticAccount(): void
     {
         $itemId = $this->stocked('10', '50');
         $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, '10', '70')]));
@@ -169,7 +169,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
         $this->assertSame(StockPermitSources::PERMIT, $plan->journal->sourceType);
     }
 
-    public function testPlan_AnIssuePermitUsesTheCostTheItemCarriesWhenTheMovementsDoNotAccountForTheShelves(): void
+    public function testPlan_UsesTheCostTheItemCarriesForAnIssueWhenTheMovementsDoNotAccountForTheShelves(): void
     {
         $itemId = $this->item('40.00');
         $this->putOnShelf($itemId, '10');
@@ -179,7 +179,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
         $this->assertSame('-80.0000', $plan->movements[0]->value);
     }
 
-    public function testPlan_AnIssuePermitOfGoodsThatCostNothingHasMovementsAndNoJournal(): void
+    public function testPlan_PlansMovementsAndNoJournalForAnIssueOfGoodsThatCostNothing(): void
     {
         $itemId = $this->item('0.00');
         $this->putOnShelf($itemId, '10');
@@ -192,7 +192,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
         $this->assertSame(0, bccomp($plan->movements[0]->value, '0', 4));
     }
 
-    public function testPlan_AnIssuePermitDebitsTheAccountChosen(): void
+    public function testPlan_DebitsTheAccountChosenOnAnIssuePermit(): void
     {
         $itemId  = $this->stocked('10', '50');
         $account = $this->customAccount('12', '1296', 'Chosen debtors');
@@ -202,7 +202,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
         $this->assertSame([$account . ':50.00:0.00', $this->stockAccount() . ':0.00:50.00'], $this->lines($plan->journal));
     }
 
-    public function testPlan_ATransferWithinABranchIsOneJournalThatMovesTheValueFromOneLocationToTheOtherUnderTheSourceOfThePermit(): void
+    public function testPlan_PostsOneJournalForATransferWithinABranchUnderTheSourceOfThePermit(): void
     {
         $second = $this->anotherLocation();
         $itemId = $this->stocked('10', '50');
@@ -218,7 +218,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
         $this->assertSame('Stock transfer permit #000077', $plan->journal->description);
     }
 
-    public function testPlan_ATransferBetweenTwoBranchesIsTwoJournalsEachInItsOwnBranchWithTheSourcesAndTheDescriptionsOfThePermit(): void
+    public function testPlan_PostsOneJournalInEachBranchForATransferBetweenTwoBranches(): void
     {
         $other  = $this->createBranch();
         $store  = $this->locationOfBranch($other, 'Branch store');
@@ -237,7 +237,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
         $this->assertSame(['4.000:200.0000'], array_map(static fn ($movement): string => $movement->quantity . ':' . $movement->value, $plan->receiptMovements));
     }
 
-    public function testPlan_ATransferOfGoodsThatCostNothingHasMovementsAndNoJournal(): void
+    public function testPlan_PlansMovementsAndNoJournalForATransferOfGoodsThatCostNothing(): void
     {
         $second = $this->anotherLocation();
         $itemId = $this->item('0.00');
@@ -250,7 +250,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
         $this->assertCount(2, $plan->movements);
     }
 
-    public function testPlan_ATransferWithoutADestinationIsRefused(): void
+    public function testPlan_RejectsATransferWithoutADestination(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -262,7 +262,7 @@ class StockPermitBuilderTest extends CIUnitTestCase
         }
     }
 
-    public function testPlan_ATransferSplitsWhatLeavesOverTheLinesThatComeInSoThatTheValuesAgree(): void
+    public function testPlan_SplitsWhatLeavesOverTheLinesThatComeInSoThatTheValuesAgree(): void
     {
         $second = $this->anotherLocation();
         $itemId = $this->stocked('10', '50');

@@ -62,7 +62,7 @@ class StockDocumentSettingsTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testAll_IsOffForBothUntilTheyAreTurnedOn(): void
+    public function testAll_ReturnsBothOffUntilTheyAreTurnedOn(): void
     {
         $this->assertFalse($this->settings->transferPermitEnabled());
         $this->assertFalse($this->settings->requestsEnabled());

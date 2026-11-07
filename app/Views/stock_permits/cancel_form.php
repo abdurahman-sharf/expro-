@@ -1,6 +1,6 @@
 <?php
 /**
- * @var int    $permit_id
+ * @var int    $permitId
  * @var string $number
  */
 ?>
@@ -8,7 +8,7 @@
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box"></ul>
 
-<?= form_open('stock_documents/permits/cancel/' . $permit_id, ['id' => 'permit_cancel_form', 'class' => 'app-form']) ?>
+<?= form_open('stock_documents/permits/cancel/' . $permitId, ['id' => 'permit_cancel_form', 'class' => 'app-form']) ?>
     <p class="fw-bold"><bdi dir="ltr"><?= esc($number) ?></bdi></p>
     <p class="small text-body-secondary"><?= lang('Stock_documents.cancel_permit_note') ?></p>
 

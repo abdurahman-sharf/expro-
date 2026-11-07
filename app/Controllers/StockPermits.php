@@ -36,17 +36,17 @@ class StockPermits extends StockDocumentController
         $settings = $this->stockSettings()->all();
 
         return view('stock_permits/manage', [
-            'rows'         => $result['rows'],
-            'total'        => $result['total'],
-            'offset'       => $this->offset(),
-            'page_size'    => self::PAGE_SIZE,
-            'filters'      => $filters,
-            'can_manage'   => $this->can(StockPermissions::PERMITS_MANAGE),
-            'can_settings' => $this->can(AccountingGuard::SETTINGS_MANAGE),
-            'settings'     => $settings,
-            'scopeNotice'  => $this->scopeNoticeNeeded(),
-            'active'       => 'permits',
-            'requestsOn'   => $settings['requests'],
+            'rows'        => $result['rows'],
+            'total'       => $result['total'],
+            'offset'      => $this->offset(),
+            'pageSize'    => self::PAGE_SIZE,
+            'filters'     => $filters,
+            'canManage'   => $this->can(StockPermissions::PERMITS_MANAGE),
+            'canSettings' => $this->can(AccountingGuard::SETTINGS_MANAGE),
+            'settings'    => $settings,
+            'scopeNotice' => $this->scopeNoticeNeeded(),
+            'active'      => 'permits',
+            'requestsOn'  => $settings['requests'],
         ]);
     }
 
@@ -99,12 +99,12 @@ class StockPermits extends StockDocumentController
         }
 
         return view('stock_permits/view', [
-            'permit'     => $permit,
-            'lines'      => $this->permits->lines($permitId),
-            'journals'   => $this->can('accounting_journals') ? $this->permits->journals($permitId) : [],
-            'number'     => $this->permits->numberOf($permitId),
-            'type'       => StockPermitType::from((string) $permit->permit_type),
-            'can_manage' => $this->can(StockPermissions::PERMITS_MANAGE),
+            'permit'    => $permit,
+            'lines'     => $this->permits->lines($permitId),
+            'journals'  => $this->can('accounting_journals') ? $this->permits->journals($permitId) : [],
+            'number'    => $this->permits->numberOf($permitId),
+            'type'      => StockPermitType::from((string) $permit->permit_type),
+            'canManage' => $this->can(StockPermissions::PERMITS_MANAGE),
         ]);
     }
 
@@ -116,7 +116,7 @@ class StockPermits extends StockDocumentController
             return $this->forbidden();
         }
 
-        return view('stock_permits/cancel_form', ['permit_id' => $permitId, 'number' => $this->permits->numberOf($permitId)]);
+        return view('stock_permits/cancel_form', ['permitId' => $permitId, 'number' => $this->permits->numberOf($permitId)]);
     }
 
     public function postSavePermit(): ResponseInterface

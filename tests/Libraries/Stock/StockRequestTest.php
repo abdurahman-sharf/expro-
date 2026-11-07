@@ -123,7 +123,7 @@ class StockRequestTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('stock_requests'));
     }
 
-    public function testCreate_RefusesWhatIsNotAValidRequest(): void
+    public function testCreate_RejectsWhatIsNotAValidRequest(): void
     {
         $itemId  = $this->stocked('10', '50');
         $service = $this->item('1.00', false);
@@ -263,7 +263,7 @@ class StockRequestTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::StockDocumentOff, fn () => $this->requests->fulfil($requestId, $this->keeperId));
     }
 
-    public function testFulfil_IsRefusedWhenTheLocationThatGivesDoesNotHoldWhatWasAskedAndLeavesTheRequestApproved(): void
+    public function testFulfil_RejectsWhenTheLocationThatGivesHoldsLessThanAskedAndLeavesTheRequestApproved(): void
     {
         $itemId    = $this->stocked('10', '50');
         $requestId = $this->ask([['item_id' => $itemId, 'quantity' => '11']]);
@@ -314,7 +314,7 @@ class StockRequestTest extends CIUnitTestCase
         $this->assertSame('0.0000', (new InterBranchPosition())->difference());
     }
 
-    public function testFulfil_TwoRequestsAtTheSameMomentMakeOnePermit(): void
+    public function testFulfil_MakesOnePermitWhenTwoFulfilmentsComeAtTheSameMoment(): void
     {
         $itemId    = $this->stocked('10', '50');
         $requestId = $this->ask([['item_id' => $itemId, 'quantity' => '4']]);
@@ -329,7 +329,7 @@ class StockRequestTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testFulfil_ALaterCancellationOfThePermitLeavesTheRequestFulfilled(): void
+    public function testFulfil_LeavesTheRequestFulfilledWhenThePermitIsCancelledLater(): void
     {
         $itemId    = $this->stocked('10', '50');
         $requestId = $this->ask([['item_id' => $itemId, 'quantity' => '4']]);
@@ -390,7 +390,7 @@ class StockRequestTest extends CIUnitTestCase
         $this->assertSame('cancelled', $this->requests->find($requestId)->status);
     }
 
-    public function testNumbering_NumbersARequestWithItsOwnSequenceAndShowsTheKindAndTheIdWhileItIsOff(): void
+    public function testNumberOf_NumbersARequestWithItsOwnSequenceAndShowsTheKindAndTheIdWhileItIsOff(): void
     {
         $itemId = $this->stocked('10', '50');
 
@@ -427,7 +427,21 @@ class StockRequestTest extends CIUnitTestCase
         $this->assertSame([], $this->requests->search([], $this->keeper([]))['rows']);
     }
 
-    public function testApproveAndFulfilAndCancel_AreWrittenToTheAuditLog(): void
+    public function testSearch_AcceptsTheLabelAndTheIdOfARequestWhileNumberingIsOff(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $first  = $this->ask([['item_id' => $itemId, 'quantity' => '1']]);
+        $second = $this->ask([['item_id' => $itemId, 'quantity' => '1']]);
+
+        $ids = static fn (array $result): array => array_map(static fn (object $row): int => (int) $row->request_id, $result['rows']);
+
+        $this->assertSame(['STK-REQ ' . $second, 'STK-REQ ' . $first], array_map(static fn (object $row): string => $row->label, $this->requests->search([], $this->keeperId)['rows']));
+        $this->assertSame([$first], $ids($this->requests->search(['search' => 'STK-REQ ' . $first], $this->keeperId)));
+        $this->assertSame([$second], $ids($this->requests->search(['search' => (string) $second], $this->keeperId)));
+    }
+
+    public function testApprove_WritesTheAuditLogOfApprovalFulfilmentAndCancellation(): void
     {
         $itemId = $this->stocked('10', '50');
 

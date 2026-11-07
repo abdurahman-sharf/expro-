@@ -60,7 +60,7 @@ class StockAccessTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testLocation_ReturnsTheLocationWithItsBranchAndRefusesOneThatIsMissingOrDeleted(): void
+    public function testLocation_ReturnsTheLocationWithItsBranchAndRejectsOneThatIsMissingOrDeleted(): void
     {
         $location = $this->access->location(self::LOCATION_ID);
 
@@ -91,7 +91,7 @@ class StockAccessTest extends CIUnitTestCase
         $this->assertSame($second, (int) $this->access->assertMayChange($second, $this->keeperId)->location_id);
     }
 
-    public function testAssertMayChange_RefusesWhoLacksTheItemsPermissionOfThatLocationAndNamesIt(): void
+    public function testAssertMayChange_RejectsWhoLacksTheItemsPermissionOfThatLocationAndNamesIt(): void
     {
         $second = $this->openLocation('Second warehouse');
         $clerk  = $this->keeper(null, ['items_stock']);
@@ -105,7 +105,7 @@ class StockAccessTest extends CIUnitTestCase
         }
     }
 
-    public function testAssertMayChange_RefusesALocationWithoutAnItemsPermissionRowAtAll(): void
+    public function testAssertMayChange_RejectsALocationWithoutAnItemsPermissionRowAtAll(): void
     {
         $bare = $this->anotherLocation('Bare warehouse');
 
@@ -114,7 +114,7 @@ class StockAccessTest extends CIUnitTestCase
         $this->access->assertMayChange($bare, $this->keeperId);
     }
 
-    public function testAssertMayChange_RefusesWhoDoesNotWorkInTheBranchOfTheLocationWhateverTheyHold(): void
+    public function testAssertMayChange_RejectsWhoDoesNotWorkInTheBranchOfTheLocationWhateverTheyHold(): void
     {
         $other = $this->createBranch();
         $clerk = $this->keeper([$other]);

@@ -34,10 +34,10 @@ class Stocktakes extends StockDocumentController
             'rows'        => $result['rows'],
             'total'       => $result['total'],
             'offset'      => $this->offset(),
-            'page_size'   => self::PAGE_SIZE,
+            'pageSize'    => self::PAGE_SIZE,
             'filters'     => $filters,
             'locations'   => $this->ownLocations(),
-            'can_manage'  => $this->can(StockPermissions::STOCKTAKE_MANAGE),
+            'canManage'   => $this->can(StockPermissions::STOCKTAKE_MANAGE),
             'scopeNotice' => $this->scopeNoticeNeeded(),
             'active'      => 'stocktakes',
             'requestsOn'  => $this->stockSettings()->requestsEnabled(),
@@ -66,15 +66,15 @@ class Stocktakes extends StockDocumentController
         }
 
         return view('stocktakes/sheet', [
-            'stocktake'   => $stocktake,
-            'lines'       => $this->takes->lines($stocktakeId),
-            'journals'    => $this->can('accounting_journals') ? $this->takes->journals($stocktakeId) : [],
-            'number'      => $this->takes->numberOf($stocktakeId),
-            'digest'      => $this->takes->digest($stocktakeId),
-            'canManage'   => $this->can(StockPermissions::STOCKTAKE_MANAGE),
-            'canApprove'  => $this->can(StockPermissions::STOCKTAKE_APPROVE),
-            'active'      => 'stocktakes',
-            'requestsOn'  => $this->stockSettings()->requestsEnabled(),
+            'stocktake'  => $stocktake,
+            'lines'      => $this->takes->lines($stocktakeId),
+            'journals'   => $this->can('accounting_journals') ? $this->takes->journals($stocktakeId) : [],
+            'number'     => $this->takes->numberOf($stocktakeId),
+            'digest'     => $this->takes->digest($stocktakeId),
+            'canManage'  => $this->can(StockPermissions::STOCKTAKE_MANAGE),
+            'canApprove' => $this->can(StockPermissions::STOCKTAKE_APPROVE),
+            'active'     => 'stocktakes',
+            'requestsOn' => $this->stockSettings()->requestsEnabled(),
         ]);
     }
 
@@ -101,7 +101,7 @@ class Stocktakes extends StockDocumentController
             return $this->forbidden();
         }
 
-        return view('stocktakes/cancel_form', ['stocktake_id' => $stocktakeId, 'number' => $this->takes->numberOf($stocktakeId), 'approved' => $stocktake->status === 'approved']);
+        return view('stocktakes/cancel_form', ['stocktakeId' => $stocktakeId, 'number' => $this->takes->numberOf($stocktakeId), 'approved' => $stocktake->status === 'approved']);
     }
 
     public function postSaveStocktake(): ResponseInterface

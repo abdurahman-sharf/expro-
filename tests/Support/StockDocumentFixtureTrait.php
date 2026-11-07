@@ -7,6 +7,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Stock\StockDocumentSettings;
 use App\Libraries\Stock\StockPermissions;
+use CodeIgniter\Events\Events;
 
 /**
  * What a test needs to put the stock documents through the real services with accounting on: an
@@ -135,6 +136,48 @@ trait StockDocumentFixtureTrait
                 }
             }
         }
+    }
+
+    /**
+     * @return list<string> The queries the action runs, in order.
+     */
+    protected function queriesOf(callable $action): array
+    {
+        $queries  = [];
+        $listener = static function ($query) use (&$queries): void {
+            $queries[] = (string) $query->getQuery();
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $queries;
+    }
+
+    /**
+     * @param list<string> $queries
+     * @param list<string> $needles Every one of them must be in the query.
+     */
+    protected function firstQuery(array $queries, array $needles): ?int
+    {
+        foreach ($queries as $index => $sql) {
+            $all = true;
+
+            foreach ($needles as $needle) {
+                $all = $all && str_contains($sql, $needle);
+            }
+
+            if ($all) {
+                return $index;
+            }
+        }
+
+        return null;
     }
 
     protected function switchOnTransferPermit(): void

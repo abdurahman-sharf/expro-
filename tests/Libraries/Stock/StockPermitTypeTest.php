@@ -24,7 +24,7 @@ class StockPermitTypeTest extends CIUnitTestCase
         }
     }
 
-    public function testAccountTypes_FitTheCreditSideOfAnAddPermitAndTheDebitSideOfAnIssuePermitAndNothingForATransfer(): void
+    public function testAccountTypes_FitsTheCreditSideOfAnAddPermitTheDebitSideOfAnIssuePermitAndNothingForATransfer(): void
     {
         $this->assertSame([AccountType::Liability, AccountType::Equity, AccountType::Revenue, AccountType::Expense], StockPermitType::Add->accountTypes());
         $this->assertSame([AccountType::Asset, AccountType::Equity, AccountType::Expense], StockPermitType::Issue->accountTypes());

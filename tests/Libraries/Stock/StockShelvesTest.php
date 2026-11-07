@@ -90,7 +90,7 @@ class StockShelvesTest extends CIUnitTestCase
         $this->assertSame('10.000', $this->shelves->onHand($itemId, self::LOCATION_ID));
     }
 
-    public function testAssertStays_NeverRefusesAnAddEvenWhenTheShelfIsAlreadyBelowZero(): void
+    public function testAssertStays_AcceptsAnAddEvenWhenTheShelfIsAlreadyBelowZero(): void
     {
         $itemId = $this->stocked('10', '50');
         $this->putOnShelf($itemId, '-4');
@@ -125,7 +125,7 @@ class StockShelvesTest extends CIUnitTestCase
         $this->assertStringContainsString('FOR UPDATE', $reads[0]);
     }
 
-    public function testAssertStays_RefusesWhatLeavesLessThanNothingAndNamesTheItemAndTheLocation(): void
+    public function testAssertStays_RejectsWhatLeavesLessThanNothingAndNamesTheItemAndTheLocation(): void
     {
         $itemId = $this->stocked('10', '50');
         $name   = (string) $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->name;

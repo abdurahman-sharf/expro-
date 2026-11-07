@@ -46,7 +46,7 @@ enum DocumentType: string
             self::SupplierPayment => ['receivings_payments' => 'payment_id', 'supplier_advances' => 'advance_id'],
             self::Expense         => ['expenses' => 'expense_id'],
             self::ReceivedCheque, self::PaidCheque => ['cheques' => 'cheque_id'],
-            self::Revenue => ['revenues' => 'revenue_id'],
+            self::Revenue        => ['revenues' => 'revenue_id'],
             self::SalesDebitNote => ['sales_debit_notes' => 'debit_note_id'],
             self::StockPermitAdd, self::StockPermitIssue, self::StockPermitTransfer => ['stock_permits' => 'permit_id'],
             self::Stocktake    => ['stocktakes' => 'stocktake_id'],
@@ -91,15 +91,15 @@ enum DocumentType: string
             self::CreditNote, self::RefundInvoice => 'POS ' . $id,
             self::Purchase, self::DebitNote => 'RECV ' . $id,
             self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue => (string) $id,
-            self::SalesDebitNote => str_pad((string) $id, $this->defaultPadding(), '0', STR_PAD_LEFT),
-            self::ReceivedCheque => 'CHQ-IN ' . $id,
-            self::PaidCheque     => 'CHQ-OUT ' . $id,
+            self::SalesDebitNote      => str_pad((string) $id, $this->defaultPadding(), '0', STR_PAD_LEFT),
+            self::ReceivedCheque      => 'CHQ-IN ' . $id,
+            self::PaidCheque          => 'CHQ-OUT ' . $id,
             self::StockPermitAdd      => 'STK-IN ' . $id,
             self::StockPermitIssue    => 'STK-OUT ' . $id,
             self::StockPermitTransfer => 'STK-TRF ' . $id,
             self::Stocktake           => 'STKT ' . $id,
             self::StockRequest        => 'STK-REQ ' . $id,
-            default              => '',
+            default                   => '',
         };
     }
 

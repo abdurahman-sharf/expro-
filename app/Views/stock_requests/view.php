@@ -1,15 +1,15 @@
 <?php
 /**
- * @var object       $stock_request
+ * @var object       $stockRequest
  * @var list<object> $lines
  * @var string       $number
  * @var bool         $enabled
- * @var bool         $can_manage
- * @var bool         $can_approve
+ * @var bool         $canManage
+ * @var bool         $canApprove
  * @var string       $active
  * @var bool         $requestsOn
  */
-$status = $stock_request->status;
+$status = $stockRequest->status;
 ?>
 
 <?= view('partial/header') ?>
@@ -19,7 +19,7 @@ $status = $stock_request->status;
         const send = function(path) {
             $.ajax({
                 type: 'POST',
-                url: 'stock_documents/requests/' + path + '/<?= (int) $stock_request->request_id ?>',
+                url: 'stock_documents/requests/' + path + '/<?= (int) $stockRequest->request_id ?>',
                 data: {},
                 dataType: 'json',
                 success: function(response) {
@@ -52,33 +52,33 @@ $status = $stock_request->status;
 <div id="title_bar" class="print_hide btn-toolbar">
     <h1 class="h5 me-auto mb-0"><?= lang('Stock_documents.request') ?> <bdi dir="ltr"><?= esc($number) ?></bdi></h1>
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('stock_documents/requests'), 'attr') ?>"><?= lang('Stock_documents.back') ?></a>
-    <?php if ($enabled && $can_approve && $status === 'requested'): ?>
+    <?php if ($enabled && $canApprove && $status === 'requested'): ?>
         <button type="button" class="btn btn-primary btn-sm" id="request_approve"><?= lang('Stock_documents.approve') ?></button>
     <?php endif; ?>
-    <?php if ($enabled && $can_approve && $status === 'approved'): ?>
+    <?php if ($enabled && $canApprove && $status === 'approved'): ?>
         <button type="button" class="btn btn-success btn-sm" id="request_fulfil"><?= lang('Stock_documents.fulfil') ?></button>
     <?php endif; ?>
-    <?php if (in_array($status, ['requested', 'approved'], true) && ($can_manage || $can_approve)): ?>
-        <button class="btn btn-outline-danger btn-sm modal-dlg request-dialog" id="request_cancel" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc(base_url('stock_documents/requests/cancel_form/' . (int) $stock_request->request_id), 'attr') ?>"><?= lang('Stock_documents.cancel') ?></button>
+    <?php if (in_array($status, ['requested', 'approved'], true) && ($canManage || $canApprove)): ?>
+        <button class="btn btn-outline-danger btn-sm modal-dlg request-dialog" id="request_cancel" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc(base_url('stock_documents/requests/cancel_form/' . (int) $stockRequest->request_id), 'attr') ?>"><?= lang('Stock_documents.cancel') ?></button>
     <?php endif; ?>
 </div>
 
 <dl class="row" id="request_details">
     <dt class="col-sm-3"><?= lang('Stock_documents.status') ?></dt>
-    <dd class="col-sm-9"><span class="badge text-bg-primary"><?= lang('Stock_documents.status_' . $status) ?></span><?= $status === 'cancelled' ? ' ' . esc((string) $stock_request->cancel_reason) : '' ?></dd>
+    <dd class="col-sm-9"><span class="badge text-bg-primary"><?= lang('Stock_documents.status_' . $status) ?></span><?= $status === 'cancelled' ? ' ' . esc((string) $stockRequest->cancel_reason) : '' ?></dd>
     <dt class="col-sm-3"><?= lang('Stock_documents.date') ?></dt>
-    <dd class="col-sm-9"><bdi dir="ltr"><?= esc((string) $stock_request->request_date) ?></bdi></dd>
+    <dd class="col-sm-9"><bdi dir="ltr"><?= esc((string) $stockRequest->request_date) ?></bdi></dd>
     <dt class="col-sm-3"><?= lang('Stock_documents.requested_from') ?></dt>
-    <dd class="col-sm-9"><?= esc((string) $stock_request->from_location_name) ?> <bdi dir="ltr">(<?= esc((string) $stock_request->from_branch_code) ?>)</bdi></dd>
+    <dd class="col-sm-9"><?= esc((string) $stockRequest->from_location_name) ?> <bdi dir="ltr">(<?= esc((string) $stockRequest->from_branch_code) ?>)</bdi></dd>
     <dt class="col-sm-3"><?= lang('Stock_documents.requested_for') ?></dt>
-    <dd class="col-sm-9"><?= esc((string) $stock_request->to_location_name) ?> <bdi dir="ltr">(<?= esc((string) $stock_request->branch_code) ?>)</bdi></dd>
-    <?php if ((string) $stock_request->note !== ''): ?>
+    <dd class="col-sm-9"><?= esc((string) $stockRequest->to_location_name) ?> <bdi dir="ltr">(<?= esc((string) $stockRequest->branch_code) ?>)</bdi></dd>
+    <?php if ((string) $stockRequest->note !== ''): ?>
         <dt class="col-sm-3"><?= lang('Stock_documents.note') ?></dt>
-        <dd class="col-sm-9"><?= esc((string) $stock_request->note) ?></dd>
+        <dd class="col-sm-9"><?= esc((string) $stockRequest->note) ?></dd>
     <?php endif; ?>
-    <?php if ($stock_request->permit_id !== null): ?>
+    <?php if ($stockRequest->permit_id !== null): ?>
         <dt class="col-sm-3"><?= lang('Stock_documents.transfer_permit') ?></dt>
-        <dd class="col-sm-9"><a id="request_permit_link" href="<?= esc(base_url('stock_documents/permits/view/' . (int) $stock_request->permit_id), 'attr') ?>">#<?= (int) $stock_request->permit_id ?></a></dd>
+        <dd class="col-sm-9"><a id="request_permit_link" href="<?= esc(base_url('stock_documents/permits/view/' . (int) $stockRequest->permit_id), 'attr') ?>">#<?= (int) $stockRequest->permit_id ?></a></dd>
     <?php endif; ?>
 </dl>
 

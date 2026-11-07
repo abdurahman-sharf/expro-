@@ -259,6 +259,10 @@ final class StockRequest
             ->get()
             ->getResult();
 
+        foreach ($rows as $row) {
+            $row->label = $row->document_number ?? DocumentType::StockRequest->fallback((int) $row->request_id);
+        }
+
         return ['total' => $total, 'rows' => $rows];
     }
 
@@ -300,7 +304,15 @@ final class StockRequest
         $search = trim((string) ($filters['search'] ?? ''));
 
         if ($search !== '') {
-            $builder->groupStart()->like('d.number', $search)->orLike('r.note', $search)->groupEnd();
+            $labelled = StockDocumentSearch::labelled($search, [DocumentType::StockRequest]);
+
+            $builder->groupStart()->like('d.number', $search)->orLike('r.note', $search);
+
+            if ($labelled !== null) {
+                $builder->orGroupStart()->where('r.request_id', $labelled['id'])->where('d.number IS NULL', null, false)->groupEnd();
+            }
+
+            $builder->groupEnd();
         }
 
         return $builder;

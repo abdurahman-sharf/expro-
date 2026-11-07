@@ -113,7 +113,7 @@ class StockDocumentsMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('modules')->where('module_id', 'stock_documents')->countAllResults());
     }
 
-    public function testPermits_AcceptTheThreeKindsAndRefuseAnythingElse(): void
+    public function testUp_AcceptsTheThreeKindsOfPermitAndRejectsAnythingElse(): void
     {
         $db     = $this->accountingDb();
         $second = $this->insertStockLocation('Second');
@@ -130,7 +130,7 @@ class StockDocumentsMigrationTest extends CIUnitTestCase
         $this->refused(fn () => $db->table('stock_permits')->insert($this->permit('add', null, 'deleted')));
     }
 
-    public function testPermitLines_RefuseAQuantityOfZeroAndAnUnknownItemAndAPermitThatIsNotThere(): void
+    public function testUp_RejectsAPermitLineOfQuantityZeroAnUnknownItemOrAMissingPermit(): void
     {
         $db = $this->accountingDb();
 
@@ -148,7 +148,7 @@ class StockDocumentsMigrationTest extends CIUnitTestCase
         $this->refused(fn () => $db->table('stock_permit_lines')->insert(['permit_id' => $permitId, 'line_no' => 1, 'item_id' => $itemId, 'quantity' => '2.000', 'unit_cost' => '0']), 'a line number is used once');
     }
 
-    public function testStocktakes_KeepOneSlotForALocationAndADayWhileTheyStandAndFreeItWhenCancelled(): void
+    public function testUp_KeepsOneStocktakeSlotForALocationAndADayAndFreesItWhenCancelled(): void
     {
         $db   = $this->accountingDb();
         $base = ['company_id' => 1, 'branch_id' => 1, 'location_id' => 1, 'count_date' => date('Y-m-d')];
@@ -164,7 +164,7 @@ class StockDocumentsMigrationTest extends CIUnitTestCase
         $this->refused(fn () => $db->table('stocktakes')->insert([...$base, 'status' => 'settled', 'slot' => '1|2020-01-01']));
     }
 
-    public function testStocktakeLines_RefuseANegativeCountAndAllowAnUncountedLine(): void
+    public function testUp_RejectsANegativeCountAndAcceptsAnUncountedLine(): void
     {
         $db = $this->accountingDb();
 
@@ -180,7 +180,7 @@ class StockDocumentsMigrationTest extends CIUnitTestCase
         $this->refused(fn () => $db->table('stocktake_lines')->where('stocktake_id', $stocktakeId)->update(['counted_quantity' => '-1.000']));
     }
 
-    public function testRequests_AcceptTheFourStatesAndRefuseTheSameLocationTwice(): void
+    public function testUp_AcceptsTheFourRequestStatesAndRejectsTheSameLocationTwice(): void
     {
         $db     = $this->accountingDb();
         $second = $this->insertStockLocation('Second');
@@ -195,7 +195,7 @@ class StockDocumentsMigrationTest extends CIUnitTestCase
         $this->refused(fn () => $db->table('stock_requests')->insert([...$base, 'to_location_id' => 1]));
     }
 
-    public function testRequestLines_RefuseAQuantityOfZero(): void
+    public function testUp_RejectsARequestLineOfQuantityZero(): void
     {
         $db     = $this->accountingDb();
         $second = $this->insertStockLocation('Second');
@@ -210,7 +210,7 @@ class StockDocumentsMigrationTest extends CIUnitTestCase
         $this->refused(fn () => $db->table('stock_request_lines')->insert(['request_id' => $requestId, 'line_no' => 2, 'item_id' => $itemId, 'quantity' => '0.000']));
     }
 
-    public function testRows_CannotBeDeletedWhileTheyAreReferred(): void
+    public function testUp_RejectsDeletingARowThatIsReferredTo(): void
     {
         $db = $this->accountingDb();
 

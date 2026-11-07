@@ -36,10 +36,10 @@ class StockRequests extends StockDocumentController
             'rows'        => $result['rows'],
             'total'       => $result['total'],
             'offset'      => $this->offset(),
-            'page_size'   => self::PAGE_SIZE,
+            'pageSize'    => self::PAGE_SIZE,
             'filters'     => $filters,
             'enabled'     => $settings->requestsEnabled(),
-            'can_manage'  => $this->can(StockPermissions::REQUESTS_MANAGE),
+            'canManage'   => $this->can(StockPermissions::REQUESTS_MANAGE),
             'scopeNotice' => $this->scopeNoticeNeeded(),
             'active'      => 'requests',
             'requestsOn'  => true,
@@ -69,14 +69,14 @@ class StockRequests extends StockDocumentController
         }
 
         return view('stock_requests/view', [
-            'stock_request' => $request,
-            'lines'         => $this->requests->lines($requestId),
-            'number'        => $this->requests->numberOf($requestId),
-            'enabled'       => $this->stockSettings()->requestsEnabled(),
-            'can_manage'    => $this->can(StockPermissions::REQUESTS_MANAGE),
-            'can_approve'   => $this->can(StockPermissions::REQUESTS_APPROVE),
-            'active'        => 'requests',
-            'requestsOn'    => true,
+            'stockRequest' => $request,
+            'lines'        => $this->requests->lines($requestId),
+            'number'       => $this->requests->numberOf($requestId),
+            'enabled'      => $this->stockSettings()->requestsEnabled(),
+            'canManage'    => $this->can(StockPermissions::REQUESTS_MANAGE),
+            'canApprove'   => $this->can(StockPermissions::REQUESTS_APPROVE),
+            'active'       => 'requests',
+            'requestsOn'   => true,
         ]);
     }
 
@@ -88,7 +88,7 @@ class StockRequests extends StockDocumentController
             return $this->forbidden();
         }
 
-        return view('stock_requests/cancel_form', ['request_id' => $requestId, 'number' => $this->requests->numberOf($requestId)]);
+        return view('stock_requests/cancel_form', ['requestId' => $requestId, 'number' => $this->requests->numberOf($requestId)]);
     }
 
     public function postSaveRequest(): ResponseInterface
