@@ -2,19 +2,23 @@
 
 namespace Tests\Models;
 
+use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Roles\DefaultLocations;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Stock\StockLocationLifecycle;
 use App\Models\Stock_location;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
 
 class Stock_locationTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ItemFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -25,6 +29,9 @@ class Stock_locationTest extends CIUnitTestCase
 
     /** @var list<int> */
     private array $createdLocations = [];
+
+    /** @var list<int> */
+    private array $itemIds = [];
 
     public static function setUpBeforeClass(): void
     {
@@ -51,9 +58,20 @@ class Stock_locationTest extends CIUnitTestCase
                 $db->table('permissions')->whereIn('permission_id', $permissionIds)->delete();
             }
 
+            $db->table('accounting_accounts')->where('entity_type', 'stock_location')->where('entity_id', $locationId)->delete();
+            $db->table('item_quantities')->where('location_id', $locationId)->delete();
             $db->table('stock_locations')->where('location_id', $locationId)->delete();
         }
 
+        $db->query('UPDATE ' . $db->prefixTable('stock_locations') . ' SET is_primary = 0, status = 1 WHERE deleted = 0');
+        $db->query('UPDATE ' . $db->prefixTable('stock_locations') . ' SET is_primary = 1 WHERE location_id = 1');
+
+        foreach ($this->itemIds as $itemId) {
+            $db->table('item_quantities')->where('item_id', $itemId)->delete();
+            $db->table('items')->where('item_id', $itemId)->delete();
+        }
+
+        $this->itemIds          = [];
         $this->createdLocations = [];
         $this->resetBranches();
         $this->setConfigValue('accounting_enabled', '0');
@@ -291,5 +309,78 @@ class Stock_locationTest extends CIUnitTestCase
 
         $this->assertContains($permission, (new RoleService())->permissionsOf($holder));
         $this->assertNotContains($permission, (new RoleService())->permissionsOf($other));
+    }
+
+    public function testGetAllowedLocations_HidesAnInactiveLocation(): void
+    {
+        $personId = $this->salesEmployee();
+        $depot    = $this->createLocation('quiet depot', 1, $personId);
+        $this->accountingDb()->table('stock_locations')->where('location_id', $depot)->update(['status' => 0]);
+
+        $model = new Stock_location();
+
+        $this->assertArrayNotHasKey($depot, $model->get_allowed_locations('sales'));
+        $this->assertFalse($model->is_allowed_location($depot, 'sales'));
+        $this->assertNotSame($depot, (int) $model->get_default_location_id('sales'));
+        $this->assertArrayHasKey($depot, array_column($model->get_all()->getResultArray(), null, 'location_id'), 'The settings still list it');
+    }
+
+    public function testSaveValue_MakesTheFirstLocationOfACompanyWithoutAPrimaryLocationPrimary(): void
+    {
+        $this->accountingDb()->table('stock_locations')->update(['is_primary' => 0]);
+
+        $locationId = $this->saveLocation('Fresh start');
+
+        $this->assertSame($locationId, (int) (new StockLocationLifecycle())->primaryId());
+    }
+
+    public function testSaveValue_LeavesThePrimaryLocationWhereItIsForALaterLocation(): void
+    {
+        $before = (int) (new StockLocationLifecycle())->primaryId();
+
+        $locationId = $this->saveLocation('Second place');
+
+        $this->assertSame($before, (int) (new StockLocationLifecycle())->primaryId());
+        $this->assertSame('0', (string) $this->accountingDb()->table('stock_locations')->where('location_id', $locationId)->get()->getRow()->is_primary);
+        $this->assertSame('1', (string) $this->accountingDb()->table('stock_locations')->where('location_id', $locationId)->get()->getRow()->status);
+    }
+
+    public function testDelete_RefusesThePrimaryLocationAndKeepsItsSubAccountOpen(): void
+    {
+        $entities = $this->startAccounting();
+        $primary  = (int) (new StockLocationLifecycle())->primaryId();
+        $entities->sync(EntityAccountService::STOCK_LOCATION, $primary);
+        $this->saveLocation('Other place');
+        $model = model(Stock_location::class);
+
+        $this->assertFalse($model->delete($primary));
+        $this->assertSame(AccountingError::StockLocationIsPrimary, $model->removalRefusal()?->error);
+        $this->assertSame('0', (string) $this->accountingDb()->table('stock_locations')->where('location_id', $primary)->get()->getRow()->deleted);
+        $this->assertSame('1', (string) $this->accountingDb()->table('accounting_accounts')->where('account_id', $entities->accountFor(EntityAccountService::STOCK_LOCATION, $primary))->get()->getRow()->active);
+    }
+
+    public function testDelete_RefusesALocationThatHoldsStockAndLeavesItsAccountOpen(): void
+    {
+        $entities   = $this->startAccounting();
+        $locationId = $this->saveLocation('Loaded place');
+        $itemId     = $this->itemIds[] = $this->createTestItem();
+        $this->accountingDb()->table('item_quantities')->replace(['item_id' => $itemId, 'location_id' => $locationId, 'quantity' => '3']);
+        $model = model(Stock_location::class);
+
+        $this->assertFalse($model->delete($locationId));
+        $this->assertSame(AccountingError::StockLocationHoldsStock, $model->removalRefusal()?->error);
+        $this->assertSame('0', (string) $this->accountingDb()->table('stock_locations')->where('location_id', $locationId)->get()->getRow()->deleted);
+        $this->assertSame('1', (string) $this->accountingDb()->table('accounting_accounts')->where('account_id', $entities->accountFor(EntityAccountService::STOCK_LOCATION, $locationId))->get()->getRow()->active);
+    }
+
+    public function testDelete_ForgetsAnEarlierRefusalWhenALaterRemovalSucceeds(): void
+    {
+        $this->saveLocation('Kept place');
+        $gone  = $this->saveLocation('Gone place');
+        $model = model(Stock_location::class);
+
+        $this->assertFalse($model->delete((int) (new StockLocationLifecycle())->primaryId()));
+        $this->assertTrue($model->delete($gone));
+        $this->assertNull($model->removalRefusal());
     }
 }

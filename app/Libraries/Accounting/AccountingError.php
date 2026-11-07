@@ -436,4 +436,12 @@ enum AccountingError: string
     case ReportTooLarge                   = 'report_too_large';
     case StatementAmountInvalid           = 'statement_amount_invalid';
     case ExportTooLarge                   = 'export_too_large';
+
+    case StockLocationNotFound      = 'stock_location_not_found';
+    case StockLocationHoldsStock    = 'stock_location_holds_stock';
+    case StockLocationHoldsValue    = 'stock_location_holds_value';
+    case StockLocationOpenDocuments = 'stock_location_open_documents';
+    case StockLocationLastActive    = 'stock_location_last_active';
+    case StockLocationIsPrimary     = 'stock_location_is_primary';
+    case StockLocationInactive      = 'stock_location_inactive';
 }

@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\DefaultLocations;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Stock\StockLocationLifecycle;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -33,6 +35,7 @@ class Stock_location extends Model
 
     private Session $session;
     private Employee $employee;
+    private ?AccountingException $removalRefusal = null;
 
     public function __construct()
     {
@@ -77,6 +80,7 @@ class Stock_location extends Model
         $this->limitToHeld($builder, $roleHeld);
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('deleted', 0);
+        $builder->where('stock_locations.status', 1);
         $this->limitToBranches($builder, $branchIds);
 
         return $builder->get();
@@ -132,6 +136,7 @@ class Stock_location extends Model
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('stock_locations.location_id', $location_id);
         $builder->where('deleted', 0);
+        $builder->where('stock_locations.status', 1);
         $this->limitToBranches($builder, $branchIds);
 
         return ($builder->get()->getNumRows() == 1);    // TODO: ===
@@ -156,6 +161,7 @@ class Stock_location extends Model
         $this->limitToHeld($builder, $roleHeld);
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('deleted', 0);
+        $builder->where('stock_locations.status', 1);
         $this->limitToBranches($builder, $branchIds);
         $builder->limit(1);
 
@@ -281,6 +287,8 @@ class Stock_location extends Model
                 $builder->insert($quantity_data);
             }
 
+            (new StockLocationLifecycle($this->db))->ensurePrimary((int) $location_id);
+
             $this->db->transComplete();
 
             if ($this->db->transStatus()) {
@@ -356,6 +364,16 @@ class Stock_location extends Model
      */
     public function delete($location_id = null, bool $purge = false): bool
     {
+        $this->removalRefusal = null;
+
+        try {
+            (new StockLocationLifecycle($this->db))->checkRemoval((int) $location_id);
+        } catch (AccountingException $refusal) {
+            $this->removalRefusal = $refusal;
+
+            return false;
+        }
+
         $this->db->transStart();
 
         $builder = $this->db->table('stock_locations');
@@ -372,5 +390,14 @@ class Stock_location extends Model
         }
 
         return $this->db->transStatus();
+    }
+
+    /**
+     * Why the last removal was refused: the location is the primary or the only active one, or it holds
+     * stock, a value in the books or an open document.
+     */
+    public function removalRefusal(): ?AccountingException
+    {
+        return $this->removalRefusal;
     }
 }
