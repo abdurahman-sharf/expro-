@@ -33,7 +33,6 @@ return [
     'rate_successful_updating' => 'The rate was updated.',
     'rates'                    => 'Rates',
     'rates_note'               => 'A document takes the latest rate on or before its date. A rate changed here never changes a document that has been posted.',
-    'rates_title'              => 'Rates of the currency',
     'successful_activating'    => 'The currency was switched on.',
     'successful_adding'        => 'The currency was added.',
     'successful_deactivating'  => 'The currency was switched off.',

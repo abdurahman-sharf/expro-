@@ -57,6 +57,7 @@ return [
     'currency'                          => '',
     'currency_cart_not_empty'           => '',
     'currency_return_mode'              => '',
+    'currency_stored_value'             => '',
     'current_table'                     => '',
     'customer'                          => 'Khách hàng',
     'customer_address'                  => 'Địa chỉ',

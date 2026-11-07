@@ -40,7 +40,6 @@ final class JournalService
     ];
     public const FX_SOURCES = [
         SalePostingBuilder::SOURCE_PAYMENT_FX,
-        ReceivingPostingBuilder::SOURCE_PAYMENT_FX,
         ReceivingPostingBuilder::SOURCE_SUPPLIER_FX,
     ];
     private const MAX_LINES      = 500;

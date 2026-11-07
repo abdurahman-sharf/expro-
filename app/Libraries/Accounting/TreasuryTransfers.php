@@ -33,6 +33,7 @@ final class TreasuryTransfers
     public const SOURCE_RECEIPT = 'treasury_transfer_receipt';
     private const NOTE_MAX      = 500;
     private const REASON_MAX    = 255;
+    private const RATE_TOLERANCE_PERCENT = '10';
 
     private BaseConnection $db;
     private AccountingGuard $guard;
@@ -333,6 +334,10 @@ final class TreasuryTransfers
         ];
 
         $difference = bcsub($baseTo, $baseFrom, SaleAmounts::SCALE);
+
+        if (bccomp(bcmul(SaleAmounts::absolute($difference), '100', SaleAmounts::SCALE), bcmul($baseFrom, self::RATE_TOLERANCE_PERCENT, SaleAmounts::SCALE), SaleAmounts::SCALE) > 0) {
+            throw new AccountingException(AccountingError::TransferRateOutOfRange, 'The two amounts of the transfer are further apart than the rates of the day allow, so it is not booked as an exchange gain or loss.', ['from' => $baseFrom, 'to' => $baseTo, 'percent' => self::RATE_TOLERANCE_PERCENT]);
+        }
 
         if (bccomp($difference, '0', SaleAmounts::SCALE) > 0) {
             $lines[] = new JournalLineDraft($this->exchangeAccount(RoutingKey::FxGain), credit: $difference);

@@ -59,6 +59,8 @@ final class Currencies
 
     public function isBase(string $code): bool
     {
+        $code = $this->normalize($code);
+
         return $code !== '' && $code === $this->baseCode();
     }
 
@@ -113,7 +115,7 @@ final class Currencies
     {
         $this->ensureBase();
 
-        $row = $this->db->table('accounting_currencies')->where('currency_code', $code)->get()->getRow();
+        $row = $this->db->table('accounting_currencies')->where('currency_code', $this->normalize($code))->get()->getRow();
 
         return $row === null ? null : $this->currencyOf($row);
     }
@@ -240,6 +242,8 @@ final class Currencies
         $this->guard->require(AccountingGuard::CURRENCIES_MANAGE, $employeeId);
         $this->branches->requireCompanyScope($employeeId);
 
+        $code = $this->normalize($code);
+
         $this->transactional(function () use ($code, $input, $employeeId): void {
             $row     = $this->lock($code);
             $changes = [];
@@ -283,6 +287,8 @@ final class Currencies
         $this->guard->require(AccountingGuard::CURRENCIES_MANAGE, $employeeId);
         $this->branches->requireCompanyScope($employeeId);
 
+        $code = $this->normalize($code);
+
         $this->transactional(function () use ($code, $active, $employeeId): void {
             $row = $this->lock($code);
 
@@ -304,6 +310,8 @@ final class Currencies
      */
     public function inUse(string $code): bool
     {
+        $code = $this->normalize($code);
+
         foreach (self::USED_BY as [$table, $column]) {
             if ($this->db->table($table)->where($column, $code)->limit(1)->countAllResults() > 0) {
                 return true;
@@ -316,6 +324,11 @@ final class Currencies
     public function rates(): CurrencyRates
     {
         return $this->rates;
+    }
+
+    private function normalize(string $code): string
+    {
+        return strtoupper(trim($code));
     }
 
     private function currencyOf(object $row): Currency

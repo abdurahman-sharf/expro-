@@ -57,6 +57,7 @@ return [
     'currency'                          => '',
     'currency_cart_not_empty'           => '',
     'currency_return_mode'              => '',
+    'currency_stored_value'             => '',
     'current_table'                     => '',
     'customer'                          => 'អតិថិជន',
     'customer_address'                  => 'អាសយដ្ឋាន',

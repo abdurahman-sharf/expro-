@@ -44,10 +44,11 @@ final class PriceControls
 
     /**
      * @param array<int|string, array<string, mixed>> $lines The lines of the register or of the sale, as they carry price, quantity, discount and the share of the discount on the whole sale.
+     * @param numeric-string                          $rate  The rate of a sale in a foreign currency: the minimum price is a price in the base currency, so the prices of the lines are compared with it at this rate.
      *
-     * @return list<PriceViolation> In the order of the lines.
+     * @return list<PriceViolation> In the order of the lines, with the prices in the base currency.
      */
-    public function violationsOf(array $lines): array
+    public function violationsOf(array $lines, string $rate = '1'): array
     {
         if (! $this->isActive() || $lines === []) {
             return [];
@@ -80,15 +81,16 @@ final class PriceControls
             $net     = bcsub($net, bcdiv($share, $quantity, 4), 4);
             $percent = bccomp($price, '0', 4) > 0 ? bcdiv(bcmul(bcsub($price, $net, 6), '100', 6), $price, 4) : '0.0000';
             $minimum = bcadd((string) $item->minimum_price, '0', 4);
+            $netBase = bcmul($net, $rate, 4);
 
-            if ($checkMin && bccomp($minimum, '0', 4) > 0 && bccomp($net, $minimum, 2) < 0) {
-                $found[] = new PriceViolation(PriceRule::BelowMinimum, $shown, (int) $item->item_id, (string) $item->name, $net, $minimum, $percent);
+            if ($checkMin && bccomp($minimum, '0', 4) > 0 && bccomp($netBase, $minimum, 2) < 0) {
+                $found[] = new PriceViolation(PriceRule::BelowMinimum, $shown, (int) $item->item_id, (string) $item->name, $netBase, $minimum, $percent);
             }
 
             $ceiling = $this->ceilingOf($item, $global, $exempt);
 
             if ($ceiling !== null && bccomp($percent, $ceiling, 2) > 0) {
-                $found[] = new PriceViolation(PriceRule::AboveCeiling, $shown, (int) $item->item_id, (string) $item->name, $net, $ceiling, $percent);
+                $found[] = new PriceViolation(PriceRule::AboveCeiling, $shown, (int) $item->item_id, (string) $item->name, $netBase, $ceiling, $percent);
             }
         }
 

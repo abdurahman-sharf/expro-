@@ -33,7 +33,6 @@ return [
     'rate_successful_updating' => 'عُدِّل السعر.',
     'rates'                    => 'الأسعار',
     'rates_note'               => 'يأخذ المستند آخر سعر في تاريخه أو قبله. تغيير السعر هنا لا يغيّر مستندًا رُحِّل.',
-    'rates_title'              => 'أسعار العملة',
     'successful_activating'    => 'فُعِّلت العملة.',
     'successful_adding'        => 'أُضيفت العملة.',
     'successful_deactivating'  => 'عُطِّلت العملة.',

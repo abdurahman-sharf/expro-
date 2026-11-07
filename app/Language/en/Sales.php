@@ -57,6 +57,7 @@ return [
     'currency'                          => 'Currency',
     'currency_cart_not_empty'           => 'Choose the currency before adding items: the prices in the cart are in the currency chosen.',
     'currency_return_mode'              => 'A return is in the currency of the sale it takes back.',
+    'currency_stored_value'             => 'A gift card or reward points cannot pay a sale in a foreign currency: their value is kept in the base currency.',
     'current_table'                     => 'Current Table',
     'customer'                          => 'Customer',
     'customer_address'                  => 'Address',

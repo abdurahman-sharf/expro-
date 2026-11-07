@@ -457,7 +457,7 @@ class Receiving extends Model
             if ($this->costCarries($before)) {
                 $moved = $this->movedLines($before, $after);
 
-                $this->correctTheCost(model(Item::class), $this->linesOf($before, $moved), $this->linesOf($after, $moved));
+                $this->correctTheCost(model(Item::class), $this->linesOf($before, $moved), $this->linesOf($after, $moved), $before->currency?->rate);
             }
 
             if ($accountingOn) {
@@ -717,8 +717,9 @@ class Receiving extends Model
      *
      * @param list<ReceivingLine> $taken
      * @param list<ReceivingLine> $given
+     * @param numeric-string|null $rate   The rate of a purchase in a foreign currency, which the cost of the items is kept in the base by.
      */
-    private function correctTheCost(Item $item, array $taken, array $given): void
+    private function correctTheCost(Item $item, array $taken, array $given, ?string $rate = null): void
     {
         $figures = [];
 
@@ -732,7 +733,8 @@ class Receiving extends Model
 
                 $figures[$line->itemId] ??= ['0', '0', '0', '0'];
                 $figures[$line->itemId][$offset]     = bcadd($figures[$line->itemId][$offset], $units, 3);
-                $figures[$line->itemId][$offset + 1] = bcadd($figures[$line->itemId][$offset + 1], ReceivingAmounts::net($line), ReceivingAmounts::SCALE);
+                $net                                 = $rate === null ? ReceivingAmounts::net($line) : bcmul(ReceivingAmounts::net($line), $rate, ReceivingAmounts::SCALE);
+                $figures[$line->itemId][$offset + 1] = bcadd($figures[$line->itemId][$offset + 1], $net, ReceivingAmounts::SCALE);
             }
         }
 

@@ -33,7 +33,6 @@ return [
     'rate_successful_updating' => '',
     'rates'                    => '',
     'rates_note'               => '',
-    'rates_title'              => '',
     'successful_activating'    => '',
     'successful_adding'        => '',
     'successful_deactivating'  => '',

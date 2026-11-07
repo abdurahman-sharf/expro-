@@ -1167,6 +1167,10 @@ class Sale extends Model
 
         try {
             $currencyColumns = $this->currencyColumns($saleType, $returnOfSaleId, $timing['invoice_date'] ?? date('Y-m-d'), $employeeId);
+
+            if ($currencyColumns['currency_code'] !== null && $this->paysWithStoredValue($payments ?? [])) {
+                throw new AccountingException(AccountingError::StoredValueInForeignCurrency, 'A gift card or reward points cannot pay a sale in a foreign currency: their value is kept in the base currency.');
+            }
         } catch (AccountingException $refusal) {
             $this->accountingFailure = $refusal;
 
@@ -1251,7 +1255,7 @@ class Sale extends Model
         $salesData['invoice_discount_type'] = $discountPlan->type;
         $salesData['invoice_discount'] = $discountPlan->value;
 
-        $priceViolations = $saleStatus == COMPLETED && in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) ? (new PriceControls($this->db))->violationsOf($items) : [];
+        $priceViolations = $saleStatus == COMPLETED && in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) ? (new PriceControls($this->db))->violationsOf($items, $currencyColumns['currency_rate'] ?? '1') : [];
 
         if ($priceViolations !== [] && !(new PriceControls($this->db))->mayOverride($employeeId)) {
             $this->db->transRollback();
@@ -1331,7 +1335,7 @@ class Sale extends Model
             $totalAmount = floatval($totalAmount) + floatval($payment['payment_amount']) - floatval($payment['cash_refund']);
         }
 
-        $this->save_customer_rewards($customerId, $saleId, $totalAmount, $totalAmountUsed);
+        $this->save_customer_rewards($customerId, $saleId, $currencyColumns['currency_rate'] === null ? $totalAmount : (float) bcmul((string) $totalAmount, $currencyColumns['currency_rate'], 4), $totalAmountUsed);
 
         $customer = $customer->get_info($customerId);
 
@@ -1509,6 +1513,32 @@ class Sale extends Model
         $this->db->transComplete();
 
         return $this->db->transStatus() ? $saleId : -1;
+    }
+
+    /**
+     * The currency a stored sale is in, or null when it is in the base currency.
+     */
+    public function getCurrencyCode(int $saleId): ?string
+    {
+        $row = $this->db->table('sales')->select('currency_code')->where('sale_id', $saleId)->get()->getRow();
+
+        return $row === null || $row->currency_code === null ? null : (string) $row->currency_code;
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $payments
+     */
+    private function paysWithStoredValue(array $payments): bool
+    {
+        foreach ($payments as $payment) {
+            $prefix = explode(':', (string) ($payment['payment_type'] ?? ''), 2)[0];
+
+            if ($prefix === lang('Sales.giftcard') || $prefix === lang('Sales.rewards')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
