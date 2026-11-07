@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'activate' => '',
+    'active' => '',
+    'customer_classification_new' => '',
+    'customer_classification_title' => '',
+    'customer_classification_uses' => '',
+    'deactivate' => '',
+    'id' => '',
+    'inactive' => '',
+    'inactive_help' => '',
+    'item_brand_new' => '',
+    'item_brand_title' => '',
+    'item_brand_uses' => '',
+    'name' => '',
+    'name_required' => '',
+    'status' => '',
+    'successful_activated' => '',
+    'successful_adding' => '',
+    'successful_deactivated' => '',
+    'successful_deleted' => '',
+    'successful_updating' => '',
+    'update' => '',
+];

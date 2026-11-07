@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'activate' => 'Activate',
+    'active' => 'Active',
+    'customer_classification_new' => 'New classification',
+    'customer_classification_title' => 'Customer classifications',
+    'customer_classification_uses' => 'Customers',
+    'deactivate' => 'Deactivate',
+    'id' => 'ID',
+    'inactive' => 'Inactive',
+    'inactive_help' => 'An inactive name is not offered for new records; the records that hold it keep it.',
+    'item_brand_new' => 'New brand',
+    'item_brand_title' => 'Brands',
+    'item_brand_uses' => 'Items',
+    'name' => 'Name',
+    'name_required' => 'The name is required.',
+    'status' => 'Status',
+    'successful_activated' => 'Activated.',
+    'successful_adding' => 'Added successfully.',
+    'successful_deactivated' => 'Deactivated.',
+    'successful_deleted' => 'Deleted {0} entries.',
+    'successful_updating' => 'Updated successfully.',
+    'update' => 'Update',
+];

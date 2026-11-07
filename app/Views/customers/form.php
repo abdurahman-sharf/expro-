@@ -19,8 +19,15 @@
  * @var bool $creditEditable
  * @var string $creditLimit
  * @var int $creditDays
+ * @var array<int, string> $classificationOptions
+ * @var array<string, string> $statusOptions
+ * @var array<string, string> $typeOptions
+ * @var array<string, string> $billingOptions
+ * @var array<int, string> $employeeOptions
+ * @var array<string, mixed> $masterData
  */
 
+$masterData        ??= null;
 $priceListOptions  ??= null;
 $creditLimitShown  ??= false;
 $creditPeriodShown ??= false;
@@ -63,7 +70,7 @@ $creditPeriodShown ??= false;
                 <div class="form-section">
                     <h3 class="form-section-title"><?= lang('Common.section_account') ?></h3>
                     <div class="form-grid">
-                        <div class="field">
+                        <div class="field" id="customer_company_row">
                             <?= form_label(lang('Customers.company_name'), 'customer_company_name', ['class' => 'form-label']) ?>
                             <?= form_input([
                                 'name'  => 'company_name',
@@ -225,6 +232,81 @@ $creditPeriodShown ??= false;
                             <div class="field">
                                 <?= form_label(lang('Customers.opening_date'), 'opening_date', ['class' => 'form-label']) ?>
                                 <input type="date" name="opening_date" id="opening_date" class="form-control form-control-sm ltr-input" dir="ltr" max="<?= esc($opening_today, 'attr') ?>" value="<?= esc($opening_today, 'attr') ?>">
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($masterData !== null): ?>
+                    <div class="form-section" id="customer_master_data_section">
+                        <h3 class="form-section-title"><?= lang('Customers.master_data') ?></h3>
+                        <?= form_hidden('master_data', '1') ?>
+                        <div class="form-grid">
+                            <div class="field">
+                                <span id="customer_type_label" class="form-label"><?= lang('Customers.type') ?></span>
+                                <div class="field-control" role="radiogroup" aria-labelledby="customer_type_label">
+                                    <?php foreach ($typeOptions as $typeValue => $typeLabel): ?>
+                                        <?php if ($typeValue === '') {
+                                            continue;
+                                        } ?>
+                                        <label class="choice">
+                                            <?= form_radio(['name' => 'customer_type', 'id' => 'customer_type_' . $typeValue, 'value' => $typeValue, 'checked' => $masterData['customer_type'] === $typeValue]) ?> <?= esc($typeLabel) ?>
+                                        </label>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <?= form_label(lang('Customers.classification'), 'classification_id', ['class' => 'form-label']) ?>
+                                <div class="field-control">
+                                    <?= form_dropdown('classification_id', $classificationOptions, (string) $masterData['classification_id'], 'id="classification_id" class="form-select form-select-sm"') ?>
+                                    <p class="form-text mb-0"><?= anchor('customer_classifications', lang('Customers.classifications_manage'), ['target' => '_blank', 'rel' => 'noopener']) ?></p>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <?= form_label(lang('Customers.manual_status'), 'manual_status', ['class' => 'form-label']) ?>
+                                <div class="field-control">
+                                    <?= form_dropdown('manual_status', $statusOptions, $masterData['manual_status'], 'id="manual_status" class="form-select form-select-sm"') ?>
+                                    <p class="form-text mb-0"><?= lang('Customers.manual_status_help') ?></p>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <?= form_label(lang('Customers.assigned_employee'), 'assigned_employee_id', ['class' => 'form-label']) ?>
+                                <div class="field-control">
+                                    <?= form_dropdown('assigned_employee_id', $employeeOptions, (string) $masterData['assigned_employee_id'], 'id="assigned_employee_id" class="form-select form-select-sm"') ?>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <?= form_label(lang('Customers.area'), 'area', ['class' => 'form-label']) ?>
+                                <div class="field-control">
+                                    <?= form_input(['name' => 'area', 'id' => 'area', 'class' => 'form-control form-control-sm', 'maxlength' => '100', 'value' => $masterData['area']]) ?>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <?= form_label(lang('Customers.country_code'), 'country_code', ['class' => 'form-label']) ?>
+                                <div class="field-control">
+                                    <?= form_input(['name' => 'country_code', 'id' => 'country_code', 'class' => 'form-control form-control-sm', 'maxlength' => '2', 'dir' => 'ltr', 'value' => $masterData['country_code']]) ?>
+                                    <p class="form-text mb-0"><?= lang('Customers.country_code_help') ?></p>
+                                </div>
+                            </div>
+
+                            <div class="field field-check">
+                                <?= form_label(lang('Customers.government_entity'), 'is_government_entity', ['class' => 'form-label']) ?>
+                                <div class="field-control">
+                                    <?= form_checkbox('is_government_entity', 1, $masterData['is_government_entity'] === 1, 'id="is_government_entity"') ?>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <?= form_label(lang('Customers.billing_method'), 'billing_method', ['class' => 'form-label']) ?>
+                                <div class="field-control">
+                                    <?= form_dropdown('billing_method', $billingOptions, $masterData['billing_method'], 'id="billing_method" class="form-select form-select-sm"') ?>
+                                    <p class="form-text mb-0"><?= lang('Customers.billing_method_help') ?></p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -526,6 +608,13 @@ $creditPeriodShown ??= false;
             select: fill_value,
             focus: fill_value
         });
+
+        const showCompanyName = function() {
+            $('#customer_company_row').toggle($("input[name='customer_type']:checked").val() !== 'individual');
+        };
+
+        $("input[name='customer_type']").on('change', showCompanyName);
+        showCompanyName();
 
         $('#customer_form').validate($.extend({
             submitHandler: function(form) {

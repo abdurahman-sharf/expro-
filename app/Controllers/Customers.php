@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
@@ -9,6 +10,12 @@ use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\MasterData\BillingMethod;
+use App\Libraries\MasterData\CustomerFields;
+use App\Libraries\MasterData\CustomerStatus;
+use App\Libraries\MasterData\CustomerType;
+use App\Libraries\MasterData\LookupKind;
+use App\Libraries\MasterData\NamedLookup;
 use App\Libraries\Mailchimp_lib;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -21,12 +28,15 @@ use App\Models\Price_list;
 use App\Models\Tax_code;
 use CodeIgniter\HTTP\DownloadResponse;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Database;
 use Config\OSPOS;
 use Config\Services;
 use stdClass;
 
 class Customers extends Persons
 {
+    private const IMPORT_BASE_COLUMNS = 18;
+
     private string $_list_id;
     private Mailchimp_lib $mailchimp_lib;
     private Customer_rewards $customer_rewards;
@@ -60,8 +70,90 @@ class Customers extends Persons
     public function getIndex(): string
     {
         $data['table_headers'] = get_customer_manage_table_headers();
+        $data['filterOptions'] = $this->filterOptions();
 
-        return view('people/manage', $data);
+        return view('customers/manage', $data);
+    }
+
+    /**
+     * What the directory can be narrowed by: the lists to choose from, and the employees the viewer may name.
+     *
+     * @return array<string, array<int|string, string>>
+     */
+    private function filterOptions(): array
+    {
+        return [
+            'classifications' => (new NamedLookup(LookupKind::CustomerClassification))->options(),
+            'statuses'        => CustomerStatus::options(),
+            'employees'       => (new CustomerFields())->assignableEmployees($this->viewerId()),
+            'types'           => CustomerType::options(),
+        ];
+    }
+
+    private function viewerId(): int
+    {
+        return (int) $this->employee->get_logged_in_employee_info()->person_id;
+    }
+
+    /**
+     * The branches whose sales the viewer sees in the directory, null for every branch.
+     *
+     * @return list<int>|null
+     */
+    private function branchScope(): ?array
+    {
+        return (new BranchGuard(null, $this->employee))->allowedBranchIds($this->viewerId());
+    }
+
+    /**
+     * The narrowing the directory was asked for. A value that is not one the lists offer is left out.
+     *
+     * @return array<string, mixed>
+     */
+    private function directoryFilters(): array
+    {
+        $get     = fn (string $name): string => trim((string) $this->request->getGet($name));
+        $filters = [];
+
+        if (ctype_digit($get('classification_id')) && (int) $get('classification_id') > 0) {
+            $filters['classification_id'] = (int) $get('classification_id');
+        }
+
+        if (CustomerStatus::tryFrom($get('manual_status')) !== null) {
+            $filters['manual_status'] = $get('manual_status');
+        }
+
+        if (CustomerType::tryFrom($get('customer_type')) !== null) {
+            $filters['customer_type'] = $get('customer_type');
+        }
+
+        if (ctype_digit($get('assigned_employee_id')) && (int) $get('assigned_employee_id') > 0) {
+            $filters['assigned_employee_id'] = (int) $get('assigned_employee_id');
+        }
+
+        foreach (['area', 'city'] as $name) {
+            if ($get($name) !== '' && mb_strlen($get($name)) <= CustomerFields::AREA_MAX) {
+                $filters[$name] = $get($name);
+            }
+        }
+
+        if (preg_match('/^[A-Za-z]{2}$/', $get('country_code')) === 1) {
+            $filters['country_code'] = strtoupper($get('country_code'));
+        }
+
+        foreach (['created_from', 'created_to'] as $name) {
+            $day = date_create_from_format('!Y-m-d', $get($name));
+
+            if ($day !== false && $day->format('Y-m-d') === $get($name)) {
+                $filters[$name] = $get($name);
+            }
+        }
+
+        $scope = $this->branchScope();
+
+        $filters['visible_employee_ids'] = $scope === null ? null : array_keys((new CustomerFields())->assignableEmployees($this->viewerId()));
+
+        return $filters;
     }
 
     /**
@@ -70,10 +162,15 @@ class Customers extends Persons
      */
     public function getRow(int $row_id): ResponseInterface
     {
-        $person = $this->customer->get_info($row_id);
+        $filters = ['person_id' => $row_id, 'visible_employee_ids' => $this->directoryFilters()['visible_employee_ids']];
+        $person  = $this->customer->search('', 1, 0, 'last_name', 'asc', false, $filters)->getRow();
+
+        if ($person === null) {
+            return $this->response->setJSON([]);
+        }
 
         // Retrieve the total amount the customer spent so far together with min, max and average values
-        $stats = $this->customer->get_stats($person->person_id);    // TODO: This and the next 11 lines are duplicated in search().  Extract a method.
+        $stats = $this->customer->get_stats($person->person_id, $this->branchScope());    // TODO: This and the next 11 lines are duplicated in search().  Extract a method.
 
         if (empty($stats)) {
             // Create object with empty properties.
@@ -105,14 +202,17 @@ class Customers extends Persons
         $sort = $this->sanitizeSortColumn(customer_headers(), $this->request->getGet('sort', FILTER_SANITIZE_FULL_SPECIAL_CHARS), 'people.person_id');
         $order = $this->request->getGet('order', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-        $customers = $this->customer->search($search, $limit, $offset, $sort, $order);
-        $total_rows = $this->customer->get_found_rows($search);
+        $filters = $this->directoryFilters();
+        $scope = $this->branchScope();
+
+        $customers = $this->customer->search($search, $limit, $offset, $sort, $order, false, $filters);
+        $total_rows = $this->customer->get_found_rows($search, $filters);
 
         $data_rows = [];
 
         foreach ($customers->getResult() as $person) {
             // Retrieve the total amount the customer spent so far together with min, max and average values
-            $stats = $this->customer->get_stats($person->person_id);    // TODO: duplicated... see above
+            $stats = $this->customer->get_stats($person->person_id, $scope);    // TODO: duplicated... see above
             if (empty($stats)) {
                 // Create object with empty properties.
                 $stats = new stdClass();
@@ -193,14 +293,14 @@ class Customers extends Persons
         $data['packages'] = $packages;
         $data['selected_package'] = $info->package_id;
 
-        $data = [...$data, ...$this->pricingFormData($info)];
+        $data = [...$data, ...$this->pricingFormData($info), ...$this->masterDataFormData($info)];
 
         $data['use_destination_based_tax'] = $this->config['use_destination_based_tax'];
         $data['opening_offered']           = $customerId == NEW_ENTRY && $this->openingOffered();
         $data['opening_today']             = date('Y-m-d');
 
         // Retrieve the total amount the customer spent so far together with min, max and average values
-        $stats = $this->customer->get_stats($customerId);
+        $stats = $this->customer->get_stats($customerId, $this->branchScope());
         if (!empty($stats)) {
             foreach (get_object_vars($stats) as $property => $value) {
                 $info->$property = $value;
@@ -283,8 +383,6 @@ class Customers extends Persons
             'comments'     => $this->request->getPost('comments')
         ];
 
-        $dateFormatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $this->request->getPost('date'));
-
         $customerData = [
             'consent'           => $this->request->getPost('consent') != null,
             'account_number'    => $this->request->getPost('account_number') == '' ? null : $this->request->getPost('account_number'),
@@ -294,10 +392,28 @@ class Customers extends Persons
             'discount_type'     => $this->request->getPost('discount_type') == null ? PERCENT : $this->request->getPost('discount_type', FILTER_SANITIZE_NUMBER_INT),
             'package_id'        => $this->request->getPost('package_id') == '' ? null : $this->request->getPost('package_id'),
             'taxable'           => $this->request->getPost('taxable') != null,
-            'date'              => $dateFormatter->format('Y-m-d H:i:s'),
             'employee_id'       => $this->request->getPost('employee_id', FILTER_SANITIZE_NUMBER_INT),
             'sales_tax_code_id' => $this->request->getPost('sales_tax_code_id') == '' ? null : $this->request->getPost('sales_tax_code_id', FILTER_SANITIZE_NUMBER_INT)
         ];
+
+        $isNew = $customerId == NEW_ENTRY || ! $this->customer->exists((int) $customerId);
+
+        if ($isNew) {
+            $customerData['date'] = date('Y-m-d H:i:s');
+        }
+
+        $before = $isNew ? null : $this->customer->get_info((int) $customerId);
+        $master = [];
+
+        if ($this->request->getPost(CustomerFields::MARKER) === '1') {
+            try {
+                $master = (new CustomerFields())->read($this->request->getPost(), $before, $this->viewerId(), $email);
+            } catch (AccountingException $failure) {
+                return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($failure), 'id' => NEW_ENTRY]);
+            }
+
+            $customerData += $master;
+        }
 
         if ($customerData['account_number'] !== null && $this->customer->refusesAccountNumber($customerData['account_number'], (string) $customerId)) {
             return $this->response->setJSON(['success' => false, 'message' => lang('Customers.account_number_duplicate'), 'id' => NEW_ENTRY]);
@@ -310,6 +426,10 @@ class Customers extends Persons
         }
 
         if ($this->customer->save_customer($personData, $customerData, $customerId)) {
+            if ($master !== []) {
+                (new CustomerFields())->audit((int) ($customerData['person_id'] ?? $customerId), $before, $master, $this->viewerId());
+            }
+
             $notSaved    = $this->saveCustomerPricing((int) ($customerData['person_id'] ?? $customerId));
             $pricingNote = $notSaved === null ? '' : ' ' . lang('Customers.pricing_not_saved', [$notSaved]);
 
@@ -347,6 +467,51 @@ class Customers extends Persons
                 'id'      => NEW_ENTRY
             ]);
         }
+    }
+
+    /**
+     * What the form of a customer shows of the fields that the books never read: the lists to choose from
+     * and the values the customer holds now (an inactive classification the customer holds stays on offer).
+     *
+     * @return array<string, mixed>
+     */
+    private function masterDataFormData(object $info): array
+    {
+        $held            = (int) ($info->classification_id ?? 0);
+        $classifications = [0 => lang('Customers.classification_none')];
+
+        foreach ((new NamedLookup(LookupKind::CustomerClassification))->all() as $row) {
+            if ((int) $row->status === 1 || (int) $row->classification_id === $held) {
+                $classifications[(int) $row->classification_id] = $row->name . ((int) $row->status === 1 ? '' : ' (' . lang('Lookups.inactive') . ')');
+            }
+        }
+
+        $employees = [0 => lang('Customers.assigned_employee_none')] + (new CustomerFields())->assignableEmployees($this->viewerId());
+        $assigned  = (int) ($info->assigned_employee_id ?? 0);
+
+        if ($assigned > 0 && ! isset($employees[$assigned])) {
+            $named = $this->employee->get_info($assigned);
+
+            $employees[$assigned] = trim($named->first_name . ' ' . $named->last_name);
+        }
+
+        return [
+            'classificationOptions' => $classifications,
+            'statusOptions'         => ['' => lang('Customers.status_none')] + CustomerStatus::options(),
+            'typeOptions'           => ['' => lang('Customers.type_none')] + CustomerType::options(),
+            'billingOptions'        => BillingMethod::options(),
+            'employeeOptions'       => $employees,
+            'masterData'            => [
+                'classification_id'    => $held,
+                'manual_status'        => (string) ($info->manual_status ?? ''),
+                'assigned_employee_id' => $assigned,
+                'area'                 => (string) ($info->area ?? ''),
+                'country_code'         => (string) ($info->country_code ?? ''),
+                'customer_type'        => (string) ($info->customer_type ?? ''),
+                'is_government_entity' => (int) ($info->is_government_entity ?? 0),
+                'billing_method'       => (string) ($info->billing_method ?? '') === '' ? BillingMethod::Print->value : (string) $info->billing_method,
+            ],
+        ];
     }
 
     /**
@@ -590,6 +755,62 @@ class Customers extends Persons
     }
 
     /**
+     * The columns an import row adds to the eighteen the template always had: the classification (by name),
+     * the manual status (by code), the assigned employee (by user name), the area, the country code, the type,
+     * the government flag and the billing method. A row that stops at the eighteenth column, or leaves them all
+     * empty, imports as it always did; a value that is not allowed refuses the row.
+     *
+     * @param list<string|null> $data
+     *
+     * @return array<string, int|string|null>
+     *
+     * @throws AccountingException
+     */
+    private function masterDataOfImportRow(array $data, string $email): array
+    {
+        $cell = static fn (int $position): string => trim((string) ($data[$position] ?? ''));
+
+        if (implode('', array_map($cell, range(self::IMPORT_BASE_COLUMNS, self::IMPORT_BASE_COLUMNS + 7))) === '') {
+            return [];
+        }
+
+        $classificationId = '';
+
+        if ($cell(18) !== '') {
+            $found = array_search(mb_strtolower($cell(18)), array_map('mb_strtolower', (new NamedLookup(LookupKind::CustomerClassification))->options()), true);
+
+            if ($found === false) {
+                throw new AccountingException(AccountingError::CustomerClassificationInvalid, 'The classification does not exist or is inactive.');
+            }
+
+            $classificationId = (string) $found;
+        }
+
+        $employeeId = '';
+
+        if ($cell(20) !== '') {
+            $found = Database::connect()->table('employees')->select('person_id')->where(['username' => $cell(20), 'deleted' => 0])->get()->getRow();
+
+            if ($found === null) {
+                throw new AccountingException(AccountingError::CustomerEmployeeInvalid, 'The employee does not exist.');
+            }
+
+            $employeeId = (string) $found->person_id;
+        }
+
+        return (new CustomerFields())->read([
+            'classification_id'    => $classificationId,
+            'manual_status'        => $cell(19),
+            'assigned_employee_id' => $employeeId,
+            'area'                 => $cell(21),
+            'country_code'         => $cell(22),
+            'customer_type'        => $cell(23),
+            'is_government_entity' => $cell(24) === '' ? 0 : 1,
+            'billing_method'       => $cell(25),
+        ], null, $this->viewerId(), $email);
+    }
+
+    /**
      * Customers import from csv spreadsheet
      *
      * @return DownloadResponse The template for Customer CSV imports is returned and download forced.
@@ -669,6 +890,7 @@ class Customers extends Persons
                             'employee_id'   => $this->employee->get_logged_in_employee_info()->person_id
                         ];
                         $accountNumber = $data[14];
+                        $master        = [];
 
                         // Don't duplicate people with same email
                         $invalidated = $this->customer->check_email_exists($email);
@@ -678,6 +900,14 @@ class Customers extends Persons
                             $invalidated &= $this->customer->check_account_number_exists($accountNumber);
                             $invalidated |= $this->customer->refusesAccountNumber($accountNumber);
                         }
+
+                        try {
+                            $master        = $this->masterDataOfImportRow($data, $email);
+                            $customerData += $master;
+                        } catch (AccountingException $failure) {
+                            $invalidated = true;
+                            log_message('error', "Row $i was not imported: " . $failure->getMessage());
+                        }
                     } else {
                         $invalidated = true;
                     }
@@ -686,6 +916,10 @@ class Customers extends Persons
                         $failCodes[] = $i;
                         log_message('error', "Row $i was not imported: Either email or account number already exist or data was invalid.");
                     } elseif ($this->customer->save_customer($personData, $customerData)) {
+                        if ($master !== []) {
+                            (new CustomerFields())->audit((int) $customerData['person_id'], null, $master, $this->viewerId());
+                        }
+
                         // Save customer to Mailchimp selected list
                         $this->mailchimp_lib->addOrUpdateMember($this->_list_id, $personData['email'], $personData['first_name'], '', $personData['last_name']);
                     } else {

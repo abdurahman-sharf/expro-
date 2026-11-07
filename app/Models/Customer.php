@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use Config\OSPOS;
 use stdClass;
@@ -32,7 +33,15 @@ class Customer extends Person
         'points',
         'date',
         'employee_id',
-        'consent'
+        'consent',
+        'classification_id',
+        'manual_status',
+        'assigned_employee_id',
+        'area',
+        'country_code',
+        'customer_type',
+        'is_government_entity',
+        'billing_method'
     ];
 
 
@@ -140,7 +149,7 @@ class Customer extends Person
     /**
      * Gets stats about a particular customer
      */
-    public function get_stats(int $customer_id): ?stdClass
+    public function get_stats(int $customer_id, ?array $branchIds = null): ?stdClass
     {
         $db_prefix = $this->db->getPrefix();
         $totals_decimals = totals_decimals();
@@ -151,6 +160,7 @@ class Customer extends Person
         $builder->select('sales.sale_id AS sale_id, AVG(`' . $db_prefix . 'sales_items`.`discount`) AS avg_discount, SUM(`' . $db_prefix . 'sales_items`.`quantity_purchased`) AS quantity');
         $builder->join('sales_items', 'sales_items.sale_id = sales.sale_id');
         $builder->where('sales.customer_id', $customer_id);
+        $this->limitSalesToBranches($builder, $branchIds);
         $builder->groupBy('sale_id');
         $selectQuery = $builder->getCompiledSelect();
 
@@ -172,6 +182,7 @@ class Customer extends Person
         $builder->join('sales_items_temp AS sales_items_temp', 'sales.sale_id = sales_items_temp.sale_id');
         $builder->where('sales.customer_id', $customer_id);
         $builder->where('sales.sale_status', COMPLETED);
+        $this->limitSalesToBranches($builder, $branchIds);
         $builder->groupBy('sales.customer_id');
 
         $stat = $builder->get()->getRow();
@@ -449,16 +460,25 @@ class Customer extends Person
 
     /**
      * Gets rows
+     *
+     * @param array<string, mixed> $filters
      */
-    public function get_found_rows(string $search): int
+    public function get_found_rows(string $search, array $filters = []): int
     {
-        return $this->search($search, 0, 0, 'last_name', 'asc', true);
+        return $this->search($search, 0, 0, 'last_name', 'asc', true, $filters);
     }
 
     /**
      * Performs a search on customers
+     *
+     * The filters narrow the directory by what a customer carries: classification_id, manual_status,
+     * assigned_employee_id, area, city, country_code, customer_type, created_from and created_to (days), and
+     * person_id for one row. visible_employee_ids limits whose name the assigned employee column shows and
+     * which employee the directory may be filtered by: null for every employee.
+     *
+     * @param array<string, mixed> $filters
      */
-    public function search(string $search, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'last_name', ?string $order = 'asc', ?bool $count_only = false)
+    public function search(string $search, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'last_name', ?string $order = 'asc', ?bool $count_only = false, array $filters = [])
     {
         // Set default values
         if ($rows == null) $rows = 0;
@@ -472,31 +492,98 @@ class Customer extends Person
         // get_found_rows case
         if ($count_only) {
             $builder->select('COUNT(customers.person_id) as count');
+        } else {
+            $visible = $filters['visible_employee_ids'] ?? null;
+            $builder->select("customers.*, people.*, customer_classifications.name AS classification_name, TRIM(CONCAT(assigned_person.first_name, ' ', assigned_person.last_name)) AS assigned_employee_name", false);
+            $builder->join('customer_classifications', 'customer_classifications.classification_id = customers.classification_id', 'left');
+            $builder->join(
+                'people AS assigned_person',
+                'assigned_person.person_id = customers.assigned_employee_id' . ($visible === null ? '' : ($visible === [] ? ' AND 1 = 0' : ' AND customers.assigned_employee_id IN (' . implode(',', array_map('intval', $visible)) . ')')),
+                'left'
+            );
         }
 
         $builder->join('people', 'customers.person_id = people.person_id');
         $builder->groupStart();
-        $builder->like('first_name', $search);
-        $builder->orLike('last_name', $search);
-        $builder->orLike('email', $search);
-        $builder->orLike('phone_number', $search);
-        $builder->orLike('account_number', $search);
-        $builder->orLike('company_name', $search);
-        $builder->orLike('CONCAT(first_name, " ", last_name)', $search);    // TODO: Duplicated code.
+        $builder->like('people.first_name', $search);
+        $builder->orLike('people.last_name', $search);
+        $builder->orLike('people.email', $search);
+        $builder->orLike('people.phone_number', $search);
+        $builder->orLike('customers.account_number', $search);
+        $builder->orLike('customers.company_name', $search);
+        $builder->orLike('CONCAT(people.first_name, " ", people.last_name)', $search);    // TODO: Duplicated code.
         $builder->groupEnd();
-        $builder->where('deleted', 0);
+        $builder->where('customers.deleted', 0);
+        $this->applyDirectoryFilters($builder, $filters);
 
         // get_found_rows case
         if ($count_only) {
             return $builder->get()->getRow()->count;
         }
 
-        $builder->orderBy($sort, $order);
+        $builder->orderBy(match (true) {
+            in_array($sort, ['first_name', 'last_name', 'email', 'phone_number', 'city'], true) => 'people.' . $sort,
+            $sort === 'created'                                                                  => 'customers.date',
+            default                                                                              => $sort,
+        }, $order);
 
         if ($rows > 0) {
             $builder->limit($rows, $limit_from);
         }
 
         return $builder->get();
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     */
+    private function applyDirectoryFilters(BaseBuilder $builder, array $filters): void
+    {
+        foreach (['classification_id', 'manual_status', 'area', 'country_code', 'customer_type'] as $column) {
+            if (isset($filters[$column]) && $filters[$column] !== '') {
+                $builder->where('customers.' . $column, $filters[$column]);
+            }
+        }
+
+        if (isset($filters['city']) && $filters['city'] !== '') {
+            $builder->where('people.city', $filters['city']);
+        }
+
+        if (isset($filters['assigned_employee_id']) && $filters['assigned_employee_id'] !== '') {
+            $visible = $filters['visible_employee_ids'] ?? null;
+
+            if ($visible !== null && ! in_array((int) $filters['assigned_employee_id'], array_map('intval', $visible), true)) {
+                $builder->where('1 = 0', null, false);
+            } else {
+                $builder->where('customers.assigned_employee_id', (int) $filters['assigned_employee_id']);
+            }
+        }
+
+        if (! empty($filters['created_from'])) {
+            $builder->where('DATE(customers.date) >=', $filters['created_from']);
+        }
+
+        if (! empty($filters['created_to'])) {
+            $builder->where('DATE(customers.date) <=', $filters['created_to']);
+        }
+
+        if (isset($filters['person_id'])) {
+            $builder->where('customers.person_id', (int) $filters['person_id']);
+        }
+    }
+
+    /**
+     * The totals a customer shows are those of the sales of the branches the viewer works in; null shows
+     * every branch.
+     *
+     * @param list<int>|null $branchIds
+     */
+    private function limitSalesToBranches(BaseBuilder $builder, ?array $branchIds): void
+    {
+        if ($branchIds === null) {
+            return;
+        }
+
+        $branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('sales.branch_id', $branchIds);
     }
 }

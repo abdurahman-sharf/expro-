@@ -282,6 +282,20 @@ $routes->group('price_lists', static function (RouteCollection $routes): void {
     $routes->post('delete', 'Price_lists::postDelete');
 });
 
+foreach (['customer_classifications' => 'Customer_classifications', 'item_brands' => 'Item_brands'] as $lookupPath => $lookupController) {
+    $routes->group($lookupPath, static function (RouteCollection $routes) use ($lookupController): void {
+        $routes->get('/', $lookupController . '::getIndex');
+        $routes->get('search', $lookupController . '::getSearch');
+        $routes->get('row/(:num)', $lookupController . '::getRow/$1');
+        $routes->get('view', $lookupController . '::getView');
+        $routes->get('view/(:num)', $lookupController . '::getView/$1');
+        $routes->post('save', $lookupController . '::postSave');
+        $routes->post('save/(:num)', $lookupController . '::postSave/$1');
+        $routes->post('status/(:num)/(:num)', $lookupController . '::postStatus/$1/$2');
+        $routes->post('delete', $lookupController . '::postDelete');
+    });
+}
+
 $routes->group('accounting_reports', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingReports::getIndex');
     $routes->get('trial_balance', 'AccountingReports::getIndex');

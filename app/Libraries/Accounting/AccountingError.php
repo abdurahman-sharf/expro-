@@ -444,4 +444,24 @@ enum AccountingError: string
     case StockLocationLastActive    = 'stock_location_last_active';
     case StockLocationIsPrimary     = 'stock_location_is_primary';
     case StockLocationInactive      = 'stock_location_inactive';
+
+    case LookupNameInvalid = 'lookup_name_invalid';
+    case LookupNameTaken   = 'lookup_name_taken';
+    case LookupNotFound    = 'lookup_not_found';
+    case LookupInUse       = 'lookup_in_use';
+
+    case CustomerClassificationInvalid = 'customer_classification_invalid';
+    case CustomerStatusInvalid         = 'customer_status_invalid';
+    case CustomerEmployeeInvalid       = 'customer_employee_invalid';
+    case CustomerAreaInvalid           = 'customer_area_invalid';
+    case CountryCodeInvalid            = 'country_code_invalid';
+    case CustomerTypeInvalid           = 'customer_type_invalid';
+    case CustomerBillingInvalid        = 'customer_billing_invalid';
+    case CustomerEmailRequired         = 'customer_email_required';
+    case PartyFieldTooLong             = 'party_field_too_long';
+
+    case ItemStatusInvalid   = 'item_status_invalid';
+    case ItemBrandInvalid    = 'item_brand_invalid';
+    case ItemFieldTooLong    = 'item_field_too_long';
+    case ItemInOpenDocuments = 'item_in_open_documents';
 }

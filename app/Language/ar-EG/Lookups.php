@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'activate' => 'تفعيل',
+    'active' => 'نشط',
+    'customer_classification_new' => 'تصنيف جديد',
+    'customer_classification_title' => 'تصنيفات العملاء',
+    'customer_classification_uses' => 'العملاء',
+    'deactivate' => 'تعطيل',
+    'id' => 'المعرّف',
+    'inactive' => 'غير نشط',
+    'inactive_help' => 'الاسم غير النشط لا يُعرض للسجلات الجديدة، والسجلات التي تحمله تبقيه.',
+    'item_brand_new' => 'ماركة جديدة',
+    'item_brand_title' => 'الماركات',
+    'item_brand_uses' => 'الأصناف',
+    'name' => 'الاسم',
+    'name_required' => 'الاسم مطلوب.',
+    'status' => 'الحالة',
+    'successful_activated' => 'تم التفعيل.',
+    'successful_adding' => 'تمت الإضافة بنجاح.',
+    'successful_deactivated' => 'تم التعطيل.',
+    'successful_deleted' => 'تم حذف {0} من السجلات.',
+    'successful_updating' => 'تم التحديث بنجاح.',
+    'update' => 'تعديل',
+];
