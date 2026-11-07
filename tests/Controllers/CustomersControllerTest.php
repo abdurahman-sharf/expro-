@@ -1428,6 +1428,11 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertSame(to_currency(30), $total($this->directory()['rows'], (int) $c['id']));
         $this->assertSame(to_currency(30), (string) json_decode($this->get('/customers/row/' . $c['id'])->getJSON(), true)['total']);
 
+        $form = $this->get('/customers/view/' . $c['id'])->getBody();
+
+        $this->assertStringContainsString('value="' . to_currency_no_money(30) . '"', $form);
+        $this->assertStringNotContainsString('value="' . to_currency_no_money(42) . '"', $form);
+
         $this->cleanSales();
         $this->resetBranches();
         $this->cleanMaster();

@@ -6,6 +6,7 @@ use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Models\Customer;
+use App\Models\Item;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -337,5 +338,115 @@ class CustomerTest extends CIUnitTestCase
 
         $this->assertSame(1, $this->accountingDb()->table('customers')->where('account_number', '')->countAllResults());
         $this->assertFalse(model(Customer::class)->refusesAccountNumber(''));
+    }
+
+    // ========== the directory: filters and the totals of the branches the viewer works in ==========
+
+    /**
+     * @param array<string, mixed> $filters
+     *
+     * @return list<int>
+     */
+    private function found(array $filters, string $search = ''): array
+    {
+        return array_map(static fn (object $row): int => (int) $row->person_id, (new Customer())->search($search, 100, 0, 'last_name', 'asc', false, $filters)->getResult());
+    }
+
+    public function testSearch_NarrowsByEachFilterAndCountsTheSameRows(): void
+    {
+        $model = new Customer();
+        $a     = $this->insertCustomer('Ann', 'Filterable' . uniqid());
+        $b     = $this->insertCustomer('Ben', 'Filterable' . uniqid());
+        $db    = $this->accountingDb();
+
+        $db->table('customers')->where('person_id', $a)->update(['manual_status' => 'served', 'area' => 'Olaya', 'country_code' => 'SA', 'customer_type' => 'commercial', 'date' => '2020-03-10 10:00:00']);
+        $db->table('customers')->where('person_id', $b)->update(['manual_status' => 'archived', 'area' => 'Malaz', 'country_code' => 'EG', 'customer_type' => 'individual', 'date' => '2020-04-10 10:00:00']);
+        $db->table('people')->where('person_id', $a)->update(['city' => 'Riyadh']);
+        $db->table('people')->where('person_id', $b)->update(['city' => 'Cairo']);
+
+        foreach ([['manual_status', 'served'], ['area', 'Olaya'], ['country_code', 'SA'], ['customer_type', 'commercial'], ['city', 'Riyadh'], ['created_to', '2020-03-31']] as [$filter, $value]) {
+            $this->assertSame([$a], $this->found([$filter => $value], 'Filterable'), $filter);
+            $this->assertSame(1, $model->get_found_rows('Filterable', [$filter => $value]), $filter);
+        }
+
+        $this->assertSame([$b], $this->found(['created_from' => '2020-04-01'], 'Filterable'));
+        $this->assertSame([$a], $this->found(['created_from' => '2020-03-10', 'created_to' => '2020-03-10'], 'Filterable'));
+        $this->assertEqualsCanonicalizing([$a, $b], $this->found([], 'Filterable'));
+        $this->assertSame(2, $model->get_found_rows('Filterable'));
+        $this->assertSame([], $this->found(['manual_status' => 'served', 'area' => 'Malaz'], 'Filterable'));
+    }
+
+    public function testSearch_AnswersWithTheNamesOfTheClassificationAndTheAssignedEmployee(): void
+    {
+        $customerId = $this->insertCustomer('Ann', 'Named' . uniqid());
+        $db         = $this->accountingDb();
+        $db->table('customer_classifications')->insert(['name' => 'Gold']);
+        $classId = (int) $db->insertID();
+        $db->table('customers')->where('person_id', $customerId)->update(['classification_id' => $classId, 'assigned_employee_id' => 1]);
+
+        $row = (new Customer())->search('Named', 10, 0, 'last_name', 'asc', false, ['visible_employee_ids' => null])->getRow();
+
+        $this->assertSame('Gold', $row->classification_name);
+        $this->assertNotSame('', trim((string) $row->assigned_employee_name));
+
+        $hidden = (new Customer())->search('Named', 10, 0, 'last_name', 'asc', false, ['visible_employee_ids' => []])->getRow();
+
+        $this->assertSame('', trim((string) $hidden->assigned_employee_name));
+
+        $db->table('customers')->where('person_id', $customerId)->update(['classification_id' => null, 'assigned_employee_id' => null]);
+        $db->query('DELETE FROM ' . $db->prefixTable('customer_classifications'));
+    }
+
+    public function testSearch_ReturnsNoRowForAnEmployeeFilterOutsideTheVisibleOnes(): void
+    {
+        $customerId = $this->insertCustomer('Ann', 'Hidden' . uniqid());
+        $this->accountingDb()->table('customers')->where('person_id', $customerId)->update(['assigned_employee_id' => 1]);
+
+        $this->assertSame([$customerId], $this->found(['assigned_employee_id' => 1, 'visible_employee_ids' => [1]], 'Hidden'));
+        $this->assertSame([], $this->found(['assigned_employee_id' => 1, 'visible_employee_ids' => [2]], 'Hidden'));
+        $this->assertSame([], $this->found(['assigned_employee_id' => 1, 'visible_employee_ids' => []], 'Hidden'));
+        $this->assertSame(0, (new Customer())->get_found_rows('Hidden', ['assigned_employee_id' => 1, 'visible_employee_ids' => [2]]));
+
+        $this->accountingDb()->table('customers')->where('person_id', $customerId)->update(['assigned_employee_id' => null]);
+    }
+
+    public function testGetStats_CountsTheSalesOfTheBranchesGivenAndNothingWhenNoBranchIsGiven(): void
+    {
+        $this->resetBranches();
+        $other      = $this->createBranch('B9');
+        $customerId = $this->insertCustomer();
+        $db         = $this->accountingDb();
+        $itemId     = $this->createStatItem();
+
+        foreach ([[1, '30.00'], [$other, '12.00']] as [$branch, $amount]) {
+            $db->table('sales')->insert(['customer_id' => $customerId, 'employee_id' => 1, 'comment' => '', 'sale_status' => COMPLETED, 'branch_id' => $branch]);
+            $saleId = (int) $db->insertID();
+            $db->table('sales_items')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 1, 'quantity_purchased' => 1, 'item_cost_price' => 1, 'item_unit_price' => $amount, 'item_location' => 1]);
+            $db->table('sales_payments')->insert(['sale_id' => $saleId, 'payment_type' => 'Cash', 'payment_amount' => $amount, 'employee_id' => 1]);
+        }
+
+        $model = new Customer();
+
+        $this->assertEquals(42, $model->get_stats($customerId)->total);
+        $this->assertEquals(42, $model->get_stats($customerId, null)->total);
+        $this->assertEquals(30, $model->get_stats($customerId, [1])->total);
+        $this->assertEquals(12, $model->get_stats($customerId, [$other])->total);
+        $this->assertNull($model->get_stats($customerId, []));
+
+        $db->query('DELETE FROM ' . $db->prefixTable('sales_payments'));
+        $db->query('DELETE FROM ' . $db->prefixTable('sales_items'));
+        $db->query('DELETE FROM ' . $db->prefixTable('sales'));
+        $db->table('item_quantities')->where('item_id', $itemId)->delete();
+        $db->table('items')->where('item_id', $itemId)->delete();
+        $this->resetBranches();
+    }
+
+    private function createStatItem(): int
+    {
+        $itemData = ['item_id' => null, 'name' => 'Stat item', 'description' => 'x', 'category' => 'x', 'cost_price' => 1, 'unit_price' => 5, 'reorder_level' => 0, 'item_number' => 'ST-' . uniqid(), 'allow_alt_description' => 0, 'is_serialized' => 0, 'stock_type' => HAS_STOCK, 'deleted' => 0];
+
+        model(Item::class)->save_value($itemData);
+
+        return (int) $itemData['item_id'];
     }
 }

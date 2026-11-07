@@ -3399,4 +3399,22 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertTrue(csvImportHasRequiredItemHeaders([array_fill_keys($legacy, '')], ['Warehouse'], []));
         $this->assertFalse(csvImportHasRequiredItemHeaders([array_fill_keys(array_diff($legacy, ['Item Name']), '')], ['Warehouse'], []), 'A required column is still required');
     }
+
+    public function testGetSuggest_LeavesOutAnInactiveAndASuspendedItemFromThePickerOfTheKitForm(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $token = 'Kitpick' . uniqid();
+        $ids   = [];
+
+        foreach ([0, 1, 2] as $status) {
+            $ids[$status] = (int) $this->saveMasterItem(['status' => (string) $status, 'name' => $token . ' ' . $status])['id'];
+        }
+
+        $found = array_map('intval', array_column(json_decode($this->get('/items/suggest', ['term' => $token])->getJSON(), true), 'value'));
+
+        $this->assertContains($ids[0], $found);
+        $this->assertNotContains($ids[1], $found);
+        $this->assertNotContains($ids[2], $found);
+        $this->cleanMasterItems();
+    }
 }

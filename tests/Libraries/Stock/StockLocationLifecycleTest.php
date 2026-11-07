@@ -540,6 +540,72 @@ final class StockLocationLifecycleTest extends CIUnitTestCase
         $this->assertSame(['shelves' => 2, 'suspended_sales' => 1], $this->lifecycle()->blockers($spare));
     }
 
+    public function testDeactivate_AcceptsALocationWhoseShelvesHoldOnlyZeros(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+        $this->putOnShelf($this->itemIds[] = $this->createTestItem(), '0', $spare);
+
+        $this->lifecycle()->deactivate($spare, null);
+
+        $this->assertSame(0, $this->statusOf($spare));
+        $this->assertSame([], $this->lifecycle()->blockers($spare));
+    }
+
+    public function testActivate_LeavesAnActiveLocationAloneWithoutAnAuditEntry(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+
+        $this->lifecycle()->activate($spare, null);
+
+        $this->assertSame(1, $this->statusOf($spare));
+        $this->assertSame(0, $this->auditCount('stock_location_activated', $spare));
+    }
+
+    public function testCheckRemoval_AcceptsAnInactiveLocationWhenThePrimaryIsTheOnlyActiveOne(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+        $this->accountingDb()->table('stock_locations')->where('location_id !=', $this->primaryLocationId())->update(['status' => 0]);
+
+        $this->assertNull($this->refusalOf(fn () => $this->lifecycle()->checkRemoval($spare)));
+    }
+
+    public function testDeactivate_WaitsForTheLockThatAnotherChangeOfTheLocationsHolds(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+        $db      = $this->accountingDb();
+
+        $db->transStart();
+
+        try {
+            $db->query('SELECT location_id FROM ' . $db->prefixTable('stock_locations') . ' WHERE deleted = 0 FOR UPDATE');
+
+            $this->assertWaitsForLock(fn () => (new StockLocationLifecycle($this->openSecondConnection()))->deactivate($spare, null));
+        } finally {
+            $db->transComplete();
+        }
+
+        $this->assertSame(1, $this->statusOf($spare));
+    }
+
+    public function testMakePrimary_WaitsForTheLockThatAnotherChangeOfTheLocationsHolds(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+        $before  = $this->primaryLocationId();
+        $db      = $this->accountingDb();
+
+        $db->transStart();
+
+        try {
+            $db->query('SELECT location_id FROM ' . $db->prefixTable('stock_locations') . ' WHERE deleted = 0 FOR UPDATE');
+
+            $this->assertWaitsForLock(fn () => (new StockLocationLifecycle($this->openSecondConnection()))->makePrimary($spare, null));
+        } finally {
+            $db->transComplete();
+        }
+
+        $this->assertSame($before, $this->primaryLocationId());
+    }
+
     private function postedJournalOn(int $accountId, string $amount): int
     {
         $draft = $this->draftWithLines([
