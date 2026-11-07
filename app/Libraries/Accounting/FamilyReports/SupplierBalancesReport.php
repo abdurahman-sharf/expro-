@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting\FamilyReports;
 
+use App\Libraries\Accounting\BalanceRow;
 use App\Libraries\Accounting\PartyReportQuery;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\SaleAmounts;
@@ -33,15 +34,16 @@ final class SupplierBalancesReport implements FamilyReport
             throw $query->refusal;
         }
 
-        $table = $input->scope->isEmpty() ? null : $this->balances->build($query->period, ! $query->showEmpty, $input->scope->ids);
+        $table = $input->scope->isEmpty() ? null : $this->balances->build($query->period, ! $query->showEmpty, $input->scope->ids, true);
         $lines = [];
+        $codes = $this->accounts->codes(array_map(static fn (BalanceRow $row): int => $row->accountId, $table->rows ?? []));
 
         foreach ($table->rows ?? [] as $row) {
             $returns = bcsub('0', bcadd($row->settlements, $row->returns, SaleAmounts::SCALE), SaleAmounts::SCALE);
 
             $lines[] = new ReportRow([
                 'code'      => (string) $row->partyId,
-                'account'   => (string) $row->accountId,
+                'account'   => $codes[$row->accountId] ?? '',
                 'name'      => $row->name,
                 'before'    => $row->before,
                 'purchases' => $row->sales,
@@ -68,7 +70,7 @@ final class SupplierBalancesReport implements FamilyReport
             $this->column('payments', ColumnKind::Amount), $this->column('other', ColumnKind::Amount), $this->column('balance', ColumnKind::Amount),
         ];
 
-        return new ReportTable($this->text('supplier_balances_title'), $columns, [new ReportBlock(null, $lines)], $this->totalRow($lines, $keys, 'name', $this->text('total')), $ties, [$this->text('note_balances_engine'), $this->text('note_net_purchases')]);
+        return new ReportTable($this->text('supplier_balances_title'), $columns, [new ReportBlock(null, $lines)], $this->totalRow($lines, $keys, 'name', $this->text('total')), $ties, [$this->text('note_balances_engine'), $this->text('note_net_purchases'), $this->text('note_balances_opening')]);
     }
 
     /**

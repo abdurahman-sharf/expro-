@@ -38,6 +38,16 @@ final class ControlAccounts
             }
         }
 
+        return $this->under(...$roots);
+    }
+
+    /**
+     * Each of the accounts and every account under them.
+     *
+     * @return list<int>
+     */
+    public function under(int ...$roots): array
+    {
         if ($roots === []) {
             return [];
         }
@@ -61,6 +71,26 @@ final class ControlAccounts
         }
 
         return array_keys($found);
+    }
+
+    /**
+     * @param list<int> $accountIds
+     *
+     * @return array<int, string> The code in the chart of each account.
+     */
+    public function codes(array $accountIds): array
+    {
+        if ($accountIds === []) {
+            return [];
+        }
+
+        $codes = [];
+
+        foreach ($this->db->table('accounting_accounts')->select('account_id, code')->where('company_id', CompanyContext::id())->whereIn('account_id', $accountIds)->get()->getResult() as $account) {
+            $codes[(int) $account->account_id] = (string) $account->code;
+        }
+
+        return $codes;
     }
 
     /**

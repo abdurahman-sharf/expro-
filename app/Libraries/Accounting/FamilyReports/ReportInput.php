@@ -5,6 +5,7 @@ namespace App\Libraries\Accounting\FamilyReports;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Roles\RecordScope;
 
 final readonly class ReportInput
 {
@@ -65,6 +66,11 @@ final readonly class ReportInput
         }
 
         return ReportPeriod::of($from === '' ? null : $from, $to === '' ? $this->today : $to);
+    }
+
+    public function readsOwnRecordsOnly(): bool
+    {
+        return (new RecordScope())->ownOnly($this->viewerId ?? RecordScope::sessionEmployee());
     }
 
     public function page(): int

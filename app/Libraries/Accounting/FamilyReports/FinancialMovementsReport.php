@@ -88,10 +88,10 @@ final class FinancialMovementsReport implements FamilyReport
         $rows[] = new ReportRow(['description' => $this->text('total_expenses'), 'amount' => $this->amount($outgo)], null, true);
         $rows[] = new ReportRow(['description' => $this->text('closing_balance'), 'balance' => $this->amount($balance)], null, true);
 
-        $ties  = [new TieCheck($this->text('tie_closing_balance'), bcadd($balance, '0', SaleAmounts::SCALE), bcadd(bcadd($opening, $income, SaleAmounts::SCALE), $outgo, SaleAmounts::SCALE))];
+        $ties  = [new TieCheck($this->text('tie_closing_ledger'), bcadd($balance, '0', SaleAmounts::SCALE), $this->accounts->movement($accounts, $input->scope, null, $period->to, self::sources()))];
         $notes = [$this->text('note_financial_sources'), $this->text('note_financial_opening')];
 
-        if ($input->scope->isCompany() && $input->viewerId === null) {
+        if ($input->scope->isCompany() && ! $input->readsOwnRecordsOnly()) {
             $supplierRows = $this->payments->read($input->scope, $period, null);
             $paid         = '0';
 
@@ -99,15 +99,10 @@ final class FinancialMovementsReport implements FamilyReport
                 $paid = bcadd($paid, $row->amount, SaleAmounts::SCALE);
             }
 
-            $out     = '0';
-            $sources = SupplierPaymentRows::SOURCES;
-
-            foreach (SupplierPaymentRows::SOURCES as $source) {
-                $sources = [...$sources, ...CrossBranchPayments::companionsOf($source)];
-            }
+            $out = '0';
 
             foreach ($moves as $move) {
-                if (in_array($move->source_type, $sources, true)) {
+                if (in_array($move->source_type, SupplierPaymentRows::cashSources(), true)) {
                     $out = bcadd($out, $move->amount, SaleAmounts::SCALE);
                 }
             }

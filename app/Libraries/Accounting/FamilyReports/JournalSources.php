@@ -5,6 +5,7 @@ namespace App\Libraries\Accounting\FamilyReports;
 use App\Libraries\Accounting\CashupPostingBuilder;
 use App\Libraries\Accounting\ChequeSources;
 use App\Libraries\Accounting\CreditRefunds;
+use App\Libraries\Accounting\CrossBranchPayments;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\ExpensePostingBuilder;
@@ -25,7 +26,8 @@ use App\Libraries\Accounting\YearEndEntries;
  * The sources a journal can have in these books, for the filter of the reports of journals. The
  * reference system offers thirty-three; the ones it has for assets, payroll and manufacturing have no
  * counterpart here, and the sources here that it has no name for (the cash refunds, the settlements
- * between branches, the opening balances and the closing of a year) are listed under their own names.
+ * between branches, the opening balances, the closing of a year and the journal a payment gets in the
+ * branch of a treasury of another branch) are listed under their own names.
  */
 final class JournalSources
 {
@@ -62,6 +64,9 @@ final class JournalSources
             OpeningBalanceService::SOURCE_TYPE,
             YearEndEntries::SOURCE_TYPE,
             JournalDraft::SOURCE_REVERSAL,
+            ...CrossBranchPayments::companionsOf(SalePostingBuilder::SOURCE_PAYMENT),
+            ...CrossBranchPayments::companionsOf(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT),
+            ...CrossBranchPayments::companionsOf(ExpensePostingBuilder::SOURCE),
         ];
     }
 

@@ -31,7 +31,7 @@ final class StockTurnoverReport implements FamilyReport
 
     public function build(ReportInput $input): ReportTable
     {
-        $to      = $input->text('to') === '' ? $input->today : $input->text('to');
+        $to      = ReportPeriod::of(null, $input->text('to') === '' ? $input->today : $input->text('to'))->to;
         $from    = $input->text('from') === '' ? (new DateTimeImmutable($to))->format('Y-01-01') : $input->text('from');
         $period  = ReportPeriod::of($from, $to);
         $group   = $input->choice('group', ['item', 'category'], 'item');
@@ -129,8 +129,9 @@ final class StockTurnoverReport implements FamilyReport
             return ['ratio' => '0.00', 'days' => '0.00'];
         }
 
-        $ratio = bcdiv($cogs, $average, 6);
-
-        return ['ratio' => SaleAmounts::round($ratio, 2), 'days' => SaleAmounts::round(bcdiv($days, $ratio, 6), 2)];
+        return [
+            'ratio' => SaleAmounts::round(bcdiv($cogs, $average, 6), 2),
+            'days'  => SaleAmounts::round(bcdiv(bcmul($days, $average, 6), $cogs, 6), 2),
+        ];
     }
 }

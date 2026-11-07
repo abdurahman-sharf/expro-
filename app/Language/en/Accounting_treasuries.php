@@ -64,7 +64,6 @@ return [
     'money_in' => 'In',
     'money_out' => 'Out',
     'movements' => 'Movements',
-    'movements_limit' => 'The latest {0} of {1} movements are shown.',
     'movements_none' => 'Nothing has been posted to this treasury yet.',
     'name' => 'Name',
     'name_required' => 'Enter the name of the treasury.',

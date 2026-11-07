@@ -48,8 +48,9 @@ final class SupplierAgedLedgerReport implements FamilyReport
 
         array_push($columns, $this->column('total', ColumnKind::Amount), $this->column('credit', ColumnKind::Amount), $this->column('balance', ColumnKind::Amount));
 
-        $lines = array_map(static function (AgedLedgerRow $row): ReportRow {
-            $cells = ['code' => (string) $row->partyId, 'account' => (string) $row->accountId, 'name' => $row->name];
+        $codes = $this->accounts->codes(array_map(static fn (AgedLedgerRow $row): int => $row->accountId, $rows));
+        $lines = array_map(static function (AgedLedgerRow $row) use ($codes): ReportRow {
+            $cells = ['code' => (string) $row->partyId, 'account' => $codes[$row->accountId] ?? '', 'name' => $row->name];
 
             foreach ($row->buckets as $index => $amount) {
                 $cells['b' . $index] = $amount;

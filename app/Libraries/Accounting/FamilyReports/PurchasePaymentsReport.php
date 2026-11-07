@@ -60,7 +60,7 @@ final class PurchasePaymentsReport implements FamilyReport
         $ties  = [];
         $notes = [$this->text('note_remaining_without_credit'), $this->text('note_net_purchases')];
 
-        if ($input->scope->isCompany() && $input->viewerId === null && $period->from === null && $period->to >= $input->today && $filters['supplier_id'] === 0 && $filters['employee_id'] === 0) {
+        if ($input->scope->isCompany() && ! $input->readsOwnRecordsOnly() && $period->from === null && $period->to >= $input->today && $filters['supplier_id'] === 0 && $filters['employee_id'] === 0) {
             $open    = '0';
             $credit  = '0';
             $account = '0';

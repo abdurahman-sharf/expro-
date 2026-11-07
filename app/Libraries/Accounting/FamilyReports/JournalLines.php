@@ -76,7 +76,7 @@ final class JournalLines
             return null;
         }
 
-        $accounts = $accountId !== null && $accountId > 0 ? $this->subtree($accountId) : [];
+        $accounts = $accountId !== null && $accountId > 0 ? (new ControlAccounts($this->db))->under($accountId) : [];
 
         $builder = $this->db->table('accounting_journal_lines l')
             ->join('accounting_journals j', 'j.journal_id = l.journal_id')
@@ -104,31 +104,5 @@ final class JournalLines
         }
 
         return $builder;
-    }
-
-    /**
-     * @return list<int>
-     */
-    private function subtree(int $accountId): array
-    {
-        $children = [];
-
-        foreach ($this->db->table('accounting_accounts')->select('account_id, parent_id')->where('company_id', CompanyContext::id())->where('parent_id IS NOT NULL', null, false)->get()->getResult() as $account) {
-            $children[(int) $account->parent_id][] = (int) $account->account_id;
-        }
-
-        $found = [$accountId => true];
-        $queue = [$accountId];
-
-        while ($queue !== []) {
-            foreach ($children[array_pop($queue)] ?? [] as $child) {
-                if (! isset($found[$child])) {
-                    $found[$child] = true;
-                    $queue[]       = $child;
-                }
-            }
-        }
-
-        return array_keys($found);
     }
 }

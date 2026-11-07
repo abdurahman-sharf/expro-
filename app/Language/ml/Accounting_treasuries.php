@@ -64,7 +64,6 @@ return [
     'money_in' => '',
     'money_out' => '',
     'movements' => '',
-    'movements_limit' => '',
     'movements_none' => '',
     'name' => '',
     'name_required' => '',

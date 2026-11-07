@@ -3,6 +3,7 @@
 namespace App\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\CreditRefunds;
+use App\Libraries\Accounting\CrossBranchPayments;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\ReceivingPostingBuilder;
@@ -35,6 +36,23 @@ final class SupplierPaymentRows
     public function __construct(?BaseConnection $db = null)
     {
         $this->db = $db ?? Database::connect();
+    }
+
+    /**
+     * The sources of the journals that move the treasury and bank accounts for these payments: their
+     * own, and the journal of the treasury's branch when a payment leaves a treasury of another branch.
+     *
+     * @return list<string>
+     */
+    public static function cashSources(): array
+    {
+        $sources = self::SOURCES;
+
+        foreach (self::SOURCES as $source) {
+            $sources = [...$sources, ...CrossBranchPayments::companionsOf($source)];
+        }
+
+        return $sources;
     }
 
     /**

@@ -5,10 +5,12 @@ namespace App\Libraries\Accounting;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
+use Generator;
 
 final class AuditLog
 {
     public const EXPORT_LIMIT = 20000;
+    public const PAGE_MAX     = 500;
 
     private BaseConnection $db;
 
@@ -41,8 +43,8 @@ final class AuditLog
     }
 
     /**
-     * @param array{date_from?: string, date_to?: string, action?: string, entity_type?: string, entity_id?: int|string, employee_id?: int|string, origin?: string, branch_id?: int|string} $filters
-     * @param list<int>|null                                                                                                                                                                $branchIds The branches the reader may see, null for every branch. Entries that belong to no branch (the whole company) are for readers of every branch.
+     * @param array{date_from?: string, date_to?: string, action?: string, entity_type?: string, entity_id?: int|string, employee_id?: int|string, origin?: string, branch_id?: int|string, max_audit_id?: int|string} $filters
+     * @param list<int>|null                                                                                                                                                                                         $branchIds The branches the reader may see, null for every branch. Entries that belong to no branch (the whole company) are for readers of every branch.
      *
      * @return array{total: int, rows: list<object>}
      */
@@ -69,6 +71,12 @@ final class AuditLog
             }
         }
 
+        $maxAuditId = (int) ($filters['max_audit_id'] ?? 0);
+
+        if ($maxAuditId > 0) {
+            $builder->where('a.audit_id <=', $maxAuditId);
+        }
+
         $entityId = (int) ($filters['entity_id'] ?? 0);
 
         if ($entityId > 0) {
@@ -91,9 +99,40 @@ final class AuditLog
 
         $total = $builder->countAllResults(false);
         $dir   = strtolower($order) === 'asc' ? 'ASC' : 'DESC';
-        $rows  = $builder->orderBy('a.created_at', $dir)->orderBy('a.audit_id', $dir)->limit(max(1, min($limit, 500)), $offset)->get()->getResult();
+        $rows  = $builder->orderBy('a.created_at', $dir)->orderBy('a.audit_id', $dir)->limit(max(1, min($limit, self::PAGE_MAX)), $offset)->get()->getResult();
 
         return ['total' => $total, 'rows' => $rows];
+    }
+
+    /**
+     * Every entry the filters leave, one after the other, taken from the log as it stood when the
+     * walk began: an entry written while it goes on is not in it, so the pages never overlap.
+     *
+     * @param array<string, mixed> $filters
+     * @param list<int>|null       $branchIds
+     *
+     * @return Generator<int, object>
+     */
+    public function stream(array $filters, string $order = 'desc', ?array $branchIds = null): Generator
+    {
+        $filters['max_audit_id'] = $this->latestId();
+
+        $offset = 0;
+
+        do {
+            $page = $this->search($filters, $order, self::PAGE_MAX, $offset, $branchIds);
+
+            foreach ($page['rows'] as $entry) {
+                yield $entry;
+            }
+
+            $offset += self::PAGE_MAX;
+        } while ($offset < $page['total']);
+    }
+
+    public function latestId(): int
+    {
+        return (int) ($this->db->table('accounting_audit_log')->selectMax('audit_id', 'latest')->get()->getRow()->latest ?? 0);
     }
 
     /**
@@ -132,6 +171,20 @@ final class AuditLog
         $this->limitToBranches($builder, $branchIds);
 
         return array_column($builder->get()->getResultArray(), 'action');
+    }
+
+    /**
+     * @param list<int>|null $branchIds
+     *
+     * @return list<string>
+     */
+    public function entities(?array $branchIds = null): array
+    {
+        $builder = $this->db->table('accounting_audit_log a')->distinct()->select('a.entity_type')->orderBy('a.entity_type', 'ASC');
+
+        $this->limitToBranches($builder, $branchIds);
+
+        return array_column($builder->get()->getResultArray(), 'entity_type');
     }
 
     /**

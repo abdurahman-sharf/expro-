@@ -64,7 +64,6 @@ return [
     'money_in' => 'وارد',
     'money_out' => 'صادر',
     'movements' => 'الحركات',
-    'movements_limit' => 'تُعرض آخر {0} حركة من {1}.',
     'movements_none' => 'لم يُقيَّد شيء على هذه الخزينة بعد.',
     'name' => 'الاسم',
     'name_required' => 'أدخل اسم الخزينة.',

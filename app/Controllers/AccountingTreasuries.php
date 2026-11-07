@@ -296,8 +296,8 @@ class AccountingTreasuries extends AccountingController
         $limit  = max(1, min((int) $this->request->getGet('limit') ?: self::DEFAULT_PAGE_SIZE, self::MAX_PAGE_SIZE));
         $offset = max(0, (int) $this->request->getGet('offset'));
         $result = $this->transfers->search($this->branchIds(), $limit, $offset, [
-            'date_from'   => (string) $this->request->getGet('date_from'),
-            'date_to'     => (string) $this->request->getGet('date_to'),
+            'date_from'   => $this->requestText('date_from'),
+            'date_to'     => $this->requestText('date_to'),
             'treasury_id' => (int) $this->request->getGet('treasury_id'),
         ]);
 

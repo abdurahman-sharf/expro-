@@ -8,7 +8,7 @@ use App\Libraries\Accounting\SaleAmounts;
  * What was bought of each item: the lines of the purchases and the returns of a period, a return
  * as a line with a negative quantity and value, grouped by item, supplier, employee or period. The
  * value of a line has its tax in it, and the lines of a document add up to its total, so the report
- * adds up to the net purchases of the others.
+ * adds up to the net purchases of the others, which are set beside what the journals of the documents hold.
  */
 final class ProductPurchasesReport implements FamilyReport
 {
@@ -81,7 +81,10 @@ final class ProductPurchasesReport implements FamilyReport
             $table['columns'],
             $table['blocks'],
             $table['grand'],
-            $filtered ? [] : [new TieCheck($this->text('tie_net_purchases'), $this->sumOf($entries), PurchaseDocuments::net($all))],
+            $filtered ? [] : [
+                new TieCheck($this->text('tie_lines_documents'), $this->sumOf($entries), PurchaseDocuments::net($all)),
+                new TieCheck($this->text('tie_net_purchases'), PurchaseDocuments::net($all), $this->documents->booked($input->scope, $period, $input->viewerId, $filter)),
+            ],
             $notes,
         );
     }

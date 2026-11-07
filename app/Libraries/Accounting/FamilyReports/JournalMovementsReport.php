@@ -20,6 +20,7 @@ final class JournalMovementsReport implements FamilyReport
     public function __construct(
         private readonly JournalLines $lines = new JournalLines(),
         private readonly TrialBalance $trialBalance = new TrialBalance(),
+        private readonly ControlAccounts $accounts = new ControlAccounts(),
     ) {
     }
 
@@ -55,7 +56,9 @@ final class JournalMovementsReport implements FamilyReport
             ]);
         }
 
-        ksort($sets);
+        if ($group === 'account') {
+            ksort($sets);
+        }
 
         $blocks = [];
         $all    = [];
@@ -66,12 +69,21 @@ final class JournalMovementsReport implements FamilyReport
         }
 
         $grand = $this->totalRow($all, ['debit', 'credit'], 'account', $this->text('grand_total'));
-        $ties  = [new TieCheck($this->text('tie_debit_credit'), $grand->cell('debit'), $grand->cell('credit'))];
+        $ties  = [];
         $notes = [$this->text('note_journal_sources'), $this->text('note_journal_sides')];
+        $whole = $source === '' && $input->journalOwner === null;
 
-        if ($source === '' && $account === 0 && $input->journalOwner === null) {
+        if ($account === 0) {
+            $ties[] = new TieCheck($this->text('tie_debit_credit'), $grand->cell('debit'), $grand->cell('credit'));
+        }
+
+        if ($whole && $account === 0) {
             $movement = $input->scope->isEmpty() ? '0.0000' : $this->trialBalance->build($input->scope, $period)->totals['debit'];
             $ties[]   = new TieCheck($this->text('tie_trial_balance'), $grand->cell('debit'), $movement);
+        } elseif ($whole) {
+            $held     = $this->accounts->movement($this->accounts->under($account), $input->scope, $period->from, $period->to);
+            $net      = bcsub($grand->cell('debit'), $grand->cell('credit'), SaleAmounts::SCALE);
+            $ties[]   = new TieCheck($this->text('tie_account_movement'), $net, $held);
         } else {
             $notes[] = $this->text('note_journal_narrowed');
         }

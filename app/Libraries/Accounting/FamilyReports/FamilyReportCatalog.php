@@ -102,11 +102,12 @@ final class FamilyReportCatalog
     public static function titleKey(string $key): string
     {
         return match ($key) {
-            'expenses' => 'expenses_title',
-            'income'   => 'income_title',
-            'journals' => 'journals_title',
-            'chart'    => 'chart_title',
-            default    => $key . '_title',
+            'stock_count_sheet' => 'stock_count_title',
+            'expenses'          => 'expenses_title',
+            'income'            => 'income_title',
+            'journals'          => 'journals_title',
+            'chart'             => 'chart_title',
+            default             => $key . '_title',
         };
     }
 

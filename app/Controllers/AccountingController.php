@@ -155,6 +155,13 @@ abstract class AccountingController extends Secure_Controller
         return $line === $key ? $code : $line;
     }
 
+    protected function requestText(string $name): string
+    {
+        $value = $this->request->getGet($name);
+
+        return is_string($value) ? trim($value) : '';
+    }
+
     protected function amountCell(string $text): string
     {
         return '<bdi dir="ltr">' . esc($text) . '</bdi>';
