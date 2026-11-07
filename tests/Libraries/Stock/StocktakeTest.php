@@ -14,6 +14,7 @@ use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockPermissions;
 use App\Libraries\Stock\StockPermitSources;
 use App\Libraries\Stock\Stocktake;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -87,6 +88,16 @@ class StocktakeTest extends CIUnitTestCase
     private function countAll(int $stocktakeId, array $counted): void
     {
         $this->takes->count($stocktakeId, $counted, $this->keeperId);
+    }
+
+    private function holdTheLocation(int $locationId): BaseConnection
+    {
+        $holder = $this->openSecondConnection();
+
+        $holder->transStart();
+        $holder->query('SELECT location_id FROM ' . $holder->prefixTable('stock_locations') . ' WHERE location_id = ? FOR UPDATE', [$locationId]);
+
+        return $holder;
     }
 
     private function refusedWith(AccountingError $error, callable $action): void
@@ -918,6 +929,37 @@ class StocktakeTest extends CIUnitTestCase
 
         $this->assertSame(['done', AccountingError::StocktakeItemOpen->value], $answers);
         $this->assertSame(1, $this->countRows('stocktake_lines'));
+    }
+
+    public function testCreate_WaitsForTheLockOfTheLocationAnotherRequestHolds(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $holder = $this->holdTheLocation(self::LOCATION_ID);
+
+        try {
+            $this->assertWaitsForLock(fn () => (new Stocktake($this->openSecondConnection()))->create(['location_id' => self::LOCATION_ID, 'date' => date('Y-m-d'), 'item_ids' => [$itemId]], $this->keeperId));
+        } finally {
+            $holder->transComplete();
+            $holder->close();
+        }
+
+        $this->assertSame(0, $this->countRows('stocktakes'));
+    }
+
+    public function testAddItems_WaitsForTheLockOfTheLocationAnotherRequestHolds(): void
+    {
+        $itemId      = $this->stocked('10', '50');
+        $stocktakeId = $this->start([]);
+        $holder      = $this->holdTheLocation(self::LOCATION_ID);
+
+        try {
+            $this->assertWaitsForLock(fn () => (new Stocktake($this->openSecondConnection()))->addItems($stocktakeId, [$itemId], $this->keeperId));
+        } finally {
+            $holder->transComplete();
+            $holder->close();
+        }
+
+        $this->assertSame([], $this->takes->lines($stocktakeId));
     }
 
     public function testAddItems_ListsAnItemOnceWhenTwoCountsOfItComeAtTheSameMoment(): void
