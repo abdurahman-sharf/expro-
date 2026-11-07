@@ -29,6 +29,7 @@ use App\Libraries\Accounting\TaxDefinitions;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\HeaderCharges;
 use App\Libraries\InvoiceDiscountProblem;
+use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\ShippingTaxOption;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -7007,5 +7008,80 @@ class SalePostingTest extends CIUnitTestCase
         ], 'the rate of the posted journal');
         $this->assertSame('3.75000000', $this->saleRow($saleId)->currency_rate);
         $this->assertSame('375.00', $this->balance($this->customerAccount()));
+    }
+
+    public function testSaveValue_RefusesAForeignLineWhoseValueInTheBaseIsUnderTheMinimumPriceAndSavesNothing(): void
+    {
+        $this->dollars();
+        $this->grantInvoiceDate();
+        $this->setConfigValue(SalesControlSettings::MINIMUM_PRICE, '1');
+
+        $service = $this->item('0', false);
+        $this->accountingDb()->table('items')->where('item_id', $service)->update(['minimum_price' => '50']);
+        $this->sales->useCurrency('USD');
+        $before = $this->countSales();
+
+        try {
+            $refused = $this->save([$this->line($service, 0, '1', '13')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+
+            $this->assertSame(ACCOUNTING_FAILED, $refused, '13 dollars at 3.75 are 48.75 of the base');
+            $this->assertSame(AccountingError::PriceBelowMinimum, $this->failure()->error);
+            $this->assertSame($before, $this->countSales());
+
+            $this->sales->useCurrency('USD');
+
+            $this->assertGreaterThan(0, $this->save([$this->line($service, 0, '1', '14')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10)), '14 dollars at 3.75 are 52.50 of the base');
+        } finally {
+            $this->setConfigValue(SalesControlSettings::MINIMUM_PRICE, '0');
+            $this->accountingDb()->table('items')->where('item_id', $service)->update(['minimum_price' => '0']);
+        }
+    }
+
+    public function testSaveValue_RefusesAForeignSaleThatIsPaidWithAGiftCardOrWithRewardPointsAndSavesNothing(): void
+    {
+        $this->dollars();
+        $this->grantInvoiceDate();
+
+        $service = $this->item('0', false);
+        $before  = $this->countSales();
+
+        foreach ([lang('Sales.giftcard') . ':GC-1', lang('Sales.rewards')] as $type) {
+            $this->sales->useCurrency('USD');
+
+            $saleId = $this->save([$this->line($service, 0, '1', '100')], [], [$this->payment($type, '100.00')], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+
+            $this->assertSame(ACCOUNTING_FAILED, $saleId, $type);
+            $this->assertSame(AccountingError::StoredValueInForeignCurrency, $this->failure()->error);
+        }
+
+        $this->assertSame($before, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_EarnsRewardPointsOnWhatAForeignSaleIsWorthInTheBase(): void
+    {
+        $this->dollars();
+
+        $db     = $this->accountingDb();
+        $before = config(OSPOS::class)->settings['customer_reward_enable'] ?? null;
+
+        $db->table('customers_packages')->insert(['package_name' => 'Dollar gold', 'points_percent' => '20', 'deleted' => 0]);
+
+        $packageId = (int) $db->insertID();
+
+        $db->table('customers')->where('person_id', $this->customerId)->update(['package_id' => $packageId, 'points' => 0]);
+        config(OSPOS::class)->settings['customer_reward_enable'] = '1';
+
+        try {
+            $saleId = $this->dollarInvoice('100', [$this->payment(lang('Sales.cash'), '100.00')]);
+
+            $this->assertGreaterThan(0, $saleId);
+            $this->assertSame('75', (string) $db->table('customers')->where('person_id', $this->customerId)->get()->getRow()->points, '20% of 100 dollars at 3.75 is 75 points and not 20');
+            $this->assertSame('75.00', bcadd((string) $db->table('sales_reward_points')->where('sale_id', $saleId)->get()->getRow()->earned, '0', 2));
+        } finally {
+            config(OSPOS::class)->settings['customer_reward_enable'] = $before;
+            $db->table('customers')->where('person_id', $this->customerId)->update(['package_id' => null, 'points' => null]);
+            $db->table('customers_packages')->where('package_id', $packageId)->delete();
+        }
     }
 }

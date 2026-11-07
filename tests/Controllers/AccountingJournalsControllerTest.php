@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\ChequeSources;
 use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalAttachments;
@@ -316,6 +317,63 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->accountant();
 
         $this->get('/accounting_journals/view/' . $journalId)->assertDontSee('accounting_journals/reverse_form/' . $journalId);
+    }
+
+    public function testGetView_HidesTheReverseButtonOfAnExchangeDifferenceJournalAndNamesItsSourceInWords(): void
+    {
+        $this->accountant();
+
+        foreach (JournalService::FX_SOURCES as $source) {
+            $journalId = (new PostingService())->post(new JournalDraft(
+                date: '2026-10-21',
+                lines: [new JournalLineDraft($this->accountId('cash'), debit: '15.00'), new JournalLineDraft($this->accountId('sales_revenue'), credit: '15.00')],
+                sourceType: $source,
+                sourceId: 4712,
+                currencyCode: 'SAR',
+            ))->journalId;
+
+            $body = $this->get('/accounting_journals/view/' . $journalId)->getBody();
+
+            $this->assertStringNotContainsString('accounting_journals/reverse_form/' . $journalId, $body, $source);
+            $this->assertStringContainsString(esc(lang('Accounting.source_' . $source)), $body, $source);
+            $this->assertNotSame('Accounting.source_' . $source, lang('Accounting.source_' . $source), $source);
+        }
+    }
+
+    public function testGetView_ShowsTheForeignAmountOfEachLineAndHidesTheReverseButtonOfAJournalInAForeignCurrency(): void
+    {
+        $this->accountant();
+
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2020-01-01']);
+
+        $journalId = (new PostingService())->post(new JournalDraft(
+            date: '2026-10-21',
+            lines: [
+                new JournalLineDraft($this->accountId('cash'), debit: '375.00', foreignAmount: '100.0000', currencyCode: 'USD'),
+                new JournalLineDraft($this->accountId('sales_revenue'), credit: '375.00', foreignAmount: '100.0000', currencyCode: 'USD'),
+            ],
+            sourceType: 'sale',
+            sourceId: 4713,
+            currencyCode: 'USD',
+            exchangeRate: '3.75',
+        ))->journalId;
+
+        $body = $this->get('/accounting_journals/view/' . $journalId)->getBody();
+
+        $this->assertStringContainsString(esc(lang('Accounting_journals.foreign_amount')), $body);
+        $this->assertStringContainsString('100.00 USD', $body);
+        $this->assertStringNotContainsString('accounting_journals/reverse_form/' . $journalId, $body);
+    }
+
+    public function testGetView_LeavesOutTheForeignColumnOfAJournalInTheBaseCurrency(): void
+    {
+        $this->accountant();
+
+        $body = $this->get('/accounting_journals/view/' . $this->automaticJournal(sourceId: 4714))->getBody();
+
+        $this->assertStringNotContainsString(esc(lang('Accounting_journals.foreign_amount')), $body);
     }
 
     public function testGetView_HidesTheReverseButtonOfAJournalThatIsOneOfAPairBetweenBranches(): void
