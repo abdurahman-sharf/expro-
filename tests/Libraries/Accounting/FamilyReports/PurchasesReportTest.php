@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\FamilyReports\PurchaseDocuments;
 use App\Libraries\Accounting\FamilyReports\PurchasesReport;
 use App\Libraries\Accounting\ReportPeriod;
+use App\Libraries\Roles\RoleService;
 use Tests\Support\FamilyReportTestCase;
 
 /**
@@ -168,6 +169,30 @@ final class PurchasesReportTest extends FamilyReportTestCase
         $this->assertSame([], $this->rowsOf($nothing));
         $this->assertReportTies($second);
         $this->assertReportTies($first);
+    }
+
+    public function testBuild_ReadsOnlyThePurchasesOfAViewerWhoSeesTheirOwnRecords(): void
+    {
+        $this->market();
+
+        $author = $this->employeeId;
+        $item   = $this->item('0.00');
+
+        $this->workInEveryBranch();
+
+        $other = $this->employeeId;
+
+        $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($item, 0, '1', '60.00')]));
+
+        (new RoleService())->setRecordScope($author, 'own', null);
+
+        $own      = $this->built($this->report, $this->thisDay(), null, $author);
+        $everyone = $this->built($this->report, $this->thisDay(), null, $other);
+
+        $this->assertAmount('395.00', $this->grandOf($own, 'net'));
+        $this->assertAmount('455.00', $this->grandOf($everyone, 'net'));
+        $this->assertReportTies($own);
+        $this->assertReportTies($everyone);
     }
 
     public function testBuild_RefusesAPeriodThatEndsBeforeItStartsAndADayThatIsNotOne(): void

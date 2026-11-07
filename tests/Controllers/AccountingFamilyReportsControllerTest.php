@@ -5,6 +5,7 @@ namespace Tests\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\FamilyReports\ChartReport;
 use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
+use App\Libraries\Accounting\JournalService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Test\TestResponse;
@@ -237,6 +238,30 @@ final class AccountingFamilyReportsControllerTest extends FamilyReportTestCase
 
             $this->assertEqualsWithDelta($all, $everyone, 0.001, $key . ' for everyone');
             $this->assertEqualsWithDelta($limited, $branchOnly, 0.001, $key . ' for the branch');
+        }
+    }
+
+    public function testGetShow_ShowsTheJournalReportsOnlyTheJournalsOfWhoMayNotReadThoseOfEveryone(): void
+    {
+        $permissions = array_values(array_diff($this->everyReportPermission(), [AccountingGuard::JOURNALS_ALL]));
+        $author      = $this->viewer([...$permissions, AccountingGuard::JOURNALS_DRAFT, AccountingGuard::JOURNALS_POST]);
+
+        (new JournalService())->postNew($this->journalInput('100.00'), $author);
+        (new JournalService())->postNew($this->journalInput('250.00'));
+
+        $day = '?from=2026-10-21&to=2026-10-21';
+
+        foreach (['journals' => 'debit', 'journal_movements' => 'debit'] as $key => $column) {
+            $own = $this->grandFromCsv($this->get('/accounting_reports/' . $key . '/csv' . $day), $key, $column);
+
+            $this->viewer($this->everyReportPermission());
+
+            $everyone = $this->grandFromCsv($this->get('/accounting_reports/' . $key . '/csv' . $day), $key, $column);
+
+            $this->withSession(['person_id' => $author, 'menu_group' => 'home']);
+
+            $this->assertEqualsWithDelta(100.0, $own, 0.001, $key . ' for who reads their own');
+            $this->assertEqualsWithDelta(350.0, $everyone, 0.001, $key . ' for who reads all');
         }
     }
 

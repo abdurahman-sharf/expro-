@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\FamilyReports\IncomeReport;
 use App\Libraries\Accounting\RevenueVouchers;
+use App\Libraries\Roles\RoleService;
 use Tests\Support\CashReportTestCase;
 
 /**
@@ -110,5 +111,22 @@ final class IncomeReportTest extends CashReportTestCase
         $this->assertAmount('125.00', $this->grandOf($this->built($this->report, $this->thisDay()), 'total'));
         $this->assertAmount('25.00', $this->grandOf($this->built($this->report, $this->thisDay(), $this->limitedTo($branch)), 'total'));
         $this->assertAmount('100.00', $this->grandOf($this->built($this->report, $this->thisDay(), $this->limitedTo(1)), 'total'));
+    }
+
+    public function testBuild_ReadsOnlyTheVouchersOfAViewerWhoSeesTheirOwnRecords(): void
+    {
+        $author = $this->employeeWithGrants(['receipt_vouchers']);
+
+        $this->voucher(['amount' => '100.00']);
+        $this->voucher(['amount' => '30.00'], $author);
+
+        (new RoleService())->setRecordScope($author, 'own', null);
+
+        $own      = $this->built($this->report, $this->thisDay(), null, $author);
+        $everyone = $this->built($this->report, $this->thisDay(), null, $this->clerkId);
+
+        $this->assertAmount('30.00', $this->grandOf($own, 'total'));
+        $this->assertAmount('130.00', $this->grandOf($everyone, 'total'));
+        $this->assertReportTies($own);
     }
 }

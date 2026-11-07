@@ -7,6 +7,7 @@ use App\Libraries\Accounting\FamilyReports\SupplierPaymentRows;
 use App\Libraries\Accounting\FamilyReports\SupplierPaymentsReport;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\SupplierAdvances;
+use App\Libraries\Roles\RoleService;
 use Tests\Support\FamilyReportTestCase;
 
 /**
@@ -132,5 +133,25 @@ final class SupplierPaymentsReportTest extends FamilyReportTestCase
         $this->assertCount(0, $rows->read($this->everyBranch(), $day, null, ['supplier_id' => $this->anotherSupplier()]));
         $this->assertCount(0, $rows->read($this->everyBranch(), $day, null, ['payment_type' => 'No such way']));
         $this->assertCount(3, $rows->read($this->everyBranch(), $day, null, ['payment_type' => lang('Sales.cash')]));
+    }
+
+    public function testBuild_ReadsOnlyThePaymentsOfAViewerWhoSeesTheirOwnRecords(): void
+    {
+        $author = $this->employeeId;
+
+        $this->payments();
+        $this->workInEveryBranch();
+
+        $other = $this->employeeId;
+
+        $this->payPurchase($this->purchaseOf('300.00'), '70.00', lang('Sales.cash'));
+
+        (new RoleService())->setRecordScope($author, 'own', null);
+
+        $own      = $this->built($this->report, $this->thisDay(), null, $author);
+        $everyone = $this->built($this->report, $this->thisDay(), null, $other);
+
+        $this->assertAmount('180.00', $this->grandOf($own, 'amount'));
+        $this->assertAmount('300.00', $this->grandOf($everyone, 'amount'));
     }
 }

@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\FamilyReports\ExpensesReport;
+use App\Libraries\Roles\RoleService;
 use Tests\Support\CashReportTestCase;
 
 /**
@@ -177,5 +178,23 @@ final class ExpensesReportTest extends CashReportTestCase
         $this->assertAmount('55.00', $this->grandOf($limited, 'total'));
         $this->assertAmount('3330.00', $this->grandOf($first, 'total'));
         $this->assertReportTies($limited);
+    }
+
+    public function testBuild_ReadsOnlyTheExpensesOfAViewerWhoSeesTheirOwnRecords(): void
+    {
+        $this->spending();
+
+        $author = $this->employeeWithGrants([]);
+
+        $this->assertNotNull($this->saveExpense([...$this->expenseData('40.00', '0', 'Cash', $this->other, $this->now(), $author), 'treasury_id' => $this->till], NEW_ENTRY, $author));
+
+        (new RoleService())->setRecordScope($author, 'own', null);
+
+        $own      = $this->built($this->report, $this->thisDay(), null, $author);
+        $everyone = $this->built($this->report, $this->thisDay(), null, $this->clerkId);
+
+        $this->assertAmount('40.00', $this->grandOf($own, 'total'));
+        $this->assertAmount('3370.00', $this->grandOf($everyone, 'total'));
+        $this->assertReportTies($own);
     }
 }

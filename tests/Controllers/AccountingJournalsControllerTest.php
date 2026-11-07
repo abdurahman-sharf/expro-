@@ -812,7 +812,12 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertSame([7, 3, 3], [$first['total'], count($first['rows']), count($second['rows'])]);
         $this->assertSame(7, $second['total']);
         $this->assertCount(1, $last['rows']);
-        $this->assertNotSame($first['rows'][0]['audit_id'], $second['rows'][0]['audit_id']);
+        $this->assertSame([1, 2, 3], array_map(static fn (array $row): int => $row['audit_id'] - $first['rows'][0]['audit_id'] + 1, $first['rows']));
+        $this->assertGreaterThan($first['rows'][2]['audit_id'], $second['rows'][0]['audit_id']);
+
+        $descending = $this->jsonOf($this->get('/accounting_journals/audit/search?order=desc&limit=3&offset=0'));
+
+        $this->assertSame($last['rows'][0]['audit_id'], $descending['rows'][0]['audit_id']);
     }
 
     public function testGetAuditSearch_ReadsThePresetsAsTheObservedRanges(): void
@@ -891,9 +896,9 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $response = $this->get('/accounting_journals/audit/csv?origin=user');
 
         $response->assertStatus(200);
-        $this->assertStringContainsString('text/csv', $response->getHeaderLine('Content-Type'));
-        $this->assertStringContainsString('activity_log_', $response->getHeaderLine('Content-Disposition'));
-        $body = $response->getBody();
+        $this->assertStringContainsString('text/csv', $response->response()->getHeaderLine('Content-Type'));
+        $this->assertStringContainsString('activity_log_', $response->response()->getHeaderLine('Content-Disposition'));
+        $body = $response->response()->getBody();
         $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
         $this->assertStringContainsString("'=cmd|calc Typist", $body);
         $this->assertStringNotContainsString(',=cmd|calc', $body);
@@ -911,7 +916,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $log->write('settings', null, 'settings_updated', null, JournalOrigin::User);
         $this->actAs($this->employeeWithGrants(['accounting_journals', AccountingGuard::JOURNALS_AUDIT], [$other]));
 
-        $body = $this->get('/accounting_journals/audit/csv')->getBody();
+        $body = $this->get('/accounting_journals/audit/csv')->response()->getBody();
 
         $this->assertStringContainsString('#22', $body);
         $this->assertStringNotContainsString('#11', $body);
@@ -934,7 +939,7 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $response = $this->get('/accounting_journals/audit/csv');
 
         $response->assertStatus(422);
-        $this->assertStringContainsString(lang('Accounting.error_export_too_large'), $response->getBody());
+        $this->assertStringContainsString(lang('Accounting.error_export_too_large'), $response->response()->getBody());
     }
 
     private function recordFailure(string $source = 'sale', int $sourceId = 7, string $code = 'period_closed', ?int $branchId = 1): void
