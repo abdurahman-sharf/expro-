@@ -7902,4 +7902,54 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertMatchesRegularExpression('/1,?234\.50/', $body);
         $this->assertDoesNotMatchRegularExpression('/JPY.{0,12}\d/u', $body);
     }
+
+    public function testPostAdd_PricesTheComponentsOfAKitInTheCurrencyOfTheSale(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+        $second     = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->accountingDb()->table('items')->where('item_id', $second)->update(['unit_price' => '75.00']);
+        $this->accountingDb()->table('item_kits')->insert(['name' => 'Dollar bundle', 'description' => '', 'price_option' => PRICE_OPTION_ALL, 'print_option' => 0]);
+
+        $kitId = (int) $this->accountingDb()->insertID();
+
+        try {
+            $this->accountingDb()->table('item_kit_items')->insertBatch([
+                ['item_kit_id' => $kitId, 'item_id' => $itemId, 'quantity' => '1', 'kit_sequence' => 1],
+                ['item_kit_id' => $kitId, 'item_id' => $second, 'quantity' => '1', 'kit_sequence' => 2],
+            ]);
+            $this->chooseCurrency('USD');
+
+            $this->post('/sales/add', ['item' => 'KIT ' . $kitId]);
+
+            $lines = [];
+
+            foreach (Services::session()->get('sales_cart') as $line) {
+                $lines[(int) $line['item_id']] = [(string) $line['price'], $line['price_source']];
+            }
+
+            $this->assertSame([$itemId => ['100.00', 'kit'], $second => ['20.00', 'kit']], $lines, 'the catalog prices of the components are converted like those of any item');
+        } finally {
+            $this->accountingDb()->table('item_kits')->where('item_kit_id', $kitId)->delete();
+        }
+    }
+
+    public function testPostAdd_PricesTheComponentsOfAKitInTheBaseWhenTheSaleIsInTheBase(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+
+        $this->accountingDb()->table('item_kits')->insert(['name' => 'Base bundle', 'description' => '', 'price_option' => PRICE_OPTION_ALL, 'print_option' => 0]);
+
+        $kitId = (int) $this->accountingDb()->insertID();
+
+        try {
+            $this->accountingDb()->table('item_kit_items')->insert(['item_kit_id' => $kitId, 'item_id' => $itemId, 'quantity' => '1', 'kit_sequence' => 1]);
+
+            $this->post('/sales/add', ['item' => 'KIT ' . $kitId]);
+
+            $this->assertSame('375.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
+        } finally {
+            $this->accountingDb()->table('item_kits')->where('item_kit_id', $kitId)->delete();
+        }
+    }
 }

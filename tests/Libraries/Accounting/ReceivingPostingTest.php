@@ -4825,6 +4825,36 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame('750.00', $this->stockOf($itemId)['value']);
     }
 
+    public function testUpdateLines_CorrectsTheCostOfTheItemInTheBaseWhenThePriceOfALineOfAForeignPurchaseChanges(): void
+    {
+        $this->dollars();
+        $this->setConfigValue('receiving_calculate_average_price', '1');
+
+        $receivingId = $this->dollarPurchase();
+        $itemId      = (int) $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow()->item_id;
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['price' => '55.00']));
+
+        $this->assertSame('206.2500', $this->itemCostOf($itemId), '55 dollars at 3.75 and not 55 of the base');
+        $this->assertSame('825.00', $this->stockOf($itemId)['value']);
+        $this->assertStockTies();
+    }
+
+    public function testUpdateLines_CorrectsTheCostOfTheItemInTheBaseWhenTheQuantityOfALineOfAForeignPurchaseChanges(): void
+    {
+        $this->dollars();
+        $this->setConfigValue('receiving_calculate_average_price', '1');
+
+        $receivingId = $this->dollarPurchase();
+        $itemId      = (int) $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow()->item_id;
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '5']));
+
+        $this->assertSame('187.5000', $this->itemCostOf($itemId));
+        $this->assertSame('937.50', $this->stockOf($itemId)['value']);
+        $this->assertStockTies();
+    }
+
     public function testSaveValue_PostsThePaymentMadeAtOnceAtTheRateOfThePurchaseWithNoDifference(): void
     {
         $this->dollars();
