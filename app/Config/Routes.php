@@ -159,6 +159,21 @@ $routes->group('accounting_debit_notes', static function (RouteCollection $route
     $routes->post('reverse/(:num)', 'AccountingDebitNotes::postReverse/$1');
 });
 
+$routes->group('sales_orders', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Sales_orders::getIndex');
+    $routes->get('add', 'Sales_orders::getForm');
+    $routes->get('edit/(:num)', 'Sales_orders::getForm/$1');
+    $routes->get('view/(:num)', 'Sales_orders::getView/$1');
+    $routes->get('customers', 'Sales_orders::getCustomers');
+    $routes->get('items', 'Sales_orders::getItems');
+    $routes->post('save', 'Sales_orders::postSave');
+    $routes->post('save/(:num)', 'Sales_orders::postSave/$1');
+    $routes->post('status/(:num)', 'Sales_orders::postStatus/$1');
+    $routes->post('cancel/(:num)', 'Sales_orders::postCancel/$1');
+    $routes->post('convert/(:num)', 'Sales_orders::postConvert/$1');
+    $routes->post('settings', 'Sales_orders::postSettings');
+});
+
 $routes->group('receipt_vouchers', static function (RouteCollection $routes): void {
     $routes->get('/', 'Receipt_vouchers::getIndex');
     $routes->get('search', 'Receipt_vouchers::getSearch');

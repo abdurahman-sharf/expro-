@@ -78,12 +78,8 @@ final readonly class RecurrenceTerms
         $before = 0;
 
         if ($kind === RecurringKind::Invoice) {
-            $before = trim((string) ($input['issue_before_days'] ?? '')) === '' ? 0 : self::wholeNumber($input['issue_before_days'], AccountingError::RecurringIssueBeforeInvalid, 0, self::MAX_COUNT * 365);
             $limit  = $count * $unit->daysPerUnit();
-
-            if ($before !== 0 && $before >= $limit) {
-                throw new AccountingException(AccountingError::RecurringIssueBeforeInvalid, 'The days before the date must be fewer than the days of the period.', ['max' => $limit - 1]);
-            }
+            $before = trim((string) ($input['issue_before_days'] ?? '')) === '' ? 0 : self::wholeNumber($input['issue_before_days'], AccountingError::RecurringIssueBeforeInvalid, 0, $limit - 1);
         }
 
         return new self($count, $unit, $start, $end, $max, $before);

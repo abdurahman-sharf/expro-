@@ -32,7 +32,7 @@ final class LineInput
         }
 
         if (count($raw) > self::MAX_LINES) {
-            throw new AccountingException($invalid, 'The document has too many lines.', ['max' => self::MAX_LINES]);
+            throw new AccountingException($invalid, 'The document has too many lines.', ['line' => self::MAX_LINES + 1, 'max' => self::MAX_LINES]);
         }
 
         $lines = [];
