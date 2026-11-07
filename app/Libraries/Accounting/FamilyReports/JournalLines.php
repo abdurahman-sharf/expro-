@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting\FamilyReports;
 
+use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
@@ -28,16 +29,16 @@ final class JournalLines
     /**
      * @return list<object>
      */
-    public function read(ReportScope $scope, ReportPeriod $period, ?string $source = null, ?int $accountId = null, ?int $owner = null): array
+    public function read(ReportScope $scope, ReportPeriod $period, ?string $source = null, ?int $accountId = null, ?int $owner = null, bool $withoutCostCenter = false, ?int $costCenterId = null): array
     {
-        $builder = $this->base($scope, $period, $source, $accountId, $owner);
+        $builder = $this->base($scope, $period, $source, $accountId, $owner, $withoutCostCenter, $costCenterId);
 
         if ($builder === null) {
             return [];
         }
 
         return $builder
-            ->select('j.journal_id, j.journal_date, j.series, j.number, j.description AS journal_description, j.source_type, j.entry_type, j.status, j.branch_id, l.line_id, l.line_no, l.description AS line_description, a.code AS account_code, a.name AS account_name, l.account_id, l.debit, l.credit')
+            ->select('j.journal_id, j.journal_date, j.series, j.number, j.description AS journal_description, j.source_type, j.entry_type, j.status, j.branch_id, l.line_id, l.line_no, l.description AS line_description, a.code AS account_code, a.name AS account_name, l.account_id, l.cost_center_id, l.debit, l.credit')
             ->orderBy('j.journal_date', 'ASC')
             ->orderBy('j.journal_id', 'ASC')
             ->orderBy('l.line_no', 'ASC')
@@ -50,7 +51,7 @@ final class JournalLines
      */
     public function journals(ReportScope $scope, ReportPeriod $period, ?string $source = null, ?int $owner = null, string $search = ''): array
     {
-        $builder = $this->base($scope, $period, $source, null, $owner);
+        $builder = $this->base($scope, $period, $source, null, $owner, false, null);
 
         if ($builder === null) {
             return [];
@@ -70,13 +71,14 @@ final class JournalLines
             ->getResult();
     }
 
-    private function base(ReportScope $scope, ReportPeriod $period, ?string $source, ?int $accountId, ?int $owner): ?BaseBuilder
+    private function base(ReportScope $scope, ReportPeriod $period, ?string $source, ?int $accountId, ?int $owner, bool $withoutCostCenter, ?int $costCenterId): ?BaseBuilder
     {
         if ($scope->isEmpty()) {
             return null;
         }
 
         $accounts = $accountId !== null && $accountId > 0 ? (new ControlAccounts($this->db))->under($accountId) : [];
+        $centers  = ! $withoutCostCenter && $costCenterId !== null && $costCenterId > 0 ? (new CostCenterService($this->db))->descendantsOf($costCenterId) : [];
 
         $builder = $this->db->table('accounting_journal_lines l')
             ->join('accounting_journals j', 'j.journal_id = l.journal_id')
@@ -101,6 +103,16 @@ final class JournalLines
 
         if ($owner !== null) {
             $builder->where('j.created_by', $owner);
+        }
+
+        $distributions = $this->db->prefixTable('accounting_journal_line_distributions');
+
+        if ($withoutCostCenter) {
+            $builder->where('l.cost_center_id IS NULL', null, false)->where("NOT EXISTS (SELECT 1 FROM {$distributions} dd WHERE dd.line_id = l.line_id)", null, false);
+        } elseif ($centers !== []) {
+            $ids = implode(', ', $centers);
+
+            $builder->where("(l.cost_center_id IN ({$ids}) OR EXISTS (SELECT 1 FROM {$distributions} dd WHERE dd.line_id = l.line_id AND dd.cost_center_id IN ({$ids})))", null, false);
         }
 
         return $builder;

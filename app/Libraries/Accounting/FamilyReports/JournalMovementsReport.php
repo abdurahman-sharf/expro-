@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Accounting\FamilyReports;
 
+use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\JournalLineAnalysis;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\TrialBalance;
 
@@ -9,7 +11,9 @@ use App\Libraries\Accounting\TrialBalance;
  * The lines of the journals of a period, with the account, the words, the source, the debit and the
  * credit of each, grouped by journal, day, month, year or account, with a total for each group. The
  * debit and the credit come to the same, and when nothing narrows what is read they come to the
- * movement of the trial balance of the same branches and days.
+ * movement of the trial balance of the same branches and days. Each line says which cost centers it is
+ * charged to, and the lines can be cut down to one cost center with the ones under it or to the lines
+ * charged to none.
  */
 final class JournalMovementsReport implements FamilyReport
 {
@@ -21,6 +25,8 @@ final class JournalMovementsReport implements FamilyReport
         private readonly JournalLines $lines = new JournalLines(),
         private readonly TrialBalance $trialBalance = new TrialBalance(),
         private readonly ControlAccounts $accounts = new ControlAccounts(),
+        private readonly JournalLineAnalysis $analysis = new JournalLineAnalysis(),
+        private readonly CostCenterService $costCenters = new CostCenterService(),
     ) {
     }
 
@@ -30,7 +36,10 @@ final class JournalMovementsReport implements FamilyReport
         $period  = $input->period();
         $source  = $input->choice('source', JournalSources::all(), '');
         $account = $input->id('account_id');
-        $lines   = $this->lines->read($input->scope, $period, $source === '' ? null : $source, $account > 0 ? $account : null, $input->journalOwner);
+        $without = $input->flag('without_cost_center');
+        $center  = $input->id('cost_center_id');
+        $lines   = $this->lines->read($input->scope, $period, $source === '' ? null : $source, $account > 0 ? $account : null, $input->journalOwner, $without, $center > 0 ? $center : null);
+        $charges = $this->chargesOf($lines);
 
         $sets = [];
 
@@ -51,6 +60,7 @@ final class JournalMovementsReport implements FamilyReport
                 'code'        => (string) $line->account_code,
                 'description' => trim((string) ($line->line_description ?? '')) === '' ? (string) $line->journal_description : (string) $line->line_description,
                 'source'      => JournalSources::label((string) $line->source_type),
+                'centers'     => $charges[(int) $line->line_id] ?? '',
                 'debit'       => bcadd((string) $line->debit, '0', SaleAmounts::SCALE),
                 'credit'      => bcadd((string) $line->credit, '0', SaleAmounts::SCALE),
             ]);
@@ -71,9 +81,9 @@ final class JournalMovementsReport implements FamilyReport
         $grand = $this->totalRow($all, ['debit', 'credit'], 'account', $this->text('grand_total'));
         $ties  = [];
         $notes = [$this->text('note_journal_sources'), $this->text('note_journal_sides')];
-        $whole = $source === '' && $input->journalOwner === null;
+        $whole = $source === '' && $input->journalOwner === null && ! $without && $center === 0;
 
-        if ($account === 0) {
+        if ($account === 0 && ! $without && $center === 0) {
             $ties[] = new TieCheck($this->text('tie_debit_credit'), $grand->cell('debit'), $grand->cell('credit'));
         }
 
@@ -89,11 +99,36 @@ final class JournalMovementsReport implements FamilyReport
         }
 
         $columns = [
-            $this->column('date', ColumnKind::Date), $this->column('number'), $this->column('account'), $this->column('code'), $this->column('description'), $this->column('source'),
+            $this->column('date', ColumnKind::Date), $this->column('number'), $this->column('account'), $this->column('code'), $this->column('description'), $this->column('source'), $this->column('centers', ColumnKind::Text, 'col_cost_centers'),
             $this->column('debit', ColumnKind::Amount), $this->column('credit', ColumnKind::Amount),
         ];
 
         return new ReportTable($this->text('journal_movements_title'), $columns, $blocks, $grand, $ties, $notes);
+    }
+
+    /**
+     * @param list<object> $lines
+     *
+     * @return array<int, string> What each line is charged to, in words.
+     */
+    private function chargesOf(array $lines): array
+    {
+        if ($lines === []) {
+            return [];
+        }
+
+        $labels  = $this->costCenters->labels();
+        $charges = [];
+
+        foreach (array_chunk($lines, 2000) as $chunk) {
+            foreach ($this->analysis->load($chunk) as $lineId => $analysis) {
+                $charges[$lineId] = $analysis->costCenterId !== null
+                    ? ($labels[$analysis->costCenterId] ?? '')
+                    : implode('; ', array_map(static fn (array $share): string => ($labels[$share['cost_center_id']] ?? '') . ' ' . rtrim(rtrim($share['percent'], '0'), '.') . '%', $analysis->distribution));
+            }
+        }
+
+        return $charges;
     }
 
     private function number(object $line): string

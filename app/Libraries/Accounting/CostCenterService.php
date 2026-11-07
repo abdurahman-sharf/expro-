@@ -506,6 +506,34 @@ final class CostCenterService
             ->getResult();
     }
 
+    /**
+     * The cost center and every center under it, for a report that reads a center with its sub centers.
+     *
+     * @return list<int>
+     */
+    public function descendantsOf(int $costCenterId): array
+    {
+        $children = [];
+
+        foreach ($this->db->table('accounting_cost_centers')->select('cost_center_id, parent_id')->where('parent_id IS NOT NULL', null, false)->get()->getResult() as $row) {
+            $children[(int) $row->parent_id][] = (int) $row->cost_center_id;
+        }
+
+        $found = [$costCenterId => $costCenterId];
+        $queue = [$costCenterId];
+
+        while ($queue !== []) {
+            foreach ($children[array_pop($queue)] ?? [] as $child) {
+                if (! isset($found[$child])) {
+                    $found[$child] = $child;
+                    $queue[]       = $child;
+                }
+            }
+        }
+
+        return array_values($found);
+    }
+
     public function suggestCode(): string
     {
         $codes   = array_column($this->db->table('accounting_cost_centers')->select('code')->get()->getResultArray(), 'code');

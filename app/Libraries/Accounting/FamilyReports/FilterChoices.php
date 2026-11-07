@@ -33,6 +33,7 @@ final class FilterChoices
             'expense_categories' => $this->categories('expense_categories', 'expense_category_id'),
             'revenue_categories' => $this->categories('revenue_categories', 'revenue_category_id'),
             'accounts'           => $this->accounts(),
+            'cost_centers'       => $this->costCenters(),
             'sources'            => $this->sources(),
             'item_categories'    => $this->itemCategories(),
             'payment_types'      => $this->paymentTypes(),
@@ -109,6 +110,20 @@ final class FilterChoices
 
         foreach ($this->db->table('accounting_accounts')->select('account_id, code, name')->where('company_id', CompanyContext::id())->orderBy('code', 'ASC')->get()->getResult() as $row) {
             $found[(int) $row->account_id] = $row->code . ' ' . $row->name;
+        }
+
+        return $found;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function costCenters(): array
+    {
+        $found = [];
+
+        foreach ($this->db->table('accounting_cost_centers')->select('cost_center_id, code, name')->orderBy('code', 'ASC')->get()->getResult() as $row) {
+            $found[(int) $row->cost_center_id] = $row->code . ' - ' . $row->name;
         }
 
         return $found;
