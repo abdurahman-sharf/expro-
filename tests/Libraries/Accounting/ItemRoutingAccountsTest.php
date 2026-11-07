@@ -424,17 +424,17 @@ final class ItemRoutingAccountsTest extends CIUnitTestCase
 
     public function testSave_AcceptsAnAccountThatCannotTakeEntriesAnyMoreWhileItIsLeftAsItWasAndSavesTheOtherRows(): void
     {
-        $gone   = $this->revenue('4101', 'Gone');
-        $others = $this->revenue('4102', 'Returns');
+        $gone    = $this->revenue('4101', 'Gone');
+        $returns = $this->revenue('4102', 'Returns');
         $this->accounts->save($this->itemId, ['sales.revenue' => $gone], $this->manager);
         $this->accountingDb()->table('accounting_accounts')->where('account_id', $gone)->update(['active' => 0]);
 
-        $this->accounts->save($this->itemId, ['sales.revenue' => (string) $gone, 'sales.returns' => $others], $this->manager);
+        $this->accounts->save($this->itemId, ['sales.revenue' => (string) $gone, 'sales.returns' => $returns], $this->manager);
 
         $named = $this->accounts->ofItem($this->itemId);
 
         $this->assertSame($gone, (int) $named['sales.revenue']->account_id);
-        $this->assertSame($others, (int) $named['sales.returns']->account_id);
+        $this->assertSame($returns, (int) $named['sales.returns']->account_id);
         $this->assertCount(2, $this->auditRows());
     }
 

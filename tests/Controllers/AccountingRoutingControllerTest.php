@@ -7,11 +7,13 @@ use App\Libraries\Accounting\RoutingKey;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Tests\Support\AccountingControllerFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
 
 class AccountingRoutingControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingControllerFixtureTrait;
+    use ItemFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -287,6 +289,21 @@ class AccountingRoutingControllerTest extends CIUnitTestCase
             'sales.returns' => lang('Accounting.error_routing_account_required'),
         ], $result['errors']);
         $this->assertSame($this->accountId('sales_revenue'), $this->routeOf('sales.revenue'));
+    }
+
+    public function testPostSave_RejectsSwitchingARowToPerItemWhileAnItemNamesAnAccountForItThatCannotTakeEntries(): void
+    {
+        $itemId  = $this->createTestItem();
+        $account = $this->customAccount('41', '4101', 'Item revenue');
+        $this->accountingDb()->table('item_routing_accounts')->insert(['item_id' => $itemId, 'routing_key' => 'sales.revenue', 'account_id' => $account]);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $account)->update(['active' => 0]);
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_routing/save', ['route' => ['sales.revenue' => ['type' => 'per_item']]]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(['sales.revenue' => lang('Accounting.error_routing_item_accounts_invalid')], $result['errors']);
+        $this->assertSame('auto', $this->accountingDb()->table('accounting_routing')->where('routing_key', 'sales.revenue')->get()->getRow()->routing_type);
     }
 
     public function testPostSave_RefusesSomeoneWithoutThePermission(): void
