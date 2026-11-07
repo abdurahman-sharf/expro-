@@ -9,27 +9,25 @@ use App\Libraries\Accounting\CurrencyCatalog;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\Support\AccountingFixtureTrait;
-use Throwable;
 
-/**
- * @internal
- */
-final class MultiCurrencyMigrationTest extends CIUnitTestCase
+class MultiCurrencyMigrationTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
 
-    private const DOCUMENT_TABLES = ['sales', 'sales_payments', 'receivings', 'receivings_payments', 'expenses', 'revenues'];
-
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace;
+    protected $namespace   = null;
+
+    private const DOCUMENT_TABLES = ['sales', 'sales_payments', 'receivings', 'receivings_payments', 'expenses', 'revenues'];
 
     public static function setUpBeforeClass(): void
     {
@@ -77,7 +75,7 @@ final class MultiCurrencyMigrationTest extends CIUnitTestCase
         return $row === null || $row->account_id === null ? null : (string) $row->account_id;
     }
 
-    public function testUpCreatesTheTablesSeedsTheCatalogSwitchedOffAndRegistersTheModuleWithoutGrantingIt(): void
+    public function testUp_CreatesTheTablesSeedsTheCatalogSwitchedOffAndRegistersTheModuleWithoutGrantingIt(): void
     {
         (new CurrenciesAndRates())->down();
 
@@ -98,7 +96,7 @@ final class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertSame('accounting_currencies', $db->table('permissions')->where('permission_id', 'acc_currencies_manage')->get()->getRow()->module_id);
     }
 
-    public function testUpKeepsEveryRowItFindsWhenItRunsAgain(): void
+    public function testUp_KeepsEveryRowItFindsWhenItRunsAgain(): void
     {
         $db = $this->accountingDb();
         $db->table('accounting_currencies')->where('currency_code', 'USD')->update(['active' => 1, 'name_en' => 'Dollar']);
@@ -114,7 +112,7 @@ final class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertSame(2, $db->table('permissions')->whereIn('permission_id', ['acc_currencies_manage', 'accounting_currencies'])->countAllResults());
     }
 
-    public function testUpKeepsABaseCurrencyThatIsNotInTheCatalogSwitchedOn(): void
+    public function testUp_KeepsABaseCurrencyThatIsNotInTheCatalogSwitchedOn(): void
     {
         (new CurrenciesAndRates())->down();
         $this->setConfigValue('accounting_base_currency', 'ZZZ');
@@ -128,48 +126,93 @@ final class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->setConfigValue('accounting_base_currency', 'SAR');
     }
 
-    public function testRatesAreRefusedWhenNotAboveZeroOrWhenTwoShareADay(): void
+    public function testRates_AreRefusedWhenNotAboveZeroOrWhenTwoShareADay(): void
     {
         $db = $this->accountingDb();
 
         $db->table('accounting_currency_rates')->insert(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10']);
 
         foreach ([['USD', '0', '2026-10-11'], ['USD', '-1', '2026-10-12'], ['USD', '3.8', '2026-10-10'], ['QQQ', '1', '2026-10-10']] as [$code, $rate, $date]) {
+            $accepted = true;
+
             try {
                 $db->table('accounting_currency_rates')->insert(['currency_code' => $code, 'rate' => $rate, 'effective_date' => $date]);
-                $this->fail("{$code} {$rate} {$date} was accepted.");
-            } catch (Throwable) {
-                $this->addToAssertionCount(1);
+            } catch (DatabaseException) {
+                $accepted = false;
             }
+
+            $this->assertFalse($accepted, "{$code} {$rate} {$date} was accepted.");
         }
 
         $this->assertSame(1, $db->table('accounting_currency_rates')->countAllResults());
     }
 
-    public function testDecimalsAreRefusedOutsideZeroTwoAndThree(): void
+    public function testDecimals_AreRefusedOutsideZeroTwoAndThree(): void
     {
-        $this->expectException(Throwable::class);
+        $this->expectException(DatabaseException::class);
 
         $this->accountingDb()->table('accounting_currencies')->insert(['currency_code' => 'XXX', 'decimals' => 1]);
     }
 
-    public function testColumnsAreAddedNullableToEveryDocumentTableAndKeepTheRowsAsTheyWere(): void
+    /**
+     * @return array<string, array{string, string, string}>
+     */
+    public static function currencyColumnProvider(): array
     {
-        $this->assertSame('sales', self::DOCUMENT_TABLES[0]);
+        $columns = [];
 
         foreach (self::DOCUMENT_TABLES as $table) {
-            $this->assertTrue($this->hasColumn($table, 'currency_code'), $table);
-            $this->assertTrue($this->hasColumn($table, 'currency_rate'), $table);
+            $columns["{$table}.currency_code"] = [$table, 'currency_code', 'char(3)'];
+            $columns["{$table}.currency_rate"] = [$table, 'currency_rate', 'decimal(18,8)'];
         }
 
-        foreach ([['treasuries', 'currency_code'], ['treasury_transfers', 'to_amount'], ['treasury_transfers', 'from_currency'], ['treasury_transfers', 'to_currency'], ['accounting_journal_lines', 'currency_code']] as [$table, $column]) {
-            $this->assertTrue($this->hasColumn($table, $column), "{$table}.{$column}");
-        }
-
-        $this->assertSame(0, $this->accountingDb()->table('sales')->where('currency_code IS NOT NULL', null, false)->countAllResults());
+        return $columns + [
+            'treasuries.currency_code'            => ['treasuries', 'currency_code', 'char(3)'],
+            'treasury_transfers.from_currency'    => ['treasury_transfers', 'from_currency', 'char(3)'],
+            'treasury_transfers.to_currency'      => ['treasury_transfers', 'to_currency', 'char(3)'],
+            'treasury_transfers.to_amount'        => ['treasury_transfers', 'to_amount', 'decimal(15,4)'],
+            'accounting_journal_lines.currency_code' => ['accounting_journal_lines', 'currency_code', 'char(3)'],
+        ];
     }
 
-    public function testColumnsAreSafeToAddAgainAndToDropWhenNothingCarriesACurrency(): void
+    #[DataProvider('currencyColumnProvider')]
+    public function testColumns_AreAddedNullableWithNoDefault(string $table, string $column, string $type): void
+    {
+        $row = $this->accountingDb()->query(
+            'SELECT IS_NULLABLE, COLUMN_DEFAULT, COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$this->accountingDb()->prefixTable($table), $column],
+        )->getRowArray();
+
+        $this->assertNotNull($row, "{$table}.{$column} does not exist");
+        $this->assertSame('YES', $row['IS_NULLABLE'], "{$table}.{$column} must be nullable");
+        $this->assertContains($row['COLUMN_DEFAULT'], [null, 'NULL'], "{$table}.{$column} must default to nothing");
+        $this->assertSame($type, $row['COLUMN_TYPE'], "{$table}.{$column}");
+    }
+
+    public function testColumns_KeepARowOfBeforeAsItWasWithNoCurrencyWhenTheMigrationRunsAgain(): void
+    {
+        $db = $this->accountingDb();
+
+        (new DocumentCurrencyColumns())->down();
+
+        $db->table('sales')->insert(['sale_time' => '2026-10-20 12:00:00', 'employee_id' => $this->employeeWithGrants([]), 'comment' => 'legacy', 'sale_status' => COMPLETED, 'sale_type' => SALE_TYPE_POS, 'branch_id' => 1]);
+
+        $saleId = (int) $db->insertID();
+
+        try {
+            (new DocumentCurrencyColumns())->up();
+
+            $row = $db->table('sales')->where('sale_id', $saleId)->get()->getRow();
+
+            $this->assertSame('legacy', $row->comment);
+            $this->assertNull($row->currency_code);
+            $this->assertNull($row->currency_rate);
+        } finally {
+            $db->table('sales')->where('sale_id', $saleId)->delete();
+        }
+    }
+
+    public function testColumns_AreSafeToAddAgainAndToDropWhenNothingCarriesACurrency(): void
     {
         (new DocumentCurrencyColumns())->up();
         (new DocumentCurrencyColumns())->up();
@@ -190,23 +233,81 @@ final class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->hasColumn('accounting_journal_lines', 'currency_code'));
     }
 
-    public function testDownRefusesToDropTheColumnsWhileARowCarriesACurrency(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function tableThatKeepsACurrencyProvider(): array
     {
-        $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'USD box', 'kind' => 'cash', 'currency_code' => 'USD']);
+        $tables = [];
+
+        foreach ([...self::DOCUMENT_TABLES, 'treasuries', 'accounting_journal_lines'] as $table) {
+            $tables[$table] = [$table];
+        }
+
+        return $tables;
+    }
+
+    #[DataProvider('tableThatKeepsACurrencyProvider')]
+    public function testDown_RefusesToDropTheColumnsWhileARowCarriesACurrency(string $table): void
+    {
+        $db = $this->accountingDb();
+
+        $this->insertRowInDollars($table);
 
         try {
             (new DocumentCurrencyColumns())->down();
             $this->fail('The columns were dropped.');
         } catch (RuntimeException $exception) {
-            $this->assertStringContainsString('treasuries', $exception->getMessage());
+            $this->assertStringContainsString($table, $exception->getMessage());
         } finally {
-            $this->accountingDb()->table('treasuries')->where('name', 'USD box')->delete();
+            $db->query('SET FOREIGN_KEY_CHECKS = 0');
+            $db->table($table)->where('currency_code', 'USD')->delete();
+            $db->query('SET FOREIGN_KEY_CHECKS = 1');
         }
 
-        $this->assertTrue($this->hasColumn('treasuries', 'currency_code'));
+        $this->assertTrue($this->hasColumn($table, 'currency_code'));
+        $this->assertTrue($this->hasColumn('sales', 'currency_code'), 'Nothing was dropped');
     }
 
-    public function testDefaultChartHasTheTwoExchangeAccountsAndTheirRoutingForANewCompany(): void
+    public function testDown_DropsTheColumnsOnceNoRowCarriesACurrency(): void
+    {
+        (new DocumentCurrencyColumns())->down();
+
+        foreach ([...self::DOCUMENT_TABLES, 'treasuries', 'accounting_journal_lines'] as $table) {
+            $this->assertFalse($this->hasColumn($table, 'currency_code'), $table);
+        }
+
+        (new DocumentCurrencyColumns())->up();
+
+        $this->assertTrue($this->hasColumn('sales', 'currency_code'));
+    }
+
+    private function insertRowInDollars(string $table): void
+    {
+        $db      = $this->accountingDb();
+        $columns = $db->query(
+            'SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND IS_NULLABLE = ? AND COLUMN_DEFAULT IS NULL AND EXTRA NOT LIKE ?',
+            [$db->prefixTable($table), 'NO', '%auto_increment%'],
+        )->getResultArray();
+        $row     = ['currency_code' => 'USD'];
+
+        foreach ($columns as $column) {
+            $row[$column['COLUMN_NAME']] ??= match ($column['DATA_TYPE']) {
+                'date'                => '2026-10-21',
+                'datetime'            => '2026-10-21 10:00:00',
+                'timestamp'           => '2026-10-21 10:00:00',
+                'enum'                => explode("','", trim(substr((string) $column['COLUMN_TYPE'], 5, -1), "'"))[0],
+                'varchar', 'char', 'text' => '',
+                default               => 1,
+            };
+        }
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $db->table($table)->insert($row);
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+    }
+
+    public function testDefaultChart_HasTheTwoExchangeAccountsAndTheirRoutingForANewCompany(): void
     {
         foreach (['fx_gain' => ['4209', 'revenue', 'credit', 'fx.gain'], 'fx_loss' => ['5410', 'expense', 'debit', 'fx.loss']] as $systemKey => [$code, $type, $normal, $routing]) {
             $account = $this->accountOf($systemKey);
@@ -216,7 +317,7 @@ final class MultiCurrencyMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testFxAccountsAreOpenedInAChartThatHasNoneAndRouted(): void
+    public function testFxAccounts_AreOpenedInAChartThatHasNoneAndRouted(): void
     {
         (new FxDifferenceAccounts())->down();
 
@@ -235,7 +336,7 @@ final class MultiCurrencyMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testFxAccountsTakeTheNextFreeCodeWhenTheFirstIsTaken(): void
+    public function testFxAccounts_TakeTheNextFreeCodeWhenTheFirstIsTaken(): void
     {
         (new FxDifferenceAccounts())->down();
         $this->customAccount('42', '4209', 'Taken');
@@ -246,7 +347,7 @@ final class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertSame('4209', $this->accountingDb()->table('accounting_accounts')->where('name', 'Taken')->get()->getRow()->code);
     }
 
-    public function testFxAccountsAreOpenedOnceWhenTheMigrationRunsTwiceAndKeepAnAccountTheCompanyRoutedElsewhere(): void
+    public function testFxAccounts_AreOpenedOnceWhenTheMigrationRunsTwiceAndKeepAnAccountTheCompanyRoutedElsewhere(): void
     {
         (new FxDifferenceAccounts())->down();
         (new FxDifferenceAccounts())->up();
@@ -261,7 +362,7 @@ final class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertSame((string) $other, $this->routedTo('fx.loss'));
     }
 
-    public function testFxAccountsDoNothingWhenThereIsNoChartYet(): void
+    public function testFxAccounts_DoNothingWhenThereIsNoChartYet(): void
     {
         $db = $this->accountingDb();
         $db->query('SET FOREIGN_KEY_CHECKS = 0');
@@ -274,7 +375,7 @@ final class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $db->table('accounting_accounts')->countAllResults());
     }
 
-    public function testFxAccountsDownKeepsAnAccountThatAJournalLineUses(): void
+    public function testFxAccounts_DownKeepsAnAccountThatAJournalLineUses(): void
     {
         $gain = (int) $this->accountOf('fx_gain')->account_id;
         $this->postedLineOn($gain);

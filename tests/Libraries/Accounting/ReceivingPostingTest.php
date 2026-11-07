@@ -4976,7 +4976,7 @@ class ReceivingPostingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::DocumentCurrencyLocked, $this->purchases->accountingFailure()->error);
     }
 
-    public function testSaveValue_RefusesAForeignCurrencyWithoutARateOnItsDayWhileSwitchedOffOrWhileTheBooksAreOffAndSavesNothing(): void
+    public function testSaveValue_RejectsAForeignPurchaseWithNoRateOnItsDayAndSavesNothing(): void
     {
         $currencies = new Currencies();
         $currencies->setActive('USD', true);
@@ -4984,14 +4984,22 @@ class ReceivingPostingTest extends CIUnitTestCase
 
         $this->assertSame(ACCOUNTING_FAILED, $this->dollarPurchase());
         $this->assertSame(AccountingError::RateMissing, $this->purchases->accountingFailure()->error);
+        $this->assertSame(0, $this->countRows('receivings'));
+    }
 
-        $this->dollars();
+    public function testSaveValue_RejectsAForeignPurchaseInACurrencySwitchedOffAndSavesNothing(): void
+    {
+        $currencies = $this->dollars();
         $currencies->setActive('USD', false);
 
         $this->assertSame(ACCOUNTING_FAILED, $this->dollarPurchase());
         $this->assertSame(AccountingError::CurrencyInactive, $this->purchases->accountingFailure()->error);
+        $this->assertSame(0, $this->countRows('receivings'));
+    }
 
-        $currencies->setActive('USD', true);
+    public function testSaveValue_RejectsAForeignPurchaseWhileTheBooksAreOffAndSavesNothing(): void
+    {
+        $this->dollars();
         $this->setConfigValue('accounting_enabled', '0');
 
         $this->assertSame(ACCOUNTING_FAILED, $this->dollarPurchase());

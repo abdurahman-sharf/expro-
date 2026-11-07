@@ -14,10 +14,7 @@ use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 
-/**
- * @internal
- */
-final class CurrencyRatesTest extends CIUnitTestCase
+class CurrencyRatesTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -25,7 +22,7 @@ final class CurrencyRatesTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace;
+    protected $namespace   = null;
     private CurrencyRates $rates;
 
     public static function setUpBeforeClass(): void
@@ -68,12 +65,12 @@ final class CurrencyRatesTest extends CIUnitTestCase
         }
     }
 
-    public function testRateOnIsOneForTheBaseCurrency(): void
+    public function testRateOn_IsOneForTheBaseCurrency(): void
     {
         $this->assertSame('1.00000000', $this->rates->rateOn('SAR', '2026-10-21'));
     }
 
-    public function testRateOnTakesTheLatestDayOnOrBeforeTheDateAndNothingBeforeTheFirst(): void
+    public function testRateOn_TakesTheLatestDayOnOrBeforeTheDateAndNothingBeforeTheFirst(): void
     {
         $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10']);
         $this->rates->add(['currency_code' => 'USD', 'rate' => '3.60', 'effective_date' => '2026-10-20']);
@@ -86,13 +83,13 @@ final class CurrencyRatesTest extends CIUnitTestCase
         $this->assertNull($this->rates->rateOn('EUR', '2026-10-20'));
     }
 
-    public function testAddRequiresThePermissionToManageCurrencies(): void
+    public function testAdd_RequiresThePermissionToManageCurrencies(): void
     {
         $this->assertRefused(AccountingError::PermissionDenied, fn () => $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $this->employeeWithGrants(['accounting_settings'])));
         $this->assertSame(0, $this->countRows('accounting_currency_rates'));
     }
 
-    public function testAddRejectsAnEmployeeLimitedToSomeBranches(): void
+    public function testAdd_RejectsAnEmployeeLimitedToSomeBranches(): void
     {
         $restricted = $this->employeeWithGrants([AccountingGuard::CURRENCIES_MANAGE], [$this->createBranch('B3')]);
 
@@ -101,7 +98,7 @@ final class CurrencyRatesTest extends CIUnitTestCase
         $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $restricted);
     }
 
-    public function testAddStoresTheRateWithWhoEnteredItAndAuditsIt(): void
+    public function testAdd_StoresTheRateWithWhoEnteredItAndAuditsIt(): void
     {
         $manager = $this->manager();
         $rateId  = $this->rates->add(['currency_code' => 'usd', 'rate' => '3.7447370', 'effective_date' => '2026-10-10', 'note' => ' first '], $manager);
@@ -118,8 +115,8 @@ final class CurrencyRatesTest extends CIUnitTestCase
         $this->assertSame(['code' => 'USD', 'rate' => '3.74473700', 'date' => '2026-10-10'], json_decode($audit->details, true));
     }
 
-    #[DataProvider('provideAdd_RejectsAnInvalidRate')]
-    public function testAddRejectsAnInvalidRate(string $rate): void
+    #[DataProvider('invalidRates')]
+    public function testAdd_RejectsAnInvalidRate(string $rate): void
     {
         $this->assertRefused(AccountingError::RateInvalid, fn () => $this->rates->add(['currency_code' => 'USD', 'rate' => $rate, 'effective_date' => '2026-10-10'], $this->manager()));
     }
@@ -127,12 +124,12 @@ final class CurrencyRatesTest extends CIUnitTestCase
     /**
      * @return array<string, array{string}>
      */
-    public static function provideAdd_RejectsAnInvalidRate(): iterable
+    public static function invalidRates(): array
     {
         return ['zero' => ['0'], 'negative' => ['-3.75'], 'text' => ['abc'], 'nine decimals' => ['3.123456789'], 'empty' => [''], 'too large' => ['12345678901']];
     }
 
-    public function testAddAcceptsTheSmallestAndTheMostPreciseRate(): void
+    public function testAdd_AcceptsTheSmallestAndTheMostPreciseRate(): void
     {
         $manager = $this->manager();
 
@@ -142,7 +139,7 @@ final class CurrencyRatesTest extends CIUnitTestCase
         $this->assertSame('0.00000001', $this->rates->rateOn('USD', '2026-10-10'));
     }
 
-    public function testAddRejectsTheBaseCurrencyAnUnknownCurrencyABadDateAndASecondRateForTheSameDay(): void
+    public function testAdd_RejectsTheBaseCurrencyAnUnknownCurrencyABadDateAndASecondRateForTheSameDay(): void
     {
         $manager = $this->manager();
 
@@ -156,7 +153,7 @@ final class CurrencyRatesTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('accounting_currency_rates'));
     }
 
-    public function testUpdateWritesWhatTheRateWasBeforeAndAfter(): void
+    public function testUpdate_WritesWhatTheRateWasBeforeAndAfter(): void
     {
         $manager = $this->manager();
         $rateId  = $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $manager);
@@ -165,14 +162,14 @@ final class CurrencyRatesTest extends CIUnitTestCase
 
         $this->assertSame('3.74000000', $this->rates->find($rateId)->rate);
 
-        $audit   = $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'currency_rate')->where('action', 'updated')->get()->getRow();
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'currency_rate')->where('action', 'updated')->get()->getRow();
         $details = json_decode($audit->details, true);
 
         $this->assertSame('3.75000000', $details['before']['rate']);
         $this->assertSame('3.74000000', $details['after']['rate']);
     }
 
-    public function testUpdateRequiresThePermissionAndRefusesAnotherRateOnTheSameDay(): void
+    public function testUpdate_RequiresThePermissionAndRefusesAnotherRateOnTheSameDay(): void
     {
         $manager = $this->manager();
         $first   = $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $manager);
@@ -184,7 +181,7 @@ final class CurrencyRatesTest extends CIUnitTestCase
         $this->assertSame('3.75000000', $this->rates->find($first)->rate);
     }
 
-    public function testUpdateRejectsAnEmployeeLimitedToSomeBranches(): void
+    public function testUpdate_RejectsAnEmployeeLimitedToSomeBranches(): void
     {
         $rateId     = $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $this->manager());
         $restricted = $this->employeeWithGrants([AccountingGuard::CURRENCIES_MANAGE], [$this->createBranch('B3')]);
@@ -199,7 +196,7 @@ final class CurrencyRatesTest extends CIUnitTestCase
         $this->assertSame('3.75000000', $this->rates->find($rateId)->rate);
     }
 
-    public function testDeleteRejectsAnEmployeeLimitedToSomeBranches(): void
+    public function testDelete_RejectsAnEmployeeLimitedToSomeBranches(): void
     {
         $rateId     = $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $this->manager());
         $restricted = $this->employeeWithGrants([AccountingGuard::CURRENCIES_MANAGE], [$this->createBranch('B3')]);
@@ -214,7 +211,7 @@ final class CurrencyRatesTest extends CIUnitTestCase
         $this->assertNotNull($this->rates->find($rateId));
     }
 
-    public function testUpdateChangesNothingAndWritesNoAuditWhenNothingChanged(): void
+    public function testUpdate_ChangesNothingAndWritesNoAuditWhenNothingChanged(): void
     {
         $rateId = $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $this->manager());
 
@@ -223,7 +220,7 @@ final class CurrencyRatesTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'updated')->countAllResults());
     }
 
-    public function testDeleteRemovesTheRateAndAuditsIt(): void
+    public function testDelete_RemovesTheRateAndAuditsIt(): void
     {
         $manager = $this->manager();
         $rateId  = $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $manager);
@@ -238,7 +235,7 @@ final class CurrencyRatesTest extends CIUnitTestCase
         $this->assertSame('deleted', $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'currency_rate')->where('entity_id', $rateId)->orderBy('audit_id', 'DESC')->get()->getRow()->action);
     }
 
-    public function testHistoryListsTheNewestDayFirstAndFiltersByCurrency(): void
+    public function testHistory_ListsTheNewestDayFirstAndFiltersByCurrency(): void
     {
         $manager = $this->manager();
         (new Currencies())->setActive('EUR', true);
@@ -250,10 +247,10 @@ final class CurrencyRatesTest extends CIUnitTestCase
         $this->assertSame(['2026-10-20', '2026-10-10'], array_column($this->rates->history('USD'), 'effective_date'));
     }
 
-    public function testRateOnNeverChangesWhatADocumentCapturedBeforeTheTableChanged(): void
+    public function testRateOn_LeavesWhatADocumentCapturedAsItWasWhenTheTableChanges(): void
     {
-        $manager  = $this->manager();
-        $rateId   = $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $manager);
+        $manager = $this->manager();
+        $rateId  = $this->rates->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-10'], $manager);
         $captured = (new Currencies())->documentCurrency('USD', '2026-10-27');
 
         $this->rates->update($rateId, ['rate' => '3.00'], $manager);

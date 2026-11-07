@@ -10,10 +10,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Tests\Support\AccountingControllerFixtureTrait;
 
-/**
- * @internal
- */
-final class AccountingCurrenciesControllerTest extends CIUnitTestCase
+class AccountingCurrenciesControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingControllerFixtureTrait;
@@ -21,7 +18,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace;
+    protected $namespace   = null;
 
     protected function setUp(): void
     {
@@ -54,7 +51,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         return $personId;
     }
 
-    public function testGetIndexShowsTheScreenToAUserWithTheModuleGrantWithoutTheAddButton(): void
+    public function testGetIndex_ShowsTheScreenToAUserWithTheModuleGrantWithoutTheAddButton(): void
     {
         $this->reader();
 
@@ -65,14 +62,14 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $response->assertDontSee('accounting_currencies/form"');
     }
 
-    public function testGetIndexOffersTheAddButtonWithTheManagePermission(): void
+    public function testGetIndex_OffersTheAddButtonWithTheManagePermission(): void
     {
         $this->manager();
 
         $this->get('/accounting_currencies')->assertSee('data-href="accounting_currencies/form"');
     }
 
-    public function testGetIndexIsNotFoundWhileAccountingIsDisabled(): void
+    public function testGetIndex_IsNotFoundWhileAccountingIsDisabled(): void
     {
         $this->prepareAccounting(false);
         $this->reader();
@@ -82,14 +79,14 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->get('/accounting_currencies');
     }
 
-    public function testGetIndexRedirectsAUserWithoutTheModuleGrant(): void
+    public function testGetIndex_RedirectsAUserWithoutTheModuleGrant(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_chart']));
 
         $this->get('/accounting_currencies')->assertRedirect();
     }
 
-    public function testGetSearchListsTheBaseCurrencyFirstWithItsRateOfOneAndItsDecimals(): void
+    public function testGetSearch_ListsTheBaseCurrencyFirstWithItsRateOfOneAndItsDecimals(): void
     {
         $this->manager();
         (new Currencies())->setActive('USD', true);
@@ -105,7 +102,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('>3.75<', $usd['latest_rate']);
     }
 
-    public function testGetSearchFiltersByCodeAndByEitherName(): void
+    public function testGetSearch_FiltersByCodeAndByEitherName(): void
     {
         $this->manager();
         (new Currencies())->setActive('KWD', true);
@@ -115,7 +112,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertSame(1, $this->jsonOf($this->get('/accounting_currencies/search?search=kwd'))['total']);
     }
 
-    public function testGetSearchOffersTheRatesAndEditOfAForeignCurrencyAndOnlyTheEditOfTheBase(): void
+    public function testGetSearch_OffersTheRatesAndEditOfAForeignCurrencyAndOnlyTheEditOfTheBase(): void
     {
         $this->manager();
         (new Currencies())->setActive('USD', true);
@@ -130,7 +127,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('data-acc-action="deactivate"', $foreign['edit']);
     }
 
-    public function testGetSearchShowsNoEditToAReader(): void
+    public function testGetSearch_ShowsNoEditToAReader(): void
     {
         $this->reader();
         (new Currencies())->setActive('USD', true);
@@ -141,7 +138,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('data-acc-action', $row['edit']);
     }
 
-    public function testGetFormIsNotFoundWithoutTheManagePermission(): void
+    public function testGetForm_IsNotFoundWithoutTheManagePermission(): void
     {
         $this->reader();
 
@@ -150,7 +147,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->get('/accounting_currencies/form');
     }
 
-    public function testGetFormShowsTheDecimalsOfAnUnusedCurrencyOpenAndOfAUsedOneLocked(): void
+    public function testGetForm_ShowsTheDecimalsOfAnUnusedCurrencyOpenAndOfAUsedOneLocked(): void
     {
         $this->manager();
         $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'EUR box', 'kind' => 'cash', 'currency_code' => 'EUR']);
@@ -162,7 +159,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->get('/accounting_currencies/form')->assertSee('name="code"');
     }
 
-    public function testGetFormLocksTheDecimalsOfTheBaseCurrencyOnceAJournalIsPosted(): void
+    public function testGetForm_LocksTheDecimalsOfTheBaseCurrencyOnceAJournalIsPosted(): void
     {
         $this->manager();
 
@@ -173,7 +170,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/<select name="decimals"[^>]*\sdisabled/', $this->get('/accounting_currencies/form/SAR')->getBody());
     }
 
-    public function testPostStoreCreatesACurrencyWithTheDecimalsChosen(): void
+    public function testPostStore_CreatesACurrencyWithTheDecimalsChosen(): void
     {
         $this->manager();
 
@@ -183,7 +180,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertSame(3, (new Currencies())->find('XAA')->decimals);
     }
 
-    public function testPostStoreRejectsAUserWithoutTheManagePermission(): void
+    public function testPostStore_RejectsAUserWithoutTheManagePermission(): void
     {
         $this->reader();
 
@@ -193,7 +190,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertNull((new Currencies())->find('XAA'));
     }
 
-    public function testPostStoreReportsAnInvalidCodeInTheLanguageInUse(): void
+    public function testPostStore_ReportsAnInvalidCodeInTheLanguageInUse(): void
     {
         $this->manager();
 
@@ -203,7 +200,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_currency_code_invalid'), $result['message']);
     }
 
-    public function testPostStoreUpdatesTheNamesOfAnExistingCurrency(): void
+    public function testPostStore_UpdatesTheNamesOfAnExistingCurrency(): void
     {
         $this->manager();
 
@@ -213,7 +210,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertSame('Dollar', (new Currencies())->find('USD')->nameEn);
     }
 
-    public function testPostStoreUpdatesTheNamesOfACurrencyThatATreasuryUsedWhenTheLockedFormSendsNoDecimals(): void
+    public function testPostStore_UpdatesTheNamesOfACurrencyThatATreasuryUsedWhenTheLockedFormSendsNoDecimals(): void
     {
         $this->manager();
         $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'EUR box', 'kind' => 'cash', 'currency_code' => 'EUR']);
@@ -230,7 +227,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testPostStoreUpdatesTheNamesOfTheBaseCurrencyOnceAJournalIsPostedWhenTheLockedFormSendsNoDecimals(): void
+    public function testPostStore_UpdatesTheNamesOfTheBaseCurrencyOnceAJournalIsPostedWhenTheLockedFormSendsNoDecimals(): void
     {
         $this->manager();
         (new PostingService())->post($this->balancedDraft());
@@ -247,7 +244,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testPostStoreRejectsNewDecimalsOfACurrencyThatATreasuryUsedWhenTheyAreSentByHand(): void
+    public function testPostStore_RejectsNewDecimalsOfACurrencyThatATreasuryUsedWhenTheyAreSentByHand(): void
     {
         $this->manager();
         $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'EUR box', 'kind' => 'cash', 'currency_code' => 'EUR']);
@@ -263,7 +260,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testPostDeactivateRefusesTheBaseCurrencyWrittenInLowerCase(): void
+    public function testPostDeactivate_RefusesTheBaseCurrencyWrittenInLowerCase(): void
     {
         $this->manager();
 
@@ -272,7 +269,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'currency', 'action' => 'deactivated'])->countAllResults());
     }
 
-    public function testGetRatesIsNotFoundForTheBaseCurrencyWrittenInLowerCase(): void
+    public function testGetRates_IsNotFoundForTheBaseCurrencyWrittenInLowerCase(): void
     {
         $this->manager();
 
@@ -281,7 +278,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->get('/accounting_currencies/rates/sar');
     }
 
-    public function testPostActivateSwitchesACurrencyOnAndPostDeactivateOffButNeverTheBase(): void
+    public function testPostActivate_SwitchesACurrencyOnAndPostDeactivateOffButNeverTheBase(): void
     {
         $this->manager();
 
@@ -293,7 +290,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertTrue((new Currencies())->find('SAR')->active);
     }
 
-    public function testPostActivateRejectsAUserWithoutTheManagePermission(): void
+    public function testPostActivate_RejectsAUserWithoutTheManagePermission(): void
     {
         $this->reader();
 
@@ -301,7 +298,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertFalse((new Currencies())->find('USD')->active);
     }
 
-    public function testGetRatesIsNotFoundForTheBaseCurrencyAndForAnUnknownOne(): void
+    public function testGetRates_IsNotFoundForTheBaseCurrencyAndForAnUnknownOne(): void
     {
         $this->manager();
 
@@ -317,7 +314,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->get('/accounting_currencies/rates/QQQ');
     }
 
-    public function testGetRatesShowsTheScreenWithTheAddButtonOnlyToWhoManages(): void
+    public function testGetRates_ShowsTheScreenWithTheAddButtonOnlyToWhoManages(): void
     {
         $this->reader();
         $readerView = $this->get('/accounting_currencies/rates/USD');
@@ -328,7 +325,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->get('/accounting_currencies/rates/USD')->assertSee('accounting_currencies/rate_form/USD');
     }
 
-    public function testPostRateStoreAddsARateAndTheSearchListsItNewestFirst(): void
+    public function testPostRateStore_AddsARateAndTheSearchListsItNewestFirst(): void
     {
         $this->manager();
         (new Currencies())->setActive('USD', true);
@@ -344,7 +341,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('3.6', $rows[0]['rate']);
     }
 
-    public function testPostRateStoreRejectsAReaderAndAnInvalidRateAndTheBaseCurrency(): void
+    public function testPostRateStore_RejectsAReaderAndAnInvalidRateAndTheBaseCurrency(): void
     {
         $this->reader();
         (new Currencies())->setActive('USD', true);
@@ -358,7 +355,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_currency_rates'));
     }
 
-    public function testPostRateStoreUpdatesARateOfThatCurrencyOnly(): void
+    public function testPostRateStore_UpdatesARateOfThatCurrencyOnly(): void
     {
         $this->manager();
         $currencies = new Currencies();
@@ -374,7 +371,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->post('/accounting_currencies/rate_store/EUR/' . $rateId, ['rate' => '9', 'effective_date' => '2026-10-10']);
     }
 
-    public function testPostRateDeleteRemovesARateOnlyForWhoManages(): void
+    public function testPostRateDelete_RemovesARateOnlyForWhoManages(): void
     {
         $this->manager();
         $currencies = new Currencies();
@@ -390,7 +387,7 @@ final class AccountingCurrenciesControllerTest extends CIUnitTestCase
         $this->assertNull($currencies->rates()->find($rateId));
     }
 
-    public function testGetRateFormIsNotFoundWithoutTheManagePermissionAndForARateOfAnotherCurrency(): void
+    public function testGetRateForm_IsNotFoundWithoutTheManagePermissionAndForARateOfAnotherCurrency(): void
     {
         $this->reader();
 

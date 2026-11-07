@@ -10,10 +10,7 @@ use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use CodeIgniter\Test\CIUnitTestCase;
 
-/**
- * @internal
- */
-final class ForeignConversionTest extends CIUnitTestCase
+class ForeignConversionTest extends CIUnitTestCase
 {
     /**
      * @param list<JournalLineDraft> $lines
@@ -38,7 +35,7 @@ final class ForeignConversionTest extends CIUnitTestCase
         return [$debit, $credit];
     }
 
-    public function testToBaseConvertsTheObservedInvoiceLineByLineAndItBalancesWithoutACorrection(): void
+    public function testToBase_ConvertsTheObservedInvoiceLineByLineAndItBalancesWithoutACorrection(): void
     {
         $draft = $this->draft([
             new JournalLineDraft(1, debit: '268.3300'),
@@ -56,7 +53,7 @@ final class ForeignConversionTest extends CIUnitTestCase
         $this->assertSame(['USD', 'USD', 'USD'], array_map(static fn (JournalLineDraft $line): ?string => $line->currencyCode, $base->lines));
     }
 
-    public function testToBasePutsTheRoundingDifferenceOnTheNamedLineAndOnlyThere(): void
+    public function testToBase_PutsTheRoundingDifferenceOnTheNamedLineAndOnlyThere(): void
     {
         $draft = $this->draft([
             new JournalLineDraft(1, debit: '100.0000'),
@@ -74,7 +71,7 @@ final class ForeignConversionTest extends CIUnitTestCase
         $this->assertSame(['100.5000', '100.5000'], $this->sums($base));
     }
 
-    public function testToBaseTakesTheDifferenceOnADebitLineToo(): void
+    public function testToBase_TakesTheDifferenceOnADebitLineToo(): void
     {
         $draft = $this->draft([
             new JournalLineDraft(1, debit: '33.3300'),
@@ -89,7 +86,7 @@ final class ForeignConversionTest extends CIUnitTestCase
         $this->assertSame(['100.5000', '100.5000'], $this->sums($base));
     }
 
-    public function testToBaseRoundsToZeroDecimalsOfABaseWithoutFractions(): void
+    public function testToBase_RoundsToZeroDecimalsOfABaseWithoutFractions(): void
     {
         $draft = $this->draft([
             new JournalLineDraft(1, debit: '23.5000'),
@@ -101,7 +98,7 @@ final class ForeignConversionTest extends CIUnitTestCase
         $this->assertSame(['88.0000', '88.0000'], [$base->lines[0]->debit, $base->lines[1]->credit]);
     }
 
-    public function testToBaseRoundsToThreeDecimalsOfABaseWithMills(): void
+    public function testToBase_RoundsToThreeDecimalsOfABaseWithMills(): void
     {
         $draft = $this->draft([
             new JournalLineDraft(1, debit: '30.3750'),
@@ -114,7 +111,7 @@ final class ForeignConversionTest extends CIUnitTestCase
         $this->assertSame('365.9940', $base->lines[1]->credit);
     }
 
-    public function testToBaseRefusesADifferenceThatIsMoreThanRounding(): void
+    public function testToBase_RefusesADifferenceThatIsMoreThanRounding(): void
     {
         $draft = $this->draft([
             new JournalLineDraft(1, debit: '100.0000'),
@@ -129,7 +126,7 @@ final class ForeignConversionTest extends CIUnitTestCase
         }
     }
 
-    public function testToBaseRefusesALineThatTheDifferenceWouldTurnToNothing(): void
+    public function testToBase_RefusesALineThatTheDifferenceWouldTurnToNothing(): void
     {
         $draft = $this->draft([
             new JournalLineDraft(1, debit: '1.0000'),
@@ -142,7 +139,7 @@ final class ForeignConversionTest extends CIUnitTestCase
         ForeignConversion::toBase($draft, new DocumentCurrency('USD', '0.00300000', 2), 2, 1);
     }
 
-    public function testToBaseRefusesALineThatIsNotInTheJournal(): void
+    public function testToBase_RefusesALineThatIsNotInTheJournal(): void
     {
         $draft = $this->draft([new JournalLineDraft(1, debit: '1.0000'), new JournalLineDraft(2, credit: '1.0000')]);
 
@@ -151,7 +148,7 @@ final class ForeignConversionTest extends CIUnitTestCase
         ForeignConversion::toBase($draft, new DocumentCurrency('USD', '3.75000000', 2), 2, 5);
     }
 
-    public function testIndexOfFindsTheLineOfAnAccountAndRefusesAnAccountThatIsNotThere(): void
+    public function testIndexOf_FindsTheLineOfAnAccountAndRefusesAnAccountThatIsNotThere(): void
     {
         $draft = $this->draft([new JournalLineDraft(7, debit: '1.0000'), new JournalLineDraft(9, credit: '1.0000')]);
 
@@ -162,7 +159,7 @@ final class ForeignConversionTest extends CIUnitTestCase
         ForeignConversion::indexOf($draft, 8);
     }
 
-    public function testToBaseKeepsTheDescriptionPartyAndCostCenterOfEveryLine(): void
+    public function testToBase_KeepsTheDescriptionPartyAndCostCenterOfEveryLine(): void
     {
         $draft = $this->draft([
             new JournalLineDraft(1, debit: '10.0000', description: 'owed', partyType: 'customer', partyId: 5),

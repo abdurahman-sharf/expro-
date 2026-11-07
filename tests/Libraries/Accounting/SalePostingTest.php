@@ -6722,7 +6722,7 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('100.0000', $mirrored[0]->foreign_amount);
     }
 
-    public function testSaveValue_RefusesAForeignSaleWhenTheCurrencyHasNoRateOnItsDayAndSavesNothing(): void
+    public function testSaveValue_RejectsAForeignSaleWithNoRateOnItsDay(): void
     {
         $currencies = new Currencies();
         $currencies->setActive('USD', true);
