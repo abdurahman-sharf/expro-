@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Seçili sağlayıcıları silmek istiyor musunuz?',
     'confirm_restore'       => 'Seçili sağlayıcıları onarmak istiyor musunuz?',
     'cost'                  => 'Maliyet Tedarikçisi',
+    'country_code'          => '',
     'error_adding_updating' => 'Sağlayıcı ekleme/düzenleme hatası.',
     'goods'                 => 'Mal Tedarikçisi',
     'new'                   => 'Yeni Sağlayıcı',

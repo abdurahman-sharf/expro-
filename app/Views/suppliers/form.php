@@ -65,6 +65,19 @@
                 </div>
 
                 <div class="field">
+                    <?= form_label(lang('Suppliers.country_code'), 'country_code', ['class' => 'form-label']) ?>
+                    <?= form_input([
+                        'name'      => 'country_code',
+                        'id'        => 'country_code',
+                        'class'     => 'form-control form-control-sm',
+                        'maxlength' => 2,
+                        'dir'       => 'ltr',
+                        'value'     => $person_info->country_code ?? ''
+                    ]) ?>
+                    <div class="form-text"><?= lang('Customers.country_code_help') ?></div>
+                </div>
+
+                <div class="field">
                     <?= form_label(lang('Suppliers.commercial_registry'), 'commercial_registry', ['class' => 'form-label']) ?>
                     <?= form_input([
                         'name'      => 'commercial_registry',

@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Are you sure you want to delete the selected Supplier(s)?',
     'confirm_restore'       => 'Are you sure you want to restore the selected Supplier(s)?',
     'cost'                  => 'Cost Supplier',
+    'country_code'          => 'Country code',
     'error_adding_updating' => 'Supplier update or add failed.',
     'goods'                 => 'Goods Supplier',
     'new'                   => 'New Supplier',

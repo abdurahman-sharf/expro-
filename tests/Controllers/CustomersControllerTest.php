@@ -1591,4 +1591,27 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertSame(['Classification', 'Status', 'Assigned Employee', 'Area', 'Country Code', 'Type', 'Government Entity', 'Billing Method'], array_slice($header, 18));
         $this->assertSame(['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone Number', 'Address 1', 'Address2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount_Type', 'Taxable'], array_slice($header, 0, 18));
     }
+
+    public function testPostSave_AcceptsTheLongestValuesOfTheObservedLimitsAndRejectsOneCharacterMore(): void
+    {
+        foreach (['company_name' => 100, 'city' => 100, 'state' => 100, 'zip' => 20] as $field => $max) {
+            $this->assertTrue($this->save([$field => str_repeat('a', $max)])['success'], "{$max} characters of {$field}");
+
+            $refused = $this->save([$field => str_repeat('a', $max + 1)]);
+
+            $this->assertFalse($refused['success'], "{$field} over {$max}");
+            $this->assertStringContainsString((string) $max, $refused['message']);
+        }
+    }
+
+    public function testPostSave_KeepsAValueThatWasLongerBeforeTheLimitWhileItIsNotChanged(): void
+    {
+        $created = $this->save(['city' => 'short']);
+        $long    = str_repeat('c', 150);
+        $this->accountingDb()->table('people')->where('person_id', $created['id'])->update(['city' => $long]);
+
+        $this->assertTrue($this->save(['city' => $long, 'comments' => 'edited'], (int) $created['id'])['success']);
+        $this->assertFalse($this->save(['city' => $long . 'x'], (int) $created['id'])['success']);
+        $this->assertSame($long, $this->accountingDb()->table('people')->where('person_id', $created['id'])->get()->getRow()->city);
+    }
 }

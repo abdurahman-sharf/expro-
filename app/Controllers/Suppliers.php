@@ -2,6 +2,10 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\MasterData\CustomerFields;
+use App\Libraries\MasterData\PartyLengths;
 use App\Models\Supplier;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Services;
@@ -145,6 +149,22 @@ class Suppliers extends Persons
             'account_number' => $this->request->getPost('account_number') == '' ? null : $this->request->getPost('account_number', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'tax_id'         => $this->request->getPost('tax_id', FILTER_SANITIZE_NUMBER_INT)
         ];
+
+        $current = $supplier_id == NEW_ENTRY || ! $this->supplier->exists((int) $supplier_id) ? null : $this->supplier->get_info((int) $supplier_id);
+
+        try {
+            PartyLengths::check(
+                ['company_name' => (string) $this->request->getPost('company_name'), 'city' => (string) $this->request->getPost('city'), 'state' => (string) $this->request->getPost('state'), 'zip' => (string) $this->request->getPost('zip')],
+                $current,
+                ['company_name' => lang('Suppliers.company_name'), 'city' => lang('Common.city'), 'state' => lang('Common.state'), 'zip' => lang('Common.zip')],
+            );
+
+            if ($this->request->getPost('country_code') !== null) {
+                $supplier_data['country_code'] = CustomerFields::countryCode(trim((string) $this->request->getPost('country_code')));
+            }
+        } catch (AccountingException $failure) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($failure), 'id' => NEW_ENTRY]);
+        }
 
         if ($this->request->getPost('commercial_registry') !== null) {
             $supplier_data['commercial_registry'] = mb_substr(trim((string) $this->request->getPost('commercial_registry', FILTER_SANITIZE_FULL_SPECIAL_CHARS)), 0, 64);

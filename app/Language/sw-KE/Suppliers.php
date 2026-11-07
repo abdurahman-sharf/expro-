@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Una uhakika unataka kufuta Wasambazaji waliochaguliwa?',
     'confirm_restore'       => 'Una uhakika unataka kurejesha Wasambazaji waliochaguliwa?',
     'cost'                  => 'Wasambazaji wa Wazalishaji (Cost Supplier) ',
+    'country_code'          => '',
     'error_adding_updating' => 'Kusasisha au kuongeza Wasambazaji kimeshindikana.',
     'goods'                 => 'Wasambazaji wa Bidhaa (Goods Supplier)',
     'new'                   => 'Msambazaji Mpya',

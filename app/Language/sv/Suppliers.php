@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Är du säker på att du vill radera den valda Leverantören?',
     'confirm_restore'       => 'Är du säker på att du vill radera den valda Leverantören?',
     'cost'                  => 'Kostnad leverantör',
+    'country_code'          => '',
     'error_adding_updating' => 'Leverantörsuppdatering eller tillägg misslyckades.',
     'goods'                 => 'Varuleverantör',
     'new'                   => 'Ny Leverantör',

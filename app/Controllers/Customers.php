@@ -16,6 +16,7 @@ use App\Libraries\MasterData\CustomerStatus;
 use App\Libraries\MasterData\CustomerType;
 use App\Libraries\MasterData\LookupKind;
 use App\Libraries\MasterData\NamedLookup;
+use App\Libraries\MasterData\PartyLengths;
 use App\Libraries\Mailchimp_lib;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -404,6 +405,16 @@ class Customers extends Persons
 
         $before = $isNew ? null : $this->customer->get_info((int) $customerId);
         $master = [];
+
+        try {
+            PartyLengths::check(
+                ['company_name' => (string) $this->request->getPost('company_name'), 'city' => (string) $personData['city'], 'state' => (string) $personData['state'], 'zip' => (string) $personData['zip']],
+                $before,
+                ['company_name' => lang('Customers.company_name'), 'city' => lang('Common.city'), 'state' => lang('Common.state'), 'zip' => lang('Common.zip')],
+            );
+        } catch (AccountingException $failure) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($failure), 'id' => NEW_ENTRY]);
+        }
 
         if ($this->request->getPost(CustomerFields::MARKER) === '1') {
             try {

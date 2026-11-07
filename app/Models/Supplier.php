@@ -21,7 +21,8 @@ class Supplier extends Person
         'commercial_registry',
         'deleted',
         'agency_name',
-        'category'
+        'category',
+        'country_code'
     ];
 
     /**

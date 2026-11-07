@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Biztos, hogy törölni kívánja a kiválasztott beszállítókat?',
     'confirm_restore'       => '',
     'cost'                  => '',
+    'country_code'          => '',
     'error_adding_updating' => 'Hiba beszállító hozzáadásánál/módosításánál',
     'goods'                 => '',
     'new'                   => 'Új beszállító',

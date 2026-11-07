@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'ທ່ານຕ້ອງການລຶບຜູ້ສະໜອງທີ່ທ່ານເລືອກແທ້ບໍ່ ?',
     'confirm_restore'       => '',
     'cost'                  => '',
+    'country_code'          => '',
     'error_adding_updating' => 'ເພີ່ມ ຫຼື ແກ້ໄຂ ຜູ້ສະໜອງບໍ່ສຳເລັດ.',
     'goods'                 => '',
     'new'                   => 'ຜູ້ສະໜອງໃໝ່',

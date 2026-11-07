@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Siz əminsiniz ki seçilmiş təchizatçı (lar) ı silmək istəyirsiniz?',
     'confirm_restore'       => 'Seçilmiş təchizatçı (lar) bərpa etmək istədiyinizə əminsinizmi?',
     'cost'                  => 'Maliyə Təchizatçı',
+    'country_code'          => '',
     'error_adding_updating' => 'Təchizatçı əlavə et / yenilə XƏTA.',
     'goods'                 => 'Məhsullar Təchizatçı',
     'new'                   => 'Yeni Təchizatçı',

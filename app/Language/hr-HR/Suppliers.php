@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Jeste li ste sigurni da želite obrisati odabranog dobavljača?',
     'confirm_restore'       => '',
     'cost'                  => '',
+    'country_code'          => '',
     'error_adding_updating' => 'Greška kod dodavanja/ažuriranja dobavljača',
     'goods'                 => '',
     'new'                   => 'Novi dobavljač',

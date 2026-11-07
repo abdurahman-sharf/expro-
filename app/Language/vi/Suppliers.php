@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Bạn chắc chắn muốn xóa các Nhà cung cấp được chọn không?',
     'confirm_restore'       => 'Bạn chắc chắn muốn hoàn lại các Nhà cung cấp được chọn không?',
     'cost'                  => 'Nhà cung ứng giá',
+    'country_code'          => '',
     'error_adding_updating' => 'Gặp lỗi khi cập nhật hay thêm Nhà cung cấp.',
     'goods'                 => 'Nhà cung ứng hàng hóa',
     'new'                   => 'Nhà cung cấp mới',
