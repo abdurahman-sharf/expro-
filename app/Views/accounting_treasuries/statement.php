@@ -2,6 +2,7 @@
 /**
  * @var object                     $treasury
  * @var string                     $balance
+ * @var string|null                $foreign_balance
  * @var list<array<string, mixed>> $rows
  * @var int                        $total_rows
  * @var list<array<string, mixed>> $crossings
@@ -55,6 +56,9 @@ $journal = static function (array $row) use ($journal_links, $matched): string {
             <?= $amount($balance) ?>
             <?php if ($negative): ?>
                 <span class="badge text-bg-danger" id="treasury_negative"><?= lang('Accounting_treasuries.negative') ?></span>
+            <?php endif; ?>
+            <?php if (($foreign_balance ?? null) !== null): ?>
+                <div class="small text-body-secondary" id="treasury_foreign_balance"><?= $foreign_balance ?></div>
             <?php endif; ?>
         </dd>
         <?php if ($lowest !== '0.0000' && bccomp($lowest, '0', 4) < 0): ?>

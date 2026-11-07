@@ -738,4 +738,17 @@ class RevenueVouchersTest extends CIUnitTestCase
         $this->assertNull($this->vouchers->find($id)->revenue_category_id);
         $this->assertNull($this->vouchers->find($id)->account_id);
     }
+
+    public function testDocument_RefusesAReceiptVoucherInAForeignCurrencyWithANamedRefusal(): void
+    {
+        $id = $this->save();
+
+        $this->accountingDb()->table('revenues')->where('revenue_id', $id)->update(['currency_code' => 'USD', 'currency_rate' => '3.75']);
+
+        $failure = $this->refusal(fn () => $this->vouchers->document($id));
+
+        $this->assertInstanceOf(PostingException::class, $failure);
+        $this->assertSame(PostingError::FxNotSupported, $failure->error);
+        $this->assertSame('revenue', $failure->context['what']);
+    }
 }

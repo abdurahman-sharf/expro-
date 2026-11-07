@@ -39,6 +39,7 @@ final class AccountingGuard
     public const DEBIT_NOTES_MANAGE  = 'acc_debit_notes_manage';
     public const ROLES_MANAGE        = 'acc_roles_manage';
     public const BANK_RECONCILE      = 'acc_bank_reconcile';
+    public const CURRENCIES_MANAGE   = 'acc_currencies_manage';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them
@@ -63,6 +64,7 @@ final class AccountingGuard
         self::YEAR_END_CLOSE,
         self::BACKFILL_MANAGE,
         self::ROLES_MANAGE,
+        self::CURRENCIES_MANAGE,
     ];
 
     private Employee $employee;

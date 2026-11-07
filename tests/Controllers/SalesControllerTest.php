@@ -15,6 +15,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\CustomerOpening;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\InvoiceTiming;
 use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\SaleDocumentList;
@@ -7602,5 +7603,422 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->assertNotSame($other, (int) Services::session()->get('sales_location'), 'A location the employee holds no permission for is never preselected');
         $this->assertContains((int) Services::session()->get('sales_location'), [1, $granted], 'The register starts in one of the locations the employee may sell from, as it always did');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The register in a foreign currency
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * A register of a shop whose books are on, with a currency that has a rate and an item the catalog
+     * prices at 375 in the base.
+     *
+     * @return array{int, int} The employee and the item.
+     */
+    private function foreignRegister(string $code = 'USD', string $rate = '3.75', string $mode = 'sale', string $price = '375.00'): array
+    {
+        $this->startSelling();
+
+        $this->salesFloor = (int) $this->accountingDb()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+
+        $currencies = new Currencies();
+        $currencies->setActive($code, true);
+        $currencies->rates()->add(['currency_code' => $code, 'rate' => $rate, 'effective_date' => date('Y-m-d', strtotime('-30 days'))]);
+
+        $employeeId = $this->createReportsSalesEmployee();
+        $itemId     = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['unit_price' => $price]);
+        $this->loginAs($employeeId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => $mode, 'sales_location' => 1]));
+
+        return [$employeeId, $itemId];
+    }
+
+    private function carryTheSession(): void
+    {
+        $this->withSession(array_merge($this->session, Services::session()->get()));
+    }
+
+    private function chooseCurrency(string $code): void
+    {
+        $this->post('/sales/setCurrency', ['currency_code' => $code]);
+        $this->carryTheSession();
+    }
+
+    private function addToTheRegister(int $itemId): TestResponse
+    {
+        $response = $this->post('/sales/add', ['item' => (string) $itemId]);
+        $this->carryTheSession();
+
+        return $response;
+    }
+
+    private function lineOfTheRegister(): array
+    {
+        return array_values(Services::session()->get('sales_cart') ?? [])[0] ?? [];
+    }
+
+    public function testPostSetCurrency_ChoosesACurrencyThatHasARateBeforeTheFirstItemIsAdded(): void
+    {
+        $this->foreignRegister();
+
+        $this->chooseCurrency('USD');
+
+        $this->assertSame('USD', Services::session()->get('sales_currency'));
+    }
+
+    public function testPostSetCurrency_TakesTheChoiceBackWhenTheBaseCurrencyIsChosen(): void
+    {
+        $this->foreignRegister();
+        $this->chooseCurrency('USD');
+
+        $this->chooseCurrency('SAR');
+
+        $this->assertNull(Services::session()->get('sales_currency'));
+    }
+
+    public function testPostSetCurrency_RefusesWhileTheBooksAreOff(): void
+    {
+        $this->foreignRegister();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $response = $this->post('/sales/setCurrency', ['currency_code' => 'USD']);
+
+        $this->assertNull(Services::session()->get('sales_currency'));
+        $response->assertSee(lang('Sales.not_authorized'));
+    }
+
+    public function testPostSetCurrency_RefusesInReturnMode(): void
+    {
+        $this->foreignRegister(mode: 'return');
+
+        $response = $this->post('/sales/setCurrency', ['currency_code' => 'USD']);
+
+        $this->assertNull(Services::session()->get('sales_currency'));
+        $response->assertSee(lang('Sales.currency_return_mode'));
+    }
+
+    public function testPostSetCurrency_RefusesOnceTheCartHasItems(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+        $this->addToTheRegister($itemId);
+
+        $response = $this->post('/sales/setCurrency', ['currency_code' => 'USD']);
+
+        $this->assertNull(Services::session()->get('sales_currency'));
+        $response->assertSee(lang('Sales.currency_cart_not_empty'));
+    }
+
+    public function testPostSetCurrency_RefusesACurrencyThatHasNoRateOnTheDay(): void
+    {
+        $this->foreignRegister();
+        (new Currencies())->setActive('EUR', true);
+
+        $response = $this->post('/sales/setCurrency', ['currency_code' => 'EUR']);
+
+        $this->assertNull(Services::session()->get('sales_currency'));
+        $response->assertSee(lang('Accounting.error_currency_rate_missing'));
+    }
+
+    public function testPostAdd_PricesAnItemOfTheCatalogInTheCurrencyOfTheSale(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+        $this->chooseCurrency('USD');
+
+        $this->addToTheRegister($itemId);
+
+        $this->assertSame('100.00', $this->lineOfTheRegister()['price']);
+    }
+
+    public function testPostAdd_PricesAnItemInYenWithoutDecimals(): void
+    {
+        [, $itemId] = $this->foreignRegister('JPY', '0.02500000', price: '1234.50');
+        $this->chooseCurrency('JPY');
+
+        $this->addToTheRegister($itemId);
+
+        $this->assertSame('49380', $this->lineOfTheRegister()['price']);
+    }
+
+    public function testPostAdd_SaysWhyWhenTheRateOfTheCurrencyIsGoneAfterItWasChosen(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+        $this->chooseCurrency('USD');
+        $this->accountingDb()->table('accounting_currency_rates')->where('currency_code', 'USD')->delete();
+
+        $response = $this->addToTheRegister($itemId);
+
+        $response->assertSee(lang('Accounting.error_currency_rate_missing'));
+        $this->assertSame([], Services::session()->get('sales_cart') ?? []);
+    }
+
+    public function testPostAdd_SaysWhyWhenTheCurrencyWasSwitchedOffAfterItWasChosen(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+        $this->chooseCurrency('USD');
+        (new Currencies())->setActive('USD', false);
+
+        $response = $this->addToTheRegister($itemId);
+
+        $response->assertSee(lang('Accounting.error_currency_inactive'));
+        $this->assertSame([], Services::session()->get('sales_cart') ?? []);
+    }
+
+    public function testPostSuspend_KeepsTheCurrencyOfTheSaleAndTheUnsuspendedSaleCompletesInIt(): void
+    {
+        [$employeeId, $itemId] = $this->foreignRegister();
+        $this->post('/sales/changeMode', ['mode' => 'sale_invoice']);
+        $this->carryTheSession();
+        $this->post('/sales/selectCustomer', ['customer' => (string) $this->customerId]);
+        $this->carryTheSession();
+        $this->chooseCurrency('USD');
+        $this->addToTheRegister($itemId);
+
+        $this->post('/sales/suspend');
+
+        $suspended = $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->assertSame((string) SUSPENDED, (string) $suspended->sale_status);
+        $this->assertSame('USD', $suspended->currency_code);
+        $this->assertSame('3.75000000', $suspended->currency_rate);
+        $this->assertSame('100.00', $this->accountingDb()->table('sales_items')->where('sale_id', $suspended->sale_id)->get()->getRow()->item_unit_price);
+
+        $this->withSession(['person_id' => $employeeId, 'menu_group' => 'home', 'sales_mode' => 'sale_invoice', 'sale_id' => NEW_ENTRY, 'sales_location' => 1]);
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $suspended->sale_id]);
+        $this->carryTheSession();
+
+        $this->assertSame('USD', Services::session()->get('sales_currency'));
+        $this->assertSame('100.00', $this->lineOfTheRegister()['price']);
+
+        $this->post('/sales/complete');
+
+        $completed = $this->accountingDb()->table('sales')->where('sale_id', $suspended->sale_id)->get()->getRow();
+
+        $this->assertSame((string) COMPLETED, (string) $completed->sale_status);
+        $this->assertSame('USD', $completed->currency_code);
+
+        $debit = $this->accountingDb()->table('accounting_journal_lines l')->select('l.debit, l.foreign_amount')->join('accounting_journals j', 'j.journal_id = l.journal_id')->where(['j.source_type' => 'sale', 'j.source_id' => $suspended->sale_id])->where('l.debit >', 0)->get()->getRow();
+
+        $this->assertSame(['375.0000', '100.0000'], [(string) $debit->debit, (string) $debit->foreign_amount], '100 dollars at 3.75, not 100 of the base');
+    }
+
+    public function testPostSuspend_KeepsTheBaseCurrencyOfASaleThatHasNoOtherAndDoesNotInventOne(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+        $this->addToTheRegister($itemId);
+
+        $this->post('/sales/suspend');
+
+        $suspended = $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->assertNull($suspended->currency_code);
+        $this->assertNull(Services::session()->get('sales_currency'));
+    }
+
+    public function testPostChangeMode_RefusesAReturnWhileTheCartHoldsItemsPricedInAForeignCurrency(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+        $this->chooseCurrency('USD');
+        $this->addToTheRegister($itemId);
+
+        $response = $this->post('/sales/changeMode', ['mode' => 'return']);
+
+        $response->assertSee(lang('Sales.currency_return_mode'));
+        $this->assertSame('USD', Services::session()->get('sales_currency'));
+        $this->assertSame('sale', Services::session()->get('sales_mode'));
+    }
+
+    public function testPostChangeMode_DropsTheCurrencyOfAnEmptyCartWhenAReturnIsStarted(): void
+    {
+        $this->foreignRegister();
+        $this->chooseCurrency('USD');
+
+        $this->post('/sales/changeMode', ['mode' => 'return']);
+
+        $this->assertNull(Services::session()->get('sales_currency'));
+        $this->assertSame('return', Services::session()->get('sales_mode'));
+    }
+
+    public function testPostSuspend_TakesNoCurrencyFromTheRegisterForAReturnAndKeepsItsPricesUnconverted(): void
+    {
+        [, $itemId] = $this->foreignRegister(mode: 'return');
+        $this->withSession(array_merge($this->session, ['sale_type' => SALE_TYPE_RETURN, 'sales_currency' => 'USD', 'sales_customer' => $this->customerId]));
+        $this->addToTheRegister($itemId);
+
+        $this->assertSame('375.00', $this->lineOfTheRegister()['price'], 'a return is not priced from the catalog in the currency of the register');
+
+        $this->post('/sales/suspend');
+
+        $saved = $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow();
+
+        $this->assertSame((string) SALE_TYPE_RETURN, (string) $saved->sale_type);
+        $this->assertNull($saved->currency_code);
+    }
+
+    public function testPostAddPayment_RefusesAGiftCardOnASaleInAForeignCurrency(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+        $this->chooseCurrency('USD');
+        $this->addToTheRegister($itemId);
+
+        $response = $this->post('/sales/addPayment', ['payment_type' => lang('Sales.giftcard'), 'amount_tendered' => '123']);
+
+        $response->assertSee(lang('Sales.currency_stored_value'));
+        $this->assertEmpty(Services::session()->get('sales_payments'));
+    }
+
+    public function testPostAddPayment_RefusesRewardPointsOnASaleInAForeignCurrency(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+        $this->chooseCurrency('USD');
+        $this->addToTheRegister($itemId);
+
+        $response = $this->post('/sales/addPayment', ['payment_type' => lang('Sales.rewards'), 'amount_tendered' => '10']);
+
+        $response->assertSee(lang('Sales.currency_stored_value'));
+        $this->assertEmpty(Services::session()->get('sales_payments'));
+    }
+
+    public function testGetIndex_ShowsTheAmountsOfAForeignSaleWithTheCodeAndTheDecimalsOfItsCurrency(): void
+    {
+        [, $itemId] = $this->foreignRegister('JPY', '0.02500000', price: '1234.50');
+        $this->chooseCurrency('JPY');
+        $this->addToTheRegister($itemId);
+
+        $body = $this->get('/sales')->getBody();
+
+        $this->assertMatchesRegularExpression('/JPY.{0,12}49,?380(?![.\d])/u', $body);
+        $this->assertDoesNotMatchRegularExpression('/49,?380\.\d/', $body, 'a currency without decimals is not shown with them');
+    }
+
+    public function testGetIndex_ShowsTheAmountsOfASaleInTheBaseWithTheSymbolAndTheDecimalsOfTheShop(): void
+    {
+        [, $itemId] = $this->foreignRegister('JPY', '0.02500000', price: '1234.50');
+        $this->addToTheRegister($itemId);
+
+        $body = $this->get('/sales')->getBody();
+
+        $this->assertMatchesRegularExpression('/1,?234\.50/', $body);
+        $this->assertDoesNotMatchRegularExpression('/JPY.{0,12}\d/u', $body);
+    }
+
+    public function testPostAdd_PricesTheComponentsOfAKitInTheCurrencyOfTheSale(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+        $second     = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->accountingDb()->table('items')->where('item_id', $second)->update(['unit_price' => '75.00']);
+        $this->accountingDb()->table('item_kits')->insert(['name' => 'Dollar bundle', 'description' => '', 'price_option' => PRICE_OPTION_ALL, 'print_option' => 0]);
+
+        $kitId = (int) $this->accountingDb()->insertID();
+
+        try {
+            $this->accountingDb()->table('item_kit_items')->insertBatch([
+                ['item_kit_id' => $kitId, 'item_id' => $itemId, 'quantity' => '1', 'kit_sequence' => 1],
+                ['item_kit_id' => $kitId, 'item_id' => $second, 'quantity' => '1', 'kit_sequence' => 2],
+            ]);
+            $this->chooseCurrency('USD');
+
+            $this->post('/sales/add', ['item' => 'KIT ' . $kitId]);
+
+            $lines = [];
+
+            foreach (Services::session()->get('sales_cart') as $line) {
+                $lines[(int) $line['item_id']] = [(string) $line['price'], $line['price_source']];
+            }
+
+            $this->assertSame([$itemId => ['100.00', 'kit'], $second => ['20.00', 'kit']], $lines, 'the catalog prices of the components are converted like those of any item');
+        } finally {
+            $this->accountingDb()->table('item_kits')->where('item_kit_id', $kitId)->delete();
+        }
+    }
+
+    public function testPostAdd_PricesTheComponentsOfAKitInTheBaseWhenTheSaleIsInTheBase(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+
+        $this->accountingDb()->table('item_kits')->insert(['name' => 'Base bundle', 'description' => '', 'price_option' => PRICE_OPTION_ALL, 'print_option' => 0]);
+
+        $kitId = (int) $this->accountingDb()->insertID();
+
+        try {
+            $this->accountingDb()->table('item_kit_items')->insert(['item_kit_id' => $kitId, 'item_id' => $itemId, 'quantity' => '1', 'kit_sequence' => 1]);
+
+            $this->post('/sales/add', ['item' => 'KIT ' . $kitId]);
+
+            $this->assertSame('375.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
+        } finally {
+            $this->accountingDb()->table('item_kits')->where('item_kit_id', $kitId)->delete();
+        }
+    }
+
+    public function testGetIndex_PricesTheQuickItemTilesInTheCurrencyOfTheSale(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+        $key        = 'sales_quick_items_' . DEFAULT_QUICK_ITEMS;
+
+        cache()->save($key, [(object) ['item_id' => $itemId, 'item_number' => null, 'name' => 'Tile item', 'unit_price' => '375.00']], 300);
+
+        try {
+            $base = $this->get('/sales')->getBody();
+
+            $this->chooseCurrency('USD');
+
+            $foreign = $this->get('/sales')->getBody();
+        } finally {
+            cache()->delete($key);
+        }
+
+        $this->assertMatchesRegularExpression('/pos-top-tile-price num">[^<]*375\.00/', $base);
+        $this->assertMatchesRegularExpression('/pos-top-tile-price num">[^<]*USD[^<]*100\.00|pos-top-tile-price num">[^<]*100\.00[^<]*USD/', $foreign);
+        $this->assertDoesNotMatchRegularExpression('/pos-top-tile-price num">[^<]*375/', $foreign);
+    }
+
+    public function testPostAdd_RejectsAnItemOfAForeignSaleWhoseValueInTheBaseIsUnderItsMinimumAndNamesTheFiguresInTheBase(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['minimum_price' => '400']);
+        $this->turnOnPriceControls(true);
+        $this->chooseCurrency('USD');
+
+        $response = $this->post('/sales/add', ['item' => (string) $itemId]);
+
+        $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '400.00', '375.00']));
+        $this->assertEmpty(Services::session()->get('sales_cart'));
+
+        $this->turnOnPriceControls(false);
+    }
+
+    public function testPostAdd_AcceptsAnItemOfAForeignSaleWhoseValueInTheBaseIsAboveItsMinimum(): void
+    {
+        [, $itemId] = $this->foreignRegister();
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['minimum_price' => '350']);
+        $this->turnOnPriceControls(true);
+        $this->chooseCurrency('USD');
+
+        $this->addToTheRegister($itemId);
+
+        $this->assertSame('100.00', $this->lineOfTheRegister()['price'], '100 dollars are 375 of the base, above 350');
+
+        $this->turnOnPriceControls(false);
+    }
+
+    public function testPostUnsuspend_DropsTheCurrencyTheRegisterHeldWhenTheSuspendedSaleIsInTheBase(): void
+    {
+        [$employeeId, $itemId] = $this->foreignRegister();
+
+        $this->addToTheRegister($itemId);
+        $this->post('/sales/suspend');
+
+        $suspended = (int) $this->accountingDb()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+
+        $this->withSession(['person_id' => $employeeId, 'menu_group' => 'home', 'sales_mode' => 'sale', 'sale_id' => NEW_ENTRY, 'sales_location' => 1, 'sales_currency' => 'USD']);
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $suspended]);
+
+        $this->assertNull(Services::session()->get('sales_currency'));
+        $this->assertSame('375.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
     }
 }

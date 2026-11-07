@@ -4,7 +4,9 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\JournalStatus;
@@ -4755,5 +4757,387 @@ class ReceivingPostingTest extends CIUnitTestCase
 
         $this->assertSame('Doc RECV ' . $receivingId, $this->descriptionOfPurchase($receivingId));
         $this->assertSame('Payment of purchase #' . $receivingId, $this->descriptionOfPurchase($receivingId, 'purchase_payment'));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // A purchase in a foreign currency
+    // ---------------------------------------------------------------------------------------
+
+    private function dollars(): Currencies
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => $this->daysAgo(30)]);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.60', 'effective_date' => $this->daysAgo(5)]);
+
+        return $currencies;
+    }
+
+    /**
+     * A purchase of four units at 50 dollars, dated ten days ago when the dollar was at 3.75, left on credit.
+     */
+    private function dollarPurchase(string $paymentType = null, string $code = 'USD', ?string $typedRate = null, string $cost = '0.00'): int
+    {
+        $this->grantPurchaseDate();
+
+        $item = $this->item($cost);
+
+        $this->purchases->useCurrency($code, $typedRate);
+
+        return $this->buy([$this->purchaseLine($item, 0, '4', '50.00')], -1, $paymentType, null, null, $this->daysAgo(10));
+    }
+
+    private function daysAgo(int $days): string
+    {
+        return date('Y-m-d', strtotime("-{$days} days"));
+    }
+
+    public function testSaveValue_PostsAPurchaseInDollarsAtTheRateOfItsDateAndTheStockTiesInTheBase(): void
+    {
+        $this->dollars();
+
+        $receivingId = $this->dollarPurchase();
+
+        $this->assertGreaterThan(0, $receivingId);
+        $this->assertSame(['USD', '3.75000000'], [$this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->get()->getRow()->currency_code, $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->get()->getRow()->currency_rate]);
+
+        $journal = $this->standingPurchase($receivingId)[0];
+
+        $this->assertSame([$this->stockAccount() . ':750.00:0.00', $this->supplierAccount() . ':0.00:750.00'], $journal['lines']);
+
+        $row = $this->accountingDb()->table('accounting_journals')->where('journal_id', $journal['id'])->get()->getRow();
+
+        $this->assertSame(['USD', '3.75000000'], [$row->currency_code, $row->exchange_rate]);
+        $this->assertSame(['200.0000', 'USD'], [$this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journal['id'])->orderBy('line_no')->get()->getRow()->foreign_amount, $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journal['id'])->orderBy('line_no')->get()->getRow()->currency_code]);
+        $this->assertSame('750.00', $this->owed());
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_AveragesTheCostOfTheItemInTheBaseNotInTheCurrencyOfThePurchase(): void
+    {
+        $this->dollars();
+        $this->setConfigValue('receiving_calculate_average_price', '1');
+
+        $receivingId = $this->dollarPurchase();
+        $itemId      = (int) $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow()->item_id;
+
+        $this->assertSame('187.5000', $this->itemCostOf($itemId));
+        $this->assertSame('750.00', $this->stockOf($itemId)['value']);
+    }
+
+    public function testUpdateLines_CorrectsTheCostOfTheItemInTheBaseWhenThePriceOfALineOfAForeignPurchaseChanges(): void
+    {
+        $this->dollars();
+        $this->setConfigValue('receiving_calculate_average_price', '1');
+
+        $receivingId = $this->dollarPurchase();
+        $itemId      = (int) $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow()->item_id;
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['price' => '55.00']));
+
+        $this->assertSame('206.2500', $this->itemCostOf($itemId), '55 dollars at 3.75 and not 55 of the base');
+        $this->assertSame('825.00', $this->stockOf($itemId)['value']);
+        $this->assertStockTies();
+    }
+
+    public function testUpdateLines_CorrectsTheCostOfTheItemInTheBaseWhenTheQuantityOfALineOfAForeignPurchaseChanges(): void
+    {
+        $this->dollars();
+        $this->setConfigValue('receiving_calculate_average_price', '1');
+
+        $receivingId = $this->dollarPurchase();
+        $itemId      = (int) $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow()->item_id;
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '5']));
+
+        $this->assertSame('187.5000', $this->itemCostOf($itemId));
+        $this->assertSame('937.50', $this->stockOf($itemId)['value']);
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_PostsThePaymentMadeAtOnceAtTheRateOfThePurchaseWithNoDifference(): void
+    {
+        $this->dollars();
+
+        $receivingId = $this->dollarPurchase(lang('Sales.cash'));
+
+        $this->assertGreaterThan(0, $receivingId);
+        $this->assertSame([$this->supplierAccount() . ':750.00:0.00', $this->accountId('cash') . ':0.00:750.00'], $this->standingPurchase($receivingId, 'purchase_payment')[0]['lines']);
+        $this->assertSame('0.00', $this->owed());
+        $this->assertSame([], $this->standingPurchase($receivingId, 'supplier_payment_fx'));
+        $this->assertStockTies();
+    }
+
+    public function testUpdate_PostsASupplierPaymentAtTheRateOfItsDayAndTheObservedGainAsAJournalOfItsOwn(): void
+    {
+        $this->dollars();
+        $receivingId = $this->dollarPurchase();
+
+        $paymentId = $this->payPurchase($receivingId, '200.00');
+
+        $this->assertSame(['3.60000000', 'USD'], [$this->lastPaymentRow($receivingId)->currency_rate, $this->lastPaymentRow($receivingId)->currency_code]);
+        $this->assertSame([$this->supplierAccount() . ':720.00:0.00', $this->accountId('cash') . ':0.00:720.00'], $this->standingPurchase($receivingId, 'supplier_payment')[0]['lines']);
+        $this->assertSame([$this->supplierAccount() . ':30.00:0.00', $this->accountId('fx_gain') . ':0.00:30.00'], $this->standingPurchase($receivingId, 'supplier_payment_fx')[0]['lines']);
+        $this->assertSame('0.00', $this->owed());
+        $this->assertSame($paymentId, (int) $this->accountingDb()->table('accounting_journals')->where('source_type', 'supplier_payment_fx')->get()->getRow()->source_id);
+        $this->assertSupplierTies();
+        $this->assertStockTies();
+    }
+
+    public function testUpdate_PostsTheLossWhenThePaymentIsAtAHigherRateThanThePurchase(): void
+    {
+        $currencies = $this->dollars();
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.90', 'effective_date' => date('Y-m-d')]);
+        $receivingId = $this->dollarPurchase();
+
+        $this->payPurchase($receivingId, '200.00');
+
+        $this->assertSame([$this->accountId('fx_loss') . ':30.00:0.00', $this->supplierAccount() . ':0.00:30.00'], $this->standingPurchase($receivingId, 'supplier_payment_fx')[0]['lines']);
+        $this->assertSame('0.00', $this->owed());
+        $this->assertSupplierTies();
+    }
+
+    public function testUpdate_SettlesAPurchaseToTheCentAcrossPartPaymentsAtDifferentRates(): void
+    {
+        $currencies = $this->dollars();
+        $this->grantPurchaseDate();
+        $item = $this->item('0.00');
+        $this->purchases->useCurrency('USD');
+        $receivingId = $this->buy([$this->purchaseLine($item, 0, '1', '268.33')], -1, null, null, null, $this->daysAgo(10));
+
+        $this->payPurchase($receivingId, '100.00');
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.90', 'effective_date' => date('Y-m-d')]);
+        $this->payPurchase($receivingId, '168.33');
+
+        $this->assertSame('0.00', $this->owed());
+        $this->assertSupplierTies();
+        $this->assertSame('0.0000', $this->supplierPosition()->open());
+    }
+
+    public function testUpdate_TakesBackTheExchangeDifferenceWithThePaymentThatCausedIt(): void
+    {
+        $this->dollars();
+        $receivingId = $this->dollarPurchase();
+        $paymentId   = $this->payPurchase($receivingId, '200.00');
+
+        $this->assertTrue($this->changePayment($receivingId, $paymentId, ['payment_amount' => '0']));
+
+        $this->assertSame([], $this->standingPurchase($receivingId, 'supplier_payment_fx'));
+        $this->assertSame([], $this->standingPurchase($receivingId, 'supplier_payment'));
+        $this->assertSame('750.00', $this->owed());
+        $this->assertSame('0.00', $this->balance($this->accountId('fx_gain')));
+        $this->assertSupplierTies();
+    }
+
+    public function testDeleteList_TakesBackAForeignPurchaseWithItsPaymentAndItsExchangeDifference(): void
+    {
+        $this->dollars();
+        $receivingId = $this->dollarPurchase();
+        $this->payPurchase($receivingId, '200.00');
+
+        $this->assertTrue($this->purchases->delete_list([$receivingId], $this->employeeId));
+
+        $this->assertSame([], array_filter($this->purchaseJournals($receivingId), static fn (array $journal): bool => $journal['status'] === 'posted'));
+        $this->assertSame('0.00', $this->owed());
+        $this->assertSame('0.00', $this->balance($this->accountId('fx_gain')));
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_MirrorsTheRateOfThePurchaseInAReturnWhateverTheTableSaysNow(): void
+    {
+        $currencies = $this->dollars();
+        $receivingId = $this->dollarPurchase();
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.00', 'effective_date' => date('Y-m-d')]);
+        $line = $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow();
+
+        $returnId = $this->buy([$this->purchaseLine((int) $line->item_id, 0, '-2', '50.00')], -1, null, $receivingId);
+
+        $this->assertGreaterThan(0, $returnId);
+        $this->assertSame(['USD', '3.75000000'], [$this->accountingDb()->table('receivings')->where('receiving_id', $returnId)->get()->getRow()->currency_code, $this->accountingDb()->table('receivings')->where('receiving_id', $returnId)->get()->getRow()->currency_rate]);
+
+        $journal = $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'purchase', 'source_id' => $returnId])->get()->getRow();
+        $first   = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journal->journal_id)->orderBy('line_no')->get()->getRow();
+
+        $this->assertSame(['375.0000', '100.0000', 'USD'], [$first->debit, $first->foreign_amount, $first->currency_code]);
+        $this->assertSame('375.00', $this->owed());
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_RefusesAReturnInAnotherCurrencyThanThePurchaseItGivesBack(): void
+    {
+        $this->dollars();
+        (new Currencies())->setActive('EUR', true);
+        $receivingId = $this->dollarPurchase();
+        $line        = $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow();
+
+        $this->purchases->useCurrency('EUR');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->buy([$this->purchaseLine((int) $line->item_id, 0, '-1', '50.00')], -1, null, $receivingId));
+        $this->assertSame(AccountingError::DocumentCurrencyLocked, $this->purchases->accountingFailure()->error);
+    }
+
+    public function testUpdate_RejectsAPaymentToTheSupplierOfAForeignPurchaseInAClosedPeriodAndPostsNeitherItNorItsDifference(): void
+    {
+        $this->dollars();
+        $receivingId = $this->dollarPurchase();
+        $this->closeThrough(date('Y-m-d'));
+        $payments = $this->countRows('receivings_payments');
+        $journals = $this->countRows('accounting_journals');
+
+        $this->assertFalse($this->purchases->update($receivingId, ['comment' => 'paid', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '200.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]));
+
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame([$payments, $journals], [$this->countRows('receivings_payments'), $this->countRows('accounting_journals')]);
+        $this->assertSame('750.00', $this->owed());
+        $this->assertSame('0.00', $this->balance($this->accountId('fx_gain')));
+    }
+
+    public function testDelete_KeepsAForeignPurchaseWithItsPaymentAndItsDifferenceWhenThePeriodIsClosed(): void
+    {
+        $this->dollars();
+        $receivingId = $this->dollarPurchase();
+
+        $this->payPurchase($receivingId, '200.00');
+        $this->closeThrough(date('Y-m-d'));
+        $journals = $this->countRows('accounting_journals');
+
+        $this->assertFalse($this->purchases->delete_value($receivingId, $this->employeeId));
+
+        $this->assertSame(PostingError::PeriodClosed, $this->failure()->error);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame('-30.00', $this->balance($this->accountId('fx_gain')));
+        $this->assertSame(1, $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->countAllResults());
+    }
+
+    public function testSaveValue_RejectsAForeignPurchaseWithNoRateOnItsDayAndSavesNothing(): void
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => date('Y-m-d', strtotime('+3 days'))]);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->dollarPurchase());
+        $this->assertSame(AccountingError::RateMissing, $this->purchases->accountingFailure()->error);
+        $this->assertSame(0, $this->countRows('receivings'));
+    }
+
+    public function testSaveValue_RejectsAForeignPurchaseInACurrencySwitchedOffAndSavesNothing(): void
+    {
+        $currencies = $this->dollars();
+        $currencies->setActive('USD', false);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->dollarPurchase());
+        $this->assertSame(AccountingError::CurrencyInactive, $this->purchases->accountingFailure()->error);
+        $this->assertSame(0, $this->countRows('receivings'));
+    }
+
+    public function testSaveValue_RejectsAForeignPurchaseWhileTheBooksAreOffAndSavesNothing(): void
+    {
+        $this->dollars();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->dollarPurchase());
+        $this->assertSame(AccountingError::ForeignCurrencyUnsupported, $this->purchases->accountingFailure()->error);
+        $this->assertSame(0, $this->countRows('receivings'));
+    }
+
+    public function testSaveValue_RefusesATypedRateFromAnEmployeeWhoDoesNotManageCurrenciesAndAcceptsItFromWhoDoes(): void
+    {
+        $this->dollars();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->dollarPurchase(null, 'USD', '3.5'));
+        $this->assertSame(AccountingError::PermissionDenied, $this->purchases->accountingFailure()->error);
+
+        $this->accountingDb()->table('grants')->insert(['permission_id' => AccountingGuard::CURRENCIES_MANAGE, 'person_id' => $this->employeeId, 'menu_group' => 'home']);
+
+        $receivingId = $this->dollarPurchase(null, 'USD', '3.5');
+
+        $this->assertGreaterThan(0, $receivingId);
+        $this->assertSame([$this->stockAccount() . ':700.00:0.00', $this->supplierAccount() . ':0.00:700.00'], $this->standingPurchase($receivingId)[0]['lines']);
+    }
+
+    public function testSaveValue_RefusesATransferOfStockInAForeignCurrencyAndAThreeDecimalCurrency(): void
+    {
+        $currencies = $this->dollars();
+        $currencies->setActive('KWD', true);
+        $currencies->rates()->add(['currency_code' => 'KWD', 'rate' => '12.04917', 'effective_date' => $this->daysAgo(30)]);
+        $item  = $this->item('10.00');
+        $other = $this->anotherLocation();
+
+        $this->purchases->useCurrency('USD');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->buy([$this->purchaseLine($item, 0, '-1', '10.00'), $this->purchaseLine($item, 1, '1', '10.00', locationId: $other)]));
+        $this->assertSame(AccountingError::ForeignCurrencyUnsupported, $this->purchases->accountingFailure()->error);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->dollarPurchase(null, 'KWD'));
+        $this->assertSame(AccountingError::ForeignDecimalsUnsupported, $this->purchases->accountingFailure()->error);
+    }
+
+    public function testUpdate_RefusesToChangeTheCurrencyOrTheRateOfAPostedPurchase(): void
+    {
+        $this->dollars();
+        (new Currencies())->setActive('EUR', true);
+        $receivingId = $this->dollarPurchase();
+
+        $this->assertFalse($this->purchases->update($receivingId, ['currency_code' => 'EUR']));
+        $this->assertSame(AccountingError::DocumentCurrencyLocked, $this->purchases->accountingFailure()->error);
+        $this->assertFalse($this->purchases->update($receivingId, ['currency_rate' => '9.99']));
+        $this->assertFalse($this->purchases->update($receivingId, ['currency_code' => null]));
+        $this->assertSame('3.75000000', $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->get()->getRow()->currency_rate);
+        $this->assertTrue($this->purchases->update($receivingId, ['currency_code' => 'USD', 'currency_rate' => '3.75', 'comment' => 'same']));
+    }
+
+    public function testSaveValue_LeavesThePurchaseOfABaseSupplierWithoutAForeignAmountOrACurrency(): void
+    {
+        $receivingId = $this->purchaseOf('230.00', null, lang('Sales.cash'));
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journal_lines l')->join('accounting_journals j', 'j.journal_id = l.journal_id')->where('j.source_id', $receivingId)->groupStart()->where('l.foreign_amount IS NOT NULL', null, false)->orWhere('l.currency_code IS NOT NULL', null, false)->groupEnd()->countAllResults());
+        $this->assertNull($this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->get()->getRow()->currency_code);
+    }
+
+    public function testUpdate_RefusesAForeignPaymentOutOfATreasuryOfAnotherBranchAndChangesNothing(): void
+    {
+        $this->dollars();
+        $branch   = $this->createBranch('B2');
+        $treasury = (new TreasuryService())->create(['name' => 'Branch drawer', 'kind' => 'cash', 'branch_id' => $branch]);
+        $this->workInBranches(1, $branch);
+        $receivingId = $this->dollarPurchase();
+
+        $this->assertFalse($this->purchases->update($receivingId, ['comment' => 'paid', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '200.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => '', 'treasury_id' => $treasury],
+        ]]));
+        $this->assertSame(PostingError::FxNotSupported, $this->purchases->accountingFailure()->error);
+        $this->assertSame(0, $this->accountingDb()->table('receivings_payments')->where('receiving_id', $receivingId)->countAllResults());
+        $this->assertSame('750.00', $this->owed());
+    }
+
+    public function testUpdate_RefusesAPaymentOfAForeignPurchaseWhenTheTableHasNoRateForItsDay(): void
+    {
+        $this->dollars();
+        $receivingId = $this->dollarPurchase();
+        $this->accountingDb()->table('accounting_currency_rates')->truncate();
+
+        $this->assertFalse($this->purchases->update($receivingId, ['comment' => 'paid', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '200.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => ''],
+        ]]));
+        $this->assertSame(AccountingError::RateMissing, $this->failure()->error);
+        $this->assertSame(0, $this->accountingDb()->table('receivings_payments')->where('receiving_id', $receivingId)->countAllResults());
+    }
+
+    public function testSaveValue_ForgetsTheCurrencyAfterOneSaveSoTheNextPurchaseIsInTheBase(): void
+    {
+        $this->dollars();
+
+        $first = $this->dollarPurchase();
+        $next  = $this->purchaseOf('50.00');
+
+        $this->assertSame('USD', $this->accountingDb()->table('receivings')->where('receiving_id', $first)->get()->getRow()->currency_code);
+        $this->assertNull($this->accountingDb()->table('receivings')->where('receiving_id', $next)->get()->getRow()->currency_code);
+    }
+
+    private function lastPaymentRow(int $receivingId): object
+    {
+        return $this->accountingDb()->table('receivings_payments')->where('receiving_id', $receivingId)->orderBy('payment_id', 'DESC')->get()->getRow();
     }
 }

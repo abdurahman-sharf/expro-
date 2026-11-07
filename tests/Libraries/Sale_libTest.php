@@ -1129,4 +1129,47 @@ class Sale_libTest extends CIUnitTestCase
     {
         return bcadd($amount, '0', 4);
     }
+
+    public function testGetCurrency_IsNullUntilOneIsChosenAndClearCurrencyForgetsIt(): void
+    {
+        $this->assertNull($this->saleLib->getCurrency());
+
+        $this->saleLib->setCurrency('USD');
+
+        $this->assertSame('USD', $this->saleLib->getCurrency());
+
+        $this->saleLib->clearCurrency();
+
+        $this->assertNull($this->saleLib->getCurrency());
+    }
+
+    public function testGetCurrency_ReadsAnEmptyChoiceAsTheBase(): void
+    {
+        $this->saleLib->setCurrency('');
+
+        $this->assertNull($this->saleLib->getCurrency());
+    }
+
+    public function testCurrencyRate_IsOneWhileTheSaleIsInTheBase(): void
+    {
+        $this->assertSame('1', $this->saleLib->currencyRate());
+    }
+
+    public function testCurrencyRate_IsOneForAReturnWhateverCurrencyTheSessionHolds(): void
+    {
+        $this->saleLib->setCurrency('USD');
+        $this->saleLib->set_mode('return');
+
+        $this->assertSame('1', $this->saleLib->currencyRate());
+    }
+
+    public function testCatalogPrice_LeavesThePriceAsItIsInTheBaseAndForAReturn(): void
+    {
+        $this->assertSame('375.00', $this->saleLib->catalogPrice('375.00'));
+
+        $this->saleLib->setCurrency('USD');
+        $this->saleLib->set_mode('return');
+
+        $this->assertSame('375.00', $this->saleLib->catalogPrice('375.00'), 'a return is in the currency of the sale it takes back and is never priced from the catalog');
+    }
 }

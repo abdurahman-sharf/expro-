@@ -37,6 +37,7 @@ final readonly class SaleDocument
         public bool $refundInvoice = false,
         public array $returnedUnits = [],
         public ?ResolvedCharges $charges = null,
+        public ?DocumentCurrency $currency = null,
     ) {
     }
 
@@ -62,6 +63,7 @@ final readonly class SaleDocument
             $this->refundInvoice,
             $units,
             $this->charges,
+            $this->currency,
         );
     }
 

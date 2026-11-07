@@ -7,6 +7,8 @@ return [
     'accounting_cheques_desc'      => '',
     'accounting_cost_centers'      => '',
     'accounting_cost_centers_desc' => '',
+    'accounting_currencies'        => '',
+    'accounting_currencies_desc'   => '',
     'accounting_debit_notes'       => '',
     'accounting_debit_notes_desc'  => '',
     'accounting_journals'          => '',

@@ -43,6 +43,8 @@ final class MigrationChecks extends CheckGroup
         'PricingAndCreditControls'         => [self::HEAVY, 'adds nullable or neutral columns to customers (price list, credit limit, credit days), sales (price list) and items (minimum price, highest discount); creates price_lists and price_list_items'],
         'ChequesAndRevenues'               => [self::DATA, 'opens the leaf accounts of notes receivable, notes payable, funds under collection and deposit fees in an existing chart and points four routing rows at them'],
         'BankReconciliation'               => [self::HEAVY, 'adds the nullable treasuries.bank_code; creates the bank statement, statement line, match and reconciliation tables, which no existing row refers to'],
+        'DocumentCurrencyColumns'          => [self::HEAVY, 'adds nullable currency and rate columns to sales, sales_payments, receivings, receivings_payments, expenses and revenues, treasuries.currency_code, three nullable columns to treasury_transfers and accounting_journal_lines.currency_code; down() refuses once a row carries a currency'],
+        'FxDifferenceAccounts'             => [self::DATA, 'opens the accounts of exchange gains and losses in an existing chart and points the two routing rows fx.gain and fx.loss at them'],
     ];
 
     public function run(): array

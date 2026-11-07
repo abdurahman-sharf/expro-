@@ -2,6 +2,9 @@
 
 namespace app\Libraries;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountPlan;
@@ -59,6 +62,7 @@ class Sale_lib
     private Session $session;
     private array $config;
     private ?Tax_lib $taxLib = null;
+    private ?AccountingException $currencyFailure = null;
 
     /** @var array<string, InvoiceDiscountPlan|InvoiceDiscountProblem> */
     private array $invoiceDiscountPlans = [];
@@ -1190,6 +1194,85 @@ class Sale_lib
     }
 
     /**
+     * The foreign currency this sale is in, or null when it is in the base currency. The choice is made before
+     * the first item is added: the prices of the items are the prices of the catalog converted at the rate of the
+     * day to the decimals of the currency, and a price typed by hand is already in the currency.
+     */
+    public function getCurrency(): ?string
+    {
+        $code = $this->session->get('sales_currency');
+
+        return $code === null || $code === '' ? null : (string) $code;
+    }
+
+    public function setCurrency(string $code): void
+    {
+        $this->session->set('sales_currency', $code);
+    }
+
+    public function clearCurrency(): void
+    {
+        $this->session->remove('sales_currency');
+    }
+
+    /**
+     * The rate of the day for the currency of the sale, or one while the sale is in the base currency or a
+     * return, which is in the currency of the sale it takes back.
+     *
+     * @return numeric-string
+     *
+     * @throws AccountingException
+     */
+    public function currencyRate(): string
+    {
+        $code = $this->getCurrency();
+
+        if ($code === null || $this->is_return_mode()) {
+            return '1';
+        }
+
+        return (new Currencies())->documentCurrency($code, date('Y-m-d'))?->rate ?? '1';
+    }
+
+    /**
+     * A price of the catalog as the register shows it: in the currency of the sale.
+     *
+     * @throws AccountingException
+     */
+    public function catalogPrice(string $price): string
+    {
+        return (string) $this->priceInCurrency($price, 'default');
+    }
+
+    /**
+     * Why the last item could not be added when the currency of the sale has no rate on this day or was
+     * switched off after it was chosen, or null.
+     */
+    public function currencyFailure(): ?AccountingException
+    {
+        return $this->currencyFailure;
+    }
+
+    /**
+     * A price of the catalog in the currency of the sale, rounded to the decimals of the currency, or the price
+     * as it is when the sale is in the base currency, is a return or the price was typed.
+     *
+     * @throws AccountingException
+     */
+    private function priceInCurrency(string|float|int $price, string $priceSource): string|float|int
+    {
+        $code = $this->getCurrency();
+
+        if ($code === null || $priceSource === 'override' || $this->is_return_mode()) {
+            return $price;
+        }
+
+        $currency = (new Currencies())->documentCurrency($code, date('Y-m-d'));
+
+        return $currency === null ? $price : Money::fromBase((string) $price, $currency->rate, $currency->decimals);
+    }
+
+    /**
      * The price list picked on this sale when the setting lets a sale change its list: 0 when the
      * sale was picked to be priced from no list at all, null when nothing was picked.
      */
@@ -1239,7 +1322,12 @@ class Sale_lib
             }
 
             $listPrice = $this->listPriceOf((int) $line['item_id']);
-            $price = $listPrice ?? (string) $this->item->get_info((int) $line['item_id'])->unit_price;
+
+            try {
+                $price = (string) $this->priceInCurrency($listPrice ?? (string) $this->item->get_info((int) $line['item_id'])->unit_price, 'default');
+            } catch (AccountingException) {
+                return;
+            }
 
             $cart[$key]['price'] = $price;
             $cart[$key]['price_source'] = $listPrice === null ? 'default' : 'list';
@@ -1518,6 +1606,16 @@ class Sale_lib
                 $price = $listPrice;
                 $priceSource = 'list';
             }
+        }
+
+        $this->currencyFailure = null;
+
+        try {
+            $price = $this->priceInCurrency($price, $priceSource);
+        } catch (AccountingException $refusal) {
+            $this->currencyFailure = $refusal;
+
+            return false;
         }
 
         if ($price_mode == PRICE_MODE_KIT) {
@@ -1843,6 +1941,12 @@ class Sale_lib
         $this->remove_customer();
         $this->clearInvoiceDiscount();
 
+        $currencyCode = $this->sale->getCurrencyCode($saleId);
+
+        if ($currencyCode !== null) {
+            $this->setCurrency($currencyCode);
+        }
+
         $storedShares = [];
 
         foreach ($this->sale->get_sale_items_ordered($saleId)->getResult() as $row) {
@@ -1992,6 +2096,7 @@ class Sale_lib
         $this->clearInvoiceDiscount();
         $this->clearHeaderCharges();
         $this->clearPriceListChoice();
+        $this->clearCurrency();
         $this->clear_quote_number();
         $this->clear_work_order_number();
         $this->clear_sale_type();

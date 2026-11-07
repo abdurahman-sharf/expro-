@@ -76,6 +76,8 @@ final class SalePosting
         }
 
         $this->transactional(function () use ($sale, $employeeId): void {
+            $sale = $this->withRates($sale);
+
             $this->builder->assertSettled($sale);
             $this->postInvoice($sale, $employeeId);
 
@@ -124,6 +126,8 @@ final class SalePosting
         }
 
         $this->transactional(function () use ($sale, $employeeId): void {
+            $sale = $this->withRates($sale);
+
             $this->builder->assertSettled($sale);
 
             foreach ($sale->payments as $payment) {
@@ -147,6 +151,12 @@ final class SalePosting
             (new TreasuryScopes($this->db))->assertMayReverse((int) $active->journal_id, $employeeId);
 
             $this->reverse($active, $employeeId, 'Payment removed');
+        }
+
+        $difference = $this->activeJournal(SalePostingBuilder::SOURCE_PAYMENT_FX, $paymentId, JournalEntryType::General);
+
+        if ($difference !== null) {
+            $this->reverse($difference, $employeeId, 'Payment removed');
         }
     }
 
@@ -177,6 +187,12 @@ final class SalePosting
 
                 if ($payment !== null) {
                     $active[] = $payment;
+                }
+
+                $difference = $this->activeJournal(SalePostingBuilder::SOURCE_PAYMENT_FX, $paymentId, JournalEntryType::General);
+
+                if ($difference !== null) {
+                    $active[] = $difference;
                 }
             }
 
@@ -219,7 +235,7 @@ final class SalePosting
      * never changed after it was saved, whether its journal stands or not, because the journal takes
      * that day. Only the changes named are compared.
      *
-     * @param array{customer_id?: ?int, date?: string, invoice_date?: string} $changes
+     * @param array{customer_id?: ?int, date?: string, invoice_date?: string, currency_code?: ?string, currency_rate?: ?string} $changes
      *
      * @throws AccountingException
      */
@@ -236,6 +252,13 @@ final class SalePosting
         }
 
         $sale = $this->loader->load($saleId, false);
+
+        $currencyChanged = $posted && (array_key_exists('currency_code', $changes) || array_key_exists('currency_rate', $changes))
+            && ($sale === null || ! DocumentCurrency::unchanged($sale->currency, array_intersect_key($changes, ['currency_code' => 1, 'currency_rate' => 1])));
+
+        if ($currencyChanged) {
+            throw new AccountingException(AccountingError::DocumentCurrencyLocked, 'The currency and the rate of a sale that has been posted cannot change. Reverse it and enter it again, or correct it with a credit note.', ['sale_id' => $saleId]);
+        }
 
         $customerChanged = $posted && array_key_exists('customer_id', $changes) && ($sale === null || $sale->customerId !== $changes['customer_id']);
         $dateChanged     = $posted && array_key_exists('date', $changes) && ($sale === null || $sale->savedOn !== $changes['date']);
@@ -261,7 +284,7 @@ final class SalePosting
             ->groupStart()->where('source_type', SalePostingBuilder::SOURCE_SALE)->where('source_id', $saleId)->groupEnd();
 
         if ($paymentIds !== []) {
-            $builder->orGroupStart()->whereIn('source_type', [SalePostingBuilder::SOURCE_PAYMENT, ...CrossBranchPayments::companionsOf(SalePostingBuilder::SOURCE_PAYMENT)])->whereIn('source_id', $paymentIds)->groupEnd();
+            $builder->orGroupStart()->whereIn('source_type', [SalePostingBuilder::SOURCE_PAYMENT, SalePostingBuilder::SOURCE_PAYMENT_FX, ...CrossBranchPayments::companionsOf(SalePostingBuilder::SOURCE_PAYMENT)])->whereIn('source_id', $paymentIds)->groupEnd();
         }
 
         return $builder->groupEnd()->orderBy('journal_id', 'ASC')->get()->getResult();
@@ -320,10 +343,89 @@ final class SalePosting
     }
 
     /**
+     * The journal of a payment, and the exchange difference that goes with it when the document is in a
+     * foreign currency.
+     *
      * @throws AccountingException|PostingException
      */
     private function postPayment(SaleDocument $sale, SalePayment $payment, ?int $employeeId): void
     {
+        $this->postPaymentJournal($sale, $payment, $employeeId);
+        $this->postExchangeDifference($sale, $payment, $employeeId);
+    }
+
+    /**
+     * Brings the exchange difference of a payment in line with what the payments of the document say it
+     * is now: posted when there is none, left when it holds, and taken back and posted again when an
+     * earlier payment of the document changed what this one settles.
+     *
+     * @throws AccountingException|PostingException
+     */
+    private function postExchangeDifference(SaleDocument $sale, SalePayment $payment, ?int $employeeId): void
+    {
+        if ($sale->currency === null) {
+            return;
+        }
+
+        $active = $this->activeJournal(SalePostingBuilder::SOURCE_PAYMENT_FX, $payment->paymentId, JournalEntryType::General);
+        $draft  = $this->builder->paymentDifference($sale, $payment, $this->nextRevision(SalePostingBuilder::SOURCE_PAYMENT_FX, $payment->paymentId, JournalEntryType::General), $employeeId);
+
+        if ($active !== null) {
+            if ($draft !== null && $this->holds($active, $draft)) {
+                return;
+            }
+
+            $this->reverse($active, $employeeId, 'Payment #' . $payment->paymentId . ' changed');
+        }
+
+        if ($draft !== null) {
+            $this->posting->post($draft);
+        }
+    }
+
+    /**
+     * The sale with the rate of every payment of a foreign document that has none yet: the rate of the
+     * latest day on or before the day of the payment, written on the payment so that it is never taken
+     * again. A foreign document has no rate to take a payment at when the table has none, and is not posted.
+     *
+     * @throws AccountingException
+     */
+    private function withRates(SaleDocument $sale): SaleDocument
+    {
+        if ($sale->currency === null) {
+            return $sale;
+        }
+
+        $currencies = new Currencies($this->db);
+        $captured   = false;
+
+        foreach ($sale->payments as $payment) {
+            if ($payment->rate !== null || ! $payment->status->posts()) {
+                continue;
+            }
+
+            $rate = $currencies->rates()->rateOn($sale->currency->code, $payment->date);
+
+            if ($rate === null) {
+                throw new AccountingException(AccountingError::RateMissing, "Currency {$sale->currency->code} has no rate on or before {$payment->date}.", ['code' => $sale->currency->code, 'date' => $payment->date]);
+            }
+
+            $this->db->table('sales_payments')->where('payment_id', $payment->paymentId)->where('currency_rate', null)->update(['currency_code' => $sale->currency->code, 'currency_rate' => $rate]);
+            $captured = true;
+        }
+
+        return $captured ? ($this->loader->load($sale->saleId) ?? $sale) : $sale;
+    }
+
+    /**
+     * @throws AccountingException|PostingException
+     */
+    private function postPaymentJournal(SaleDocument $sale, SalePayment $payment, ?int $employeeId): void
+    {
+        if ($sale->currency !== null && $payment->treasuryBranchId !== null && $payment->treasuryBranchId !== $sale->branchId) {
+            throw new PostingException(PostingError::FxNotSupported, 'A payment of a document in a foreign currency cannot go into a treasury of another branch yet.', ['what' => 'cross_branch', 'payment_id' => $payment->paymentId]);
+        }
+
         $active = $this->activeJournal(SalePostingBuilder::SOURCE_PAYMENT, $payment->paymentId, JournalEntryType::General);
         $draft  = $this->builder->payment($sale, $payment, $this->nextRevision(SalePostingBuilder::SOURCE_PAYMENT, $payment->paymentId, JournalEntryType::General), $employeeId);
         $drafts = $draft === null ? [] : $this->crossBranch->drafts($draft, $payment->treasuryId, $payment->treasuryBranchId);

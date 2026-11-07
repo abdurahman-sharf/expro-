@@ -100,6 +100,47 @@ class CashupExpectationTest extends CIUnitTestCase
         $this->assertSame('400.0000', $this->expected());
     }
 
+    private function sellInDollars(string $amount, string $saleRate, ?string $paymentRate, string $refund = '0'): int
+    {
+        $saleId = $this->sellFor($amount, 'Cash', '2026-10-20 12:00:00', 1, 'completed', $refund);
+        $db     = $this->accountingDb();
+
+        $db->table('sales')->where('sale_id', $saleId)->update(['currency_code' => 'USD', 'currency_rate' => $saleRate]);
+        $db->table('sales_payments')->where('sale_id', $saleId)->update(['currency_code' => $paymentRate === null ? null : 'USD', 'currency_rate' => $paymentRate]);
+
+        return $saleId;
+    }
+
+    public function testExpected_CountsACashPaymentOfAForeignSaleAtTheRateOfThePaymentInTheBase(): void
+    {
+        $this->sellInDollars('100.00', '3.75000000', '3.60000000');
+
+        $this->assertSame('460.0000', $this->expected());
+    }
+
+    public function testExpected_CountsAForeignPaymentThatHasNoRateOfItsOwnAtTheRateOfTheSale(): void
+    {
+        $this->sellInDollars('100.00', '3.75000000', null);
+
+        $this->assertSame('475.0000', $this->expected());
+    }
+
+    public function testExpected_RoundsTheForeignCashAndTakesTheRefundOffInTheForeignCurrencyFirst(): void
+    {
+        $this->sellInDollars('33.33', '3.75000000', '3.60000000');
+        $this->sellInDollars('100.00', '3.75000000', '3.60000000', '10.00');
+
+        $this->assertSame('543.9900', $this->expected());
+    }
+
+    public function testExpected_AddsForeignAndBaseCashPaymentsInTheBase(): void
+    {
+        $this->sellInDollars('100.00', '3.75000000', '3.60000000');
+        $this->sellFor('50.00');
+
+        $this->assertSame('510.0000', $this->expected());
+    }
+
     public function testExpected_TakesTheCashRefundedOffTheCashThatCameIn(): void
     {
         $this->sellFor('250.00', 'Cash', '2026-10-20 12:00:00', 1, 'completed', '20.00');

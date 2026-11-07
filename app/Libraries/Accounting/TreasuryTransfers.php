@@ -17,15 +17,23 @@ use DateTimeImmutable;
  * sending branch debits what the other branches owe it and credits its treasury, and the receiving
  * branch debits its treasury and credits what it owes the other branches. A transfer is taken
  * back by reversing its journals, never by deleting.
+ *
+ * A treasury may hold a foreign currency. A transfer between two treasuries of one foreign currency is a
+ * journal in that currency, converted to the base at the rate of the day. A transfer between treasuries of
+ * different currencies (the base counts as one) needs both amounts, the one that leaves and the one that
+ * arrives, each in the currency of its treasury; the two are worth the same in the base at the rates of the
+ * day, and what they differ by goes to the account of exchange gains or losses in the same journal. A
+ * transfer between branches is never in a foreign currency.
  */
 final class TreasuryTransfers
 {
     use RunsInTransaction;
 
-    public const SOURCE         = 'treasury_transfer';
-    public const SOURCE_RECEIPT = 'treasury_transfer_receipt';
-    private const NOTE_MAX      = 500;
-    private const REASON_MAX    = 255;
+    public const SOURCE                  = 'treasury_transfer';
+    public const SOURCE_RECEIPT          = 'treasury_transfer_receipt';
+    private const NOTE_MAX               = 500;
+    private const REASON_MAX             = 255;
+    private const RATE_TOLERANCE_PERCENT = '10';
 
     private BaseConnection $db;
     private AccountingGuard $guard;
@@ -53,19 +61,20 @@ final class TreasuryTransfers
     /**
      * @throws AccountingException|BranchException|PostingException
      */
-    public function transfer(int $fromId, int $toId, string $amount, string $date, string $note = '', ?int $employeeId = null): int
+    public function transfer(int $fromId, int $toId, string $amount, string $date, string $note = '', ?int $employeeId = null, ?string $toAmount = null): int
     {
         $this->guard->require(AccountingGuard::TREASURIES_MANAGE, $employeeId);
 
-        $amount = $this->amount($amount);
-        $date   = $this->date($date);
-        $note   = mb_substr(trim($note), 0, self::NOTE_MAX);
+        $amount   = $this->amount($amount);
+        $date     = $this->date($date);
+        $note     = mb_substr(trim($note), 0, self::NOTE_MAX);
+        $toAmount = $toAmount === null || trim($toAmount) === '' ? null : $this->amount($toAmount);
 
         if ($fromId === $toId) {
             throw new AccountingException(AccountingError::TransferSameTreasury, 'A transfer needs two different treasuries.');
         }
 
-        return $this->transactional(function () use ($fromId, $toId, $amount, $date, $note, $employeeId): int {
+        return $this->transactional(function () use ($fromId, $toId, $amount, $toAmount, $date, $note, $employeeId): int {
             [$from, $to] = $this->lockBoth($fromId, $toId);
 
             foreach ([$from, $to] as $treasury) {
@@ -98,6 +107,18 @@ final class TreasuryTransfers
 
             [$receivable, $payable] = $between ? $this->accountsBetweenBranches() : [null, null];
 
+            $fromCurrency = $from->currency_code ?? null;
+            $toCurrency   = $to->currency_code ?? null;
+            $foreign      = $fromCurrency !== null || $toCurrency !== null;
+
+            if ($foreign && $between) {
+                throw new PostingException(PostingError::FxNotSupported, 'A transfer between branches is never in a foreign currency.', ['what' => 'inter_branch_transfer']);
+            }
+
+            if (! $foreign && $toAmount !== null && bccomp($toAmount, $amount, SaleAmounts::SCALE) !== 0) {
+                throw new AccountingException(AccountingError::TransferAmountInvalid, 'Two treasuries of the base currency take the same amount out and in.');
+            }
+
             $this->db->table('treasury_transfers')->insert([
                 'company_id'       => CompanyContext::id(),
                 'branch_id'        => $branchId,
@@ -108,7 +129,7 @@ final class TreasuryTransfers
                 'transfer_date'    => $date,
                 'note'             => $note,
                 'created_by'       => $employeeId,
-            ]);
+            ] + ($foreign ? ['to_amount' => $toAmount ?? $amount, 'from_currency' => $fromCurrency, 'to_currency' => $toCurrency] : []));
 
             $transferId  = (int) $this->db->insertID();
             $description = 'Transfer #' . $transferId . ($note === '' ? '' : ': ' . $note);
@@ -116,17 +137,19 @@ final class TreasuryTransfers
             $drafts = [];
 
             if (! $between) {
-                $drafts[$branchId] = new JournalDraft(
-                    date: $date,
-                    lines: [new JournalLineDraft($toAccount, debit: $amount), new JournalLineDraft($fromAccount, credit: $amount)],
-                    sourceType: self::SOURCE,
-                    sourceId: $transferId,
-                    origin: JournalOrigin::System,
-                    employeeId: $employeeId,
-                    description: $description,
-                    branchId: $branchId,
-                    entryType: JournalEntryType::General,
-                );
+                $drafts[$branchId] = $foreign
+                    ? $this->foreignDraft($fromCurrency, $toCurrency, $amount, $toAmount, $date, $fromAccount, $toAccount, $transferId, $description, $branchId, $employeeId)
+                    : new JournalDraft(
+                        date: $date,
+                        lines: [new JournalLineDraft($toAccount, debit: $amount), new JournalLineDraft($fromAccount, credit: $amount)],
+                        sourceType: self::SOURCE,
+                        sourceId: $transferId,
+                        origin: JournalOrigin::System,
+                        employeeId: $employeeId,
+                        description: $description,
+                        branchId: $branchId,
+                        entryType: JournalEntryType::General,
+                    );
             } else {
                 $drafts[$branchId] = new JournalDraft(
                     date: $date,
@@ -161,7 +184,7 @@ final class TreasuryTransfers
                 $this->posting->post($draft);
             }
 
-            $this->audit->write('treasury_transfer', $transferId, 'created', $employeeId, JournalOrigin::User, ['from' => $fromId, 'to' => $toId, 'amount' => $amount] + ($between ? ['to_branch' => $toBranchId] : []), $branchId);
+            $this->audit->write('treasury_transfer', $transferId, 'created', $employeeId, JournalOrigin::User, ['from' => $fromId, 'to' => $toId, 'amount' => $amount] + ($between ? ['to_branch' => $toBranchId] : []) + ($foreign ? ['to_amount' => $toAmount ?? $amount, 'from_currency' => $fromCurrency, 'to_currency' => $toCurrency] : []), $branchId);
 
             return $transferId;
         });
@@ -264,6 +287,107 @@ final class TreasuryTransfers
         }
 
         return ['total' => $total, 'rows' => $rows->orderBy('tt.transfer_id', 'DESC')->limit($limit, $offset)->get()->getResult()];
+    }
+
+    /**
+     * The journal of a transfer in which a treasury holds a foreign currency. Both in one currency: the
+     * journal is in it. Different currencies: the journal is in the base, each leg carries the amount in its
+     * own currency, and the exchange difference is a line of the same journal.
+     *
+     * @throws AccountingException|PostingException
+     */
+    private function foreignDraft(?string $fromCurrency, ?string $toCurrency, string $amount, ?string $toAmount, string $date, int $fromAccount, int $toAccount, int $transferId, string $description, int $branchId, ?int $employeeId): JournalDraft
+    {
+        $currencies   = new Currencies($this->db);
+        $baseDecimals = $currencies->baseDecimals();
+
+        if ($fromCurrency === $toCurrency) {
+            $draft = new JournalDraft(
+                date: $date,
+                lines: [new JournalLineDraft($toAccount, debit: $amount), new JournalLineDraft($fromAccount, credit: $amount)],
+                sourceType: self::SOURCE,
+                sourceId: $transferId,
+                origin: JournalOrigin::System,
+                employeeId: $employeeId,
+                description: $description,
+                branchId: $branchId,
+                entryType: JournalEntryType::General,
+            );
+
+            if ($toAmount !== null && bccomp($toAmount, $amount, SaleAmounts::SCALE) !== 0) {
+                throw new AccountingException(AccountingError::TransferAmountInvalid, 'Two treasuries of one currency take the same amount out and in.');
+            }
+
+            return ForeignConversion::toBase($draft, $this->currencyOnDay((string) $fromCurrency, $date, $currencies), $baseDecimals, 0);
+        }
+
+        if ($toAmount === null) {
+            throw new AccountingException(AccountingError::TransferAmountRequired, 'A transfer between treasuries of different currencies needs the amount that arrives.');
+        }
+
+        $baseFrom = $fromCurrency === null ? $amount : Money::toBase($amount, $this->currencyOnDay($fromCurrency, $date, $currencies)->rate, $baseDecimals);
+        $baseTo   = $toCurrency === null ? $toAmount : Money::toBase($toAmount, $this->currencyOnDay($toCurrency, $date, $currencies)->rate, $baseDecimals);
+
+        $lines = [
+            new JournalLineDraft($toAccount, debit: $baseTo, foreignAmount: $toCurrency === null ? null : $toAmount, currencyCode: $toCurrency),
+            new JournalLineDraft($fromAccount, credit: $baseFrom, foreignAmount: $fromCurrency === null ? null : $amount, currencyCode: $fromCurrency),
+        ];
+
+        $difference = bcsub($baseTo, $baseFrom, SaleAmounts::SCALE);
+
+        if (bccomp(bcmul(SaleAmounts::absolute($difference), '100', SaleAmounts::SCALE), bcmul($baseFrom, self::RATE_TOLERANCE_PERCENT, SaleAmounts::SCALE), SaleAmounts::SCALE) > 0) {
+            throw new AccountingException(AccountingError::TransferRateOutOfRange, 'The two amounts of the transfer are further apart than the rates of the day allow, so it is not booked as an exchange gain or loss.', ['from' => Money::round($baseFrom, $baseDecimals), 'to' => Money::round($baseTo, $baseDecimals), 'percent' => self::RATE_TOLERANCE_PERCENT]);
+        }
+
+        if (bccomp($difference, '0', SaleAmounts::SCALE) > 0) {
+            $lines[] = new JournalLineDraft($this->exchangeAccount(RoutingKey::FxGain), credit: $difference);
+        } elseif (bccomp($difference, '0', SaleAmounts::SCALE) < 0) {
+            $lines[] = new JournalLineDraft($this->exchangeAccount(RoutingKey::FxLoss), debit: SaleAmounts::absolute($difference));
+        }
+
+        return new JournalDraft(
+            date: $date,
+            lines: $lines,
+            sourceType: self::SOURCE,
+            sourceId: $transferId,
+            origin: JournalOrigin::System,
+            employeeId: $employeeId,
+            description: $description,
+            branchId: $branchId,
+            entryType: JournalEntryType::General,
+        );
+    }
+
+    /**
+     * @throws AccountingException
+     */
+    private function currencyOnDay(string $code, string $date, Currencies $currencies): DocumentCurrency
+    {
+        $rate = $currencies->rates()->rateOn($code, $date);
+
+        if ($rate === null) {
+            throw new AccountingException(AccountingError::RateMissing, "Currency {$code} has no rate on or before {$date}.", ['code' => $code, 'date' => $date]);
+        }
+
+        return new DocumentCurrency($code, $rate, $currencies->decimalsOf($code));
+    }
+
+    /**
+     * @throws PostingException
+     */
+    private function exchangeAccount(RoutingKey $key): int
+    {
+        try {
+            $account = $this->resolver->accountFor($key);
+        } catch (PostingException $failure) {
+            throw new PostingException(PostingError::FxAccountsMissing, "The routing of {$key->value} has no usable account, so the exchange difference cannot be posted.", ['routing_key' => $key->value], $failure);
+        }
+
+        if ($account === null) {
+            throw new PostingException(PostingError::FxAccountsMissing, "The routing of {$key->value} has no account, so the exchange difference cannot be posted.", ['routing_key' => $key->value]);
+        }
+
+        return $account;
     }
 
     /**

@@ -1,0 +1,1903 @@
+[
+ {
+  "name": "C01 create asks the permission to manage currencies",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "public function create(array $input, ?int $employeeId = null): string\n    {\n        $this->guard->require(AccountingGuard::CURRENCIES_MANAGE, $employeeId);\n",
+  "replace": "public function create(array $input, ?int $employeeId = null): string\n    {\n",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C02 create asks for the whole company",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        $this->guard->require(AccountingGuard::CURRENCIES_MANAGE, $employeeId);\n        $this->branches->requireCompanyScope($employeeId);\n\n        $code     = $this->code(",
+  "replace": "        $this->guard->require(AccountingGuard::CURRENCIES_MANAGE, $employeeId);\n\n        $code     = $this->code(",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C03 update asks the permission",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "public function update(string $code, array $input, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::CURRENCIES_MANAGE, $employeeId);\n",
+  "replace": "public function update(string $code, array $input, ?int $employeeId = null): void\n    {\n",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C04 update asks for the whole company",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n\n        $code = $this->normalize($code);\n\n        $this->transactional(function () use ($code, $input, $employeeId): void {",
+  "replace": "\n        $code = $this->normalize($code);\n\n        $this->transactional(function () use ($code, $input, $employeeId): void {",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C05 switching on or off asks the permission",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "public function setActive(string $code, bool $active, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::CURRENCIES_MANAGE, $employeeId);\n",
+  "replace": "public function setActive(string $code, bool $active, ?int $employeeId = null): void\n    {\n",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C06 switching on or off asks for the whole company",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n\n        $code = $this->normalize($code);\n\n        $this->transactional(function () use ($code, $active, $employeeId): void {",
+  "replace": "\n        $code = $this->normalize($code);\n\n        $this->transactional(function () use ($code, $active, $employeeId): void {",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C07 the code of a currency is three capital letters",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "if (preg_match(self::CODE_PATTERN, $code) !== 1) {\n            throw new AccountingException(AccountingError::CurrencyCodeInvalid",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::CurrencyCodeInvalid",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C08 a code is taken once",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "if ($this->db->table('accounting_currencies')->where('currency_code', $code)->countAllResults() > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C09 decimals are zero, two or three",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "if (! in_array($text, array_map('strval', CurrencyCatalog::DECIMALS), true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C10 decimals are fixed once the currency was used",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "if ($this->inUse($code)) {\n                        throw new AccountingException(AccountingError::CurrencyInUse",
+  "replace": "if (false) {\n                        throw new AccountingException(AccountingError::CurrencyInUse",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C11 the base currency is never switched off",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "if (! $active && $this->isBase($code)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C12 a switched-off currency is not offered on a document",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "if (! $currency->active) {\n            throw new AccountingException(AccountingError::CurrencyInactive",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::CurrencyInactive",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C13 the base currency is not a foreign currency",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "if ($this->isBase($code)) {\n            throw new AccountingException(AccountingError::CurrencyIsBase, 'The base currency is the currency",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::CurrencyIsBase, 'The base currency is the currency",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C14 a rate typed by hand asks the permission to manage currencies",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        if ($typedRate !== null && trim($typedRate) !== '') {\n            $this->guard->require(AccountingGuard::CURRENCIES_MANAGE, $employeeId);\n",
+  "replace": "        if ($typedRate !== null && trim($typedRate) !== '') {\n",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C15 a document needs a rate on or before its date",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "if ($rate === null) {\n            throw new AccountingException(AccountingError::RateMissing",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::RateMissing",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C16 a currency of three decimals is refused on a document",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "if ($currency->decimals > self::DOCUMENT_DECIMALS) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C17 the row of the base currency is put back switched on",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "if ((int) $row->active === 0) {\n            $this->db->table('accounting_currencies')->where('currency_code', $base)->update(['active' => 1]);",
+  "replace": "if (false) {\n            $this->db->table('accounting_currencies')->where('currency_code', $base)->update(['active' => 1]);",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "C18 a currency created is written to the audit log",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "$this->audit->write('currency', null, 'created'",
+  "replace": "$this->audit->write('currency', null, 'createdX'",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php"
+  ]
+ },
+ {
+  "name": "R01 adding a rate asks the permission",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "public function add(array $input, ?int $employeeId = null): int\n    {\n        $this->guard->require(AccountingGuard::CURRENCIES_MANAGE, $employeeId);\n",
+  "replace": "public function add(array $input, ?int $employeeId = null): int\n    {\n",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R02 changing a rate asks the permission",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "public function update(int $rateId, array $input, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::CURRENCIES_MANAGE, $employeeId);\n",
+  "replace": "public function update(int $rateId, array $input, ?int $employeeId = null): void\n    {\n",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R03 deleting a rate asks the permission",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "public function delete(int $rateId, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::CURRENCIES_MANAGE, $employeeId);\n",
+  "replace": "public function delete(int $rateId, ?int $employeeId = null): void\n    {\n",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R04 adding a rate asks for the whole company",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n\n        $code = $this->foreignCode(",
+  "replace": "\n        $code = $this->foreignCode(",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R05 changing a rate asks for the whole company",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n\n        $this->transactional(function () use ($rateId, $input, $employeeId): void {",
+  "replace": "\n        $this->transactional(function () use ($rateId, $input, $employeeId): void {",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R06 deleting a rate asks for the whole company",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n\n        $this->transactional(function () use ($rateId, $employeeId): void {\n            $row = $this->lock($rateId);\n\n            $this->db->table('accounting_currency_rates')->where('rate_id', $rateId)->delete();",
+  "replace": "\n        $this->transactional(function () use ($rateId, $employeeId): void {\n            $row = $this->lock($rateId);\n\n            $this->db->table('accounting_currency_rates')->where('rate_id', $rateId)->delete();",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R07 the base currency has no rate",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "if ($code === (new AccountingSettings($this->db))->baseCurrency()) {\n            throw new AccountingException(AccountingError::CurrencyIsBase",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::CurrencyIsBase",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R08 a rate is above zero",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "if (preg_match(self::RATE_PATTERN, $rate) !== 1 || bccomp($rate, '0', 8) <= 0) {",
+  "replace": "if (preg_match(self::RATE_PATTERN, $rate) !== 1) {",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R09 a rate has at most eight decimals and is a number",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "if (preg_match(self::RATE_PATTERN, $rate) !== 1 || bccomp($rate, '0', 8) <= 0) {",
+  "replace": "if (false || bccomp($rate, '0', 8) <= 0) {",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R10 one rate for a currency and a day",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "if ($builder->countAllResults() > 0) {\n            throw new AccountingException(AccountingError::RateDateTaken",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::RateDateTaken",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R11 a document takes the latest rate on or before its date",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "->where('effective_date <=', $date)",
+  "replace": "->where('effective_date <', $date)",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R12 the base currency is worth one",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "return '1.00000000';",
+  "replace": "return '2.00000000';",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R13 a rate added is written to the audit log",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "$this->audit->write('currency_rate', $rateId, 'created'",
+  "replace": "$this->audit->write('currency_rate', $rateId, 'createdX'",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R14 a rate changed is written to the audit log with what it was",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "$this->audit->write('currency_rate', $rateId, 'updated'",
+  "replace": "$this->audit->write('currency_rate', $rateId, 'updatedX'",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R15 a rate deleted is written to the audit log",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "$this->audit->write('currency_rate', $rateId, 'deleted'",
+  "replace": "$this->audit->write('currency_rate', $rateId, 'deletedX'",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R16 a change that changes nothing writes nothing",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "if ($changes === []) {\n                return;\n            }\n\n            $this->db->table('accounting_currency_rates')->where('rate_id', $rateId)->update(",
+  "replace": "$this->db->table('accounting_currency_rates')->where('rate_id', $rateId)->update(",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "R17 a rate of a day cannot move onto a day that has one",
+  "file": "app/Libraries/Accounting/CurrencyRates.php",
+  "find": "$this->assertDayFree((string) $row->currency_code, $date, $rateId);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyRatesTest.php"
+  ]
+ },
+ {
+  "name": "P01 a line of a foreign journal carries a foreign amount",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if ($foreign) {\n                    throw new PostingException(PostingError::ForeignAmountMissing, \"Line {$line['line_no']} of a journal in",
+  "replace": "if (false) {\n                    throw new PostingException(PostingError::ForeignAmountMissing, \"Line {$line['line_no']} of a journal in",
+  "tests": [
+   "--filter",
+   "Foreign|Currency",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P02 a foreign journal balances in its own currency",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if ($foreign && bccomp($foreignDebit, $foreignCredit, self::SCALE) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Foreign|Currency",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P03 a base amount is what the foreign amount comes to at the rate",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if (bccomp(SaleAmounts::absolute(bcsub($baseAmount, $expected, self::SCALE)), $tolerance, self::SCALE) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Foreign|Currency",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P04 a journal in the base has the rate one (without foreign lines)",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if (! $any) {\n            if ($base !== '' && bccomp($rate, '1', 8) !== 0) {",
+  "replace": "if (! $any) {\n            if (false) {",
+  "tests": [
+   "--filter",
+   "Foreign|Currency",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P05 a journal in the base has the rate one (with a line in another currency)",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "} elseif (bccomp($rate, '1', 8) !== 0) {",
+  "replace": "} elseif (false) {",
+  "tests": [
+   "--filter",
+   "Foreign|Currency",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P06 a currency the books do not use is refused",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if ($known === null || (! $known->active && ! $allowInactive)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Foreign|Currency",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P07 the reversal of a journal may use a currency switched off since",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "(! $known->active && ! $allowInactive)",
+  "replace": "(! $known->active)",
+  "tests": [
+   "--filter",
+   "Foreign|Currency",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P08 a foreign amount and its currency go together",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if ($line->foreignAmount === null || $line->currencyCode === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Foreign|Currency",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P09 a foreign amount is above zero",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if (bccomp($amount, '0', self::SCALE) <= 0 || preg_match('/^[A-Z]{3}$/', $line->currencyCode) !== 1) {",
+  "replace": "if (preg_match('/^[A-Z]{3}$/', $line->currencyCode) !== 1) {",
+  "tests": [
+   "--filter",
+   "Foreign|Currency",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P10 a line of a foreign journal is in the currency of the journal",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if ($foreign && $line['currency_code'] !== $currency) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Foreign|Currency",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P11 a line of a base journal carries no foreign amount in the base",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if ($line['currency_code'] === $base) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Foreign|Currency",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "P12 a treasury that holds a currency takes only amounts in it",
+  "file": "app/Libraries/Accounting/PostingService.php",
+  "find": "if ($treasuryId !== null && isset($held[$treasuryId]) && ($line['foreign_amount'] === null || $line['currency_code'] !== $held[$treasuryId])) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Currency|Dollar|Foreign",
+   "tests/Libraries/Accounting/TreasuryServiceTest.php"
+  ]
+ },
+ {
+  "name": "F01 a difference that is more than rounding is refused",
+  "file": "app/Libraries/Accounting/ForeignConversion.php",
+  "find": "if (bccomp(SaleAmounts::absolute($difference), $allowed, SaleAmounts::SCALE) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/ForeignConversionTest.php"
+  ]
+ },
+ {
+  "name": "F02 the line that balances never comes to nothing",
+  "file": "app/Libraries/Accounting/ForeignConversion.php",
+  "find": "if (bccomp($balanced, '0', SaleAmounts::SCALE) <= 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/ForeignConversionTest.php"
+  ]
+ },
+ {
+  "name": "F03 the line that balances is one of the lines",
+  "file": "app/Libraries/Accounting/ForeignConversion.php",
+  "find": "if (! isset($converted[$balancing])) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/ForeignConversionTest.php"
+  ]
+ },
+ {
+  "name": "J01 the reversal mirrors the foreign amount and the currency of every line",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "                    foreignAmount: $line->foreign_amount,\n                    currencyCode: $line->currency_code,\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Foreign|Currency",
+   "tests/Libraries/Accounting/PostingServiceTest.php"
+  ]
+ },
+ {
+  "name": "J02 a journal in a foreign currency and an exchange difference are not taken back by hand",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "if (in_array($original->source_type, self::FX_SOURCES, true) || ($base !== '' && $original->currency_code !== $base)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Reverse",
+   "tests/Libraries/Accounting/JournalServiceTest.php"
+  ]
+ },
+ {
+  "name": "J03 the books reverse an exchange difference with its payment",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "            ...self::CREDIT_SOURCES,\n            ...self::FX_SOURCES,\n",
+  "replace": "            ...self::CREDIT_SOURCES,\n",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "S01 the rounding of cash is refused on a foreign sale",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "if ($sale->currency !== null && $payment->cashAdjustment) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Foreign|Dollar|Payment|Invoice|Exchange|Decimal",
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "S02 a payment of a foreign sale has a rate",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "if ($sale->currency === null || $payment->rate === null) {",
+  "replace": "if ($sale->currency === null) {",
+  "tests": [
+   "--filter",
+   "Foreign|Dollar|Payment|Invoice|Exchange|Decimal",
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "S03 the earlier payments count in what a payment settles",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "            if ($amount !== null) {\n                $before = bcadd($before, $amount, SaleAmounts::SCALE);\n            }\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Foreign|Dollar|Payment|Invoice|Exchange|Decimal",
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "S04 only a completed payment books anything",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "if (! $payment->status->posts() || $payment->cashAdjustment) {\n            return null;",
+  "replace": "if ($payment->cashAdjustment) {\n            return null;",
+  "tests": [
+   "--filter",
+   "Foreign|Dollar|Payment|Invoice|Exchange|Decimal",
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "S05 a loss is posted when the customer's balance falls by more than the money received",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "bccomp($difference, '0', SaleAmounts::SCALE) > 0\n            ? [new JournalLineDraft($this->fxAccount(RoutingKey::FxLoss)",
+  "replace": "bccomp($difference, '0', SaleAmounts::SCALE) < 0\n            ? [new JournalLineDraft($this->fxAccount(RoutingKey::FxLoss)",
+  "tests": [
+   "--filter",
+   "Foreign|Dollar|Payment|Invoice|Exchange|Decimal",
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "S06 a routing of the exchange difference that has no usable account is refused with a name",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "} catch (PostingException $failure) {\n            throw new PostingException(PostingError::FxAccountsMissing, \"The routing of {$key->value} has no usable account, so the exchange difference cannot be posted.\", ['routing_key' => $key->value], $failure);\n        }",
+  "replace": "} catch (PostingException $failure) {\n            throw $failure;\n        }",
+  "tests": [
+   "--filter",
+   "Foreign|Dollar|Payment|Invoice|Exchange|Decimal",
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "S07 a payment of a foreign sale is converted at its own rate",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "return ForeignConversion::toBase($draft, $this->currencyOfPayment($sale, $payment), $this->baseDecimalsOf(), 0);",
+  "replace": "return $draft;",
+  "tests": [
+   "--filter",
+   "Foreign|Dollar|Payment|Invoice|Exchange|Decimal",
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "S08 the invoice of a foreign sale is converted line by line",
+  "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+  "find": "return ForeignConversion::toBase($draft, $sale->currency, $this->baseDecimalsOf(), ForeignConversion::indexOf($draft, $this->required($goods)));",
+  "replace": "return $draft;",
+  "tests": [
+   "--filter",
+   "Foreign|Dollar|Payment|Invoice|Exchange|Decimal",
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "S09 the total of a foreign document is kept in the decimals of its currency",
+  "file": "app/Libraries/Accounting/InvoiceRounding.php",
+  "find": "$total   = $decimals === 2 ? self::roundToCents($sum) : bcadd(SaleAmounts::round($sum, $decimals), '0', self::SCALE);",
+  "replace": "$total   = self::roundToCents($sum);",
+  "tests": [
+   "--filter",
+   "Foreign|Dollar|Payment|Invoice|Exchange|Decimal",
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "S10 the discount of a foreign line is rounded to the decimals of its currency",
+  "file": "app/Libraries/Accounting/SaleAmounts.php",
+  "find": "        $decimals = $sale->currency?->decimals ?? $decimals;\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Foreign|Dollar|Payment|Invoice|Exchange|Decimal",
+   "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "L01 a payment of a foreign sale takes the rate of its day, or is refused",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "if ($rate === null) {\n                throw new AccountingException(AccountingError::RateMissing",
+  "replace": "if (false) {\n                throw new AccountingException(AccountingError::RateMissing",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "L02 a foreign payment does not go into a treasury of another branch",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "if ($sale->currency !== null && $payment->treasuryBranchId !== null && $payment->treasuryBranchId !== $sale->branchId) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "L03 removing a payment takes back its exchange difference",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "        if ($difference !== null) {\n            $this->reverse($difference, $employeeId, 'Payment removed');\n        }\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "L04 cancelling a sale takes back the exchange differences of its payments",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "                $difference = $this->activeJournal(SalePostingBuilder::SOURCE_PAYMENT_FX, $paymentId, JournalEntryType::General);\n\n                if ($difference !== null) {\n                    $active[] = $difference;\n                }\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "L05 an exchange difference that an earlier payment changed is posted again",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "        if ($active !== null) {\n            if ($draft !== null && $this->holds($active, $draft)) {\n                return;\n            }\n\n            $this->reverse($active, $employeeId, 'Payment #' . $payment->paymentId . ' changed');\n        }\n\n        if ($draft !== null) {\n            $this->posting->post($draft);\n        }\n    }\n\n    /**\n     * The sale with the rate",
+  "replace": "        if ($active !== null) {\n            return;\n        }\n\n        if ($draft !== null) {\n            $this->posting->post($draft);\n        }\n    }\n\n    /**\n     * The sale with the rate",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "L06 the currency and the rate of a posted sale do not change",
+  "file": "app/Libraries/Accounting/SalePosting.php",
+  "find": "        if ($currencyChanged) {\n            throw new AccountingException(AccountingError::DocumentCurrencyLocked, 'The currency and the rate of a sale",
+  "replace": "        if (false) {\n            throw new AccountingException(AccountingError::DocumentCurrencyLocked, 'The currency and the rate of a sale",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "L07 a change of the rate alone is a change",
+  "file": "app/Libraries/Accounting/DocumentCurrency.php",
+  "find": "return $code === $stored->code && $rate !== null && bccomp($rate, $stored->rate, 8) === 0;",
+  "replace": "return $code === $stored->code;",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "M01 a return takes the currency and the rate of its sale",
+  "file": "app/Models/Sale.php",
+  "find": "return $code === null ? $none : ['currency_code' => $code, 'currency_rate' => $origin->currency_rate];",
+  "replace": "return $none;",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "M02 a return is in the currency of its sale",
+  "file": "app/Models/Sale.php",
+  "find": "if ($choice !== null && $choice[0] !== (string) $code) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "M03 a foreign currency needs the books on",
+  "file": "app/Models/Sale.php",
+  "find": "if (! (new AccountingSettings($this->db))->isEnabled()) {\n            throw new AccountingException(AccountingError::ForeignCurrencyUnsupported, 'A document is in a foreign currency only while the books are on.');",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::ForeignCurrencyUnsupported, 'A document is in a foreign currency only while the books are on.');",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "M04 the currency chosen is for one save only",
+  "file": "app/Models/Sale.php",
+  "find": "$this->savingCurrency = $this->currencyChoice;\n        $this->currencyChoice = null;",
+  "replace": "$this->savingCurrency = $this->currencyChoice;",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "M05 an issued draft keeps its currency",
+  "file": "app/Models/Sale.php",
+  "find": "        $this->useCurrency($draftsCode);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "N01 a purchase return takes the currency and the rate of its purchase",
+  "file": "app/Models/Receiving.php",
+  "find": "return $code === null ? $none : ['currency_code' => $code, 'currency_rate' => $origin->currency_rate];",
+  "replace": "return $none;",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "N02 a purchase return is in the currency of its purchase",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($choice !== null && $choice[0] !== (string) $code) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "N03 a purchase in a foreign currency needs the books on and is never a transfer",
+  "file": "app/Models/Receiving.php",
+  "find": "if ($type === ReceivingType::Requisition || ! (new AccountingSettings($this->db))->isEnabled()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "N04 the cost of an item is averaged in the base",
+  "file": "app/Models/Receiving.php",
+  "find": "$purchase->currency === null ? $unitCost : bcmul($unitCost, $purchase->currency->rate, 8)",
+  "replace": "$unitCost",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "N05 the currency chosen is for one save only",
+  "file": "app/Models/Receiving.php",
+  "find": "$this->savingCurrency = $this->currencyChoice;\n        $this->currencyChoice = null;",
+  "replace": "$this->savingCurrency = $this->currencyChoice;",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "B01 a transfer of stock is never in a foreign currency",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "find": "if ($purchase->currency !== null && $purchase->type === ReceivingType::Requisition) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Purchase|Payment|Supplier",
+   "tests/Libraries/Accounting/ReceivingPostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "B02 the stock of a foreign purchase is worth what its line is worth in the base",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "find": "return new StockPostingPlan($converted, $this->movementsInBase($movements, $converted, $purchase->currency));",
+  "replace": "return new StockPostingPlan($converted, $movements);",
+  "tests": [
+   "--filter",
+   "Purchase|Payment|Supplier",
+   "tests/Libraries/Accounting/ReceivingPostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "B03 the movements of a location add up to its line",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "find": "$values[$largest] = bcadd($values[$largest], bcsub($line, $sum, self::SCALE), self::SCALE);",
+  "replace": "$values[$largest] = $values[$largest];",
+  "tests": [
+   "--filter",
+   "Purchase|Payment|Supplier",
+   "tests/Libraries/Accounting/ReceivingPostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "B04 the payment made at once is converted at the rate of the purchase",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "find": "return $purchase->currency === null ? $draft : ForeignConversion::toBase($draft, $purchase->currency, $this->baseDecimalsOf(), 0);",
+  "replace": "return $draft;",
+  "tests": [
+   "--filter",
+   "Purchase|Payment|Supplier",
+   "tests/Libraries/Accounting/ReceivingPostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "B05 a payment to the supplier is converted at its own rate",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "find": "return $purchase->currency === null ? $draft : ForeignConversion::toBase($draft, $this->currencyOfPayment($purchase, $payment), $this->baseDecimalsOf(), 0);",
+  "replace": "return $draft;",
+  "tests": [
+   "--filter",
+   "Purchase|Payment|Supplier",
+   "tests/Libraries/Accounting/ReceivingPostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "B06 a gain is posted when the supplier's balance falls by more than the money paid",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "find": "bccomp($difference, '0', self::SCALE) > 0\n            ? [new JournalLineDraft($supplier, debit: $magnitude), new JournalLineDraft($this->fxAccount(RoutingKey::FxGain)",
+  "replace": "bccomp($difference, '0', self::SCALE) < 0\n            ? [new JournalLineDraft($supplier, debit: $magnitude), new JournalLineDraft($this->fxAccount(RoutingKey::FxGain)",
+  "tests": [
+   "--filter",
+   "Purchase|Payment|Supplier",
+   "tests/Libraries/Accounting/ReceivingPostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "B07 what was paid at once counts among the payments of the purchase",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "find": "        return $this->totals($purchase)['total'];\n    }\n\n    /**\n     * @throws PostingException\n     */\n    private function currencyOfPayment",
+  "replace": "        return '0';\n    }\n\n    /**\n     * @throws PostingException\n     */\n    private function currencyOfPayment",
+  "tests": [
+   "--filter",
+   "Purchase|Payment|Supplier",
+   "tests/Libraries/Accounting/ReceivingPostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "B08 a payment of a foreign purchase has a rate",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "find": "if ($purchase->currency === null || $payment->rate === null) {",
+  "replace": "if ($purchase->currency === null) {",
+  "tests": [
+   "--filter",
+   "Purchase|Payment|Supplier",
+   "tests/Libraries/Accounting/ReceivingPostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "B09 the earlier payments count in what a payment to the supplier settles",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "find": "            if ($amount !== null) {\n                $before = bcadd($before, $amount, self::SCALE);\n            }\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Purchase|Payment|Supplier",
+   "tests/Libraries/Accounting/ReceivingPostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "B10 the total of a foreign purchase is kept in the decimals of its currency",
+  "file": "app/Libraries/Accounting/ReceivingAmounts.php",
+  "find": "'total' => SaleAmounts::round(bcadd($net, $tax, self::SCALE), $decimals)]",
+  "replace": "'total' => SaleAmounts::round(bcadd($net, $tax, self::SCALE), 2)]",
+  "tests": [
+   "--filter",
+   "Purchase|Payment|Supplier",
+   "tests/Libraries/Accounting/ReceivingPostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "B11 a routing of the exchange difference that has no usable account is refused with a name",
+  "file": "app/Libraries/Accounting/ReceivingPostingBuilder.php",
+  "find": "} catch (PostingException $failure) {\n            throw new PostingException(PostingError::FxAccountsMissing, \"The routing of {$key->value} has no usable account, so the exchange difference cannot be posted.\", ['routing_key' => $key->value], $failure);\n        }",
+  "replace": "} catch (PostingException $failure) {\n            throw $failure;\n        }",
+  "tests": [
+   "--filter",
+   "Purchase|Payment|Supplier",
+   "tests/Libraries/Accounting/ReceivingPostingBuilderTest.php"
+  ]
+ },
+ {
+  "name": "Q01 a foreign payment does not come out of a treasury of another branch",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "if ($purchase->currency !== null && $payment->treasuryBranchId !== null && $payment->treasuryBranchId !== $purchase->branchId) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "Q02 removing a payment takes back its exchange difference",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "        if ($difference !== null) {\n            $this->reverse($difference, $employeeId, 'Payment removed');\n        }\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "Q03 deleting a purchase takes back the exchange differences of its payments",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "                $difference = $this->activeJournal(ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, $paymentId, JournalEntryType::General);\n\n                if ($difference !== null) {\n                    $later[] = $difference;\n                }\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "Q04 the currency and the rate of a posted purchase do not change",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "        if ($currencyChanged) {\n            throw new AccountingException(AccountingError::DocumentCurrencyLocked, 'The currency and the rate of a purchase",
+  "replace": "        if (false) {\n            throw new AccountingException(AccountingError::DocumentCurrencyLocked, 'The currency and the rate of a purchase",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "Q05 a payment of a foreign purchase takes the rate of its day, or is refused",
+  "file": "app/Libraries/Accounting/ReceivingPosting.php",
+  "find": "if ($rate === null) {\n                throw new AccountingException(AccountingError::RateMissing",
+  "replace": "if (false) {\n                throw new AccountingException(AccountingError::RateMissing",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "T01 the currency of a used treasury and of the main treasury is fixed",
+  "file": "app/Libraries/Accounting/TreasuryService.php",
+  "find": "if ($changesCurrency && ((int) $treasury->is_main === 1 || $this->isUsed($treasuryId))) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Currency|Dollar|Foreign",
+   "tests/Libraries/Accounting/TreasuryServiceTest.php"
+  ]
+ },
+ {
+  "name": "T02 the main treasury is in the base currency",
+  "file": "app/Libraries/Accounting/TreasuryService.php",
+  "find": "if ($changesCurrency && ((int) $treasury->is_main === 1 || $this->isUsed($treasuryId))) {",
+  "replace": "if ($changesCurrency && ($this->isUsed($treasuryId))) {",
+  "tests": [
+   "--filter",
+   "Currency|Dollar|Foreign",
+   "tests/Libraries/Accounting/TreasuryServiceTest.php"
+  ]
+ },
+ {
+  "name": "T03 a treasury holds a currency that exists and is switched on",
+  "file": "app/Libraries/Accounting/TreasuryService.php",
+  "find": "return $currencies->isBase($code) ? null : $currencies->requireForeign($code)->code;",
+  "replace": "return $code;",
+  "tests": [
+   "--filter",
+   "Currency|Dollar|Foreign",
+   "tests/Libraries/Accounting/TreasuryServiceTest.php"
+  ]
+ },
+ {
+  "name": "T04 the foreign balance counts a credit against the treasury",
+  "file": "app/Libraries/Accounting/TreasuryService.php",
+  "find": "IF(l.debit > 0, l.foreign_amount, 0 - l.foreign_amount)",
+  "replace": "l.foreign_amount",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Currency|Transfer",
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "T05 a transfer between currencies needs the amount that arrives",
+  "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+  "find": "if ($toAmount === null) {\n            throw new AccountingException(AccountingError::TransferAmountRequired",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::TransferAmountRequired",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Currency|Transfer",
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "T06 two treasuries of the base take the same amount out and in",
+  "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+  "find": "if (! $foreign && $toAmount !== null && bccomp($toAmount, $amount, SaleAmounts::SCALE) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Currency|Transfer",
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "T07 two treasuries of one foreign currency take the same amount out and in",
+  "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+  "find": "            if ($toAmount !== null && bccomp($toAmount, $amount, SaleAmounts::SCALE) !== 0) {\n                throw new AccountingException(AccountingError::TransferAmountInvalid, 'Two treasuries of one currency",
+  "replace": "            if (false) {\n                throw new AccountingException(AccountingError::TransferAmountInvalid, 'Two treasuries of one currency",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Currency|Transfer",
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "T08 a transfer between branches is never in a foreign currency",
+  "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+  "find": "if ($foreign && $between) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Currency|Transfer",
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "T09 an exchange gain is posted when more arrives than leaves",
+  "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+  "find": "if (bccomp($difference, '0', SaleAmounts::SCALE) > 0) {\n            $lines[] = new JournalLineDraft($this->exchangeAccount(RoutingKey::FxGain)",
+  "replace": "if (bccomp($difference, '0', SaleAmounts::SCALE) < 0) {\n            $lines[] = new JournalLineDraft($this->exchangeAccount(RoutingKey::FxGain)",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Currency|Transfer",
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "T10 a transfer needs the rate of its day",
+  "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+  "find": "if ($rate === null) {\n            throw new AccountingException(AccountingError::RateMissing, \"Currency {$code} has no rate on or before {$date}.\"",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::RateMissing, \"Currency {$code} has no rate on or before {$date}.\"",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Currency|Transfer",
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "T11 a routing of the exchange difference that has no usable account is refused with a name",
+  "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+  "find": "} catch (PostingException $failure) {\n            throw new PostingException(PostingError::FxAccountsMissing, \"The routing of {$key->value} has no usable account, so the exchange difference cannot be posted.\", ['routing_key' => $key->value], $failure);\n        }",
+  "replace": "} catch (PostingException $failure) {\n            throw $failure;\n        }",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Currency|Transfer",
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "E01 an expense in a foreign currency is refused with a name",
+  "file": "app/Libraries/Accounting/ExpensePosting.php",
+  "find": "        if ($row->currency_code !== null) {\n            throw new PostingException(PostingError::FxNotSupported",
+  "replace": "        if (false) {\n            throw new PostingException(PostingError::FxNotSupported",
+  "tests": [
+   "--filter",
+   "Foreign",
+   "tests/Libraries/Accounting/ExpensePostingTest.php"
+  ]
+ },
+ {
+  "name": "E02 a receipt voucher in a foreign currency is refused with a name",
+  "file": "app/Libraries/Accounting/RevenueVouchers.php",
+  "find": "        if ($row->currency_code !== null) {\n            throw new PostingException(PostingError::FxNotSupported",
+  "replace": "        if (false) {\n            throw new PostingException(PostingError::FxNotSupported",
+  "tests": [
+   "--filter",
+   "Foreign",
+   "tests/Libraries/Accounting/RevenueVouchersTest.php"
+  ]
+ },
+ {
+  "name": "K01 the customer ledger counts the exchange difference in what was paid",
+  "file": "app/Libraries/Accounting/CustomerLedger.php",
+  "find": "[$customerId, SalePostingBuilder::SOURCE_PAYMENT, SalePostingBuilder::SOURCE_PAYMENT_FX, ...$standingBindings, $accountId],",
+  "replace": "[$customerId, SalePostingBuilder::SOURCE_PAYMENT, SalePostingBuilder::SOURCE_PAYMENT, ...$standingBindings, $accountId],",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal|IssueDraft",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "K02 the supplier ledger counts the exchange difference in what was paid",
+  "file": "app/Libraries/Accounting/SupplierLedger.php",
+  "find": "ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $supplierId, ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, $supplierId, ...$standingBindings",
+  "replace": "ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $supplierId, ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, $supplierId, ...$standingBindings",
+  "tests": [
+   "--filter",
+   "Dollar|Foreign|Exchange|Rate|Currency|Decimal",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "K03 the customer balance report counts the exchange difference under payments",
+  "file": "app/Libraries/Accounting/CustomerBalanceReport.php",
+  "find": "SalePostingBuilder::SOURCE_PAYMENT, SalePostingBuilder::SOURCE_PAYMENT_FX, CustomerAdvances::SOURCE",
+  "replace": "SalePostingBuilder::SOURCE_PAYMENT, SalePostingBuilder::SOURCE_PAYMENT, CustomerAdvances::SOURCE",
+  "tests": [
+   "--filter",
+   "Exchange",
+   "tests/Libraries/Accounting/CustomerBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "K04 the supplier balance report counts the exchange difference under payments",
+  "file": "app/Libraries/Accounting/SupplierBalanceReport.php",
+  "find": "ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, ReceivingPostingBuilder::SOURCE_SUPPLIER_FX, SupplierAdvances::SOURCE",
+  "replace": "ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, SupplierAdvances::SOURCE",
+  "tests": [
+   "--filter",
+   "Exchange",
+   "tests/Libraries/Accounting/SupplierBalanceReportTest.php"
+  ]
+ },
+ {
+  "name": "U01 the form of a currency is for who manages currencies",
+  "file": "app/Controllers/AccountingCurrencies.php",
+  "find": "if (! $this->canManage(AccountingGuard::CURRENCIES_MANAGE)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $currency = $code === ''",
+  "replace": "if (false) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $currency = $code === ''",
+  "tests": [
+   "tests/Controllers/AccountingCurrenciesControllerTest.php"
+  ]
+ },
+ {
+  "name": "U02 the form of a rate is for who manages currencies",
+  "file": "app/Controllers/AccountingCurrencies.php",
+  "find": "if (! $this->canManage(AccountingGuard::CURRENCIES_MANAGE)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $currency = $this->currencies->find($code);\n        $rate     =",
+  "replace": "if (false) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        $currency = $this->currencies->find($code);\n        $rate     =",
+  "tests": [
+   "tests/Controllers/AccountingCurrenciesControllerTest.php"
+  ]
+ },
+ {
+  "name": "U03 the base currency has no screen of rates",
+  "file": "app/Controllers/AccountingCurrencies.php",
+  "find": "if ($currency === null || $this->currencies->isBase($code)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        return view('accounting_currencies/rates'",
+  "replace": "if ($currency === null) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n        return view('accounting_currencies/rates'",
+  "tests": [
+   "tests/Controllers/AccountingCurrenciesControllerTest.php"
+  ]
+ },
+ {
+  "name": "U04 a rate is changed only through its own currency",
+  "file": "app/Controllers/AccountingCurrencies.php",
+  "find": "if ($stored === null || $stored->currency_code !== $code) {",
+  "replace": "if ($stored === null) {",
+  "tests": [
+   "tests/Controllers/AccountingCurrenciesControllerTest.php"
+  ]
+ },
+ {
+  "name": "U05 a reader is offered no edit",
+  "file": "app/Controllers/AccountingCurrencies.php",
+  "find": "        if (! $this->canManage(AccountingGuard::CURRENCIES_MANAGE)) {\n            return $html;\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingCurrenciesControllerTest.php"
+  ]
+ },
+ {
+  "name": "D01 the columns are not dropped while a row carries a currency",
+  "file": "app/Database/Migrations/20272300000001_DocumentCurrencyColumns.php",
+  "find": "throw new RuntimeException(\"Rows of {$table} carry a currency, so the columns are not dropped.\");",
+  "replace": "",
+  "tests": [
+   "tests/Database/MultiCurrencyMigrationTest.php"
+  ]
+ },
+ {
+  "name": "V01 a suspended foreign sale keeps its currency",
+  "file": "app/Controllers/Sales.php",
+  "find": "    public function postSuspend(): ResponseInterface|string\n    {\n        $this->sale->useCurrency($this->registerCurrency());\n",
+  "replace": "    public function postSuspend(): ResponseInterface|string\n    {\n",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostSuspend_Keeps"
+  ]
+ },
+ {
+  "name": "V02 a foreign sale of the register is completed in its currency",
+  "file": "app/Controllers/Sales.php",
+  "find": "    {\n        $this->sale->useCurrency($this->registerCurrency());\n\n        $saleId = $this->sale_lib->get_sale_id();\n        $data = [];",
+  "replace": "    {\n        $saleId = $this->sale_lib->get_sale_id();\n        $data = [];",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostSuspend_Keeps"
+  ]
+ },
+ {
+  "name": "V03 a return takes no currency from the register",
+  "file": "app/Controllers/Sales.php",
+  "find": "return $this->sale_lib->is_return_mode() ? null : $this->sale_lib->getCurrency();",
+  "replace": "return $this->sale_lib->getCurrency();",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostSuspend_TakesNoCurrency"
+  ]
+ },
+ {
+  "name": "V04 the register chooses a currency only while the books are on",
+  "file": "app/Controllers/Sales.php",
+  "find": "        $code = strtoupper(trim((string) $this->request->getPost('currency_code')));\n\n        if (!(new AccountingSettings())->isEnabled()) {",
+  "replace": "        $code = strtoupper(trim((string) $this->request->getPost('currency_code')));\n\n        if (false) {",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostSetCurrency_"
+  ]
+ },
+ {
+  "name": "V05 the register chooses no currency in return mode",
+  "file": "app/Controllers/Sales.php",
+  "find": "        if ($this->sale_lib->is_return_mode()) {\n            return $this->reload(['error' => lang('Sales.currency_return_mode')]);\n        }\n\n        if ($this->sale_lib->get_cart() !== []) {",
+  "replace": "        if (false) {\n            return $this->reload(['error' => lang('Sales.currency_return_mode')]);\n        }\n\n        if ($this->sale_lib->get_cart() !== []) {",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostSetCurrency_"
+  ]
+ },
+ {
+  "name": "V06 the register chooses a currency before the first item only",
+  "file": "app/Controllers/Sales.php",
+  "find": "        if ($this->sale_lib->get_cart() !== []) {\n            return $this->reload(['error' => lang('Sales.currency_cart_not_empty')]);",
+  "replace": "        if (false) {\n            return $this->reload(['error' => lang('Sales.currency_cart_not_empty')]);",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostSetCurrency_"
+  ]
+ },
+ {
+  "name": "V07 the register chooses a currency that has a rate today",
+  "file": "app/Controllers/Sales.php",
+  "find": "        try {\n            $currencies->documentCurrency($code, date('Y-m-d'));\n        } catch (AccountingException $refusal) {\n            return $this->reload(['error' => AccountingMessage::of($refusal)]);\n        }\n\n        $this->sale_lib->setCurrency($code);",
+  "replace": "        $this->sale_lib->setCurrency($code);",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostSetCurrency_"
+  ]
+ },
+ {
+  "name": "V08 the base currency chosen takes the choice back",
+  "file": "app/Controllers/Sales.php",
+  "find": "if ($code === '' || $currencies->isBase($code)) {",
+  "replace": "if ($code === '') {",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostSetCurrency_"
+  ]
+ },
+ {
+  "name": "V09 a return is not started over foreign items",
+  "file": "app/Controllers/Sales.php",
+  "find": "                if ($this->sale_lib->get_cart() !== []) {\n                    return $this->reload(['error' => lang('Sales.currency_return_mode')]);\n                }\n\n                $this->sale_lib->clearCurrency();",
+  "replace": "                $this->sale_lib->clearCurrency();",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostChangeMode_"
+  ]
+ },
+ {
+  "name": "V10 a return started on an empty cart forgets the currency",
+  "file": "app/Controllers/Sales.php",
+  "find": "                $this->sale_lib->clearCurrency();\n            }\n\n            $this->sale_lib->clearInvoiceDiscount();",
+  "replace": "            }\n\n            $this->sale_lib->clearInvoiceDiscount();",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostChangeMode_"
+  ]
+ },
+ {
+  "name": "V11 a gift card or reward points do not pay a foreign sale at the register",
+  "file": "app/Controllers/Sales.php",
+  "find": "if ($this->sale_lib->getCurrency() !== null && ($paymentType === lang('Sales.giftcard') || $paymentType === lang('Sales.rewards'))) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostAddPayment_Refuses"
+  ]
+ },
+ {
+  "name": "V12 the register says why an item cannot be added in a currency",
+  "file": "app/Controllers/Sales.php",
+  "find": "        if ($currencyFailure !== null) {\n            unset($data['warning']);",
+  "replace": "        if (false) {\n            unset($data['warning']);",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostAdd_SaysWhy"
+  ]
+ },
+ {
+  "name": "V13 the tiles of the register are priced in the currency of the sale",
+  "file": "app/Controllers/Sales.php",
+  "find": "$priced->unit_price = $this->sale_lib->catalogPrice((string) $item->unit_price);",
+  "replace": "$priced->unit_price = $item->unit_price;",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "PricesTheQuickItemTiles"
+  ]
+ },
+ {
+  "name": "V14 the amounts of the register are shown with the currency of the sale",
+  "file": "app/Controllers/Sales.php",
+  "find": "return CurrencyDisplay::within($displayCurrency, static fn (): string => view('sales/register', $data));",
+  "replace": "return view('sales/register', $data);",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testGetIndex_ShowsTheAmounts"
+  ]
+ },
+ {
+  "name": "V15 the minimum price of a foreign line is compared at the rate of the sale at the register",
+  "file": "app/Controllers/Sales.php",
+  "find": "$controls->violationsOf($changed, $this->sale_lib->currencyRate())",
+  "replace": "$controls->violationsOf($changed)",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostAdd_(Rejects|Accepts)AnItemOfAForeignSale"
+  ]
+ },
+ {
+  "name": "V16 every price of the catalog is converted to the currency of the sale",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "            $price = $this->priceInCurrency($price, $priceSource);\n        } catch (AccountingException $refusal) {",
+  "replace": "            $price = $price;\n        } catch (AccountingException $refusal) {",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostAdd_PricesAn|OfAKitIn"
+  ]
+ },
+ {
+  "name": "V17 a return is not priced from the catalog in a currency",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "if ($code === null || $priceSource === 'override' || $this->is_return_mode()) {",
+  "replace": "if ($code === null || $priceSource === 'override') {",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php",
+   "--filter",
+   "CatalogPrice"
+  ]
+ },
+ {
+  "name": "V18 the rate of a return is one",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        if ($code === null || $this->is_return_mode()) {\n            return '1';",
+  "replace": "        if ($code === null) {\n            return '1';",
+  "tests": [
+   "tests/Libraries/Sale_libTest.php",
+   "--filter",
+   "CurrencyRate"
+  ]
+ },
+ {
+  "name": "V19 an unsuspended sale takes back its currency",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        $currencyCode = $this->sale->getCurrencyCode($saleId);\n\n        if ($currencyCode !== null) {\n            $this->setCurrency($currencyCode);\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostSuspend_Keeps"
+  ]
+ },
+ {
+  "name": "V20 the register forgets its currency when it is cleared",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "        $this->clearPriceListChoice();\n        $this->clearCurrency();\n        $this->clear_quote_number();",
+  "replace": "        $this->clearPriceListChoice();\n        $this->clear_quote_number();",
+  "tests": [
+   "tests/Controllers/SalesControllerTest.php",
+   "--filter",
+   "testPostUnsuspend_DropsTheCurrency"
+  ]
+ },
+ {
+  "name": "V21 a gift card or reward points do not pay a foreign sale in the model",
+  "file": "app/Models/Sale.php",
+  "find": "if ($currencyColumns['currency_code'] !== null && $this->paysWithStoredValue($payments ?? [])) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingTest.php",
+   "--filter",
+   "GiftCardOrWithRewardPoints"
+  ]
+ },
+ {
+  "name": "V22 the minimum price of a foreign sale is compared in the base",
+  "file": "app/Models/Sale.php",
+  "find": "(new PriceControls($this->db))->violationsOf($items, $currencyColumns['currency_rate'] ?? '1')",
+  "replace": "(new PriceControls($this->db))->violationsOf($items)",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingTest.php",
+   "--filter",
+   "UnderTheMinimumPriceAndSavesNothing"
+  ]
+ },
+ {
+  "name": "V23 the reward points of a foreign sale are earned on its value in the base",
+  "file": "app/Models/Sale.php",
+  "find": "$currencyColumns['currency_rate'] === null ? $totalAmount : (float) bcmul((string) $totalAmount, $currencyColumns['currency_rate'], 4)",
+  "replace": "$totalAmount",
+  "tests": [
+   "tests/Libraries/Accounting/SalePostingTest.php",
+   "--filter",
+   "EarnsRewardPointsOnWhat"
+  ]
+ },
+ {
+  "name": "V24 the minimum price is compared with the price in the base",
+  "file": "app/Libraries/Pricing/PriceControls.php",
+  "find": "$netBase = bcmul($net, $rate, 4);",
+  "replace": "$netBase = $net;",
+  "tests": [
+   "tests/Libraries/Pricing/PriceControlsTest.php"
+  ]
+ },
+ {
+  "name": "V25 a foreign payment without a rate of its own counts at the rate of its sale at the cash-up",
+  "file": "app/Libraries/Accounting/CashupExpectation.php",
+  "find": "$rate     = 'COALESCE(p.currency_rate, s.currency_rate)';",
+  "replace": "$rate     = 'p.currency_rate';",
+  "tests": [
+   "tests/Libraries/Accounting/CashupExpectationTest.php"
+  ]
+ },
+ {
+  "name": "V26 a foreign payment counts in the base at the cash-up",
+  "file": "app/Libraries/Accounting/CashupExpectation.php",
+  "find": "ELSE ROUND({$net} * {$rate}, {$decimals}) END",
+  "replace": "ELSE {$net} END",
+  "tests": [
+   "tests/Libraries/Accounting/CashupExpectationTest.php"
+  ]
+ },
+ {
+  "name": "V27 the line correction of a foreign purchase knows the rate",
+  "file": "app/Models/Receiving.php",
+  "find": "$this->linesOf($after, $moved), $before->currency?->rate);",
+  "replace": "$this->linesOf($after, $moved));",
+  "tests": [
+   "tests/Libraries/Accounting/ReceivingPostingTest.php",
+   "--filter",
+   "testUpdateLines_CorrectsTheCostOfTheItemInTheBase"
+  ]
+ },
+ {
+  "name": "V28 the cost of the line correction of a foreign purchase is in the base",
+  "file": "app/Models/Receiving.php",
+  "find": "$net                                 = $rate === null ? ReceivingAmounts::net($line) : bcmul(ReceivingAmounts::net($line), $rate, ReceivingAmounts::SCALE);",
+  "replace": "$net                                 = ReceivingAmounts::net($line);",
+  "tests": [
+   "tests/Libraries/Accounting/ReceivingPostingTest.php",
+   "--filter",
+   "testUpdateLines_CorrectsTheCostOfTheItemInTheBase"
+  ]
+ },
+ {
+  "name": "V29 a transfer between currencies is refused when its amounts are far from the rates",
+  "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+  "find": "SaleAmounts::SCALE) > 0) {\n            throw new AccountingException(AccountingError::TransferRateOutOfRange",
+  "replace": "SaleAmounts::SCALE) > 0 && false) {\n            throw new AccountingException(AccountingError::TransferRateOutOfRange",
+  "tests": [
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "V30 a difference of exactly the tolerance is accepted",
+  "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+  "find": "SaleAmounts::SCALE) > 0) {\n            throw new AccountingException(AccountingError::TransferRateOutOfRange",
+  "replace": "SaleAmounts::SCALE) >= 0) {\n            throw new AccountingException(AccountingError::TransferRateOutOfRange",
+  "tests": [
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "V31 the tolerance of a transfer is ten per cent",
+  "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+  "find": "private const RATE_TOLERANCE_PERCENT = '10';",
+  "replace": "private const RATE_TOLERANCE_PERCENT = '11';",
+  "tests": [
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "V32 a difference of a transfer is refused in both directions",
+  "file": "app/Libraries/Accounting/TreasuryTransfers.php",
+  "find": "bcmul(SaleAmounts::absolute($difference), '100', SaleAmounts::SCALE)",
+  "replace": "bcmul($difference, '100', SaleAmounts::SCALE)",
+  "tests": [
+   "tests/Libraries/Accounting/TreasuryTransfersTest.php"
+  ]
+ },
+ {
+  "name": "V33 the code of a currency is read in capitals for the base",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "    public function isBase(string $code): bool\n    {\n        $code = $this->normalize($code);\n",
+  "replace": "    public function isBase(string $code): bool\n    {\n",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "IsBase|BaseCurrencyWrittenInLowerCase"
+  ]
+ },
+ {
+  "name": "V34 the code of a currency is read in capitals when it is found",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "->where('currency_code', $this->normalize($code))->get()->getRow();",
+  "replace": "->where('currency_code', $code)->get()->getRow();",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testFind_"
+  ]
+ },
+ {
+  "name": "V35 the code of a currency is read in capitals when it is changed",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        $code = $this->normalize($code);\n\n        $this->transactional(function () use ($code, $input, $employeeId): void {",
+  "replace": "        $this->transactional(function () use ($code, $input, $employeeId): void {",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testUpdate_ChangesACurrencyWhatever"
+  ]
+ },
+ {
+  "name": "V36 the code of a currency is read in capitals when it is switched on or off",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        $code = $this->normalize($code);\n\n        $this->transactional(function () use ($code, $active, $employeeId): void {",
+  "replace": "        $this->transactional(function () use ($code, $active, $employeeId): void {",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testSetActive_"
+  ]
+ },
+ {
+  "name": "V37 the code of a currency is read in capitals when its use is asked",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "    public function inUse(string $code): bool\n    {\n        $code = $this->normalize($code);\n",
+  "replace": "    public function inUse(string $code): bool\n    {\n",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testInUse_"
+  ]
+ },
+ {
+  "name": "V38 a draft sale fixes the decimals of its currency",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        ['sales', 'currency_code'],\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testInUse_"
+  ]
+ },
+ {
+  "name": "V39 a payment of a sale fixes the decimals of its currency",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        ['sales_payments', 'currency_code'],\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testInUse_NamesEveryColumn"
+  ]
+ },
+ {
+  "name": "V40 a purchase fixes the decimals of its currency",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        ['receivings', 'currency_code'],\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testInUse_NamesEveryColumn"
+  ]
+ },
+ {
+  "name": "V41 a payment of a purchase fixes the decimals of its currency",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        ['receivings_payments', 'currency_code'],\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testInUse_NamesEveryColumn"
+  ]
+ },
+ {
+  "name": "V42 an expense fixes the decimals of its currency",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        ['expenses', 'currency_code'],\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testInUse_NamesEveryColumn"
+  ]
+ },
+ {
+  "name": "V43 a voucher fixes the decimals of its currency",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        ['revenues', 'currency_code'],\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testInUse_NamesEveryColumn"
+  ]
+ },
+ {
+  "name": "V44 a treasury fixes the decimals of its currency",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        ['treasuries', 'currency_code'],\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testInUse_"
+  ]
+ },
+ {
+  "name": "V45 the sending side of a transfer fixes the decimals of its currency",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        ['treasury_transfers', 'from_currency'],\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testInUse_"
+  ]
+ },
+ {
+  "name": "V46 the receiving side of a transfer fixes the decimals of its currency",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        ['treasury_transfers', 'to_currency'],\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testInUse_"
+  ]
+ },
+ {
+  "name": "V47 a line of a journal fixes the decimals of its currency",
+  "file": "app/Libraries/Accounting/Currencies.php",
+  "find": "        ['accounting_journal_lines', 'currency_code'],\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/CurrenciesTest.php",
+   "--filter",
+   "testInUse_NamesEveryColumn"
+  ]
+ },
+ {
+  "name": "V48 the locked form of a currency sends no decimals and still saves its names",
+  "file": "app/Controllers/AccountingCurrencies.php",
+  "find": "if ($decimals !== null) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Controllers/AccountingCurrenciesControllerTest.php"
+  ]
+ },
+ {
+  "name": "V49 the exchange difference journal is not offered for a reversal by hand",
+  "file": "app/Controllers/AccountingJournals.php",
+  "find": ", ...JournalService::FX_SOURCES], true) &&",
+  "replace": "], true) &&",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php",
+   "--filter",
+   "ExchangeDifferenceJournal"
+  ]
+ },
+ {
+  "name": "V50 a journal in a foreign currency is not offered for a reversal by hand",
+  "file": "app/Controllers/AccountingJournals.php",
+  "find": "&& ($base === '' || (string) $journal->currency_code === $base) &&",
+  "replace": "&&",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php",
+   "--filter",
+   "ForeignAmountOfEachLine"
+  ]
+ },
+ {
+  "name": "V51 the journal screen shows the foreign amount of a line",
+  "file": "app/Views/accounting_journals/view.php",
+  "find": "$hasForeign = array_filter(",
+  "replace": "$hasForeign = false && array_filter(",
+  "tests": [
+   "tests/Controllers/AccountingJournalsControllerTest.php",
+   "--filter",
+   "ForeignAmountOfEachLine|ForeignColumn"
+  ]
+ },
+ {
+  "name": "V52 the columns are not dropped while a sale carries a currency",
+  "file": "app/Database/Migrations/20272300000001_DocumentCurrencyColumns.php",
+  "find": "$tables = [...self::DOCUMENTS, 'treasuries', 'accounting_journal_lines'];",
+  "replace": "$tables = [...array_diff(self::DOCUMENTS, ['sales']), 'treasuries', 'accounting_journal_lines'];",
+  "tests": [
+   "tests/Database/MultiCurrencyMigrationTest.php",
+   "--filter",
+   "testDown_RefusesToDrop"
+  ]
+ },
+ {
+  "name": "V53 the columns are not dropped while a treasury carries a currency",
+  "file": "app/Database/Migrations/20272300000001_DocumentCurrencyColumns.php",
+  "find": "$tables = [...self::DOCUMENTS, 'treasuries', 'accounting_journal_lines'];",
+  "replace": "$tables = [...self::DOCUMENTS, 'accounting_journal_lines'];",
+  "tests": [
+   "tests/Database/MultiCurrencyMigrationTest.php",
+   "--filter",
+   "testDown_RefusesToDrop"
+  ]
+ },
+ {
+  "name": "V54 the columns are not dropped while a journal line carries a currency",
+  "file": "app/Database/Migrations/20272300000001_DocumentCurrencyColumns.php",
+  "find": "$tables = [...self::DOCUMENTS, 'treasuries', 'accounting_journal_lines'];",
+  "replace": "$tables = [...self::DOCUMENTS, 'treasuries'];",
+  "tests": [
+   "tests/Database/MultiCurrencyMigrationTest.php",
+   "--filter",
+   "testDown_RefusesToDrop"
+  ]
+ },
+ {
+  "name": "V55 the columns are not dropped while a payment of a purchase carries a currency",
+  "file": "app/Database/Migrations/20272300000001_DocumentCurrencyColumns.php",
+  "find": "$tables = [...self::DOCUMENTS, 'treasuries', 'accounting_journal_lines'];",
+  "replace": "$tables = [...array_diff(self::DOCUMENTS, ['receivings_payments']), 'treasuries', 'accounting_journal_lines'];",
+  "tests": [
+   "tests/Database/MultiCurrencyMigrationTest.php",
+   "--filter",
+   "testDown_RefusesToDrop"
+  ]
+ },
+ {
+  "name": "V56 the list of treasuries shows the balance in the currency of the treasury",
+  "file": "app/Controllers/AccountingTreasuries.php",
+  "find": "'balance'     => $this->balanceCell($position->balance) . $this->foreignBalanceLine($position),",
+  "replace": "'balance'     => $this->balanceCell($position->balance),",
+  "tests": [
+   "tests/Controllers/AccountingTreasuriesControllerTest.php",
+   "--filter",
+   "testGetSearch_ShowsTheBalanceInTheCurrency"
+  ]
+ },
+ {
+  "name": "V57 the statement of a treasury shows the balance in its currency",
+  "file": "app/Controllers/AccountingTreasuries.php",
+  "find": "'foreign_balance' => $this->foreignBalanceCell($position),",
+  "replace": "'foreign_balance' => null,",
+  "tests": [
+   "tests/Controllers/AccountingTreasuriesControllerTest.php",
+   "--filter",
+   "testGetStatement_ShowsTheBalanceInTheCurrency"
+  ]
+ },
+ {
+  "name": "V58 the list of payments totals the foreign payments in the base",
+  "file": "app/Libraries/Accounting/CustomerDocuments.php",
+  "find": "ROUND((p.payment_amount - p.cash_refund) * p.currency_rate, {$decimals})",
+  "replace": "(p.payment_amount - p.cash_refund)",
+  "tests": [
+   "tests/Libraries/Accounting/CustomerDocumentsTest.php",
+   "--filter",
+   "testPayments_ListsA"
+  ]
+ },
+ {
+  "name": "V59 a foreign payment ties to the books in the base",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "$inBase  = $foreign ? bcadd((string) $payment->amount_base, '0', SaleAmounts::SCALE) : $amount;",
+  "replace": "$inBase  = $amount;",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php",
+   "--filter",
+   "GetPaymentsSearch_Shows"
+  ]
+ },
+ {
+  "name": "V60 a foreign payment is shown in its currency",
+  "file": "app/Controllers/AccountingReceivables.php",
+  "find": "'amount'        => $this->amountCell($foreign ? Money::format(",
+  "replace": "'amount'        => $this->amountCell($foreign && false ? Money::format(",
+  "tests": [
+   "tests/Controllers/AccountingReceivablesControllerTest.php",
+   "--filter",
+   "GetPaymentsSearch_Shows"
+  ]
+ },
+ {
+  "name": "V61 the settings of the shop are put back after a screen in a currency",
+  "file": "app/Libraries/Accounting/CurrencyDisplay.php",
+  "find": "        } finally {\n            $shop->settings = $before;\n        }",
+  "replace": "        } finally {\n        }",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyDisplayTest.php"
+  ]
+ },
+ {
+  "name": "V62 a screen in a currency takes the decimals of the currency",
+  "file": "app/Libraries/Accounting/CurrencyDisplay.php",
+  "find": "'currency_decimals' => (string) $currency->decimals",
+  "replace": "'currency_decimals' => '2'",
+  "tests": [
+   "tests/Libraries/Accounting/CurrencyDisplayTest.php"
+  ]
+ },
+ {
+  "name": "V63 a posted document keeps its rate down to the stored decimal",
+  "file": "app/Libraries/Accounting/DocumentCurrency.php",
+  "find": "bccomp($rate, $stored->rate, 8) === 0",
+  "replace": "bccomp($rate, $stored->rate, 2) === 0",
+  "tests": [
+   "tests/Libraries/Accounting/DocumentCurrencyTest.php"
+  ]
+ },
+ {
+  "name": "V64 a posted document keeps its currency",
+  "file": "app/Libraries/Accounting/DocumentCurrency.php",
+  "find": "return $code === $stored->code && $rate !== null",
+  "replace": "return $rate !== null",
+  "tests": [
+   "tests/Libraries/Accounting/DocumentCurrencyTest.php"
+  ]
+ }
+]

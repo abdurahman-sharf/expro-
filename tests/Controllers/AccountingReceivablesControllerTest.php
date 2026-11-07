@@ -5,6 +5,7 @@ namespace Tests\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AgingBuckets;
 use App\Libraries\Accounting\CreditRefunds;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
@@ -338,6 +339,42 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/id="f_customer_id" value="' . $this->customerId . '"/', $this->get('/accounting_receivables/payments?customer_id=' . $this->customerId)->getBody());
         $this->assertMatchesRegularExpression('/id="f_customer_id" value=""/', $this->get('/accounting_receivables/payments?customer_id=-4')->getBody());
         $this->assertMatchesRegularExpression('/id="f_customer_id" value=""/', $this->get('/accounting_receivables/payments?customer_id=abc')->getBody());
+    }
+
+    public function testGetPaymentsSearch_ShowsAForeignPaymentInItsCurrencyAndBooksItInTheBase(): void
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => $this->daysAgo(30)]);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.60', 'effective_date' => $this->daysAgo(5)]);
+        $this->grantInvoiceDate();
+
+        $service = $this->item('0', false);
+
+        $this->sales->useCurrency('USD');
+
+        $saleId = $this->save([$this->line($service, 0, '1', '100')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+
+        $this->addPayment($saleId, '100.00');
+        $this->viewer();
+
+        $rows = $this->paymentsOf()['rows'];
+
+        $this->assertCount(1, $rows);
+        $this->assertStringContainsString('100.00 USD', strip_tags($rows[0]['amount']), 'the amount is in the currency of the payment');
+        $this->assertStringContainsString('360.00', strip_tags($rows[0]['posted']), 'the books hold it in the base');
+        $this->assertStringContainsString(lang('Accounting_receivables.tie_booked'), strip_tags($rows[0]['posted']));
+    }
+
+    public function testGetPaymentsSearch_ShowsAPaymentOfASaleInTheBaseWithNoCurrencyCode(): void
+    {
+        $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '60.00')]);
+        $this->viewer();
+
+        $rows = $this->paymentsOf()['rows'];
+
+        $this->assertStringNotContainsString('USD', strip_tags($rows[0]['amount']));
+        $this->assertStringContainsString(lang('Accounting_receivables.tie_booked'), strip_tags($rows[0]['posted']));
     }
 
     public function testGetPaymentsSearch_NeverAsksForMoreThanTheLargestPage(): void

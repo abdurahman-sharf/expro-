@@ -1,6 +1,6 @@
 {
   "id": "T-62",
-  "title": "A cheque in US dollars collected at another rate: the reference system writes no difference journal and leaves 6.00 SAR in notes receivable, a defect not to copy; neither cheques nor foreign currencies exist here",
+  "title": "A cheque in US dollars collected at another rate: the reference system writes no difference journal and leaves 6.00 SAR in notes receivable, a defect not to copy; the cheque cycle here is in the base currency only",
   "recorded": "2026-10-28",
   "observation": {
     "batch": "b",
@@ -23,7 +23,7 @@
       "kind": "foreign_currency_cheque",
       "classification": "not_implemented",
       "work_package": "WP28",
-      "reason": "Needs the document currency (WP28); the cheque cycle itself is built (WP26) in the base currency only. When the currency is built, the difference must be booked as it is for invoices and payments; the residual the reference system leaves in notes receivable is a defect the package must not copy.",
+      "reason": "The document currency is built (WP28) for sales, purchases, returns and payments, but the cheque cycle (WP26) is in the base currency only: a cheque has no currency, so a cheque in a foreign currency cannot be received here. When the cheque takes a currency, the difference must be booked as it is for payments; the residual the reference system leaves in notes receivable is a defect the package must not copy.",
       "evidence": [
         "usd_cheque"
       ],
@@ -81,36 +81,13 @@
         "absent": [
           {
             "kind": "column",
-            "table": "sales",
+            "table": "cheques",
             "pattern": "currenc"
           },
           {
             "kind": "column",
-            "table": "sales_payments",
+            "table": "cheque_events",
             "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "receivings",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "receivings_payments",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "treasuries",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "table",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "table",
-            "pattern": "exchange_rate"
           }
         ]
       }

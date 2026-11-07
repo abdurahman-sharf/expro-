@@ -1,6 +1,6 @@
 {
   "id": "T-59",
-  "title": "A purchase in US dollars at 3.75 paid at 3.60: the supplier is debited at the rate of the payment and the difference is booked to the exchange difference account; this application has one currency",
+  "title": "A purchase in US dollars at 3.75 paid at 3.60: the supplier is debited at the rate of the payment and the difference is booked as a journal of its own; built here with the gain in the account of exchange gains",
   "recorded": "2026-10-28",
   "observation": {
     "batch": "b",
@@ -22,9 +22,8 @@
     {
       "id": "a-purchase-in-a-foreign-currency-paid-at-another-rate",
       "kind": "foreign_currency_purchase",
-      "classification": "not_implemented",
-      "work_package": "WP28",
-      "reason": "A purchase here has no currency and no rate (WP28).",
+      "classification": "differs",
+      "reason": "The purchase in a foreign currency is built (WP28): the purchase is posted at the rate of its day, the payment at the rate of its own day and the difference of 30.00 as a journal of its own tied to the payment, as the reference system does. It differs on purpose in two things: the goods are debited to the account of the stock they enter where the reference system debits the cost of sales, and the gain goes to the account of exchange gains where the reference system keeps one account for both.",
       "evidence": [
         "usd_purchase"
       ],
@@ -97,42 +96,48 @@
         }
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
-          {
-            "kind": "column",
-            "table": "sales",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "sales_payments",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "receivings",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "receivings_payments",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "column",
-            "table": "treasuries",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "table",
-            "pattern": "currenc"
-          },
-          {
-            "kind": "table",
-            "pattern": "exchange_rate"
-          }
-        ]
+        "journals": {
+          "purchase": [
+            {
+              "role": "stock",
+              "debit": "200.0000",
+              "credit": "0",
+              "debit_base": "750.00"
+            },
+            {
+              "role": "supplier",
+              "debit": "0",
+              "credit": "200.0000",
+              "credit_base": "750.00"
+            }
+          ],
+          "payment": [
+            {
+              "role": "supplier",
+              "debit": "200.0000",
+              "credit": "0",
+              "debit_base": "720.00"
+            },
+            {
+              "role": "treasury",
+              "debit": "0",
+              "credit": "200.0000",
+              "credit_base": "720.00"
+            }
+          ],
+          "difference_gain": [
+            {
+              "role": "supplier",
+              "debit": "30.00",
+              "credit": "0"
+            },
+            {
+              "role": "fx_gain",
+              "debit": "0",
+              "credit": "30.00"
+            }
+          ]
+        }
       }
     }
   ]

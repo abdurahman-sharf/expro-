@@ -17,7 +17,9 @@ use Config\OSPOS;
  * is counted by the drawer that holds the money. A payment counts as cash by what its name stands
  * for in the language in use or in English, and a payment that is not completed is not cash that
  * came in. An expense that belongs to no branch is one of the default branch. A receipt voucher
- * received in cash is cash that came in, counted for the days it is dated, as it carries no time.
+ * received in cash is cash that came in, counted for the days it is dated, as it carries no time. A payment
+ * of a sale in a foreign currency counts for what the books moved into the treasury, which is its amount
+ * at the rate of the payment rounded to the decimals of the base currency.
  */
 final class CashupExpectation
 {
@@ -51,8 +53,11 @@ final class CashupExpectation
      */
     private function cashSales(int $branchId, string $openDate, string $closeDate, bool $byDay): string
     {
-        $builder = $this->db->table('sales_payments p')
-            ->select('p.payment_type, SUM(p.payment_amount - p.cash_refund) AS amount', false)
+        $rate     = 'COALESCE(p.currency_rate, s.currency_rate)';
+        $net      = '(p.payment_amount - p.cash_refund)';
+        $decimals = (new Currencies($this->db))->baseDecimals();
+        $builder  = $this->db->table('sales_payments p')
+            ->select("p.payment_type, SUM(CASE WHEN {$rate} IS NULL THEN {$net} ELSE ROUND({$net} * {$rate}, {$decimals}) END) AS amount", false)
             ->join('sales s', 's.sale_id = p.sale_id')
             ->where('s.sale_status', COMPLETED)
             ->whereIn('s.sale_type', self::SALE_TYPES)

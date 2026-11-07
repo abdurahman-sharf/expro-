@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\InvoiceDiscountShares;
 use App\Libraries\Accounting\InvoiceTiming;
@@ -58,6 +59,12 @@ class Receiving extends Model
     ];
     private ?Throwable $accountingFailure = null;
     private int $supplierLockWait         = 15;
+
+    /** @var array{string, ?string}|null The currency the next purchase saved is in, and the rate typed for it. */
+    private ?array $currencyChoice = null;
+
+    /** @var array{string, ?string}|null */
+    private ?array $savingCurrency = null;
     private ?RecordScope $recordScope     = null;
 
     /**
@@ -209,6 +216,12 @@ class Receiving extends Model
 
             if ($hasDate) {
                 $changes['invoice_date'] = (string) $typedDate;
+            }
+
+            foreach (['currency_code', 'currency_rate'] as $column) {
+                if (array_key_exists($column, $receivingData)) {
+                    $changes[$column] = $receivingData[$column] === null ? null : (string) $receivingData[$column];
+                }
             }
 
             try {
@@ -444,7 +457,7 @@ class Receiving extends Model
             if ($this->costCarries($before)) {
                 $moved = $this->movedLines($before, $after);
 
-                $this->correctTheCost(model(Item::class), $this->linesOf($before, $moved), $this->linesOf($after, $moved));
+                $this->correctTheCost(model(Item::class), $this->linesOf($before, $moved), $this->linesOf($after, $moved), $before->currency?->rate);
             }
 
             if ($accountingOn) {
@@ -704,8 +717,9 @@ class Receiving extends Model
      *
      * @param list<ReceivingLine> $taken
      * @param list<ReceivingLine> $given
+     * @param numeric-string|null $rate   The rate of a purchase in a foreign currency, which the cost of the items is kept in the base by.
      */
-    private function correctTheCost(Item $item, array $taken, array $given): void
+    private function correctTheCost(Item $item, array $taken, array $given, ?string $rate = null): void
     {
         $figures = [];
 
@@ -719,7 +733,8 @@ class Receiving extends Model
 
                 $figures[$line->itemId] ??= ['0', '0', '0', '0'];
                 $figures[$line->itemId][$offset]     = bcadd($figures[$line->itemId][$offset], $units, 3);
-                $figures[$line->itemId][$offset + 1] = bcadd($figures[$line->itemId][$offset + 1], ReceivingAmounts::net($line), ReceivingAmounts::SCALE);
+                $net                                 = $rate === null ? ReceivingAmounts::net($line) : bcmul(ReceivingAmounts::net($line), $rate, ReceivingAmounts::SCALE);
+                $figures[$line->itemId][$offset + 1] = bcadd($figures[$line->itemId][$offset + 1], $net, ReceivingAmounts::SCALE);
             }
         }
 
@@ -930,6 +945,17 @@ class Receiving extends Model
     }
 
     /**
+     * Says which currency the next purchase that is saved is in. The choice is for that one save and is
+     * forgotten after it. The rate is the one of the table for the day of the purchase unless one is typed,
+     * which asks the permission to manage currencies. A return takes the currency and the rate of the
+     * purchase it gives back whatever is said, and a transfer of stock is never in a foreign currency.
+     */
+    public function useCurrency(?string $code, ?string $typedRate = null): void
+    {
+        $this->currencyChoice = $code === null || $code === '' ? null : [$code, $typedRate];
+    }
+
+    /**
      * Saves a purchase: goods coming in from a supplier, going back to one, or moving between
      * stock locations, as the signs of its lines say. Everything happens in one transaction,
      * the purchase, its stock, the cost of the items and the journals, and the books refusing it
@@ -948,6 +974,9 @@ class Receiving extends Model
             return -1;    // TODO: Replace -1 with a constant
         }
 
+        $this->savingCurrency = $this->currencyChoice;
+        $this->currencyChoice = null;
+
         try {
             return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplierId > 0 ? $supplierId : null, fn (): int => $this->saveValueLocked($items, $supplierId, $employeeId, $comment, $reference, $paymentType, $receivingId, $returnOfReceivingId, $invoiceDiscount ?? InvoiceDiscount::none(), $invoiceDate, $paymentTerms));
         } catch (AccountingException $busy) {
@@ -958,6 +987,8 @@ class Receiving extends Model
             $this->accountingFailure = $busy;
 
             return ACCOUNTING_FAILED;
+        } finally {
+            $this->savingCurrency = null;
         }
     }
 
@@ -1004,6 +1035,14 @@ class Receiving extends Model
             return ACCOUNTING_FAILED;
         }
 
+        try {
+            $currencyColumns = $this->currencyColumns($type, $returnOfReceivingId, $timing['invoice_date'] ?? date('Y-m-d'), $employeeId);
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
         $receivingsData = [
             'receiving_time'         => date('Y-m-d H:i:s'),
             'supplier_id'            => $supplier->exists($supplierId) ? $supplierId : null,
@@ -1016,6 +1055,7 @@ class Receiving extends Model
             'to_branch_id'           => $between['to'] ?? null,
             'return_of_receiving_id' => $type === ReceivingType::Return ? $returnOfReceivingId : null,
             'treasury_id'            => $treasuryId,
+            ...$currencyColumns,
             ...$timing,
         ];
 
@@ -1407,6 +1447,47 @@ class Receiving extends Model
     }
 
     /**
+     * The currency and the rate a purchase is saved with. A return is in the currency and at the rate of the
+     * purchase it gives back: it mirrors it, and is never re-rated. A transfer of stock is in the base. Anything
+     * else is in the base currency unless a currency was chosen, which takes the rate of the day of the
+     * purchase. A foreign currency needs the books to be on, because without them there is no base to convert to.
+     *
+     * @return array{currency_code: ?string, currency_rate: ?string}
+     *
+     * @throws AccountingException
+     */
+    private function currencyColumns(ReceivingType $type, ?int $returnOfReceivingId, string $date, int $employeeId): array
+    {
+        $none   = ['currency_code' => null, 'currency_rate' => null];
+        $choice = $this->savingCurrency;
+        $origin = $type === ReceivingType::Return && $returnOfReceivingId !== null
+            ? $this->db->table('receivings')->select('currency_code, currency_rate')->where('receiving_id', $returnOfReceivingId)->get()->getRow()
+            : null;
+
+        if ($origin !== null) {
+            $code = $origin->currency_code;
+
+            if ($choice !== null && $choice[0] !== (string) $code) {
+                throw new AccountingException(AccountingError::DocumentCurrencyLocked, 'A return is in the currency of the purchase it gives back.', ['receiving_id' => $returnOfReceivingId]);
+            }
+
+            return $code === null ? $none : ['currency_code' => $code, 'currency_rate' => $origin->currency_rate];
+        }
+
+        if ($choice === null) {
+            return $none;
+        }
+
+        if ($type === ReceivingType::Requisition || ! (new AccountingSettings($this->db))->isEnabled()) {
+            throw new AccountingException(AccountingError::ForeignCurrencyUnsupported, 'A purchase is in a foreign currency only while the books are on, and a transfer of stock never is.');
+        }
+
+        $currency = (new Currencies($this->db))->documentCurrency($choice[0], $date, $choice[1], $employeeId);
+
+        return $currency === null ? $none : ['currency_code' => $currency->code, 'currency_rate' => $currency->rate];
+    }
+
+    /**
      * Brings the cost of every stock item of a purchase to the weighted average, at what the
      * units cost after the discount of their line.
      */
@@ -1418,7 +1499,9 @@ class Receiving extends Model
             $units = ReceivingAmounts::units($line);
 
             if ($line->hasStock && bccomp($units, '0', 3) > 0) {
-                $item->applyPurchaseCost($line->itemId, $units, bcdiv(ReceivingAmounts::net($line), $units, 8));
+                $unitCost = bcdiv(ReceivingAmounts::net($line), $units, 8);
+
+                $item->applyPurchaseCost($line->itemId, $units, $purchase->currency === null ? $unitCost : bcmul($unitCost, $purchase->currency->rate, 8));
             }
         }
     }

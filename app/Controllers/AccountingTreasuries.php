@@ -3,8 +3,12 @@
 namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\Currency;
+use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\Bank\BankDirectory;
 use App\Libraries\Accounting\Bank\BankMatches;
+use App\Libraries\Accounting\TreasuryPosition;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\InterBranchPosition;
@@ -79,6 +83,7 @@ class AccountingTreasuries extends AccountingController
         return view('accounting_treasuries/statement', [
             'treasury'      => $treasury,
             'balance'       => $position->balance,
+            'foreign_balance' => $this->foreignBalanceCell($position),
             'rows'          => $rows,
             'matched'       => $treasury->kind === TreasuryService::BANK && $this->can(AccountingGuard::BANK_RECONCILE) ? (new BankMatches())->flagged(array_map(static fn (array $row): int => (int) $row['line_id'], $rows)) : [],
             'total_rows'    => count($movements['rows']),
@@ -111,6 +116,8 @@ class AccountingTreasuries extends AccountingController
                 TreasuryScopes::DEPOSIT  => $this->scopes->scopeOf((int) $treasury->treasury_id, TreasuryScopes::DEPOSIT),
                 TreasuryScopes::WITHDRAW => $this->scopes->scopeOf((int) $treasury->treasury_id, TreasuryScopes::WITHDRAW),
             ],
+            'currencies'     => array_values(array_filter((new Currencies())->all(true), fn (Currency $currency): bool => ! (new Currencies())->isBase($currency->code))),
+            'currency_fixed' => $treasury !== null && ((int) $treasury->is_main === 1 || $this->treasuries->hasHistory((int) $treasury->treasury_id)),
             'directory'      => BankDirectory::search(),
             'selectedBank'   => $treasury === null || $treasury->kind !== TreasuryService::BANK ? '' : (string) (($treasury->bank_code ?? '') !== '' ? $treasury->bank_code : (BankDirectory::codeOfName((string) $treasury->bank_name) ?? '')),
             'staff'          => $this->treasuries->employees(),
@@ -131,6 +138,10 @@ class AccountingTreasuries extends AccountingController
                 'description'    => (string) $this->request->getPost('description'),
                 'branch_id'      => (int) $this->request->getPost('branch_id'),
             ];
+
+            if ($this->request->getPost('currency_code') !== null) {
+                $input['currency_code'] = (string) $this->request->getPost('currency_code');
+            }
 
             foreach ([TreasuryScopes::DEPOSIT, TreasuryScopes::WITHDRAW] as $direction) {
                 if ($this->request->getPost($direction . '_scope') !== null) {
@@ -246,6 +257,7 @@ class AccountingTreasuries extends AccountingController
                 trim((string) $this->request->getPost('transfer_date')),
                 (string) $this->request->getPost('note'),
                 $this->employeeId(),
+                (string) $this->request->getPost('to_amount'),
             );
 
             return ['success' => true, 'message' => lang('Accounting_treasuries.transfer_done'), 'id' => $id];
@@ -376,7 +388,7 @@ class AccountingTreasuries extends AccountingController
             'name'        => $name,
             'kind'        => lang('Accounting_treasuries.kind_' . $treasury->kind),
             'branch_code' => $treasury->branch_code,
-            'balance'     => $this->balanceCell($position->balance),
+            'balance'     => $this->balanceCell($position->balance) . $this->foreignBalanceLine($position),
             'by_hand'     => $position->agrees()
                 ? '<span class="text-body-secondary">' . esc(lang('Accounting_treasuries.by_hand_none')) . '</span>'
                 : '<span class="badge text-bg-warning">' . $this->amountCell($this->formatAmount($position->manual)) . '</span>',
@@ -427,6 +439,22 @@ class AccountingTreasuries extends AccountingController
             TreasuryScopes::BRANCHES => lang('Accounting_treasuries.scope_branches_count', [count($scope['members'])]),
             default                  => lang('Accounting_treasuries.scope_all'),
         };
+    }
+
+    private function foreignBalanceCell(TreasuryPosition $position): ?string
+    {
+        if ($position->currencyCode === null || $position->foreignBalance === null) {
+            return null;
+        }
+
+        return $this->amountCell(Money::format($position->foreignBalance, (new Currencies())->decimalsOf($position->currencyCode), $position->currencyCode));
+    }
+
+    private function foreignBalanceLine(TreasuryPosition $position): string
+    {
+        $cell = $this->foreignBalanceCell($position);
+
+        return $cell === null ? '' : '<div class="small text-body-secondary">' . $cell . '</div>';
     }
 
     private function balanceCell(string $balance): string

@@ -1,4 +1,8 @@
 <?php
+
+use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\Money;
+
 /**
  * @var object $journal
  * @var list<array{time: string, action: string, employee: string, details: string}> $audit
@@ -22,6 +26,8 @@ $format   = static fn (?string $value): string => to_currency_no_money($value ??
 $date     = static fn (?string $value): string => $value === null || strtotime($value) === false ? '' : to_date(strtotime($value));
 $dateTime = static fn (?string $value): string => $value === null || strtotime($value) === false ? '' : to_datetime(strtotime($value));
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+$hasForeign = array_filter($journal->lines, static fn (object $line): bool => ($line->foreign_amount ?? null) !== null) !== [];
+$currencies = new Currencies();
 ?>
 
 <?= view('partial/header') ?>
@@ -148,6 +154,9 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                     <th scope="col"><?= lang('Accounting_journals.cost_center') ?></th>
                     <th scope="col" class="acc-amount"><?= lang('Accounting_journals.debit') ?></th>
                     <th scope="col" class="acc-amount"><?= lang('Accounting_journals.credit') ?></th>
+                    <?php if ($hasForeign): ?>
+                        <th scope="col" class="acc-amount"><?= lang('Accounting_journals.foreign_amount') ?></th>
+                    <?php endif; ?>
                 </tr>
             </thead>
             <tbody>
@@ -158,6 +167,9 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                         <td data-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>"><?= $line->cost_center_id === null ? '' : esc($line->cost_center_code . ' - ' . $line->cost_center_name) ?></td>
                         <td class="acc-amount" data-label="<?= esc(lang('Accounting_journals.debit'), 'attr') ?>"><bdi dir="ltr"><?= bccomp($line->debit, '0', 4) === 0 ? '' : esc($format($line->debit)) ?></bdi></td>
                         <td class="acc-amount" data-label="<?= esc(lang('Accounting_journals.credit'), 'attr') ?>"><bdi dir="ltr"><?= bccomp($line->credit, '0', 4) === 0 ? '' : esc($format($line->credit)) ?></bdi></td>
+                        <?php if ($hasForeign): ?>
+                            <td class="acc-amount" data-label="<?= esc(lang('Accounting_journals.foreign_amount'), 'attr') ?>"><bdi dir="ltr"><?= $line->foreign_amount === null ? '' : esc(Money::format((string) $line->foreign_amount, $currencies->decimalsOf((string) $line->currency_code), (string) $line->currency_code)) ?></bdi></td>
+                        <?php endif; ?>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -166,6 +178,9 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                     <th scope="row" colspan="3"><?= lang('Accounting_journals.totals') ?></th>
                     <td class="acc-amount"><bdi dir="ltr"><?= esc($format($journal->total_debit)) ?></bdi></td>
                     <td class="acc-amount"><bdi dir="ltr"><?= esc($format($journal->total_credit)) ?></bdi></td>
+                    <?php if ($hasForeign): ?>
+                        <td></td>
+                    <?php endif; ?>
                 </tr>
             </tfoot>
         </table>

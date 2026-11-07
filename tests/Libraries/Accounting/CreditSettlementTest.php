@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\CreditSource;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
@@ -406,6 +407,57 @@ class CreditSettlementTest extends CIUnitTestCase
     private function advanceTaker(): int
     {
         return $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::RECEIVABLES_REFUND]);
+    }
+
+    private function dollarsAt(string $rate): void
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => $rate, 'effective_date' => $this->daysAgo(30)]);
+    }
+
+    public function testSettle_SpendsAnAdvanceInTheBaseOnAnInvoiceInDollarsByItsAmountInTheBase(): void
+    {
+        $this->dollarsAt('3.75');
+        $this->sales->useCurrency('USD');
+
+        $invoice = $this->invoiceOf('100.00');
+        $advance = (new CustomerAdvances())->receive($this->customerId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $this->advanceTaker());
+
+        $this->assertSame([CreditSource::CUSTOMER_ADVANCE . ':' . $advance . '->' . $invoice . ':100.00'], $this->applications());
+        $this->assertSame('275.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('275.00', $this->balance($this->customerAccount()));
+        $this->assertTies();
+    }
+
+    public function testSettle_PaysACreditNoteOfAnInvoiceInDollarsIntoItAtTheRateOfTheInvoice(): void
+    {
+        $this->dollarsAt('3.75');
+        $this->sales->useCurrency('USD');
+
+        $invoice = $this->invoiceOf('100.00');
+        (new Currencies())->rates()->add(['currency_code' => 'USD', 'rate' => '3.00', 'effective_date' => date('Y-m-d')]);
+        $note = $this->creditNoteOf($invoice, '40.00');
+
+        $this->assertSame(['credit_note:' . $note . '->' . $invoice . ':150.00'], $this->applications());
+        $this->assertSame('225.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_TakesBackTheAdvanceSpentOnAnInvoiceInDollarsWhenTheAdvanceIsCancelled(): void
+    {
+        $this->dollarsAt('3.75');
+        $this->sales->useCurrency('USD');
+
+        $invoice = $this->invoiceOf('100.00');
+        $taker   = $this->advanceTaker();
+        $advance = (new CustomerAdvances())->receive($this->customerId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $taker);
+
+        (new CustomerAdvances())->cancel($advance, 'taken by mistake', $taker);
+
+        $this->assertSame([], $this->applications());
+        $this->assertSame('375.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertTies();
     }
 
     public function testSettle_TakesBackWhatWasPaidIntoAnInvoiceThatIsCancelled(): void

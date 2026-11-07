@@ -52,6 +52,8 @@
  * @var bool      $can_override_return
  * @var string|null $return_override
  * @var array{options: array<int, string>, selected: int}|null $priceListSelector
+ * @var array{options: array<string, string>, selected: string}|null $currencySelector
+ * @var bool      $has_cart_items
  * @var string    $return_document
  * @var bool      $email_receipt
  * @var bool      $price_work_orders
@@ -66,6 +68,8 @@ use App\Models\Employee;
 
 $keyboardShortcuts ??= [];
 $priceListSelector ??= null;
+$currencySelector  ??= null;
+$has_cart_items    ??= false;
 $sectionName   = ucfirst($controller_name);
 $shortcutLabel = static fn (string $name): string => $keyboardShortcuts[$name]['label'] ?? '';
 $hasCart       = count($cart) > 0;
@@ -196,6 +200,29 @@ $employee        = model(Employee::class);
                     </div>
                 </div>
             <?= form_close() ?>
+        <?php endif; ?>
+
+        <?php if ($currencySelector !== null): ?>
+            <?= form_open("{$controller_name}/setCurrency", ['id' => 'currency_form', 'class' => 'app-form card']) ?>
+                <div class="card-body pos-bar">
+                    <div class="pos-field">
+                        <label class="pos-label"><?= lang("{$sectionName}.currency") ?>: <bdi dir="ltr"><?= esc($currencySelector['selected']) ?></bdi></label>
+                        <?php if (! $has_cart_items): ?>
+                            <a href="#" id="change_currency" class="small ms-2"><?= lang("{$sectionName}.change_currency") ?></a>
+                            <div id="currency_choice" hidden>
+                                <?= form_dropdown('currency_code', $currencySelector['options'], $currencySelector['selected'], ['id' => 'currency_code', 'onchange' => "$('#currency_form').submit();", 'class' => 'form-select form-select-sm']) ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?= form_close() ?>
+            <script type="text/javascript">
+                $('#change_currency').on('click', function(event) {
+                    event.preventDefault();
+                    $('#currency_choice').prop('hidden', false);
+                    $(this).hide();
+                });
+            </script>
         <?php endif; ?>
 
         <?= form_open("{$controller_name}/add", ['id' => 'add_item_form', 'class' => 'app-form card']) ?>

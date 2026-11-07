@@ -25,6 +25,8 @@ return [
     'item_cheques_payable'          => 'Notes payable (cheques delivered)',
     'item_cheques_receivable'       => 'Notes receivable (cheques received)',
     'item_fiscal_retained_earnings' => 'Retained earnings',
+    'item_fx_gain'                  => 'Exchange gains',
+    'item_fx_loss'                  => 'Exchange losses',
     'item_giftcards_liability'      => 'Gift card liability',
     'item_inventory_locations'      => 'Stock locations (main account)',
     'item_purchases_adjustment'     => 'Purchases settlement',

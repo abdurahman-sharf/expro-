@@ -53,4 +53,12 @@ enum PostingError: string
     case PreviewMissing                = 'preview_missing';
     case PreviewHoldsSource            = 'preview_holds_source';
     case ItemAccountUnusable           = 'item_account_unusable';
+
+    case ForeignAmountMissing  = 'foreign_amount_missing';
+    case ForeignUnbalanced     = 'foreign_unbalanced';
+    case ForeignRateMismatch   = 'foreign_rate_mismatch';
+    case ForeignRoundingTooBig = 'foreign_rounding_too_big';
+    case FxAccountsMissing     = 'fx_accounts_missing';
+    case FxNotSupported        = 'fx_not_supported';
+    case TreasuryCurrency      = 'treasury_currency';
 }

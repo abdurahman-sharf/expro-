@@ -47,6 +47,9 @@ enum RoutingKey: string
     case NotesPayable           = 'cheques.payable';
     case RevenuesDefault        = 'revenues.default';
 
+    case FxGain = 'fx.gain';
+    case FxLoss = 'fx.loss';
+
     public const GROUPS = ['sales', 'purchases', 'inventory', 'treasuries', 'cheques', 'stock_permits', 'fiscal', 'other'];
 
     public function group(): string
@@ -197,7 +200,8 @@ enum RoutingKey: string
             self::SalesDiscount, self::SalesAdjustment, self::PurchaseDiscount, self::PurchaseAdjustment => [AccountType::Revenue, AccountType::Expense],
             self::CostOfGoodsSold, self::StockCountOut, self::StockCountIn, self::ChequeDepositFees => [AccountType::Expense],
             self::Purchases, self::PurchaseReturns => [AccountType::Asset, AccountType::Expense],
-            self::CashDifference   => [AccountType::Asset, AccountType::Revenue, AccountType::Expense],
+            self::CashDifference => [AccountType::Asset, AccountType::Revenue, AccountType::Expense],
+            self::FxGain, self::FxLoss => [AccountType::Revenue, AccountType::Expense, AccountType::Asset],
             self::RetainedEarnings => [AccountType::Equity],
             self::TaxInput         => [AccountType::Asset, AccountType::Liability],
             default                => [],
@@ -261,6 +265,9 @@ enum RoutingKey: string
             self::ChequeDepositFees      => 'cheque_deposit_fees',
             self::NotesPayable           => 'notes_payable',
             self::RevenuesDefault        => 'revenues_default',
+
+            self::FxGain => 'fx_gain',
+            self::FxLoss => 'fx_loss',
         };
     }
 }

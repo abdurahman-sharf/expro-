@@ -9,6 +9,9 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\CreditSource;
+use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\Currency;
+use App\Libraries\Accounting\CurrencyDisplay;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\DraftInvoice;
@@ -331,6 +334,14 @@ class Sales extends Secure_Controller
         $mode = $this->request->getPost('mode', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
         if ($mode !== $this->sale_lib->get_mode()) {
+            if ($mode === 'return' && $this->sale_lib->getCurrency() !== null) {
+                if ($this->sale_lib->get_cart() !== []) {
+                    return $this->reload(['error' => lang('Sales.currency_return_mode')]);
+                }
+
+                $this->sale_lib->clearCurrency();
+            }
+
             $this->sale_lib->clearInvoiceDiscount();
             $this->sale_lib->clearHeaderCharges();
             $this->sale_lib->clearReturnDocument();
@@ -591,6 +602,121 @@ class Sales extends Secure_Controller
         $this->sale_lib->empty_payments();
 
         return $this->reload();
+    }
+
+    /**
+     * Chooses the currency of the sale in the register: a foreign currency that is switched on and has a rate,
+     * or the base currency. The choice is made while the cart is empty, because the prices in it are in the
+     * currency chosen, and a return takes the currency of the sale it comes from. Used in app/Views/sales/register.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postSetCurrency(): ResponseInterface|string
+    {
+        $code = strtoupper(trim((string) $this->request->getPost('currency_code')));
+
+        if (!(new AccountingSettings())->isEnabled()) {
+            return $this->reload(['error' => lang('Sales.not_authorized')]);
+        }
+
+        if ($this->sale_lib->is_return_mode()) {
+            return $this->reload(['error' => lang('Sales.currency_return_mode')]);
+        }
+
+        if ($this->sale_lib->get_cart() !== []) {
+            return $this->reload(['error' => lang('Sales.currency_cart_not_empty')]);
+        }
+
+        $currencies = new Currencies();
+
+        if ($code === '' || $currencies->isBase($code)) {
+            $this->sale_lib->clearCurrency();
+
+            return $this->reload();
+        }
+
+        try {
+            $currencies->documentCurrency($code, date('Y-m-d'));
+        } catch (AccountingException $refusal) {
+            return $this->reload(['error' => AccountingMessage::of($refusal)]);
+        }
+
+        $this->sale_lib->setCurrency($code);
+        $this->sale_lib->empty_payments();
+
+        return $this->reload();
+    }
+
+    /**
+     * The currency the register shows its amounts in: that of the sale, or of the sale a return takes back.
+     */
+    private function registerDisplayCurrency(): ?Currency
+    {
+        $origin = $this->sale_lib->get_return_origin();
+        $code   = $this->sale_lib->is_return_mode() ? ($origin === null ? null : $this->sale->getCurrencyCode($origin)) : $this->sale_lib->getCurrency();
+
+        return $code === null ? null : (new Currencies())->find($code);
+    }
+
+    /**
+     * The tiles of the best sellers, priced in the currency of the sale.
+     *
+     * @return list<object>
+     */
+    private function quickItemsIn(?Currency $currency): array
+    {
+        $items = $this->quickItems();
+
+        if ($currency === null || $this->sale_lib->is_return_mode()) {
+            return $items;
+        }
+
+        try {
+            return array_map(function (object $item): object {
+                $priced             = clone $item;
+                $priced->unit_price = $this->sale_lib->catalogPrice((string) $item->unit_price);
+
+                return $priced;
+            }, $items);
+        } catch (AccountingException) {
+            return [];
+        }
+    }
+
+    /**
+     * The currency the sale is saved in. A return takes the currency of the sale it takes back, so what the
+     * register holds does not count for it.
+     */
+    private function registerCurrency(): ?string
+    {
+        return $this->sale_lib->is_return_mode() ? null : $this->sale_lib->getCurrency();
+    }
+
+    /**
+     * The currencies the register offers, or null when it offers none: the books are off, the sale is a
+     * return, or no foreign currency is switched on.
+     *
+     * @return array{options: array<string, string>, selected: string}|null
+     */
+    private function currencySelector(): ?array
+    {
+        if (!(new AccountingSettings())->isEnabled() || $this->sale_lib->is_return_mode()) {
+            return null;
+        }
+
+        $currencies = new Currencies();
+        $arabic     = str_starts_with($this->request->getLocale(), 'ar');
+        $options    = [];
+
+        foreach ($currencies->all(true) as $currency) {
+            if ($currency->decimals > Currencies::DOCUMENT_DECIMALS) {
+                continue;
+            }
+
+            $options[$currency->code] = $currency->code . ' - ' . ($arabic ? $currency->nameAr : $currency->nameEn);
+        }
+
+        return count($options) < 2 ? null : ['options' => $options, 'selected' => $this->sale_lib->getCurrency() ?? $currencies->baseCode()];
     }
 
     /**
@@ -1124,6 +1250,10 @@ class Sales extends Secure_Controller
             return $this->reload($data);
         }
 
+        if ($this->sale_lib->getCurrency() !== null && ($paymentType === lang('Sales.giftcard') || $paymentType === lang('Sales.rewards'))) {
+            return $this->reload(['error' => lang('Sales.currency_stored_value')]);
+        }
+
         $isReturnMode = $this->sale_lib->get_mode() === 'return';
         $amountTenderedRule = $isReturnMode ? 'trim|required|decimal_locale' : 'trim|required|decimal_locale|nonNegativeDecimal';
 
@@ -1337,6 +1467,13 @@ class Sales extends Secure_Controller
             }
         }
 
+        $currencyFailure = $this->sale_lib->currencyFailure();
+
+        if ($currencyFailure !== null) {
+            unset($data['warning']);
+            $data['error'] = AccountingMessage::of($currencyFailure);
+        }
+
         $priceProblem = $this->refusedLinePrices($cartBefore);
 
         if ($priceProblem !== null) {
@@ -1372,7 +1509,14 @@ class Sales extends Secure_Controller
         }
 
         $controls = new PriceControls();
-        $violations = $controls->violationsOf($changed);
+
+        try {
+            $violations = $controls->isActive() && $changed !== [] ? $controls->violationsOf($changed, $this->sale_lib->currencyRate()) : [];
+        } catch (AccountingException $refusal) {
+            $this->sale_lib->set_cart($cartBefore);
+
+            return AccountingMessage::of($refusal);
+        }
 
         if ($violations === [] || $controls->mayOverride((int) $this->employee->get_logged_in_employee_info()->person_id)) {
             return null;
@@ -1520,6 +1664,8 @@ class Sales extends Secure_Controller
      */
     public function postComplete(): string    // TODO: this function is huge.  Probably should be refactored.
     {
+        $this->sale->useCurrency($this->registerCurrency());
+
         $saleId = $this->sale_lib->get_sale_id();
         $data = [];
         $data['dinner_table'] = $this->sale_lib->get_dinner_table();
@@ -2576,7 +2722,9 @@ class Sales extends Secure_Controller
         $data['cart'] = $this->sale_lib->get_cart();
         $customerInfo = $this->_load_customer_data($this->sale_lib->get_customer(), $data, true);
 
-        $data['quick_items'] = $this->quickItems();
+        $displayCurrency = $this->registerDisplayCurrency();
+
+        $data['quick_items'] = $this->quickItemsIn($displayCurrency);
         $data['modes'] = $this->sale_lib->get_register_mode_options();
         $data['mode'] = $this->sale_lib->get_mode();
         $data['selected_table'] = $this->sale_lib->get_dinner_table();
@@ -2692,6 +2840,8 @@ class Sales extends Secure_Controller
         $data['can_override_return']   = $this->mayOverrideReturn();
         $data['return_override']       = $this->sale_lib->getReturnOverride();
         $data['priceListSelector']     = $this->priceListSelector();
+        $data['currencySelector']      = $this->currencySelector();
+        $data['has_cart_items']        = $this->sale_lib->get_cart() !== [];
 
         $data['pos_mode'] = $data['mode'] == 'sale' || $data['mode'] == 'return';
 
@@ -2717,7 +2867,11 @@ class Sales extends Secure_Controller
             $data['customer_required'] = lang('Sales.customer_optional');
         }
 
-        return view("sales/register", $data);
+        if ($displayCurrency !== null) {
+            $data['config'] = CurrencyDisplay::settingsFor($displayCurrency);
+        }
+
+        return CurrencyDisplay::within($displayCurrency, static fn (): string => view('sales/register', $data));
     }
 
     /**
@@ -3173,6 +3327,8 @@ class Sales extends Secure_Controller
      */
     public function postSuspend(): ResponseInterface|string
     {
+        $this->sale->useCurrency($this->registerCurrency());
+
         $saleId = $this->sale_lib->get_sale_id();
         $dinnerTable = $this->sale_lib->get_dinner_table();
         $cart = $this->sale_lib->get_cart();

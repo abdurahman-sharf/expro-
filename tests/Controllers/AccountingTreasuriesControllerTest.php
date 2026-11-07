@@ -4,6 +4,7 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Bank\BankDirectory;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
@@ -563,6 +564,128 @@ class AccountingTreasuriesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('Elsewhere (B2)', $body);
         $this->assertStringContainsString('data-branch="', $body);
         $this->assertStringContainsString('id="between_note"', $body);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Treasuries that hold a foreign currency
+    // ---------------------------------------------------------------------------------------
+
+    private function dollarBox(int $manager, string $funded = '100.00'): int
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+
+        if ($currencies->rates()->rateOn('USD', '2026-10-21') === null) {
+            $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2020-01-01']);
+        }
+
+        $box = $this->treasuries->create(['name' => 'Dollar box', 'kind' => 'cash', 'currency_code' => 'USD'], $manager);
+        $main = $this->treasuries->ensureMain();
+
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-10-20',
+            lines: [new JournalLineDraft((int) $this->treasuries->accountOf($main), debit: '1000.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '1000.00')],
+            sourceType: 'opening',
+            sourceId: random_int(1000, 9999),
+            currencyCode: 'SAR',
+        ));
+
+        (new TreasuryTransfers())->transfer($main, $box, bcmul($funded, '3.75', 2), '2026-10-21', '', $manager, $funded);
+
+        return $box;
+    }
+
+    public function testGetSearch_ShowsTheBalanceInTheCurrencyOfATreasuryBesideItsBalanceInTheBase(): void
+    {
+        $manager = $this->manager();
+        $box     = $this->dollarBox($manager);
+        $drawer  = $this->treasuries->create(['name' => 'Base drawer', 'kind' => 'cash'], $manager);
+
+        $rows = array_column($this->rowsOf()['rows'], 'balance', 'treasury_id');
+
+        $this->assertStringContainsString('375.00', strip_tags($rows[$box]));
+        $this->assertStringContainsString('100.00 USD', strip_tags($rows[$box]));
+        $this->assertStringNotContainsString('USD', strip_tags($rows[$drawer]));
+    }
+
+    public function testGetStatement_ShowsTheBalanceInTheCurrencyOfTheTreasuryAndNothingForATreasuryInTheBase(): void
+    {
+        $manager = $this->manager();
+        $box     = $this->dollarBox($manager);
+        $drawer  = $this->treasuries->create(['name' => 'Base drawer', 'kind' => 'cash'], $manager);
+
+        $this->get('/accounting_treasuries/statement/' . $box)->assertSee('id="treasury_foreign_balance"');
+        $this->assertStringContainsString('100.00 USD', strip_tags($this->get('/accounting_treasuries/statement/' . $box)->getBody()));
+        $this->get('/accounting_treasuries/statement/' . $drawer)->assertDontSee('id="treasury_foreign_balance"');
+    }
+
+    public function testGetView_OffersTheCurrenciesSwitchedOnAndLocksTheCurrencyOfATreasuryThatHasHistory(): void
+    {
+        $manager = $this->manager();
+        $box     = $this->dollarBox($manager);
+        $drawer  = $this->treasuries->create(['name' => 'Fresh drawer', 'kind' => 'cash'], $manager);
+        $locked  = '/<select name="currency_code"[^>]*\sdisabled/';
+
+        $this->assertMatchesRegularExpression('/<option value="USD" selected>USD - /', $this->get('/accounting_treasuries/view/' . $box)->getBody());
+        $this->assertMatchesRegularExpression($locked, $this->get('/accounting_treasuries/view/' . $box)->getBody());
+        $this->assertDoesNotMatchRegularExpression($locked, $this->get('/accounting_treasuries/view/' . $drawer)->getBody());
+        $this->assertStringContainsString('<option value="USD"', $this->get('/accounting_treasuries/view/' . $drawer)->getBody());
+        $this->assertStringNotContainsString('<option value="SAR"', $this->get('/accounting_treasuries/view/' . $drawer)->getBody(), 'the base currency is the empty choice and not a currency of its own');
+    }
+
+    public function testPostSave_CreatesATreasuryInADollarAndRejectsACurrencyThatIsSwitchedOff(): void
+    {
+        $this->manager();
+        (new Currencies())->setActive('USD', true);
+
+        $created  = json_decode($this->post('/accounting_treasuries/save', ['name' => 'Dollar box', 'kind' => 'cash', 'currency_code' => 'USD', 'branch_id' => '1'])->getJSON(), true);
+        $rejected = json_decode($this->post('/accounting_treasuries/save', ['name' => 'Euro box', 'kind' => 'cash', 'currency_code' => 'EUR', 'branch_id' => '1'])->getJSON(), true);
+
+        $this->assertTrue($created['success'], (string) ($created['message'] ?? ''));
+        $this->assertSame('USD', $this->treasuries->find((int) $created['id'])->currency_code);
+        $this->assertFalse($rejected['success']);
+        $this->assertSame(0, $this->accountingDb()->table('treasuries')->where('name', 'Euro box')->countAllResults());
+    }
+
+    public function testGetTransferForm_CarriesTheCurrencyOfEachTreasuryAndKeepsTheAmountThatArrivesHiddenUntilTheCurrenciesDiffer(): void
+    {
+        $manager = $this->manager();
+        $box     = $this->dollarBox($manager);
+
+        $body = $this->get('/accounting_treasuries/transfer_form')->getBody();
+
+        $this->assertStringContainsString('value="' . $box . '"', $body);
+        $this->assertMatchesRegularExpression('/value="' . $box . '"[^>]*data-currency="USD"/', $body);
+        $this->assertMatchesRegularExpression('/id="to_amount_field" hidden/', $body);
+        $this->assertMatchesRegularExpression('/name="to_amount"[^>]*disabled/', $body);
+    }
+
+    public function testPostTransfer_MovesBetweenTheBaseAndADollarTreasuryWithTheAmountThatArrives(): void
+    {
+        $manager = $this->manager();
+        $box     = $this->dollarBox($manager, '10.00');
+        $main    = $this->treasuries->ensureMain();
+
+        $done = json_decode($this->post('/accounting_treasuries/transfer', ['from_treasury_id' => $box, 'to_treasury_id' => $main, 'amount' => '4.00', 'to_amount' => '15.00', 'transfer_date' => '2026-10-22'])->getJSON(), true);
+
+        $this->assertTrue($done['success'], (string) ($done['message'] ?? ''));
+        $this->assertSame('6.0000', $this->treasuries->position($box)->foreignBalance);
+    }
+
+    public function testPostTransfer_RequiresTheAmountThatArrivesWhenTheCurrenciesDifferAndRejectsOneFarFromTheRateOfTheDay(): void
+    {
+        $manager = $this->manager();
+        $box     = $this->dollarBox($manager, '10.00');
+        $main    = $this->treasuries->ensureMain();
+
+        $missing = json_decode($this->post('/accounting_treasuries/transfer', ['from_treasury_id' => $main, 'to_treasury_id' => $box, 'amount' => '37.50', 'transfer_date' => '2026-10-22'])->getJSON(), true);
+        $far     = json_decode($this->post('/accounting_treasuries/transfer', ['from_treasury_id' => $main, 'to_treasury_id' => $box, 'amount' => '37.50', 'to_amount' => '100.00', 'transfer_date' => '2026-10-22'])->getJSON(), true);
+
+        $this->assertFalse($missing['success']);
+        $this->assertSame(lang('Accounting.error_transfer_amount_required'), $missing['message']);
+        $this->assertFalse($far['success']);
+        $this->assertSame(lang('Accounting.error_transfer_rate_out_of_range', ['37.50', '375.00', '10']), $far['message']);
+        $this->assertSame('10.0000', $this->treasuries->position($box)->foreignBalance);
     }
 
     public function testGetTransfers_ShowsWhatEachBranchIsOwedAndOwesAndNothingWhenThereIsNoTransferBetweenBranches(): void

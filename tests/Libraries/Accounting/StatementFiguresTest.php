@@ -156,7 +156,7 @@ class StatementFiguresTest extends CIUnitTestCase
 
         $this->assertSame(['4'], $this->codes($figures, AccountType::Revenue, 1));
         $this->assertSame(['4', '41', '42'], $this->codes($figures, AccountType::Revenue, 2));
-        $this->assertSame(['4', '41', '411', '412', '42', '4201', '4202', '4203', '4204', '4208'], $this->codes($figures, AccountType::Revenue, 3));
+        $this->assertSame(['4', '41', '411', '412', '42', '4201', '4202', '4203', '4204', '4208', '4209'], $this->codes($figures, AccountType::Revenue, 3));
         $this->assertSame(['5', '51', '52', '53', '54'], $this->codes($figures, AccountType::Expense, 2));
     }
 

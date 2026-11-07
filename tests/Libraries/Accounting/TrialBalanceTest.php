@@ -133,6 +133,35 @@ class TrialBalanceTest extends CIUnitTestCase
         $this->assertSame('140.0000', $this->row($report, '41')->credit, 'The group above the sales account holds what it holds');
     }
 
+    public function testBuild_TotalsJournalsInADollarInTheBaseAndStillBalances(): void
+    {
+        $this->cashSale('2026-10-05', 1, '100.00');
+        $this->foreignCashSale('2026-10-06', 1, '100.00');
+        $this->postOn('2026-10-07', 1, [[$this->accountId('fx_loss'), '15.00', '0'], [$this->accountId('cash'), '0', '15.00']]);
+
+        $report = $this->build();
+        $cash   = $this->row($report, '120101');
+
+        $this->assertTrue($report->balances());
+        $this->assertSame(['475.0000', '15.0000', '460.0000'], [$cash->debit, $cash->credit, $cash->closing()], 'a hundred dollars at 3.75 are 375 of the base');
+        $this->assertSame('475.0000', $this->row($report, '411')->credit);
+        $this->assertSame('15.0000', $this->row($report, '5410')->debit);
+        $this->assertSame(['490.0000', '490.0000'], [$report->totals['debit'], $report->totals['credit']]);
+    }
+
+    public function testBuild_ShowsTheBaseTotalsOfADollarJournalOfOneBranchOnlyToThatBranch(): void
+    {
+        $this->foreignCashSale('2026-10-06', 1, '100.00');
+        $this->foreignCashSale('2026-10-06', $this->second, '10.00');
+
+        $company = $this->build();
+        $branch  = $this->build(scope: ReportScope::resolve(null, [$this->second]));
+
+        $this->assertSame('412.5000', $company->totals['debit']);
+        $this->assertSame('37.5000', $branch->totals['debit']);
+        $this->assertTrue($branch->balances());
+    }
+
     public function testBuild_GivesAGroupItsOwnLinesAndThoseOfTheAccountsUnderIt(): void
     {
         $this->cashSale('2026-10-05', 1, '100.00');

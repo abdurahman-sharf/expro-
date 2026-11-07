@@ -9,11 +9,13 @@ use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerBalanceReport;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerDocuments;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\CustomerPosition;
 use App\Libraries\Accounting\PartyReportQuery;
+use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\ReturnDocument;
@@ -641,14 +643,16 @@ class AccountingReceivables extends AccountingController
      */
     private function paymentRow(object $payment, bool $seesBranches): array
     {
-        $amount = bcadd((string) $payment->amount, '0', SaleAmounts::SCALE);
-        $posted = bcadd((string) $payment->posted, '0', SaleAmounts::SCALE);
-        $number = $payment->document_number !== null ? (string) $payment->document_number : (string) $payment->payment_id;
+        $amount  = bcadd((string) $payment->amount, '0', SaleAmounts::SCALE);
+        $foreign = $payment->currency_code !== null && $payment->currency_rate !== null;
+        $inBase  = $foreign ? bcadd((string) $payment->amount_base, '0', SaleAmounts::SCALE) : $amount;
+        $posted  = bcadd((string) $payment->posted, '0', SaleAmounts::SCALE);
+        $number  = $payment->document_number !== null ? (string) $payment->document_number : (string) $payment->payment_id;
         $type   = PaymentType::fromLabel((string) $payment->payment_type);
         $status = PaymentStatus::fromStored((string) $payment->payment_status);
 
         $tie = match (true) {
-            bccomp($posted, $amount, SaleAmounts::SCALE) === 0 && bccomp($posted, '0', SaleAmounts::SCALE) !== 0 => 'booked',
+            bccomp($posted, $inBase, SaleAmounts::SCALE) === 0 && bccomp($posted, '0', SaleAmounts::SCALE) !== 0 => 'booked',
             bccomp($posted, '0', SaleAmounts::SCALE) === 0                                                       => 'unbooked',
             default                                                                                              => 'differs',
         };
@@ -659,7 +663,7 @@ class AccountingReceivables extends AccountingController
             'payment_time'  => esc($this->formatDateTime((string) $payment->payment_time)),
             'customer_name' => $payment->customer_id === null ? esc(lang('Accounting_receivables.counter_customer')) : $this->customerCell((int) $payment->customer_id, (string) $payment->customer_name),
             'sale'          => anchor('sales/receipt/' . (int) $payment->sale_id, esc('POS ' . (int) $payment->sale_id), ['target' => '_blank', 'dir' => 'ltr']) . ((string) $payment->invoice_number === '' ? '' : ' <bdi dir="ltr">' . esc((string) $payment->invoice_number) . '</bdi>'),
-            'amount'        => $this->amountCell($this->formatAmount($amount)),
+            'amount'        => $this->amountCell($foreign ? Money::format($amount, (new Currencies())->decimalsOf((string) $payment->currency_code), (string) $payment->currency_code) : $this->formatAmount($amount)),
             'posted'        => $this->amountCell($this->formatAmount($posted)) . ' <span class="badge ' . ($tie === 'booked' ? 'text-bg-success' : ($tie === 'differs' ? 'text-bg-warning' : 'text-bg-secondary')) . '">' . esc(lang('Accounting_receivables.tie_' . $tie)) . '</span>',
             'way'           => esc($type === null ? (string) $payment->payment_type : lang($type->languageKey()) . (str_contains((string) $payment->payment_type, ':') ? ':' . explode(':', (string) $payment->payment_type, 2)[1] : '')) . ((string) $payment->reference_code === '' ? '' : ' <bdi dir="ltr">' . esc((string) $payment->reference_code) . '</bdi>'),
             'treasury'      => esc((string) ($payment->treasury_name ?? '')),

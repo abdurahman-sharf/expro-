@@ -80,11 +80,12 @@ final class SaleAmounts
      */
     public static function figures(SaleDocument $sale, int $decimals): array
     {
+        $decimals = $sale->currency?->decimals ?? $decimals;
         $amounts  = self::totals($sale, $decimals);
         $shipping = $sale->charges?->shippingNet() ?? '0.0000';
         $tax      = bcadd($amounts['tax'], $sale->charges?->shippingTax ?? '0', self::SCALE);
         $adjusted = $sale->charges?->adjustment ?? '0.0000';
-        $split    = InvoiceRounding::split(bcadd(bcadd($amounts['net'], $shipping, self::SCALE), $adjusted, self::SCALE), $tax);
+        $split    = InvoiceRounding::split(bcadd(bcadd($amounts['net'], $shipping, self::SCALE), $adjusted, self::SCALE), $tax, $sale->currency?->decimals ?? 2);
         $revenue  = bcsub(bcsub($split['revenue'], $shipping, self::SCALE), $adjusted, self::SCALE);
 
         if (bccomp($amounts['net'], '0', self::SCALE) === 0 && bccomp($shipping, '0', self::SCALE) > 0) {

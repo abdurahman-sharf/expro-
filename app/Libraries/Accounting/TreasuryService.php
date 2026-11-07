@@ -101,7 +101,7 @@ final class TreasuryService
     }
 
     /**
-     * @param array{name?: mixed, kind?: mixed, description?: mixed, branch_id?: mixed, bank_code?: mixed, bank_name?: mixed, account_number?: mixed, deposit_scope?: mixed, deposit_members?: mixed, withdraw_scope?: mixed, withdraw_members?: mixed} $input
+     * @param array{name?: mixed, kind?: mixed, description?: mixed, branch_id?: mixed, currency_code?: mixed, bank_code?: mixed, bank_name?: mixed, account_number?: mixed, deposit_scope?: mixed, deposit_members?: mixed, withdraw_scope?: mixed, withdraw_members?: mixed} $input
      *
      * @throws AccountingException|BranchException|PostingException
      */
@@ -115,12 +115,13 @@ final class TreasuryService
         $scopes      = $this->scopes->validated($input);
         $description = $this->description($input['description'] ?? '');
         $branchId    = (int) ($input['branch_id'] ?? 0) > 0 ? (int) $input['branch_id'] : $this->branches->defaultBranchId($employeeId);
+        $currency    = $this->currencyOf($input['currency_code'] ?? null);
 
         $this->branches->requireBranch($branchId, $employeeId);
         $this->assertBranchExists($branchId);
         $this->ensureMain($employeeId);
 
-        return $this->transactional(function () use ($name, $kind, $bank, $scopes, $description, $branchId, $employeeId): int {
+        return $this->transactional(function () use ($name, $kind, $bank, $scopes, $description, $branchId, $currency, $employeeId): int {
             $this->assertNameFree($name);
             $this->assertBankAccountFree($bank);
 
@@ -133,6 +134,7 @@ final class TreasuryService
                 'bank_code'      => $bank['bank_code'],
                 'account_number' => $bank['account_number'],
                 'description'    => $description,
+                'currency_code'  => $currency,
                 'created_by'     => $employeeId,
             ]);
 
@@ -140,7 +142,7 @@ final class TreasuryService
 
             $this->accounts->ensure(EntityAccountService::TREASURY, $treasuryId, $name, $employeeId, $this->parentKey($kind));
             $this->scopes->apply($treasuryId, $scopes, $employeeId, $branchId);
-            $this->audit->write('treasury', $treasuryId, 'created', $employeeId, JournalOrigin::User, ['name' => $name, 'kind' => $kind] + $bank, $branchId);
+            $this->audit->write('treasury', $treasuryId, 'created', $employeeId, JournalOrigin::User, ['name' => $name, 'kind' => $kind] + $bank + ($currency === null ? [] : ['currency' => $currency]), $branchId);
 
             return $treasuryId;
         });
@@ -150,7 +152,7 @@ final class TreasuryService
      * A treasury that changes between cash and bank takes its account to the main account of the
      * other: only its place in the chart changes, so its balance and its entries stay as they are.
      *
-     * @param array{name?: mixed, kind?: mixed, description?: mixed, bank_code?: mixed, bank_name?: mixed, account_number?: mixed, deposit_scope?: mixed, deposit_members?: mixed, withdraw_scope?: mixed, withdraw_members?: mixed} $input
+     * @param array{name?: mixed, kind?: mixed, description?: mixed, currency_code?: mixed, bank_code?: mixed, bank_name?: mixed, account_number?: mixed, deposit_scope?: mixed, deposit_members?: mixed, withdraw_scope?: mixed, withdraw_members?: mixed} $input
      *
      * @throws AccountingException|BranchException
      */
@@ -163,8 +165,9 @@ final class TreasuryService
         $bank        = $this->bankDetails($kind, $input);
         $scopes      = $this->scopes->validated($input);
         $description = $this->description($input['description'] ?? '');
+        $currency    = array_key_exists('currency_code', $input) ? $this->currencyOf($input['currency_code']) : false;
 
-        $this->transactional(function () use ($treasuryId, $name, $kind, $bank, $scopes, $description, $employeeId): void {
+        $this->transactional(function () use ($treasuryId, $name, $kind, $bank, $scopes, $description, $currency, $employeeId): void {
             $treasury = $this->lock($treasuryId);
 
             $this->branches->requireBranch((int) $treasury->branch_id, $employeeId);
@@ -175,7 +178,13 @@ final class TreasuryService
                 throw new AccountingException(AccountingError::TreasuryIsMain, 'The main treasury is a cash treasury.', ['treasury_id' => $treasuryId]);
             }
 
-            $this->db->table('treasuries')->where('treasury_id', $treasuryId)->update(['name' => $name, 'kind' => $kind, 'description' => $description] + $bank);
+            $changesCurrency = $currency !== false && $currency !== ($treasury->currency_code ?? null);
+
+            if ($changesCurrency && ((int) $treasury->is_main === 1 || $this->isUsed($treasuryId))) {
+                throw new AccountingException(AccountingError::TreasuryCurrencyLocked, 'The currency of a treasury that has been used, or of the main treasury, cannot change.', ['treasury_id' => $treasuryId]);
+            }
+
+            $this->db->table('treasuries')->where('treasury_id', $treasuryId)->update(['name' => $name, 'kind' => $kind, 'description' => $description] + $bank + ($changesCurrency ? ['currency_code' => $currency] : []));
 
             if ($treasury->kind !== $kind) {
                 $this->accounts->relocate(EntityAccountService::TREASURY, $treasuryId, $this->parentKey($kind) ?? RoutingKey::Treasuries, $employeeId);
@@ -184,8 +193,8 @@ final class TreasuryService
             $this->accounts->rename(EntityAccountService::TREASURY, $treasuryId, $name, $employeeId);
             $this->scopes->apply($treasuryId, $scopes, $employeeId, (int) $treasury->branch_id);
             $this->audit->write('treasury', $treasuryId, 'updated', $employeeId, JournalOrigin::User, [
-                'before' => ['name' => $treasury->name, 'kind' => $treasury->kind, 'description' => $treasury->description, 'bank_name' => $treasury->bank_name, 'bank_code' => $treasury->bank_code ?? null, 'account_number' => $treasury->account_number],
-                'after'  => ['name' => $name, 'kind' => $kind, 'description' => $description] + $bank,
+                'before' => ['name' => $treasury->name, 'kind' => $treasury->kind, 'description' => $treasury->description, 'bank_name' => $treasury->bank_name, 'bank_code' => $treasury->bank_code ?? null, 'account_number' => $treasury->account_number] + ($changesCurrency ? ['currency' => $treasury->currency_code ?? null] : []),
+                'after'  => ['name' => $name, 'kind' => $kind, 'description' => $description] + $bank + ($changesCurrency ? ['currency' => $currency] : []),
             ], (int) $treasury->branch_id);
         });
     }
@@ -594,21 +603,24 @@ final class TreasuryService
             return new TreasuryPosition($treasuryId, null, '0.0000', '0.0000');
         }
 
+        $held = $this->db->table('treasuries')->select('currency_code')->where('treasury_id', $treasuryId)->get()->getRow()->currency_code ?? null;
+
         $journals = $this->db->prefixTable('accounting_journals');
         $lines    = $this->db->prefixTable('accounting_journal_lines');
         $statuses = [JournalStatus::Posted->value, JournalStatus::Reversed->value];
 
         $row = $this->db->query(
             "SELECT COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS balance,
-                    COALESCE(SUM(CASE WHEN COALESCE(o.source_type, j.source_type) = ? THEN l.debit - l.credit ELSE 0 END), 0) AS manual
+                    COALESCE(SUM(CASE WHEN COALESCE(o.source_type, j.source_type) = ? THEN l.debit - l.credit ELSE 0 END), 0) AS manual,
+                    COALESCE(SUM(CASE WHEN l.currency_code = ? THEN IF(l.debit > 0, l.foreign_amount, 0 - l.foreign_amount) ELSE 0 END), 0) AS foreign_balance
              FROM {$lines} l
              JOIN {$journals} j ON j.journal_id = l.journal_id
              LEFT JOIN {$journals} o ON o.journal_id = j.reverses_journal_id
              WHERE j.status IN (?, ?) AND l.account_id = ?",
-            [self::HAND_WRITTEN, ...$statuses, $accountId],
+            [self::HAND_WRITTEN, (string) $held, ...$statuses, $accountId],
         )->getRow();
 
-        return new TreasuryPosition($treasuryId, $accountId, bcadd((string) $row->balance, '0', SaleAmounts::SCALE), bcadd((string) $row->manual, '0', SaleAmounts::SCALE));
+        return new TreasuryPosition($treasuryId, $accountId, bcadd((string) $row->balance, '0', SaleAmounts::SCALE), bcadd((string) $row->manual, '0', SaleAmounts::SCALE), $held, $held === null ? null : bcadd((string) $row->foreign_balance, '0', SaleAmounts::SCALE));
     }
 
     /**
@@ -692,6 +704,14 @@ final class TreasuryService
         return $row;
     }
 
+    /**
+     * Whether anything has been put in the treasury or taken out of it, which fixes its currency.
+     */
+    public function hasHistory(int $treasuryId): bool
+    {
+        return $this->isUsed($treasuryId);
+    }
+
     private function isUsed(int $treasuryId): bool
     {
         foreach (['sales_payments', 'receivings_payments', 'receivings', 'expenses', 'cash_up', 'cheques', 'cheque_books', 'revenues', 'bank_statements', 'bank_reconciliations'] as $table) {
@@ -707,6 +727,25 @@ final class TreasuryService
         $accountId = $this->accountOf($treasuryId);
 
         return $accountId !== null && $this->db->table('accounting_journal_lines')->where('account_id', $accountId)->countAllResults() > 0;
+    }
+
+    /**
+     * The currency a treasury holds: none for the base currency or when nothing is named, and otherwise a
+     * currency the books know and have switched on.
+     *
+     * @throws AccountingException
+     */
+    private function currencyOf(mixed $value): ?string
+    {
+        $code = strtoupper(trim((string) $value));
+
+        if ($code === '') {
+            return null;
+        }
+
+        $currencies = new Currencies($this->db);
+
+        return $currencies->isBase($code) ? null : $currencies->requireForeign($code)->code;
     }
 
     /**

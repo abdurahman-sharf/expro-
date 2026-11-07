@@ -9,8 +9,11 @@
  * @var list<object>                                                       $scope_branches
  * @var list<array{code: string, country: string, en: string, ar: string}> $directory
  * @var string                                                             $selectedBank
+ * @var list<Currency>                                                     $currencies
+ * @var bool                                                               $currency_fixed
  */
 
+use App\Libraries\Accounting\Currency;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 
@@ -44,6 +47,23 @@ $isBank = ! $isNew && $treasury->kind === TreasuryService::BANK;
                     <?php endif; ?>
                 </div>
             </div>
+
+            <?php if ($currencies !== []): ?>
+                <div class="field">
+                    <?= form_label(lang('Accounting_treasuries.currency'), 'currency_code', ['class' => 'form-label']) ?>
+                    <div class="field-control">
+                        <select name="currency_code" id="currency_code" class="form-select form-select-sm"<?= $currency_fixed ? ' disabled' : '' ?>>
+                            <option value=""><?= esc(lang('Accounting_treasuries.currency_base')) ?></option>
+                            <?php foreach ($currencies as $currency): ?>
+                                <option value="<?= esc($currency->code, 'attr') ?>"<?= ! $isNew && ($treasury->currency_code ?? null) === $currency->code ? ' selected' : '' ?>><?= esc($currency->code . ' - ' . (str_starts_with(service('request')->getLocale(), 'ar') ? $currency->nameAr : $currency->nameEn)) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <?php if ($currency_fixed): ?>
+                            <div class="form-text"><?= esc(lang('Accounting_treasuries.currency_locked')) ?></div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
 
             <div class="field bank-field"<?= $isBank ? '' : ' hidden' ?>>
                 <?= form_label(lang('Accounting_treasuries.bank_directory'), 'bank_code', ['class' => 'form-label']) ?>
