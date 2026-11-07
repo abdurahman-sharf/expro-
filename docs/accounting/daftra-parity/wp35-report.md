@@ -83,27 +83,28 @@
 
 ## 2. الأدلة
 
-| الملف (ملف واحد لكل صنف) | الاختبارات |
+| الملف (ملف واحد لكل صنف) | الاختبارات (بعد المرحلة الثالثة، بصفوف مزوّدات البيانات) |
 |---|---|
-| `tests/Libraries/SalesOrders/SalesOrdersTest.php` و`SalesOrderStatusTest` و`SalesOrderSettingsTest` و`LineInputTest` | 52 + 6 + 4 + 6 |
-| `tests/Controllers/Customer_ordersControllerTest.php` | 28 |
-| `tests/Libraries/Recurring/RecurrenceTermsTest.php` | 19 |
-| `tests/Libraries/Recurring/ScheduleInputTest.php` | 13 |
-| `tests/Libraries/Recurring/RecurringSchedulesTest.php` | 32 |
-| `tests/Libraries/Recurring/RecurringGeneratorTest.php` | 32 |
-| `tests/Libraries/Recurring/RecurringRemindersTest.php` | 8 |
-| `tests/Libraries/Recurring/RunRefusalTest.php` | 8 |
-| `tests/Controllers/Recurring_invoicesControllerTest.php` و`Recurring_expensesControllerTest.php` | 26 + 11 |
-| `tests/Commands/AccountingGenerateRecurringTest.php` | 8 |
+| `tests/Libraries/SalesOrders/SalesOrdersTest.php` و`SalesOrderStatusTest` و`SalesOrderSettingsTest` و`LineInputTest` | 53 + 6 + 4 + 6 |
+| `tests/Controllers/Customer_ordersControllerTest.php` (كان `Sales_ordersControllerTest`) | 42 |
+| `tests/Libraries/Recurring/RecurrenceTermsTest.php` | 30 |
+| `tests/Libraries/Recurring/ScheduleInputTest.php` | 44 |
+| `tests/Libraries/Recurring/RecurringSchedulesTest.php` | 36 |
+| `tests/Libraries/Recurring/RecurringGeneratorTest.php` | 42 |
+| `tests/Libraries/Recurring/RecurringRemindersTest.php` و`RunRefusalTest.php` | 8 + 8 |
+| `tests/Libraries/Recurring/GenerationRuntimeTest.php` و`RecurrencePhraseTest.php` (جديدان) | 3 + 23 |
+| `tests/Libraries/Accounting/TextInputTest.php` (جديد) | 3 |
+| `tests/Controllers/Recurring_invoicesControllerTest.php` و`Recurring_expensesControllerTest.php` | 36 + 19 |
+| `tests/Commands/AccountingGenerateRecurringTest.php` | 10 |
 | `tests/Libraries/Accounting/Readiness/RecurringChecksTest.php` | 7 |
-| `tests/Database/OrderToCashDocumentsMigrationTest.php` | 10 |
-| طرق أضيفت إلى ملفات قائمة | `SalePostingTest` (3: `datedBySchedule`)، `LanguageFilesTest` (2: ملفات اللغة الجديدة بكل لغاتها المترجمة)، `ReadinessRunnerTest` و`AccountingReadinessTest` (رقم الفحوص) |
+| `tests/Database/OrderToCashDocumentsMigrationTest.php` | 20 |
+| طرق أضيفت إلى ملفات قائمة | `SalePostingTest` (3: `datedBySchedule`)، `Sale_libTest` (3: مصدر الأمر و`clear_all` و`prepareInvoiceFromOrder`)، `LanguageFilesTest` (ملفات اللغة الجديدة، **واختبار على كل اللغات الـ46** لترتيب المفاتيح وفراغ غير المترجم)، `ReadinessRunnerTest` و`AccountingReadinessTest` (رقم الفحوص) |
 
 **ما غطّته الاختبارات:** المولِّد (**تشغيل متكرر، وعمليتان حقيقيتان معًا، وفترة مقفلة، وجدولة موقوفة ومنتهية، وأقصى عدد مرات، وتاريخ انتهاء، وتواريخ نهاية الشهر (31 يناير + شهر) والسنة الكبيسة، واللحاق بالترتيب بسقف، واستئناف بعد إيقاف، وفقدان صلاحية الموظف وفرعه، وفقد العدّاد والمفتاح الفريد، ويوم التطبيق مقابل ساعة القاعدة، والمحاسبة معطلة، والتدقيق، والمصروف بتقسيم الضريبة**)، وإعادة المحاولة، والجدولة (**كل رفض مسمّى وأثره**: صلاحية النوع والفرع والتحرير بعد أول موعد والحالات)، وتحويل الأمر وتتبع الكميات والفروع والصلاحيات والمحاسبة معطلة (الوكيل السابق)، والشاشات (**صلاحية، ونطاق فرع، وPOST فقط، ووحدة النوع، وتنبيهات**)، والأمر (رموز الخروج والخيارات)، والترحيل (القيود، والمفاتيح الفريدة، وإعادة التشغيل، وإزالته).
 
-**نتائج التشغيل (من `/home/user/wt/WP35` بقاعدة `ospos_test_wp35`):** - **الملفات التي شغّلتُها كلها، كل ملف بقاعدته:** `tests/Database/OrderToCashDocumentsMigrationTest.php` و`tests/Libraries/SalesOrders` و`tests/Libraries/Recurring` و`tests/Libraries/Numbering` و`tests/Libraries/Accounting/Readiness` و`tests/Commands` و`tests/Controllers/Customer_ordersControllerTest.php` و`Recurring_invoicesControllerTest.php` و`Recurring_expensesControllerTest.php` و`tests/Models/SaleTest.php` و`tests/Libraries/Sale_libTest.php` و`tests/Libraries/Accounting/AccountingMessageTest.php` و`tests/LanguageFilesTest.php` و`tests/helpers`: **3998 اختبارًا، كلها نجحت (4 تخطّتها الأطر لا مني)**؛ ثم `tests/Libraries/Accounting/SalePostingTest.php` و`tests/Controllers/SalesControllerTest.php` و`ConfigTest.php` و`tests/Libraries/Accounting/ExpensePostingTest.php` و`tests/Controllers/ExpensesControllerTest.php` مع ملفي المولِّد والتنبيهات: **1103 اختبارات نجحت**. وبعد تقوية الاختبارات لأدلة الحراس أعدتُ `RecurringGeneratorTest` و`RecurringSchedulesTest` و`ScheduleInputTest` و`Recurring_invoicesControllerTest` و`SalesOrdersTest`: **180 اختبارًا نجحت**.
+**نتائج التشغيل (من `/home/user/wt/WP35` بقاعدة `ospos_test_wp35`، كل ملف أو مجلد بتشغيل واحد، بعد آخر تعديل):** `tests/Database/OrderToCashDocumentsMigrationTest.php` (20) و`tests/Libraries/SalesOrders` (69) و`tests/Libraries/Recurring` (194) و`tests/Libraries/Accounting/TextInputTest.php` (3) و`tests/Libraries/Numbering` (104) و`tests/Libraries/Accounting/Readiness` (229) و`tests/Commands` (74) و`tests/Controllers/Customer_ordersControllerTest.php` (42) و`Recurring_invoicesControllerTest.php` (36) و`Recurring_expensesControllerTest.php` (19) و`tests/Models/SaleTest.php` (110) و`ModuleTest.php` (9) و`EmployeeTest.php` (33) و`tests/Libraries/Sale_libTest.php` (83) و`tests/LanguageFilesTest.php` (2682) و`tests/helpers` (123، **4 تخطّتها الأطر لا مني**) و`tests/Libraries/Roles` (155) و`tests/Controllers/EmployeesControllerTest.php` (64) و`tests/Libraries/Accounting/SalePostingTest.php` بمرشّح `DatedBySchedule|InvoiceDate` (6): **4055 اختبارًا كلها نجحت**. **لم أعد في هذه المرحلة تشغيل `SalesControllerTest` و`SalePostingTest` كاملين و`ConfigTest` و`ExpensePostingTest` و`ExpensesControllerTest`** (شغّلتُها في المرحلة الثانية بعد آخر تعديل في `Sales.php` و`Sale_lib.php`، **ولم تغيّر هذه المرحلة منهما شيئًا، وغيّرت في `Sale.php` محاذاة سطرين فقط**).
 - **لم أشغّل الحزمة كاملة** (قاعدة المالك وحدها المرجع، والحزمة تستغرق نحو ساعة وتشاركني فيها وكلاء آخرون).
-- **تجربة يدوية من سطر الأوامر الحقيقي** (`CI_ENVIRONMENT=development MYSQL_DB_NAME=ospos_test_wp35 php spark accounting:generate_recurring`) على قاعدة الاختبار والمحاسبة معطلة: جدولة مصروف وجدولة فاتورة «مُصدَرة» بموعدين مضيا، فصنع مصروفين وفاتورتين (برقم الفاتورة القديم) بلا جلسة وخرج بـ0.
+- **تجربة يدوية من سطر الأوامر الحقيقي** (`CI_ENVIRONMENT=development MYSQL_DB_NAME=ospos_test_wp35 php spark accounting:generate_recurring`) على قاعدة الاختبار والمحاسبة معطلة: جدولة مصروف وجدولة فاتورة «مُصدَرة» بموعدين مضيا، فصنع مصروفين وفاتورتين (برقم الفاتورة القديم) بلا جلسة وخرج بـ0. **وبعد المرحلة الثالثة** أعدتُ تشغيل الأمر من سطر الأوامر الحقيقي على القاعدة نفسها بلا جدولات: يطبّق `GenerationRuntime` بلا خطأ (`RESULT: 0 made, 0 refused, 0 failed, 0 already made, 0 ended, 0 busy, 0 over the cap.` والخروج 0)؛ أما حالة دقة bcmath صفر فمُثبتة باختبار يضبطها صفرًا قبل التشغيل.
 
 ## 3. أدلة تعطيل الحارس
 
