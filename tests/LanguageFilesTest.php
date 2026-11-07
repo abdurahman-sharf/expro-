@@ -406,4 +406,15 @@ class LanguageFilesTest extends CIUnitTestCase
             }
         }
     }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testAccountingOperationalReportsFile_ExplainsItsRulesWithoutNamingAnotherSystem(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_operational_reports.php";
+
+        foreach (['note_profit', 'note_revenue_rule'] as $key) {
+            $this->assertNotSame('', $messages[$key], "{$locale} lacks {$key}");
+            $this->assertDoesNotMatchRegularExpression('/دفترة|daftra|reference system/iu', $messages[$key], "{$locale} names another system in {$key}");
+        }
+    }
 }

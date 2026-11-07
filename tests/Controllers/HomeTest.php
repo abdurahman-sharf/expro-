@@ -341,6 +341,26 @@ class HomeTest extends CIUnitTestCase
         $this->assertSame([], array_values(array_filter($urls, static fn (string $url): bool => str_contains($url, 'inventory_valuation'))));
     }
 
+    public function testGetSearchIndex_OffersTheOperationalReportsToWhoHoldsTheFinancialReportsModuleAndThePermissionOfEachWhileAccountingIsOn(): void
+    {
+        $urls = $this->searchIndexUrls(['accounting_reports', 'reports_sales', 'reports_payments'], '1');
+
+        foreach (['accounting_reports/revenue?group=day', 'accounting_reports/net_position', 'accounting_reports/invoice_returns', 'accounting_reports/payments?group=customer', 'accounting_reports/advance_payments'] as $path) {
+            $this->assertNotEmpty(array_filter($urls, static fn (string $url): bool => str_ends_with($url, $path)), $path);
+        }
+
+        $this->assertSame([], array_values(array_filter($urls, static fn (string $url): bool => str_contains($url, 'accounting_reports/item_sales') || str_contains($url, 'accounting_reports/profit'))));
+    }
+
+    public function testGetSearchIndex_DoesNotOfferTheOperationalReportsWhileAccountingIsOffOrWithoutTheFinancialReportsModule(): void
+    {
+        $off     = $this->searchIndexUrls(['accounting_reports', 'reports_sales'], '0');
+        $without = $this->searchIndexUrls(['reports_sales', 'accounting_journals'], '1');
+
+        $this->assertSame([], array_values(array_filter($off, static fn (string $url): bool => str_contains($url, 'accounting_reports/revenue'))));
+        $this->assertSame([], array_values(array_filter($without, static fn (string $url): bool => str_contains($url, 'accounting_reports/revenue'))));
+    }
+
     /**
      * Create a non-admin employee for testing
      *

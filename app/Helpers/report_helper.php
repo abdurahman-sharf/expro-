@@ -185,6 +185,76 @@ function reportCatalog(array $permissionIds, ?bool $accountingOn = null): array
 }
 
 /**
+ * The operational reports of the books, offered beside the others in the reports index and in the quick
+ * search: sales by period, customer and employee, what was sold, profit, payments and the position of the
+ * invoices after their returns. Each is offered to someone who holds the module of the financial reports and
+ * the permission of the report, and the link opens the first grouping the person may read. They are offered
+ * only while accounting is on.
+ *
+ * @param list<string> $permissionIds
+ * @param bool|null    $accountingOn  Null reads the setting.
+ *
+ * @return list<array{label: string, subjects: list<array{icon: string, label: string, links: list<array{path: string, label: string, icon: string}>}>}>
+ */
+function operationalReportCatalog(array $permissionIds, ?bool $accountingOn = null): array
+{
+    if (! in_array('accounting_reports', $permissionIds, true)) {
+        return [];
+    }
+
+    $accountingOn ??= (new AccountingSettings())->isEnabled();
+
+    if (! $accountingOn) {
+        return [];
+    }
+
+    $groups = ['reports_sales' => 'day', 'reports_customers' => 'customer', 'reports_employees' => 'user'];
+    $items  = ['reports_items' => 'item', 'reports_categories' => 'category', 'reports_customers' => 'customer', 'reports_employees' => 'user'];
+
+    $subjects = [
+        ['bi-cart3', 'Accounting_operational_reports.catalog_sales', [
+            ['revenue', $groups, 'Accounting_operational_reports.revenue_title'],
+            ['clients_sales', ['reports_customers' => ''], 'Accounting_operational_reports.clients_title'],
+            ['net_position', ['reports_sales' => ''], 'Accounting_operational_reports.net_title'],
+            ['invoice_returns', ['reports_sales' => ''], 'Accounting_operational_reports.cross_title'],
+        ]],
+        ['bi-box-seam', 'Accounting_operational_reports.catalog_items', [
+            ['item_sales', $items, 'Accounting_operational_reports.items_title'],
+        ]],
+        ['bi-credit-card', 'Accounting_operational_reports.catalog_payments', [
+            ['payments', ['reports_payments' => 'customer'], 'Accounting_operational_reports.payments_title'],
+            ['advance_payments', ['reports_payments' => ''], 'Accounting_operational_reports.advances_title'],
+        ]],
+        ['bi-graph-up-arrow', 'Accounting_operational_reports.catalog_profit', [
+            ['profit', ['reports_items' => 'day', 'reports_categories' => 'category', 'reports_customers' => 'customer', 'reports_employees' => 'user'], 'Accounting_operational_reports.profit_title'],
+            ['item_profit', $items, 'Accounting_operational_reports.item_profit_title'],
+        ]],
+    ];
+
+    $offered = [];
+
+    foreach ($subjects as [$icon, $label, $reports]) {
+        $links = [];
+
+        foreach ($reports as [$route, $permissions, $linkLabel]) {
+            foreach ($permissions as $permission => $group) {
+                if (in_array($permission, $permissionIds, true)) {
+                    $links[] = ['path' => site_url('accounting_reports/' . $route) . ($group === '' ? '' : '?group=' . $group), 'label' => lang($linkLabel), 'icon' => 'bi-table'];
+
+                    break;
+                }
+            }
+        }
+
+        if ($links !== []) {
+            $offered[] = ['icon' => $icon, 'label' => lang($label), 'links' => $links];
+        }
+    }
+
+    return $offered === [] ? [] : [['label' => lang('Accounting_operational_reports.catalog_group'), 'subjects' => $offered]];
+}
+
+/**
  * The report permissions that open a report for the logged-in employee. The expenses reports hold
  * the figures of the whole company, since expenses carry no branch, so only an employee who works in
  * every branch is offered them.

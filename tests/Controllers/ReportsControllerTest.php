@@ -499,6 +499,24 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('reports/summary_expenses_categories', $this->get('/reports')->getBody());
     }
 
+    public function testGetIndex_ListsTheOperationalReportsOnlyForWhoHoldsTheFinancialReportsModule(): void
+    {
+        $this->openTheBooks();
+
+        $this->loginAs($this->employeeWithGrants(['reports', 'accounting_reports', 'reports_sales', 'reports_items'], null));
+
+        $with = $this->get('/reports')->getBody();
+
+        $this->assertStringContainsString('accounting_reports/revenue?group=day', $with);
+        $this->assertStringContainsString('accounting_reports/net_position', $with);
+        $this->assertStringContainsString('accounting_reports/item_sales?group=item', $with);
+        $this->assertStringNotContainsString('accounting_reports/payments', $with);
+
+        $this->loginAs($this->employeeWithGrants(['reports', 'reports_sales', 'reports_items'], null));
+
+        $this->assertStringNotContainsString('accounting_reports/revenue', $this->get('/reports')->getBody());
+    }
+
     public function testSummaryExpensesCategories_AcceptsAnEmployeeOfEveryBranch(): void
     {
         $this->openTheBooks();
