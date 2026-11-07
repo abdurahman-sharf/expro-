@@ -83,6 +83,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Verkauf',
     'sales_desc'                   => 'Bearbeitung von Verkäufen und Retouren.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Lieferanten',
     'suppliers_desc'               => 'Hinzufügen, Ändern, Löschen und Suchen von Lieferanten.',
     'taxes'                        => 'Steuern',

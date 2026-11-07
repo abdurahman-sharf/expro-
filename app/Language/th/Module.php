@@ -83,6 +83,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'งานขาย',
     'sales_desc'                   => 'งานขาย และ รับคืน',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'ผู้ผลิต',
     'suppliers_desc'               => 'เพิ่ม, อัพเดท, ลบ, และค้นหา ผู้ผลิต',
     'taxes'                        => 'ภาษี',

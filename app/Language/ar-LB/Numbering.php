@@ -26,6 +26,9 @@ return [
     'type_debit_note'         => 'إشعار مدين',
     'type_expense'            => 'مصروف',
     'type_paid_cheque'        => 'شيك مدفوع',
+    'type_permit_in'          => 'إذن إضافة مخزن',
+    'type_permit_out'         => 'إذن صرف مخزن',
+    'type_permit_transfer'    => 'إذن تحويل مخزن',
     'type_purchase'           => 'فاتورة شراء',
     'type_received_cheque'    => 'شيك مستلم',
     'type_refund_invoice'     => 'فاتورة مرتجعة',
@@ -33,5 +36,7 @@ return [
     'type_sales_debit_note'   => 'الإشعار المدين للمبيعات',
     'type_sales_invoice'      => 'فاتورة بيع',
     'type_sales_quote'        => 'عرض سعر',
+    'type_stock_request'      => 'طلب مخزون',
+    'type_stocktake'          => 'جرد المخزون',
     'type_supplier_payment'   => 'دفعة مورد',
 ];

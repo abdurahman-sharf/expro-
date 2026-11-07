@@ -25,6 +25,12 @@ enum DocumentType: string
     case Revenue         = 'revenue';
     case SalesDebitNote  = 'sales_debit_note';
 
+    case StockPermitAdd      = 'permit_in';
+    case StockPermitIssue    = 'permit_out';
+    case StockPermitTransfer = 'permit_transfer';
+    case Stocktake           = 'stocktake';
+    case StockRequest        = 'stock_request';
+
     /**
      * The tables a document of this kind may be stored in, with the column of its id.
      *
@@ -40,8 +46,11 @@ enum DocumentType: string
             self::SupplierPayment => ['receivings_payments' => 'payment_id', 'supplier_advances' => 'advance_id'],
             self::Expense         => ['expenses' => 'expense_id'],
             self::ReceivedCheque, self::PaidCheque => ['cheques' => 'cheque_id'],
-            self::Revenue => ['revenues' => 'revenue_id'],
+            self::Revenue        => ['revenues' => 'revenue_id'],
             self::SalesDebitNote => ['sales_debit_notes' => 'debit_note_id'],
+            self::StockPermitAdd, self::StockPermitIssue, self::StockPermitTransfer => ['stock_permits' => 'permit_id'],
+            self::Stocktake    => ['stocktakes' => 'stocktake_id'],
+            self::StockRequest => ['stock_requests' => 'request_id'],
         };
     }
 
@@ -82,20 +91,29 @@ enum DocumentType: string
             self::CreditNote, self::RefundInvoice => 'POS ' . $id,
             self::Purchase, self::DebitNote => 'RECV ' . $id,
             self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue => (string) $id,
-            self::SalesDebitNote => str_pad((string) $id, $this->defaultPadding(), '0', STR_PAD_LEFT),
-            self::ReceivedCheque => 'CHQ-IN ' . $id,
-            self::PaidCheque     => 'CHQ-OUT ' . $id,
-            default              => '',
+            self::SalesDebitNote      => str_pad((string) $id, $this->defaultPadding(), '0', STR_PAD_LEFT),
+            self::ReceivedCheque      => 'CHQ-IN ' . $id,
+            self::PaidCheque          => 'CHQ-OUT ' . $id,
+            self::StockPermitAdd      => 'STK-IN ' . $id,
+            self::StockPermitIssue    => 'STK-OUT ' . $id,
+            self::StockPermitTransfer => 'STK-TRF ' . $id,
+            self::Stocktake           => 'STKT ' . $id,
+            self::StockRequest        => 'STK-REQ ' . $id,
+            default                   => '',
         };
     }
 
     /**
      * The digits a number of the kind has until the company chooses otherwise: the sales debit note
-     * is numbered with five, as the reference system numbers it.
+     * is numbered with five and the stock documents with six, as the reference system numbers them.
      */
     public function defaultPadding(): int
     {
-        return $this === self::SalesDebitNote ? 5 : 0;
+        return match ($this) {
+            self::SalesDebitNote => 5,
+            self::StockPermitAdd, self::StockPermitIssue, self::StockPermitTransfer, self::Stocktake, self::StockRequest => 6,
+            default => 0,
+        };
     }
 
     public function labelKey(): string

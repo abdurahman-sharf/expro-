@@ -17,6 +17,9 @@ use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\OpeningStockResult;
 use App\Libraries\Accounting\OpeningStockStatus;
 use App\Libraries\Accounting\YearEndClosing;
+use App\Libraries\Stock\StockPermit;
+use App\Libraries\Stock\StockRequest;
+use App\Libraries\Stock\Stocktake;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use Config\Database;
@@ -74,6 +77,21 @@ file_put_contents($readyFile, '1');
 while (!file_exists($goFile)) {
     usleep(1000);
 }
+
+$attempt = static function (callable $action, string $outcomeFile): bool {
+    try {
+        $action();
+        $outcome = 'done';
+    } catch (AccountingException $exception) {
+        $outcome = $exception->error->value;
+    } catch (Throwable $exception) {
+        $outcome = get_class($exception) . ' ' . $exception->getMessage();
+    }
+
+    file_put_contents($outcomeFile, $outcome);
+
+    return $outcome === 'done';
+};
 
 $result = match ($method) {
     'giftcard' => model(App\Models\Giftcard::class)
@@ -203,6 +221,17 @@ $result = match ($method) {
             return false;
         }
     })($args),
+    'issuePermit' => $attempt(static fn () => (new StockPermit())->create([
+        'type'        => 'issue',
+        'date'        => date('Y-m-d'),
+        'location_id' => 1,
+        'lines'       => [['item_id' => (int) $args[0], 'quantity' => (string) $args[1]]],
+    ], (int) $args[2]), (string) $args[3]),
+    'cancelPermit' => $attempt(static fn () => (new StockPermit())->cancel((int) $args[0], 'race', (int) $args[1]), (string) $args[2]),
+    'fulfilRequest' => $attempt(static fn () => (new StockRequest())->fulfil((int) $args[0], (int) $args[1]), (string) $args[2]),
+    'approveStocktake' => $attempt(static fn () => (new Stocktake())->approve((int) $args[0], (int) $args[1]), (string) $args[2]),
+    'addStocktakeItems' => $attempt(static fn () => (new Stocktake())->addItems((int) $args[0], [(int) $args[1]], (int) $args[2]), (string) $args[3]),
+    'createStocktake' => $attempt(static fn () => (new Stocktake())->create(['location_id' => (int) $args[0], 'date' => (string) $args[1], 'item_ids' => [(int) $args[2]]], (int) $args[3]), (string) $args[4]),
     'assignNumber' => (static function (array $args): bool {
         $db = Database::connect();
 

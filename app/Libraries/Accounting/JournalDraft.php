@@ -27,6 +27,25 @@ final readonly class JournalDraft
     ) {
     }
 
+    public function withSource(string $sourceType, ?int $sourceId, string $description): self
+    {
+        return new self(
+            $this->date,
+            $this->lines,
+            $sourceType,
+            $sourceId,
+            $this->revision,
+            $this->origin,
+            $this->employeeId,
+            $description,
+            $this->currencyCode,
+            $this->exchangeRate,
+            $this->reversesJournalId,
+            $this->branchId,
+            $this->entryType,
+        );
+    }
+
     public function withDescription(string $description): self
     {
         return new self(

@@ -83,6 +83,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Mauzo',
     'sales_desc'                   => 'Shughulikia Mauzo na Marejesho.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Wasambazaji',
     'suppliers_desc'               => 'Ongeza, Sasisha, Futa, na Tafuta Wasambazaji.',
     'taxes'                        => 'Kodi',

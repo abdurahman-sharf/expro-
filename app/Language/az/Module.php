@@ -83,6 +83,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Satışlar',
     'sales_desc'                   => 'Satış prosesləri və Qaytarılanlar.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Təchizatçılar',
     'suppliers_desc'               => 'Əlavə et, Yenilə, Sil və Təchizatçıları Axtar.',
     'taxes'                        => 'Vergi',

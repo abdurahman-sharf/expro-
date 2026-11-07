@@ -83,6 +83,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'ការលក់',
     'sales_desc'                   => 'ដាក់បញ្ជារ​ការលក់ និងទទួលទំនិញត្រលប់មកវិញ។',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'អ្នកផ្គត់ផ្គង់',
     'suppliers_desc'               => 'បន្ថែម, កែប្រែ, លុប, រឺស្វែងរក អ្នកផ្គត់ផ្គង់។',
     'taxes'                        => 'ពន្ធ',

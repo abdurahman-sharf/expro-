@@ -83,6 +83,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Kassa',
     'sales_desc'                   => 'Verwerk aankopen en retours.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Leveranciers',
     'suppliers_desc'               => 'Zoek, bewerk, verwijder en voeg leveranciers toe.',
     'taxes'                        => 'VAT',

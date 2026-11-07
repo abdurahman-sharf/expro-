@@ -83,6 +83,8 @@ return [
     'roles_desc'                   => 'Create roles, choose what each may do and give them to employees.',
     'sales'                        => 'Sales',
     'sales_desc'                   => 'Process Sales and Returns.',
+    'stock_documents'              => 'Stock Documents',
+    'stock_documents_desc'         => 'Numbered stock permits, stocktakes and stock requests between stock locations.',
     'suppliers'                    => 'Suppliers',
     'suppliers_desc'               => 'Add, Update, Delete, and Search Suppliers.',
     'taxes'                        => 'Taxes',

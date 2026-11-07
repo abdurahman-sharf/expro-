@@ -83,6 +83,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => '出貨',
     'sales_desc'                   => '出貨與退貨',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => '供應商',
     'suppliers_desc'               => '添加，更新，刪除，搜索供應商',
     'taxes'                        => '',

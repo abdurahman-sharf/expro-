@@ -83,6 +83,8 @@ return [
     'roles_desc'                   => '',
     'sales'                        => 'Satış',
     'sales_desc'                   => 'Satış ve iade.',
+    'stock_documents'              => '',
+    'stock_documents_desc'         => '',
     'suppliers'                    => 'Sağlayıcılar',
     'suppliers_desc'               => 'Ekleme, değiştirme, silme ve arama.',
     'taxes'                        => 'Vergiler',
