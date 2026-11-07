@@ -24,6 +24,7 @@ use App\Libraries\Accounting\ReturnOverride;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\SalePosting;
+use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\TaxDefinitions;
 use App\Libraries\Accounting\TreasuryService;
@@ -7488,5 +7489,146 @@ class SalePostingTest extends CIUnitTestCase
             $db->table('customers')->where('person_id', $this->customerId)->update(['package_id' => null, 'points' => null]);
             $db->table('customers_packages')->where('package_id', $packageId)->delete();
         }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The shipping charge that names a shipping company
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * A shipping company the sales may name, with an account of what is owed to it when one is asked for.
+     *
+     * @return array{company: int, account: ?int}
+     */
+    private function shippingCompany(bool $withAccount = true, string $name = 'Fast Ship'): array
+    {
+        $this->turnOnHeaderCharges();
+
+        $companies = new ShippingCompanies();
+        $account   = $withAccount ? $this->customAccount('2212', '22121', 'Owed to ' . $name) : null;
+
+        $companies->setEnabled(true);
+
+        return ['company' => $companies->create(['name' => $name, 'account_id' => $account]), 'account' => $account];
+    }
+
+    public function testSaveValue_PostsTheShippingToTheAccountOfTheShippingCompanyItNamesInsteadOfTheRoutedRevenue(): void
+    {
+        $named = $this->shippingCompany();
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '20', shippingCompanyId: $named['company']));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':836.50:0.00',
+                $this->accountId('sales_revenue') . ':0.00:710.00',
+                $this->accountId('tax_output') . ':0.00:106.50',
+                $named['account'] . ':0.00:20.00',
+            ],
+            $this->standing($saleId, 'revenue')[0]['lines'],
+        );
+        $this->assertSame((string) $named['company'], (string) $this->saleRow($saleId)->shipping_company_id);
+        $this->assertSame('0.00', $this->balance($this->accountId('sales_shipping')));
+        $this->assertSame('-20.00', $this->balance((int) $named['account']));
+        $this->assertTies();
+    }
+
+    public function testSaveValue_PostsTheShippingToTheRoutedRevenueWhenTheCompanyItNamesHasNoAccount(): void
+    {
+        $named = $this->shippingCompany(false);
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '20', shippingCompanyId: $named['company']));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertContains($this->accountId('sales_shipping') . ':0.00:20.00', $this->standing($saleId, 'revenue')[0]['lines']);
+        $this->assertSame((string) $named['company'], (string) $this->saleRow($saleId)->shipping_company_id);
+        $this->assertTies();
+    }
+
+    public function testSaveValue_PostsToTheRoutedRevenueWhenNoCompanyIsNamed(): void
+    {
+        $named = $this->shippingCompany();
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '20'));
+
+        $this->assertContains($this->accountId('sales_shipping') . ':0.00:20.00', $this->standing($saleId, 'revenue')[0]['lines']);
+        $this->assertNull($this->saleRow($saleId)->shipping_company_id);
+        $this->assertSame('0.00', $this->balance((int) $named['account']));
+    }
+
+    public function testSaveValue_PostsTheShippingOfACreditNoteToTheAccountOfTheCompanyItNames(): void
+    {
+        $named = $this->shippingCompany();
+
+        $cycle    = $this->referenceInvoice();
+        $original = $this->save($cycle['items'], $cycle['taxes']);
+        $return   = $this->save([$this->line($cycle['cream'], 0, '-1', '0')], [], [], SALE_TYPE_RETURN, origin: $original, headerCharges: new HeaderCharges(shipping: '20', shippingCompanyId: $named['company']));
+
+        $this->assertGreaterThan(0, $return);
+        $this->assertSame([$named['account'] . ':20.00:0.00', $this->customerAccount() . ':0.00:20.00'], $this->standing($return, 'revenue')[0]['lines']);
+        $this->assertTies();
+    }
+
+    public function testSaveValue_PostsAnInvoiceOfFreeGoodsWithOnlyShippingToTheAccountOfTheCompanyAndConvertsItInADocumentCurrency(): void
+    {
+        $named = $this->shippingCompany();
+        $this->dollars();
+        $this->grantInvoiceDate();
+        $this->sales->useCurrency('USD', null);
+
+        $free   = $this->line($this->item('0', false), 0, '1', '0');
+        $saleId = $this->save([$free], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10), headerCharges: new HeaderCharges(shipping: '20', shippingCompanyId: $named['company']));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(['sale:' . $this->customerAccount() . ':75.00:0.00', 'sale:' . $named['account'] . ':0.00:75.00'], $this->linesOfStanding($saleId));
+        $this->assertSame('-75.00', $this->balance((int) $named['account']));
+    }
+
+    public function testSaveValue_RefusesACompanyWhileTheSettingIsOffAndOneThatIsSwitchedOffOrMissing(): void
+    {
+        $named = $this->shippingCompany();
+        $cycle = $this->referenceInvoice();
+        $sales = $this->countSales();
+
+        (new ShippingCompanies())->setEnabled(false);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '20', shippingCompanyId: $named['company'])));
+        $this->assertSame(AccountingError::ShippingCompaniesOff, $this->failure()->error);
+
+        (new ShippingCompanies())->setEnabled(true);
+        (new ShippingCompanies())->setActive($named['company'], false);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '20', shippingCompanyId: $named['company'])));
+        $this->assertSame(AccountingError::ShippingCompanyInvalid, $this->failure()->error);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '20', shippingCompanyId: 999999)));
+        $this->assertSame(AccountingError::ShippingCompanyInvalid, $this->failure()->error);
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame(0, $this->countJournals());
+    }
+
+    public function testSaveValue_StoresNoCompanyOnADocumentWithoutShipping(): void
+    {
+        $named = $this->shippingCompany();
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges('Fee', '5', '0', shippingCompanyId: $named['company']));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertNull($this->saleRow($saleId)->shipping_company_id);
+    }
+
+    public function testGetHeaderCharges_GivesBackTheCompanyASavedSaleNamed(): void
+    {
+        $named = $this->shippingCompany();
+
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '20', shippingCompanyId: $named['company']));
+
+        $this->assertSame($named['company'], $this->sales->getHeaderCharges($saleId)->shippingCompanyId);
     }
 }

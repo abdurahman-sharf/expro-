@@ -21,6 +21,7 @@ use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\SaleDocumentList;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\RoutingKey;
+use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\HeaderCharges;
@@ -103,7 +104,10 @@ class SalesControllerTest extends CIUnitTestCase
 
         $this->setConfigValue('accounting_customer_opening', '0');
         $this->resetSalesControls();
-$db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent'])->delete();
+$db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent', ShippingCompanies::ENABLED_KEY])->delete();
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $db->table('shipping_companies')->truncate();
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
 
         parent::tearDown();
     }
@@ -3004,6 +3008,68 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $response->assertSee('Handling fee');
         $response->assertSee(lang('Sales.shipping'));
         $this->assertSame(['adjustment_label' => 'Handling fee', 'adjustment' => '-10', 'shipping' => '20.50', 'shipping_tax_option' => 'none', 'shipping_tax_percent' => '0', 'shipping_options' => 2], Services::session()->get('sales_header_charges'));
+    }
+
+    public function testGetIndex_OffersTheShippingCompaniesOnlyWhileTheyAreOnAndShippingIsOnAndOnlyTheActiveOnes(): void
+    {
+        $this->registerForHeaderCharges('sale_invoice', true, true);
+
+        $companies = new ShippingCompanies();
+        $active    = $companies->create(['name' => 'Fast Ship']);
+        $retired   = $companies->create(['name' => 'Old Carrier']);
+        $companies->setActive($retired, false);
+
+        $this->get('/sales')->assertDontSee('name="shipping_company_id"');
+
+        $companies->setEnabled(true);
+
+        $page = $this->get('/sales');
+
+        $page->assertSee('name="shipping_company_id"');
+        $page->assertSee('Fast Ship');
+        $page->assertDontSee('Old Carrier');
+        $this->assertStringContainsString('<option value="' . $active . '">', $page->response()->getBody());
+
+        $this->registerForHeaderCharges('sale_invoice', true, false);
+
+        $this->get('/sales')->assertDontSee('name="shipping_company_id"');
+    }
+
+    public function testPostSetHeaderCharges_KeepsTheShippingCompanyChosenAndShowsItSelected(): void
+    {
+        $this->registerForHeaderCharges();
+
+        $companies = new ShippingCompanies();
+        $companies->setEnabled(true);
+        $company = $companies->create(['name' => 'Fast Ship']);
+
+        $response = $this->post('/sales/setHeaderCharges', ['shipping' => '20', 'shipping_company_id' => (string) $company]);
+
+        $response->assertStatus(200);
+        $this->assertSame($company, Services::session()->get('sales_header_charges')['shipping_company_id']);
+        $this->assertStringContainsString('<option value="' . $company . '" selected>', $response->response()->getBody());
+    }
+
+    public function testPostSetHeaderCharges_TakesNoShippingCompanyWhileShippingIsOffOrTheValueIsNotAnId(): void
+    {
+        $this->registerForHeaderCharges('sale_invoice', true, false);
+
+        $companies = new ShippingCompanies();
+        $companies->setEnabled(true);
+        $company = $companies->create(['name' => 'Fast Ship']);
+
+        $this->post('/sales/setHeaderCharges', ['adjustment' => '5', 'shipping' => '20', 'shipping_company_id' => (string) $company]);
+
+        $this->assertArrayNotHasKey('shipping_company_id', Services::session()->get('sales_header_charges'));
+
+        $this->registerForHeaderCharges();
+        $this->post('/sales/setHeaderCharges', ['shipping' => '20', 'shipping_company_id' => 'abc']);
+
+        $this->assertArrayNotHasKey('shipping_company_id', Services::session()->get('sales_header_charges'));
+
+        $this->post('/sales/setHeaderCharges', ['shipping' => '20', 'shipping_company_id' => '0']);
+
+        $this->assertArrayNotHasKey('shipping_company_id', Services::session()->get('sales_header_charges'));
     }
 
     public function testPostSetHeaderCharges_TaxesTheShippingAtTheRateOfTheSettingWhenAskedAndShowsTheTax(): void

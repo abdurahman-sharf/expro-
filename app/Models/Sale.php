@@ -2016,7 +2016,7 @@ class Sale extends Model
             return new AccountingException(AccountingError::HeaderChargesOff, 'The adjustment or the shipping is not turned on.', ['sale_id' => $saleId]);
         }
 
-        if ($charges->shippingCompanyId !== null) {
+        if ($charges->shippingCompanyId !== null && $charges->hasShipping()) {
             try {
                 (new ShippingCompanies($this->db))->requireNameable($charges->shippingCompanyId);
             } catch (AccountingException $refusal) {

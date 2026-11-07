@@ -90,6 +90,7 @@ trait AccountingFixtureTrait
             'accounting_closed_periods',
             'accounting_opening_drafts',
             'accounting_currency_rates',
+            'shipping_companies',
         ] as $table) {
             $db->table($table)->truncate();
         }
