@@ -230,6 +230,7 @@ $result = match ($method) {
     'cancelPermit' => $attempt(static fn () => (new StockPermit())->cancel((int) $args[0], 'race', (int) $args[1]), (string) $args[2]),
     'fulfilRequest' => $attempt(static fn () => (new StockRequest())->fulfil((int) $args[0], (int) $args[1]), (string) $args[2]),
     'approveStocktake' => $attempt(static fn () => (new Stocktake())->approve((int) $args[0], (int) $args[1]), (string) $args[2]),
+    'addStocktakeItems' => $attempt(static fn () => (new Stocktake())->addItems((int) $args[0], [(int) $args[1]], (int) $args[2]), (string) $args[3]),
     'createStocktake' => $attempt(static fn () => (new Stocktake())->create(['location_id' => (int) $args[0], 'date' => (string) $args[1], 'item_ids' => [(int) $args[2]]], (int) $args[3]), (string) $args[4]),
     'assignNumber' => (static function (array $args): bool {
         $db = Database::connect();

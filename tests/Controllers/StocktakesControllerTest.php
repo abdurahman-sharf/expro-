@@ -301,6 +301,10 @@ class StocktakesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('name="seen[' . $itemId . ']" value="8"', $body);
         $this->assertStringContainsString('data-saved="8"', $body);
         $this->assertStringContainsString(esc(lang('Stock_documents.save_counts_first'), 'js'), $body);
+        $this->assertMatchesRegularExpression('/#stocktake_approve\'\)\.on\(\'click\', function\(\) \{\s*if \(!unsaved\(\) && window\.confirm\(/', $body, 'approving waits for the typed counts to be saved');
+        $this->assertMatchesRegularExpression('/send\(\'approve\', \{digest: "' . $this->takes->digest($stocktakeId) . '"\}/', $body, 'and carries the digest of what the sheet showed');
+        $this->assertMatchesRegularExpression('/\.stocktake-remove\'\)\.on\(\'click\', function\(\) \{\s*if \(!unsaved\(\)\) \{\s*send\(\'remove_item\'/', $body, 'taking an item off waits for them too');
+        $this->assertMatchesRegularExpression('/select: function\(event, ui\) \{\s*if \(!unsaved\(\)\) \{\s*send\(\'add_items\'/', $body, 'and so does listing one more');
     }
 
     public function testPostCount_KeepsACountSavedAfterTheSheetWasOpenedAndSaysWhichCountChanged(): void
@@ -338,6 +342,7 @@ class StocktakesControllerTest extends CIUnitTestCase
         $note = $this->postJson('/stock_documents/stocktakes/save', ['location_id' => (string) self::LOCATION_ID, 'count_date' => date('Y-m-d', strtotime('-1 day')), 'note' => ['x']]);
 
         $this->assertTrue($note['success'], 'a note that is a list is taken as no note');
+        $this->assertSame('', (string) $this->takes->find($note['id'])->note);
 
         $count = $this->postJson('/stock_documents/stocktakes/count/' . $stocktakeId, ['counted' => [(string) $itemId => ['1']]]);
 

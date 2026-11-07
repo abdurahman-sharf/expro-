@@ -238,6 +238,21 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('stocktakes'));
     }
 
+    public function testCreate_RejectsItemsThatAreNotAListAndNamesTheLimit(): void
+    {
+        foreach (['7', 7] as $notAList) {
+            try {
+                $this->takes->create(['location_id' => self::LOCATION_ID, 'item_ids' => $notAList], $this->keeperId);
+                $this->fail('Items that are not a list must be refused.');
+            } catch (AccountingException $exception) {
+                $this->assertSame(AccountingError::StocktakeItemsInvalid, $exception->error);
+                $this->assertSame(Stocktake::ITEMS_MAX, $exception->context['max']);
+            }
+        }
+
+        $this->assertSame(0, $this->countRows('stocktakes'));
+    }
+
     public function testAddItems_RequiresThePermissionToManageStocktakes(): void
     {
         $itemId      = $this->stocked('10', '50');
@@ -898,6 +913,22 @@ class StocktakeTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('stocktake_lines'));
     }
 
+    public function testAddItems_ListsAnItemOnceWhenTwoCountsOfItComeAtTheSameMoment(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $first  = $this->start([]);
+        $second = $this->start([], ['date' => date('Y-m-d', strtotime('-1 day'))]);
+
+        $answers = $this->raceStockWorkers(
+            'addStocktakeItems',
+            [(string) $first, (string) $itemId, (string) $this->keeperId],
+            [(string) $second, (string) $itemId, (string) $this->keeperId],
+        );
+
+        $this->assertSame(['done', AccountingError::StocktakeItemOpen->value], $answers);
+        $this->assertSame(1, $this->countRows('stocktake_lines'));
+    }
+
     public function testCount_AcceptsATypedFigureOverTheCountTheSheetShowed(): void
     {
         $first  = $this->stocked('10', '50');
@@ -1065,6 +1096,26 @@ class StocktakeTest extends CIUnitTestCase
 
         $this->assertSame('10.000', $this->onHand($first), 'nothing was posted by the refusals');
         $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
+    }
+
+    public function testDigest_ChangesWhenTheFrozenQuantityOrTheCountOfALineChanges(): void
+    {
+        $itemId = $this->stocked('10', '50');
+
+        $stocktakeId = $this->start([$itemId]);
+
+        $uncounted = $this->takes->digest($stocktakeId);
+
+        $this->countAll($stocktakeId, [$itemId => '8']);
+
+        $counted = $this->takes->digest($stocktakeId);
+
+        $this->assertNotSame($uncounted, $counted, 'the count is part of what was reviewed');
+        $this->assertSame($counted, $this->takes->digest($stocktakeId), 'the same lines give the same digest');
+
+        $this->accountingDb()->table('stocktake_lines')->where(['stocktake_id' => $stocktakeId, 'item_id' => $itemId])->update(['system_quantity' => '9']);
+
+        $this->assertNotSame($counted, $this->takes->digest($stocktakeId), 'the quantity frozen is part of what was reviewed');
     }
 
     /**

@@ -689,8 +689,8 @@
  {
   "name": "T04 entering counts requires the permission to manage stocktakes",
   "file": "app/Libraries/Stock/Stocktake.php",
-  "find": "    public function count(int $stocktakeId, array $counted, int $employeeId): void\n    {\n        $this->guard->require(StockPermissions::STOCKTAKE_MANAGE, $employeeId);\n",
-  "replace": "    public function count(int $stocktakeId, array $counted, int $employeeId): void\n    {\n",
+  "find": "    public function count(int $stocktakeId, array $counted, int $employeeId, array $seen = []): void\n    {\n        $this->guard->require(StockPermissions::STOCKTAKE_MANAGE, $employeeId);\n",
+  "replace": "    public function count(int $stocktakeId, array $counted, int $employeeId, array $seen = []): void\n    {\n",
   "tests": [
    "tests/Libraries/Stock/StocktakeTest.php",
    "tests/Controllers/StocktakesControllerTest.php"
@@ -762,8 +762,8 @@
  {
   "name": "T12 a counted quantity is a number of zero or more",
   "file": "app/Libraries/Stock/Stocktake.php",
-  "find": "if ($quantity !== '' && (preg_match(self::QUANTITY, $quantity) !== 1)) {",
-  "replace": "if (false) {",
+  "find": "        if (preg_match(self::QUANTITY, $text) !== 1) {",
+  "replace": "        if (false) {",
   "tests": [
    "tests/Libraries/Stock/StocktakeTest.php"
   ]
@@ -771,7 +771,7 @@
  {
   "name": "T13 a count is for an item on the sheet",
   "file": "app/Libraries/Stock/Stocktake.php",
-  "find": "if (! in_array((int) $itemId, $listed, true)) {",
+  "find": "if (! array_key_exists($itemId, $stored)) {",
   "replace": "if (false) {",
   "tests": [
    "tests/Libraries/Stock/StocktakeTest.php"
@@ -1636,8 +1636,8 @@
  {
   "name": "Q12 the journals of a permit are listed to those who may open the journals",
   "file": "app/Controllers/StockPermits.php",
-  "find": "'journals'   => $this->can('accounting_journals') ?",
-  "replace": "'journals'   => true ?",
+  "find": "'journals'  => $this->can('accounting_journals') ?",
+  "replace": "'journals'  => true ?",
   "tests": [
    "tests/Controllers/StockPermitsControllerTest.php"
   ]
@@ -1645,8 +1645,8 @@
  {
   "name": "Q13 the settings are offered to those who may change them",
   "file": "app/Controllers/StockPermits.php",
-  "find": "'can_settings' => $this->can(AccountingGuard::SETTINGS_MANAGE),",
-  "replace": "'can_settings' => true,",
+  "find": "'canSettings' => $this->can(AccountingGuard::SETTINGS_MANAGE),",
+  "replace": "'canSettings' => true,",
   "tests": [
    "tests/Controllers/StockPermitsControllerTest.php"
   ]
@@ -1782,6 +1782,406 @@
   "file": "app/Controllers/StockDocumentController.php",
   "find": "$shelves->onHand((int) $row->item_id, $locationId)",
   "replace": "$shelves->onHand((int) $row->item_id, 1)",
+  "tests": [
+   "tests/Controllers/StockPermitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "T52 starting a stocktake locks the location before it looks at the day and the items",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "            $this->lockLocation((int) $location->location_id);\n\n            $slot",
+  "replace": "            $slot",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T53 listing more items locks the location before it looks at the other counts",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "            $this->lockLocation($locationId);\n\n            $stocktake = $this->counting($stocktakeId, $employeeId);\n            $added",
+  "replace": "            $stocktake = $this->counting($stocktakeId, $employeeId);\n            $added",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T54 an item is on one count of a location at a time while it is being made",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "        $this->assertOnNoOtherCount($stocktakeId, $locationId, $fresh);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T55 a count that is approved or cancelled lets go of its items",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "'s.location_id' => $locationId, 's.status' => 'counting']",
+  "replace": "'s.location_id' => $locationId]",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T56 a count of another location does not hold the items of this one",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "'s.company_id' => CompanyContext::id(), 's.location_id' => $locationId, 's.status' => 'counting']",
+  "replace": "'s.company_id' => CompanyContext::id(), 's.status' => 'counting']",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T57 an item already on the sheet is not listed twice",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "$fresh  = array_values(array_diff($itemIds, $listed));",
+  "replace": "$fresh  = array_values($itemIds);",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T58 the items listed are written to the audit log",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "            if ($added !== []) {",
+  "replace": "            if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T59 an item taken off the sheet is written to the audit log",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "            $this->audit->write(self::ENTITY, $stocktakeId, 'stocktake_item_removed', $employeeId, JournalOrigin::User, [\n                'item_id'         => $itemId,\n                'system_quantity' => bcadd((string) $line->system_quantity, '0', 3),\n                'counted'         => $line->counted_quantity === null ? null : bcadd((string) $line->counted_quantity, '0', 3),\n            ], (int) $stocktake->branch_id);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T60 taking off an item that is not on the sheet leaves no trace",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "            if ($line === null) {\n                return;\n            }\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T61 a figure that is the stored one changes nothing",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "                if ($quantity === $stored[$itemId]['quantity']) {",
+  "replace": "                if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T62 a figure that is the one the sheet showed leaves the row alone",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "                    if ($shown === $quantity) {",
+  "replace": "                    if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T63 a figure typed over a count that changed after the sheet was opened is refused",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "                    if ($shown !== $stored[$itemId]['quantity']) {",
+  "replace": "                    if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php",
+   "tests/Controllers/StocktakesControllerTest.php"
+  ]
+ },
+ {
+  "name": "T64 the counts that changed are written to the audit log",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "            if ($changes !== []) {",
+  "replace": "            if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T65 a counted quantity that is a list is refused",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "        if ($typed !== null && ! is_scalar($typed)) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php",
+   "tests/Controllers/StocktakesControllerTest.php"
+  ]
+ },
+ {
+  "name": "T66 an approval is refused when the lines are not those the approver reviewed",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "                if ($reviewed !== null && ! hash_equals($digest, $reviewed)) {",
+  "replace": "                if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php",
+   "tests/Controllers/StocktakesControllerTest.php"
+  ]
+ },
+ {
+  "name": "T67 the digest of the lines is written to the audit log of the approval",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "                    'digest'      => $digest,\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T68 the digest covers the quantity counted",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "($line->counted_quantity === null ? '-' : bcadd((string) $line->counted_quantity, '0', 3))",
+  "replace": "'-'",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T69 the digest covers the quantity frozen",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "$line->item_id . ':' . bcadd((string) $line->system_quantity, '0', 3) . ':'",
+  "replace": "$line->item_id . ':'",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T70 the items to count must be a list",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "        if (! is_array($itemIds)) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T71 the stocktakes of the list carry the label the page shows",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "            $row->label = $row->document_number ?? DocumentType::Stocktake->fallback((int) $row->stocktake_id);",
+  "replace": "            $row->label = '';",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T72 a stocktake is found by its id while it has no number",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "->where('s.stocktake_id', $labelled['id'])->where('d.number IS NULL', null, false)->groupEnd();",
+  "replace": "->where('s.stocktake_id', 0)->groupEnd();",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "T73 a stocktake that has a number is not found by its id",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "->where('s.stocktake_id', $labelled['id'])->where('d.number IS NULL', null, false)->groupEnd();",
+  "replace": "->where('s.stocktake_id', $labelled['id'])->groupEnd();",
+  "tests": [
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "P55 the permits of the list carry the label the page shows",
+  "file": "app/Libraries/Stock/StockPermit.php",
+  "find": "            $row->label = $row->document_number ?? StockPermitType::from((string) $row->permit_type)->documentType()->fallback((int) $row->permit_id);",
+  "replace": "            $row->label = '';",
+  "tests": [
+   "tests/Libraries/Stock/StockPermitTest.php"
+  ]
+ },
+ {
+  "name": "P56 a permit is found by its id while it has no number",
+  "file": "app/Libraries/Stock/StockPermit.php",
+  "find": "->where('p.permit_id', $labelled['id'])->where('d.number IS NULL', null, false);",
+  "replace": "->where('p.permit_id', 0);",
+  "tests": [
+   "tests/Libraries/Stock/StockPermitTest.php"
+  ]
+ },
+ {
+  "name": "P57 a permit that has a number is not found by its id",
+  "file": "app/Libraries/Stock/StockPermit.php",
+  "find": "->where('p.permit_id', $labelled['id'])->where('d.number IS NULL', null, false);",
+  "replace": "->where('p.permit_id', $labelled['id']);",
+  "tests": [
+   "tests/Libraries/Stock/StockPermitTest.php"
+  ]
+ },
+ {
+  "name": "P58 a label of a kind finds only the permits of that kind",
+  "file": "app/Libraries/Stock/StockPermit.php",
+  "find": "                if ($labelled['type'] !== null) {",
+  "replace": "                if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockPermitTest.php"
+  ]
+ },
+ {
+  "name": "R27 the requests of the list carry the label the page shows",
+  "file": "app/Libraries/Stock/StockRequest.php",
+  "find": "            $row->label = $row->document_number ?? DocumentType::StockRequest->fallback((int) $row->request_id);",
+  "replace": "            $row->label = '';",
+  "tests": [
+   "tests/Libraries/Stock/StockRequestTest.php"
+  ]
+ },
+ {
+  "name": "R28 a request is found by its id while it has no number",
+  "file": "app/Libraries/Stock/StockRequest.php",
+  "find": "->where('r.request_id', $labelled['id'])->where('d.number IS NULL', null, false)->groupEnd();",
+  "replace": "->where('r.request_id', 0)->groupEnd();",
+  "tests": [
+   "tests/Libraries/Stock/StockRequestTest.php"
+  ]
+ },
+ {
+  "name": "R29 a request that has a number is not found by its id",
+  "file": "app/Libraries/Stock/StockRequest.php",
+  "find": "->where('r.request_id', $labelled['id'])->where('d.number IS NULL', null, false)->groupEnd();",
+  "replace": "->where('r.request_id', $labelled['id'])->groupEnd();",
+  "tests": [
+   "tests/Libraries/Stock/StockRequestTest.php"
+  ]
+ },
+ {
+  "name": "N01 the label of a kind is taken for what it names",
+  "file": "app/Libraries/Stock/StockDocumentSearch.php",
+  "find": "if (str_starts_with($text, $prefix)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockDocumentSearchTest.php"
+  ]
+ },
+ {
+  "name": "N02 a hash before the text is not part of it",
+  "file": "app/Libraries/Stock/StockDocumentSearch.php",
+  "find": "strtoupper(ltrim(trim($search), '#'))",
+  "replace": "strtoupper(trim($search))",
+  "tests": [
+   "tests/Libraries/Stock/StockDocumentSearchTest.php"
+  ]
+ },
+ {
+  "name": "N03 the case of the label does not matter",
+  "file": "app/Libraries/Stock/StockDocumentSearch.php",
+  "find": "$text = strtoupper(ltrim(trim($search), '#'));",
+  "replace": "$text = ltrim(trim($search), '#');",
+  "tests": [
+   "tests/Libraries/Stock/StockDocumentSearchTest.php"
+  ]
+ },
+ {
+  "name": "N04 an id is digits only",
+  "file": "app/Libraries/Stock/StockDocumentSearch.php",
+  "find": "return ctype_digit($text) && strlen($text) <= self::ID_MAX_DIGITS",
+  "replace": "return strlen($text) <= self::ID_MAX_DIGITS",
+  "tests": [
+   "tests/Libraries/Stock/StockDocumentSearchTest.php"
+  ]
+ },
+ {
+  "name": "N05 an id is not longer than the column holds",
+  "file": "app/Libraries/Stock/StockDocumentSearch.php",
+  "find": "return ctype_digit($text) && strlen($text) <= self::ID_MAX_DIGITS",
+  "replace": "return ctype_digit($text)",
+  "tests": [
+   "tests/Libraries/Stock/StockDocumentSearchTest.php"
+  ]
+ },
+ {
+  "name": "Q29 a field that is a list is taken as no text",
+  "file": "app/Controllers/StockDocumentController.php",
+  "find": "return is_scalar($value) ? (string) $value : '';",
+  "replace": "return (string) $value;",
+  "tests": [
+   "tests/Controllers/StocktakesControllerTest.php",
+   "tests/Controllers/StockPermitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "Q30 the sheet carries the digest of the lines it shows",
+  "file": "app/Controllers/Stocktakes.php",
+  "find": "'digest'     => $this->takes->digest($stocktakeId),",
+  "replace": "'digest'     => '',",
+  "tests": [
+   "tests/Controllers/StocktakesControllerTest.php"
+  ]
+ },
+ {
+  "name": "Q31 an approval carries the digest the approver reviewed",
+  "file": "app/Controllers/Stocktakes.php",
+  "find": "$this->takes->approve($stocktakeId, $this->employeeId(), $this->postedText('digest'));",
+  "replace": "$this->takes->approve($stocktakeId, $this->employeeId());",
+  "tests": [
+   "tests/Controllers/StocktakesControllerTest.php"
+  ]
+ },
+ {
+  "name": "Q32 a save of the sheet carries what the sheet showed",
+  "file": "app/Controllers/Stocktakes.php",
+  "find": "$this->employeeId(), is_array($seen) ? $seen : []);",
+  "replace": "$this->employeeId());",
+  "tests": [
+   "tests/Controllers/StocktakesControllerTest.php"
+  ]
+ },
+ {
+  "name": "V01 approving on the sheet waits for the typed counts to be saved",
+  "file": "app/Views/stocktakes/sheet.php",
+  "find": "if (!unsaved() && window.confirm(",
+  "replace": "if (window.confirm(",
+  "tests": [
+   "tests/Controllers/StocktakesControllerTest.php"
+  ]
+ },
+ {
+  "name": "V02 taking an item off waits for the typed counts to be saved",
+  "file": "app/Views/stocktakes/sheet.php",
+  "find": "        $('.stocktake-remove').on('click', function() {\n            if (!unsaved()) {",
+  "replace": "        $('.stocktake-remove').on('click', function() {\n            if (true) {",
+  "tests": [
+   "tests/Controllers/StocktakesControllerTest.php"
+  ]
+ },
+ {
+  "name": "V03 listing an item waits for the typed counts to be saved",
+  "file": "app/Views/stocktakes/sheet.php",
+  "find": "            select: function(event, ui) {\n                if (!unsaved()) {",
+  "replace": "            select: function(event, ui) {\n                if (true) {",
+  "tests": [
+   "tests/Controllers/StocktakesControllerTest.php"
+  ]
+ },
+ {
+  "name": "V04 the approval carries the digest of the sheet",
+  "file": "app/Views/stocktakes/sheet.php",
+  "find": "send('approve', {digest: \"<?= esc($digest, 'js') ?>\"}, true);",
+  "replace": "send('approve', {}, true);",
+  "tests": [
+   "tests/Controllers/StocktakesControllerTest.php"
+  ]
+ },
+ {
+  "name": "V05 the sheet says what it showed of each count",
+  "file": "app/Views/stocktakes/sheet.php",
+  "find": "<input type=\"hidden\" name=\"seen[<?= (int) $line->item_id ?>]\" value=\"<?= $saved ?>\">",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/StocktakesControllerTest.php"
+  ]
+ },
+ {
+  "name": "V06 the arrow of a transfer follows the reading direction",
+  "file": "app/Views/stock_permits/manage.php",
+  "find": "$arrow = isRtl() ? '&larr;' : '&rarr;';",
+  "replace": "$arrow = '&rarr;';",
   "tests": [
    "tests/Controllers/StockPermitsControllerTest.php"
   ]
