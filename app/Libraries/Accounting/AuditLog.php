@@ -44,7 +44,7 @@ final class AuditLog
 
     /**
      * @param array{date_from?: string, date_to?: string, action?: string, entity_type?: string, entity_id?: int|string, employee_id?: int|string, origin?: string, branch_id?: int|string, max_audit_id?: int|string} $filters
-     * @param list<int>|null                                                                                                                                                                                         $branchIds The branches the reader may see, null for every branch. Entries that belong to no branch (the whole company) are for readers of every branch.
+     * @param list<int>|null                                                                                                                                                                                           $branchIds The branches the reader may see, null for every branch. Entries that belong to no branch (the whole company) are for readers of every branch.
      *
      * @return array{total: int, rows: list<object>}
      */
