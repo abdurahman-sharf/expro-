@@ -1430,10 +1430,10 @@
   ]
  },
  {
-  "name": "V20 an unsuspended sale drops the currency the register held",
+  "name": "V20 the register forgets its currency when it is cleared",
   "file": "app/Libraries/Sale_lib.php",
-  "find": "        $this->clearInvoiceDiscount();\n        $this->clearCurrency();\n\n        $currencyCode",
-  "replace": "        $this->clearInvoiceDiscount();\n\n        $currencyCode",
+  "find": "        $this->clearPriceListChoice();\n        $this->clearCurrency();\n        $this->clear_quote_number();",
+  "replace": "        $this->clearPriceListChoice();\n        $this->clear_quote_number();",
   "tests": [
    "tests/Controllers/SalesControllerTest.php",
    "--filter",
