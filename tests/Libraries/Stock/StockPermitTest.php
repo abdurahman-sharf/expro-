@@ -680,6 +680,38 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
+    public function testCancel_ReversesBothJournalsOfATransferSentFromTheHigherBranchToTheLowerOne(): void
+    {
+        $this->switchOnTransferPermit();
+
+        $other  = $this->createBranch();
+        $store  = $this->locationOfBranch($other, 'Branch store');
+        $this->allowLocation($store, $this->keeperId);
+        $itemId = $this->stocked('10', '50', $store);
+
+        $permitId = $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '4']], ['location_id' => $store, 'to_location_id' => self::LOCATION_ID]), $this->keeperId);
+
+        $sending   = $this->journalsOfSource(StockPermitSources::TRANSFER, $permitId)[0];
+        $receiving = $this->journalsOfSource(StockPermitSources::TRANSFER_RECEIPT, $permitId)[0];
+
+        $this->assertSame([$other, 1], [(int) $sending->branch_id, (int) $receiving->branch_id]);
+
+        $this->permits->cancel($permitId, 'sent back by mistake', $this->keeperId);
+
+        foreach ([StockPermitSources::TRANSFER, StockPermitSources::TRANSFER_RECEIPT] as $source) {
+            $journal = $this->journalsOfSource($source, $permitId)[0];
+
+            $this->assertSame('reversed', $journal->status, $source);
+            $this->assertNotNull($this->reversalOf((int) $journal->journal_id), $source);
+            $this->assertSame(['posting', 'reversal'], array_map(static fn (object $entry): string => $entry->kind, $this->movementsOfSource($source, $permitId)), $source);
+        }
+
+        $this->assertSame('10.000', $this->onHand($itemId, $store));
+        $this->assertSame('0.000', $this->onHand($itemId));
+        $this->assertSame('0.0000', (new InterBranchPosition())->difference());
+        $this->assertBooksTie();
+    }
+
     public function testCancel_PostsTheReversalTodayWhenThePeriodOfThePermitIsClosedAndTheJournalStaysWhereItWas(): void
     {
         $itemId   = $this->stocked('10', '50');
@@ -851,6 +883,27 @@ class StockPermitTest extends CIUnitTestCase
 
         $this->assertSame('4.000', $this->onHand($itemId));
         $this->assertSame('6.000', $this->onHand($itemId, $store));
+        $this->assertSame(['reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, $this->journalsOfSource(StockPermitSources::TRANSFER, $permitId)));
+        $this->assertSame(['reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, $this->journalsOfSource(StockPermitSources::TRANSFER_RECEIPT, $permitId)));
+        $this->assertSame('0.0000', (new InterBranchPosition())->difference());
+        $this->assertBooksTie();
+    }
+
+    public function testUpdate_CorrectsATransferSentFromTheHigherBranchToTheLowerOne(): void
+    {
+        $this->switchOnTransferPermit();
+
+        $other  = $this->createBranch();
+        $store  = $this->locationOfBranch($other, 'Branch store');
+        $this->allowLocation($store, $this->keeperId);
+        $itemId = $this->stocked('10', '50', $store);
+
+        $permitId = $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '4']], ['location_id' => $store, 'to_location_id' => self::LOCATION_ID]), $this->keeperId);
+
+        $this->permits->update($permitId, ['lines' => [['item_id' => $itemId, 'quantity' => '6']]], $this->keeperId);
+
+        $this->assertSame('4.000', $this->onHand($itemId, $store));
+        $this->assertSame('6.000', $this->onHand($itemId));
         $this->assertSame(['reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, $this->journalsOfSource(StockPermitSources::TRANSFER, $permitId)));
         $this->assertSame(['reversed', 'posted'], array_map(static fn (object $journal): string => $journal->status, $this->journalsOfSource(StockPermitSources::TRANSFER_RECEIPT, $permitId)));
         $this->assertSame('0.0000', (new InterBranchPosition())->difference());

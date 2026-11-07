@@ -1481,6 +1481,15 @@
   ]
  },
  {
+  "name": "J04 the receipt of a transfer permit is that of a transfer",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "        StockPermitSources::TRANSFER_RECEIPT,\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockPermitTest.php"
+  ]
+ },
+ {
   "name": "D01 the three permits share one table",
   "file": "app/Libraries/Numbering/DocumentType.php",
   "find": "self::StockPermitAdd, self::StockPermitIssue, self::StockPermitTransfer => ['stock_permits' => 'permit_id'],",
