@@ -869,7 +869,7 @@
   {
     "name": "G88 journal movements of an account tied to nothing",
     "file": "app/Libraries/Accounting/FamilyReports/JournalMovementsReport.php",
-    "find": "} elseif ($whole) {",
+    "find": "} elseif ($whole && $account > 0) {",
     "replace": "} elseif (false) {",
     "tests": [
       "--filter",

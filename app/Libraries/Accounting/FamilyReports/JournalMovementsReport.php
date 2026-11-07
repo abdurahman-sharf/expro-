@@ -80,7 +80,7 @@ final class JournalMovementsReport implements FamilyReport
         if ($whole && $account === 0) {
             $movement = $input->scope->isEmpty() ? '0.0000' : $this->trialBalance->build($input->scope, $period)->totals['debit'];
             $ties[]   = new TieCheck($this->text('tie_trial_balance'), $grand->cell('debit'), $movement);
-        } elseif ($whole) {
+        } elseif ($whole && $account > 0) {
             $held   = $this->accounts->movement($this->accounts->under($account), $input->scope, $period->from, $period->to);
             $net    = bcsub($grand->cell('debit'), $grand->cell('credit'), SaleAmounts::SCALE);
             $ties[] = new TieCheck($this->text('tie_account_movement'), $net, $held);

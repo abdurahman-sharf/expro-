@@ -94,6 +94,9 @@ final class JournalMovementsReportTest extends FamilyReportTestCase
         $table = $this->built($this->report, $this->thisDay());
 
         $this->assertCount(2, $table->ties);
+        $this->assertSame(lang('Accounting_family_reports.tie_debit_credit'), $table->ties[0]->label);
+        $this->assertSame(lang('Accounting_family_reports.tie_trial_balance'), $table->ties[1]->label);
+        $this->assertAmount('270.00', $table->ties[1]->book);
         $this->assertReportTies($table);
     }
 
