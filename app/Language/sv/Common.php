@@ -88,6 +88,7 @@ return [
     'price'                          => 'Pris',
     'print'                          => 'Skriv ut',
     'remove'                         => 'Radera',
+    'request_failed'                 => '',
     'required'                       => 'Krävs',
     'restore'                        => 'Återställ',
     'return_policy'                  => 'Retur policy',

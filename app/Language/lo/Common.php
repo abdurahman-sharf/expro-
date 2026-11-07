@@ -88,6 +88,7 @@ return [
     'price'                          => 'ລາຄາ',
     'print'                          => 'ສັ່ງພິມ',
     'remove'                         => 'ລຶບ',
+    'request_failed'                 => '',
     'required'                       => 'ຈຳເປັນຕ້ອງໃຊ້',
     'restore'                        => 'ກູ້ຄືນ',
     'return_policy'                  => 'ນະໂຍບາຍການຄືນສິນຄ້າ',

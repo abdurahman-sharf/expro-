@@ -88,6 +88,7 @@ return [
     'price'                          => '價值',
     'print'                          => '列印',
     'remove'                         => '移除',
+    'request_failed'                 => '',
     'required'                       => '必需',
     'restore'                        => '回復',
     'return_policy'                  => '退貨政策',

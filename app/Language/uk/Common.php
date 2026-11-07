@@ -88,6 +88,7 @@ return [
     'price'                          => 'Ціна',
     'print'                          => 'Друк',
     'remove'                         => 'Видалити',
+    'request_failed'                 => '',
     'required'                       => 'Необхідне',
     'restore'                        => 'Відновити',
     'return_policy'                  => 'Правила повернення',

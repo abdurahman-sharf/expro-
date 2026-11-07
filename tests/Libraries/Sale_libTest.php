@@ -786,6 +786,61 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertSame(9, $saleLib->getQuoteSource(), 'the quote of this conversion and not an earlier one');
     }
 
+    public function testOrderSource_KeepsTheOrderTheInvoiceIsMadeFromAndTakesItBack(): void
+    {
+        $this->assertNull($this->saleLib->getOrderSource());
+
+        $this->saleLib->setOrderSource(12);
+
+        $this->assertSame(12, $this->saleLib->getOrderSource());
+
+        $this->saleLib->clearOrderSource();
+
+        $this->assertNull($this->saleLib->getOrderSource());
+
+        $this->saleLib->setOrderSource(12);
+        $this->saleLib->setOrderSource(null);
+
+        $this->assertNull($this->saleLib->getOrderSource());
+    }
+
+    public function testClearAll_ForgetsTheOrderTheInvoiceWasMadeFromSoTheNextSaleDoesNotTakeItsQuantity(): void
+    {
+        $this->saleLib->setOrderSource(12);
+
+        $this->saleLib->clear_all();
+
+        $this->assertNull($this->saleLib->getOrderSource());
+    }
+
+    public function testPrepareInvoiceFromOrder_FillsTheRegisterWithWhatIsLeftOfEachLineAtTheOrderPriceAndNamesTheOrder(): void
+    {
+        $calls   = [];
+        $saleLib = $this->getMockBuilder(Sale_lib::class)->onlyMethods(['add_item'])->getMock();
+        $saleLib->method('add_item')->willReturnCallback(static function (string &$itemId, int $location, string $quantity, string &$discount, int $discountType, int $mode, ?int $kitPrice, ?int $kitPrint, ?string $price, ?string $description) use (&$calls): bool {
+            $calls[] = [$itemId, $location, $quantity, $discount, $discountType, $price, $description];
+
+            return true;
+        });
+
+        session()->set('sales_quote_source', 4);
+        $saleLib->set_invoice_number('TYPED-OLD');
+
+        $saleLib->prepareInvoiceFromOrder(9, 33, [
+            (object) ['item_id' => 3, 'item_location' => 2, 'remaining' => '6.000', 'discount' => '10.00', 'discount_type' => PERCENT, 'unit_price' => '50.00', 'description' => 'Grain'],
+            (object) ['item_id' => 4, 'item_location' => 1, 'remaining' => '1.500', 'discount' => '5.00', 'discount_type' => FIXED, 'unit_price' => '20.00', 'description' => ''],
+        ]);
+
+        $this->assertSame([['3', 2, '6.000', '10.00', PERCENT, '50.00', 'Grain'], ['4', 1, '1.500', '5.00', FIXED, '20.00', '']], $calls);
+        $this->assertSame(33, $saleLib->get_customer());
+        $this->assertSame('sale_invoice', $saleLib->get_mode());
+        $this->assertSame(SALE_TYPE_INVOICE, $saleLib->getSaleType());
+        $this->assertSame(NEW_ENTRY, $saleLib->get_sale_id(), 'a new invoice');
+        $this->assertSame(9, $saleLib->getOrderSource());
+        $this->assertNull($saleLib->getQuoteSource(), 'what the register held before is forgotten');
+        $this->assertNull($saleLib->get_invoice_number());
+    }
+
     /**
      * A register whose item carries two taxes, the first inside the price and the second added to it,
      * for a walk-in customer.

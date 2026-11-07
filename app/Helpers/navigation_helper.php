@@ -2,11 +2,11 @@
 
 const NAVIGATION_GROUPS = [
     'group_main'       => ['home'],
-    'group_sales'      => ['sales'],
+    'group_sales'      => ['sales', 'customer_orders', 'recurring_invoices'],
     'group_purchases'  => ['receivings', 'suppliers'],
     'group_inventory'  => ['items', 'item_kits', 'attributes', 'price_lists', 'stock_documents'],
     'group_customers'  => ['customers', 'giftcards', 'messages'],
-    'group_finance'    => ['expenses', 'expenses_categories', 'receipt_vouchers', 'revenue_categories', 'cashups', 'taxes'],
+    'group_finance'    => ['expenses', 'expenses_categories', 'recurring_expenses', 'receipt_vouchers', 'revenue_categories', 'cashups', 'taxes'],
     'group_accounting' => ['accounting_chart', 'accounting_journals', 'accounting_receivables', 'accounting_debit_notes', 'accounting_payables', 'accounting_cheques', 'accounting_reports', 'accounting_cost_centers', 'accounting_currencies', 'accounting_periods', 'accounting_routing', 'accounting_settings'],
     'group_analysis'   => ['reports'],
     'group_admin'      => ['employees', 'roles', 'branches', 'config'],
@@ -15,6 +15,9 @@ const NAVIGATION_GROUPS = [
 const NAVIGATION_ICONS = [
     'home'                    => 'bi-house',
     'sales'                   => 'bi-cart3',
+    'customer_orders'         => 'bi-clipboard-check',
+    'recurring_invoices'      => 'bi-arrow-repeat',
+    'recurring_expenses'      => 'bi-calendar2-week',
     'receivings'              => 'bi-box-arrow-in-down',
     'suppliers'               => 'bi-truck',
     'items'                   => 'bi-box-seam',

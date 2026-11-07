@@ -40,6 +40,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\PriceControls;
 use App\Libraries\Roles\RecordScope;
+use App\Libraries\SalesOrders\SalesOrders;
 use App\Libraries\ShippingTaxOption;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
@@ -71,8 +72,8 @@ class Sale extends Model
         'sale_type'
     ];
 
-    private ?Throwable $accountingFailure = null;
-
+    private ?Throwable $accountingFailure                   = null;
+    private bool $datedBySchedule                           = false;
     private ?InvoiceDiscountProblem $invoiceDiscountProblem = null;
 
     private ?RecordScope $recordScope = null;
@@ -132,6 +133,30 @@ class Sale extends Model
         $line = SalesTaxSettings::lineWithoutTax($items, $salesTaxes[1] ?? []);
 
         return $line === null ? null : new AccountingException(AccountingError::TaxOneRequired, "Line {$line} of the sale has no tax.", ['line' => $line]);
+    }
+
+    /**
+     * Runs a change in which the day of the invoice is the one a schedule gave it. The permission to type
+     * the date of an invoice is the employee's own to hold; a schedule that was made by somebody who may
+     * manage it dates what it makes with the day it was due, and the day must still be a day up to today
+     * and not before the books start.
+     *
+     * @template T
+     *
+     * @param callable(): T $work
+     *
+     * @return T
+     */
+    public function datedBySchedule(callable $work): mixed
+    {
+        $before                = $this->datedBySchedule;
+        $this->datedBySchedule = true;
+
+        try {
+            return $work();
+        } finally {
+            $this->datedBySchedule = $before;
+        }
     }
 
     /**
@@ -1063,6 +1088,7 @@ class Sale extends Model
         ?string $returnOverrideReason = null,
         ?HeaderCharges $headerCharges = null,
         ?int $priceListId = null,
+        ?int $orderSourceId = null,
     ): int {    // TODO: this method returns the sale_id but the override is expecting it to return a bool. The signature needs to be reworked.  Generally when there are more than 3 maybe 4 parameters, there's a good chance that an object needs to be passed rather than so many params.
         if ($saleId !== NEW_ENTRY && $this->outsideRecordScope($saleId, $employeeId)) {
             return NEW_ENTRY;
@@ -1078,8 +1104,8 @@ class Sale extends Model
         try {
             return (new CustomerLock($this->db))->run(
                 $customerId,
-                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges, $priceListId): int {
-                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges, $priceListId);
+                function () use (&$saleStatus, &$items, &$salesTaxes, $saleId, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges, $priceListId, $orderSourceId): int {
+                    return $this->saveValueLocked($saleId, $saleStatus, $items, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTableId, $salesTaxes, $delivered, $returnOfSaleId, $invoiceDiscount, $returnDocument, $invoiceDate, $paymentTerms, $quoteStatus, $quoteSourceId, $draftFingerprint, $returnOverrideReason, $headerCharges, $priceListId, $orderSourceId);
                 },
             );
         } catch (AccountingException $busy) {
@@ -1121,6 +1147,7 @@ class Sale extends Model
         ?string $returnOverrideReason,
         ?HeaderCharges $headerCharges,
         ?int $priceListId,
+        ?int $orderSourceId,
     ): int {
         $config = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
@@ -1454,6 +1481,24 @@ class Sale extends Model
             $this->accountingFailure = $failure;
 
             return ACCOUNTING_FAILED;
+        }
+
+        if ($saleType === SALE_TYPE_INVOICE) {
+            $orders         = new SalesOrders($this->db);
+            $orderOfInvoice = $orderSourceId ?? $orders->orderOfSale($saleId);
+
+            if ($orderOfInvoice !== null) {
+                try {
+                    $saleStatus == COMPLETED
+                        ? $orders->recordInvoice($saleId, $orderOfInvoice, $items, $customerId, $employeeId, (int) $salesData['branch_id'])
+                        : $orders->link($saleId, $orderOfInvoice);
+                } catch (AccountingException|BranchException $refusal) {
+                    $this->db->transRollback();
+                    $this->accountingFailure = $refusal;
+
+                    return ACCOUNTING_FAILED;
+                }
+            }
         }
 
         if ($quoteStatusChange !== null) {
@@ -1852,7 +1897,7 @@ class Sale extends Model
      */
     private function mayTypeInvoiceDate(int $saleId, int $employeeId, string $date): bool
     {
-        if (model(Employee::class)->has_grant('sales_invoice_date', $employeeId)) {
+        if ($this->datedBySchedule || model(Employee::class)->has_grant('sales_invoice_date', $employeeId)) {
             return true;
         }
 

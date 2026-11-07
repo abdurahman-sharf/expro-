@@ -16,12 +16,19 @@ use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\OpeningStockResult;
 use App\Libraries\Accounting\OpeningStockStatus;
+use App\Libraries\Accounting\ReceivingLineEdit;
 use App\Libraries\Accounting\YearEndClosing;
 use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockRequest;
 use App\Libraries\Stock\Stocktake;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Recurring\RecurringGenerator;
+use App\Models\Customer;
+use App\Models\Giftcard;
+use App\Models\Item_quantity;
+use App\Models\Receiving;
+use App\Models\Sale;
 use Config\Database;
 
 $root = dirname(__DIR__, 2);
@@ -74,7 +81,7 @@ $goFile    = getenv('RACE_GO_FILE');
 
 file_put_contents($readyFile, '1');
 
-while (!file_exists($goFile)) {
+while (! file_exists($goFile)) {
     usleep(1000);
 }
 
@@ -94,17 +101,17 @@ $attempt = static function (callable $action, string $outcomeFile): bool {
 };
 
 $result = match ($method) {
-    'giftcard' => model(App\Models\Giftcard::class)
+    'giftcard' => model(Giftcard::class)
         ->decrementGiftcardValue((string) $args[0], (float) $args[1]),
-    'rewardPoints' => model(App\Models\Customer::class)
+    'rewardPoints' => model(Customer::class)
         ->adjustRewardPoints((int) $args[0], (float) $args[1]),
-    'itemQuantity' => model(App\Models\Item_quantity::class)
+    'itemQuantity' => model(Item_quantity::class)
         ->changeQuantity((int) $args[0], (int) $args[1], (float) $args[2]),
-    'confirmDelivery' => model(App\Models\Sale::class)
+    'confirmDelivery' => model(Sale::class)
         ->confirm_delivery((int) $args[0], (int) $args[1]) > 0,
-    'issueDraft' => model(App\Models\Sale::class)
+    'issueDraft' => model(Sale::class)
         ->issueDraft((int) $args[0], (int) $args[1]) > 0,
-    'cancelSale' => model(App\Models\Sale::class)
+    'cancelSale' => model(Sale::class)
         ->delete((int) $args[0], false, true, (int) $args[1]),
     'serviceInvoice' => (static function (array $args): bool {
         $status = COMPLETED;
@@ -123,7 +130,7 @@ $result = match ($method) {
         ]];
         $taxes = [[], []];
 
-        return model(App\Models\Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[0], (int) $args[3], 'race', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes) > 0;
+        return model(Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[0], (int) $args[3], 'race', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes) > 0;
     })($args),
     'returnSale' => (static function (array $args): bool {
         $status = COMPLETED;
@@ -143,7 +150,27 @@ $result = match ($method) {
         $taxes    = [[], []];
         $payments = isset($args[7]) ? [['payment_type' => (string) $args[7], 'payment_amount' => (string) $args[8], 'cash_refund' => '0', 'cash_adjustment' => 0, 'reference_code' => null]] : [];
 
-        return model(App\Models\Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[5] > 0 ? (int) $args[5] : NEW_ENTRY, (int) $args[6], 'race', null, null, null, SALE_TYPE_RETURN, $payments, null, $taxes, true, (int) $args[0]) > 0;
+        return model(Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[5] > 0 ? (int) $args[5] : NEW_ENTRY, (int) $args[6], 'race', null, null, null, SALE_TYPE_RETURN, $payments, null, $taxes, true, (int) $args[0]) > 0;
+    })($args),
+    'recurringRun' => (static fn (array $args): bool => (new RecurringGenerator())->run((string) $args[0], (int) $args[1])->generated() > 0)($args),
+    'orderInvoice' => (static function (array $args): bool {
+        $status = COMPLETED;
+        $items  = [[
+            'item_id'       => (int) $args[2],
+            'line'          => 0,
+            'description'   => 'Race',
+            'serialnumber'  => '',
+            'quantity'      => (string) $args[1],
+            'discount'      => '0',
+            'discount_type' => 0,
+            'cost_price'    => '0',
+            'price'         => '50.00',
+            'item_location' => 1,
+            'print_option'  => 0,
+        ]];
+        $taxes = [[], []];
+
+        return model(Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[3], (int) $args[4], 'race', null, null, null, SALE_TYPE_INVOICE, [], null, $taxes, true, orderSourceId: (int) $args[0]) > 0;
     })($args),
     'openingStock' => (static function (array $args): bool {
         $results = (new OpeningStock())->post(array_map('intval', explode(',', (string) $args[0])), null);
@@ -201,7 +228,7 @@ $result = match ($method) {
             'tax_percent'        => 0,
         ]];
 
-        return model(App\Models\Receiving::class)->save_value($lines, (int) $args[0], (int) $args[4], 'race', 'REF', 'Due', NEW_ENTRY, isset($args[5]) ? (int) $args[5] : null) > 0;
+        return model(Receiving::class)->save_value($lines, (int) $args[0], (int) $args[4], 'race', 'REF', 'Due', NEW_ENTRY, isset($args[5]) ? (int) $args[5] : null) > 0;
     })($args),
     'backfillApprove' => (static function (array $args): bool {
         try {
@@ -278,7 +305,7 @@ $result = match ($method) {
         } catch (AccountingException $exception) {
             echo $exception->error->value;
         } catch (Throwable $exception) {
-            echo get_class($exception) . ' ' . $exception->getMessage();
+            echo $exception::class . ' ' . $exception->getMessage();
         }
 
         exit(0);
@@ -291,14 +318,14 @@ $result = match ($method) {
         } catch (AccountingException $exception) {
             echo $exception->error->value;
         } catch (Throwable $exception) {
-            echo get_class($exception) . ' ' . $exception->getMessage();
+            echo $exception::class . ' ' . $exception->getMessage();
         }
 
         exit(0);
     })($args),
-    'editPurchaseLines' => model(App\Models\Receiving::class)->updateLines((int) $args[0], [App\Libraries\Accounting\ReceivingLineEdit::changing((int) $args[1], 0, ['quantity' => (string) $args[2]])], (int) $args[3]),
-    'deletePurchase' => model(App\Models\Receiving::class)->delete_value((int) $args[0], (int) $args[1]),
-    'payPurchase' => model(App\Models\Receiving::class)->update((int) $args[0], ['payments' => [
+    'editPurchaseLines' => model(Receiving::class)->updateLines((int) $args[0], [ReceivingLineEdit::changing((int) $args[1], 0, ['quantity' => (string) $args[2]])], (int) $args[3]),
+    'deletePurchase'    => model(Receiving::class)->delete_value((int) $args[0], (int) $args[1]),
+    'payPurchase'       => model(Receiving::class)->update((int) $args[0], ['payments' => [
         ['payment_id' => NEW_ENTRY, 'payment_type' => 'Cash', 'payment_amount' => (string) $args[1], 'employee_id' => (int) $args[2], 'payment_status' => 'completed', 'reference_code' => ''],
     ]]),
     default => throw new InvalidArgumentException("Unknown race method: {$method}"),

@@ -88,6 +88,7 @@ return [
     'price'                          => 'Fiyat',
     'print'                          => 'Yazdır',
     'remove'                         => 'Kaldır',
+    'request_failed'                 => '',
     'required'                       => 'Zorunlu',
     'restore'                        => 'Onar',
     'return_policy'                  => 'İade Politikası',

@@ -35,6 +35,7 @@ return [
     'type_revenue'            => 'Receipt voucher',
     'type_sales_debit_note'   => 'Sales debit note',
     'type_sales_invoice'      => 'Sales invoice',
+    'type_sales_order'        => 'Sales order',
     'type_sales_quote'        => 'Quote',
     'type_stock_request'      => 'Stock request',
     'type_stocktake'          => 'Stocktake',

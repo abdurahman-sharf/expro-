@@ -346,6 +346,7 @@ class Sales extends Secure_Controller
             $this->sale_lib->clearHeaderCharges();
             $this->sale_lib->clearReturnDocument();
             $this->sale_lib->clearQuoteSource();
+            $this->sale_lib->clearOrderSource();
         }
 
         $this->sale_lib->set_mode($mode);
@@ -1811,7 +1812,7 @@ class Sales extends Secure_Controller
                 $invoiceView = $invoiceType;
 
                 // Save the data to the sales table
-                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource(), headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
+                $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource(), headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId(), orderSourceId: $this->sale_lib->getOrderSource());
                 $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
                 // Resort and filter cart lines for printing
@@ -3364,7 +3365,7 @@ class Sales extends Secure_Controller
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 
-        $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms(), $saleType === SALE_TYPE_QUOTE ? QuoteStatus::Draft : null, $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
+        $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms(), $saleType === SALE_TYPE_QUOTE ? QuoteStatus::Draft : null, $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId(), orderSourceId: $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getOrderSource() : null);
 
         if ($saleIdNum === INSUFFICIENT_GIFTCARD_BALANCE) {
             $data['error'] = lang('Sales.insufficient_giftcard_balance');

@@ -88,6 +88,7 @@ return [
     'price'                          => 'Harga',
     'print'                          => 'Cetak',
     'remove'                         => 'Hapus',
+    'request_failed'                 => '',
     'required'                       => 'Diperlukan',
     'restore'                        => 'Kembalikan',
     'return_policy'                  => 'Kebijakan Retur',

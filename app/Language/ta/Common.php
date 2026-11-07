@@ -88,6 +88,7 @@ return [
     'price'                          => 'விலை',
     'print'                          => 'அச்சிடுக',
     'remove'                         => 'அகற்று',
+    'request_failed'                 => '',
     'required'                       => 'தேவை',
     'restore'                        => 'மீட்டமை',
     'return_policy'                  => 'திரும்ப பெரும் கொள்கை',

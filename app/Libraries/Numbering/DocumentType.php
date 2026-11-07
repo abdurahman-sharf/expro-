@@ -24,6 +24,7 @@ enum DocumentType: string
     case PaidCheque      = 'paid_cheque';
     case Revenue         = 'revenue';
     case SalesDebitNote  = 'sales_debit_note';
+    case SalesOrder      = 'sales_order';
 
     case StockPermitAdd      = 'permit_in';
     case StockPermitIssue    = 'permit_out';
@@ -51,6 +52,7 @@ enum DocumentType: string
             self::StockPermitAdd, self::StockPermitIssue, self::StockPermitTransfer => ['stock_permits' => 'permit_id'],
             self::Stocktake    => ['stocktakes' => 'stocktake_id'],
             self::StockRequest => ['stock_requests' => 'request_id'],
+            self::SalesOrder     => ['sales_orders' => 'order_id'],
         };
     }
 
@@ -77,7 +79,7 @@ enum DocumentType: string
     public function bareIdSources(): array
     {
         return match ($this) {
-            self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue, self::SalesDebitNote => $this->sources(),
+            self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue, self::SalesDebitNote, self::SalesOrder => $this->sources(),
             default => [],
         };
     }
@@ -91,7 +93,7 @@ enum DocumentType: string
             self::CreditNote, self::RefundInvoice => 'POS ' . $id,
             self::Purchase, self::DebitNote => 'RECV ' . $id,
             self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue => (string) $id,
-            self::SalesDebitNote      => str_pad((string) $id, $this->defaultPadding(), '0', STR_PAD_LEFT),
+            self::SalesDebitNote, self::SalesOrder => str_pad((string) $id, $this->defaultPadding(), '0', STR_PAD_LEFT),
             self::ReceivedCheque      => 'CHQ-IN ' . $id,
             self::PaidCheque          => 'CHQ-OUT ' . $id,
             self::StockPermitAdd      => 'STK-IN ' . $id,
@@ -105,12 +107,12 @@ enum DocumentType: string
 
     /**
      * The digits a number of the kind has until the company chooses otherwise: the sales debit note
-     * is numbered with five and the stock documents with six, as the reference system numbers them.
+     * and the sales order are numbered with five and the stock documents with six, as the reference system numbers them.
      */
     public function defaultPadding(): int
     {
         return match ($this) {
-            self::SalesDebitNote => 5,
+            self::SalesDebitNote, self::SalesOrder => 5,
             self::StockPermitAdd, self::StockPermitIssue, self::StockPermitTransfer, self::Stocktake, self::StockRequest => 6,
             default => 0,
         };

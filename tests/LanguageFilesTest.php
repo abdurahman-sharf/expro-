@@ -10,6 +10,11 @@ use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
+use App\Libraries\Recurring\RecurrenceTerms;
+use App\Libraries\Recurring\RecurrenceUnit;
+use App\Libraries\Recurring\RecurringKind;
+use App\Libraries\Recurring\ScheduleStatus;
+use App\Libraries\SalesOrders\SalesOrderStatus;
 use App\Libraries\Roles\RoleError;
 use App\Libraries\Stock\StockPermissions;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -299,6 +304,105 @@ class LanguageFilesTest extends CIUnitTestCase
 
             foreach (['{0}', '{1}'] as $placeholder) {
                 $this->assertSame(substr_count($english[$key], $placeholder), substr_count($messages[$key], $placeholder), "{$locale} keeps {$placeholder} of {$key}");
+            }
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testOrderToCashFiles_NameTheModulesLabelThePermissionsAndHaveEveryLineOfTheScreens(string $locale): void
+    {
+        $module = include __DIR__ . "/../app/Language/{$locale}/Module.php";
+
+        foreach (['customer_orders', 'recurring_invoices', 'recurring_expenses'] as $name) {
+            $this->assertNotSame('', $module[$name] ?? '', "{$locale} lacks the module label {$name}");
+            $this->assertNotSame('', $module[$name . '_desc'] ?? '', "{$locale} lacks the module description {$name}");
+        }
+
+        foreach (['Customer_orders', 'Sales_orders', 'Recurring', 'Recurring_invoices', 'Recurring_expenses'] as $file) {
+            $english  = include __DIR__ . "/../app/Language/en/{$file}.php";
+            $messages = include __DIR__ . "/../app/Language/{$locale}/{$file}.php";
+
+            foreach (array_keys($english) as $key) {
+                $this->assertNotSame('', $messages[$key] ?? '', "{$locale} lacks {$file}.{$key}");
+            }
+        }
+
+        $orders = include __DIR__ . "/../app/Language/{$locale}/Customer_orders.php";
+
+        foreach (['so_add', 'so_edit', 'so_delete', 'so_view_all', 'so_convert'] as $permission) {
+            $this->assertNotSame('', $orders[explode('_', $permission, 2)[1]] ?? '', "{$locale} lacks the label of the permission {$permission}, which the employee form looks up as Customer_orders.{key}");
+        }
+
+        foreach (RecurringKind::cases() as $kind) {
+            $labels = include __DIR__ . "/../app/Language/{$locale}/Recurring_" . $kind->value . 's.php';
+
+            foreach (['view', 'manage'] as $part) {
+                $this->assertNotSame('', $labels[$kind->value . 's_' . $part] ?? '', "{$locale} lacks the label of the permission of {$kind->value} {$part}");
+            }
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testOrderToCashFiles_NameEveryStatusUnitFrequencyAndRefusalTheCodeCanShow(string $locale): void
+    {
+        $orders    = include __DIR__ . "/../app/Language/{$locale}/Sales_orders.php";
+        $recurring = include __DIR__ . "/../app/Language/{$locale}/Recurring.php";
+
+        foreach (SalesOrderStatus::cases() as $status) {
+            $this->assertNotSame('', $orders[str_replace('Sales_orders.', '', $status->languageKey())] ?? '', "{$locale} lacks the status {$status->value}");
+        }
+
+        foreach (ScheduleStatus::cases() as $status) {
+            $this->assertNotSame('', $recurring[str_replace('Recurring.', '', $status->languageKey())] ?? '', "{$locale} lacks the status {$status->value}");
+            $this->assertNotSame('', $recurring['move_to_' . $status->value] ?? '', "{$locale} lacks the move to {$status->value}");
+        }
+
+        foreach (RecurrenceUnit::cases() as $unit) {
+            $this->assertNotSame('', $recurring[str_replace('Recurring.', '', $unit->languageKey())] ?? '', "{$locale} lacks the unit {$unit->value}");
+        }
+
+        foreach (array_keys(RecurrenceTerms::EXPENSE_FREQUENCIES) as $frequency) {
+            $this->assertNotSame('', $recurring['frequency_' . $frequency] ?? '', "{$locale} lacks the frequency {$frequency}");
+        }
+
+        foreach (['insufficient_stock', 'discount_invalid', 'save_failed', 'invoice_number_duplicate'] as $code) {
+            $this->assertNotSame('', $recurring['refusal_' . $code] ?? '', "{$locale} lacks the refusal {$code}");
+        }
+
+        foreach (['manual', 'end_date', 'max_repeats'] as $reason) {
+            $this->assertNotSame('', $recurring['ended_' . $reason] ?? '', "{$locale} lacks the reason {$reason}");
+        }
+
+        foreach (range(0, 4) as $when) {
+            $this->assertNotSame('', $recurring['reminder_when_' . $when] ?? '', "{$locale} lacks the reminder {$when}");
+        }
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function everyLocaleProvider(): array
+    {
+        $cases = [];
+
+        foreach (glob(realpath(__DIR__ . '/../app/Language') . '/*', GLOB_ONLYDIR) as $localeDir) {
+            $cases[basename($localeDir)] = [basename($localeDir)];
+        }
+
+        return $cases;
+    }
+
+    #[DataProvider('everyLocaleProvider')]
+    public function testOrderToCashFiles_KeepTheKeysOfEnglishInTheirOrderAndLeaveWhatIsNotTranslatedEmpty(string $locale): void
+    {
+        foreach (['Customer_orders', 'Sales_orders', 'Recurring', 'Recurring_invoices', 'Recurring_expenses'] as $file) {
+            $english  = include __DIR__ . "/../app/Language/en/{$file}.php";
+            $messages = include __DIR__ . "/../app/Language/{$locale}/{$file}.php";
+
+            $this->assertSame(array_keys($english), array_keys($messages), "{$locale} {$file}: the keys of English, in the same order");
+
+            if (! in_array($locale, ['en', 'en-GB', 'ar-EG', 'ar-LB'], true)) {
+                $this->assertSame([''], array_values(array_unique($messages)), "{$locale} {$file}: a language with no translation yet falls back to English and never holds English text");
             }
         }
     }

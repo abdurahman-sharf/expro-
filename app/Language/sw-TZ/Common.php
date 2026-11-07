@@ -88,6 +88,7 @@ return [
     'price'                          => 'Bei',
     'print'                          => 'Chapisha',
     'remove'                         => 'Ondoa',
+    'request_failed'                 => '',
     'required'                       => 'Lazima',
     'restore'                        => 'Rejesha',
     'return_policy'                  => 'Sera ya Kurudisha',

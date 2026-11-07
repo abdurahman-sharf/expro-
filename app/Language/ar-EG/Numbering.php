@@ -35,6 +35,7 @@ return [
     'type_revenue'            => 'سند قبض',
     'type_sales_debit_note'   => 'الإشعار المدين للمبيعات',
     'type_sales_invoice'      => 'فاتورة بيع',
+    'type_sales_order'        => 'أمر بيع',
     'type_sales_quote'        => 'عرض سعر',
     'type_stock_request'      => 'طلب مخزون',
     'type_stocktake'          => 'جرد المخزون',

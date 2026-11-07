@@ -88,6 +88,7 @@ return [
     'price'                          => 'Pris',
     'print'                          => 'Print ud',
     'remove'                         => 'Fjern',
+    'request_failed'                 => '',
     'required'                       => 'Obligatorisk',
     'restore'                        => 'Gendan',
     'return_policy'                  => 'Returpolitik',

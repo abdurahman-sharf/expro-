@@ -88,6 +88,7 @@ return [
     'price'                          => 'السعر',
     'print'                          => 'طباعة',
     'remove'                         => 'إزالة',
+    'request_failed'                 => 'تعذّر إتمام الطلب. حاول مرة أخرى.',
     'required'                       => 'مطلوب',
     'restore'                        => 'الإستعادة',
     'return_policy'                  => 'سياسة الاسترجاع',

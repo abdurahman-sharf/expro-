@@ -88,6 +88,7 @@ return [
     'price'                          => 'מחיר',
     'print'                          => 'הדפס',
     'remove'                         => 'הסר',
+    'request_failed'                 => '',
     'required'                       => 'נדרש',
     'restore'                        => 'שחזור',
     'return_policy'                  => 'מדיניות החזרה',

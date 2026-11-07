@@ -88,6 +88,7 @@ return [
     'price'                          => 'ფასი',
     'print'                          => 'დაბეჭდვა',
     'remove'                         => 'წაშლა',
+    'request_failed'                 => '',
     'required'                       => 'საჭიროა',
     'restore'                        => 'აღდგენა',
     'return_policy'                  => 'დაბრუნების პოლიტიკა',

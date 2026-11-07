@@ -45,6 +45,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
@@ -4143,6 +4144,51 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertNull($sale->due_date);
         $this->assertCount(2, $this->standingDated($saleId, date('Y-m-d')));
         $this->assertSame(date('Y-m-d'), $this->position()->invoice($saleId)->dueDate);
+    }
+
+    public function testDatedBySchedule_LetsTheScheduleDateAnInvoiceAndOnlyWhileTheCallRuns(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $day   = $this->daysAgo(3);
+
+        $saleId = $this->sales->datedBySchedule(fn (): int => $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $day));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame($day, $this->saleRow($saleId)->invoice_date);
+
+        $again = $this->referenceInvoice();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($again['items'], $again['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $day));
+        $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
+    }
+
+    public function testDatedBySchedule_TakesTheRightToTypeTheDayBackWhenTheWorkFails(): void
+    {
+        try {
+            $this->sales->datedBySchedule(static function (): never {
+                throw new RuntimeException('the work failed');
+            });
+            $this->fail('The failure of the work reaches the caller.');
+        } catch (RuntimeException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $cycle = $this->referenceInvoice();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(2)));
+        $this->assertSame(AccountingError::PermissionDenied, $this->failure()->error);
+    }
+
+    public function testDatedBySchedule_StillRefusesADayThatHasNotComeAndOneBeforeTheBooks(): void
+    {
+        foreach ([[date('Y-m-d', strtotime('+1 day')), AccountingError::InvoiceDateInvalid], ['2019-12-31', AccountingError::InvoiceDateBeforeStart]] as [$day, $error]) {
+            $cycle = $this->referenceInvoice();
+
+            $result = $this->sales->datedBySchedule(fn (): int => $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $day));
+
+            $this->assertSame(ACCOUNTING_FAILED, $result);
+            $this->assertSame($error, $this->failure()->error);
+        }
     }
 
     public function testSaveValue_RefusesADayTypedByAnEmployeeWhoMayNotTypeItAndSavesNothing(): void

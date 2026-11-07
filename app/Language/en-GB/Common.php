@@ -88,6 +88,7 @@ return [
     'price'                          => 'Price',
     'print'                          => 'Print',
     'remove'                         => 'Remove',
+    'request_failed'                 => 'The request could not be completed. Please try again.',
     'required'                       => 'Required',
     'restore'                        => 'Restore',
     'return_policy'                  => 'Return Policy',

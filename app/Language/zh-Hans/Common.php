@@ -88,6 +88,7 @@ return [
     'price'                          => '价格',
     'print'                          => '打印',
     'remove'                         => '移除',
+    'request_failed'                 => '',
     'required'                       => '需要',
     'restore'                        => '恢复',
     'return_policy'                  => '退货政策',

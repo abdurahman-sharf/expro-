@@ -88,6 +88,7 @@ return [
     'price'                          => 'Preț',
     'print'                          => 'Printează',
     'remove'                         => 'Elimină',
+    'request_failed'                 => '',
     'required'                       => 'Necesar',
     'restore'                        => 'Restabilire',
     'return_policy'                  => 'Politica de returnare',

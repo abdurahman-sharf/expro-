@@ -38,6 +38,7 @@ final class ReadinessRunner
             new SettingsChecks($this->db),
             new BackfillChecks($this->db),
             new RoutingChecks($this->db),
+            new RecurringChecks($this->db),
         ];
     }
 
