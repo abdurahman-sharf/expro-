@@ -130,6 +130,7 @@ final class ExpensesReportTest extends CashReportTestCase
 
         $this->assertFalse($table->ties());
         $this->assertAmount('100.00', $table->ties[0]->difference());
+        $this->assertContains(lang('Accounting_family_reports.note_unposted', [1]), $table->notes);
     }
 
     public function testBuild_SaysSoWhenTheJournalOfAnExpenseHoldsAnotherAmountThanTheExpense(): void
