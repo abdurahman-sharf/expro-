@@ -111,6 +111,20 @@ final class CostCenterReportTest extends FamilyReportTestCase
         $this->assertSame($none, $table->blocks[array_key_last($table->blocks)]->title);
     }
 
+    public function testBuild_PutsTheLinesWithNoCostCenterLastWhateverTheCodeOfACenter(): void
+    {
+        $late  = $this->centers->create(['code' => 'zzzzzz', 'name' => 'Late']);
+        $early = $this->centers->create(['code' => '0', 'name' => 'Early']);
+
+        $this->journal('30.00', null, $late);
+        $this->journal('20.00', null, $early);
+        $this->journal('10.00');
+
+        $titles = array_map(static fn (object $block): string => $block->title, $this->built($this->report, $this->thisDay())->blocks);
+
+        $this->assertSame(['0 - Early', 'zzzzzz - Late', lang('Accounting_family_reports.cost_center_none')], $titles);
+    }
+
     public function testBuild_TiesTheCentersAndTheLinesWithNoneToTheTrialBalance(): void
     {
         [$a, $b] = $this->twoCenters();

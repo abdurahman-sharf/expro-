@@ -66,19 +66,19 @@ final class CostCenterReport implements FamilyReport
 
             $sets[$key] ??= ['order' => $order, 'title' => $title, 'rows' => []];
             $sets[$key]['rows'][] = [
-                'sort' => [$centerId === 0 ? 'zzzz' : $centers[$centerId]['code'], $accounts[(int) $line->account_id]['code']],
+                'sort' => [$centerId === 0 ? 1 : 0, $centerId === 0 ? '' : $centers[$centerId]['code'], $accounts[(int) $line->account_id]['code']],
                 'row'  => $this->row($centerId === 0 ? null : $centers[$centerId], $accounts[(int) $line->account_id], (string) $line->debit, (string) $line->credit),
             ];
         }
 
         foreach ($excess as $line) {
             [$key, $order, $title] = in_array($group, ['center', 'main'], true)
-                ? ['excess', 'zzzzz', $this->text('cost_center_excess')]
+                ? ['excess', [2, ''], $this->text('cost_center_excess')]
                 : $this->placement($group, 0, (int) $line->account_id, (string) $line->bucket, $centers, $accounts);
 
             $sets[$key] ??= ['order' => $order, 'title' => $title, 'rows' => []];
             $sets[$key]['rows'][] = [
-                'sort' => ['zzzzz', $accounts[(int) $line->account_id]['code']],
+                'sort' => [2, '', $accounts[(int) $line->account_id]['code']],
                 'row'  => new ReportRow([
                     'center'  => $this->text('cost_center_excess'),
                     'main'    => '',
@@ -286,17 +286,17 @@ final class CostCenterReport implements FamilyReport
      * @param array<int, array{code: string, label: string, main: int}> $centers
      * @param array<int, array{code: string, label: string}>            $accounts
      *
-     * @return array{0: string, 1: string, 2: string}
+     * @return array{0: string, 1: array{0: int, 1: string}, 2: string}
      */
     private function placement(string $group, int $centerId, int $accountId, string $bucket, array $centers, array $accounts): array
     {
-        $none = ['none', 'zzzz', $this->text('cost_center_none')];
+        $none = ['none', [1, ''], $this->text('cost_center_none')];
 
         return match ($group) {
-            'center'  => $centerId === 0 ? $none : ["c{$centerId}", $centers[$centerId]['code'], $centers[$centerId]['label']],
-            'main'    => $centerId === 0 ? $none : ['c' . $centers[$centerId]['main'], $centers[$centers[$centerId]['main']]['code'], $centers[$centers[$centerId]['main']]['label']],
-            'account' => ["a{$accountId}", $accounts[$accountId]['code'], $accounts[$accountId]['label']],
-            default   => [$bucket, $bucket, PeriodUnit::from($group)->label($bucket)],
+            'center'  => $centerId === 0 ? $none : ["c{$centerId}", [0, $centers[$centerId]['code']], $centers[$centerId]['label']],
+            'main'    => $centerId === 0 ? $none : ['c' . $centers[$centerId]['main'], [0, $centers[$centers[$centerId]['main']]['code']], $centers[$centers[$centerId]['main']]['label']],
+            'account' => ["a{$accountId}", [0, $accounts[$accountId]['code']], $accounts[$accountId]['label']],
+            default   => [$bucket, [0, $bucket], PeriodUnit::from($group)->label($bucket)],
         };
     }
 }

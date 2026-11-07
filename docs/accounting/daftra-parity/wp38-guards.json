@@ -126,6 +126,15 @@
     ]
   },
   {
+    "name": "G15 rounding: the shares add up to the amount of the line",
+    "file": "app/Libraries/Accounting/CostCenterService.php",
+    "find": "$target            = Money::round(bcdiv(bcmul($lineAmount, $total, self::WORK_SCALE), '100', self::WORK_SCALE), 4);",
+    "replace": "$target            = $sum;",
+    "tests": [
+      "tests/Libraries/Accounting/CostCenterServiceTest.php"
+    ]
+  },
+  {
     "name": "G16 distribution: an amount stands for a percent when none is typed",
     "file": "app/Libraries/Accounting/CostCenterService.php",
     "find": "if ($percent === '' && $amount !== '' && preg_match('/^\\d{1,11}(\\.\\d{1,4})?$/', $amount) === 1 && bccomp($lineAmount, '0', 4) > 0) {",
@@ -689,8 +698,8 @@
   {
     "name": "G75 cost center report: the lines with no center are their own block",
     "file": "app/Libraries/Accounting/FamilyReports/CostCenterReport.php",
-    "find": "$none = ['none', 'zzzz', $this->text('cost_center_none')];",
-    "replace": "$none = ['none', 'aaaa', $this->text('cost_center_none')];",
+    "find": "$none = ['none', [1, ''], $this->text('cost_center_none')];",
+    "replace": "$none = ['none', [0, ''], $this->text('cost_center_none')];",
     "tests": [
       "tests/Libraries/Accounting/FamilyReports/CostCenterReportTest.php"
     ]
