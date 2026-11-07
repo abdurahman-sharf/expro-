@@ -225,10 +225,16 @@ final class StockLocationLifecycle
      */
     private function lockedLocations(): array
     {
-        return $this->db->query(
+        $found = $this->db->query(
             'SELECT l.location_id, l.location_name, l.status, l.is_primary, l.branch_id FROM ' . $this->db->prefixTable('stock_locations') . ' l JOIN ' . $this->db->prefixTable('branches') . ' b ON b.branch_id = l.branch_id WHERE l.deleted = 0 AND b.company_id = ? ORDER BY l.location_id FOR UPDATE',
             [CompanyContext::id()],
-        )->getResult();
+        );
+
+        if ($found === false) {
+            throw new AccountingException(AccountingError::WriteFailed, 'The stock locations could not be locked.');
+        }
+
+        return $found->getResult();
     }
 
     /**
