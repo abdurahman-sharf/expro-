@@ -119,6 +119,11 @@ class AccountingPaymentReportsControllerTest extends CIUnitTestCase
 
         $this->fetch(self::PAYMENTS)->assertRedirect();
 
+        $this->reader(['accounting_reports', 'reports_employees']);
+
+        $this->fetch(self::PAYMENTS . '?show=1&group=user')->assertRedirect();
+        $this->fetch(self::PAYMENTS . '/csv?group=collector')->assertRedirect();
+
         $this->reader(['accounting_reports', 'reports_payments']);
 
         $this->fetch(self::PAYMENTS . '?show=1')->assertStatus(200);
