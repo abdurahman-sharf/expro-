@@ -15,7 +15,10 @@ use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 
-class CurrenciesTest extends CIUnitTestCase
+/**
+ * @internal
+ */
+final class CurrenciesTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -23,7 +26,7 @@ class CurrenciesTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
+    protected $namespace;
     private Currencies $currencies;
 
     public static function setUpBeforeClass(): void
@@ -66,7 +69,7 @@ class CurrenciesTest extends CIUnitTestCase
         }
     }
 
-    public function testAll_ListsTheBaseCurrencyFirstAndSwitchedOn(): void
+    public function testAllListsTheBaseCurrencyFirstAndSwitchedOn(): void
     {
         $this->currencies->setActive('USD', true);
         $all = $this->currencies->all();
@@ -77,7 +80,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertSame(['SAR', 'USD'], array_map(static fn ($currency): string => $currency->code, $this->currencies->all(activeOnly: true)));
     }
 
-    public function testEnsureBase_PutsTheBaseCurrencyBackSwitchedOnWhenItsRowIsGone(): void
+    public function testEnsureBasePutsTheBaseCurrencyBackSwitchedOnWhenItsRowIsGone(): void
     {
         $db = $this->accountingDb();
         $db->table('accounting_currencies')->where('currency_code', 'SAR')->delete();
@@ -94,7 +97,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertSame('1', (string) $db->table('accounting_currencies')->where('currency_code', 'SAR')->get()->getRow()->active);
     }
 
-    public function testEnsureBase_AddsABaseCodeOutsideTheCatalogWithTwoDecimals(): void
+    public function testEnsureBaseAddsABaseCodeOutsideTheCatalogWithTwoDecimals(): void
     {
         $this->setConfigValue('accounting_base_currency', 'ZZZ');
 
@@ -106,7 +109,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertFalse($this->currencies->isBase('SAR'));
     }
 
-    public function testDecimalsOf_FollowsTheCatalogAndKeepsTwoForAnUnknownCode(): void
+    public function testDecimalsOfFollowsTheCatalogAndKeepsTwoForAnUnknownCode(): void
     {
         $this->assertSame(0, $this->currencies->decimalsOf('JPY'));
         $this->assertSame(3, $this->currencies->decimalsOf('KWD'));
@@ -116,7 +119,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertSame(2, $this->currencies->baseDecimals());
     }
 
-    public function testCreate_RequiresThePermissionToManageCurrencies(): void
+    public function testCreateRequiresThePermissionToManageCurrencies(): void
     {
         $nobody = $this->employeeWithGrants(['accounting_settings']);
 
@@ -124,7 +127,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertNull($this->currencies->find('XYZ'));
     }
 
-    public function testCreate_RejectsAnEmployeeLimitedToSomeBranches(): void
+    public function testCreateRejectsAnEmployeeLimitedToSomeBranches(): void
     {
         $branchId   = $this->createBranch('B2');
         $restricted = $this->employeeWithGrants([AccountingGuard::CURRENCIES_MANAGE], [$branchId]);
@@ -134,7 +137,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->currencies->create(['code' => 'XYZ', 'name_ar' => 'ع', 'name_en' => 'E', 'decimals' => 2], $restricted);
     }
 
-    public function testCreate_AcceptsZeroTwoAndThreeDecimalsAndWritesTheAuditLog(): void
+    public function testCreateAcceptsZeroTwoAndThreeDecimalsAndWritesTheAuditLog(): void
     {
         $manager = $this->manager();
 
@@ -150,8 +153,8 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertSame($manager, (int) $audit[0]->employee_id);
     }
 
-    #[DataProvider('invalidCurrencies')]
-    public function testCreate_RejectsAnInvalidCurrency(array $input, AccountingError $expected): void
+    #[DataProvider('provideCreate_RejectsAnInvalidCurrency')]
+    public function testCreateRejectsAnInvalidCurrency(array $input, AccountingError $expected): void
     {
         $this->assertRefused($expected, fn () => $this->currencies->create($input + ['code' => 'XYZ', 'name_ar' => 'ع', 'name_en' => 'E', 'decimals' => 2], $this->manager()));
     }
@@ -159,7 +162,7 @@ class CurrenciesTest extends CIUnitTestCase
     /**
      * @return array<string, array{array<string, mixed>, AccountingError}>
      */
-    public static function invalidCurrencies(): array
+    public static function provideCreate_RejectsAnInvalidCurrency(): iterable
     {
         return [
             'two letters'       => [['code' => 'XY'], AccountingError::CurrencyCodeInvalid],
@@ -172,7 +175,7 @@ class CurrenciesTest extends CIUnitTestCase
         ];
     }
 
-    public function testUpdate_ChangesTheNamesAndTheDecimalsOfACurrencyThatNothingUsed(): void
+    public function testUpdateChangesTheNamesAndTheDecimalsOfACurrencyThatNothingUsed(): void
     {
         $manager = $this->manager();
 
@@ -189,7 +192,7 @@ class CurrenciesTest extends CIUnitTestCase
         }
     }
 
-    public function testUpdate_RejectsNewDecimalsOnceADocumentUsedTheCurrency(): void
+    public function testUpdateRejectsNewDecimalsOnceADocumentUsedTheCurrency(): void
     {
         $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'USD box', 'kind' => 'cash', 'currency_code' => 'USD']);
 
@@ -200,20 +203,20 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertSame('Dollar', $this->currencies->find('USD')->nameEn);
     }
 
-    public function testUpdate_RejectsNewDecimalsOfTheBaseCurrencyOnceAJournalIsPosted(): void
+    public function testUpdateRejectsNewDecimalsOfTheBaseCurrencyOnceAJournalIsPosted(): void
     {
         (new PostingService())->post($this->balancedDraft());
 
         $this->assertRefused(AccountingError::CurrencyInUse, fn () => $this->currencies->update('SAR', ['decimals' => 3], $this->manager()));
     }
 
-    public function testUpdate_RequiresThePermissionAndAnExistingCurrency(): void
+    public function testUpdateRequiresThePermissionAndAnExistingCurrency(): void
     {
         $this->assertRefused(AccountingError::PermissionDenied, fn () => $this->currencies->update('USD', ['name_en' => 'x'], $this->employeeWithGrants([])));
         $this->assertRefused(AccountingError::CurrencyNotFound, fn () => $this->currencies->update('QQQ', ['name_en' => 'x'], $this->manager()));
     }
 
-    public function testUpdate_RejectsAnEmployeeLimitedToSomeBranches(): void
+    public function testUpdateRejectsAnEmployeeLimitedToSomeBranches(): void
     {
         $restricted = $this->employeeWithGrants([AccountingGuard::CURRENCIES_MANAGE], [$this->createBranch('B2')]);
         $before     = $this->currencies->find('EUR')->nameEn;
@@ -228,7 +231,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertSame($before, $this->currencies->find('EUR')->nameEn);
     }
 
-    public function testSetActive_SwitchesACurrencyOnAndOffAndRefusesToSwitchOffTheBase(): void
+    public function testSetActiveSwitchesACurrencyOnAndOffAndRefusesToSwitchOffTheBase(): void
     {
         $manager = $this->manager();
 
@@ -243,13 +246,13 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertSame(['activated', 'deactivated'], array_column($this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'currency')->orderBy('audit_id')->get()->getResultArray(), 'action'));
     }
 
-    public function testSetActive_RequiresThePermission(): void
+    public function testSetActiveRequiresThePermission(): void
     {
         $this->assertRefused(AccountingError::PermissionDenied, fn () => $this->currencies->setActive('EUR', true, $this->employeeWithGrants([])));
         $this->assertFalse($this->currencies->find('EUR')->active);
     }
 
-    public function testSetActive_RejectsAnEmployeeLimitedToSomeBranches(): void
+    public function testSetActiveRejectsAnEmployeeLimitedToSomeBranches(): void
     {
         $restricted = $this->employeeWithGrants([AccountingGuard::CURRENCIES_MANAGE], [$this->createBranch('B2')]);
 
@@ -263,7 +266,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertFalse($this->currencies->find('EUR')->active);
     }
 
-    public function testRequireForeign_RejectsAnUnknownASwitchedOffAndTheBaseCurrency(): void
+    public function testRequireForeignRejectsAnUnknownASwitchedOffAndTheBaseCurrency(): void
     {
         $this->assertRefused(AccountingError::CurrencyNotFound, fn () => $this->currencies->requireForeign('QQQ'));
         $this->assertRefused(AccountingError::CurrencyNotFound, fn () => $this->currencies->requireForeign('usd'));
@@ -275,14 +278,14 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertSame('USD', $this->currencies->requireForeign('USD')->code);
     }
 
-    public function testDocumentCurrency_IsNullForTheBaseCurrencyAndForNone(): void
+    public function testDocumentCurrencyIsNullForTheBaseCurrencyAndForNone(): void
     {
         $this->assertNull($this->currencies->documentCurrency(null, '2026-10-21'));
         $this->assertNull($this->currencies->documentCurrency('', '2026-10-21'));
         $this->assertNull($this->currencies->documentCurrency('SAR', '2026-10-21'));
     }
 
-    public function testDocumentCurrency_TakesTheLatestRateOnOrBeforeTheDateOfTheDocument(): void
+    public function testDocumentCurrencyTakesTheLatestRateOnOrBeforeTheDateOfTheDocument(): void
     {
         $this->currencies->setActive('USD', true);
         $rates = $this->currencies->rates();
@@ -292,11 +295,11 @@ class CurrenciesTest extends CIUnitTestCase
         $before = $this->currencies->documentCurrency('USD', '2026-10-27');
         $onDay  = $this->currencies->documentCurrency('USD', '2026-11-05');
 
-        $this->assertEquals(new DocumentCurrency('USD', '3.75000000', 2), $before);
+        $this->assertSame(new DocumentCurrency('USD', '3.75000000', 2), $before);
         $this->assertSame('3.60000000', $onDay->rate);
     }
 
-    public function testDocumentCurrency_RejectsADateBeforeTheFirstRate(): void
+    public function testDocumentCurrencyRejectsADateBeforeTheFirstRate(): void
     {
         $this->currencies->setActive('USD', true);
         $this->currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => '2026-10-01']);
@@ -304,7 +307,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertRefused(AccountingError::RateMissing, fn () => $this->currencies->documentCurrency('USD', '2026-09-30'));
     }
 
-    public function testDocumentCurrency_AcceptsATypedRateOnlyFromWhoManagesCurrencies(): void
+    public function testDocumentCurrencyAcceptsATypedRateOnlyFromWhoManagesCurrencies(): void
     {
         $this->currencies->setActive('USD', true);
 
@@ -315,7 +318,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertRefused(AccountingError::RateInvalid, fn () => $this->currencies->documentCurrency('USD', '2026-10-27', '-3', $this->manager()));
     }
 
-    public function testDocumentCurrency_RefusesACurrencyOfThreeDecimalsAndAcceptsOneOfNone(): void
+    public function testDocumentCurrencyRefusesACurrencyOfThreeDecimalsAndAcceptsOneOfNone(): void
     {
         $this->currencies->setActive('KWD', true);
         $this->currencies->setActive('JPY', true);
@@ -326,15 +329,15 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertSame(0, $this->currencies->documentCurrency('JPY', '2026-10-27')->decimals);
     }
 
-    public function testStored_ReadsBackWhatADocumentCarriesAndIgnoresTheBase(): void
+    public function testStoredReadsBackWhatADocumentCarriesAndIgnoresTheBase(): void
     {
         $this->assertNull($this->currencies->stored(null, null));
         $this->assertNull($this->currencies->stored('SAR', '1'));
         $this->assertNull($this->currencies->stored('USD', null));
-        $this->assertEquals(new DocumentCurrency('KWD', '12.04917000', 3), $this->currencies->stored('KWD', '12.04917'));
+        $this->assertSame(new DocumentCurrency('KWD', '12.04917000', 3), $this->currencies->stored('KWD', '12.04917'));
     }
 
-    public function testInUse_SeesADocumentAJournalLineAndATreasury(): void
+    public function testInUseSeesADocumentAJournalLineAndATreasury(): void
     {
         $this->assertFalse($this->currencies->inUse('EUR'));
 
@@ -343,7 +346,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertTrue($this->currencies->inUse('EUR'));
     }
 
-    public function testInUse_NamesEveryColumnOfTheSchemaThatHoldsACurrencyCode(): void
+    public function testInUseNamesEveryColumnOfTheSchemaThatHoldsACurrencyCode(): void
     {
         $db     = $this->accountingDb();
         $prefix = $db->getPrefix();
@@ -365,7 +368,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertSame($found, $listed, 'A column that holds a currency fixes its decimals once it is written');
     }
 
-    public function testInUse_SeesADraftSaleThatHasNoJournalYetAndFixesTheDecimalsOfItsCurrency(): void
+    public function testInUseSeesADraftSaleThatHasNoJournalYetAndFixesTheDecimalsOfItsCurrency(): void
     {
         $db = $this->accountingDb();
 
@@ -383,7 +386,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertFalse($this->currencies->inUse('EUR'));
     }
 
-    public function testInUse_SeesATreasuryTransferInTheCurrencyOnEitherSide(): void
+    public function testInUseSeesATreasuryTransferInTheCurrencyOnEitherSide(): void
     {
         $db = $this->accountingDb();
 
@@ -401,7 +404,7 @@ class CurrenciesTest extends CIUnitTestCase
         }
     }
 
-    public function testIsBase_IgnoresTheCaseAndTheSpacesOfTheCode(): void
+    public function testIsBaseIgnoresTheCaseAndTheSpacesOfTheCode(): void
     {
         $this->assertTrue($this->currencies->isBase('sar'));
         $this->assertTrue($this->currencies->isBase(' Sar '));
@@ -409,14 +412,14 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertFalse($this->currencies->isBase(''));
     }
 
-    public function testFind_ReadsACurrencyWhateverTheCaseOfItsCode(): void
+    public function testFindReadsACurrencyWhateverTheCaseOfItsCode(): void
     {
         $this->assertSame('EUR', $this->currencies->find('eur')?->code);
         $this->assertSame('EUR', $this->currencies->find(' eUr ')?->code);
         $this->assertNull($this->currencies->find('qqq'));
     }
 
-    public function testSetActive_RefusesToSwitchOffTheBaseCurrencyWrittenInLowerCase(): void
+    public function testSetActiveRefusesToSwitchOffTheBaseCurrencyWrittenInLowerCase(): void
     {
         $this->assertRefused(AccountingError::CurrencyIsBase, fn () => $this->currencies->setActive('sar', false, $this->manager()));
 
@@ -424,14 +427,14 @@ class CurrenciesTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'currency', 'action' => 'deactivated'])->countAllResults());
     }
 
-    public function testSetActive_SwitchesACurrencyOnWhateverTheCaseOfItsCode(): void
+    public function testSetActiveSwitchesACurrencyOnWhateverTheCaseOfItsCode(): void
     {
         $this->currencies->setActive('eur', true, $this->manager());
 
         $this->assertTrue($this->currencies->find('EUR')->active);
     }
 
-    public function testUpdate_ChangesACurrencyWhateverTheCaseOfItsCodeAndHoldsTheBaseToItsDecimals(): void
+    public function testUpdateChangesACurrencyWhateverTheCaseOfItsCodeAndHoldsTheBaseToItsDecimals(): void
     {
         (new PostingService())->post($this->balancedDraft());
 
@@ -443,7 +446,7 @@ class CurrenciesTest extends CIUnitTestCase
         $this->currencies->update('EUR', ['name_en' => 'Euro'], $this->manager());
     }
 
-    public function testInUse_IgnoresTheCaseOfTheCode(): void
+    public function testInUseIgnoresTheCaseOfTheCode(): void
     {
         $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'EUR box', 'kind' => 'cash', 'currency_code' => 'EUR']);
 

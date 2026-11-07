@@ -7,12 +7,21 @@ use App\Libraries\Accounting\Money;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-class MoneyTest extends CIUnitTestCase
+/**
+ * @internal
+ */
+final class MoneyTest extends CIUnitTestCase
 {
+    #[DataProvider('provideRound_RoundsAHalfAwayFromZeroToTheDecimalsOfTheCurrency')]
+    public function testRoundRoundsAHalfAwayFromZeroToTheDecimalsOfTheCurrency(string $amount, int $decimals, string $expected): void
+    {
+        $this->assertSame($expected, Money::round($amount, $decimals));
+    }
+
     /**
      * @return array<string, array{string, int, string}>
      */
-    public static function roundings(): array
+    public static function provideRound_RoundsAHalfAwayFromZeroToTheDecimalsOfTheCurrency(): iterable
     {
         return [
             'two decimals half up'         => ['1.005', 2, '1.01'],
@@ -27,41 +36,35 @@ class MoneyTest extends CIUnitTestCase
         ];
     }
 
-    #[DataProvider('roundings')]
-    public function testRound_RoundsAHalfAwayFromZeroToTheDecimalsOfTheCurrency(string $amount, int $decimals, string $expected): void
+    #[DataProvider('provideToBase_RoundsWhatTheCurrencyIsWorthToTheDecimalsOfTheBase')]
+    public function testToBaseRoundsWhatTheCurrencyIsWorthToTheDecimalsOfTheBase(string $amount, string $rate, int $decimals, string $expected): void
     {
-        $this->assertSame($expected, Money::round($amount, $decimals));
+        $this->assertSame($expected, Money::toBase($amount, $rate, $decimals));
     }
 
     /**
      * @return array<string, array{string, string, int, string}>
      */
-    public static function conversions(): array
+    public static function provideToBase_RoundsWhatTheCurrencyIsWorthToTheDecimalsOfTheBase(): iterable
     {
         return [
-            'observed invoice line, the customer'  => ['268.33', '3.75', 2, '1006.24'],
-            'observed invoice line, the tax'       => ['35.00', '3.75', 2, '131.25'],
-            'observed invoice line, the goods'     => ['233.33', '3.75', 2, '874.99'],
-            'zero decimals base'                   => ['23.5', '3.75', 0, '88'],
-            'three decimals base'                  => ['100', '12.04917', 3, '1204.917'],
-            'a long rate keeps its precision'      => ['100', '3.74473700', 2, '374.47'],
+            'observed invoice line, the customer' => ['268.33', '3.75', 2, '1006.24'],
+            'observed invoice line, the tax'      => ['35.00', '3.75', 2, '131.25'],
+            'observed invoice line, the goods'    => ['233.33', '3.75', 2, '874.99'],
+            'zero decimals base'                  => ['23.5', '3.75', 0, '88'],
+            'three decimals base'                 => ['100', '12.04917', 3, '1204.917'],
+            'a long rate keeps its precision'     => ['100', '3.74473700', 2, '374.47'],
         ];
     }
 
-    #[DataProvider('conversions')]
-    public function testToBase_RoundsWhatTheCurrencyIsWorthToTheDecimalsOfTheBase(string $amount, string $rate, int $decimals, string $expected): void
-    {
-        $this->assertSame($expected, Money::toBase($amount, $rate, $decimals));
-    }
-
-    public function testFromBase_DividesByTheRateAndRoundsToTheDecimalsOfTheCurrency(): void
+    public function testFromBaseDividesByTheRateAndRoundsToTheDecimalsOfTheCurrency(): void
     {
         $this->assertSame('100.00', Money::fromBase('375.00', '3.75', 2));
         $this->assertSame('100', Money::fromBase('37.5', '0.375', 0));
         $this->assertSame('30.375', Money::fromBase('365.99', '12.04917', 3));
     }
 
-    public function testFormat_GroupsThousandsKeepsTheDecimalsAndAppendsTheCode(): void
+    public function testFormatGroupsThousandsKeepsTheDecimalsAndAppendsTheCode(): void
     {
         $this->assertSame('1,234,567.80 USD', Money::format('1234567.8', 2, 'USD'));
         $this->assertSame('3,704 JPY', Money::format('3703.5', 0, 'JPY'));
@@ -70,13 +73,13 @@ class MoneyTest extends CIUnitTestCase
         $this->assertSame('0.00', Money::format('0', 2));
     }
 
-    public function testPlain_ShowsTheDecimalsOfTheCurrencyWithoutSeparators(): void
+    public function testPlainShowsTheDecimalsOfTheCurrencyWithoutSeparators(): void
     {
         $this->assertSame('1234.50', Money::plain('1234.5', 2));
         $this->assertSame('1235', Money::plain('1234.5', 0));
     }
 
-    public function testToBase_OfADocumentCurrencyUsesItsRate(): void
+    public function testToBaseOfADocumentCurrencyUsesItsRate(): void
     {
         $currency = new DocumentCurrency('USD', '3.75000000', 2);
 

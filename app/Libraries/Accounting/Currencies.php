@@ -32,8 +32,8 @@ final class Currencies
         ['accounting_journal_lines', 'currency_code'],
         ['accounting_journals', 'currency_code'],
     ];
-    private const CODE_PATTERN     = '/^[A-Z]{3}$/';
-    private const NAME_MAX         = 100;
+    private const CODE_PATTERN = '/^[A-Z]{3}$/';
+    private const NAME_MAX     = 100;
 
     private BaseConnection $db;
     private AccountingGuard $guard;

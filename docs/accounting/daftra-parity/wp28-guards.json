@@ -29,8 +29,8 @@
  {
   "name": "C04 update asks for the whole company",
   "file": "app/Libraries/Accounting/Currencies.php",
-  "find": "        $this->branches->requireCompanyScope($employeeId);\n\n        $this->transactional(function () use ($code, $input, $employeeId): void {",
-  "replace": "\n        $this->transactional(function () use ($code, $input, $employeeId): void {",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n\n        $code = $this->normalize($code);\n\n        $this->transactional(function () use ($code, $input, $employeeId): void {",
+  "replace": "\n        $code = $this->normalize($code);\n\n        $this->transactional(function () use ($code, $input, $employeeId): void {",
   "tests": [
    "tests/Libraries/Accounting/CurrenciesTest.php"
   ]
@@ -47,8 +47,8 @@
  {
   "name": "C06 switching on or off asks for the whole company",
   "file": "app/Libraries/Accounting/Currencies.php",
-  "find": "        $this->branches->requireCompanyScope($employeeId);\n\n        $this->transactional(function () use ($code, $active, $employeeId): void {",
-  "replace": "\n        $this->transactional(function () use ($code, $active, $employeeId): void {",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n\n        $code = $this->normalize($code);\n\n        $this->transactional(function () use ($code, $active, $employeeId): void {",
+  "replace": "\n        $code = $this->normalize($code);\n\n        $this->transactional(function () use ($code, $active, $employeeId): void {",
   "tests": [
    "tests/Libraries/Accounting/CurrenciesTest.php"
   ]

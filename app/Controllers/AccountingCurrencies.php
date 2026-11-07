@@ -73,7 +73,7 @@ class AccountingCurrencies extends AccountingController
     public function postStore(string $code = ''): ResponseInterface
     {
         return $this->attempt(function () use ($code): array {
-            $input    = [
+            $input = [
                 'name_ar' => (string) $this->request->getPost('name_ar'),
                 'name_en' => (string) $this->request->getPost('name_en'),
             ];

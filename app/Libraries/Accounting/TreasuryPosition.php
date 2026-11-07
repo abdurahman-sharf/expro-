@@ -11,8 +11,8 @@ namespace App\Libraries\Accounting;
 final readonly class TreasuryPosition
 {
     /**
-     * @param numeric-string $balance Debits less credits of the account.
-     * @param numeric-string $manual  What journals written by hand put on the account.
+     * @param numeric-string      $balance        Debits less credits of the account.
+     * @param numeric-string      $manual         What journals written by hand put on the account.
      * @param numeric-string|null $foreignBalance What the account holds in the currency of the treasury, when the treasury holds one: the balance above is the same money in the base.
      */
     public function __construct(

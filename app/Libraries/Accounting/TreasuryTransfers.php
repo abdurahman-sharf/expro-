@@ -29,10 +29,10 @@ final class TreasuryTransfers
 {
     use RunsInTransaction;
 
-    public const SOURCE         = 'treasury_transfer';
-    public const SOURCE_RECEIPT = 'treasury_transfer_receipt';
-    private const NOTE_MAX      = 500;
-    private const REASON_MAX    = 255;
+    public const SOURCE                  = 'treasury_transfer';
+    public const SOURCE_RECEIPT          = 'treasury_transfer_receipt';
+    private const NOTE_MAX               = 500;
+    private const REASON_MAX             = 255;
     private const RATE_TOLERANCE_PERCENT = '10';
 
     private BaseConnection $db;

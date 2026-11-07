@@ -179,7 +179,7 @@ enum RoutingKey: string
             self::SalesDiscount, self::SalesAdjustment, self::PurchaseDiscount, self::PurchaseAdjustment => [AccountType::Revenue, AccountType::Expense],
             self::CostOfGoodsSold, self::StockCountOut, self::StockCountIn, self::ChequeDepositFees => [AccountType::Expense],
             self::Purchases, self::PurchaseReturns => [AccountType::Asset, AccountType::Expense],
-            self::CashDifference   => [AccountType::Asset, AccountType::Revenue, AccountType::Expense],
+            self::CashDifference => [AccountType::Asset, AccountType::Revenue, AccountType::Expense],
             self::FxGain, self::FxLoss => [AccountType::Revenue, AccountType::Expense, AccountType::Asset],
             self::RetainedEarnings => [AccountType::Equity],
             self::TaxInput         => [AccountType::Asset, AccountType::Liability],

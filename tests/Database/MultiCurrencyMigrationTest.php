@@ -6,23 +6,30 @@ use App\Database\Migrations\CurrenciesAndRates;
 use App\Database\Migrations\DocumentCurrencyColumns;
 use App\Database\Migrations\FxDifferenceAccounts;
 use App\Libraries\Accounting\CurrencyCatalog;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
+use App\Libraries\Accounting\PostingService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use RuntimeException;
 use Tests\Support\AccountingFixtureTrait;
+use Throwable;
 
-class MultiCurrencyMigrationTest extends CIUnitTestCase
+/**
+ * @internal
+ */
+final class MultiCurrencyMigrationTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
 
+    private const DOCUMENT_TABLES = ['sales', 'sales_payments', 'receivings', 'receivings_payments', 'expenses', 'revenues'];
+
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
-
-    private const DOCUMENT_TABLES = ['sales', 'sales_payments', 'receivings', 'receivings_payments', 'expenses', 'revenues'];
+    protected $namespace;
 
     public static function setUpBeforeClass(): void
     {
@@ -70,7 +77,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         return $row === null || $row->account_id === null ? null : (string) $row->account_id;
     }
 
-    public function testUp_CreatesTheTablesSeedsTheCatalogSwitchedOffAndRegistersTheModuleWithoutGrantingIt(): void
+    public function testUpCreatesTheTablesSeedsTheCatalogSwitchedOffAndRegistersTheModuleWithoutGrantingIt(): void
     {
         (new CurrenciesAndRates())->down();
 
@@ -91,7 +98,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertSame('accounting_currencies', $db->table('permissions')->where('permission_id', 'acc_currencies_manage')->get()->getRow()->module_id);
     }
 
-    public function testUp_KeepsEveryRowItFindsWhenItRunsAgain(): void
+    public function testUpKeepsEveryRowItFindsWhenItRunsAgain(): void
     {
         $db = $this->accountingDb();
         $db->table('accounting_currencies')->where('currency_code', 'USD')->update(['active' => 1, 'name_en' => 'Dollar']);
@@ -107,7 +114,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertSame(2, $db->table('permissions')->whereIn('permission_id', ['acc_currencies_manage', 'accounting_currencies'])->countAllResults());
     }
 
-    public function testUp_KeepsABaseCurrencyThatIsNotInTheCatalogSwitchedOn(): void
+    public function testUpKeepsABaseCurrencyThatIsNotInTheCatalogSwitchedOn(): void
     {
         (new CurrenciesAndRates())->down();
         $this->setConfigValue('accounting_base_currency', 'ZZZ');
@@ -121,7 +128,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->setConfigValue('accounting_base_currency', 'SAR');
     }
 
-    public function testRates_AreRefusedWhenNotAboveZeroOrWhenTwoShareADay(): void
+    public function testRatesAreRefusedWhenNotAboveZeroOrWhenTwoShareADay(): void
     {
         $db = $this->accountingDb();
 
@@ -131,7 +138,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
             try {
                 $db->table('accounting_currency_rates')->insert(['currency_code' => $code, 'rate' => $rate, 'effective_date' => $date]);
                 $this->fail("{$code} {$rate} {$date} was accepted.");
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 $this->addToAssertionCount(1);
             }
         }
@@ -139,14 +146,14 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertSame(1, $db->table('accounting_currency_rates')->countAllResults());
     }
 
-    public function testDecimals_AreRefusedOutsideZeroTwoAndThree(): void
+    public function testDecimalsAreRefusedOutsideZeroTwoAndThree(): void
     {
-        $this->expectException(\Throwable::class);
+        $this->expectException(Throwable::class);
 
         $this->accountingDb()->table('accounting_currencies')->insert(['currency_code' => 'XXX', 'decimals' => 1]);
     }
 
-    public function testColumns_AreAddedNullableToEveryDocumentTableAndKeepTheRowsAsTheyWere(): void
+    public function testColumnsAreAddedNullableToEveryDocumentTableAndKeepTheRowsAsTheyWere(): void
     {
         $this->assertSame('sales', self::DOCUMENT_TABLES[0]);
 
@@ -162,7 +169,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('sales')->where('currency_code IS NOT NULL', null, false)->countAllResults());
     }
 
-    public function testColumns_AreSafeToAddAgainAndToDropWhenNothingCarriesACurrency(): void
+    public function testColumnsAreSafeToAddAgainAndToDropWhenNothingCarriesACurrency(): void
     {
         (new DocumentCurrencyColumns())->up();
         (new DocumentCurrencyColumns())->up();
@@ -183,7 +190,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->hasColumn('accounting_journal_lines', 'currency_code'));
     }
 
-    public function testDown_RefusesToDropTheColumnsWhileARowCarriesACurrency(): void
+    public function testDownRefusesToDropTheColumnsWhileARowCarriesACurrency(): void
     {
         $this->accountingDb()->table('treasuries')->insert(['company_id' => 1, 'branch_id' => 1, 'name' => 'USD box', 'kind' => 'cash', 'currency_code' => 'USD']);
 
@@ -199,7 +206,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->hasColumn('treasuries', 'currency_code'));
     }
 
-    public function testDefaultChart_HasTheTwoExchangeAccountsAndTheirRoutingForANewCompany(): void
+    public function testDefaultChartHasTheTwoExchangeAccountsAndTheirRoutingForANewCompany(): void
     {
         foreach (['fx_gain' => ['4209', 'revenue', 'credit', 'fx.gain'], 'fx_loss' => ['5410', 'expense', 'debit', 'fx.loss']] as $systemKey => [$code, $type, $normal, $routing]) {
             $account = $this->accountOf($systemKey);
@@ -209,7 +216,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testFxAccounts_AreOpenedInAChartThatHasNoneAndRouted(): void
+    public function testFxAccountsAreOpenedInAChartThatHasNoneAndRouted(): void
     {
         (new FxDifferenceAccounts())->down();
 
@@ -228,7 +235,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testFxAccounts_TakeTheNextFreeCodeWhenTheFirstIsTaken(): void
+    public function testFxAccountsTakeTheNextFreeCodeWhenTheFirstIsTaken(): void
     {
         (new FxDifferenceAccounts())->down();
         $this->customAccount('42', '4209', 'Taken');
@@ -239,7 +246,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertSame('4209', $this->accountingDb()->table('accounting_accounts')->where('name', 'Taken')->get()->getRow()->code);
     }
 
-    public function testFxAccounts_AreOpenedOnceWhenTheMigrationRunsTwiceAndKeepAnAccountTheCompanyRoutedElsewhere(): void
+    public function testFxAccountsAreOpenedOnceWhenTheMigrationRunsTwiceAndKeepAnAccountTheCompanyRoutedElsewhere(): void
     {
         (new FxDifferenceAccounts())->down();
         (new FxDifferenceAccounts())->up();
@@ -254,7 +261,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertSame((string) $other, $this->routedTo('fx.loss'));
     }
 
-    public function testFxAccounts_DoNothingWhenThereIsNoChartYet(): void
+    public function testFxAccountsDoNothingWhenThereIsNoChartYet(): void
     {
         $db = $this->accountingDb();
         $db->query('SET FOREIGN_KEY_CHECKS = 0');
@@ -267,7 +274,7 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $db->table('accounting_accounts')->countAllResults());
     }
 
-    public function testFxAccounts_DownKeepsAnAccountThatAJournalLineUses(): void
+    public function testFxAccountsDownKeepsAnAccountThatAJournalLineUses(): void
     {
         $gain = (int) $this->accountOf('fx_gain')->account_id;
         $this->postedLineOn($gain);
@@ -280,9 +287,9 @@ class MultiCurrencyMigrationTest extends CIUnitTestCase
 
     private function postedLineOn(int $accountId): void
     {
-        (new \App\Libraries\Accounting\PostingService())->post(new \App\Libraries\Accounting\JournalDraft(
+        (new PostingService())->post(new JournalDraft(
             date: '2026-10-21',
-            lines: [new \App\Libraries\Accounting\JournalLineDraft($this->accountId('cash'), debit: '1.00'), new \App\Libraries\Accounting\JournalLineDraft($accountId, credit: '1.00')],
+            lines: [new JournalLineDraft($this->accountId('cash'), debit: '1.00'), new JournalLineDraft($accountId, credit: '1.00')],
             sourceType: 'sale',
             sourceId: 1,
             employeeId: 1,
