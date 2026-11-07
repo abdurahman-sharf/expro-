@@ -71,6 +71,8 @@ trait AccountingFixtureTrait
             'accounting_year_end_closings',
             'accounting_allocations',
             'accounting_journal_attachments',
+            'accounting_journal_line_distributions',
+            'accounting_journal_line_meta',
             'accounting_journal_lines',
             'accounting_journals',
             'accounting_backfill_items',
@@ -148,7 +150,7 @@ trait AccountingFixtureTrait
         $this->clearJournals();
         $db->query('SET FOREIGN_KEY_CHECKS = 0');
 
-        foreach (['accounting_routing', 'accounting_cost_centers', 'accounting_accounts', 'accounting_fiscal_years'] as $table) {
+        foreach (['accounting_routing', 'accounting_account_cost_centers', 'accounting_cost_centers', 'accounting_accounts', 'accounting_fiscal_years'] as $table) {
             $db->table($table)->truncate();
         }
 

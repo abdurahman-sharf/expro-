@@ -767,6 +767,10 @@ final class PostingService
             throw new PostingException(PostingError::WriteFailed, 'The journal lines could not be written.');
         }
 
+        if (! in_array($draft->sourceType, [JournalDraft::SOURCE_MANUAL, JournalDraft::SOURCE_REVERSAL], true) && ! YearEndEntries::marks($draft->entryType->value, $draft->sourceType) && (new JournalSettings($this->db))->defaultsOnAutomaticJournals()) {
+            (new JournalLineAnalysis($this->db))->applyDefaults($journalId);
+        }
+
         if ($standing) {
             $this->audit->write('journal', $journalId, 'posted', $draft->employeeId, $draft->origin, [
                 'source_type' => $draft->sourceType,

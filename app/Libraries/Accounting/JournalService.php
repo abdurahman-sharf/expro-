@@ -60,6 +60,8 @@ final class JournalService
     private JournalNumbering $numbering;
     private BranchGuard $branches;
     private PeriodGuard $periods;
+    private JournalLineAnalysis $analysis;
+    private JournalSettings $settings;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?PostingService $posting = null, ?BranchGuard $branches = null)
     {
@@ -70,6 +72,8 @@ final class JournalService
         $this->numbering = new JournalNumbering($this->db);
         $this->branches  = $branches ?? new BranchGuard($this->db);
         $this->periods   = new PeriodGuard($this->db);
+        $this->settings  = new JournalSettings($this->db);
+        $this->analysis  = new JournalLineAnalysis($this->db, null, $this->settings);
     }
 
     /**
@@ -93,7 +97,7 @@ final class JournalService
         $branchId    = $this->resolveBranch($input['branch_id'] ?? $stored?->branch_id, $employeeId);
         $date        = $this->normalizeDate((string) ($input['date'] ?? ''));
         $description = trim((string) ($input['description'] ?? ''));
-        $lines       = $this->normalizeDraftLines($input['lines'] ?? []);
+        $lines       = $this->normalizeDraftLines($input['lines'] ?? [], false);
         $currency    = (new AccountingSettings($this->db))->baseCurrency();
 
         if ($currency === '') {
@@ -139,6 +143,7 @@ final class JournalService
             }
 
             $this->insertLines($id, $lines);
+            $this->analysis->store($id, $this->analysesOf($lines));
             $this->audit->write('journal', $id, $action, $employeeId, JournalOrigin::User, ['lines' => count($lines)], $branchId);
 
             return $id;
@@ -192,21 +197,16 @@ final class JournalService
             $branchId    = $this->resolveBranch($input['branch_id'] ?? $stored->branch_id, $employeeId);
             $date        = $this->normalizeDate((string) ($input['date'] ?? ''));
             $description = trim((string) ($input['description'] ?? ''));
-            $lines       = $this->normalizeDraftLines($input['lines'] ?? []);
+            $lines       = $this->normalizeDraftLines($input['lines'] ?? [], true);
         } else {
             $branchId    = (int) $stored->branch_id;
             $date        = $stored->journal_date;
             $description = (string) $stored->description;
-            $lines       = array_map(static fn (object $line): array => [
-                'account_id'     => (int) $line->account_id,
-                'description'    => $line->description,
-                'cost_center_id' => $line->cost_center_id === null ? null : (int) $line->cost_center_id,
-                'debit'          => $line->debit,
-                'credit'         => $line->credit,
-            ], $stored->lines);
+            $lines       = array_map(fn (object $line, int $index): array => $this->storedLine($line, $index + 1), $stored->lines, array_keys($stored->lines));
         }
 
         $this->assertLineDescriptions($lines);
+        $this->assertCostCentersRequired($lines);
         $this->periods->prepare($date);
 
         $draft = $this->toPostingDraft($date, $description, $lines, $employeeId, $branchId);
@@ -214,8 +214,9 @@ final class JournalService
         (new TreasuryScopes($this->db))->assertMayPost($draft->lines, $employeeId);
 
         $prepared = $this->posting->validate($draft);
+        $analyses = $this->analysesOf($lines);
 
-        return $this->transactional(function () use ($journalId, $employeeId, $prepared, $date, $description): int {
+        return $this->transactional(function () use ($journalId, $employeeId, $prepared, $date, $description, $analyses): int {
             $this->periods->enforce($date, $prepared['branch_id']);
             $this->lockDraft($journalId, $employeeId);
 
@@ -235,6 +236,7 @@ final class JournalService
 
             $this->db->table('accounting_journal_lines')->where('journal_id', $journalId)->delete();
             $this->insertLines($journalId, $prepared['lines']);
+            $this->analysis->store($journalId, $analyses);
 
             $this->audit->write('journal', $journalId, 'posted', $employeeId, JournalOrigin::User, [
                 'source_type' => JournalDraft::SOURCE_MANUAL,
@@ -260,15 +262,24 @@ final class JournalService
         $branchId    = $this->resolveBranch($input['branch_id'] ?? null, $employeeId);
         $date        = $this->normalizeDate((string) ($input['date'] ?? ''));
         $description = trim((string) ($input['description'] ?? ''));
-        $lines       = $this->normalizeDraftLines($input['lines'] ?? []);
+        $lines       = $this->normalizeDraftLines($input['lines'] ?? [], true);
 
         $this->assertLineDescriptions($lines);
+        $this->assertCostCentersRequired($lines);
 
         $draft = $this->toPostingDraft($date, $description, $lines, $employeeId, $branchId);
 
         (new TreasuryScopes($this->db))->assertMayPost($draft->lines, $employeeId);
 
-        return $this->posting->post($draft)->journalId;
+        $this->periods->prepare($date);
+
+        return $this->transactional(function () use ($draft, $lines): int {
+            $result = $this->posting->post($draft);
+
+            $this->analysis->store($result->journalId, $this->analysesOf($lines));
+
+            return $result->journalId;
+        });
     }
 
     /**
@@ -281,15 +292,16 @@ final class JournalService
     }
 
     /**
-     * Changes the description of a posted automatic journal, the description of its lines and
-     * their cost center, and nothing else: the amounts, the accounts, the date, the number and
-     * the source are not in the input and stay as posted. A change in a closed period is refused
-     * because the cost center a line belongs to decides which period an analysis counts it in.
+     * Changes the description of a posted automatic journal, the description of its lines, what
+     * they are charged to (a cost center or a distribution over several), their tags and their tax
+     * note, and nothing else: the amounts, the accounts, the date, the number and the source are
+     * not in the input and stay as posted. A change in a closed period is refused because the cost
+     * center a line belongs to decides which period an analysis counts it in.
      * The journal is locked before the period locks are taken, the order a reversal takes them,
      * so a closing that queues between the two cannot make them wait for each other.
      * Each edit is written to the audit log with what the text was and what it became.
      *
-     * @param array{description?: string, version?: string, lines?: array<int|string, array{description?: string, cost_center_id?: int|string}>} $input The lines are keyed by their line id. A version, as detailsVersion() gave it when the text was read, makes the edit refuse to overwrite text that someone else changed since.
+     * @param array{description?: string, version?: string, lines?: array<int|string, array<string, mixed>>} $input The lines are keyed by their line id. A version, as detailsVersion() gave it when the text was read, makes the edit refuse to overwrite text that someone else changed since.
      *
      * @return bool Whether anything changed. Nothing is written when nothing did.
      *
@@ -319,6 +331,14 @@ final class JournalService
 
             $lines = LockedRead::rows($this->db, 'SELECT * FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' WHERE journal_id = ? ORDER BY line_no FOR UPDATE', [$journalId]);
 
+            foreach ($this->analysis->load($lines) as $lineId => $analysis) {
+                foreach ($lines as $line) {
+                    if ((int) $line->line_id === $lineId) {
+                        $line->analysis = $analysis;
+                    }
+                }
+            }
+
             if ($version !== null && ! hash_equals($this->detailsVersion($locked, $lines), $version)) {
                 throw new AccountingException(AccountingError::DetailsChanged, "The text of journal {$journalId} changed after it was read.");
             }
@@ -337,6 +357,10 @@ final class JournalService
                 $this->db->table('accounting_journal_lines')->where('line_id', $lineId)->update($columns);
             }
 
+            foreach ($changes['analysis'] as $lineId => $analysis) {
+                $this->analysis->apply($lineId, $analysis);
+            }
+
             $this->audit->write('journal', $journalId, 'details_edited', $employeeId, JournalOrigin::User, [
                 'before' => $changes['before'],
                 'after'  => $changes['after'],
@@ -348,7 +372,7 @@ final class JournalService
 
     /**
      * A fingerprint of the text a person edits: the description of the journal and, for each line,
-     * its description and cost center. The edit screen carries it, so a form opened before someone
+     * its description, cost center, distribution, tags and tax note. The edit screen carries it, so a form opened before someone
      * else changed the text is refused and does not write the old text back over the new.
      *
      * @param list<object> $lines
@@ -363,6 +387,7 @@ final class JournalService
                 (int) $line->line_id,
                 $text($line->description),
                 $line->cost_center_id === null ? null : (int) $line->cost_center_id,
+                ($line->analysis ?? null)?->describe() ?? [],
             ], $lines),
         ], JSON_UNESCAPED_UNICODE));
     }
@@ -589,6 +614,10 @@ final class JournalService
                 branchId: (int) $original->branch_id,
             ));
 
+            if ($result->created) {
+                $this->analysis->copy($journalId, $result->journalId);
+            }
+
             $this->db->table('accounting_journals')
                 ->where('journal_id', $journalId)
                 ->update(['status' => JournalStatus::Reversed->value]);
@@ -813,7 +842,7 @@ final class JournalService
      */
     private function linesOf(int $journalId): array
     {
-        return $this->db->table('accounting_journal_lines l')
+        $lines = $this->db->table('accounting_journal_lines l')
             ->select('l.*, a.code AS account_code, a.name AS account_name, c.code AS cost_center_code, c.name AS cost_center_name')
             ->join('accounting_accounts a', 'a.account_id = l.account_id')
             ->join('accounting_cost_centers c', 'c.cost_center_id = l.cost_center_id', 'left')
@@ -821,6 +850,14 @@ final class JournalService
             ->orderBy('l.line_no', 'ASC')
             ->get()
             ->getResult();
+
+        $analyses = $this->analysis->load($lines);
+
+        foreach ($lines as $line) {
+            $line->analysis = $analyses[(int) $line->line_id];
+        }
+
+        return $lines;
     }
 
     private function lockDraft(int $journalId, ?int $employeeId): object
@@ -868,12 +905,13 @@ final class JournalService
 
     /**
      * What the caller asked to change, cleaned: the description of the journal, and for the lines
-     * it names the description and the cost center. Anything else in the input is left out, and
-     * so is a value that is not text, such as the list a malformed request can send.
+     * it names the description, the cost center or the distribution, the tags and the tax note.
+     * Anything else in the input is left out, and so is a value that is not text, such as the list a
+     * malformed request can send.
      *
      * @param array<string, mixed> $input
      *
-     * @return array{description?: ?string, lines: array<int, array{description?: ?string, cost_center_id?: ?int}>}
+     * @return array{description?: ?string, lines: array<int, array<string, mixed>>}
      *
      * @throws AccountingException
      */
@@ -898,6 +936,16 @@ final class JournalService
                 $costCenterId = (int) $line['cost_center_id'];
 
                 $details['lines'][(int) $lineId]['cost_center_id'] = $costCenterId > 0 ? $costCenterId : null;
+            }
+
+            if (is_array($line['distribution'] ?? null) && $line['distribution'] !== []) {
+                $details['lines'][(int) $lineId]['distribution'] = $line['distribution'];
+            }
+
+            foreach (['tags', 'tax_code', 'tax_percent', 'tax_included'] as $key) {
+                if (array_key_exists($key, $line)) {
+                    $details['lines'][(int) $lineId][$key] = $line[$key];
+                }
             }
         }
 
@@ -926,17 +974,20 @@ final class JournalService
     /**
      * Compares what is stored, as locked, with what was asked, and returns the columns to write and
      * what the audit log records. A line is named by its number in the log, as the screen shows it.
+     * What a line is charged to, its tags and its tax note are each compared as a whole: a line with a
+     * distribution keeps it unless the input gives rows or a cost center, and a tag or a tax note
+     * that is left out of the input stays as it is.
      *
-     * @param list<object>                                                                                         $lines
-     * @param array{description?: ?string, lines: array<int, array{description?: ?string, cost_center_id?: ?int}>} $details
+     * @param list<object>                                                  $lines
+     * @param array{description?: ?string, lines: array<int, array<string, mixed>>} $details
      *
-     * @return array{journal?: array<string, ?string>, lines: array<int, array<string, mixed>>, before: array<string, mixed>, after: array<string, mixed>}
+     * @return array{journal?: array<string, ?string>, lines: array<int, array<string, mixed>>, analysis: array<int, LineAnalysis>, before: array<string, mixed>, after: array<string, mixed>}
      *
      * @throws AccountingException
      */
     private function detailChanges(object $journal, array $lines, array $details): array
     {
-        $changes = ['lines' => [], 'before' => [], 'after' => []];
+        $changes = ['lines' => [], 'analysis' => [], 'before' => [], 'after' => []];
 
         if (array_key_exists('description', $details)) {
             $before = $journal->description === null || $journal->description === '' ? null : $journal->description;
@@ -954,7 +1005,7 @@ final class JournalService
             $byId[(int) $line->line_id] = $line;
         }
 
-        $wanted = [];
+        $required = $this->settings->costCenterRequired() ? $this->requiredAccounts(array_map(static fn (object $line): int => (int) $line->account_id, $lines)) : [];
 
         foreach ($details['lines'] as $lineId => $asked) {
             if (! isset($byId[$lineId])) {
@@ -964,6 +1015,7 @@ final class JournalService
             $line    = $byId[$lineId];
             $columns = [];
             $before  = [];
+            $after   = [];
 
             if (array_key_exists('description', $asked)) {
                 $was = $line->description === null || $line->description === '' ? null : $line->description;
@@ -971,54 +1023,109 @@ final class JournalService
                 if ($asked['description'] !== $was) {
                     $columns['description'] = $asked['description'];
                     $before['description']  = $was;
+                    $after['description']   = $asked['description'];
                 }
             }
 
-            if (array_key_exists('cost_center_id', $asked)) {
-                $was = $line->cost_center_id === null ? null : (int) $line->cost_center_id;
+            $stored  = $line->analysis ?? new LineAnalysis($line->cost_center_id === null ? null : (int) $line->cost_center_id);
+            $desired = $this->desiredAnalysis($line, $stored, $asked);
 
-                if ($asked['cost_center_id'] !== $was) {
-                    $columns['cost_center_id']    = $asked['cost_center_id'];
-                    $before['cost_center_id']     = $was;
-                    $wanted[(int) $line->line_no] = $asked['cost_center_id'];
+            if (! $desired->sameAs($stored)) {
+                if (! $desired->sameCharge($stored)) {
+                    if ($stored->hasCharge() && ! $desired->hasCharge() && isset($required[(int) $line->account_id])) {
+                        throw new AccountingException(AccountingError::CostCenterRequired, 'Line ' . (int) $line->line_no . ' needs a cost center.', ['line' => (int) $line->line_no]);
+                    }
+
+                    $before += $this->chargeOf($stored);
+                    $after  += $this->chargeOf($desired);
                 }
+
+                foreach (['tags' => 'tags', 'tax' => 'tax'] as $property => $key) {
+                    if ($desired->{$property} !== $stored->{$property}) {
+                        $before[$key] = $stored->{$property};
+                        $after[$key]  = $desired->{$property};
+                    }
+                }
+
+                $changes['analysis'][$lineId] = $desired;
             }
 
             if ($columns !== []) {
-                $changes['lines'][$lineId]                        = $columns;
+                $changes['lines'][$lineId] = $columns;
+            }
+
+            if ($before !== [] || $after !== []) {
                 $changes['before']['lines'][(int) $line->line_no] = $before;
-                $changes['after']['lines'][(int) $line->line_no]  = $columns;
+                $changes['after']['lines'][(int) $line->line_no]  = $after;
             }
         }
-
-        $this->assertCostCentersActive($wanted);
 
         return $changes;
     }
 
     /**
-     * @param array<int, ?int> $byLineNumber The cost center asked for on each line, by line number.
+     * What a line carries once the request is applied: the parts it names are cleaned and checked,
+     * the others stay as stored.
+     *
+     * @param array<string, mixed> $asked
      *
      * @throws AccountingException
      */
-    private function assertCostCentersActive(array $byLineNumber): void
+    private function desiredAnalysis(object $line, LineAnalysis $stored, array $asked): LineAnalysis
     {
-        $ids = array_values(array_unique(array_filter($byLineNumber)));
+        $chargeAsked = (isset($asked['distribution']) || array_key_exists('cost_center_id', $asked)) && ! $this->repeatsCharge($stored, $asked);
+        $tagsAsked   = array_key_exists('tags', $asked);
+        $taxAsked    = array_key_exists('tax_code', $asked) || array_key_exists('tax_percent', $asked);
 
-        if ($ids === []) {
-            return;
+        if (! $chargeAsked && ! $tagsAsked && ! $taxAsked) {
+            return $stored;
         }
 
-        $active = array_map('intval', array_column(
-            $this->db->table('accounting_cost_centers')->select('cost_center_id')->whereIn('cost_center_id', $ids)->where('active', 1)->get()->getResultArray(),
-            'cost_center_id',
-        ));
+        $amount = bccomp($line->debit, '0', 4) > 0 ? $line->debit : $line->credit;
+        $clean  = $this->analysis->clean(array_intersect_key($asked, array_flip(['cost_center_id', 'distribution', 'tags', 'tax_code', 'tax_percent', 'tax_included'])), (int) $line->line_no, $amount, true);
 
-        foreach ($byLineNumber as $lineNumber => $costCenterId) {
-            if ($costCenterId !== null && ! in_array($costCenterId, $active, true)) {
-                throw new AccountingException(AccountingError::LineCostCenterInvalid, "Cost center {$costCenterId} is missing or inactive.", ['line' => $lineNumber]);
+        return new LineAnalysis(
+            $chargeAsked ? $clean->costCenterId : $stored->costCenterId,
+            $chargeAsked ? $clean->distribution : $stored->distribution,
+            $tagsAsked ? $clean->tags : $stored->tags,
+            $taxAsked ? $clean->tax : $stored->tax,
+        );
+    }
+
+    /**
+     * Whether the request only gives back what the line is charged to already, as the edit screen does
+     * on every save. It is not checked again, so that a cost center that has been switched off since does
+     * not stop an edit of the text next to it.
+     *
+     * @param array<string, mixed> $asked
+     */
+    private function repeatsCharge(LineAnalysis $stored, array $asked): bool
+    {
+        if (! isset($asked['distribution'])) {
+            return $stored->distribution === [] && ($asked['cost_center_id'] ?? null) === $stored->costCenterId;
+        }
+
+        $given = [];
+
+        foreach ($asked['distribution'] as $row) {
+            $percent = is_array($row) && is_scalar($row['percent'] ?? null) ? trim((string) $row['percent']) : '';
+
+            if (! is_array($row) || ! is_scalar($row['cost_center_id'] ?? null) || preg_match('/^\d{1,3}(\.\d{1,4})?$/', $percent) !== 1) {
+                return false;
             }
+
+            $given[] = ['cost_center_id' => (int) $row['cost_center_id'], 'percent' => bcadd($percent, '0', 4)];
         }
+
+        return $given === array_map(static fn (array $row): array => ['cost_center_id' => $row['cost_center_id'], 'percent' => $row['percent']], $stored->distribution);
+    }
+
+    /**
+     * @return array<string, mixed> What a line is charged to, as the audit log records it.
+     */
+    private function chargeOf(LineAnalysis $analysis): array
+    {
+        return ['cost_center_id' => $analysis->costCenterId] + ($analysis->distribution === [] ? [] : ['distribution' => array_map(static fn (array $row): array => ['cost_center_id' => $row['cost_center_id'], 'percent' => $row['percent']], $analysis->distribution)]);
     }
 
     /**
@@ -1146,13 +1253,14 @@ final class JournalService
     }
 
     /**
-     * Drops blank lines and checks the rest. A draft may be unbalanced.
+     * Drops blank lines and checks the rest. A draft may be unbalanced, and its distributions may be
+     * incomplete; a journal about to be posted may be neither.
      *
-     * @return list<array{line_no: int, account_id: int, description: ?string, cost_center_id: ?int, debit: string, credit: string}>
+     * @return list<array{line_no: int, account_id: int, description: ?string, cost_center_id: ?int, debit: string, credit: string, analysis: LineAnalysis}>
      *
      * @throws AccountingException
      */
-    private function normalizeDraftLines(mixed $raw): array
+    private function normalizeDraftLines(mixed $raw, bool $forPost): array
     {
         $lines = [];
 
@@ -1167,7 +1275,7 @@ final class JournalService
             $hasDebit     = bccomp($debit, '0', 4) > 0;
             $hasCredit    = bccomp($credit, '0', 4) > 0;
 
-            if ($accountId === 0 && $costCenterId === 0 && $description === '' && ! $hasDebit && ! $hasCredit) {
+            if ($accountId === 0 && $costCenterId === 0 && $description === '' && ! $hasDebit && ! $hasCredit && ! $this->carriesAnalysis($line)) {
                 continue;
             }
 
@@ -1179,13 +1287,16 @@ final class JournalService
                 throw new AccountingException(AccountingError::LineOnBothSides, "Line {$lineNumber} has both a debit and a credit.", ['line' => $lineNumber]);
             }
 
+            $analysis = $this->analysis->clean($line, $lineNumber, $hasDebit ? $debit : $credit, $forPost);
+
             $lines[] = [
                 'line_no'        => count($lines) + 1,
                 'account_id'     => $accountId,
                 'description'    => $description === '' ? null : mb_substr($description, 0, 255),
-                'cost_center_id' => $costCenterId === 0 ? null : $costCenterId,
+                'cost_center_id' => $analysis->costCenterId,
                 'debit'          => $debit,
                 'credit'         => $credit,
+                'analysis'       => $analysis,
             ];
         }
 
@@ -1200,6 +1311,120 @@ final class JournalService
         $this->assertLineReferences($lines);
 
         return $lines;
+    }
+
+    /**
+     * Whether a line of the input holds something to keep although it has no account, amount or
+     * description yet: rows of a distribution, tags or a tax note.
+     *
+     * @param array<string, mixed> $line
+     */
+    private function carriesAnalysis(array $line): bool
+    {
+        foreach (['tags', 'tax_code', 'tax_percent'] as $key) {
+            $value = $line[$key] ?? '';
+
+            if (is_array($value) ? $value !== [] : trim((string) $value) !== '') {
+                return true;
+            }
+        }
+
+        foreach (is_array($line['distribution'] ?? null) ? $line['distribution'] : [] as $row) {
+            if (! is_array($row) || implode('', array_map(static fn (mixed $cell): string => is_scalar($cell) ? trim((string) $cell) : 'x', $row)) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * A stored line as the checks of posting take it, with what it carries beyond its amount made whole.
+     *
+     * @return array{line_no: int, account_id: int, description: ?string, cost_center_id: ?int, debit: string, credit: string, analysis: LineAnalysis}
+     *
+     * @throws AccountingException
+     */
+    private function storedLine(object $line, int $lineNumber): array
+    {
+        $stored   = $line->analysis;
+        $analysis = $this->analysis->clean([
+            'cost_center_id' => $stored->costCenterId,
+            'distribution'   => array_map(static fn (array $row): array => ['cost_center_id' => $row['cost_center_id'], 'percent' => $row['percent']], $stored->distribution),
+            'tags'           => $stored->tags,
+            'tax_code'       => $stored->tax['code'] ?? '',
+            'tax_percent'    => $stored->tax['percent'] ?? '',
+            'tax_included'   => ($stored->tax['included'] ?? false) ? '1' : '0',
+        ], $lineNumber, bccomp($line->debit, '0', 4) > 0 ? $line->debit : $line->credit, true);
+
+        return [
+            'line_no'        => $lineNumber,
+            'account_id'     => (int) $line->account_id,
+            'description'    => $line->description,
+            'cost_center_id' => $analysis->costCenterId,
+            'debit'          => $line->debit,
+            'credit'         => $line->credit,
+            'analysis'       => $analysis,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $lines
+     *
+     * @return array<int, LineAnalysis>
+     */
+    private function analysesOf(array $lines): array
+    {
+        $analyses = [];
+
+        foreach (array_values($lines) as $index => $line) {
+            $analyses[$index + 1] = $line['analysis'] ?? new LineAnalysis();
+        }
+
+        return $analyses;
+    }
+
+    /**
+     * When the books ask for it, every income and expense line of a journal that is posted is charged
+     * to a cost center or a distribution. A draft may still lack one.
+     *
+     * @param list<array<string, mixed>> $lines
+     *
+     * @throws AccountingException
+     */
+    private function assertCostCentersRequired(array $lines): void
+    {
+        if (! $this->settings->costCenterRequired()) {
+            return;
+        }
+
+        $required = $this->requiredAccounts(array_column($lines, 'account_id'));
+
+        foreach (array_values($lines) as $index => $line) {
+            if (isset($required[(int) $line['account_id']]) && ! ($line['analysis'] ?? new LineAnalysis())->hasCharge()) {
+                throw new AccountingException(AccountingError::CostCenterRequired, 'Line ' . ($index + 1) . ' needs a cost center.', ['line' => $index + 1]);
+            }
+        }
+    }
+
+    /**
+     * @param list<int> $accountIds
+     *
+     * @return array<int, true> The accounts among them that are income or expense.
+     */
+    private function requiredAccounts(array $accountIds): array
+    {
+        if ($accountIds === []) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach ($this->db->table('accounting_accounts')->select('account_id')->whereIn('account_id', array_values(array_unique($accountIds)))->whereIn('account_type', [AccountType::Revenue->value, AccountType::Expense->value])->get()->getResult() as $row) {
+            $found[(int) $row->account_id] = true;
+        }
+
+        return $found;
     }
 
     /**
