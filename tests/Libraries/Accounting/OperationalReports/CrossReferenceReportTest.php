@@ -119,13 +119,17 @@ class CrossReferenceReportTest extends CIUnitTestCase
 
     public function testBuild_OrdersByDateCustomerAndNetAmount(): void
     {
-        $numbers = fn (string $order): array => array_column(array_map(static fn ($block): array => $block->rows[0], $this->table(true, false, null, [], $order)->blocks), 'total');
+        $third = $this->anotherCustomer('Nadia', 'Zaki');
 
-        $this->assertSame(['575.0000', '172.5000'], $numbers('net_desc'));
-        $this->assertSame(['172.5000', '575.0000'], $numbers('net_asc'));
-        $this->assertSame(['172.5000', '575.0000'], $numbers('date_desc'));
-        $this->assertSame(['575.0000', '172.5000'], $numbers('date_asc'));
-        $this->assertSame(['172.5000', '575.0000'], $numbers('customer'));
+        $this->creditNoteOf($this->invoiceOf('50', $third), '10', $third);
+
+        $totals = fn (string $order): array => array_column(array_map(static fn ($block): array => $block->rows[0], $this->table(true, false, null, [], $order)->blocks), 'total');
+
+        $this->assertSame(['50.0000', '172.5000', '575.0000'], $totals('date_desc'));
+        $this->assertSame(['575.0000', '172.5000', '50.0000'], $totals('date_asc'));
+        $this->assertSame(['172.5000', '50.0000', '575.0000'], $totals('customer'));
+        $this->assertSame(['575.0000', '172.5000', '50.0000'], $totals('net_desc'));
+        $this->assertSame(['50.0000', '172.5000', '575.0000'], $totals('net_asc'));
     }
 
     public function testBuild_TiesWhatWasTakenBackToTheLedger(): void

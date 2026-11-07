@@ -1142,5 +1142,706 @@
       "NestsOnlyThePaymentsThatSettledTheInvoice",
       "tests/Libraries/Accounting/OperationalReports/NetPositionReportTest.php"
     ]
+  },
+  {
+    "name": "W32-G105 an advance whose journal does not stand shows nothing the books hold",
+    "file": "app/Libraries/Accounting/OperationalReports/AdvancePaymentsReport.php",
+    "find": "$amount   = $source?->amount ?? Amounts::ZERO;",
+    "replace": "$amount   = $source?->amount ?? bcadd((string) $advance->amount, '0', 4);",
+    "tests": [
+      "--filter",
+      "WhoseJournalDoesNotStand",
+      "tests/Libraries/Accounting/OperationalReports/AdvancePaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G106 an advance whose journal does not stand is not a spent one",
+    "file": "app/Libraries/Accounting/OperationalReports/AdvancePaymentsReport.php",
+    "find": "($state === 'spent' && ($source === null || ! Amounts::isZero($left)))",
+    "replace": "($state === 'spent' && (! Amounts::isZero($left)))",
+    "tests": [
+      "--filter",
+      "WhoseJournalDoesNotStand",
+      "tests/Libraries/Accounting/OperationalReports/AdvancePaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G107 the advances are limited to the method asked for",
+    "file": "app/Libraries/Accounting/OperationalReports/AdvancePaymentsReport.php",
+    "find": "if ($methodKey !== '' && (",
+    "replace": "if (false && (",
+    "tests": [
+      "--filter",
+      "FiltersByTheEmployeeWhoMadeTheAdvanceAndByTheMethod",
+      "tests/Libraries/Accounting/OperationalReports/AdvancePaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G108 the advances are limited to the employee who made them",
+    "file": "app/Libraries/Accounting/OperationalReports/AdvancePaymentsReport.php",
+    "find": "if ($createdBy !== null) {\n            $builder->where('a.created_by', $createdBy);",
+    "replace": "if (false) {\n            $builder->where('a.created_by', $createdBy);",
+    "tests": [
+      "--filter",
+      "FiltersByTheEmployeeWhoMadeTheAdvanceAndByTheMethod",
+      "tests/Libraries/Accounting/OperationalReports/AdvancePaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G109 every day before a day is read for the revenue by period",
+    "file": "app/Libraries/Accounting/OperationalReports/RevenueReport.php",
+    "find": "$from ??= $allDates ? null : $period?->defaultFrom($to);",
+    "replace": "$from ??= $period?->defaultFrom($to);",
+    "tests": [
+      "--filter",
+      "ReadsEveryDayBeforeADay",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G110 every day before a day is read for the item sales by period",
+    "file": "app/Libraries/Accounting/OperationalReports/ItemSalesReport.php",
+    "find": "$from ??= $allDates ? null : $period?->defaultFrom($to);",
+    "replace": "$from ??= $period?->defaultFrom($to);",
+    "tests": [
+      "--filter",
+      "ReadsEveryDayBeforeADay",
+      "tests/Controllers/AccountingItemReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G111 every day before a day is read for the payments by period",
+    "file": "app/Libraries/Accounting/OperationalReports/PaymentsReport.php",
+    "find": "$from ??= $allDates ? null : $period?->defaultFrom($to);",
+    "replace": "$from ??= $period?->defaultFrom($to);",
+    "tests": [
+      "--filter",
+      "ReadsEveryDayBeforeADay",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G112 every day before a day is read for the profit by period",
+    "file": "app/Libraries/Accounting/OperationalReports/ProfitReport.php",
+    "find": "$from ??= $allDates ? null : $period?->defaultFrom($to);",
+    "replace": "$from ??= $period?->defaultFrom($to);",
+    "tests": [
+      "--filter",
+      "ReadsEveryDayBeforeADay",
+      "tests/Controllers/AccountingProfitReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G113 the revenue screen tells the report that every day before a day was asked for",
+    "file": "app/Controllers/AccountingSalesReports.php",
+    "find": "            $dates->isOpenStart(),\n",
+    "replace": "            false,\n",
+    "tests": [
+      "--filter",
+      "ReadsEveryDayBeforeADay",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G114 the item sales screen tells the report that every day before a day was asked for",
+    "file": "app/Controllers/AccountingItemReports.php",
+    "find": "            $dates->isOpenStart(),\n",
+    "replace": "            false,\n",
+    "tests": [
+      "--filter",
+      "ReadsEveryDayBeforeADay",
+      "tests/Controllers/AccountingItemReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G115 the payments screen tells the report that every day before a day was asked for",
+    "file": "app/Controllers/AccountingPaymentReports.php",
+    "find": "            $dates->isOpenStart(),\n",
+    "replace": "            false,\n",
+    "tests": [
+      "--filter",
+      "ReadsEveryDayBeforeADay",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G116 the profit screen tells the report that every day before a day was asked for",
+    "file": "app/Controllers/AccountingProfitReports.php",
+    "find": "$this->query('category'), $dates->isOpenStart());",
+    "replace": "$this->query('category'), false);",
+    "tests": [
+      "--filter",
+      "ReadsEveryDayBeforeADay",
+      "tests/Controllers/AccountingProfitReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G117 only every day before a day is an open start",
+    "file": "app/Libraries/Accounting/OperationalReports/DateFilter.php",
+    "find": "return $this->refusal === null && $this->from === null && $this->mode === 'before';",
+    "replace": "return $this->refusal === null && $this->from === null;",
+    "tests": [
+      "--filter",
+      "IsOpenStart",
+      "tests/Libraries/Accounting/OperationalReports/DateFilterTest.php"
+    ]
+  },
+  {
+    "name": "W32-G118 the form is given the days as year-month-day",
+    "file": "app/Libraries/Accounting/OperationalReports/DateFilter.php",
+    "find": "return $value === '' ? '' : self::day($value);",
+    "replace": "return $value;",
+    "tests": [
+      "--filter",
+      "GivesTheForm",
+      "tests/Libraries/Accounting/OperationalReports/DateFilterTest.php"
+    ]
+  },
+  {
+    "name": "W32-G119 a refused day runs no report",
+    "file": "app/Controllers/AccountingOperationalReport.php",
+    "find": "return $this->isRun() && $dates->isRun();",
+    "replace": "return $this->isRun();",
+    "tests": [
+      "--filter",
+      "RunsNothingForADayThatIsNot",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php",
+      "tests/Controllers/AccountingNetPositionControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G120 the revenue screen reads a filter by customer, employee or category under the permission of it",
+    "file": "app/Controllers/AccountingSalesReports.php",
+    "find": "        $this->allowFilters(self::REVENUE_FILTERS);\n\n        $scope = $this->requestedScope();\n        $dates = $this->dates();\n        $table = $this->runs($dates) ? $this->revenueTable",
+    "replace": "\n\n        $scope = $this->requestedScope();\n        $dates = $this->dates();\n        $table = $this->runs($dates) ? $this->revenueTable",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOfTheCustomerOrTheEmployee",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G121 the revenue file reads a filter by customer, employee or category under the permission of it",
+    "file": "app/Controllers/AccountingSalesReports.php",
+    "find": "        $this->allowFilters(self::REVENUE_FILTERS);\n\n        $dates = $this->dates();\n\n        if ($dates->refusal !== null) {\n            return $this->refused($this->messageFor($dates->refusal));\n        }\n\n        return $this->csvResponse('revenue_'",
+    "replace": "\n\n        $dates = $this->dates();\n\n        if ($dates->refusal !== null) {\n            return $this->refused($this->messageFor($dates->refusal));\n        }\n\n        return $this->csvResponse('revenue_'",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOfTheCustomerOrTheEmployee",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G122 the item sales screen reads a filter by customer, employee or category under the permission of it",
+    "file": "app/Controllers/AccountingItemReports.php",
+    "find": "        $this->allowFilters(self::FILTERS);\n\n        $scope = $this->requestedScope();",
+    "replace": "\n\n        $scope = $this->requestedScope();",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOf",
+      "tests/Controllers/AccountingItemReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G123 the item sales file reads a filter by customer, employee or category under the permission of it",
+    "file": "app/Controllers/AccountingItemReports.php",
+    "find": "        $this->allowFilters(self::FILTERS);\n\n        $dates = $this->dates();\n\n        if ($dates->refusal !== null) {",
+    "replace": "\n\n        $dates = $this->dates();\n\n        if ($dates->refusal !== null) {",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOf",
+      "tests/Controllers/AccountingItemReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G124 the profit screen reads a filter by customer, employee or category under the permission of it",
+    "file": "app/Controllers/AccountingProfitReports.php",
+    "find": "        $this->allowFilters(self::FILTERS);\n\n        $scope = $this->requestedScope();\n        $dates = $this->dates();\n        $table = $this->runs($dates) ? $this->movementTable",
+    "replace": "\n\n        $scope = $this->requestedScope();\n        $dates = $this->dates();\n        $table = $this->runs($dates) ? $this->movementTable",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOf",
+      "tests/Controllers/AccountingProfitReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G125 the profit file reads a filter by customer, employee or category under the permission of it",
+    "file": "app/Controllers/AccountingProfitReports.php",
+    "find": "        $this->allowFilters(self::FILTERS);\n\n        $dates = $this->dates();\n\n        if ($dates->refusal !== null) {\n            return $this->refused($this->messageFor($dates->refusal));\n        }\n\n        return $this->csvResponse('profit_'",
+    "replace": "\n\n        $dates = $this->dates();\n\n        if ($dates->refusal !== null) {\n            return $this->refused($this->messageFor($dates->refusal));\n        }\n\n        return $this->csvResponse('profit_'",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOf",
+      "tests/Controllers/AccountingProfitReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G126 the profit by item screen reads a filter by customer, employee or category under the permission of it",
+    "file": "app/Controllers/AccountingProfitReports.php",
+    "find": "        $this->allowFilters(self::FILTERS);\n\n        $scope = $this->requestedScope();\n        $dates = $this->dates('last_month');",
+    "replace": "\n\n        $scope = $this->requestedScope();\n        $dates = $this->dates('last_month');",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOf",
+      "tests/Controllers/AccountingProfitReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G127 the profit by item file reads a filter by customer, employee or category under the permission of it",
+    "file": "app/Controllers/AccountingProfitReports.php",
+    "find": "        $this->allowFilters(self::FILTERS);\n\n        $dates = $this->dates('last_month');",
+    "replace": "\n\n        $dates = $this->dates('last_month');",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOf",
+      "tests/Controllers/AccountingProfitReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G128 the payments screen reads a filter by customer, employee or category under the permission of it",
+    "file": "app/Controllers/AccountingPaymentReports.php",
+    "find": "        $this->allowFilters(self::FILTERS);\n\n        $scope = $this->requestedScope();\n        $dates = $this->dates();\n        $table = $this->runs($dates) ? $this->paymentsTable",
+    "replace": "\n\n        $scope = $this->requestedScope();\n        $dates = $this->dates();\n        $table = $this->runs($dates) ? $this->paymentsTable",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOfEmployees",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G129 the payments file reads a filter by customer, employee or category under the permission of it",
+    "file": "app/Controllers/AccountingPaymentReports.php",
+    "find": "        $this->allowFilters(self::FILTERS);\n\n        $dates = $this->dates();\n\n        if ($dates->refusal !== null) {\n            return $this->refused($this->messageFor($dates->refusal));\n        }\n\n        return $this->csvResponse('payments_'",
+    "replace": "\n\n        $dates = $this->dates();\n\n        if ($dates->refusal !== null) {\n            return $this->refused($this->messageFor($dates->refusal));\n        }\n\n        return $this->csvResponse('payments_'",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOfEmployees",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G130 the advance payments screen reads a filter by customer, employee or category under the permission of it",
+    "file": "app/Controllers/AccountingPaymentReports.php",
+    "find": "        $this->allowFilters(self::ADVANCE_FILTERS);\n\n        $scope = $this->requestedScope();\n        $dates = $this->dates();\n        $table = $this->runs($dates) ? $this->advancesTable",
+    "replace": "\n\n        $scope = $this->requestedScope();\n        $dates = $this->dates();\n        $table = $this->runs($dates) ? $this->advancesTable",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOfEmployees",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G131 the advance payments file reads a filter by customer, employee or category under the permission of it",
+    "file": "app/Controllers/AccountingPaymentReports.php",
+    "find": "        $this->allowFilters(self::ADVANCE_FILTERS);\n\n        $dates = $this->dates();\n\n        if ($dates->refusal !== null) {\n            return $this->refused($this->messageFor($dates->refusal));\n        }\n\n        return $this->csvResponse('advance_payments'",
+    "replace": "\n\n        $dates = $this->dates();\n\n        if ($dates->refusal !== null) {\n            return $this->refused($this->messageFor($dates->refusal));\n        }\n\n        return $this->csvResponse('advance_payments'",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOfEmployees",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G132 a filter the employee may not use is not offered",
+    "file": "app/Controllers/AccountingOperationalReport.php",
+    "find": "return array_values(array_filter($fields, fn (array $field): bool => ! isset($permissions[$field['name']]) || $this->can($permissions[$field['name']])));",
+    "replace": "return array_values($fields);",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOf",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php",
+      "tests/Controllers/AccountingItemReportsControllerTest.php",
+      "tests/Controllers/AccountingProfitReportsControllerTest.php",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G133 a filter is read under its permission only when it was used",
+    "file": "app/Controllers/AccountingOperationalReport.php",
+    "find": "if ($this->query($name) !== '') {\n                $this->allow($permissionId);",
+    "replace": "if (true) {\n                $this->allow($permissionId);",
+    "tests": [
+      "--filter",
+      "FiltersByTheCustomerAndTheEmployeeForWhoMayReadThem|RedirectsSomeoneWithoutThePermissionOfTheCustomerOrTheEmployee",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G134 the payments by employee or collector are read under the permission of employees",
+    "file": "app/Libraries/Accounting/OperationalReports/PaymentGroup.php",
+    "find": "self::User, self::Collector => 'reports_employees',\n            default => 'reports_payments',",
+    "replace": "default => 'reports_payments',",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOfEmployees",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G135 the payments screen reads its grouping under the permission of the grouping",
+    "file": "app/Controllers/AccountingPaymentReports.php",
+    "find": "$group = PaymentGroup::tryFrom($this->query('group')) ?? PaymentGroup::Customer;\n\n        $this->allow($group->permission());\n        $this->allowFilters(self::FILTERS);\n\n        $scope",
+    "replace": "$group = PaymentGroup::tryFrom($this->query('group')) ?? PaymentGroup::Customer;\n        $this->allowFilters(self::FILTERS);\n\n        $scope",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOfEmployees",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G136 the payments file reads its grouping under the permission of the grouping",
+    "file": "app/Controllers/AccountingPaymentReports.php",
+    "find": "$group = PaymentGroup::tryFrom($this->query('group')) ?? PaymentGroup::Customer;\n\n        $this->allow($group->permission());\n        $this->allowFilters(self::FILTERS);\n\n        $dates",
+    "replace": "$group = PaymentGroup::tryFrom($this->query('group')) ?? PaymentGroup::Customer;\n        $this->allowFilters(self::FILTERS);\n\n        $dates",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOfEmployees",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G137 the payments screen offers only the groupings the employee may read",
+    "file": "app/Controllers/AccountingPaymentReports.php",
+    "find": "if ($this->can($option->permission())) {\n                $choices[$option->value]",
+    "replace": "if (true) {\n                $choices[$option->value]",
+    "tests": [
+      "--filter",
+      "RedirectsSomeoneWithoutThePermissionOfEmployees",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G138 a report opened with no grouping opens the first the employee may read",
+    "file": "app/Controllers/AccountingOperationalReport.php",
+    "find": "if ($this->can($group->permission())) {\n                return $group;",
+    "replace": "if (true) {\n                return $group;",
+    "tests": [
+      "--filter",
+      "OpensTheFirstGrouping",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php",
+      "tests/Controllers/AccountingItemReportsControllerTest.php",
+      "tests/Controllers/AccountingProfitReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G139 the revenue offers the sales of each customer only to who may read them",
+    "file": "app/Controllers/AccountingSalesReports.php",
+    "find": "if ($route !== $current && $opens[$route]) {",
+    "replace": "if ($route !== $current) {",
+    "tests": [
+      "--filter",
+      "OffersTheOtherReportOnlyToWhoMayOpenIt",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G140 the item sales report is empty when no line is left by the filters",
+    "file": "app/Libraries/Accounting/OperationalReports/ItemSalesReport.php",
+    "find": "documents: count(array_unique(array_map(static fn (array $row): int => $row['document']->id, $rows))),",
+    "replace": "documents: count($documents),",
+    "tests": [
+      "--filter",
+      "SaysThereIsNothingWhenAFilterLeavesNoLine",
+      "tests/Controllers/AccountingItemReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G141 the numbers of documents are ordered as people read them, lowest first",
+    "file": "app/Libraries/Accounting/OperationalReports/ClientsSalesReport.php",
+    "find": "'number_asc'  => strnatcasecmp($a->number, $b->number) ?: $a->id <=> $b->id,",
+    "replace": "'number_asc'  => [$a->number, $a->id] <=> [$b->number, $b->id],",
+    "tests": [
+      "--filter",
+      "OrdersByTheNumberOfTheDocument",
+      "tests/Libraries/Accounting/OperationalReports/ClientsSalesReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G142 the numbers of documents are ordered as people read them, highest first",
+    "file": "app/Libraries/Accounting/OperationalReports/ClientsSalesReport.php",
+    "find": "'number_desc' => strnatcasecmp($b->number, $a->number) ?: $b->id <=> $a->id,",
+    "replace": "'number_desc' => [$b->number, $b->id] <=> [$a->number, $a->id],",
+    "tests": [
+      "--filter",
+      "OrdersByTheNumberOfTheDocument",
+      "tests/Libraries/Accounting/OperationalReports/ClientsSalesReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G143 the invoices with returns are ordered by the date, oldest first",
+    "file": "app/Libraries/Accounting/OperationalReports/CrossReferenceReport.php",
+    "find": "'date_asc'   => [$a[0]->date, $a[0]->id] <=> [$b[0]->date, $b[0]->id],",
+    "replace": "'date_asc'   => [$b[0]->date, $b[0]->id] <=> [$a[0]->date, $a[0]->id],",
+    "tests": [
+      "--filter",
+      "OrdersByDateCustomerAndNetAmount",
+      "tests/Libraries/Accounting/OperationalReports/CrossReferenceReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G144 the invoices with returns are ordered by the customer",
+    "file": "app/Libraries/Accounting/OperationalReports/CrossReferenceReport.php",
+    "find": "'customer'   => [mb_strtolower($a[0]->customerName), $a[0]->id] <=> [mb_strtolower($b[0]->customerName), $b[0]->id],",
+    "replace": "'customer'   => [$b[0]->id] <=> [$a[0]->id],",
+    "tests": [
+      "--filter",
+      "OrdersByDateCustomerAndNetAmount",
+      "tests/Libraries/Accounting/OperationalReports/CrossReferenceReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G145 the invoices with returns are ordered by the net, highest first",
+    "file": "app/Libraries/Accounting/OperationalReports/CrossReferenceReport.php",
+    "find": "'net_desc'   => [self::net($b), $b[0]->id] <=> [self::net($a), $a[0]->id],",
+    "replace": "'net_desc'   => [self::net($a), $a[0]->id] <=> [self::net($b), $b[0]->id],",
+    "tests": [
+      "--filter",
+      "OrdersByDateCustomerAndNetAmount",
+      "tests/Libraries/Accounting/OperationalReports/CrossReferenceReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G146 the invoices with returns are ordered by the net, lowest first",
+    "file": "app/Libraries/Accounting/OperationalReports/CrossReferenceReport.php",
+    "find": "'net_asc'    => [self::net($a), $a[0]->id] <=> [self::net($b), $b[0]->id],",
+    "replace": "'net_asc'    => [self::net($b), $b[0]->id] <=> [self::net($a), $a[0]->id],",
+    "tests": [
+      "--filter",
+      "OrdersByDateCustomerAndNetAmount",
+      "tests/Libraries/Accounting/OperationalReports/CrossReferenceReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G147 the returns of the invoices with returns are tied as they are shown",
+    "file": "app/Libraries/Accounting/OperationalReports/CrossReferenceReport.php",
+    "find": "$reported = Amounts::add($reported, Amounts::negate(Amounts::sum(array_map(static fn (ReportDocument $return): string => $return->total, $listed))));",
+    "replace": "$reported = Amounts::add($reported, $invoice->returnedAll());",
+    "tests": [
+      "--filter",
+      "SaysTheyDifferWhenTheReturnsShown",
+      "tests/Libraries/Accounting/OperationalReports/CrossReferenceReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G148 the payments are limited to the employee of the invoice",
+    "file": "app/Libraries/Accounting/OperationalReports/PaymentRows.php",
+    "find": "['s.employee_id', $userId], ['p.employee_id', $collectorId]",
+    "replace": "['p.employee_id', $userId], ['s.employee_id', $collectorId]",
+    "tests": [
+      "--filter",
+      "TellsTheEmployeeOfTheInvoiceFromTheOneWhoTookThePayment",
+      "tests/Libraries/Accounting/OperationalReports/PaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G149 the payments are grouped by the employee of the invoice and by the collector",
+    "file": "app/Libraries/Accounting/OperationalReports/PaymentsReport.php",
+    "find": "PaymentGroup::User      => (string) ($payment->userId ?? 0),\n            PaymentGroup::Collector => (string) ($payment->collectorId ?? 0),",
+    "replace": "PaymentGroup::User      => (string) ($payment->collectorId ?? 0),\n            PaymentGroup::Collector => (string) ($payment->userId ?? 0),",
+    "tests": [
+      "--filter",
+      "TellsTheEmployeeOfTheInvoiceFromTheOneWhoTookThePayment",
+      "tests/Libraries/Accounting/OperationalReports/PaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G150 the payments are named by the employee of the invoice and by the collector",
+    "file": "app/Libraries/Accounting/OperationalReports/PaymentsReport.php",
+    "find": "PaymentGroup::User      => $payment->userName !== '' ? $payment->userName : $this->nobody(),\n            PaymentGroup::Collector => $payment->collectorName !== '' ? $payment->collectorName : $this->nobody(),",
+    "replace": "PaymentGroup::User      => $payment->collectorName !== '' ? $payment->collectorName : $this->nobody(),\n            PaymentGroup::Collector => $payment->userName !== '' ? $payment->userName : $this->nobody(),",
+    "tests": [
+      "--filter",
+      "TellsTheEmployeeOfTheInvoiceFromTheOneWhoTookThePayment",
+      "tests/Libraries/Accounting/OperationalReports/PaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "W32-G151 the file of the revenue carries the status filter",
+    "file": "app/Controllers/AccountingSalesReports.php",
+    "find": "'date', 'status', 'customer', 'user', 'not_taxed', 'show']",
+    "replace": "'date', 'customer', 'user', 'not_taxed', 'show']",
+    "tests": [
+      "--filter",
+      "CarriesEveryFilter",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G152 the file of the sales of each customer carries the order",
+    "file": "app/Controllers/AccountingSalesReports.php",
+    "find": "['type', 'group', 'view', 'order', 'preset'",
+    "replace": "['type', 'group', 'view', 'preset'",
+    "tests": [
+      "--filter",
+      "CarriesEveryFilter",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G153 the file of the item sales carries the location filter",
+    "file": "app/Controllers/AccountingItemReports.php",
+    "find": "'category', 'location', 'show']",
+    "replace": "'category', 'show']",
+    "tests": [
+      "--filter",
+      "CarriesEveryFilter",
+      "tests/Controllers/AccountingItemReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G154 the file of the profit carries the category filter",
+    "file": "app/Controllers/AccountingProfitReports.php",
+    "find": "'user', 'item', 'category', 'show'];\n    private const FILTERS",
+    "replace": "'user', 'item', 'show'];\n    private const FILTERS",
+    "tests": [
+      "--filter",
+      "CarriesEveryFilter",
+      "tests/Controllers/AccountingProfitReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G155 the file of the profit of each item carries the item filter",
+    "file": "app/Controllers/AccountingProfitReports.php",
+    "find": "'to', 'date', 'customer', 'user', 'item', 'category', 'show'];\n\n    private ProfitReport",
+    "replace": "'to', 'date', 'customer', 'user', 'category', 'show'];\n\n    private ProfitReport",
+    "tests": [
+      "--filter",
+      "CarriesEveryFilter",
+      "tests/Controllers/AccountingProfitReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G156 the file of the payments carries the collector filter",
+    "file": "app/Controllers/AccountingPaymentReports.php",
+    "find": "'user', 'collector', 'method', 'treasury', 'show']",
+    "replace": "'user', 'method', 'treasury', 'show']",
+    "tests": [
+      "--filter",
+      "CarriesEveryFilter",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G157 the file of the advance payments carries the state filter",
+    "file": "app/Controllers/AccountingPaymentReports.php",
+    "find": "'user', 'method', 'state', 'show']",
+    "replace": "'user', 'method', 'show']",
+    "tests": [
+      "--filter",
+      "CarriesEveryFilter",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G158 the file of the net position carries the filter of credit notes",
+    "file": "app/Controllers/AccountingNetPosition.php",
+    "find": "'date', 'hide_credit_notes', 'status', 'customer', 'show']",
+    "replace": "'date', 'status', 'customer', 'show']",
+    "tests": [
+      "--filter",
+      "CarriesEveryFilter",
+      "tests/Controllers/AccountingNetPositionControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G159 the file of the invoices and returns carries the order",
+    "file": "app/Controllers/AccountingNetPosition.php",
+    "find": "['group', 'view', 'order', 'preset'",
+    "replace": "['group', 'view', 'preset'",
+    "tests": [
+      "--filter",
+      "CarriesEveryFilter",
+      "tests/Controllers/AccountingNetPositionControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G160 the screen says that the reader has no branch",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "<?php if ($scope->isEmpty()): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "SaysWhenTheReaderHasNoBranch",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G161 the screen says whose figures it holds",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "<?php if ($scopeLabel !== null): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "SaysWhenTheReaderHasNoBranch",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G162 the screen says that a period is empty",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "<?php if ($table->isEmpty()): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "ShowsAnEmptyPeriodWithItsMessage",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G163 the grand total has one row header over the columns of text",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "<th scope=\"row\" colspan=\"<?= $leading ?>\">",
+    "replace": "<th scope=\"row\">",
+    "tests": [
+      "--filter",
+      "GivesTheGrandTotal",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php",
+      "tests/Controllers/AccountingNetPositionControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G164 the grand total has no empty row header after the figures",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "<?php elseif ($index >= $leading): ?>\n                                <td class=\"d-none d-md-table-cell\"></td>",
+    "replace": "<?php elseif ($index >= $leading): ?>\n                                <th scope=\"row\"></th>",
+    "tests": [
+      "--filter",
+      "GivesTheGrandTotal",
+      "tests/Controllers/AccountingNetPositionControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G165 the quick search offers the operational reports",
+    "file": "app/Helpers/navigation_helper.php",
+    "find": "foreach ([...reportCatalog(openableReportPermissions($reportPermissionIds)), ...operationalReportCatalog($reportPermissionIds)] as $reportGroup) {",
+    "replace": "foreach ([...reportCatalog(openableReportPermissions($reportPermissionIds))] as $reportGroup) {",
+    "tests": [
+      "--filter",
+      "OperationalReports",
+      "tests/Controllers/HomeTest.php"
+    ]
+  },
+  {
+    "name": "W32-G166 the index of reports lists the operational reports",
+    "file": "app/Views/reports/listing.php",
+    "find": "$catalog = [...reportCatalog(openableReportPermissions($permission_ids)), ...operationalReportCatalog($permission_ids)];",
+    "replace": "$catalog = [...reportCatalog(openableReportPermissions($permission_ids))];",
+    "tests": [
+      "--filter",
+      "ListsTheOperationalReportsOnlyFor",
+      "tests/Controllers/ReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W32-G167 the notes of the reports name no other system",
+    "file": "app/Language/en/Accounting_operational_reports.php",
+    "find": "and a movements report that values the return",
+    "replace": "which differs from the reference system, and a movements report that values the return",
+    "tests": [
+      "--filter",
+      "ExplainsItsRulesWithoutNamingAnotherSystem",
+      "tests/LanguageFilesTest.php"
+    ]
   }
 ]

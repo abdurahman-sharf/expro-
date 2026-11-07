@@ -120,8 +120,7 @@ class AccountingProfitReports extends AccountingOperationalReport
             }
         }
 
-        $query    = $this->carried($carried, $scope);
-        $siblings = $this->siblingOpens($siblingRoute) ? [['label' => lang($siblingKey), 'url' => base_url('accounting_reports/' . $siblingRoute)]] : [];
+        $query = $this->carried($carried, $scope);
 
         return $this->page([
             'titleKey'      => $titleKey,
@@ -144,19 +143,8 @@ class AccountingProfitReports extends AccountingOperationalReport
                 ['type' => 'select', 'name' => 'user', 'labelKey' => 'Accounting_operational_reports.user', 'options' => $this->employeeChoices(), 'value' => $this->query('user')],
             ], self::FILTERS),
             'csvUrl'   => base_url($csvRoute) . ($query === [] ? '' : '?' . http_build_query($query)),
-            'siblings' => $siblings,
+            'siblings' => [['label' => lang($siblingKey), 'url' => base_url('accounting_reports/' . $siblingRoute)]],
         ]);
-    }
-
-    private function siblingOpens(string $route): bool
-    {
-        foreach ($route === 'profit' ? self::MOVEMENT_GROUPS : self::ITEM_GROUPS as $group) {
-            if ($this->can($group->permission())) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function movementTable(ReportScope $scope, ItemGroup $group, DateFilter $dates): ReportTable
