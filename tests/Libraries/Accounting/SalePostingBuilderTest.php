@@ -1804,6 +1804,85 @@ use ItemFixtureTrait;
         $this->assertSame([$this->customerAccount() . ':100.50:0.00', $this->accountId('sales_revenue') . ':0.00:100.50'], $this->shape($draft));
     }
 
+    public function testInvoice_PutsTheConversionRoundingOnTheLargestGoodsLineWhenEveryItemNamesAnAccountOtherThanTheRow(): void
+    {
+        [$first, $second] = $this->itemsOfTwoAccountsAndOneWithout();
+        $third            = $this->createTestItem();
+        $this->nameAccount($third, RoutingKey::SalesRevenue, $this->customAccount('41', '4103', 'Third revenue'));
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $sale = $this->sale(
+            [$this->line('1', '33.33', itemId: $first), $this->line('1', '33.33', itemId: $second), $this->line('1', '33.34', itemId: $third)],
+            currency: $this->foreign('USD', '1.00500000', 2),
+        );
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':100.50:0.00',
+                $this->accountIdByCode('4101') . ':0.00:33.50',
+                $this->accountIdByCode('4102') . ':0.00:33.50',
+                $this->accountIdByCode('4103') . ':0.00:33.50',
+            ],
+            $this->shape($this->builder->invoice($sale, 1)),
+        );
+    }
+
+    public function testInvoice_PutsTheConversionRoundingOnTheLargestGoodsLineEvenWhenTheLineOfTheRowIsSmaller(): void
+    {
+        [$first, , $plain] = $this->itemsOfTwoAccountsAndOneWithout();
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $sale = $this->sale([$this->line('1', '33.34', itemId: $first), $this->line('1', '33.33', itemId: $plain)], currency: $this->foreign('USD', '1.00500000', 2));
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':67.00:0.00',
+                $this->accountIdByCode('4101') . ':0.00:33.50',
+                $this->accountId('sales_revenue') . ':0.00:33.50',
+            ],
+            $this->shape($this->builder->invoice($sale, 1)),
+        );
+    }
+
+    public function testInvoice_PutsTheConversionRoundingOfAForeignReturnOnTheLargestGoodsLine(): void
+    {
+        [$first, $second] = $this->itemsOfTwoAccountsAndOneWithout();
+        $third            = $this->createTestItem();
+        foreach ([$first => '4101', $second => '4102'] as $item => $code) {
+            $this->nameAccount($item, RoutingKey::SalesReturns, $this->accountIdByCode($code));
+        }
+        $this->nameAccount($third, RoutingKey::SalesReturns, $this->customAccount('41', '4103', 'Third returns'));
+        $this->setRouting(RoutingKey::SalesReturns, RoutingType::PerItem);
+        $currency = $this->foreign('USD', '1.00500000', 2);
+        $origin   = $this->sale([$this->line('1', '33.33', itemId: $first), $this->line('1', '33.33', itemId: $second), $this->line('1', '33.34', itemId: $third)], currency: $currency);
+        $return   = $this->sale(
+            [$this->line('-1', '33.33', itemId: $first), $this->line('-1', '33.33', itemId: $second), $this->line('-1', '33.34', itemId: $third)],
+            type: SALE_TYPE_RETURN,
+            origin: $origin,
+            currency: $currency,
+        );
+
+        $this->assertSame(
+            [
+                $this->accountIdByCode('4101') . ':33.50:0.00',
+                $this->accountIdByCode('4102') . ':33.50:0.00',
+                $this->accountIdByCode('4103') . ':33.50:0.00',
+                $this->customerAccount() . ':0.00:100.50',
+            ],
+            $this->shape($this->builder->invoice($return, 2)),
+        );
+    }
+
+    public function testInvoice_KeepsTheRoundingOnTheSingleGoodsLineOfARowThatIsNotPerItem(): void
+    {
+        $sale = $this->sale([$this->line('1', '33.33', itemId: 1), $this->line('1', '33.33', itemId: 2), $this->line('1', '33.34', itemId: 3)], currency: $this->foreign('USD', '1.00500000', 2));
+
+        $this->assertSame(
+            [$this->customerAccount() . ':100.50:0.00', $this->accountId('sales_revenue') . ':0.00:100.50'],
+            $this->shape($this->builder->invoice($sale, 1)),
+        );
+    }
+
     public function testInvoice_MirrorsAReturnOfAForeignSaleAtTheRateOfTheSaleItTakesBack(): void
     {
         $currency = $this->foreign();

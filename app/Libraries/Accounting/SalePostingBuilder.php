@@ -72,9 +72,12 @@ final class SalePostingBuilder
         $customerSide = [$receivable, $figures['total']];
         $incomeSide   = [];
 
+        $goodsCount = 0;
+
         if (bccomp($goods, '0', SaleAmounts::SCALE) !== 0) {
             foreach ($this->goodsLines($sale, $sale->isReturn() ? RoutingKey::SalesReturns : RoutingKey::SalesRevenue, $goods, $discount !== null) as $goodsLine) {
                 $incomeSide[] = $goodsLine;
+                $goodsCount++;
             }
         }
 
@@ -120,10 +123,31 @@ final class SalePostingBuilder
             return $draft;
         }
 
-        $goods = bccomp($goods, '0', SaleAmounts::SCALE) !== 0 ? RoutingKey::SalesRevenue : RoutingKey::SalesShipping;
-        $goods = $sale->isReturn() && $goods === RoutingKey::SalesRevenue ? RoutingKey::SalesReturns : $goods;
+        $first = $sale->isReturn() ? 0 : 1 + ($discount !== null ? 1 : 0) + ($against !== null ? 1 : 0);
 
-        return ForeignConversion::toBase($draft, $sale->currency, $this->baseDecimalsOf(), ForeignConversion::indexOf($draft, $goods === RoutingKey::SalesShipping ? $this->shippingAccount($sale) : $this->required($goods)));
+        return ForeignConversion::toBase($draft, $sale->currency, $this->baseDecimalsOf(), $goodsCount > 0
+            ? $first + $this->largestOf(array_slice($incomeSide, 0, $goodsCount))
+            : ForeignConversion::indexOf($draft, $this->shippingAccount($sale)));
+    }
+
+    /**
+     * The position of the largest amount of the lines, the first of them when two are alike, which is the
+     * goods line that takes the rounding of the conversion to the base currency, as it takes the rounding
+     * of the split of the goods.
+     *
+     * @param list<array{int, string, 2?: ?string}> $lines
+     */
+    private function largestOf(array $lines): int
+    {
+        $largest = 0;
+
+        foreach ($lines as $position => $line) {
+            if (bccomp($line[1], $lines[$largest][1], SaleAmounts::SCALE) > 0) {
+                $largest = $position;
+            }
+        }
+
+        return $largest;
     }
 
     /**
