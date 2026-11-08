@@ -138,7 +138,7 @@ final class CostCenterDistributionMigrationTest extends CIUnitTestCase
         (new CostCenterDistributionMigration())->down();
     }
 
-    public function testDistributions_KeepACenterFromBeingDeleted(): void
+    public function testUp_KeepsACenterFromBeingDeletedWhileADistributionNamesIt(): void
     {
         $made = $this->journalWithTwoCenters();
 
@@ -147,7 +147,7 @@ final class CostCenterDistributionMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('accounting_cost_centers')->where('cost_center_id', $made['center'])->delete();
     }
 
-    public function testDistributions_CannotRepeatACenterOnALineOrHoldAZeroPercentOrANegativeAmount(): void
+    public function testUp_RejectsARepeatedCenterAZeroPercentAndANegativeAmountOnADistribution(): void
     {
         $made = $this->journalWithTwoCenters();
 
@@ -167,7 +167,7 @@ final class CostCenterDistributionMigrationTest extends CIUnitTestCase
         $this->assertSame(2, $this->countRows('accounting_journal_line_distributions'));
     }
 
-    public function testDefaults_GoWhenTheAccountIsDeletedAndKeepTheCenter(): void
+    public function testUp_DeletesTheDefaultsOfADeletedAccountAndKeepsTheCenter(): void
     {
         $centers = new CostCenterService();
         $center  = $centers->create(['code' => 'A', 'name' => 'Alpha']);
@@ -181,7 +181,7 @@ final class CostCenterDistributionMigrationTest extends CIUnitTestCase
         $this->assertNotNull($centers->find($center));
     }
 
-    public function testDistributions_GoWithTheLineWhenADraftIsSavedAgain(): void
+    public function testUp_DeletesTheDistributionWithItsLineWhenADraftIsSavedAgain(): void
     {
         $centers = new CostCenterService();
         $first   = $centers->create(['code' => 'A', 'name' => 'Alpha']);

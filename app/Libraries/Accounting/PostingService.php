@@ -304,7 +304,7 @@ final class PostingService
 
         $accounts = $this->assertAccountsPostable($lines, $draft->reversesJournalId !== null || $this->yearEndRelief);
         $lines    = $this->bindParties($lines, $accounts);
-        $this->assertCostCentersExist($lines, $draft->reversesJournalId !== null || $this->yearEndRelief);
+        $this->assertCostCentersExist($lines, $draft->reversesJournalId !== null);
 
         $branchId = $this->resolveBranch($draft);
 

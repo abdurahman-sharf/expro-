@@ -5,6 +5,8 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\ReturnOverride;
 use App\Libraries\Accounting\SaleLoader;
+use App\Libraries\Accounting\ShippingCompanies;
+use App\Libraries\HeaderCharges;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -54,6 +56,28 @@ class SaleLoaderTest extends CIUnitTestCase
         $document = (new SaleLoader())->load($saleId);
 
         $this->assertSame(['7.6100', '12.3900'], array_map(static fn ($line): string => bcadd($line->invoiceDiscountShare, '0', 4), $document->lines));
+    }
+
+    public function testLoad_ReadsTheShippingCompanyASaleNamedAndTheAccountOwedToIt(): void
+    {
+        $this->setConfigValue('accounting_sales_shipping', '1');
+
+        $companies = new ShippingCompanies();
+        $account   = $this->customAccount('2212', '22121', 'Owed to Fast Ship');
+
+        $companies->setEnabled(true);
+
+        $company = $companies->create(['name' => 'Fast Ship', 'account_id' => $account]);
+        $without = $companies->create(['name' => 'Gulf Express']);
+        $cycle   = $this->referenceInvoice();
+
+        $named = (new SaleLoader())->load($this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '20', shippingCompanyId: $company)));
+        $bare  = (new SaleLoader())->load($this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '20', shippingCompanyId: $without)));
+        $none  = (new SaleLoader())->load($this->save($cycle['items'], $cycle['taxes'], headerCharges: new HeaderCharges(shipping: '20')));
+
+        $this->assertSame([$company, $account], [$named->charges->shippingCompanyId, $named->charges->shippingAccountId]);
+        $this->assertSame([$without, null], [$bare->charges->shippingCompanyId, $bare->charges->shippingAccountId]);
+        $this->assertSame([null, null], [$none->charges->shippingCompanyId, $none->charges->shippingAccountId]);
     }
 
     public function testLoad_ReadsASaleSavedBeforeTheDiscountExistedAsOneWithoutShares(): void

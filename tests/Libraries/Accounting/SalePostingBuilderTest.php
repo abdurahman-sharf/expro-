@@ -1465,6 +1465,18 @@ use ItemFixtureTrait;
         );
     }
 
+    public function testInvoice_CreditsTheShippingToTheAccountOfTheShippingCompanyTheDocumentNamesAndToTheRoutedRevenueWhenItNamesNone(): void
+    {
+        $owed = $this->customAccount('2212', '22121', 'Owed to Fast Ship');
+
+        $named = $this->sale([$this->line('1', '100')], charges: new ResolvedCharges(shipping: '20.0000', shippingCompanyId: 7, shippingAccountId: $owed));
+        $plain = $this->sale([$this->line('1', '100')], charges: new ResolvedCharges(shipping: '20.0000', shippingCompanyId: 7));
+
+        $this->assertContains($owed . ':0.00:20.00', $this->shape($this->builder->invoice($named, 1)));
+        $this->assertNotContains($this->accountId('sales_shipping') . ':0.00:20.00', $this->shape($this->builder->invoice($named, 1)));
+        $this->assertContains($this->accountId('sales_shipping') . ':0.00:20.00', $this->shape($this->builder->invoice($plain, 1)));
+    }
+
     public function testInvoice_AddsTheTaxOnShippingToTheOutputTaxWhenItIsNotInTheAmount(): void
     {
         $sale = $this->sale([$this->line('1', '100')], charges: new ResolvedCharges(shipping: '100.0000', shippingTax: '15.0000'));

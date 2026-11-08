@@ -104,7 +104,7 @@ final class ShippingCompaniesMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('sales')->where('sale_id', $saleId)->delete();
     }
 
-    public function testCompanies_CannotBeDeletedWhileASaleNamesThem(): void
+    public function testUp_RejectsDeletingACompanyWhileASaleNamesIt(): void
     {
         $id = (new ShippingCompanies())->create(['name' => 'Fast Ship']);
 
@@ -123,7 +123,7 @@ final class ShippingCompaniesMigrationTest extends CIUnitTestCase
         $this->assertNotNull((new ShippingCompanies())->find($id));
     }
 
-    public function testCompanies_NameTheAccountOwedToThemAndKeepItFromBeingDeleted(): void
+    public function testUp_KeepsTheAccountOwedToACompanyFromBeingDeleted(): void
     {
         $account = $this->customAccount('2212', '22121', 'Owed to Fast Ship');
 

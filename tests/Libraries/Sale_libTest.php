@@ -1095,6 +1095,19 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertNull(session()->get('sales_header_charges'));
     }
 
+    public function testSetHeaderCharges_KeepsTheShippingCompanyChosenAndStoresNoKeyWhenThereIsNone(): void
+    {
+        $this->saleLib->setHeaderCharges(new HeaderCharges(shipping: '10', shippingCompanyId: 7));
+
+        $this->assertSame(7, $this->saleLib->getHeaderCharges()->shippingCompanyId);
+        $this->assertSame(7, session()->get('sales_header_charges')['shipping_company_id']);
+
+        $this->saleLib->setHeaderCharges(new HeaderCharges(shipping: '10'));
+
+        $this->assertNull($this->saleLib->getHeaderCharges()->shippingCompanyId);
+        $this->assertArrayNotHasKey('shipping_company_id', session()->get('sales_header_charges'));
+    }
+
     public function testClearAll_ForgetsTheChargesOfTheHeaderSoTheNextSaleDoesNotInheritThem(): void
     {
         $this->saleLib->setHeaderCharges(new HeaderCharges('Fee', '10'));

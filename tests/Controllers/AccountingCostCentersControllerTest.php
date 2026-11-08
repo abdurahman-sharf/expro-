@@ -311,7 +311,9 @@ class AccountingCostCentersControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('aria-label="\' + percentLabel + \'"', $page);
         $this->assertStringContainsString('const centerLabel = ' . json_encode(lang('Accounting_cost_centers.defaults_center'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), $page);
         $this->assertStringContainsString('const percentLabel = ' . json_encode(lang('Accounting_cost_centers.defaults_percent'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), $page);
-        $this->assertStringContainsString("replace(/[٠-٩۰-۹]/g", $page);
+        $this->assertStringContainsString('parseFloat(normalize($(this).val()))', $page);
+        $this->assertStringContainsString('const normalized = normalize($(this).val());', $page);
+        $this->assertStringContainsString('.replace(/[٠-٩۰-۹]/g', $page);
     }
 
     public function testGetDefaults_ShowsTheRowsButNoSaveToAUserWhoMayNotManageCostCenters(): void

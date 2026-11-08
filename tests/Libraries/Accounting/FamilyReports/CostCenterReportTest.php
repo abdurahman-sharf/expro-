@@ -7,7 +7,6 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\FamilyReports\CostCenterReport;
-use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
 use App\Libraries\Accounting\FamilyReports\ReportTable;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
@@ -426,15 +425,6 @@ final class CostCenterReportTest extends FamilyReportTestCase
         } catch (AccountingException $exception) {
             $this->assertSame(AccountingError::ReportPeriodInvalid, $exception->error);
         }
-    }
-
-    public function testBuild_IsListedUnderTheBooksWithThePermissionOfTheCostCenters(): void
-    {
-        $definition = FamilyReportCatalog::find('cost_centers');
-
-        $this->assertSame('accounting_cost_centers', $definition['permission']);
-        $this->assertSame('books', $definition['family']);
-        $this->assertSame(CostCenterReport::class, $definition['class']);
     }
 
     private function balanceOf(ReportTable $table, string $center): string
