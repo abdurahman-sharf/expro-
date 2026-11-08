@@ -1127,11 +1127,15 @@ final class StockTrackingTest extends CIUnitTestCase
     public function testReceive_RefusesAQuantityNoSerialEntryAccountsForBeforeTheBooksSplitTheLine(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
-        $before = $this->accountingDb()->table('accounting_stock_entries')->countAllResults();
+        $result = 0;
 
-        $this->assertSame(ACCOUNTING_FAILED, $this->buy([[...$this->purchaseLine($itemId, 0, '70000', '5.00'), 'tracking' => ['serials' => ['BIG-1']]]]));
+        $queries = $this->queriesOf(function () use ($itemId, &$result): void {
+            $result = $this->buy([[...$this->purchaseLine($itemId, 0, '70000', '5.00'), 'tracking' => ['serials' => ['BIG-1']]]]);
+        });
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
         $this->assertSame(AccountingError::TrackedEntryRequired, $this->failure($this->purchases));
-        $this->assertSame($before, $this->accountingDb()->table('accounting_stock_entries')->countAllResults());
+        $this->assertNull($this->firstQuery($queries, ['INSERT INTO', 'accounting_stock_entries']), 'the books were not written to before the entry was refused');
         $this->assertSame('0.000', $this->onHand($itemId));
     }
 
@@ -1139,10 +1143,12 @@ final class StockTrackingTest extends CIUnitTestCase
     {
         $itemId  = $this->trackedItem(TrackingType::Serial, '0.00');
         $permits = new StockPermit();
-        $before  = $this->accountingDb()->table('accounting_stock_entries')->countAllResults();
 
-        $this->refusedWith(AccountingError::TrackedEntryRequired, fn () => $permits->create(['type' => 'add', 'date' => date('Y-m-d'), 'location_id' => self::LOCATION_ID, 'lines' => [['item_id' => $itemId, 'quantity' => '70000', 'unit_cost' => '10', 'tracking' => ['serials' => ['HUGE-1']]]]], $this->keeperId));
-        $this->assertSame($before, $this->accountingDb()->table('accounting_stock_entries')->countAllResults());
+        $queries = $this->queriesOf(function () use ($permits, $itemId): void {
+            $this->refusedWith(AccountingError::TrackedEntryRequired, fn () => $permits->create(['type' => 'add', 'date' => date('Y-m-d'), 'location_id' => self::LOCATION_ID, 'lines' => [['item_id' => $itemId, 'quantity' => '70000', 'unit_cost' => '10', 'tracking' => ['serials' => ['HUGE-1']]]]], $this->keeperId));
+        });
+
+        $this->assertNull($this->firstQuery($queries, ['INSERT INTO', 'accounting_stock_entries']), 'the books were not written to before the entry was refused');
         $this->assertSame('0.000', $this->onHand($itemId));
     }
 
@@ -1161,6 +1167,12 @@ final class StockTrackingTest extends CIUnitTestCase
     {
         $empty = $this->trackedItem(TrackingType::Serial);
         $held  = $this->trackedItem(TrackingType::Batch);
+
+        $this->receiveSerials($empty, ['EMP-1']);
+        $this->sellPiece($empty, 'EMP-1');
+
+        $this->assertSame('0.000', $this->onHand($empty));
+        $this->assertSame(1, $this->accountingDb()->table('item_quantities')->where('item_id', $empty)->countAllResults(), 'the shelf row stays at zero');
 
         $this->receiveBatch($held, 'B-HELD', $this->inDays(20), '2');
 

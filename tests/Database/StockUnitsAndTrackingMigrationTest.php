@@ -228,6 +228,8 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
     {
         $this->refused(fn () => $this->insertWithoutParents('sales_items', $this->saleLine(['quantity_purchased' => '25.000'])));
         $this->refused(fn () => $this->insertWithoutParents('sales_items', $this->saleLine(['unit_factor' => '0'])));
+        $this->refused(fn () => $this->insertWithoutParents('sales_items', $this->saleLine(['quantity_purchased' => '0.000', 'unit_factor' => '0', 'unit_quantity' => '5.000'])));
+        $this->refused(fn () => $this->insertWithoutParents('sales_items', $this->saleLine(['quantity_purchased' => '0.000', 'unit_factor' => '-1', 'unit_quantity' => '0.000'])));
         $this->refused(fn () => $this->insertWithoutParents('sales_items', $this->saleLine(['unit_quantity' => null])));
 
         $this->insertWithoutParents('sales_items', $this->saleLine());

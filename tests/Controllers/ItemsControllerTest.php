@@ -1791,7 +1791,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $result   = json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true);
 
         $this->assertFalse($result['success']);
-        $this->assertStringContainsString($this->trackedRefusal($itemId), $result['message']);
+        $this->assertStringContainsString(lang('Accounting.error_tracked_path_unsupported', ['Renamed']), $result['message']);
         $this->assertNotSame('Renamed', $this->item->get_info($itemId)->name);
         $this->assertSame('10.000', $this->onHand($itemId));
     }

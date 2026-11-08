@@ -528,6 +528,21 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->assertSame([['value' => '', 'label' => 'Piece'], ['value' => (string) $setup['carton'], 'label' => 'Carton (x12)']], $found['units']);
     }
 
+    public function testGetItems_TellsTheTrackingButNotTheUnitsWhileOnlyTheUnitsAreOff(): void
+    {
+        $setup = $this->cartonItem('5.00');
+
+        $this->switchOnStock('tracking');
+        (new ItemStockProfile())->setTracking($setup['item'], TrackingType::Batch, $this->unitManagerId);
+        $this->accountingDb()->table('app_config')->where('key', StockOptions::UNITS)->delete();
+        $this->actAsKeeper();
+
+        $found = json_decode($this->get('/stock_documents/items?item_id=' . $setup['item'])->getJSON(), true)[0];
+
+        $this->assertSame('batch', $found['tracking']);
+        $this->assertArrayNotHasKey('units', $found);
+    }
+
     public function testGetItems_TellsNothingOfUnitsOrTrackingWhileTheirSettingsAreOff(): void
     {
         $setup = $this->cartonItem('5.00');
@@ -554,10 +569,35 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $on = $this->get('/stock_documents/permits/form/add');
 
         $on->assertSee(lang('Stock_units.tracking_entry'));
-        $on->assertSee('[unit_id]');
-        $on->assertSee('[serials]');
-        $on->assertSee('[batch_number]');
-        $on->assertSee('[batch_expiry]');
+        $this->assertStringContainsString('const unitsOn = true;', $on->getBody());
+        $this->assertStringContainsString('const trackingOn = true;', $on->getBody());
+        $this->assertStringContainsString('<th scope="col">' . lang('Stock_units.unit') . '</th>', $on->getBody());
+    }
+
+    public function testGetForm_OffersTheUnitColumnWithoutTheTrackingColumnWhileOnlyUnitsAreOn(): void
+    {
+        $this->switchOnStock('units');
+        $this->actAsKeeper();
+
+        $body = $this->get('/stock_documents/permits/form/add')->getBody();
+
+        $this->assertStringContainsString('const unitsOn = true;', $body);
+        $this->assertStringContainsString('const trackingOn = false;', $body);
+        $this->assertStringContainsString('<th scope="col">' . lang('Stock_units.unit') . '</th>', $body);
+        $this->assertStringNotContainsString(lang('Stock_units.tracking_entry'), $body);
+    }
+
+    public function testGetForm_OffersTheTrackingColumnWithoutTheUnitColumnWhileOnlyTrackingIsOn(): void
+    {
+        $this->switchOnStock('tracking');
+        $this->actAsKeeper();
+
+        $body = $this->get('/stock_documents/permits/form/add')->getBody();
+
+        $this->assertStringContainsString('const unitsOn = false;', $body);
+        $this->assertStringContainsString('const trackingOn = true;', $body);
+        $this->assertStringNotContainsString('<th scope="col">' . lang('Stock_units.unit') . '</th>', $body);
+        $this->assertStringContainsString(lang('Stock_units.tracking_entry'), $body);
     }
 
     public function testPostSavePermit_SavesALineEnteredInCartonsInBaseUnits(): void

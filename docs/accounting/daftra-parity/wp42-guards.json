@@ -1692,7 +1692,7 @@
   "find": "'trackingOn' => $options->trackingEnabled()",
   "replace": "'trackingOn' => true",
   "tests": [
-   "--filter=testGetForm_OffersTheUnit",
+   "--filter=testGetForm_Offers",
    "tests/Controllers/StockPermitsControllerTest.php"
   ]
  },
@@ -1702,7 +1702,7 @@
   "find": "'unitsOn' => $options->unitsEnabled()",
   "replace": "'unitsOn' => true",
   "tests": [
-   "--filter=testGetForm_OffersTheUnit",
+   "--filter=testGetForm_Offers",
    "tests/Controllers/StockPermitsControllerTest.php"
   ]
  },

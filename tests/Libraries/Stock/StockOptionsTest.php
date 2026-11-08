@@ -141,6 +141,42 @@ final class StockOptionsTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'stock_options_updated')->countAllResults());
     }
 
+    public function testUpdate_RejectsSwitchingTrackingOffWhileASerialNumberIsOnHandEvenWithAnEmptyShelf(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Serial);
+
+        $this->accountingDb()->table('stock_serials')->insert(['item_id' => $itemId, 'serial_number' => 'OPT-2', 'state' => 'returned', 'location_id' => 1]);
+
+        $this->refusedWith(AccountingError::TrackingOffWithStock, fn () => (new StockOptions())->update(['tracking' => false], $this->unitManagerId));
+        $this->assertTrue((new StockOptions())->trackingEnabled());
+    }
+
+    public function testUpdate_RejectsSwitchingTrackingOffWhileABatchHoldsStockEvenWithAnEmptyShelf(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Batch);
+        $db     = $this->accountingDb();
+
+        $db->table('stock_batches')->insert(['item_id' => $itemId, 'batch_number' => 'OPT-C', 'expiry_date' => '2031-01-01']);
+        $db->table('stock_batch_quantities')->insert(['batch_id' => (int) $db->insertID(), 'location_id' => 1, 'quantity' => '3']);
+
+        $this->refusedWith(AccountingError::TrackingOffWithStock, fn () => (new StockOptions())->update(['tracking' => false], $this->unitManagerId));
+        $this->assertTrue((new StockOptions())->trackingEnabled());
+    }
+
+    public function testUpdate_AcceptsSwitchingTrackingOffWhenTheOnlySerialNumbersAreSoldOrRemoved(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Serial);
+
+        $this->accountingDb()->table('stock_serials')->insertBatch([
+            ['item_id' => $itemId, 'serial_number' => 'OPT-3', 'state' => 'sold', 'location_id' => null],
+            ['item_id' => $itemId, 'serial_number' => 'OPT-4', 'state' => 'removed', 'location_id' => null],
+        ]);
+
+        (new StockOptions())->update(['tracking' => false], $this->unitManagerId);
+
+        $this->assertFalse((new StockOptions())->trackingEnabled());
+    }
+
     public function testUpdate_RejectsSwitchingTrackingOffWhileABatchHoldsStock(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);

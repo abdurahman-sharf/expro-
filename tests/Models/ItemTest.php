@@ -333,6 +333,8 @@ class ItemTest extends CIUnitTestCase
         $itemId = $this->trackedItem(TrackingType::Serial);
         $items  = model(Item::class);
 
+        $this->accountingDb()->table('item_quantities')->replace(['item_id' => $itemId, 'location_id' => 1, 'quantity' => '0']);
+
         $this->assertTrue($items->delete($itemId));
         $this->assertSame(1, (int) $items->get_info($itemId)->deleted);
         $this->assertNull($items->accountingFailure());
