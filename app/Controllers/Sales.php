@@ -2043,8 +2043,13 @@ class Sales extends Secure_Controller
         }
 
         $saleData = $this->_load_sale_data($saleId);
-        $number = $saleData[$type . '_number'] ?? '';
         $this->sale_lib->clear_all();
+
+        if ($this->isNotCreditNote($type, $saleData)) {
+            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
+
+        $number = $type === 'receipt' ? '' : documentProfile($type, $saleData)['number'];
 
         try {
             $pdf = $this->renderPdf($type, $saleData);
@@ -2086,12 +2091,18 @@ class Sales extends Secure_Controller
 
         $saleData = $this->_load_sale_data($saleId);
 
+        if ($this->isNotCreditNote($type, $saleData)) {
+            $this->sale_lib->clear_all();
+
+            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
+
         $result = false;
         $message = lang('Sales.invoice_no_email');
 
         if (!empty($saleData['customer_email'])) {
             $to = $saleData['customer_email'];
-            $number = array_key_exists($type . "_number", $saleData) ?  $saleData[$type . "_number"] : "";
+            $number = $type === 'receipt' ? '' : documentProfile($type, $saleData)['number'];
             $subject = lang('Sales.' . $type) . ' ' . $number;
 
             $text = $this->config['invoice_email_message'];
@@ -2122,6 +2133,46 @@ class Sales extends Secure_Controller
         $this->sale_lib->clear_all();
 
         return $this->response->setJSON(['success' => $result, 'message' => $message, 'id' => $saleId]);
+    }
+
+    /**
+     * The printable page of a document of a sale: its credit note or any other of its documents.
+     * Used in app/Views/sales/receipt.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function getPrint(int $saleId, string $type = 'credit_note'): string|ResponseInterface
+    {
+        if ($this->outsideBranchScope($saleId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        if (!$this->employee->has_grant('reports_sales', $this->session->get('person_id'))) {
+            return redirect()->to('no_access/sales/reports_sales');
+        }
+
+        if (!in_array($type, documentTypes(), true)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $data = $this->_load_sale_data($saleId);
+        $this->sale_lib->clear_all();
+
+        if ($this->isNotCreditNote($type, $data)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return view('sales/document_print', ['type' => $type, 'sale' => $data, 'sale_id_num' => $saleId, 'customer_email' => $data['customer_email'] ?? '']);
+    }
+
+    /**
+     * A credit note is the print of a return: the print of any other sale under that name is refused.
+     *
+     * @param array<string, mixed> $saleData
+     */
+    private function isNotCreditNote(string $type, array $saleData): bool
+    {
+        return $type === 'credit_note' && empty($saleData['is_return']);
     }
 
     private function renderPdf(string $type, array $saleData): string
@@ -2278,6 +2329,9 @@ class Sales extends Secure_Controller
         $timing = $this->sale->getInvoiceTiming((int) $saleId);
         $data['transaction_time'] = to_datetime(strtotime($saleInfo['sale_time']));
         $data['transaction_date'] = to_date(strtotime($timing['invoice_date'] ?? $saleInfo['sale_time']));
+        $data['sale_time_raw'] = (string) $saleInfo['sale_time'];
+        $data['invoice_date_raw'] = $timing['invoice_date'] ?? null;
+        $data['is_return'] = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS) === SALE_TYPE_RETURN;
         $data['due_date'] = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
         $data['show_stock_locations'] = $this->stock_location->show_locations('sales', true);
 

@@ -5,6 +5,8 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\SalesTaxSettings;
+use App\Libraries\Documents\DocumentTerms;
+use App\Libraries\Documents\DocumentTermsSettings;
 use App\Libraries\Barcode_lib;
 use App\Libraries\Mailchimp_lib;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -1053,6 +1055,8 @@ class Config extends Secure_Controller
         $success = $this->appconfig->batch_save($batch_save_data);
 
         if ($success) {
+            $this->saveDocumentTerms();
+
             $settings = config(OSPOS::class)->settings;
 
             if ($settings['invoice_enable']) {
@@ -1063,6 +1067,21 @@ class Config extends Secure_Controller
         }
 
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
+    }
+
+    private function saveDocumentTerms(): void
+    {
+        $input = [];
+
+        foreach (DocumentTerms::settingKeys() as $key) {
+            $text = $this->request->getPost($key);
+
+            if ($text !== null) {
+                $input[$key] = $text;
+            }
+        }
+
+        (new DocumentTermsSettings())->update($input, (int) $this->employee->get_logged_in_employee_info()->person_id);
     }
 
     /**

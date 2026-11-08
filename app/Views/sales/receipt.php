@@ -3,6 +3,8 @@
  * @var int $sale_id_num
  * @var bool $print_after_sale
  * @var string $receipt_template_view
+ * @var string|null $creditNoteNumber
+ * @var string|null $refundInvoiceNumber
  * @var array $config
  */
 
@@ -50,6 +52,7 @@ if (isset($error_message)) {
 <?= view('partial/document_actions', ['actions' => array_values(array_filter([
         ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
         model(Employee::class)->has_grant('reports_sales', session('person_id')) ? ['id' => 'show_pdf_button', 'label' => lang('Sales.pdf'), 'icon' => 'bi-file-earmark-pdf', 'href' => "sales/pdf/$sale_id_num/receipt", 'target' => '_blank'] : null,
+        (!empty($creditNoteNumber) || !empty($refundInvoiceNumber)) && model(Employee::class)->has_grant('reports_sales', session('person_id')) ? ['id' => 'show_credit_note_button', 'label' => lang(!empty($creditNoteNumber) ? 'Documents.credit_note_print' : 'Documents.refund_invoice_print'), 'icon' => 'bi-file-earmark-text', 'href' => "sales/print/$sale_id_num/credit_note"] : null,
         !empty($customer_email) ? ['id' => 'show_email_button', 'label' => lang('Sales.send_receipt'), 'icon' => 'bi-envelope'] : null,
         ['id' => 'show_sales_button', 'label' => lang('Sales.register'), 'icon' => 'bi-cart3', 'href' => 'sales', 'class' => 'btn-primary'],
         model(Employee::class)->has_grant('reports_sales', session('person_id')) ? ['id' => 'show_takings_button', 'label' => lang('Sales.takings'), 'icon' => 'bi-card-list', 'href' => 'sales/manage'] : null

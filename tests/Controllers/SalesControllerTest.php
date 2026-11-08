@@ -39,6 +39,7 @@ use CodeIgniter\Test\TestResponse;
 use Config\Database;
 use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
@@ -63,6 +64,7 @@ class SalesControllerTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use FeatureTestTrait;
     use AccountingFixtureTrait;
+    use DatabaseFingerprintTrait;
     use ItemFixtureTrait;
     use EmployeeFixtureTrait;
     use RoleFixtureTrait;
@@ -8020,5 +8022,365 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->assertNull(Services::session()->get('sales_currency'));
         $this->assertSame('375.00', (string) array_values(Services::session()->get('sales_cart'))[0]['price']);
+    }
+
+    /**
+     * @param array<string, string> $values
+     *
+     * @return array<string, mixed> The settings as they were, to put back.
+     */
+    private function withPrintSettings(array $values): array
+    {
+        $before = config(OSPOS::class)->settings;
+
+        foreach ($values as $key => $value) {
+            config(OSPOS::class)->settings[$key] = $value;
+        }
+
+        return $before;
+    }
+
+    private function restorePrintSettings(array $before): void
+    {
+        config(OSPOS::class)->settings = $before;
+    }
+
+    /**
+     * @return array<int, string> The fields of the code in the text of the page, by tag.
+     */
+    private function qrFieldsOf(string $page): array
+    {
+        $this->assertSame(1, preg_match('/<div class="doc-qr-text" dir="ltr">([A-Za-z0-9+\/=]+)<\/div>/', $page, $found), 'The page carries no code.');
+
+        $bytes  = base64_decode($found[1], true);
+        $fields = [];
+
+        for ($offset = 0; $offset < strlen($bytes);) {
+            $length                       = ord($bytes[$offset + 1]);
+            $fields[ord($bytes[$offset])] = substr($bytes, $offset + 2, $length);
+            $offset                      += 2 + $length;
+        }
+
+        return $fields;
+    }
+
+    private function savedSaleData(int $saleId): array
+    {
+        foreach ($this->session as $key => $value) {
+            service('session')->set($key, $value);
+        }
+
+        $controller = new Sales();
+        $controller->initController(service('request'), service('response'), service('logger'));
+
+        return (new ReflectionMethod($controller, '_load_sale_data'))->invoke($controller, $saleId);
+    }
+
+    public function testGetPrint_PrintsTheCreditNoteOfAReturnWithItsOwnTitleLabelsAndTheAmountsItTakesBack(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $note = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/print/' . $note . '/credit_note');
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Sales.credit_note'));
+        $response->assertSee('CN-00001');
+        $response->assertSee(lang('Documents.credit_note_number'));
+        $response->assertSee(lang('Documents.credit_note_date'));
+        $response->assertSee(lang('Documents.credit_note_to'));
+        $response->assertSee(to_currency('10.00'));
+        $response->assertDontSee(to_currency('-10.00'));
+        $response->assertDontSee(lang('Sales.amount_due'));
+        $response->assertDontSee(lang('Sales.invoice_total'));
+    }
+
+    public function testGetPrint_TitlesAReturnIssuedAsARefundInvoiceByThatName(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $refund = $this->refundInvoiceOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/print/' . $refund . '/credit_note');
+
+        $response->assertSee(lang('Numbering.type_refund_invoice'));
+        $response->assertSee('RI-00001');
+        $response->assertSee(lang('Documents.refund_invoice_number'));
+    }
+
+    public function testGetPrint_RefusesToPrintASaleThatIsNotAReturnAsACreditNote(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/print/' . $invoice['saleId'] . '/credit_note');
+    }
+
+    public function testGetPrint_RefusesADocumentThatIsNotOneOfTheDocumentsOfASale(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/print/' . $invoice['saleId'] . '/secret');
+    }
+
+    public function testGetPrint_RefusesAnEmployeeWithoutReportsSales(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $note = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createCashierEmployee());
+
+        $response = $this->get('/sales/print/' . $note . '/credit_note');
+
+        $response->assertRedirect();
+        $response->assertDontSee('CN-00001');
+    }
+
+    public function testGetPrint_HidesTheCreditNoteOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $invoice = $this->postedInvoice();
+        $note    = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor($this->createSecondBranch()));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/print/' . $note . '/credit_note');
+    }
+
+    public function testGetPdf_ReturnsAPdfForTheCreditNoteOfAReturn(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $note = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/pdf/' . $note . '/credit_note');
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->response()->getBody());
+        $this->assertStringContainsString(rawurlencode(lang('Sales.credit_note') . ' CN-00001') . '.pdf', $response->response()->getHeaderLine('Content-Disposition'));
+    }
+
+    public function testGetPdf_RefusesTheCreditNoteOfASaleThatIsNotAReturn(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/pdf/' . $invoice['saleId'] . '/credit_note')->assertStatus(404);
+    }
+
+    public function testGetPdf_HidesTheCreditNoteOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $invoice = $this->postedInvoice();
+        $note    = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor($this->createSecondBranch()));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/pdf/' . $note . '/credit_note');
+    }
+
+    public function testGetSendPdf_RefusesTheCreditNoteOfASaleThatIsNotAReturn(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/sendPdf/' . $invoice['saleId'] . '/credit_note')->assertStatus(404);
+    }
+
+    public function testGetInvoice_CarriesTheCodeOfTheInvoiceWithItsTotalAndTaxWhenTheTaxNumberIsEntered(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
+
+        try {
+            $page = $this->get('/sales/invoice/' . $invoice['saleId']);
+            $data = $this->savedSaleData($invoice['saleId']);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $page->assertSee(lang('Documents.qr_label'));
+        $fields = $this->qrFieldsOf($page->getBody());
+        $tax    = '0';
+
+        foreach ($data['taxes'] as $row) {
+            $tax = bcadd($tax, (string) $row['sale_tax_amount'], 4);
+        }
+
+        $this->assertSame('opes', $fields[1]);
+        $this->assertSame('300000000000003', $fields[2]);
+        $this->assertSame(number_format((float) $data['total'], 2, '.', ''), $fields[4]);
+        $this->assertSame(number_format((float) $tax, 2, '.', ''), $fields[5]);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $fields[3]);
+    }
+
+    public function testGetInvoice_CarriesNoCodeAndSaysWhyOnScreenWhenTheTaxNumberIsNotEntered(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '']);
+
+        try {
+            $page = $this->get('/sales/invoice/' . $invoice['saleId']);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $page->assertDontSee(lang('Documents.qr_label'));
+        $this->assertStringContainsString('doc-qr-notice', $page->getBody());
+        $page->assertSee(lang('Documents.error_qr_vat_number_missing'));
+    }
+
+    public function testRenderPdfHtml_OmitsTheNoticeOfAMissingTaxNumberFromThePrintedDocument(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '']);
+
+        try {
+            $html = view('documents/pdf', ['type' => 'invoice', 'sale' => $this->savedSaleData($invoice['saleId'])]);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $this->assertStringNotContainsString('class="alert alert-warning print_hide doc-qr-notice"', $html);
+        $this->assertStringNotContainsString('class="doc-qr-text"', $html);
+    }
+
+    public function testRenderPdfHtml_CarriesNoCodeOnAQuoteEvenWithATaxNumber(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
+
+        try {
+            $quote   = view('documents/pdf', ['type' => 'quote', 'sale' => $this->savedSaleData($invoice['saleId'])]);
+            $invoice = view('documents/pdf', ['type' => 'invoice', 'sale' => $this->savedSaleData($invoice['saleId'])]);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $this->assertStringNotContainsString('class="doc-qr"', $quote);
+        $this->assertStringContainsString('class="doc-qr-text"', $invoice);
+    }
+
+    public function testRenderPdfHtml_CarriesTheCodeOfACreditNoteWithTheAmountsItTakesBack(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $note = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
+
+        try {
+            $html = view('documents/pdf', ['type' => 'credit_note', 'sale' => $this->savedSaleData($note)]);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $fields = $this->qrFieldsOf($html);
+
+        $this->assertSame('10.00', $fields[4]);
+        $this->assertSame('0.00', $fields[5]);
+    }
+
+    public function testRenderPdfHtml_PrintsTheTermsOfTheFamilyAndEscapesThem(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['document_terms_invoice' => "Goods stay ours <b>until paid</b>.\nSecond line", 'document_terms_quote' => 'Quote valid for 14 days']);
+
+        try {
+            $invoiceHtml = view('documents/pdf', ['type' => 'invoice', 'sale' => $this->savedSaleData($invoice['saleId'])]);
+            $quoteHtml   = view('documents/pdf', ['type' => 'quote', 'sale' => $this->savedSaleData($invoice['saleId'])]);
+            $workOrder   = view('documents/pdf', ['type' => 'work_order', 'sale' => $this->savedSaleData($invoice['saleId'])]);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $this->assertStringContainsString('Goods stay ours &lt;b&gt;until paid&lt;/b&gt;.<br />' . "\n" . 'Second line', $invoiceHtml);
+        $this->assertStringNotContainsString('<b>until paid</b>', $invoiceHtml);
+        $this->assertStringNotContainsString('Quote valid for 14 days', $invoiceHtml);
+        $this->assertStringContainsString('Quote valid for 14 days', $quoteHtml);
+        $this->assertStringNotContainsString('class="doc-terms"', $workOrder);
+    }
+
+    public function testRenderPdfHtml_PrintsNoTermsBlockWhileNoTermsAreSaved(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['document_terms_invoice' => '']);
+
+        try {
+            $html = view('documents/pdf', ['type' => 'invoice', 'sale' => $this->savedSaleData($invoice['saleId'])]);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $this->assertStringNotContainsString('class="doc-terms"', $html);
+    }
+
+    public function testRenderPdfHtml_EscapesTheNameOfTheCustomerAndTheItemsOnTheDocuments(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $data                  = $this->savedSaleData($invoice['saleId']);
+        $data['customer_info'] = "<script>alert('x')</script> Customer";
+        $data['company_info']  = '<img src=x onerror=alert(1)>';
+        $data['comments']      = '<b>bold</b>';
+
+        $html = view('documents/pdf', ['type' => 'invoice', 'sale' => $data]);
+
+        $this->assertStringNotContainsString("<script>alert('x')</script>", $html);
+        $this->assertStringNotContainsString('<img src=x', $html);
+        $this->assertStringNotContainsString('<b>bold</b>', $html);
+        $this->assertStringContainsString('&lt;script&gt;', $html);
+        $this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;', $html);
+    }
+
+    public function testGetPrint_AndPdfChangeNoRowOfTheBooksNorOfTheSale(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $note = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003', 'document_terms_invoice' => 'Terms']);
+        $print  = $this->databaseFingerprint();
+
+        try {
+            $this->get('/sales/print/' . $note . '/credit_note')->assertStatus(200);
+            $this->get('/sales/pdf/' . $note . '/credit_note')->assertStatus(200);
+            $this->get('/sales/pdf/' . $invoice['saleId'] . '/invoice')->assertStatus(200);
+            $this->get('/sales/invoice/' . $invoice['saleId'])->assertStatus(200);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $this->assertDatabaseUnchanged($print, 'Printing a document changed a row.');
+    }
+
+    public function testRenderPdfHtml_PrintsTheSameTotalsTheSaleCameTo(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $data = $this->savedSaleData($invoice['saleId']);
+        $row  = Database::connect()->query('SELECT total_debit FROM ' . Database::connect()->prefixTable('accounting_journals') . ' WHERE source_type = ? AND source_id = ? ORDER BY journal_id ASC LIMIT 1', ['sale', $invoice['saleId']])->getRow();
+
+        $html = view('documents/pdf', ['type' => 'invoice', 'sale' => $data]);
+
+        $this->assertNotNull($row);
+        $this->assertStringContainsString(documentIsolate(to_currency((string) $data['total'])), $html);
+        $this->assertSame(number_format((float) $row->total_debit, 2, '.', ''), number_format((float) $data['total'], 2, '.', ''), 'The total the document prints is the total the books hold.');
     }
 }

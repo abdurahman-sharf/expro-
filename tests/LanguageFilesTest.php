@@ -8,6 +8,7 @@ use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\ReadinessCode;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
+use App\Libraries\Documents\DocumentError;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Recurring\RecurrenceTerms;
@@ -415,6 +416,45 @@ class LanguageFilesTest extends CIUnitTestCase
         foreach (['note_profit', 'note_revenue_rule'] as $key) {
             $this->assertNotSame('', $messages[$key], "{$locale} lacks {$key}");
             $this->assertDoesNotMatchRegularExpression('/دفترة|daftra|reference system/iu', $messages[$key], "{$locale} names another system in {$key}");
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testDocumentsFile_DefinesAMessageForEveryErrorOfTheDocuments(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Documents.php";
+
+        foreach (DocumentError::cases() as $error) {
+            $this->assertNotSame('', $messages['error_' . $error->value] ?? '', "{$locale} lacks the message for {$error->value}");
+        }
+    }
+
+    #[DataProvider('arabicLocaleProvider')]
+    public function testDocumentsFile_IsTranslatedIntoArabicWithoutEnglishText(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Documents.php";
+        $english  = include __DIR__ . '/../app/Language/en/Documents.php';
+
+        foreach ($english as $key => $line) {
+            $this->assertNotSame($line, $messages[$key], "{$locale} shows English for {$key}");
+            $this->assertNotSame('', $messages[$key], "{$locale} lacks {$key}");
+        }
+    }
+
+    #[DataProvider('everyLocaleProvider')]
+    public function testDocumentsFile_KeepsTheKeysOfEnglishInTheirOrderAndLeavesWhatIsNotTranslatedEmpty(string $locale): void
+    {
+        $english  = include __DIR__ . '/../app/Language/en/Documents.php';
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Documents.php";
+
+        $this->assertSame(array_keys($english), array_keys($messages), $locale);
+        $keys = array_keys($english);
+        $sorted = $keys;
+        sort($sorted);
+        $this->assertSame($sorted, $keys, 'The keys of the English file are in alphabetical order.');
+
+        if (! in_array($locale, ['en', 'en-GB', 'ar-EG', 'ar-LB'], true)) {
+            $this->assertSame([''], array_values(array_unique($messages)), "{$locale} holds text that is not translated");
         }
     }
 }

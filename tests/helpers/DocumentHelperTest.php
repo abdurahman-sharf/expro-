@@ -33,7 +33,13 @@ class DocumentHelperTest extends CIUnitTestCase
 
     public function testDocumentTypes_ListsPrintableDocuments(): void
     {
-        $this->assertSame(['invoice', 'tax_invoice', 'quote', 'work_order'], documentTypes());
+        $this->assertSame(['invoice', 'tax_invoice', 'quote', 'work_order', 'credit_note'], documentTypes());
+    }
+
+    public function testSlipTypes_ListsTheThreeSlipsThatCarryNoPrice(): void
+    {
+        $this->assertSame(['packing_slip', 'pick_list', 'shipping_label'], slipTypes());
+        $this->assertSame([], array_intersect(slipTypes(), documentTypes()));
     }
 
     public function testDocumentProfile_NumbersInvoiceByInvoiceNumber(): void
@@ -168,5 +174,84 @@ class DocumentHelperTest extends CIUnitTestCase
     public function testHeaderChargeRows_PrintsAnAdjustmentThatIsOnlyANegativeAmount(): void
     {
         $this->assertSame([[lang('Sales.adjustment'), '-0.0100']], headerChargeRows(['adjustment' => '-0.0100']));
+    }
+
+    public function testDocumentProfile_CreditNoteHasItsOwnTitleLabelsAndNoPaidOrDueRows(): void
+    {
+        $profile = documentProfile('credit_note', ['creditNoteNumber' => 'CN-00001', 'transaction_date' => '2026-10-22', 'total' => '-253.00', 'amount_due' => 100, 'due_date' => '2026-11-22']);
+
+        $this->assertSame(lang('Sales.credit_note'), $profile['title']);
+        $this->assertSame('CN-00001', $profile['number']);
+        $this->assertSame([[lang('Documents.credit_note_number'), 'CN-00001'], [lang('Documents.credit_note_date'), '2026-10-22'], [lang('Sales.total'), to_currency('253.00')]], $profile['meta']);
+        $this->assertSame(lang('Documents.credit_note_to'), $profile['partyLabel']);
+        $this->assertFalse($profile['showPayments']);
+        $this->assertTrue($profile['absolute']);
+    }
+
+    public function testDocumentProfile_TitlesAReturnIssuedAsARefundInvoiceByThatName(): void
+    {
+        $profile = documentProfile('credit_note', ['creditNoteNumber' => null, 'refundInvoiceNumber' => 'RI-00001', 'transaction_date' => '2026-10-22', 'total' => '-10.00']);
+
+        $this->assertSame(lang('Numbering.type_refund_invoice'), $profile['title']);
+        $this->assertSame('RI-00001', $profile['number']);
+        $this->assertSame(lang('Documents.refund_invoice_number'), $profile['meta'][0][0]);
+        $this->assertSame(lang('Documents.refund_invoice_date'), $profile['meta'][1][0]);
+    }
+
+    public function testDocumentProfile_ShowsQrForInvoiceTaxInvoiceAndCreditNoteOnly(): void
+    {
+        foreach (['invoice', 'tax_invoice', 'credit_note'] as $type) {
+            $this->assertTrue(documentProfile($type, [])['showQr'], $type);
+        }
+
+        foreach (['quote', 'work_order'] as $type) {
+            $this->assertFalse(documentProfile($type, [])['showQr'], $type);
+        }
+    }
+
+    public function testDocumentProfile_ShowsAmountsAsTheyAreOnEveryDocumentButTheCreditNote(): void
+    {
+        $this->assertFalse(documentProfile('invoice', [])['absolute']);
+        $this->assertFalse(documentProfile('quote', [])['absolute']);
+        $this->assertSame(lang('Sales.customer'), documentProfile('invoice', [])['partyLabel']);
+    }
+
+    public function testDocumentFigure_DropsOnlyTheSignOfACreditNote(): void
+    {
+        $this->assertSame('253.0000', documentFigure(true, '-253.0000'));
+        $this->assertSame('253.0000', documentFigure(true, '253.0000'));
+        $this->assertSame('-253.0000', documentFigure(false, '-253.0000'));
+        $this->assertSame('2', documentFigure(true, -2));
+        $this->assertSame('0.0000', documentFigure(true, '-0.0000'));
+    }
+
+    public function testDocumentTerms_ReadsTheTextOfTheFamilyOfTheDocument(): void
+    {
+        $config = ['document_terms_invoice' => " Goods are not returned. \n", 'document_terms_quote' => 'Valid for 14 days.', 'document_terms_credit_note' => '', 'document_terms_purchase_invoice' => 'Pay in 30 days.', 'document_terms_work_order' => 'Repairs carry a month of guarantee.'];
+
+        $this->assertSame('Goods are not returned.', documentTerms('invoice', $config));
+        $this->assertSame('Goods are not returned.', documentTerms('tax_invoice', $config));
+        $this->assertSame('Valid for 14 days.', documentTerms('quote', $config));
+        $this->assertSame('', documentTerms('credit_note', $config));
+        $this->assertSame('Pay in 30 days.', documentTerms('purchase_invoice', $config));
+        $this->assertSame('Repairs carry a month of guarantee.', documentTerms('work_order', $config));
+    }
+
+    public function testDocumentTerms_PrintsNothingOnADocumentOfNoFamily(): void
+    {
+        $config = ['document_terms_invoice' => 'Goods are not returned.'];
+
+        $this->assertSame('', documentTerms('receipt_voucher', $config));
+        $this->assertSame('', documentTerms('packing_slip', $config));
+        $this->assertSame('', documentTerms('invoice', []));
+    }
+
+    public function testDocumentQr_RefusesWithoutTheTaxNumberOfTheShop(): void
+    {
+        $sale = ['total' => '115.00', 'taxes' => [['sale_tax_amount' => '15.00']], 'sale_time_raw' => '2026-10-22 12:47:29'];
+
+        $this->assertNull(documentQr('invoice', $sale, ['company' => 'opes', 'tax_id' => ''])->payload);
+        $this->assertNotNull(documentQr('invoice', $sale, ['company' => 'opes', 'tax_id' => '300000000000003'])->payload);
+        $this->assertNull(documentQr('quote', $sale, ['company' => 'opes', 'tax_id' => '300000000000003'])->payload);
     }
 }

@@ -1,5 +1,8 @@
 <?php
 
+use App\Libraries\Documents\DocumentQr;
+use App\Libraries\Documents\DocumentTerms;
+use App\Libraries\Documents\QrResult;
 use Config\OSPOS;
 
 /**
@@ -9,7 +12,17 @@ use Config\OSPOS;
  */
 function documentTypes(): array
 {
-    return ['invoice', 'tax_invoice', 'quote', 'work_order'];
+    return ['invoice', 'tax_invoice', 'quote', 'work_order', 'credit_note'];
+}
+
+/**
+ * The slips of a sale: documents that go with the goods and carry no price.
+ *
+ * @return list<string>
+ */
+function slipTypes(): array
+{
+    return ['packing_slip', 'pick_list', 'shipping_label'];
 }
 
 /**
@@ -18,33 +31,35 @@ function documentTypes(): array
  * @param string $type One of documentTypes().
  * @param array  $sale Sale data as built by the Sales controller.
  *
- * @return array{type: string, title: string, number: string, meta: array<int, array{0: string, 1: string}>, showHsn: bool, showPrices: bool, showUnitDiscount: bool, showPayments: bool, showSignature: bool}
+ * @return array{type: string, title: string, number: string, meta: array<int, array{0: string, 1: string}>, partyLabel: string, showHsn: bool, showPrices: bool, showUnitDiscount: bool, showPayments: bool, showSignature: bool, showQr: bool, absolute: bool}
  */
 function documentProfile(string $type, array $sale): array
 {
     $showPrices = $type !== 'work_order' || ($sale['print_price_info'] ?? true);
+    $isInvoice  = in_array($type, ['invoice', 'tax_invoice'], true);
 
-    [$title, $numberLabel, $number] = match ($type) {
-        'quote'       => [lang('Sales.quote'), lang('Sales.quote_number'), (string) ($sale['quote_number'] ?? '')],
-        'work_order'  => [lang('Sales.work_order'), lang('Sales.work_order_number'), (string) ($sale['work_order_number'] ?? '')],
-        'tax_invoice' => [lang('Sales.tax_invoice'), lang('Sales.invoice_number'), (string) ($sale['invoice_number'] ?? '')],
-        default       => [lang('Sales.invoice'), lang('Sales.invoice_number'), (string) ($sale['invoice_number'] ?? '')],
+    [$title, $numberLabel, $number, $dateLabel] = match ($type) {
+        'quote'       => [lang('Sales.quote'), lang('Sales.quote_number'), (string) ($sale['quote_number'] ?? ''), lang('Common.date')],
+        'work_order'  => [lang('Sales.work_order'), lang('Sales.work_order_number'), (string) ($sale['work_order_number'] ?? ''), lang('Common.date')],
+        'tax_invoice' => [lang('Sales.tax_invoice'), lang('Sales.invoice_number'), (string) ($sale['invoice_number'] ?? ''), lang('Common.date')],
+        'credit_note' => documentReturnLabels($sale),
+        default       => [lang('Sales.invoice'), lang('Sales.invoice_number'), (string) ($sale['invoice_number'] ?? ''), lang('Common.date')],
     };
 
     $meta = [
         [$numberLabel, $number],
-        [lang('Common.date'), (string) ($sale['transaction_date'] ?? '')],
+        [$dateLabel, (string) ($sale['transaction_date'] ?? '')],
     ];
 
-    if (! empty($sale['due_date']) && in_array($type, ['invoice', 'tax_invoice'], true)) {
+    if (! empty($sale['due_date']) && $isInvoice) {
         $meta[] = [lang('Sales.due_date'), (string) $sale['due_date']];
     }
 
     if ($showPrices) {
-        $meta[] = [lang(in_array($type, ['invoice', 'tax_invoice'], true) ? 'Sales.invoice_total' : 'Sales.total'), to_currency((string) ($sale['total'] ?? 0))];
+        $meta[] = [lang($isInvoice ? 'Sales.invoice_total' : 'Sales.total'), to_currency(documentFigure($type === 'credit_note', (string) ($sale['total'] ?? 0)))];
     }
 
-    if ($showPrices && in_array($type, ['invoice', 'tax_invoice'], true) && (float) ($sale['amount_due'] ?? 0) > 0) {
+    if ($showPrices && $isInvoice && (float) ($sale['amount_due'] ?? 0) > 0) {
         $meta[] = [lang('Sales.amount_due'), to_currency((string) $sale['amount_due'])];
     }
 
@@ -53,12 +68,64 @@ function documentProfile(string $type, array $sale): array
         'title'            => $title,
         'number'           => $number,
         'meta'             => $meta,
-        'showHsn'          => ! empty($sale['include_hsn']) && in_array($type, ['invoice', 'tax_invoice'], true),
+        'partyLabel'       => lang($type === 'credit_note' ? 'Documents.credit_note_to' : 'Sales.customer'),
+        'showHsn'          => ! empty($sale['include_hsn']) && $isInvoice,
         'showPrices'       => $showPrices,
         'showUnitDiscount' => $showPrices && (float) ($sale['discount'] ?? 0) > 0,
-        'showPayments'     => $showPrices && in_array($type, ['invoice', 'tax_invoice'], true),
+        'showPayments'     => $showPrices && $isInvoice,
         'showSignature'    => in_array($type, ['tax_invoice', 'work_order'], true),
+        'showQr'           => DocumentQr::applies($type),
+        'absolute'         => $type === 'credit_note',
     ];
+}
+
+/**
+ * The title, the labels of the number and of the date, and the number of a return as it was issued: a
+ * credit note, or a refund invoice when that is what the return was issued as.
+ *
+ * @param array<string, mixed> $sale
+ *
+ * @return array{0: string, 1: string, 2: string, 3: string}
+ */
+function documentReturnLabels(array $sale): array
+{
+    if (empty($sale['creditNoteNumber']) && ! empty($sale['refundInvoiceNumber'])) {
+        return [lang('Numbering.type_refund_invoice'), lang('Documents.refund_invoice_number'), (string) $sale['refundInvoiceNumber'], lang('Documents.refund_invoice_date')];
+    }
+
+    return [lang('Sales.credit_note'), lang('Documents.credit_note_number'), (string) ($sale['creditNoteNumber'] ?? ''), lang('Documents.credit_note_date')];
+}
+
+/**
+ * An amount as the document shows it: a credit note shows what it takes back as a positive amount,
+ * whatever the sign the return carries in the books. Only the sign is dropped, never the figure.
+ */
+function documentFigure(bool $absolute, mixed $amount): string
+{
+    $text = trim((string) $amount);
+
+    return $absolute ? ltrim($text, '-') : $text;
+}
+
+/**
+ * The code of the first phase of electronic invoicing for a document, or why it has none.
+ *
+ * @param array<string, mixed> $sale
+ * @param array<string, mixed> $config
+ */
+function documentQr(string $type, array $sale, array $config): QrResult
+{
+    return (new DocumentQr())->forDocument($type, $sale, $config);
+}
+
+/**
+ * The terms and conditions of the family of the document, or an empty text.
+ *
+ * @param array<string, mixed> $config
+ */
+function documentTerms(string $type, array $config): string
+{
+    return DocumentTerms::forType($type, $config);
 }
 
 /**

@@ -15,6 +15,12 @@ $cart                = array_filter($sale['cart'] ?? [], static fn (array $item)
 $payments            = $profile['showPayments'] ? ($sale['payments'] ?? []) : [];
 $onlyCheck           = false;
 $showGiftcardBalance = false;
+$absolute            = $profile['absolute'];
+$figure              = static fn (mixed $amount): string => documentFigure($absolute, $amount);
+$qr                  = $profile['showQr'] ? documentQr($type, $sale, $config) : null;
+$terms               = documentTerms($type, $config);
+$extraFields         = $sale['custom_fields'] ?? [];
+$itemExtraFields     = $sale['item_custom_fields'] ?? [];
 
 foreach ($payments as $payment) {
     $onlyCheck           = $onlyCheck           || $payment['payment_type'] === lang('Sales.check');
@@ -52,13 +58,23 @@ $notes = array_filter([
                         </tr>
                     <?php endforeach; ?>
                 </table>
+                <?php if ($extraFields !== []): ?>
+                    <table class="doc-meta doc-extra-fields">
+                        <?php foreach ($extraFields as [$label, $value]): ?>
+                            <tr>
+                                <td class="doc-meta-label <?= $alignStart ?>"><?= esc($label) ?></td>
+                                <td class="doc-meta-value <?= $alignEnd ?>"><?= nl2br(esc($value)) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </table>
+                <?php endif; ?>
             </td>
         </tr>
     </table>
 
     <?php if (! empty($sale['customer_info'])): ?>
         <div class="doc-party">
-            <div class="doc-party-label"><?= lang('Sales.customer') ?></div>
+            <div class="doc-party-label"><?= esc($profile['partyLabel']) ?></div>
             <div class="doc-party-body"><?= nl2br(esc($sale['customer_info'])) ?></div>
         </div>
     <?php endif; ?>
@@ -100,13 +116,16 @@ $notes = array_filter([
                         <?php if ($item['is_serialized'] && ! empty($item['serialnumber'])): ?>
                             <div class="doc-item-note"><?= lang('Sales.serial') ?>: <?= documentIsolate($item['serialnumber']) ?></div>
                         <?php endif; ?>
+                        <?php foreach ($itemExtraFields[(int) ($item['item_id'] ?? 0)] ?? [] as [$label, $value]): ?>
+                            <div class="doc-item-note doc-item-extra"><?= esc($label) ?>: <?= esc($value) ?></div>
+                        <?php endforeach; ?>
                     </td>
-                    <td class="doc-col-num"><?= documentIsolate(to_quantity_decimals($item['quantity'])) ?></td>
+                    <td class="doc-col-num"><?= documentIsolate(to_quantity_decimals($figure($item['quantity']))) ?></td>
                     <?php if ($profile['showPrices']): ?>
-                        <td class="doc-col-amount <?= $alignEnd ?>"><?= documentIsolate(to_currency($item['price'])) ?></td>
-                        <td class="doc-col-num"><?= documentIsolate($item['discount_type'] == FIXED ? to_currency($item['discount']) : to_decimals($item['discount']) . '%') ?></td>
-                        <?php if ($profile['showUnitDiscount']): ?><td class="doc-col-amount <?= $alignEnd ?>"><?= documentIsolate(to_currency($item['discounted_total'] / $item['quantity'])) ?></td><?php endif; ?>
-                        <td class="doc-col-amount doc-strong <?= $alignEnd ?>"><?= documentIsolate(to_currency($item['discounted_total'])) ?></td>
+                        <td class="doc-col-amount <?= $alignEnd ?>"><?= documentIsolate(to_currency($figure($item['price']))) ?></td>
+                        <td class="doc-col-num"><?= documentIsolate($item['discount_type'] == FIXED ? to_currency($figure($item['discount'])) : to_decimals($item['discount']) . '%') ?></td>
+                        <?php if ($profile['showUnitDiscount']): ?><td class="doc-col-amount <?= $alignEnd ?>"><?= documentIsolate(to_currency($figure($item['discounted_total'] / $item['quantity']))) ?></td><?php endif; ?>
+                        <td class="doc-col-amount doc-strong <?= $alignEnd ?>"><?= documentIsolate(to_currency($figure($item['discounted_total']))) ?></td>
                     <?php endif; ?>
                 </tr>
             <?php endforeach; ?>
@@ -128,33 +147,33 @@ $notes = array_filter([
                         <?php if (bccomp($invoiceDiscount, '0') !== 0): ?>
                             <tr>
                                 <td class="<?= $alignStart ?>"><?= lang('Sales.sub_total') ?></td>
-                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency(bcadd((string) $sale['subtotal'], $invoiceDiscount))) ?></td>
+                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($figure(bcadd((string) $sale['subtotal'], $invoiceDiscount)))) ?></td>
                             </tr>
                             <tr class="doc-invoice-discount">
                                 <td class="<?= $alignStart ?>"><?= esc(invoiceDiscountLabel($sale['invoice_discount_entry'] ?? null)) ?></td>
-                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($invoiceDiscount * -1)) ?></td>
+                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($absolute ? $figure($invoiceDiscount) : $invoiceDiscount * -1)) ?></td>
                             </tr>
                         <?php else: ?>
                             <tr>
                                 <td class="<?= $alignStart ?>"><?= lang('Sales.sub_total') ?></td>
-                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($sale['subtotal'])) ?></td>
+                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($figure($sale['subtotal']))) ?></td>
                             </tr>
                         <?php endif; ?>
                         <?php foreach ($sale['taxes'] ?? [] as $tax): ?>
                             <tr>
                                 <td class="<?= $alignStart ?>"><?= documentIsolate((float) $tax['tax_rate'] . '%') ?> <?= esc($tax['tax_group']) ?></td>
-                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency_tax($tax['sale_tax_amount'])) ?></td>
+                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency_tax($figure($tax['sale_tax_amount']))) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         <?php foreach (headerChargeRows($sale['header_charges'] ?? []) as [$chargeLabel, $chargeAmount]): ?>
                             <tr class="doc-header-charge">
                                 <td class="<?= $alignStart ?>"><?= esc($chargeLabel) ?></td>
-                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($chargeAmount)) ?></td>
+                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($figure($chargeAmount))) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         <tr class="doc-grand">
                             <td class="<?= $alignStart ?>"><?= lang('Sales.total') ?></td>
-                            <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($sale['total'])) ?></td>
+                            <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency($figure($sale['total']))) ?></td>
                         </tr>
                         <?php foreach ($payments as $payment): ?>
                             <tr>
@@ -179,6 +198,22 @@ $notes = array_filter([
             </td>
         </tr>
     </table>
+
+    <?php if ($qr !== null && $qr->payload !== null): ?>
+        <div class="doc-qr">
+            <div class="doc-qr-label"><?= lang('Documents.qr_label') ?></div>
+            <div class="doc-qr-text" dir="ltr"><?= esc($qr->payload) ?></div>
+        </div>
+    <?php elseif ($qr !== null && $qr->refusal !== null && $context === 'screen'): ?>
+        <div class="alert alert-warning print_hide doc-qr-notice" role="alert"><?= esc(lang('Documents.error_' . $qr->refusal->value)) ?></div>
+    <?php endif; ?>
+
+    <?php if ($terms !== ''): ?>
+        <div class="doc-terms">
+            <div class="doc-terms-label"><?= lang('Documents.terms') ?></div>
+            <div class="doc-terms-body"><?= nl2br(esc($terms)) ?></div>
+        </div>
+    <?php endif; ?>
 
     <?php if ($profile['showSignature']): ?>
         <table class="doc-sign">
