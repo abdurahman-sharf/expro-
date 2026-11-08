@@ -1047,4 +1047,26 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::TrackedEntryNotAllowed, fn () => $this->tracking->transfer('stock_permit', 1, 1, $itemId, self::LOCATION_ID, 2, '1', $entry));
         $this->assertSame('0.000', $this->onHand($itemId));
     }
+
+    public function testSaveTracksSerialNumbersAndBatchesWithTheBooksSwitchedOffAndPostsNothing(): void
+    {
+        $serial = $this->trackedItem(TrackingType::Serial);
+        $batch  = $this->trackedItem(TrackingType::Batch);
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $receivingId = $this->receiveSerials($serial, ['OFF-1', 'OFF-2']);
+
+        $this->assertGreaterThan(0, $receivingId);
+        $this->assertGreaterThan(0, $this->receiveBatch($batch, 'OFF-B', $this->inDays(30), '4'));
+        $this->assertGreaterThan(0, $this->sellPiece($serial, 'OFF-1'));
+        $this->assertGreaterThan(0, $this->sellUnits($batch, '3'));
+        $this->assertSame(['sold', 'in_stock'], [$this->serialState($serial, 'OFF-1'), $this->serialState($serial, 'OFF-2')]);
+        $this->assertSame(['1.000', '1.000'], [$this->onHand($serial), $this->onHand($batch)]);
+        $this->assertTied($serial);
+        $this->assertTied($batch);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_stock_entries')->whereIn('item_id', [$serial, $batch])->countAllResults());
+        $this->assertSame(ACCOUNTING_FAILED, $this->sellPiece($serial, 'OFF-1'));
+        $this->assertSame(AccountingError::SerialNotAvailable, $this->failure($this->sales));
+    }
 }

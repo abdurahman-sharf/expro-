@@ -25,7 +25,7 @@
 
 كل ملف شُغِّل وحده على قاعدة الاختبار `ospos_test_wp42`: `MYSQL_DB_NAME=ospos_test_wp42 vendor/bin/phpunit --no-coverage <الملف>`، من `/home/user/wt/WP42`، بعد آخر تعديل على الكود (2026-11-08). **كلها نجحت.** لم تُشغَّل المجموعة الكاملة (القيد: قاعدة اختبار واحدة وحاسوب مشترك بأربع أنوية).
 
-**ملفات الحزمة الجديدة** (192 اختبارًا في 11 ملفًا، ملف واحد لكل صنف تحت الاختبار):
+**ملفات الحزمة الجديدة** (193 اختبارًا في 11 ملفًا، ملف واحد لكل صنف تحت الاختبار):
 
 | الملف | الاختبارات | التأكيدات | النتيجة |
 |---|---|---|---|
@@ -35,7 +35,7 @@
 | `tests/Libraries/Stock/ItemStockProfileTest.php` | 14 | 57 | نجح |
 | `tests/Libraries/Stock/UnitBarcodesTest.php` | 10 | 41 | نجح |
 | `tests/Libraries/Stock/BundlesTest.php` | 12 | 57 | نجح |
-| `tests/Libraries/Stock/StockTrackingTest.php` | 68 | 680 | نجح |
+| `tests/Libraries/Stock/StockTrackingTest.php` | 69 | 697 | نجح |
 | `tests/Libraries/Stock/NegativeStockGuardTest.php` | 15 | 141 | نجح |
 | `tests/Libraries/Accounting/Readiness/StockTrackingChecksTest.php` | 7 | 47 | نجح |
 | `tests/Controllers/StockUnitsControllerTest.php` | 16 | 99 | نجح |
@@ -45,7 +45,7 @@
 
 | الملف | الاختبارات الجديدة | الاختبارات الكلية | التأكيدات | النتيجة |
 |---|---|---|---|---|
-| `tests/Libraries/Accounting/SalePostingTest.php` (وحدات وسجل مبيعات وحزم) | 24 | 465 | 3572 | نجح |
+| `tests/Libraries/Accounting/SalePostingTest.php` (وحدات وسجل مبيعات وحزم) | 25 | 466 | 3580 | نجح |
 | `tests/Libraries/Accounting/ReceivingPostingTest.php` (وحدات وشاشة شراء وتتبع) | 13 | 326 | 2992 | نجح |
 | `tests/Libraries/Accounting/StockLedgerTest.php` (تحويل الوحدات وعكس البيع) | 2 | 21 | 123 | نجح |
 | `tests/Libraries/Stock/StockPermitTest.php` (أذون بوحدات) | 6 | 75 | 781 | نجح |

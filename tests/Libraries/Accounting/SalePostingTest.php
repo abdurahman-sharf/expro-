@@ -7529,6 +7529,23 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertContains($this->stockAccount() . ':0.00:120.00', $cost);
     }
 
+    public function testSaveValue_StoresALineEnteredInCartonsInBaseUnitsWithTheBooksSwitchedOffAndPostsNothing(): void
+    {
+        $setup  = $this->cartonItem('5.00');
+        $itemId = $setup['item'];
+
+        $this->putOnShelf($itemId, '100');
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $saleId = $this->save([$this->inUnit($this->line($itemId, 0, '1', '1', '5.00'), $setup['carton'], '2', '120')]);
+        $stored = $this->accountingDb()->table('sales_items')->where(['sale_id' => $saleId, 'item_id' => $itemId])->get()->getRow();
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame(['24.000', '10.00', '2.000'], [$stored->quantity_purchased, $stored->item_unit_price, $stored->unit_quantity]);
+        $this->assertSame('76.000', bcadd((string) $this->getItemQuantity($itemId, self::LOCATION_ID), '0', 3));
+        $this->assertSame([], $this->journals($saleId));
+    }
+
     public function testSaveValue_KeepsStockMovementsAndTheStockAccountExactInBaseUnitsWhenCartonsAreSold(): void
     {
         $setup  = $this->cartonItem('5.00');
