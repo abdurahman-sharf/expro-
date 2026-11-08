@@ -36,8 +36,10 @@ if (isset($error_message)) {
 
 echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'selected_printer' => 'receipt_printer']) ?>
 
+<?php $receivingNumber = (int) trim(substr((string) $receiving_id, 4)); ?>
 <?= view('partial/document_actions', ['actions' => array_values(array_filter([
         ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
+        $receivingNumber > 0 && $mode != 'requisition' ? ['id' => 'show_invoice_button', 'label' => lang($mode == 'return' ? 'Receivings.debit_note' : 'Documents.purchase_invoice'), 'icon' => 'bi-file-earmark-text', 'href' => 'receivings/print/' . $receivingNumber] : null,
         ['id' => 'show_sales_button', 'label' => lang('Receivings.register'), 'icon' => 'bi-box-arrow-in-down', 'href' => 'receivings', 'class' => 'btn-primary']
     ]))]) ?>
 

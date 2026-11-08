@@ -243,6 +243,8 @@ $routes->group('receipt_vouchers', static function (RouteCollection $routes): vo
     $routes->get('row/(:num)', 'Receipt_vouchers::getRow/$1');
     $routes->get('view', 'Receipt_vouchers::getView');
     $routes->get('view/(:num)', 'Receipt_vouchers::getView/$1');
+    $routes->get('print/(:num)', 'Receipt_vouchers::getPrint/$1');
+    $routes->get('pdf/(:num)', 'Receipt_vouchers::getPdf/$1');
     $routes->post('save', 'Receipt_vouchers::postSave');
     $routes->post('save/(:num)', 'Receipt_vouchers::postSave/$1');
     $routes->post('delete', 'Receipt_vouchers::postDelete');
@@ -485,6 +487,8 @@ $routes->group('accounting_journals', static function (RouteCollection $routes):
     $routes->get('new', 'AccountingJournals::getNew');
     $routes->get('edit/(:num)', 'AccountingJournals::getEdit/$1');
     $routes->get('view/(:num)', 'AccountingJournals::getShow/$1');
+    $routes->get('print/(:num)', 'AccountingJournals::getPrint/$1');
+    $routes->get('pdf/(:num)', 'AccountingJournals::getPdf/$1');
     $routes->get('reverse_form/(:num)', 'AccountingJournals::getReverseForm/$1');
     $routes->get('edit_details/(:num)', 'AccountingJournals::getEditDetails/$1');
     $routes->get('attachment/(:num)', 'AccountingJournals::getAttachment/$1');

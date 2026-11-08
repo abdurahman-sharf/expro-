@@ -25,6 +25,9 @@
                 <?php if (! empty($expenseNumber)) { ?>
                     &mdash; <?= lang('Numbering.document_number') ?> <span class="ltr"><?= esc($expenseNumber) ?></span>
                 <?php } ?>
+                <?php if (empty($expenses_info->deleted) && bccomp((string) $expenses_info->amount, '0', 4) > 0) { ?>
+                    &mdash; <a id="expense_voucher_link" href="<?= esc(site_url('expenses/voucher/' . (int) $expenses_info->expense_id), 'attr') ?>" target="_blank" rel="noopener"><?= lang('Documents.payment_voucher') ?></a>
+                <?php } ?>
             </p>
         <?php } ?>
 

@@ -70,6 +70,7 @@ $currencies = new Currencies();
 <div class="acc-journal-bar print_hide">
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_journals'), 'attr') ?>"><span class="bi bi-arrow-<?= isRtl() ? 'right' : 'left' ?>" aria-hidden="true">&nbsp;</span><?= lang('Accounting_journals.back') ?></a>
     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?></button>
+    <a class="btn btn-outline-secondary btn-sm" id="journal_pdf_link" href="<?= esc(base_url('accounting_journals/pdf/' . (int) $journal->journal_id), 'attr') ?>" target="_blank" rel="noopener"><span class="bi bi-file-earmark-pdf" aria-hidden="true">&nbsp;</span><?= lang('Sales.pdf') ?></a>
     <?php if ($isDraft && $can_draft): ?>
         <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_journals/edit/' . (int) $journal->journal_id), 'attr') ?>"><span class="bi bi-pencil-square" aria-hidden="true">&nbsp;</span><?= lang('Accounting_journals.edit') ?></a>
     <?php endif; ?>

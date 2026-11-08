@@ -14,6 +14,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
 
@@ -27,6 +28,7 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use FeatureTestTrait;
     use AccountingFixtureTrait;
+    use DatabaseFingerprintTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
 
@@ -459,5 +461,106 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
 
         $this->assertTrue($saved['success']);
         $this->assertSame(['100.1250', '5.1250'], [(new RevenueVouchers())->find($precise)->amount, (new RevenueVouchers())->find($precise)->tax_amount]);
+    }
+
+    public function testGetPrint_PrintsTheNumberCategoryTreasuryAmountAndTheAmountInWords(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+        (new DocumentNumbering())->configure(DocumentType::Revenue, ['enabled' => true, 'prefix' => 'REC-', 'padding' => 5, 'next_number' => 1]);
+        $id = $this->voucher(['amount' => '3000.00']);
+
+        $response = $this->get('/receipt_vouchers/print/' . $id);
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Documents.receipt_voucher'));
+        $response->assertSee('REC-00001');
+        $response->assertSee('3,000.00 SAR');
+        $response->assertSee('Three thousand Saudi Riyals');
+        $response->assertSee('Stand rent');
+        $response->assertSee('Revenue drawer');
+        $response->assertSee(lang('Documents.signature_payer'));
+    }
+
+    public function testGetPrint_EscapesMarkupInTheDescription(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+        $id = $this->voucher(['description' => '<script>alert(1)</script> rent']);
+
+        $body = $this->get('/receipt_vouchers/print/' . $id)->getBody();
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt; rent', $body);
+    }
+
+    public function testGetPrint_ShowsNoVoucherOfADeletedOrUnknownReceipt(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+        $id = $this->voucher();
+        (new RevenueVouchers())->delete([$id], $this->clerkId);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receipt_vouchers/print/' . $id);
+    }
+
+    public function testGetPrint_HidesAVoucherOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $id = $this->voucher();
+        $this->actAsWith(['receipt_vouchers'], [$this->createBranch()]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receipt_vouchers/print/' . $id);
+    }
+
+    public function testGetPrint_RedirectsAnEmployeeWithoutTheModuleAndIsNotFoundWhileAccountingIsOff(): void
+    {
+        $id = $this->voucher();
+        $this->actAsWith(['expenses']);
+
+        $this->get('/receipt_vouchers/print/' . $id)->assertRedirect();
+
+        $this->actAsWith(['receipt_vouchers']);
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receipt_vouchers/print/' . $id);
+    }
+
+    public function testGetPdf_ReturnsAPdfWithTheNumberInItsName(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+        (new DocumentNumbering())->configure(DocumentType::Revenue, ['enabled' => true, 'prefix' => 'REC-', 'padding' => 5, 'next_number' => 1]);
+        $id = $this->voucher();
+
+        $response = $this->get('/receipt_vouchers/pdf/' . $id);
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->response()->getBody());
+        $this->assertStringContainsString(rawurlencode(lang('Documents.receipt_voucher') . ' REC-00001') . '.pdf', $response->response()->getHeaderLine('Content-Disposition'));
+    }
+
+    public function testGetPdf_HidesAVoucherOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $id = $this->voucher();
+        $this->actAsWith(['receipt_vouchers'], [$this->createBranch()]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receipt_vouchers/pdf/' . $id);
+    }
+
+    public function testGetPrint_AndPdfChangeNoRowOfTheBooksOrOfTheVouchers(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+        $id     = $this->voucher(['amount' => '115.00', 'tax_amount' => '15.00']);
+        $before = $this->databaseFingerprint();
+
+        $this->get('/receipt_vouchers/print/' . $id)->assertStatus(200);
+        $this->get('/receipt_vouchers/pdf/' . $id)->assertStatus(200);
+
+        $this->assertDatabaseUnchanged($before, 'Printing a voucher changed a row.');
     }
 }

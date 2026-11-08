@@ -299,3 +299,31 @@
 .doc-item-extra {
     font-style: italic;
 }
+
+.doc-voucher-body {
+    margin: 10px 0 18px 0;
+}
+
+.doc-voucher-body td {
+    padding: 8px 6px;
+    border-bottom: 1px solid #dce3ef;
+    font-size: 10.5pt;
+    vertical-align: top;
+}
+
+.doc-voucher-label {
+    width: 28%;
+    color: #56657f;
+    font-size: 9.5pt;
+}
+
+.doc-voucher-amount td,
+.doc-voucher-words td {
+    font-weight: bold;
+    background-color: #f8fafd;
+}
+
+.doc-voucher-amount td:last-child {
+    font-size: 13pt;
+    color: #042359;
+}

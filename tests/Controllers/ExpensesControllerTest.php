@@ -16,6 +16,7 @@ use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
 use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
@@ -32,6 +33,7 @@ class ExpensesControllerTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use FeatureTestTrait;
     use AccountingFixtureTrait;
+    use DatabaseFingerprintTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
     use RoleFixtureTrait;
@@ -987,5 +989,160 @@ class ExpensesControllerTest extends CIUnitTestCase
         $mine = (int) $this->save($this->form(['amount' => '55.00', 'tax_amount' => '0']))['id'];
 
         $this->assertTrue(json_decode($this->post('/expenses/delete', ['ids' => [(string) $mine]])->getJSON(), true)['success']);
+    }
+
+    private function voucherExpense(array $changes = []): int
+    {
+        $data = [...$this->expenseData('3000.00', '0', 'Cash', null, '2026-10-20 10:00:00', 1), 'description' => 'Office rent for October', ...$changes];
+
+        $this->assertTrue(model(Expense::class)->save_value($data));
+
+        return (int) $data['expense_id'];
+    }
+
+    public function testGetVoucher_PrintsTheNumberPayeePurposeAmountAndTheAmountInWords(): void
+    {
+        $this->switchOn();
+        $payee = $this->insertSupplier('Gulf Supplies');
+        $id    = $this->voucherExpense(['supplier_id' => $payee]);
+        $this->actAsWith();
+        $this->accountingDb()->table('employees')->where('person_id', $this->session['person_id'])->update(['language_code' => 'ar-EG', 'language' => 'arabic-egypt']);
+
+        $response = $this->get('/expenses/voucher/' . $id);
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Documents.payment_voucher'));
+        $response->assertSee('EXP-00001');
+        $response->assertSee('Gulf Supplies');
+        $response->assertSee('Office rent for October');
+        $response->assertSee('3,000.00 SAR');
+        $response->assertSee('ثلاثة آلاف ريال سعودي');
+        $response->assertSee(lang('Documents.signature_receiver'));
+        $response->assertSee(lang('Documents.signature_cashier'));
+    }
+
+    public function testGetVoucher_LeavesThePayeeBlankWhenTheExpenseHasNone(): void
+    {
+        $id = $this->voucherExpense();
+        $this->actAsWith();
+
+        $response = $this->get('/expenses/voucher/' . $id);
+
+        $response->assertStatus(200);
+        $response->assertDontSee(lang('Documents.pay_to'));
+        $response->assertSee('Office rent for October');
+    }
+
+    public function testGetVoucher_PrintsTheSameAmountTheBooksPosted(): void
+    {
+        $id = $this->voucherExpense();
+        $this->actAsWith();
+        $posted = $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'expense', 'source_id' => $id])->get()->getRow();
+
+        $body = $this->get('/expenses/voucher/' . $id)->getBody();
+
+        $this->assertNotNull($posted);
+        $this->assertSame('3000.0000', (string) $posted->total_debit);
+        $this->assertStringContainsString('3,000.00 SAR', $body);
+        $this->assertSame('3000.0000', (string) $this->accountingDb()->table('accounting_journals')->where(['source_type' => 'expense', 'source_id' => $id])->get()->getRow()->total_debit);
+    }
+
+    public function testGetVoucher_EscapesMarkupInTheDescriptionAndThePayee(): void
+    {
+        $payee = $this->insertSupplier('<script>alert(1)</script> Trading');
+        $id    = $this->voucherExpense(['supplier_id' => $payee, 'description' => '<img src=x onerror=alert(2)> rent']);
+        $this->actAsWith();
+
+        $body = $this->get('/expenses/voucher/' . $id)->getBody();
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
+        $this->assertStringNotContainsString('<img src=x', $body);
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt; Trading', $body);
+        $this->assertStringContainsString('&lt;img src=x onerror=alert(2)&gt; rent', $body);
+    }
+
+    public function testGetVoucher_ShowsNoVoucherOfADeletedExpenseOrOfOneThatDoesNotExist(): void
+    {
+        $id = $this->voucherExpense();
+        $this->accountingDb()->table('expenses')->where('expense_id', $id)->update(['deleted' => 1]);
+        $this->actAsWith();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/expenses/voucher/' . $id);
+    }
+
+    public function testGetVoucher_ShowsNoVoucherOfAnUnknownExpense(): void
+    {
+        $this->actAsWith();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/expenses/voucher/987654');
+    }
+
+    public function testGetVoucher_HidesAnExpenseOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $id = $this->voucherExpense();
+        $this->actAsWith(['expenses', 'expenses_categories'], [$this->createBranch()]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/expenses/voucher/' . $id);
+    }
+
+    public function testGetVoucher_RefusesAnEmployeeWithoutTheExpensesModule(): void
+    {
+        $id = $this->voucherExpense();
+        $this->actAsWith(['receipt_vouchers']);
+
+        $response = $this->get('/expenses/voucher/' . $id);
+
+        $response->assertRedirect();
+        $response->assertDontSee('Office rent for October');
+    }
+
+    public function testGetVoucherPdf_ReturnsAPdfWithTheNumberInItsName(): void
+    {
+        $this->switchOn();
+        $id = $this->voucherExpense();
+        $this->actAsWith();
+
+        $response = $this->get('/expenses/voucherPdf/' . $id);
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->response()->getBody());
+        $this->assertStringContainsString(rawurlencode(lang('Documents.payment_voucher') . ' EXP-00001') . '.pdf', $response->response()->getHeaderLine('Content-Disposition'));
+    }
+
+    public function testGetVoucherPdf_HidesAnExpenseOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $id = $this->voucherExpense();
+        $this->actAsWith(['expenses', 'expenses_categories'], [$this->createBranch()]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/expenses/voucherPdf/' . $id);
+    }
+
+    public function testGetVoucher_ChangesNoRowOfTheBooksOrOfTheExpenses(): void
+    {
+        $id = $this->voucherExpense();
+        $this->actAsWith();
+        $before = $this->databaseFingerprint();
+
+        $this->get('/expenses/voucher/' . $id)->assertStatus(200);
+        $this->get('/expenses/voucherPdf/' . $id)->assertStatus(200);
+
+        $this->assertDatabaseUnchanged($before, 'Printing a voucher changed a row.');
+    }
+
+    public function testGetView_OffersTheVoucherOfAnExpenseThatHasMoneyGoingOut(): void
+    {
+        $id = $this->voucherExpense();
+        $this->actAsWith();
+
+        $this->get('/expenses/view/' . $id)->assertSee('expense_voucher_link');
     }
 }

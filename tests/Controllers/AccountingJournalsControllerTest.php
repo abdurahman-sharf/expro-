@@ -2201,4 +2201,125 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertSame(1, substr_count($body, '<option value="tax_definition">' . lang('Accounting.entity_tax_definition') . '</option>'));
         $this->assertSame([lang('Accounting.action_mode_changed'), lang('Accounting.action_tax_account_changed')], array_column($rows, 'action'));
     }
+
+    public function testGetPdf_PrintsTheNumberDateDescriptionAndBalancedTotals(): void
+    {
+        $this->accountant();
+        $journal = (new JournalService())->postNew($this->journalInput('1725.00'));
+
+        $response = $this->get('/accounting_journals/print/' . $journal);
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Documents.journal'));
+        $response->assertSee('Test journal');
+        $response->assertSee(lang('Accounting_journals.totals'));
+        $response->assertSee('1,725.00');
+        $response->assertSee(lang('Accounting_journals.debit'));
+        $response->assertSee(lang('Accounting_journals.credit'));
+
+        $body   = $response->getBody();
+        $totals = [];
+        preg_match('/doc-journal-totals.*?<\/tr>/s', $body, $row);
+        preg_match_all('/<span dir="ltr">([\d,\.]+)<\/span>/', $row[0], $totals);
+
+        $this->assertSame(['1,725.00', '1,725.00'], $totals[1], 'The debit and the credit of the printed journal are the same amount.');
+    }
+
+    public function testGetPdf_ReturnsAPdfWithTheNumberOfTheJournalInItsName(): void
+    {
+        $this->accountant();
+        $journal = (new JournalService())->postNew($this->journalInput());
+        $number  = (string) $this->accountingDb()->table('accounting_journals')->where('journal_id', $journal)->get()->getRow()->number;
+
+        $response = $this->get('/accounting_journals/pdf/' . $journal);
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->response()->getBody());
+        $this->assertStringContainsString(rawurlencode(lang('Documents.journal') . ' ' . $number) . '.pdf', $response->response()->getHeaderLine('Content-Disposition'));
+    }
+
+    public function testGetPdf_RefusesAJournalOutsideTheBranchScope(): void
+    {
+        $second  = $this->createBranch('B2');
+        $journal = $this->journalIn(1);
+        $this->scopedAccountant([$second]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/pdf/' . $journal);
+    }
+
+    public function testGetPrint_RefusesAJournalOutsideTheBranchScopeAndAnUnknownOne(): void
+    {
+        $second  = $this->createBranch('B2');
+        $journal = $this->journalIn(1);
+        $this->scopedAccountant([$second]);
+
+        try {
+            $this->get('/accounting_journals/print/' . $journal);
+            $this->fail('The journal of another branch was printed.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_journals/print/987654');
+    }
+
+    public function testGetPdf_RedirectsAnEmployeeWithoutTheJournalsModule(): void
+    {
+        $journal = (new JournalService())->postNew($this->journalInput());
+        $this->actAs($this->employeeWithGrants(['expenses']));
+
+        $this->get('/accounting_journals/pdf/' . $journal)->assertRedirect();
+    }
+
+    public function testGetPrint_EscapesTheDescriptionOfTheJournalAndOfItsLines(): void
+    {
+        $this->accountant();
+        $input                = $this->journalInput();
+        $input['description'] = '<script>alert(1)</script> entry';
+        $journal              = (new JournalService())->postNew($input);
+
+        $body = $this->get('/accounting_journals/print/' . $journal)->getBody();
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt; entry', $body);
+    }
+
+    public function testGetPdf_ChangesNoRowOfTheBooks(): void
+    {
+        $this->accountant();
+        $journal = (new JournalService())->postNew($this->journalInput('50.00'));
+        $before  = $this->journalFingerprint();
+
+        $this->get('/accounting_journals/print/' . $journal)->assertStatus(200);
+        $this->get('/accounting_journals/pdf/' . $journal)->assertStatus(200);
+
+        $this->assertSame($before, $this->journalFingerprint(), 'Printing a journal changed a row of the books.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function journalFingerprint(): array
+    {
+        $db = $this->accountingDb();
+
+        return [
+            'journals' => $db->query('SELECT COUNT(*) AS n, COALESCE(SUM(total_debit), 0) AS d, COALESCE(SUM(total_credit), 0) AS c FROM ' . $db->prefixTable('accounting_journals'))->getRowArray(),
+            'lines'    => $db->query('SELECT COUNT(*) AS n, COALESCE(SUM(debit), 0) AS d, COALESCE(SUM(credit), 0) AS c FROM ' . $db->prefixTable('accounting_journal_lines'))->getRowArray(),
+            'audit'    => $db->table('accounting_audit_log')->countAllResults(),
+        ];
+    }
+
+    public function testGetShow_OffersThePdfOfTheJournal(): void
+    {
+        $this->accountant();
+        $journal = (new JournalService())->postNew($this->journalInput());
+
+        $this->get('/accounting_journals/view/' . $journal)->assertSee('journal_pdf_link');
+    }
 }

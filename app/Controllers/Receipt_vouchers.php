@@ -7,6 +7,9 @@ use App\Libraries\Accounting\RevenueCategories;
 use App\Libraries\Accounting\RevenueVouchers;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Documents\RendersPdf;
+use App\Libraries\Documents\VoucherDocument;
+use App\Libraries\Documents\VoucherDocuments;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -18,6 +21,8 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class Receipt_vouchers extends AccountingController
 {
+    use RendersPdf;
+
     private const MAX_PAGE_SIZE = 500;
 
     private RevenueVouchers $vouchers;
@@ -89,6 +94,38 @@ class Receipt_vouchers extends AccountingController
             'paymentOptions' => $this->paymentOptions(),
             'today'          => date('Y-m-d'),
         ]);
+    }
+
+    public function getPrint(int $revenueId): string
+    {
+        $voucher = $this->printable($revenueId);
+
+        return view('documents/screen', [
+            'inner'     => 'documents/voucher',
+            'data'      => ['voucher' => $voucher],
+            'pdfUrl'    => 'receipt_vouchers/pdf/' . $revenueId,
+            'backUrl'   => 'receipt_vouchers',
+            'backLabel' => lang('Documents.back'),
+            'backIcon'  => 'bi-arrow-left',
+        ]);
+    }
+
+    public function getPdf(int $revenueId): ResponseInterface
+    {
+        $voucher = $this->printable($revenueId);
+
+        return $this->pdfResponse($this->response, view('documents/voucher_pdf', ['voucher' => $voucher]), $voucher->title, $voucher->number);
+    }
+
+    private function printable(int $revenueId): VoucherDocument
+    {
+        $voucher = (new VoucherDocuments())->revenue($revenueId, $this->employeeId());
+
+        if ($voucher === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return $voucher;
     }
 
     public function postSave(int $revenueId = NEW_ENTRY): ResponseInterface

@@ -46,6 +46,7 @@ use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\SaleFixtureTrait;
 use App\Libraries\Roles\DefaultLocations;
+use App\Libraries\Roles\RoleGrants;
 
 /**
  * Regression tests for the Sales per-endpoint access-control bypass.
@@ -8382,5 +8383,112 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertNotNull($row);
         $this->assertStringContainsString(documentIsolate(to_currency((string) $data['total'])), $html);
         $this->assertSame(number_format((float) $row->total_debit, 2, '.', ''), number_format((float) $data['total'], 2, '.', ''), 'The total the document prints is the total the books hold.');
+    }
+
+    private function paymentOfAnInvoice(string $amount = '115.00'): int
+    {
+        $this->startSelling();
+        $sale = $this->invoiceOf($amount, null, [$this->payment('Cash', $amount)]);
+
+        return (int) Database::connect()->table('sales_payments')->where('sale_id', $sale)->get()->getRow()->payment_id;
+    }
+
+    public function testGetPaymentReceipt_PrintsTheCustomerTheInvoiceTheMethodAndTheAmountInWords(): void
+    {
+        $payment = $this->paymentOfAnInvoice('115.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/paymentReceipt/' . $payment);
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Documents.customer_receipt'));
+        $response->assertSee('Omar Khaled');
+        $response->assertSee('115.00 SAR');
+        $response->assertSee('One hundred fifteen Saudi Riyals');
+        $response->assertSee(lang('Documents.invoice'));
+        $response->assertSee(lang('Documents.signature'));
+    }
+
+    public function testGetPaymentReceipt_ShowsTheFullNameOfTheCustomerAndNotTheFirstNameAlone(): void
+    {
+        $payment = $this->paymentOfAnInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/paymentReceipt/' . $payment);
+
+        $response->assertSee('Omar Khaled');
+    }
+
+    public function testGetPaymentReceipt_RefusesAnEmployeeWithoutReportsSales(): void
+    {
+        $payment = $this->paymentOfAnInvoice();
+        $this->loginAs($this->createCashierEmployee());
+
+        $this->get('/sales/paymentReceipt/' . $payment)->assertRedirect();
+        $this->get('/sales/paymentReceiptPdf/' . $payment)->assertStatus(403);
+    }
+
+    public function testGetPaymentReceipt_HidesAPaymentOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $payment = $this->paymentOfAnInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor($this->createSecondBranch()));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/paymentReceipt/' . $payment);
+    }
+
+    public function testGetPaymentReceipt_ShowsNoReceiptOfAPaymentThatIsNotCompleted(): void
+    {
+        $payment = $this->paymentOfAnInvoice();
+        Database::connect()->table('sales_payments')->where('payment_id', $payment)->update(['payment_status' => 'draft']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/paymentReceipt/' . $payment);
+    }
+
+    public function testGetPaymentReceipt_HidesAPaymentFromAnEmployeeWhoSeesTheirOwnRecordsOnlyAndDidNotCollectIt(): void
+    {
+        $payment = $this->paymentOfAnInvoice();
+        $viewer  = $this->createBranchLimitedSupervisor(1);
+        Database::connect()->table('employee_record_scopes')->insert(['person_id' => $viewer, 'record_scope' => 'own']);
+        RoleGrants::flush();
+        $this->loginAs($viewer);
+
+        try {
+            $this->get('/sales/paymentReceipt/' . $payment);
+            $this->fail('The payment of another employee was shown.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        } finally {
+            Database::connect()->table('employee_record_scopes')->where('person_id', $viewer)->delete();
+            RoleGrants::flush();
+        }
+    }
+
+    public function testGetPaymentReceiptPdf_ReturnsAPdf(): void
+    {
+        $payment = $this->paymentOfAnInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/paymentReceiptPdf/' . $payment);
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->response()->getBody());
+    }
+
+    public function testGetPaymentReceipt_ChangesNoRowOfTheBooksNorOfThePayments(): void
+    {
+        $payment = $this->paymentOfAnInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->databaseFingerprint();
+
+        $this->get('/sales/paymentReceipt/' . $payment)->assertStatus(200);
+        $this->get('/sales/paymentReceiptPdf/' . $payment)->assertStatus(200);
+
+        $this->assertDatabaseUnchanged($before, 'Printing a receipt changed a row.');
     }
 }

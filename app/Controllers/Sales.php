@@ -34,6 +34,8 @@ use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pdf_lib;
+use App\Libraries\Documents\RendersPdf;
+use App\Libraries\Documents\VoucherDocuments;
 use App\Libraries\Pricing\PriceControls;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\Roles\RecordScope;
@@ -65,6 +67,8 @@ use stdClass;
 
 class Sales extends Secure_Controller
 {
+    use RendersPdf;
+
     protected $helpers = ['file'];
     private Barcode_lib $barcode_lib;
     private Email_lib $email_lib;
@@ -2133,6 +2137,57 @@ class Sales extends Secure_Controller
         $this->sale_lib->clear_all();
 
         return $this->response->setJSON(['success' => $result, 'message' => $message, 'id' => $saleId]);
+    }
+
+    /**
+     * The receipt of a payment of a customer, ready to print. Used in app/Views/sales/form.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function getPaymentReceipt(int $paymentId): string|ResponseInterface
+    {
+        $personId = (int) $this->session->get('person_id');
+
+        if (!$this->employee->has_grant('reports_sales', $personId)) {
+            return redirect()->to('no_access/sales/reports_sales');
+        }
+
+        $voucher = (new VoucherDocuments())->customerPayment($paymentId, $personId);
+
+        if ($voucher === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return view('documents/screen', [
+            'inner'     => 'documents/voucher',
+            'data'      => ['voucher' => $voucher],
+            'pdfUrl'    => 'sales/paymentReceiptPdf/' . $paymentId,
+            'backUrl'   => 'sales/manage',
+            'backLabel' => lang('Sales.takings'),
+            'backIcon'  => 'bi-card-list',
+        ]);
+    }
+
+    /**
+     * The receipt of a payment of a customer as a PDF file.
+     *
+     * @noinspection PhpUnused
+     */
+    public function getPaymentReceiptPdf(int $paymentId): ResponseInterface
+    {
+        $personId = (int) $this->session->get('person_id');
+
+        if (!$this->employee->has_grant('reports_sales', $personId)) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
+
+        $voucher = (new VoucherDocuments())->customerPayment($paymentId, $personId);
+
+        if ($voucher === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return $this->pdfResponse($this->response, view('documents/voucher_pdf', ['voucher' => $voucher]), $voucher->title, $voucher->number);
     }
 
     /**

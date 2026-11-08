@@ -97,6 +97,47 @@ function documentReturnLabels(array $sale): array
 }
 
 /**
+ * Describes what the purchase invoice of a receiving shows: its title (a debit note when the goods went back
+ * to the supplier), its number and the rows next to it.
+ *
+ * @param array<string, mixed> $receiving The data of the receiving as the Receivings controller builds it.
+ *
+ * @return array{type: string, title: string, number: string, meta: array<int, array{0: string, 1: string}>, partyLabel: string, showPayments: bool, absolute: bool}
+ */
+function purchaseDocumentProfile(array $receiving): array
+{
+    $isReturn = ($receiving['purchase_type'] ?? 'receive') === 'return';
+    $number   = (string) ($receiving['documentNumber'] ?? '');
+    $day      = (string) ($receiving['invoice_date'] ?? '') !== '' ? (string) $receiving['invoice_date'] : (string) ($receiving['transaction_time'] ?? '');
+    $total    = documentFigure($isReturn, (string) ($receiving['total_with_tax'] ?? $receiving['total'] ?? 0));
+
+    $meta = [
+        [lang('Documents.purchase_number'), $number !== '' ? $number : (string) ($receiving['receiving_id'] ?? '')],
+        [lang('Common.date'), $day],
+    ];
+
+    if ((string) ($receiving['due_date'] ?? '') !== '') {
+        $meta[] = [lang('Sales.due_date'), (string) $receiving['due_date']];
+    }
+
+    if ((string) ($receiving['reference'] ?? '') !== '') {
+        $meta[] = [lang('Receivings.reference'), (string) $receiving['reference']];
+    }
+
+    $meta[] = [lang('Sales.total'), to_currency($total)];
+
+    return [
+        'type'         => 'purchase_invoice',
+        'title'        => lang($isReturn ? 'Receivings.debit_note' : 'Documents.purchase_invoice'),
+        'number'       => $number !== '' ? $number : (string) ($receiving['receiving_id'] ?? ''),
+        'meta'         => $meta,
+        'partyLabel'   => lang('Suppliers.supplier'),
+        'showPayments' => ! $isReturn,
+        'absolute'     => $isReturn,
+    ];
+}
+
+/**
  * An amount as the document shows it: a credit note shows what it takes back as a positive amount,
  * whatever the sign the return carries in the books. Only the sign is dropped, never the figure.
  */
@@ -126,6 +167,27 @@ function documentQr(string $type, array $sale, array $config): QrResult
 function documentTerms(string $type, array $config): string
 {
     return DocumentTerms::forType($type, $config);
+}
+
+/**
+ * The lines under the name of the shop on a document: its address and phone, its account number and its
+ * tax number, as the sales documents show them.
+ *
+ * @param array<string, mixed> $config
+ */
+function documentCompanyInfo(array $config): string
+{
+    $lines = [(string) ($config['address'] ?? ''), (string) ($config['phone'] ?? '')];
+
+    if (! empty($config['account_number'])) {
+        $lines[] = lang('Sales.account_number') . ': ' . $config['account_number'];
+    }
+
+    if ((string) ($config['tax_id'] ?? '') !== '') {
+        $lines[] = lang('Sales.tax_id') . ': ' . $config['tax_id'];
+    }
+
+    return implode("\n", array_filter(array_map('trim', $lines), static fn (string $line): bool => $line !== ''));
 }
 
 /**

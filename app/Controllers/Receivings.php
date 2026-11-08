@@ -20,6 +20,9 @@ use App\Libraries\Accounting\SupplierPaymentDate;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Barcode_lib;
+use App\Libraries\Documents\RendersPdf;
+use App\Libraries\Documents\VoucherDocument;
+use App\Libraries\Documents\VoucherDocuments;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -40,6 +43,8 @@ use ReflectionException;
 
 class Receivings extends Secure_Controller
 {
+    use RendersPdf;
+
     private Receiving_lib $receiving_lib;
     private Token_lib $token_lib;
     private Barcode_lib $barcode_lib;
@@ -725,6 +730,26 @@ class Receivings extends Secure_Controller
             throw PageNotFoundException::forPageNotFound();
         }
 
+        $data = $this->receivingData($receiving_id);
+
+        $data['print_after_sale'] = false;
+
+        $view = view('receivings/receipt', $data);
+
+        $this->receiving_lib->clear_all();
+
+        return $view;
+    }
+
+    /**
+     * What the receipt and the documents of a receiving show: its lines, its totals, its supplier and the
+     * numbers it goes by. It leaves the lines of the receiving in the register of the library, which the
+     * caller clears.
+     *
+     * @return array<string, mixed>
+     */
+    private function receivingData($receiving_id): array
+    {
         $receivingInfo = $this->receiving->get_info($receiving_id)->getRowArray();
         $this->receiving_lib->copy_entire_receiving($receiving_id);
         $data['cart']                 = $this->receiving_lib->get_cart();
@@ -765,13 +790,120 @@ class Receivings extends Secure_Controller
             }
         }
 
-        $data['print_after_sale'] = false;
+        return $data;
+    }
 
-        $view = view('receivings/receipt', $data);
+    /**
+     * The purchase invoice of a receiving, or its debit note when it sent goods back, ready to print.
+     * Used in app/Views/receivings/receipt.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function getPrint(int $receivingId): string
+    {
+        $data = $this->purchaseDocument($receivingId);
 
+        return view('documents/screen', [
+            'inner'     => 'documents/purchase_invoice',
+            'data'      => ['receiving' => $data],
+            'pdfUrl'    => 'receivings/pdf/' . $receivingId,
+            'backUrl'   => 'receivings',
+            'backLabel' => lang('Receivings.register'),
+            'backIcon'  => 'bi-box-arrow-in-down',
+        ]);
+    }
+
+    /**
+     * The purchase invoice of a receiving as a PDF file.
+     *
+     * @noinspection PhpUnused
+     */
+    public function getPdf(int $receivingId): ResponseInterface
+    {
+        $data    = $this->purchaseDocument($receivingId);
+        $profile = purchaseDocumentProfile($data);
+
+        return $this->pdfResponse($this->response, view('documents/purchase_invoice_pdf', ['receiving' => $data]), $profile['title'], $profile['number']);
+    }
+
+    /**
+     * The receipt of a payment made to a supplier, ready to print. Used in app/Views/receivings/form.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function getPaymentReceipt(int $paymentId): string
+    {
+        $voucher = $this->supplierReceipt($paymentId);
+
+        return view('documents/screen', [
+            'inner'     => 'documents/voucher',
+            'data'      => ['voucher' => $voucher],
+            'pdfUrl'    => 'receivings/paymentReceiptPdf/' . $paymentId,
+            'backUrl'   => 'receivings',
+            'backLabel' => lang('Receivings.register'),
+            'backIcon'  => 'bi-box-arrow-in-down',
+        ]);
+    }
+
+    /**
+     * The receipt of a payment made to a supplier as a PDF file.
+     *
+     * @noinspection PhpUnused
+     */
+    public function getPaymentReceiptPdf(int $paymentId): ResponseInterface
+    {
+        $voucher = $this->supplierReceipt($paymentId);
+
+        return $this->pdfResponse($this->response, view('documents/voucher_pdf', ['voucher' => $voucher]), $voucher->title, $voucher->number);
+    }
+
+    private function supplierReceipt(int $paymentId): VoucherDocument
+    {
+        $voucher = (new VoucherDocuments())->supplierPayment($paymentId, (int) $this->session->get('person_id'));
+
+        if ($voucher === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return $voucher;
+    }
+
+    /**
+     * What the purchase invoice of a receiving shows: the data of its receipt, what has been paid of it,
+     * and what kind of document it is. A receiving the employee may not see, one that does not exist and a
+     * stock requisition are not purchase invoices.
+     *
+     * @return array<string, mixed>
+     */
+    private function purchaseDocument(int $receivingId): array
+    {
+        if ($this->outsideViewScope($receivingId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $info = $this->receiving->get_info($receivingId)->getRowArray();
+        $type = ReceivingType::tryFrom((string) ($info['receiving_type'] ?? ''));
+
+        if ($info === [] || $info === null || $type === null || $type === ReceivingType::Requisition) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $data = $this->receivingData($receivingId);
         $this->receiving_lib->clear_all();
 
-        return $view;
+        $paid = '0';
+
+        foreach ($this->receiving->get_payments($receivingId) as $payment) {
+            if (PaymentStatus::fromStored($payment->payment_status)->posts()) {
+                $paid = bcadd($paid, (string) $payment->payment_amount, 4);
+            }
+        }
+
+        $data['purchase_type'] = $type->value;
+        $data['paid']          = $paid;
+        $data['receiving_num'] = $receivingId;
+
+        return $data;
     }
 
     private function _reload(array $data = []): string    // TODO: Hungarian notation
