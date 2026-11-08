@@ -42,6 +42,7 @@ use App\Libraries\Pricing\PriceControls;
 use App\Libraries\Roles\RecordScope;
 use App\Libraries\SalesOrders\SalesOrders;
 use App\Libraries\ShippingTaxOption;
+use App\Libraries\Stock\UnitLines;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -107,6 +108,25 @@ class Sale extends Model
     public function invoiceDiscountProblem(): ?InvoiceDiscountProblem
     {
         return $this->invoiceDiscountProblem;
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $items
+     *
+     * @return array<int|string, array<string, string|int|null>> The columns that remember the unit of each line, by the key of the line.
+     *
+     * @throws AccountingException
+     */
+    private function unitColumnsOf(array $items): array
+    {
+        $units   = new UnitLines($this->db);
+        $columns = [];
+
+        foreach ($items as $key => $itemData) {
+            $columns[$key] = $units->columnsOf($itemData, (int) ($itemData['line'] ?? 0), 'quantity', 'price', '', 'unit_price_entered');
+        }
+
+        return $columns;
     }
 
     /**
@@ -1173,6 +1193,14 @@ class Sale extends Model
             return ACCOUNTING_FAILED;
         }
 
+        try {
+            $unitColumns = $this->unitColumnsOf($items);
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
         // Only an invoice can be issued before its goods leave
         $delivered = $delivered || $saleType !== SALE_TYPE_INVOICE;
 
@@ -1387,6 +1415,7 @@ class Sale extends Model
                 'item_location'          => $itemData['item_location'],
                 'print_option'           => $itemData['print_option'],
                 'invoice_discount_share' => $itemData['invoice_discount_share'] ?? null,
+                ...$unitColumns[$line],
             ];
 
             $builder = $this->db->table('sales_items');
@@ -2586,6 +2615,10 @@ class Sale extends Model
             item_location,
             print_option,
             invoice_discount_share,
+            sales_items.unit_id,
+            sales_items.unit_factor,
+            sales_items.unit_quantity,
+            sales_items.unit_price_entered,
             ' . $item->get_item_name('name') . ',
             category,
             item_type,

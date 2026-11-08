@@ -48,6 +48,7 @@ use App\Models\Employee;
 use App\Models\Giftcard;
 use App\Models\Inventory;
 use App\Models\Item;
+use App\Libraries\Stock\UnitTemplates;
 use App\Models\Item_kit;
 use App\Models\Price_list;
 use App\Models\Sale;
@@ -1415,6 +1416,16 @@ class Sales extends Secure_Controller
         $mode = $this->sale_lib->get_mode();
         $quantity = ($mode == 'return') ? -$quantity : $quantity;
         $item_location = $this->sale_lib->get_sale_location();
+        $scannedUnit = $this->sale_lib->unitOfBarcode((string) $item_id_or_number_or_item_kit_or_receipt);
+
+        if ($scannedUnit !== null) {
+            $item_id_or_number_or_item_kit_or_receipt = (string) $scannedUnit['itemId'];
+
+            if ($scannedUnit['unitId'] !== null) {
+                $factor = (new UnitTemplates())->unitOfItem($scannedUnit['itemId'], $scannedUnit['unitId'])?->factor;
+                $quantity = $factor === null ? $quantity : bcmul((string) $quantity, $factor, 3);
+            }
+        }
 
         if ($mode == 'return' && $this->sale->isValidReceipt($item_id_or_number_or_item_kit_or_receipt)) {
             $originId = (int) (explode(' ', trim($item_id_or_number_or_item_kit_or_receipt))[1] ?? 0);
@@ -1464,6 +1475,10 @@ class Sales extends Secure_Controller
             if ($item_id_or_number_or_item_kit_or_receipt == '' || !$this->sale_lib->add_item($item_id_or_number_or_item_kit_or_receipt, $item_location, $quantity, $discount, $discount_type, PRICE_MODE_STANDARD, null, null, $price)) {
                 $data['error'] = lang('Sales.unable_to_add_item');
             } else {
+                if ($scannedUnit !== null && $scannedUnit['unitId'] !== null) {
+                    $this->sale_lib->enterInUnit((int) $scannedUnit['itemId'], $item_location, (int) $scannedUnit['unitId']);
+                }
+
                 $data['warning'] = $this->sale_lib->out_of_stock($item_id_or_number_or_item_kit_or_receipt, $item_location);
             }
         }
@@ -1585,7 +1600,8 @@ class Sales extends Secure_Controller
             }
 
             // sales_change_price grant is enforced server-side here; the UI-only "change_price" flag must not be trusted
-            $current_price = $this->sale_lib->get_cart()[$line]['price'] ?? null;
+            $currentLine   = $this->sale_lib->get_cart()[$line] ?? [];
+            $current_price = isset($currentLine['unit_id']) ? ($currentLine['unit_price'] ?? null) : ($currentLine['price'] ?? null);
             $employee_id = $this->employee->get_logged_in_employee_info()->person_id;
             if ($current_price !== null && bccomp((string)$price, (string)$current_price, $precision) != 0 && !$this->employee->has_grant('sales_change_price', $employee_id)) {
                 $data['error'] = lang('Sales.not_authorized');
@@ -1599,7 +1615,23 @@ class Sales extends Secure_Controller
 
             $cartBefore = $this->sale_lib->get_cart();
 
-            $this->sale_lib->edit_item($line, $description, $serialnumber, $quantity, $discount, $discount_type, $price, $discounted_total);
+            $postedUnit = $this->request->getPost('unit_id');
+            $unitId     = $postedUnit === null || $postedUnit === '' ? null : (int) $postedUnit;
+            $inUnit     = isset($cartBefore[$line]['unit_id']) ? (int) $cartBefore[$line]['unit_id'] : null;
+
+            if ($postedUnit !== null && $unitId !== $inUnit) {
+                $this->sale_lib->changeUnit($line, $unitId);
+            } else {
+                $this->sale_lib->edit_item($line, $description, $serialnumber, $quantity, $discount, $discount_type, $price, $discounted_total);
+            }
+
+            $unitFailure = $this->sale_lib->unitFailure();
+
+            if ($unitFailure !== null) {
+                $data['error'] = AccountingMessage::of($unitFailure);
+
+                return $this->reload($data);
+            }
 
             $priceProblem = $this->refusedLinePrices($cartBefore);
 
@@ -2721,6 +2753,7 @@ class Sales extends Secure_Controller
         $data['cash_rounding'] = $cashRounding;
 
         $data['cart'] = $this->sale_lib->get_cart();
+        $data['unit_choices'] = $this->sale_lib->unitChoices($data['cart']);
         $customerInfo = $this->_load_customer_data($this->sale_lib->get_customer(), $data, true);
 
         $displayCurrency = $this->registerDisplayCurrency();

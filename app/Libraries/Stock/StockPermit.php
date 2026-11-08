@@ -85,6 +85,7 @@ final class StockPermit
     private RoutingResolver $resolver;
     private AuditLog $audit;
     private DocumentNumbering $numbering;
+    private UnitLines $units;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
@@ -104,6 +105,7 @@ final class StockPermit
         $this->legs          = new InterBranchLegs($this->db);
         $this->audit         = new AuditLog($this->db);
         $this->numbering     = new DocumentNumbering($this->db);
+        $this->units         = new UnitLines($this->db);
     }
 
     /**
@@ -544,8 +546,9 @@ final class StockPermit
         foreach (array_values($lines) as $index => $line) {
             $number   = $index + 1;
             $itemId   = is_array($line) ? (int) ($line['item_id'] ?? 0) : 0;
-            $quantity = is_array($line) ? trim((string) ($line['quantity'] ?? '')) : '';
-            $cost     = is_array($line) && trim((string) ($line['unit_cost'] ?? '')) !== '' ? trim((string) $line['unit_cost']) : '0';
+            $unitId   = is_array($line) && isset($line['unit_id']) && $line['unit_id'] !== '' ? (int) $line['unit_id'] : null;
+            $quantity = is_array($line) ? trim((string) ($line[$unitId === null ? 'quantity' : 'unit_quantity'] ?? '')) : '';
+            $cost     = is_array($line) && trim((string) ($line[$unitId === null ? 'unit_cost' : 'unit_price'] ?? '')) !== '' ? trim((string) $line[$unitId === null ? 'unit_cost' : 'unit_price']) : '0';
 
             if (preg_match(self::QUANTITY, $quantity) !== 1 || bccomp($quantity, '0', 3) <= 0 || bccomp($quantity, '999999999', 3) > 0) {
                 throw new AccountingException(AccountingError::StockPermitLinesInvalid, "The quantity of line {$number} must be more than zero.", ['line' => $number]);
@@ -559,7 +562,19 @@ final class StockPermit
                 throw new AccountingException(AccountingError::StockPermitLinesInvalid, "Line {$number} is not an item that keeps stock.", ['line' => $number]);
             }
 
-            $list[] = ['item_id' => $itemId, 'quantity' => bcadd($quantity, '0', 3), 'unit_cost' => $type === StockPermitType::Add ? bcadd($cost, '0', 6) : '0.000000'];
+            $unit = UnitLine::base($quantity, $cost);
+
+            if ($unitId !== null) {
+                $unit     = $this->units->convert($itemId, $unitId, $quantity, $type === StockPermitType::Add ? $cost : '0', $number, UnitLine::COST_SCALE);
+                $quantity = $unit->baseQuantity;
+                $cost     = $unit->basePrice;
+
+                if (bccomp($quantity, '0', 3) <= 0 || bccomp($quantity, '999999999', 3) > 0) {
+                    throw new AccountingException(AccountingError::StockPermitLinesInvalid, "The quantity of line {$number} must be more than zero.", ['line' => $number]);
+                }
+            }
+
+            $list[] = ['item_id' => $itemId, 'quantity' => bcadd($quantity, '0', 3), 'unit_cost' => $type === StockPermitType::Add ? bcadd($cost, '0', 6) : '0.000000', 'unit' => $unit->columns('unit_cost_entered')];
         }
 
         return $list;
@@ -1020,7 +1035,7 @@ final class StockPermit
         $rows = [];
 
         foreach (array_values($lines) as $index => $line) {
-            $rows[] = ['permit_id' => $permitId, 'line_no' => $index + 1, 'item_id' => $line['item_id'], 'quantity' => $line['quantity'], 'unit_cost' => $line['unit_cost']];
+            $rows[] = ['permit_id' => $permitId, 'line_no' => $index + 1, 'item_id' => $line['item_id'], 'quantity' => $line['quantity'], 'unit_cost' => $line['unit_cost'], ...($line['unit'] ?? [])];
         }
 
         $this->db->table('stock_permit_lines')->insertBatch($rows);

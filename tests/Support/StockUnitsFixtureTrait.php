@@ -3,9 +3,11 @@
 namespace Tests\Support;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Stock\ItemStockProfile;
 use App\Libraries\Stock\StockOptions;
 use App\Libraries\Stock\StockPermissions;
 use App\Libraries\Stock\StockUnitPermissions;
+use App\Libraries\Stock\UnitLines;
 use App\Libraries\Stock\UnitTemplates;
 
 /**
@@ -72,5 +74,37 @@ trait StockUnitsFixtureTrait
         }
 
         $this->fail("The template has no unit named {$name}.");
+    }
+
+    /**
+     * An item that keeps stock at the cost given and may be entered in cartons of twelve.
+     *
+     * @return array{item: int, template: int, carton: int}
+     */
+    protected function cartonItem(string $cost = '5.00'): array
+    {
+        $this->startStockUnits();
+
+        $templateId = $this->template();
+        $itemId     = $this->createTestItem();
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => $cost]);
+        (new ItemStockProfile())->setTemplate($itemId, $templateId, $this->unitManagerId);
+
+        return ['item' => $itemId, 'template' => $templateId, 'carton' => $this->unitIdOf($templateId)];
+    }
+
+    /**
+     * A cart line turned into a line entered in a unit, as the register and the purchase screen keep it.
+     *
+     * @param array<string, mixed> $line
+     *
+     * @return array<string, mixed>
+     */
+    protected function inUnit(array $line, int $unitId, string $enteredQuantity, string $enteredPrice): array
+    {
+        $unit = (new UnitLines())->convert((int) $line['item_id'], $unitId, $enteredQuantity, $enteredPrice, (int) $line['line']);
+
+        return [...$line, 'quantity' => $unit->baseQuantity, 'price' => $unit->basePrice, 'unit_id' => $unitId, 'unit_factor' => $unit->factor, 'unit_quantity' => $enteredQuantity, 'unit_price' => $enteredPrice];
     }
 }

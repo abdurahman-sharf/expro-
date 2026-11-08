@@ -33,6 +33,7 @@ use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\RecordScope;
+use App\Libraries\Stock\UnitLines;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use Config\OSPOS;
@@ -545,12 +546,34 @@ class Receiving extends Model
     private function rewriteLines(int $receivingId, array $changed, array $removed, array $stored): void
     {
         foreach ($changed as $key => $fields) {
-            $this->db->table('receivings_items')->where(['receiving_id' => $receivingId, 'item_id' => $stored[$key]['item_id'], 'line' => $stored[$key]['line']])->update($fields);
+            $this->db->table('receivings_items')->where(['receiving_id' => $receivingId, 'item_id' => $stored[$key]['item_id'], 'line' => $stored[$key]['line']])->update([...$fields, ...$this->unitAfterCorrection($stored[$key], $fields)]);
         }
 
         foreach ($removed as $key) {
             $this->db->table('receivings_items')->where(['receiving_id' => $receivingId, 'item_id' => $stored[$key]['item_id'], 'line' => $stored[$key]['line']])->delete();
         }
+    }
+
+    /**
+     * A line entered in a larger unit whose quantity or price a correction changes is a line of base units
+     * from then on: what was entered no longer says what the line holds, and the base figures are the ones
+     * everything reads.
+     *
+     * @param array<string, mixed> $stored
+     * @param array<string, mixed> $fields
+     *
+     * @return array<string, null>
+     */
+    private function unitAfterCorrection(array $stored, array $fields): array
+    {
+        if (($stored['unit_id'] ?? null) === null) {
+            return [];
+        }
+
+        $moved = bccomp((string) $fields['quantity_purchased'], bcadd((string) $stored['quantity_purchased'], '0', 3), 3) !== 0
+            || bccomp((string) $fields['item_unit_price'], bcadd((string) $stored['item_unit_price'], '0', 2), 2) !== 0;
+
+        return $moved ? ['unit_id' => null, 'unit_factor' => null, 'unit_quantity' => null, 'unit_price_entered' => null] : [];
     }
 
     /**
@@ -1009,6 +1032,14 @@ class Receiving extends Model
             return -1;    // TODO: Replace -1 with a constant
         }
 
+        try {
+            $unitColumns = $this->unitColumnsOf($items);
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
         $config       = config(OSPOS::class)->settings;
         $type         = ReceivingType::ofQuantities(array_map(static fn (array $line): string => self::unitsOf($line), $items));
         $branchIds    = $this->branchIdsOfItems($items);
@@ -1096,6 +1127,7 @@ class Receiving extends Model
                     'item_unit_price'    => $itemData['price'],
                     'item_location'      => $itemData['item_location'],
                     'tax_percent'        => $itemData['tax_percent'] ?? 0,
+                    ...$unitColumns[$line],
                 ];
 
                 $builder->insert($receivingsItemsData);
@@ -1156,6 +1188,25 @@ class Receiving extends Model
         $this->db->transComplete();
 
         return $this->db->transStatus() ? $receivingId : -1;
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $items
+     *
+     * @return array<int|string, array<string, string|int|null>> The columns that remember the unit of each line, by the key of the line.
+     *
+     * @throws AccountingException
+     */
+    private function unitColumnsOf(array $items): array
+    {
+        $units   = new UnitLines($this->db);
+        $columns = [];
+
+        foreach ($items as $key => $itemData) {
+            $columns[$key] = $units->columnsOf($itemData, (int) ($itemData['line'] ?? 0), 'quantity', 'price', 'receiving_quantity', 'unit_price_entered');
+        }
+
+        return $columns;
     }
 
     /**

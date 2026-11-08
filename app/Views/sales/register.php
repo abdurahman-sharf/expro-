@@ -309,11 +309,12 @@ $employee        = model(Employee::class);
                             </div>
 
                             <div class="cart-field" data-label="<?= lang("{$sectionName}.price") ?>">
+                                <?php $enteredPrice = isset($item['unit_id']) ? rtrim(rtrim(number_format((float) $item['unit_price'], 6, '.', ''), '0'), '.') : null; ?>
                                 <?php if ($items_module_allowed && $change_price): ?>
-                                    <?= form_input(['name' => 'price', 'class' => 'form-control form-control-sm', 'value' => to_currency_no_money($item['price']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.price"), 'onClick' => 'this.select();']) ?>
+                                    <?= form_input(['name' => 'price', 'class' => 'form-control form-control-sm', 'value' => $enteredPrice ?? to_currency_no_money($item['price']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.price"), 'onClick' => 'this.select();']) ?>
                                 <?php else: ?>
-                                    <span class="num"><?= to_currency($item['price']) ?></span>
-                                    <?= form_hidden('price', to_currency_no_money($item['price'])) ?>
+                                    <span class="num"><?= $enteredPrice === null ? to_currency($item['price']) : esc($enteredPrice) ?></span>
+                                    <?= form_hidden('price', $enteredPrice ?? to_currency_no_money($item['price'])) ?>
                                 <?php endif; ?>
                             </div>
 
@@ -324,7 +325,7 @@ $employee        = model(Employee::class);
                                 <?php else: ?>
                                     <div class="qty">
                                         <button type="button" class="qty-b" data-step="-1" aria-label="<?= lang('Sales.decrease_quantity') ?>"><span class="bi bi-dash-lg" aria-hidden="true"></span></button>
-                                        <?= form_input(['name' => 'quantity', 'class' => 'qty-v', 'value' => to_quantity_decimals($item['quantity']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.quantity"), 'onClick' => 'this.select();']) ?>
+                                        <?= form_input(['name' => 'quantity', 'class' => 'qty-v', 'value' => to_quantity_decimals($item['unit_quantity'] ?? $item['quantity']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.quantity"), 'onClick' => 'this.select();']) ?>
                                         <button type="button" class="qty-b" data-step="1" aria-label="<?= lang('Sales.increase_quantity') ?>"><span class="bi bi-plus-lg" aria-hidden="true"></span></button>
                                     </div>
                                 <?php endif; ?>
@@ -357,6 +358,9 @@ $employee        = model(Employee::class);
                             </div>
 
                             <div class="cart-extra">
+                                <?php if (isset($unit_choices[(int) $item['item_id']])): ?>
+                                    <?= form_dropdown('unit_id', $unit_choices[(int) $item['item_id']], (string) ($item['unit_id'] ?? ''), ['class' => 'form-select form-select-sm', 'aria-label' => lang('Stock_units.unit')]) ?>
+                                <?php endif; ?>
                                 <?php if ($item['item_type'] == ITEM_TEMP): ?>
                                     <?= form_input(['name' => 'item_description', 'class' => 'form-control form-control-sm', 'value' => $item['description'], 'aria-label' => lang("{$sectionName}.description_abbrv"), 'placeholder' => lang("{$sectionName}.description_abbrv")]) ?>
                                 <?php else: ?>
@@ -907,7 +911,7 @@ $employee        = model(Employee::class);
             }
         }
 
-        $('[name="price"],[name="quantity"],[name="discount"],[name="description"],[name="serialnumber"],[name="discounted_total"]').change(function() {
+        $('[name="price"],[name="quantity"],[name="discount"],[name="description"],[name="serialnumber"],[name="discounted_total"],[name="unit_id"]').change(function() {
             $(this).closest('form').submit();
         });
 

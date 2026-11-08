@@ -13,6 +13,7 @@ use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Stock\StockDocumentSettings;
+use App\Libraries\Stock\StockOptions;
 use App\Libraries\Stock\StockPermissions;
 use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockPermitSources;
@@ -29,6 +30,7 @@ use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\ShelfFixtureTrait;
 use Tests\Support\StockDocumentFixtureTrait;
+use Tests\Support\StockUnitsFixtureTrait;
 
 /**
  * The numbered stock permits: an add permit, an issue permit and a transfer between two stock
@@ -46,6 +48,7 @@ class StockPermitTest extends CIUnitTestCase
     use SaleAccountingFixtureTrait;
     use ShelfFixtureTrait;
     use StockDocumentFixtureTrait;
+    use StockUnitsFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -70,6 +73,7 @@ class StockPermitTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopStockUnits();
         $this->stopStockDocuments();
         $this->stopBuying();
 
@@ -1305,5 +1309,78 @@ class StockPermitTest extends CIUnitTestCase
 
         $this->assertSame(1, (int) $this->permits->find($permitId)->revision);
         $this->assertSame('15.000', $this->onHand($first));
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Lines entered in a larger unit
+    // ---------------------------------------------------------------------------------------
+
+    public function testCreate_PutsAnAddPermitEnteredInCartonsIntoTheLocationInBaseUnitsAtTheCostOfAPiece(): void
+    {
+        $setup  = $this->cartonItem('0.00');
+        $itemId = $setup['item'];
+
+        $permitId = $this->permits->create($this->input(StockPermitType::Add, [['item_id' => $itemId, 'unit_id' => $setup['carton'], 'unit_quantity' => '2', 'unit_price' => '60']]), $this->keeperId);
+
+        $line = $this->accountingDb()->table('stock_permit_lines')->where('permit_id', $permitId)->get()->getRow();
+
+        $this->assertSame(['24.000', '5.000000', $setup['carton'], '12.0000', '2.000', '60.000000'], [$line->quantity, $line->unit_cost, (int) $line->unit_id, $line->unit_factor, $line->unit_quantity, $line->unit_cost_entered]);
+        $this->assertSame('24.000', $this->onHand($itemId));
+        $this->assertSame(['quantity' => '24.000', 'value' => '120.00'], $this->stockOf($itemId));
+        $this->assertSame([$this->stockAccount() . ':120.00:0.00', $this->accountId('other_payables') . ':0.00:120.00'], $this->linesOfJournal((int) $this->journalsOfSource(StockPermitSources::PERMIT, $permitId)[0]->journal_id));
+        $this->assertBooksTie();
+    }
+
+    public function testCreate_TakesAnIssuePermitEnteredInCartonsOutAtWhatABasePieceIsWorth(): void
+    {
+        $setup  = $this->cartonItem('0.00');
+        $itemId = $setup['item'];
+
+        $this->permits->create($this->input(StockPermitType::Add, [['item_id' => $itemId, 'unit_id' => $setup['carton'], 'unit_quantity' => '3', 'unit_price' => '60']]), $this->keeperId);
+        $this->permits->create($this->input(StockPermitType::Issue, [['item_id' => $itemId, 'unit_id' => $setup['carton'], 'unit_quantity' => '1']]), $this->keeperId);
+
+        $this->assertSame('24.000', $this->onHand($itemId));
+        $this->assertSame(['quantity' => '24.000', 'value' => '120.00'], $this->stockOf($itemId));
+        $this->assertBooksTie();
+    }
+
+    public function testCreate_RejectsAPermitLineInAUnitThatIsNotOfTheTemplateOfItsItem(): void
+    {
+        $setup = $this->cartonItem('0.00');
+        $other = $this->item('0.00');
+
+        $this->refusedWith(AccountingError::UnitNotOfItem, fn (): int => $this->permits->create($this->input(StockPermitType::Add, [['item_id' => $other, 'unit_id' => $setup['carton'], 'unit_quantity' => '1', 'unit_price' => '60']]), $this->keeperId));
+        $this->assertSame(0, $this->accountingDb()->table('stock_permits')->countAllResults());
+    }
+
+    public function testCreate_RejectsACartonCostThatDoesNotDivideIntoACostPerPieceOfSixDecimals(): void
+    {
+        $setup = $this->cartonItem('0.00');
+
+        $this->refusedWith(AccountingError::UnitPriceInexact, fn (): int => $this->permits->create($this->input(StockPermitType::Add, [['item_id' => $setup['item'], 'unit_id' => $setup['carton'], 'unit_quantity' => '1', 'unit_price' => '1']]), $this->keeperId));
+    }
+
+    public function testCreate_RejectsAPermitLineInAUnitWhileTheUnitsSettingIsOff(): void
+    {
+        $setup = $this->cartonItem('0.00');
+
+        $this->setConfigValue(StockOptions::UNITS, '0');
+
+        $this->refusedWith(AccountingError::UnitsOff, fn (): int => $this->permits->create($this->input(StockPermitType::Add, [['item_id' => $setup['item'], 'unit_id' => $setup['carton'], 'unit_quantity' => '1', 'unit_price' => '60']]), $this->keeperId));
+    }
+
+    public function testUpdate_ReplacesAUnitLineWithABaseLineAndTheShelfFollows(): void
+    {
+        $setup    = $this->cartonItem('0.00');
+        $itemId   = $setup['item'];
+        $permitId = $this->permits->create($this->input(StockPermitType::Add, [['item_id' => $itemId, 'unit_id' => $setup['carton'], 'unit_quantity' => '2', 'unit_price' => '60']]), $this->keeperId);
+
+        $this->permits->update($permitId, ['lines' => [['item_id' => $itemId, 'quantity' => '10', 'unit_cost' => '5']]], $this->keeperId);
+
+        $line = $this->accountingDb()->table('stock_permit_lines')->where('permit_id', $permitId)->get()->getRow();
+
+        $this->assertSame(['10.000', null], [$line->quantity, $line->unit_id]);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertBooksTie();
     }
 }
