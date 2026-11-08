@@ -3440,8 +3440,8 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $form = $this->get('/items/view/-1')->getBody();
 
-        $this->assertStringNotContainsString('<img src=x', $form);
-        $this->assertStringContainsString(esc($hostile), $form);
+        $this->assertDoesNotMatchRegularExpression('/<img\b[^>]*onerror/i', $form);
+        $this->assertStringContainsString('>' . esc($hostile) . '</option>', $form);
         $this->cleanMasterItems();
     }
 

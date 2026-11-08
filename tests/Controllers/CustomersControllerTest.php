@@ -1379,17 +1379,20 @@ class CustomersControllerTest extends CIUnitTestCase
 
     public function testGetView_EscapesTheNamesOfTheClassificationAndTheEmployeeInTheirLists(): void
     {
-        $hostile  = '</select><img src=x onerror=alert(1)>';
-        $employee = $this->employeeWithGrants(['customers']);
-        $this->accountingDb()->table('people')->where('person_id', $employee)->update(['first_name' => $hostile]);
-        $this->classification($hostile);
+        $classification = '</select><img src=x onerror=alert(1)>';
+        $employeeName   = '</select><b onmouseover=alert(2)>';
+        $employee       = $this->employeeWithGrants(['customers']);
+        $this->accountingDb()->table('people')->where('person_id', $employee)->update(['first_name' => $employeeName]);
+        $this->classification($classification);
 
         $form = $this->get('/customers/view/-1')->getBody();
         $list = $this->get('/customers')->getBody();
 
         foreach ([$form, $list] as $body) {
-            $this->assertStringNotContainsString('<img src=x', $body);
-            $this->assertStringContainsString(esc($hostile), $body);
+            $this->assertDoesNotMatchRegularExpression('/<img\b[^>]*onerror/i', $body);
+            $this->assertDoesNotMatchRegularExpression('/<b\b[^>]*onmouseover/i', $body);
+            $this->assertStringContainsString('>' . esc($classification) . '</option>', $body);
+            $this->assertStringContainsString(esc($employeeName), $body);
         }
 
         $this->cleanMaster();
