@@ -10,6 +10,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
 use App\Libraries\PurchaseCycle\PurchaseDocuments;
 use App\Libraries\PurchaseCycle\PurchaseDocumentStatus;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -517,6 +518,38 @@ class PurchaseDocumentsTest extends CIUnitTestCase
         $this->assertNotNull($row->cancelled_at);
         $this->assertSame(PurchaseDocumentStatus::Cancelled, $this->documentsOf($kind)->statusOf($documentId));
         $this->assertSame(['created', 'cancelled'], $this->auditActions($kind, $documentId));
+    }
+
+    #[DataProvider('kindProvider')]
+    public function testCancel_StopsAtTheLockOfTheDocumentWhileAnotherRequestHoldsItAndChangesNothing(PurchaseDocumentKind $kind): void
+    {
+        $documentId = $this->makeDocument($kind);
+        $holder     = $this->openSecondConnection();
+        $watching   = false;
+        $seen       = [];
+        $listener   = static function ($query) use (&$watching, &$seen): void {
+            if ($watching) {
+                $seen[] = (string) $query->getQuery();
+            }
+        };
+
+        $holder->resetTransStatus();
+        $holder->transStart();
+        $holder->query('SELECT * FROM ' . $holder->prefixTable($kind->table()) . ' WHERE ' . $kind->idColumn() . ' = ? FOR UPDATE', [$documentId]);
+        Events::on('DBQuery', $listener);
+
+        try {
+            $watching = true;
+            $this->assertWaitsForLock(fn () => (new PurchaseDocuments($kind, $this->openSecondConnection()))->cancel($documentId, 'not needed', $this->clerk));
+            $watching = false;
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+            $holder->transComplete();
+        }
+
+        $this->assertStringContainsString('FOR UPDATE', (string) end($seen), 'the request that waits stops at the locking read of the row and goes no further');
+        $this->assertSame('open', $this->row($kind, $documentId)->status);
+        $this->assertSame(['created'], $this->auditActions($kind, $documentId));
     }
 
     public function testCancel_RequiresAReasonOfAtMost255Characters(): void

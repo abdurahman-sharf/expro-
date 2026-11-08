@@ -828,7 +828,7 @@
     "replace": "FROM ' . $this->db->prefixTable('purchase_orders') . ' WHERE order_id = ?', [$orderId]);\n\n            if ($order === null) {\n                throw new AccountingException(AccountingError::PurchaseDocumentNotFound, 'There is no such purchase order.'",
     "tests": [
       "--filter",
-      "testRecordReceiving_LetsOneOfTwoReceivingsTakeTheUnitsOfTheOrderWhenTheyAreTakenAtTheSameMoment",
+      "testRecordReceiving_StopsASecondReceivingAtTheLockOfTheOrderBeforeItReadsTheUnitsTaken",
       "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
     ]
   },
@@ -2089,7 +2089,7 @@
     "replace": "' WHERE ' . $this->kind->idColumn() . ' = ?', [$documentId]);",
     "tests": [
       "--filter",
-      "testConvert_LetsOneOfTwoConversionsAtTheSameMoment",
+      "testCancel_StopsAtTheLockOfTheDocumentWhileAnotherRequestHoldsIt|testConvert_LetsOneOfTwoConversionsAtTheSameMoment",
       "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
     ]
   },

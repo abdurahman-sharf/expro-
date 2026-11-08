@@ -10,6 +10,7 @@ use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
 use App\Libraries\PurchaseCycle\PurchaseDocuments;
 use App\Libraries\PurchaseCycle\PurchaseDocumentStatus;
 use App\Libraries\PurchaseCycle\PurchaseOrderReceipts;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -489,6 +490,41 @@ class PurchaseOrderReceiptsTest extends CIUnitTestCase
         [$one, $two] = $this->raceTwoProcesses('orderRecord', [$first, $orderId, '7', $this->goods, $this->supplierId, $this->clerk], [$second, $orderId, '7', $this->goods, $this->supplierId, $this->clerk]);
 
         $this->assertSame(1, (int) $one + (int) $two, 'the lock of the order lets only one of two takings of 7 from an order of 10 through');
+        $this->assertSame(['7.000'], $this->received($orderId));
+        $this->assertSame(1, $this->countRows('purchase_order_receivings'));
+    }
+
+    public function testRecordReceiving_StopsASecondReceivingAtTheLockOfTheOrderBeforeItReadsTheUnitsTaken(): void
+    {
+        $orderId  = $this->order([['quantity' => '10']]);
+        $first    = $this->receivingOfStock();
+        $second   = $this->receivingOfStock();
+        $items    = [['item_id' => $this->goods, 'quantity' => '7', 'receiving_quantity' => '1']];
+        $holder   = $this->openSecondConnection();
+        $watching = false;
+        $seen     = [];
+        $listener = static function ($query) use (&$watching, &$seen): void {
+            if ($watching) {
+                $seen[] = (string) $query->getQuery();
+            }
+        };
+
+        $holder->resetTransStatus();
+        $holder->transStart();
+        Events::on('DBQuery', $listener);
+
+        try {
+            (new PurchaseOrderReceipts($holder))->recordReceiving($first, $orderId, $items, $this->supplierId, $this->clerk, 1);
+
+            $watching = true;
+            $this->assertWaitsForLock(fn () => (new PurchaseOrderReceipts($this->openSecondConnection()))->recordReceiving($second, $orderId, $items, $this->supplierId, $this->clerk, 1));
+            $watching = false;
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+            $holder->transComplete();
+        }
+
+        $this->assertSame([], array_values(array_filter($seen, static fn (string $sql): bool => str_contains($sql, 'purchase_order_receiving_lines'))), 'a receiving that waits for the order has not yet looked at the units that were taken from it');
         $this->assertSame(['7.000'], $this->received($orderId));
         $this->assertSame(1, $this->countRows('purchase_order_receivings'));
     }
