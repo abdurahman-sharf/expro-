@@ -223,7 +223,7 @@ final class DuplicateRuleTest extends CIUnitTestCase
         $this->keyed('2026-10-10');
         $this->keyed('2026-10-11');
 
-        $this->assertSame($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
+        $this->assertEquals($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
         $this->assertSame('AI-DUPLICATE', $this->rule->code());
     }
 }

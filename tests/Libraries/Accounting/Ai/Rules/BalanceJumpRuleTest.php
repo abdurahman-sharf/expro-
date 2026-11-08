@@ -285,7 +285,7 @@ final class BalanceJumpRuleTest extends CIUnitTestCase
     {
         $this->owes('2026-10-20', '15000.00');
 
-        $this->assertSame($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
+        $this->assertEquals($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
         $this->assertSame('AI-BALANCE-JUMP', $this->rule->code());
     }
 }

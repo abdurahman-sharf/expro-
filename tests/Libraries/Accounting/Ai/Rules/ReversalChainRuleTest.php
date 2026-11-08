@@ -212,7 +212,7 @@ final class ReversalChainRuleTest extends CIUnitTestCase
     {
         $this->chain('expense', 5, 3);
 
-        $this->assertSame($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
+        $this->assertEquals($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
         $this->assertSame('AI-REVERSAL-CHAIN', $this->rule->code());
     }
 }

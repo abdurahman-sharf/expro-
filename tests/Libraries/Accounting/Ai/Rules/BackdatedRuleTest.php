@@ -220,7 +220,7 @@ final class BackdatedRuleTest extends CIUnitTestCase
         $this->backdated('2026-09-10', '2026-10-30 10:00:00');
         $this->closedAt('2026-09-30', '2026-11-01 09:00:00');
 
-        $this->assertSame($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
+        $this->assertEquals($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
         $this->assertSame('AI-BACKDATED', $this->rule->code());
     }
 }

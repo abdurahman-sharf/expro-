@@ -368,7 +368,7 @@ final class ReclassificationProposerTest extends CIUnitTestCase
         $this->history('Gulf Cleaning', $this->maintenance(), 3);
         $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
 
-        $this->assertSame($this->proposer->propose($this->today, null), $this->proposer->propose($this->today, null));
+        $this->assertEquals($this->proposer->propose($this->today, null), $this->proposer->propose($this->today, null));
     }
 
     public function testPropose_GivesDraftsTheServiceAcceptsAndTheApprovalPostsAsTheMoveOfTheAmount(): void
