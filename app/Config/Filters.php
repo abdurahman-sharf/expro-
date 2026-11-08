@@ -2,6 +2,7 @@
 
 namespace Config;
 
+use App\Filters\ReportExport;
 use App\Filters\Throttle;
 use CodeIgniter\Config\Filters as BaseFilters;
 use CodeIgniter\Filters\Cors;
@@ -38,6 +39,7 @@ class Filters extends BaseFilters
         'performance'   => PerformanceMetrics::class,
         'isLoggedIn'    => IsLoggedIn::class,
         'throttle'      => Throttle::class,
+        'reportexport'  => ReportExport::class,
     ];
 
     /**

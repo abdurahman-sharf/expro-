@@ -305,9 +305,96 @@ function familyReportCatalog(array $permissionIds, ?bool $accountingOn = null): 
 }
 
 /**
+ * The reports of the books that no other catalog offers: the statements and ledgers, the aged ledgers and
+ * balance reports of customers and suppliers, the reports of cheques, the reconciliation of the banks and
+ * the balances between branches. Each is offered to someone who holds the module that opens it, and the
+ * reconciliation also to someone who holds the permission to reconcile, and only while accounting is on.
+ *
+ * @param list<string> $permissionIds
+ * @param bool|null    $accountingOn  Null reads the setting.
+ *
+ * @return list<array{label: string, subjects: list<array{icon: string, label: string, links: list<array{path: string, label: string, icon: string}>}>}>
+ */
+function booksReportCatalog(array $permissionIds, ?bool $accountingOn = null): array
+{
+    if (array_intersect(['accounting_reports', 'accounting_receivables', 'accounting_payables', 'accounting_cheques', 'accounting_treasuries'], $permissionIds) === []) {
+        return [];
+    }
+
+    $accountingOn ??= (new AccountingSettings())->isEnabled();
+
+    if (! $accountingOn) {
+        return [];
+    }
+
+    $subjects = [
+        ['bi-journal-richtext', 'Accounting_reports.catalog_statements', [
+            ['accounting_reports', [], 'accounting_reports', 'Accounting_reports.trial_balance'],
+            ['accounting_reports', [], 'accounting_reports/ledger', 'Accounting_reports.ledger'],
+            ['accounting_reports', [], 'accounting_statements/income_statement', 'Accounting_statements.income_statement'],
+            ['accounting_reports', [], 'accounting_statements/balance_sheet', 'Accounting_statements.balance_sheet'],
+        ]],
+        ['bi-people', 'Accounting_reports.catalog_parties', [
+            ['accounting_receivables', [], 'accounting_receivables/aged_ledger', 'Accounting_receivables.aged_title'],
+            ['accounting_receivables', [], 'accounting_receivables/balances', 'Accounting_receivables.balances_title'],
+            ['accounting_payables', [], 'accounting_payables/aged_ledger', 'Accounting_payables.aged_title'],
+            ['accounting_payables', [], 'accounting_payables/balances', 'Accounting_payables.balances_title'],
+        ]],
+        ['bi-wallet2', 'Accounting_reports.catalog_cheques', [
+            ['accounting_cheques', [], 'accounting_cheques/report/received', 'Accounting_cheques.report_received'],
+            ['accounting_cheques', [], 'accounting_cheques/report/paid', 'Accounting_cheques.report_paid'],
+        ]],
+        ['bi-bank', 'Accounting_reports.catalog_treasuries', [
+            ['accounting_treasuries', ['acc_bank_reconcile'], 'accounting_treasuries/bank', 'Accounting_bank.title'],
+            ['accounting_treasuries', [], 'accounting_treasuries/inter_branch', 'Accounting_treasuries.inter_branch'],
+        ]],
+    ];
+
+    $offered = [];
+
+    foreach ($subjects as [$icon, $label, $reports]) {
+        $links = [];
+
+        foreach ($reports as [$module, $also, $route, $linkLabel]) {
+            if (in_array($module, $permissionIds, true) && array_diff($also, $permissionIds) === []) {
+                $links[] = ['path' => site_url($route), 'label' => lang($linkLabel), 'icon' => 'bi-table'];
+            }
+        }
+
+        if ($links !== []) {
+            $offered[] = ['icon' => $icon, 'label' => lang($label), 'links' => $links];
+        }
+    }
+
+    return $offered === [] ? [] : [['label' => lang('Accounting_reports.catalog_group'), 'subjects' => $offered]];
+}
+
+/**
+ * Every report the index and the quick search offer, from the catalogs of the reports of sales and stock,
+ * of the operational reports, of the families of purchases and stock, and of the books.
+ *
+ * @param list<string> $permissionIds
+ * @param bool|null    $accountingOn  Null reads the setting.
+ *
+ * @return list<array{label: string, subjects: list<array{icon: string, label: string, links: list<array{path: string, label: string, icon: string}>}>}>
+ */
+function allReportCatalogs(array $permissionIds, ?bool $accountingOn = null): array
+{
+    $openable = openableReportPermissions($permissionIds);
+
+    return [
+        ...reportCatalog($openable, $accountingOn),
+        ...operationalReportCatalog($permissionIds, $accountingOn),
+        ...familyReportCatalog($permissionIds, $accountingOn),
+        ...booksReportCatalog($openable, $accountingOn),
+    ];
+}
+
+/**
  * The report permissions that open a report for the logged-in employee. The expenses reports hold
- * the figures of the whole company, since expenses carry no branch, so only an employee who works in
- * every branch is offered them.
+ * the figures of the whole company, since expenses carry no branch, and so do the aged ledgers and the
+ * balance reports of customers and suppliers, so only an employee who works in every branch is offered
+ * them.
  *
  * @param list<string> $permissionIds
  *
@@ -321,7 +408,7 @@ function openableReportPermissions(array $permissionIds): array
         return $permissionIds;
     }
 
-    return array_values(array_diff($permissionIds, ['reports_expenses_categories']));
+    return array_values(array_diff($permissionIds, ['reports_expenses_categories', 'accounting_receivables', 'accounting_payables']));
 }
 
 /**

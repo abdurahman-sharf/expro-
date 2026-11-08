@@ -4,9 +4,11 @@ namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\InterBranchBalances;
 use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\PairBalance;
+use App\Libraries\Accounting\PairwiseReport;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReportScopeKind;
@@ -23,6 +25,8 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingInterBranch extends AccountingController
 {
+    use ExportsCsv;
+
     private const MAX_PAGE_SIZE = 500;
 
     private InterBranchBalances $balances;
@@ -51,6 +55,22 @@ class AccountingInterBranch extends AccountingController
     public function getPairs(): string
     {
         return view('accounting_treasuries/inter_branch_pairs', $this->pairsData());
+    }
+
+    public function getCsv(): ResponseInterface
+    {
+        $scope = $this->pairsScope();
+
+        try {
+            $asOf = ReportPeriod::of(null, $this->asOfOf($this->request->getGet('as_of')))->to;
+        } catch (AccountingException $refusal) {
+            return $this->response->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)->setBody($this->messageFor($refusal));
+        }
+
+        return $this->response
+            ->setContentType('text/csv', 'UTF-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="inter_branch_balances_' . $asOf . '.csv"')
+            ->setBody("\xEF\xBB\xBF" . $this->pairsCsv($this->balances->report($scope->isCompany() ? null : $scope->ids, $asOf), $scope, $asOf));
     }
 
     public function getSettlementsSearch(): ResponseInterface
@@ -157,9 +177,8 @@ class AccountingInterBranch extends AccountingController
      */
     private function pairsData(): array
     {
-        $requested = $this->request->getGet('branches');
-        $scope     = ReportScope::resolve(is_array($requested) ? array_map('intval', $requested) : null, $this->branchIds());
-        $error     = null;
+        $scope = $this->pairsScope();
+        $error = null;
 
         try {
             $asOf = ReportPeriod::of(null, $this->asOfOf($this->request->getGet('as_of')))->to;
@@ -199,7 +218,66 @@ class AccountingInterBranch extends AccountingController
             'scopeEmpty'   => $scope->isEmpty(),
             'scopePartial' => $scope->kind === ReportScopeKind::Partial,
             'canSettle'    => $this->can(AccountingGuard::INTERBRANCH_SETTLE),
+            'csvUrl'       => base_url('accounting_treasuries/inter_branch/csv') . '?' . http_build_query(['as_of' => $asOf] + ($this->request->getGet('branches') === null ? [] : ['branches' => $scope->isEmpty() ? [0] : $scope->ids])),
         ];
+    }
+
+    private function pairsScope(): ReportScope
+    {
+        $requested = $this->request->getGet('branches');
+
+        return ReportScope::resolve(is_array($requested) ? array_map('intval', $requested) : null, $this->branchIds());
+    }
+
+    private function pairsCsv(PairwiseReport $report, ReportScope $scope, string $asOf): string
+    {
+        $handle = fopen('php://temp', 'r+b');
+
+        $this->csvRow($handle, [lang('Accounting_treasuries.inter_branch')]);
+        $this->csvRow($handle, [lang('Accounting_treasuries.as_of'), $asOf]);
+        $this->csvRow($handle, [lang('Accounting_reports.csv_branches'), implode(' ', $scope->codes)]);
+        $this->csvNote($handle, $scope->label());
+        $this->csvRow($handle, [
+            lang('Accounting_treasuries.pair_branch'),
+            lang('Accounting_treasuries.pair_with'),
+            lang('Accounting_treasuries.pair_owed'),
+            lang('Accounting_treasuries.pair_owing'),
+            lang('Accounting_treasuries.pair_net'),
+            lang('Accounting_treasuries.pair_basis'),
+            lang('Accounting_treasuries.pair_agrees'),
+        ]);
+
+        foreach ($report->rows as $row) {
+            $this->csvRow($handle, [
+                $row->code,
+                $row->counterpartCode,
+                $row->receivable,
+                $row->payable,
+                $row->owed,
+                lang('Accounting_treasuries.pair_basis_' . $row->basis),
+                lang($row->agrees ? 'Accounting_treasuries.pair_agrees_yes' : 'Accounting_treasuries.pair_agrees_no'),
+            ]);
+        }
+
+        if ($report->rows === []) {
+            $this->csvNote($handle, lang('Accounting_treasuries.pair_none'));
+        }
+
+        if ($report->unattributed !== []) {
+            $this->csvRow($handle, []);
+            $this->csvRow($handle, [lang('Accounting_treasuries.unattributed_title')]);
+            $this->csvRow($handle, [lang('Accounting_treasuries.pair_branch'), lang('Accounting_treasuries.pair_owed'), lang('Accounting_treasuries.pair_owing')]);
+
+            foreach ($report->unattributed as $row) {
+                $this->csvRow($handle, [$row->code, $row->receivable, $row->payable]);
+            }
+        }
+
+        if ($report->difference !== null && bccomp($report->difference, '0', 4) !== 0) {
+            $this->csvNote($handle, lang('Accounting_treasuries.company_difference', [$report->difference]));
+        }
+
+        return $this->csvText($handle);
     }
 
     private function asOfOf(mixed $value): string

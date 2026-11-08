@@ -269,6 +269,7 @@ enum AccountingError: string
     case ReportAccountMissing = 'report_account_missing';
     case LedgerTooLarge       = 'ledger_too_large';
     case ReportTooManyPeriods = 'report_too_many_periods';
+    case ReportFileTooLarge   = 'report_file_too_large';
 
     case ProfitBasisUnavailable = 'profit_basis_unavailable';
 

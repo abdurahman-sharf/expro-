@@ -75,34 +75,92 @@ class SaleDocumentListTest extends CIUnitTestCase
             : $this->quote(null, $lines);
     }
 
-    public function testDrafts_ListsAtMostTheNewestTwoHundredSoThatTheOldestOneIsLeftOut(): void
+    public function testDrafts_ListsAPageOfTheNewestFirstAndTheNextPageHoldsTheOlderOnes(): void
     {
-        $ids = $this->suspendedRows(SaleDocumentList::LIMIT + 1, SALE_TYPE_INVOICE);
+        $ids = $this->suspendedRows(SaleDocumentList::PAGE_SIZE + 1, SALE_TYPE_INVOICE);
 
-        $listed = $this->ids($this->list->drafts(null));
+        $first = $this->ids($this->list->drafts(null));
 
-        $this->assertCount(200, $listed);
-        $this->assertSame(max($ids), $listed[0]);
-        $this->assertSame($ids[1], $listed[199]);
-        $this->assertNotContains($ids[0], $listed);
+        $this->assertCount(50, $first);
+        $this->assertSame(max($ids), $first[0]);
+        $this->assertSame($ids[1], $first[49]);
+        $this->assertNotContains($ids[0], $first);
+        $this->assertSame([$ids[0]], $this->ids($this->list->drafts(null, null, 2)));
     }
 
-    public function testDrafts_ListsEveryDraftWhileThereAreNoMoreThanTheLimit(): void
+    public function testDrafts_ListsEveryDraftOnOnePageWhileThereAreNoMoreThanThePageSize(): void
     {
-        $ids = $this->suspendedRows(SaleDocumentList::LIMIT, SALE_TYPE_INVOICE);
+        $ids = $this->suspendedRows(SaleDocumentList::PAGE_SIZE, SALE_TYPE_INVOICE);
 
         $this->assertEqualsCanonicalizing($ids, $this->ids($this->list->drafts(null)));
+        $this->assertSame([], $this->list->drafts(null, null, 2));
     }
 
-    public function testQuotes_ListsAtMostTheNewestTwoHundredSoThatTheOldestOneIsLeftOut(): void
+    public function testQuotes_ListsAPageOfTheNewestFirstAndTheNextPageHoldsTheOlderOnes(): void
     {
-        $ids = $this->suspendedRows(SaleDocumentList::LIMIT + 1, SALE_TYPE_QUOTE);
+        $ids = $this->suspendedRows(SaleDocumentList::PAGE_SIZE + 1, SALE_TYPE_QUOTE);
 
-        $listed = $this->ids($this->list->quotes(null));
+        $first = $this->ids($this->list->quotes(null));
 
-        $this->assertCount(200, $listed);
-        $this->assertNotContains($ids[0], $listed);
-        $this->assertContains($ids[1], $listed);
+        $this->assertCount(50, $first);
+        $this->assertNotContains($ids[0], $first);
+        $this->assertContains($ids[1], $first);
+        $this->assertSame([$ids[0]], $this->ids($this->list->quotes(null, null, null, 2)));
+    }
+
+    public function testDrafts_TreatsAPageBelowOneAsTheFirstAndFindsNothingBeyondTheLastPage(): void
+    {
+        $ids = $this->suspendedRows(3, SALE_TYPE_INVOICE);
+
+        $this->assertEqualsCanonicalizing($ids, $this->ids($this->list->drafts(null, null, 0)));
+        $this->assertEqualsCanonicalizing($ids, $this->ids($this->list->drafts(null, null, -4)));
+        $this->assertSame([], $this->list->drafts(null, null, 2));
+    }
+
+    public function testDrafts_PagesOnlyWhatTheReaderMayRead(): void
+    {
+        $this->suspendedRows(SaleDocumentList::PAGE_SIZE + 3, SALE_TYPE_INVOICE, 1);
+        $other = $this->createBranch('B9', 'Other branch');
+        $mine  = $this->suspendedRows(2, SALE_TYPE_INVOICE, $other);
+
+        $this->assertEqualsCanonicalizing($mine, $this->ids($this->list->drafts([$other])));
+        $this->assertSame([], $this->list->drafts([$other], null, 2));
+        $this->assertSame([], $this->list->drafts([]));
+    }
+
+    public function testCountDrafts_CountsEveryDraftOfTheBranchesTheReaderWorksInWhateverThePage(): void
+    {
+        $this->suspendedRows(SaleDocumentList::PAGE_SIZE + 3, SALE_TYPE_INVOICE, 1);
+        $other = $this->createBranch('B9', 'Other branch');
+        $this->suspendedRows(2, SALE_TYPE_INVOICE, $other);
+        $this->suspendedRows(4, SALE_TYPE_QUOTE, 1);
+
+        $this->assertSame(55, $this->list->countDrafts(null));
+        $this->assertSame(2, $this->list->countDrafts([$other]));
+        $this->assertSame(53, $this->list->countDrafts([1]));
+        $this->assertSame(0, $this->list->countDrafts([]));
+    }
+
+    public function testCountQuotes_CountsOnlyTheQuotesOfTheStatusAskedAndOfTheBranchesOfTheReader(): void
+    {
+        $this->suspendedRows(4, SALE_TYPE_QUOTE, 1);
+        $other = $this->createBranch('B9', 'Other branch');
+        $this->suspendedRows(3, SALE_TYPE_QUOTE, $other);
+
+        $this->assertSame(7, $this->list->countQuotes(null));
+        $this->assertSame(7, $this->list->countQuotes(null, QuoteStatus::Open));
+        $this->assertSame(0, $this->list->countQuotes(null, QuoteStatus::Sent));
+        $this->assertSame(3, $this->list->countQuotes([$other]));
+        $this->assertSame(0, $this->list->countQuotes([]));
+    }
+
+    public function testPages_RoundsUpAndNeverGivesLessThanOnePage(): void
+    {
+        $this->assertSame(1, SaleDocumentList::pages(0));
+        $this->assertSame(1, SaleDocumentList::pages(50));
+        $this->assertSame(2, SaleDocumentList::pages(51));
+        $this->assertSame(2, SaleDocumentList::pages(100));
+        $this->assertSame(3, SaleDocumentList::pages(101));
     }
 
     public function testDrafts_ListsTheSuspendedInvoicesNewestFirstAndNothingElse(): void
@@ -309,5 +367,31 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertSame([$theirQuote], $this->ids($this->list->quotes(null, null, $other)));
         $this->assertEqualsCanonicalizing([$draft, $theirDraft], $this->ids($this->list->drafts(null, $previous)));
         $this->assertEqualsCanonicalizing([$quote, $theirQuote], $this->ids($this->list->quotes(null, null, $previous)));
+    }
+
+    public function testCountDraftsAndCountQuotes_CountOnlyTheDocumentsAnEmployeeWhoSeesTheirOwnRecordsMade(): void
+    {
+        $this->inBranch(1);
+        $this->inBranch(1, 'quote');
+        $other    = $this->createEmployee();
+        $previous = $this->employeeId;
+
+        $this->employeeId = $other;
+
+        try {
+            $this->inBranch(1);
+            $this->inBranch(1, 'quote');
+            $this->inBranch(1, 'quote');
+        } finally {
+            $this->employeeId = $previous;
+        }
+
+        (new RoleService())->setRecordScope($other, 'own', null);
+
+        $this->assertSame(1, $this->list->countDrafts(null, $other));
+        $this->assertSame(2, $this->list->countQuotes(null, null, $other));
+        $this->assertSame(2, $this->list->countDrafts(null, $previous));
+        $this->assertSame(3, $this->list->countQuotes(null, null, $previous));
+        $this->assertSame(2, $this->list->countDrafts(null));
     }
 }

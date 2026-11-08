@@ -519,6 +519,7 @@ return [
     'error_refund_not_found'                     => 'هذا الاسترداد غير موجود.',
     'error_refund_party_missing'                 => 'هذا العميل أو المورد غير موجود.',
     'error_report_account_missing'               => 'هذا الحساب غير موجود.',
+    'error_report_file_too_large'                => 'عدد صفوف التقرير يتجاوز {0}، وهو أكبر مما يحمله ملف بهذه الصيغة. ضيّق الفترة أو المرشحات أو خذ ملف CSV.',
     'error_report_period_invalid'                => 'بداية الفترة أحدث من نهايتها.',
     'error_report_too_large'                     => 'المدى يحتوي فترات أكثر مما يمكن للتقرير عرضه. ضيّق المدى.',
     'error_report_too_many_periods'              => 'المدى يضم أكثر من {0} عمودًا. اختر ربع سنوي أو سنوي، أو مدى أقصر.',

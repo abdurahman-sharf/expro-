@@ -10,6 +10,7 @@
  * @var Closure               $amount
  * @var Closure               $date
  * @var Closure               $number
+ * @var string                $csvUrl
  */
 
 use App\Libraries\Accounting\Bank\ReconciliationFigures;
@@ -50,6 +51,8 @@ $journal = static function (object $line) use ($journalLinks, $number): string {
 <div id="title_bar" class="print_hide btn-toolbar">
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_treasuries/bank/' . $id), 'attr') ?>"><span class="bi bi-arrow-left" aria-hidden="true">&nbsp;</span><?= lang('Accounting_bank.back_account') ?></a>
     <button class="btn btn-outline-secondary btn-sm" type="button" onclick="window.print()"><span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Accounting_bank.print') ?></button>
+    <a class="btn btn-outline-secondary btn-sm" id="bank_report_csv" href="<?= esc($csvUrl, 'attr') ?>"><span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?></a>
+    <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'bank_report_csv']) ?>
 </div>
 
 <div class="container-fluid py-3" id="bank_report">
@@ -133,7 +136,7 @@ $journal = static function (object $line) use ($journalLinks, $number): string {
         <p class="text-body-secondary" id="bank_report_no_statement_items"><?= lang('Accounting_bank.none') ?></p>
     <?php else: ?>
         <div class="table-responsive mb-4">
-            <table class="table table-sm" id="bank_report_statement_items">
+            <table class="table table-sm acc-lines" id="bank_report_statement_items">
                 <thead><tr><th scope="col"><?= lang('Accounting_bank.date') ?></th><th scope="col"><?= lang('Accounting_bank.description') ?></th><th scope="col"><?= lang('Accounting_bank.reference') ?></th><th scope="col"><?= lang('Accounting_bank.amount') ?></th></tr></thead>
                 <tbody>
                     <?php foreach ($figures->statementLines as $line): ?>
@@ -149,7 +152,7 @@ $journal = static function (object $line) use ($journalLinks, $number): string {
         <p class="text-body-secondary" id="bank_report_no_book_items"><?= lang('Accounting_bank.none') ?></p>
     <?php else: ?>
         <div class="table-responsive mb-4">
-            <table class="table table-sm" id="bank_report_book_items">
+            <table class="table table-sm acc-lines" id="bank_report_book_items">
                 <thead><tr><th scope="col"><?= lang('Accounting_bank.date') ?></th><th scope="col"><?= lang('Accounting_bank.journal') ?></th><th scope="col"><?= lang('Accounting_bank.description') ?></th><th scope="col"><?= lang('Accounting_bank.amount') ?></th></tr></thead>
                 <tbody>
                     <?php foreach ($figures->bookLines as $line): ?>
@@ -163,7 +166,7 @@ $journal = static function (object $line) use ($journalLinks, $number): string {
     <?php if ($figures->carriedLines !== []): ?>
         <h2 class="h5"><?= lang('Accounting_bank.carried') ?></h2>
         <div class="table-responsive mb-4">
-            <table class="table table-sm" id="bank_report_carried_items">
+            <table class="table table-sm acc-lines" id="bank_report_carried_items">
                 <thead><tr><th scope="col"><?= lang('Accounting_bank.date') ?></th><th scope="col"><?= lang('Accounting_bank.journal') ?></th><th scope="col"><?= lang('Accounting_bank.description') ?></th><th scope="col"><?= lang('Accounting_bank.amount') ?></th></tr></thead>
                 <tbody>
                     <?php foreach ($figures->carriedLines as $line): ?>

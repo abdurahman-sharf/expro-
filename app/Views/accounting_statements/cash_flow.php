@@ -27,6 +27,7 @@ use App\Libraries\Accounting\CashFlowSection;
     <a class="btn btn-outline-secondary btn-sm float-end" id="cash_flow_csv" href="<?= esc($csvUrl, 'attr') ?>">
         <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?>
     </a>
+    <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'cash_flow_csv']) ?>
     <a class="btn btn-outline-secondary btn-sm float-end" id="cash_flow_settings_link" href="<?= esc(base_url('accounting_statements/cash_flow/settings'), 'attr') ?>">
         <span class="bi bi-sliders" aria-hidden="true">&nbsp;</span><?= lang($canSetUp ? 'Accounting_cash_flow.settings_edit' : 'Accounting_cash_flow.settings_view') ?>
     </a>

@@ -4,8 +4,11 @@ namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\YearEndBranchPlan;
+use App\Libraries\Accounting\YearEndBranchStatus;
 use App\Libraries\Accounting\YearEndClosing;
+use App\Libraries\Accounting\YearEndPreview;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchService;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -13,6 +16,8 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 class AccountingYearEnd extends AccountingController
 {
+    use ExportsCsv;
+
     private YearEndClosing $closing;
 
     public function __construct()
@@ -54,7 +59,34 @@ class AccountingYearEnd extends AccountingController
             'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'        => fn (string $value): string => $this->formatDate($value),
             'status_text' => static fn (YearEndBranchPlan $plan): string => lang('Accounting_periods.year_end_status_' . $plan->status->value),
+            'csvUrl'      => $yearId === null || $scope === '' ? null : base_url('accounting_periods/year_end/csv') . '?' . http_build_query(['year' => $yearId, 'scope' => $scope]),
         ]);
+    }
+
+    public function getCsv(): ResponseInterface
+    {
+        if (! $this->can(AccountingGuard::YEAR_END_CLOSE)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $options = $this->scopeOptions();
+        $scope   = $this->scopeParameter($options);
+        $yearId  = $this->yearParameter($this->closing->years($this->employeeId()));
+
+        if ($yearId === null || $options === []) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        try {
+            $preview = $this->closing->preview($scope === 'company' ? null : (int) $scope, $yearId, $this->employeeId());
+        } catch (AccountingException|BranchException $refusal) {
+            return $this->response->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)->setBody($this->messageFor($refusal));
+        }
+
+        return $this->response
+            ->setContentType('text/csv', 'UTF-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="year_end_preview_' . $yearId . '_' . $scope . '.csv"')
+            ->setBody("\xEF\xBB\xBF" . $this->previewCsv($preview));
     }
 
     public function getApproveForm(): string
@@ -219,5 +251,54 @@ class AccountingYearEnd extends AccountingController
         }
 
         return $years === [] ? null : (int) $years[0]->fiscal_year_id;
+    }
+
+    private function previewCsv(YearEndPreview $preview): string
+    {
+        $handle = fopen('php://temp', 'r+b');
+
+        $this->csvRow($handle, [lang('Accounting_periods.year_end_title')]);
+        $this->csvRow($handle, [lang('Accounting_periods.year_end_period', [$preview->year->name, $preview->year->start_date, $preview->year->end_date])]);
+
+        if ($preview->retainedAccount !== null) {
+            $this->csvRow($handle, [lang('Accounting_periods.year_end_retained'), $preview->retainedAccount->code . ' ' . $preview->retainedAccount->name]);
+        }
+
+        foreach ($preview->blockers as $blocker) {
+            $this->csvNote($handle, $this->messageFor($blocker));
+        }
+
+        foreach ($preview->branches as $plan) {
+            $this->csvRow($handle, []);
+            $this->csvRow($handle, [$plan->code . ' ' . $plan->name . ' (' . lang('Accounting_periods.year_end_status_' . $plan->status->value) . ')']);
+
+            if ($plan->status === YearEndBranchStatus::AlreadyClosed) {
+                $this->csvNote($handle, lang('Accounting_periods.year_end_already_closed_note'));
+
+                continue;
+            }
+
+            if ($plan->status === YearEndBranchStatus::NoActivity) {
+                $this->csvNote($handle, lang('Accounting_periods.year_end_nothing'));
+
+                continue;
+            }
+
+            $this->csvRow($handle, [lang('Accounting_periods.year_end_account'), lang('Accounting_journals.debit'), lang('Accounting_journals.credit')]);
+
+            foreach ($plan->lines as $line) {
+                $this->csvRow($handle, [$line->code . ' ' . $line->name, $line->closingDebit(), $line->closingCredit()]);
+            }
+
+            if ($preview->retainedAccount !== null && ($plan->isProfit() || $plan->isLoss())) {
+                $this->csvRow($handle, [$preview->retainedAccount->code . ' ' . $preview->retainedAccount->name, $plan->isLoss() ? bcsub('0', $plan->result, 4) : '', $plan->isProfit() ? $plan->result : '']);
+            }
+
+            $this->csvRow($handle, [lang('Accounting_periods.year_end_revenue'), $plan->revenue]);
+            $this->csvRow($handle, [lang('Accounting_periods.year_end_expense'), $plan->expense]);
+            $this->csvRow($handle, [$plan->isLoss() ? lang('Accounting_periods.year_end_loss') : lang('Accounting_periods.year_end_profit'), $plan->isLoss() ? bcsub('0', $plan->result, 4) : $plan->result]);
+        }
+
+        return $this->csvText($handle);
     }
 }

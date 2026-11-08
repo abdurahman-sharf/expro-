@@ -17,8 +17,8 @@
  * @var array<string, string>      $filters
  * @var string                     $order
  * @var string|null                $error
- * @var string                     $csv_url
- * @var Closure                    $page_url
+ * @var string                     $csvUrl
+ * @var Closure                    $pageUrl
  */
 $negative = bccomp($balance, '0', 4) < 0;
 
@@ -54,9 +54,10 @@ $journal = static function (array $row) use ($journal_links, $matched): string {
     <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
-    <a class="btn btn-outline-secondary btn-sm float-end" id="statement_csv" href="<?= esc($csv_url, 'attr') ?>">
+    <a class="btn btn-outline-secondary btn-sm float-end" id="statement_csv" href="<?= esc($csvUrl, 'attr') ?>">
         <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_treasuries.statement_csv') ?>
     </a>
+    <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'statement_csv']) ?>
 </div>
 
 <div class="container-fluid py-3" id="treasury_statement">
@@ -90,7 +91,7 @@ $journal = static function (array $row) use ($journal_links, $matched): string {
         <p class="text-body-secondary" id="treasury_no_crossings"><?= lang('Accounting_treasuries.crossings_none') ?></p>
     <?php else: ?>
         <div class="table-responsive mb-4">
-            <table class="table table-sm" id="treasury_crossings">
+            <table class="table table-sm acc-lines" id="treasury_crossings">
                 <thead>
                     <tr>
                         <th scope="col"><?= lang('Accounting_treasuries.date') ?></th>
@@ -160,7 +161,7 @@ $journal = static function (array $row) use ($journal_links, $matched): string {
     <?php else: ?>
         <p class="small text-body-secondary" id="statement_count"><?= esc(lang('Accounting_treasuries.statement_count', [$total_rows])) ?></p>
         <div class="table-responsive mb-4">
-            <table class="table table-sm" id="treasury_movements">
+            <table class="table table-sm acc-lines" id="treasury_movements">
                 <thead>
                     <tr>
                         <th scope="col"><?= lang('Accounting_treasuries.date') ?></th>
@@ -193,11 +194,11 @@ $journal = static function (array $row) use ($journal_links, $matched): string {
         <?php if ($pages > 1): ?>
             <nav class="print_hide d-flex gap-2 align-items-center" aria-label="<?= esc(lang('Accounting_treasuries.statement_pages'), 'attr') ?>" id="statement_pages">
                 <?php if ($page > 1): ?>
-                    <a class="btn btn-outline-secondary btn-sm" rel="prev" href="<?= esc($page_url($page - 1), 'attr') ?>"><?= lang('Accounting_treasuries.statement_previous') ?></a>
+                    <a class="btn btn-outline-secondary btn-sm" rel="prev" href="<?= esc($pageUrl($page - 1), 'attr') ?>"><?= lang('Accounting_treasuries.statement_previous') ?></a>
                 <?php endif; ?>
                 <span class="small"><?= esc(lang('Accounting_treasuries.statement_page', [$page, $pages])) ?></span>
                 <?php if ($page < $pages): ?>
-                    <a class="btn btn-outline-secondary btn-sm" rel="next" href="<?= esc($page_url($page + 1), 'attr') ?>"><?= lang('Accounting_treasuries.statement_next') ?></a>
+                    <a class="btn btn-outline-secondary btn-sm" rel="next" href="<?= esc($pageUrl($page + 1), 'attr') ?>"><?= lang('Accounting_treasuries.statement_next') ?></a>
                 <?php endif; ?>
             </nav>
         <?php endif; ?>

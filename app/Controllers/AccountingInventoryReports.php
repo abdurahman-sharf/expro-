@@ -50,7 +50,7 @@ class AccountingInventoryReports extends AccountingController
             'branches'    => $this->branchChoices($scope),
             'scope_label' => $this->scopeLabel($scope),
             'scope_kind'  => $scope->kind,
-            'csv_url'     => $this->csvUrl($scope),
+            'csvUrl'      => $this->csvUrl($scope),
             'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'quantity'    => fn (string $value): string => $this->amountCell(to_quantity_decimals($value)),
             'date'        => fn (string $value): string => $this->formatDate($value),

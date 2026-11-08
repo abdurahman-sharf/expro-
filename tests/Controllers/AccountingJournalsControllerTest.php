@@ -757,6 +757,19 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $response->assertSee('id="audit_filters"');
     }
 
+    public function testGetAudit_OffersTheLogAsCsvExcelAndPdfFilesThatTheFiltersAreAddedTo(): void
+    {
+        $this->accountant();
+        $this->postedJournalBy();
+
+        $response = $this->get('/accounting_journals/audit');
+
+        $this->assertMatchesRegularExpression('#id="audit_export" class="[^"]*" href="[^"]*/accounting_journals/audit/csv"#', $response->getBody());
+        $this->assertMatchesRegularExpression('#id="audit_export_xlsx" href="[^"]*/accounting_journals/audit/xlsx"#', $response->getBody());
+        $this->assertMatchesRegularExpression('#id="audit_export_pdf" href="[^"]*/accounting_journals/audit/pdf"#', $response->getBody());
+        $this->assertStringContainsString("$('#audit_export, #audit_export_xlsx, #audit_export_pdf').on('click'", $response->getBody());
+    }
+
     public function testGetAuditSearch_ListsEntriesNewestFirstWithReadableLabels(): void
     {
         $accountant = $this->accountant();

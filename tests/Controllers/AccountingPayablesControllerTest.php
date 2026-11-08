@@ -22,6 +22,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\CsvResponseTrait;
 
 /**
  * The screen of supplier balances and aging: who may open it, what it lists, and that what it
@@ -37,6 +38,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use CsvResponseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -1760,5 +1762,140 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $this->expectException(PageNotFoundException::class);
 
         $this->post('/accounting_payables/refund/' . $this->supplierId, ['amount' => '10', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Cash']);
+    }
+
+    public function testGetAgedLedgerCsv_GivesTheRowsAndTheTotalsOfTheScreenForTheSameFilters(): void
+    {
+        $this->purchaseDated('100.00', $this->daysAgo(5));
+        $this->purchaseDated('200.00', $this->daysAgo(3));
+        $this->purchaseDated('50.00', $this->daysAgo(0));
+        $paid = $this->purchaseDated('120.00', $this->daysAgo(1));
+        $this->payPurchase($paid, '120.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/aged_ledger/csv?period=1');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('attachment; filename="aged_ledger_supplier_' . date('Y-m-d') . '.csv"', $response->response()->getHeaderLine('Content-Disposition'));
+
+        $rows   = $this->csvRows($response);
+        $totals = end($rows);
+
+        $this->assertSame([lang('Accounting_payables.aged_title')], $rows[0]);
+        $this->assertSame(lang('Accounting_payables.supplier'), $rows[2][0]);
+        $this->assertSame('Gulf Supplies', $rows[3][0]);
+        $this->assertSame(lang('Accounting_payables.totals'), $totals[0]);
+        $this->assertSame(['350.0000', '0.0000', '350.0000'], array_slice($totals, -3));
+    }
+
+    public function testGetAgedLedgerCsv_ShowsTheNameOfASupplierThatStartsLikeAFormulaAsText(): void
+    {
+        $this->purchaseOf('100.00', $this->anotherSupplier('=SUM(A1) Co'));
+        $this->viewer();
+
+        $names = array_column($this->csvRows($this->get('/accounting_payables/aged_ledger/csv')), 0);
+
+        $this->assertContains("'=SUM(A1) Co", $names);
+    }
+
+    public function testGetAgedLedgerCsv_RefusesADayThatIsNotADayInWords(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/aged_ledger/csv?to=2026-02-30');
+
+        $response->assertStatus(422);
+        $this->assertSame(lang('Accounting.error_invalid_date'), $response->response()->getBody());
+    }
+
+    public function testGetAgedLedgerCsv_RedirectsAUserWithoutTheModuleGrantIsNotFoundWhileAccountingIsOffAndForSomeoneLimitedToABranch(): void
+    {
+        $this->withSession(['person_id' => $this->employeeWithGrants(['accounting_chart']), 'menu_group' => 'home']);
+
+        $this->get('/accounting_payables/aged_ledger/csv')->assertRedirect();
+
+        $this->viewer([1]);
+
+        try {
+            $this->get('/accounting_payables/aged_ledger/csv');
+
+            $this->fail('Someone limited to a branch is not given the figures of the company');
+        } catch (PageNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->viewer();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_payables/aged_ledger/csv');
+    }
+
+    public function testGetBalancesCsv_GivesTheColumnsTheRowsAndTheTotalsOfTheScreen(): void
+    {
+        $first  = $this->purchaseOf('1000.00');
+        $second = $this->purchaseOf('1500.00');
+
+        $this->payPurchase($first, '1000.00');
+        $this->payPurchase($second, '500.00');
+        $this->debitNoteOf($second, '300.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/balances/csv');
+
+        $response->assertStatus(200);
+
+        $rows = $this->csvRows($response);
+
+        $this->assertSame([lang('Accounting_payables.balances_title')], $rows[0]);
+        $this->assertSame([lang('Accounting_payables.supplier'), ...array_map(static fn (string $column): string => lang('Accounting_payables.' . $column), ['col_before', 'col_sales', 'col_returns', 'col_net', 'col_payments', 'col_settlements', 'balance'])], $rows[2]);
+        $this->assertSame([lang('Accounting_payables.totals'), '0.0000', '2500.0000', '0.0000', '2500.0000', '1500.0000', '-300.0000', '700.0000'], end($rows));
+    }
+
+    public function testGetBalancesCsv_RefusesAPeriodThatEndsBeforeItStartsInWords(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/balances/csv?from=2026-10-31&to=2026-10-01');
+
+        $response->assertStatus(422);
+        $this->assertSame(lang('Accounting.error_report_period_invalid'), $response->response()->getBody());
+    }
+
+    public function testGetBalancesCsv_RedirectsAUserWithoutTheModuleGrantIsNotFoundWhileAccountingIsOffAndForSomeoneLimitedToABranch(): void
+    {
+        $this->withSession(['person_id' => $this->employeeWithGrants(['accounting_chart']), 'menu_group' => 'home']);
+
+        $this->get('/accounting_payables/balances/csv')->assertRedirect();
+
+        $this->viewer([1]);
+
+        try {
+            $this->get('/accounting_payables/balances/csv');
+
+            $this->fail('Someone limited to a branch is not given the figures of the company');
+        } catch (PageNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->viewer();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_payables/balances/csv');
+    }
+
+    public function testGetAgedLedger_LinksTheThreeFilesWithTheFiltersAsRead(): void
+    {
+        $this->purchaseDated('100.00', $this->daysAgo(5));
+        $this->viewer();
+
+        $response = $this->get('/accounting_payables/aged_ledger?to=2026-10-31&period=15');
+
+        $response->assertSee('id="aged_ledger_csv" href="' . site_url('accounting_payables/aged_ledger/csv') . '?to=2026-10-31&amp;period=15"');
+        $response->assertSee('id="aged_ledger_csv_xlsx" href="' . site_url('accounting_payables/aged_ledger/xlsx') . '?to=2026-10-31&amp;period=15"');
+        $response->assertSee('id="aged_ledger_csv_pdf" href="' . site_url('accounting_payables/aged_ledger/pdf') . '?to=2026-10-31&amp;period=15"');
     }
 }

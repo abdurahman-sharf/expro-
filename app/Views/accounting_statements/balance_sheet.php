@@ -21,7 +21,7 @@ $equityRows = [['id' => 'result_unclosed', 'label' => lang('Accounting_statement
 
 <?= view('partial/header') ?>
 
-<?= view('accounting_statements/toolbar', ['otherUrl' => $otherUrl, 'otherLabel' => lang('Accounting_statements.income_statement')]) ?>
+<?= view('accounting_statements/toolbar', ['otherUrl' => $otherUrl, 'otherLabel' => lang('Accounting_statements.income_statement'), 'csvUrl' => $csvUrl]) ?>
 
 <form id="report_filters" class="acc-filters print_hide" method="get" action="<?= esc(base_url('accounting_statements/balance_sheet'), 'attr') ?>" role="search" aria-label="<?= esc(lang('Accounting_reports.filters'), 'attr') ?>">
     <div class="acc-filter-row">

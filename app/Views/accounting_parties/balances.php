@@ -4,6 +4,7 @@
  * @var string           $base
  * @var string           $party
  * @var Closure          $statement_url
+ * @var string           $csvUrl
  * @var BalanceTable     $table
  * @var PartyReportQuery $query
  * @var string|null      $error
@@ -24,6 +25,10 @@ $columns   = $showOther ? 9 : 8;
     <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
+    <a class="btn btn-outline-secondary btn-sm float-end" id="balances_csv" href="<?= esc($csvUrl, 'attr') ?>">
+        <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?>
+    </a>
+    <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'balances_csv']) ?>
     <a class="btn btn-outline-secondary btn-sm float-end" href="<?= esc(base_url($base . '/aged_ledger'), 'attr') ?>">
         <span class="bi bi-hourglass-split" aria-hidden="true">&nbsp;</span><?= lang($group . '.aged_title') ?>
     </a>
@@ -68,7 +73,7 @@ $columns   = $showOther ? 9 : 8;
     <?php endif; ?>
 
     <div class="table-responsive">
-        <table class="table table-sm" id="balances_table">
+        <table class="table table-sm acc-lines" id="balances_table">
             <thead>
                 <tr>
                     <th scope="col"><?= lang($group . '.' . $party) ?></th>

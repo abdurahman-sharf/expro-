@@ -519,6 +519,7 @@ return [
     'error_refund_not_found'                     => 'This refund does not exist.',
     'error_refund_party_missing'                 => 'This customer or supplier does not exist.',
     'error_report_account_missing'               => 'This account does not exist.',
+    'error_report_file_too_large'                => 'The report holds more than {0} rows, more than a file in this format can carry. Narrow the period or the filters, or take the CSV file.',
     'error_report_period_invalid'                => 'The start of the period is later than its end.',
     'error_report_too_large'                     => 'The period holds more days, weeks, months or years than a report can list. Narrow it.',
     'error_report_too_many_periods'              => 'The range holds more than {0} columns. Choose quarters or years, or a shorter range.',

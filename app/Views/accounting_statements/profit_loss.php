@@ -34,6 +34,7 @@ $word = static fn (CashProfitLine $line): string => $line->kind === CashProfitLi
         <a class="btn btn-outline-secondary btn-sm float-end" id="profit_loss_csv" href="<?= esc($csvUrl, 'attr') ?>">
             <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?>
         </a>
+        <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'profit_loss_csv']) ?>
     <?php endif; ?>
     <a class="btn btn-outline-secondary btn-sm float-end" id="link_cash_flow" href="<?= esc(base_url('accounting_statements/cash_flow'), 'attr') ?>">
         <span class="bi bi-cash-stack" aria-hidden="true">&nbsp;</span><?= lang('Accounting_cash_flow.title') ?>

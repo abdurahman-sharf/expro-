@@ -6,7 +6,7 @@
  * @var list<object>                                           $branches
  * @var string|null                                            $scope_label
  * @var ReportScopeKind                                        $scope_kind
- * @var string                                                 $csv_url
+ * @var string                                                 $csvUrl
  * @var Closure                                                $amount
  * @var Closure                                                $quantity
  * @var Closure                                                $date
@@ -34,9 +34,10 @@ $verdict = static function (InventoryValuationLocation $location): string {
     <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
-    <a class="btn btn-outline-secondary btn-sm float-end" id="export_csv" href="<?= esc($csv_url, 'attr') ?>">
+    <a class="btn btn-outline-secondary btn-sm float-end" id="export_csv" href="<?= esc($csvUrl, 'attr') ?>">
         <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_inventory_reports.csv') ?>
     </a>
+    <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'export_csv']) ?>
     <a class="btn btn-outline-secondary btn-sm float-end" href="<?= esc(base_url('accounting_reports'), 'attr') ?>">
         <span class="bi bi-file-earmark-bar-graph" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.trial_balance') ?>
     </a>
@@ -127,7 +128,7 @@ $verdict = static function (InventoryValuationLocation $location): string {
             </h2>
 
             <div class="table-responsive">
-                <table class="table table-sm" data-location-table="<?= $location->locationId ?>">
+                <table class="table table-sm acc-lines" data-location-table="<?= $location->locationId ?>">
                     <thead>
                         <tr>
                             <th scope="col"><?= lang('Accounting_inventory_reports.col_item') ?></th>
@@ -209,7 +210,7 @@ $verdict = static function (InventoryValuationLocation $location): string {
         <section class="mb-4" id="stock_accounts" aria-labelledby="stock_accounts_title">
             <h2 class="h5" id="stock_accounts_title"><?= lang('Accounting_inventory_reports.stock_accounts') ?></h2>
             <div class="table-responsive">
-                <table class="table table-sm" id="stock_accounts_table">
+                <table class="table table-sm acc-lines" id="stock_accounts_table">
                     <tbody>
                         <tr data-total="movements">
                             <th scope="row"><?= lang('Accounting_inventory_reports.movements_row') ?></th>

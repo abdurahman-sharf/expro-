@@ -20,6 +20,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\CsvResponseTrait;
 
 /**
  * The screens of cheques: who may open them, what they list and show, that every change of a
@@ -34,6 +35,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use CsvResponseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -848,5 +850,123 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->accountingDb()->table('treasuries')->where('treasury_id', $this->bank)->update(['kind' => 'cash']);
 
         $this->assertStringContainsString('<option value="' . $this->bank . '" selected>', $this->get('/accounting_cheques/form/received/' . $chequeId)->getBody(), 'The cheque keeps the treasury it was entered with');
+    }
+
+    public function testGetReportCsv_GivesTheChequesWithTheTotalsByStatusAndTheTiesOfTheScreen(): void
+    {
+        $this->actAsWith(['accounting_cheques']);
+
+        $this->received();
+
+        $second = $this->received(['cheque_number' => '710002', 'amount' => '40.00']);
+        $third  = $this->received(['cheque_number' => '710003', 'amount' => '10.00']);
+
+        $this->cheques->deposit($second, $this->today, $this->clerk);
+        $this->cheques->collect($third, $this->today, null, $this->clerk);
+
+        $response = $this->get('/accounting_cheques/report/received/csv');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('attachment; filename="cheques_received_' . date('Y-m-d') . '.csv"', $response->response()->getHeaderLine('Content-Disposition'));
+
+        $rows = $this->csvRows($response);
+
+        $this->assertSame([lang('Accounting_cheques.report_received')], $rows[0]);
+        $this->assertSame(lang('Accounting_cheques.number'), $rows[1][0]);
+        $this->assertSame(9, count($rows[1]));
+        $this->assertSame(['710001', '710002', '710003'], array_column(array_slice($rows, 2, 3), 1));
+        $this->assertSame(['100.0000', '40.0000', '10.0000'], array_column(array_slice($rows, 2, 3), 8));
+
+        $totals = array_column(array_filter($rows, static fn (array $row): bool => count($row) === 9 && $row[0] === '' && $row[7] !== ''), 8, 7);
+
+        $this->assertSame('100.0000', $totals[lang('Accounting_cheques.status_received')]);
+        $this->assertSame('40.0000', $totals[lang('Accounting_cheques.status_deposited')]);
+        $this->assertSame('10.0000', $totals[lang('Accounting_cheques.status_collected')]);
+        $this->assertSame('150.0000', $totals[lang('Accounting_cheques.total')]);
+
+        $ties = array_values(array_filter($rows, static fn (array $row): bool => count($row) === 4 && $row[3] === lang('Accounting_cheques.tie_agrees')));
+
+        $this->assertNotSame([], $ties);
+        $this->assertNull(array_values(array_filter($rows, static fn (array $row): bool => in_array(lang('Accounting_cheques.tie_differs'), $row, true)))[0] ?? null);
+    }
+
+    public function testGetReportCsv_KeepsTheStatusAndTheDaysOfTheScreen(): void
+    {
+        $this->actAsWith(['accounting_cheques']);
+
+        $this->received();
+
+        $third = $this->received(['cheque_number' => '710003', 'amount' => '10.00']);
+
+        $this->cheques->collect($third, $this->today, null, $this->clerk);
+
+        $numbers = array_column($this->csvRows($this->get('/accounting_cheques/report/received/csv?status=collected')), 1);
+
+        $this->assertContains('710003', $numbers);
+        $this->assertNotContains('710001', $numbers);
+
+        $none = array_column($this->csvRows($this->get('/accounting_cheques/report/received/csv?date_from=2999-01-01')), 1);
+
+        $this->assertNotContains('710001', $none);
+    }
+
+    public function testGetReportCsv_ReadsThePaidChequesForThePaidDirectionAndReceivedForAnythingElse(): void
+    {
+        $this->actAsWith(['accounting_cheques']);
+
+        $this->paid([], $this->today);
+        $this->received();
+
+        $this->assertSame([lang('Accounting_cheques.report_paid')], $this->csvRows($this->get('/accounting_cheques/report/paid/csv'))[0]);
+        $this->assertContains('800001', array_column($this->csvRows($this->get('/accounting_cheques/report/paid/csv')), 1));
+        $this->assertSame([lang('Accounting_cheques.report_received')], $this->csvRows($this->get('/accounting_cheques/report/other/csv'))[0]);
+    }
+
+    public function testGetReportCsv_ShowsOnlyTheChequesAndTheTiesOfTheBranchesOfTheReader(): void
+    {
+        $branch = $this->createBranch();
+        $bank   = (new TreasuryService())->create(['name' => 'Branch bank ' . uniqid(), 'kind' => 'bank', 'bank_name' => 'Gulf Bank', 'account_number' => strtoupper(uniqid('AC')), 'branch_id' => $branch], $this->clerk);
+
+        $this->received();
+        $this->received(['cheque_number' => '710002', 'treasury_id' => $bank, 'amount' => '70.00']);
+
+        $this->actAsWith(['accounting_cheques'], [1]);
+
+        $rows = $this->csvRows($this->get('/accounting_cheques/report/received/csv'));
+        $flat = implode(',', array_merge(...$rows));
+
+        $this->assertStringContainsString('710001', $flat);
+        $this->assertStringNotContainsString('710002', $flat);
+        $this->assertStringNotContainsString('70.0000', $flat);
+    }
+
+    public function testGetReportCsv_ShowsADrawerNamedLikeAFormulaAsText(): void
+    {
+        $this->actAsWith(['accounting_cheques']);
+
+        $this->received(['drawer_name' => '=HYPERLINK("http://evil")']);
+
+        $drawers = array_column($this->csvRows($this->get('/accounting_cheques/report/received/csv')), 2);
+
+        $this->assertContains("'=HYPERLINK(\"http://evil\")", $drawers);
+        $this->assertNotContains('=HYPERLINK("http://evil")', $drawers);
+    }
+
+    public function testGetReportCsv_IsNotFoundWithoutTheChequesModule(): void
+    {
+        $this->actAsWith(['accounting_payables']);
+
+        $this->get('/accounting_cheques/report/received/csv')->assertRedirect();
+    }
+
+    public function testGetReport_LinksTheThreeFilesWithTheFiltersAsked(): void
+    {
+        $this->actAsWith(['accounting_cheques']);
+
+        $view = $this->get('/accounting_cheques/report/paid?status=issued&date_from=2026-01-01');
+
+        $view->assertSee('id="cheque_report_csv" href="' . site_url('accounting_cheques/report/paid/csv') . '?status=issued&amp;date_from=2026-01-01"');
+        $view->assertSee('id="cheque_report_csv_xlsx" href="' . site_url('accounting_cheques/report/paid/xlsx') . '?status=issued&amp;date_from=2026-01-01"');
+        $view->assertSee('id="cheque_report_csv_pdf" href="' . site_url('accounting_cheques/report/paid/pdf') . '?status=issued&amp;date_from=2026-01-01"');
     }
 }

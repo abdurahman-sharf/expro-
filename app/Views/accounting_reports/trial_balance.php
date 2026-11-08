@@ -39,6 +39,7 @@ $gross = $type->isGross();
     <a class="btn btn-outline-secondary btn-sm float-end" id="trial_balance_csv" href="<?= esc($csvUrl, 'attr') ?>">
         <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?>
     </a>
+    <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'trial_balance_csv']) ?>
     <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
@@ -189,7 +190,7 @@ $gross = $type->isGross();
     <?php endif; ?>
 
     <div class="table-responsive mb-3">
-        <table class="table table-sm" id="trial_balance_table">
+        <table class="table table-sm acc-lines" id="trial_balance_table">
             <thead>
                 <tr>
                     <th scope="col"><?= lang('Accounting_reports.code') ?></th>
