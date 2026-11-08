@@ -59,12 +59,28 @@ class AssetAccounts extends Migration
                 continue;
             }
 
-            if ($this->db->table('accounting_journal_lines')->where('account_id', $row->account_id)->countAllResults() === 0) {
+            if (! $this->isUsed((int) $row->account_id)) {
                 $this->db->table('accounting_accounts')->where('account_id', $row->account_id)->delete();
             }
         }
 
         $this->db->table('accounting_routing')->where('routing_key', self::PAYABLE['routing'])->delete();
+    }
+
+    /**
+     * Whether a journal line, an asset or a category of assets names the account.
+     */
+    private function isUsed(int $accountId): bool
+    {
+        if ($this->db->table('accounting_journal_lines')->where('account_id', $accountId)->countAllResults() > 0) {
+            return true;
+        }
+
+        if ($this->hasTable('assets') && $this->db->table('assets')->groupStart()->where('cost_account_id', $accountId)->orWhere('accumulated_account_id', $accountId)->orWhere('expense_account_id', $accountId)->groupEnd()->countAllResults() > 0) {
+            return true;
+        }
+
+        return $this->hasTable('asset_categories') && $this->db->table('asset_categories')->groupStart()->where('cost_account_id', $accountId)->orWhere('accumulated_account_id', $accountId)->orWhere('expense_account_id', $accountId)->groupEnd()->countAllResults() > 0;
     }
 
     /**

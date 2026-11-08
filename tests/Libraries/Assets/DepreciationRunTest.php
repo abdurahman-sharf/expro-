@@ -16,6 +16,7 @@ use App\Libraries\Assets\DepreciationRun;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Exceptions\DatabaseException;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -773,5 +774,88 @@ final class DepreciationRunTest extends CIUnitTestCase
         $this->runMonth('2026-02');
 
         $this->assertSame('280.0000', $this->accountingDb()->table('asset_depreciations')->where('asset_id', $assetId)->get()->getRow()->amount, 'one amount a day for the 28 days of February');
+    }
+
+    /**
+     * @return list<string> The queries the action runs, in order.
+     */
+    private function queriesOf(callable $action): array
+    {
+        $queries  = [];
+        $listener = static function ($query) use (&$queries): void {
+            $queries[] = (string) $query->getQuery();
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $queries;
+    }
+
+    /**
+     * @param list<string> $queries
+     *
+     * @return list<int> The branches whose period lock is taken exclusively, in the order they are.
+     */
+    private function exclusiveLocksIn(array $queries): array
+    {
+        $branches = [];
+
+        foreach ($queries as $query) {
+            if (preg_match('/accounting_period_locks WHERE company_id = \d+ AND branch_id = (\d+) FOR UPDATE/', $query, $found) === 1 && (int) $found[1] !== 0) {
+                $branches[] = (int) $found[1];
+            }
+        }
+
+        return $branches;
+    }
+
+    public function testApprove_HoldsTheLockOfEachBranchExclusivelyBeforeItReadsTheAssets(): void
+    {
+        $this->enterAsset();
+        $this->enterAsset(['branch_id' => $this->second, 'funding' => 'payable', 'treasury_id' => '', 'name' => 'Chair']);
+
+        $preview = $this->depreciation->preview(null, '2026-02', $this->assetRunner);
+        $assets  = preg_quote($this->accountingDb()->prefixTable('assets'), '/');
+        $queries = $this->queriesOf(fn () => $this->depreciation->approve(null, '2026-02', $preview->fingerprint, $this->assetRunner));
+
+        $this->assertSame([1, $this->second], $this->exclusiveLocksIn($queries));
+
+        $firstRead = null;
+
+        foreach ($queries as $index => $query) {
+            if (preg_match('/FROM ' . $assets . ' WHERE company_id/', $query) === 1) {
+                $firstRead = $index;
+
+                break;
+            }
+        }
+
+        $lastLock = 0;
+
+        foreach ($queries as $index => $query) {
+            if (preg_match('/accounting_period_locks WHERE company_id = \d+ AND branch_id = \d+ FOR UPDATE/', $query) === 1) {
+                $lastLock = $index;
+            }
+        }
+
+        $this->assertNotNull($firstRead);
+        $this->assertLessThan($firstRead, $lastLock, 'the locks of every branch of the run are held before the first asset is read');
+    }
+
+    public function testReverse_HoldsTheLockOfTheBranchOfTheRunExclusively(): void
+    {
+        $this->enterAsset();
+
+        [$runId] = $this->runMonth('2026-02');
+
+        $queries = $this->queriesOf(fn () => $this->depreciation->reverse($runId, 'Wrong month', $this->assetRunner));
+
+        $this->assertSame([1], array_values(array_unique($this->exclusiveLocksIn($queries))));
     }
 }

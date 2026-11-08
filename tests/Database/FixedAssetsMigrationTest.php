@@ -276,17 +276,31 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_routing'));
     }
 
-    public function testAssetAccounts_TakenDownKeepsAnAccountThatHoldsJournalLinesAndFreesTheOthers(): void
+    public function testAssetAccounts_TakenDownKeepsTheAccountsAnAssetNamesAndFreesTheOthers(): void
     {
         $this->startAssets();
         $this->enterAsset();
 
         (new AssetAccounts())->down();
 
-        $this->assertNotNull($this->accountOf('fixed_assets'), 'the cost account holds the journal of an asset');
-        $this->assertNull($this->accountOf('depreciation_expense'));
+        foreach (['fixed_assets', 'accumulated_depreciation', 'depreciation_expense'] as $systemKey) {
+            $this->assertNotNull($this->accountOf($systemKey), $systemKey . ' is named by an asset or holds its journal');
+        }
+
+        $this->assertNull($this->accountOf('asset_loss'));
         $this->assertNull($this->routedTo('assets.cost'));
         $this->assertNull($this->routedTo('assets.payable'));
+    }
+
+    public function testAssetAccounts_TakenDownKeepsTheAccountsACategoryNames(): void
+    {
+        $this->startAssets();
+        $this->categories->save(['name' => 'Furniture', 'expense_account_id' => $this->accountId('depreciation_expense')], $this->assetClerk);
+
+        (new AssetAccounts())->down();
+
+        $this->assertNotNull($this->accountOf('depreciation_expense'));
+        $this->assertNull($this->accountOf('fixed_assets'));
     }
 
     public function testInstall_GivesANewChartTheSameAccountsAndRoutingRows(): void
@@ -314,5 +328,64 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         (new AssetAccounts())->up();
 
         $this->assertSame($before, [$this->countRows('accounting_journals'), $this->countRows('accounting_journal_lines'), $this->accountNet($this->accountId('fixed_assets')), $this->accountNet($this->treasuryAccount($this->assetTreasury))]);
+    }
+
+    /**
+     * @return array<string, array{string, array<string, mixed>}>
+     */
+    public static function refusedRowProvider(): array
+    {
+        return [
+            'a cost of nothing'              => ['assets', ['cost' => '0']],
+            'a salvage above the cost'       => ['assets', ['salvage' => '12001']],
+            'a negative opening depreciation' => ['assets', ['opening_accumulated' => '-1']],
+            'a status that is not one'       => ['assets', ['status' => 'lost']],
+            'a way of entering that is none' => ['assets', ['funding' => 'barter']],
+            'a method that is not one'       => ['assets', ['method' => 'sum_of_years']],
+            'an interval that is not one'    => ['assets', ['period_interval' => 'year']],
+            'a quantity of nothing'          => ['assets', ['quantity' => 0]],
+            'a custody that is not one'      => ['asset_units', ['used_by' => 'lost']],
+            'a usage below nothing'          => ['asset_usage', ['units' => '-1']],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $change
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('refusedRowProvider')]
+    public function testTables_RefuseARowTheCodeShouldNeverWrite(string $table, array $change): void
+    {
+        $this->startAssets();
+        $assetId = $this->enterAsset(['units' => [['serial_number' => 'S-1']]]);
+
+        $this->accountingDb()->table('asset_usage')->insert(['company_id' => 1, 'asset_id' => $assetId, 'period_start' => '2026-02-01', 'units' => '1']);
+
+        $this->expectException(\Throwable::class);
+
+        $this->accountingDb()->table($table)->where('asset_id', $assetId)->update($change);
+    }
+
+    public function testTables_RefuseALineOfNothingAndADisposalOfAKindThatIsNone(): void
+    {
+        $this->startAssets();
+        $assetId = $this->enterAsset();
+        $db      = $this->accountingDb();
+
+        $db->table('asset_depreciation_runs')->insert(['company_id' => 1, 'branch_id' => 1, 'period_start' => '2026-02-01', 'period_end' => '2026-02-28', 'run_number' => 1, 'total' => '1', 'line_count' => 1, 'fingerprint' => str_repeat('a', 64), 'status' => 'active']);
+        $runId = (int) $db->insertID();
+
+        foreach ([
+            fn () => $db->table('asset_depreciations')->insert(['company_id' => 1, 'branch_id' => 1, 'asset_id' => $assetId, 'run_id' => $runId, 'period_start' => '2026-02-01', 'amount' => '0', 'active_key' => 1]),
+            fn () => $db->table('asset_operations')->insert(['company_id' => 1, 'branch_id' => 1, 'asset_id' => $assetId, 'kind' => 'gift', 'operation_date' => '2026-03-01', 'cost_removed' => '1', 'accumulated_removed' => '0', 'result_amount' => '0', 'previous_status' => 'active', 'status' => 'active', 'active_key' => 1]),
+            fn () => $db->table('asset_operations')->insert(['company_id' => 1, 'branch_id' => 1, 'asset_id' => $assetId, 'kind' => 'sale', 'operation_date' => '2026-03-01', 'cost_removed' => '1', 'accumulated_removed' => '0', 'result_amount' => '0', 'previous_status' => 'active', 'status' => 'reversed', 'active_key' => 1]),
+            fn () => $db->table('asset_depreciation_runs')->insert(['company_id' => 1, 'branch_id' => 1, 'period_start' => '2026-03-01', 'period_end' => '2026-03-31', 'run_number' => 1, 'total' => '1', 'line_count' => 1, 'fingerprint' => str_repeat('a', 64), 'status' => 'maybe']),
+        ] as $index => $insert) {
+            try {
+                $insert();
+                $this->fail('The database took the row ' . $index);
+            } catch (\Throwable $exception) {
+                $this->assertStringNotContainsString('The database took', $exception->getMessage());
+            }
+        }
     }
 }

@@ -489,4 +489,26 @@ final class AssetDisposalsTest extends CIUnitTestCase
         $this->assertSame([$mine], array_map(static fn (object $operation): int => (int) $operation->asset_id, $this->disposals->operations($limited)));
         $this->assertCount(1, $this->disposals->operations($this->assetClerk, $other));
     }
+
+    public function testSell_RefusesATreasuryTheEmployeeMayNotPutMoneyInto(): void
+    {
+        $assetId     = $this->depreciatedAsset();
+        $someoneElse = $this->employeeWithGrants([]);
+        $treasury    = (new TreasuryService())->create(['name' => 'Locked cash ' . uniqid(), 'kind' => 'cash', 'branch_id' => 1, 'deposit_scope' => 'staff', 'deposit_members' => [$someoneElse]], $this->assetClerk);
+
+        $this->assertRefused(AccountingError::TreasuryDepositDenied, fn () => $this->disposals->sell($assetId, ['date' => '2026-05-10', 'proceeds' => '9000', 'treasury_id' => $treasury], $this->assetClerk));
+        $this->assertSame(AssetStatus::Active->value, $this->asset($assetId)->status);
+        $this->assertSame(0, $this->countRows('asset_operations'));
+    }
+
+    public function testSell_HoldsAnAssetToOneDisposalThatStandsWhateverTheCodeDoes(): void
+    {
+        $assetId = $this->depreciatedAsset();
+
+        $this->disposals->writeOff($assetId, ['date' => '2026-05-10'], $this->assetClerk);
+
+        $this->expectException(\CodeIgniter\Database\Exceptions\DatabaseException::class);
+
+        $this->accountingDb()->table('asset_operations')->insert(['company_id' => 1, 'branch_id' => 1, 'asset_id' => $assetId, 'kind' => 'write_off', 'operation_date' => '2026-05-11', 'cost_removed' => '1', 'accumulated_removed' => '0', 'result_amount' => '-1', 'previous_status' => 'active', 'status' => 'active', 'active_key' => 1]);
+    }
 }

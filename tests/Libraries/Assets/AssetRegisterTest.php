@@ -288,6 +288,8 @@ final class AssetRegisterTest extends CIUnitTestCase
             'a quantity of zero'           => [['quantity' => '0'], 'quantity'],
             'a life of years nobody lives' => [['useful_life_value' => '200', 'useful_life_unit' => 'years'], 'useful_life_months'],
             'an end date before the first' => [['end_date' => '2026-01-15'], 'end_date'],
+            'a supplier that is none'      => [['funding' => 'payable', 'treasury_id' => '', 'supplier_id' => 999999], 'supplier_id'],
+            'a cost center that is none'   => [['cost_center_id' => 999999], 'cost_center_id'],
         ];
     }
 
@@ -473,7 +475,9 @@ final class AssetRegisterTest extends CIUnitTestCase
         $this->enterAsset(['units' => [['serial_number' => 'S-9']]]);
 
         $this->assertSame(1, $this->accountingDb()->table('asset_units')->where('serial_number', 'S-9')->countAllResults());
-        $this->assertGreaterThan(0, $this->accountingDb()->query("SELECT COUNT(*) AS n FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? AND NON_UNIQUE = 0", [$this->accountingDb()->prefixTable('asset_units'), $this->accountingDb()->prefixTable('asset_units') . '_serial'])->getRow()->n);
+        foreach (['_serial', '_barcode'] as $key) {
+            $this->assertGreaterThan(0, $this->accountingDb()->query('SELECT COUNT(*) AS n FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ? AND NON_UNIQUE = 0', [$this->accountingDb()->prefixTable('asset_units'), $this->accountingDb()->prefixTable('asset_units') . $key])->getRow()->n, $key);
+        }
     }
 
     public function testUpdate_ReversesTheJournalAndPostsItAgainWhenTheCostChanges(): void
@@ -762,5 +766,21 @@ final class AssetRegisterTest extends CIUnitTestCase
 
         $db->table('asset_depreciation_runs')->insert(['company_id' => 1, 'branch_id' => 1, 'period_start' => $periodStart, 'period_end' => date('Y-m-t', strtotime($periodStart)), 'run_number' => 1, 'total' => $amount, 'line_count' => 1, 'fingerprint' => str_repeat('a', 64), 'status' => 'active']);
         $db->table('asset_depreciations')->insert(['company_id' => 1, 'branch_id' => 1, 'asset_id' => $assetId, 'run_id' => (int) $db->insertID(), 'period_start' => $periodStart, 'amount' => $amount, 'active_key' => 1]);
+    }
+
+    public function testCreate_RefusesACategoryThatDoesNotExist(): void
+    {
+        $this->assertRefused(AccountingError::AssetCategoryNotFound, fn () => $this->enterAsset(['category_id' => 999999]));
+        $this->assertSame(0, $this->countRows('assets'));
+    }
+
+    public function testCreate_RefusesATreasuryTheEmployeeMayNotTakeMoneyFrom(): void
+    {
+        $someoneElse = $this->employeeWithGrants([]);
+        $treasury    = (new \App\Libraries\Accounting\TreasuryService())->create(['name' => 'Locked cash ' . uniqid(), 'kind' => 'cash', 'branch_id' => 1, 'withdraw_scope' => 'staff', 'withdraw_members' => [$someoneElse]], $this->assetClerk);
+
+        $this->assertRefused(AccountingError::TreasuryWithdrawDenied, fn () => $this->enterAsset(['treasury_id' => $treasury]));
+        $this->assertSame(0, $this->countRows('assets'));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
     }
 }

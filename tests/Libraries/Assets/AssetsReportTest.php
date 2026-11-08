@@ -398,4 +398,21 @@ final class AssetsReportTest extends CIUnitTestCase
         $this->assertSame(['112006', '111006'], array_map(static fn ($row): string => $row->code, $tie));
         $this->assertSame($this->accountId('fixed_assets'), $tie[1]->accountId);
     }
+
+    public function testBuild_PutsAnAssetBackOnTheBooksWhenItsDisposalIsTakenBack(): void
+    {
+        $this->enterAsset(['code' => 'A-1']);
+
+        $operationId = (new AssetDisposals())->writeOff($this->accountingDb()->table('assets')->get()->getRow()->asset_id, ['date' => '2026-01-20'], $this->assetClerk);
+
+        $this->assertSame('0.0000', $this->report->build($this->company(), new AssetsFilter(asOf: '2026-03-31'))->cost);
+
+        (new AssetDisposals())->reverse($operationId, 'Mistake', $this->assetClerk);
+
+        $result = $this->report->build($this->company(), new AssetsFilter(asOf: '2026-03-31'));
+
+        $this->assertSame('12000.0000', $result->cost);
+        $this->assertTrue($this->rowsByCode($result)['A-1']->onTheBooks);
+        $this->assertTrue($result->ties());
+    }
 }

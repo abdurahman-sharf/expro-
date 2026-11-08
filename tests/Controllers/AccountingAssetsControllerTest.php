@@ -722,4 +722,31 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
 
         $this->assertFalse($refused['success']);
     }
+
+    public function testGetApproveForm_IsNotFoundWhenNothingIsDue(): void
+    {
+        $this->enterAsset(['code' => 'DESK']);
+        $this->runner();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_assets/depreciation/approve_form?month=2026-01&scope=1&fingerprint=' . $this->fingerprint('2026-01'));
+    }
+
+    public function testPostApprove_RejectsAScopeThatIsNotOne(): void
+    {
+        $this->enterAsset(['code' => 'DESK']);
+        $this->runner();
+
+        foreach (['', 'x', '0', '-1', 'company; drop'] as $scope) {
+            try {
+                $this->post('/accounting_assets/depreciation/approve', ['month' => '2026-02', 'scope' => $scope, 'fingerprint' => $this->fingerprint()]);
+                $this->fail('A scope that is not the company or a branch is not taken.');
+            } catch (PageNotFoundException) {
+                $this->assertTrue(true);
+            }
+        }
+
+        $this->assertSame(0, $this->countRows('asset_depreciation_runs'));
+    }
 }

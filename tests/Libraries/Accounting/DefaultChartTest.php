@@ -64,7 +64,7 @@ class DefaultChartTest extends CIUnitTestCase
 
     public function testInstall_GivesEveryAccountTheNormalBalanceOfItsTypeUnlessContra(): void
     {
-        $contraCodes = ['112', '112001', '112002', '112003', '112004', '112005', '412'];
+        $contraCodes = ['112', '112001', '112002', '112003', '112004', '112005', '112006', '412'];
 
         foreach ($this->accountingDb()->table('accounting_accounts')->get()->getResult() as $account) {
             $expected = AccountType::from($account->account_type)->normalBalance();
