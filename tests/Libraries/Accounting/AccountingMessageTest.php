@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -54,6 +55,41 @@ class AccountingMessageTest extends CIUnitTestCase
         $key = 'Accounting.error_' . $error->value;
 
         $this->assertNotSame($key, AccountingMessage::of(new AccountingException($error)));
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    private static function documentSourceNames(): array
+    {
+        return [
+            'expense'          => ['an expense', 'المصروف'],
+            'cashup'           => ['a cash-up', 'إقفال الصندوق'],
+            'customer_opening' => ['an opening balance of a customer', 'الرصيد الافتتاحي للعميل'],
+            'sales_debit_note' => ['a sales debit note', 'إشعار المدين للمبيعات'],
+            'revenue'          => ['a receipt voucher', 'سند القبض'],
+            'cheque'           => ['a cheque', 'الشيك'],
+            'stock_permit'     => ['a stock permit', 'إذن المخزن'],
+            'stocktake'        => ['a stocktake', 'الجرد'],
+        ];
+    }
+
+    public function testOf_NamesEverySourceOfADocumentJournalInEveryLocaleWithItsOwnWords(): void
+    {
+        $names = self::documentSourceNames();
+
+        foreach (JournalService::DOCUMENT_SOURCES as $source) {
+            $this->assertArrayHasKey(str_starts_with($source, 'cheque_') ? 'cheque' : $source, $names, $source . ' is a locked document source the message does not name');
+        }
+
+        foreach (['en' => 0, 'en-GB' => 0, 'ar-EG' => 1, 'ar-LB' => 1] as $locale => $position) {
+            $lines   = require ROOTPATH . 'app/Language/' . $locale . '/Accounting.php';
+            $message = $lines['error_document_journal_locked'];
+
+            foreach ($names as $source => $words) {
+                $this->assertStringContainsString($words[$position], $message, $locale . ' does not name ' . $source);
+            }
+        }
     }
 
     public function testOf_FillsTheMessageWithTheContextOfTheFailure(): void

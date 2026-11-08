@@ -360,7 +360,7 @@ return [
     'error_distribution_too_many_rows'           => 'The distribution of line {0} may have {1} rows at most.',
     'error_distribution_total_invalid'           => 'The percentages of line {0} add up to {1}; they must add up to 100.',
     'error_document_currency_locked'             => 'The currency and the rate of a document that has been posted cannot change. Reverse it and enter it again, or correct it with a credit note.',
-    'error_document_journal_locked'              => 'The journal of an expense, a cash-up or an opening balance of a customer is taken back from its own document, by deleting, changing or cancelling it, not by reversing the journal.',
+    'error_document_journal_locked'              => 'The journal of an expense, a cash-up, an opening balance of a customer, a sales debit note, a receipt voucher, a cheque, a stock permit or a stocktake is taken back from its own document, by deleting, changing or cancelling it, not by reversing the journal.',
     'error_draft_changed'                        => 'The draft was changed while it was being issued, so nothing was issued. Open it again, check what it holds and issue it.',
     'error_draft_not_found'                      => 'This sale is no longer waiting: it was issued, deleted or is another kind of document, so it cannot be issued or saved again.',
     'error_draft_stored_value_paid'              => 'A draft paid with a gift card or reward points is completed at the register.',
