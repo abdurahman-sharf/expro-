@@ -2,7 +2,10 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Barcode_lib;
+use App\Libraries\Stock\Bundles;
 
 use App\Models\Item;
 use App\Models\Item_kit;
@@ -173,6 +176,14 @@ class Item_kits extends Secure_Controller
             'print_option'      => $this->request->getPost('print_option') === null ? PRINT_ALL : intval($this->request->getPost('print_option')),
             'description'       => $this->request->getPost('description')
         ];
+
+        $bundleComponents = $this->request->getPost('item_kit_qty') === null ? [] : array_map('intval', array_keys($this->request->getPost('item_kit_qty')));
+
+        try {
+            (new Bundles())->assertValid((int) $item_kit_data['item_id'], $bundleComponents, (int) $item_kit_data['price_option']);
+        } catch (AccountingException $refusal) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal), 'id' => NEW_ENTRY]);
+        }
 
         if ($this->item_kit->save_value($item_kit_data, $item_kit_id)) {
             $new_item = false;

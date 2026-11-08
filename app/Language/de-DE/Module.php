@@ -99,6 +99,8 @@ return [
     'sales_desc'                   => 'Bearbeitung von Verkäufen und Retouren.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'supplier_quotations'          => '',
     'supplier_quotations_desc'     => '',
     'suppliers'                    => 'Lieferanten',

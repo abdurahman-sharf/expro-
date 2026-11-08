@@ -99,6 +99,8 @@ return [
     'sales_desc'                   => 'Xử lý Bán và Trả hàng.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'supplier_quotations'          => '',
     'supplier_quotations_desc'     => '',
     'suppliers'                    => 'Nhà cung cấp',

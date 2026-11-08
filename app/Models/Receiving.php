@@ -34,6 +34,9 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\PurchaseCycle\PurchaseOrderReceipts;
 use App\Libraries\Roles\RecordScope;
+use App\Libraries\Stock\StockTracking;
+use App\Libraries\Stock\TrackingEntry;
+use App\Libraries\Stock\UnitLines;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use Config\OSPOS;
@@ -557,7 +560,7 @@ class Receiving extends Model
     private function rewriteLines(int $receivingId, array $changed, array $removed, array $stored): void
     {
         foreach ($changed as $key => $fields) {
-            $this->db->table('receivings_items')->where(['receiving_id' => $receivingId, 'item_id' => $stored[$key]['item_id'], 'line' => $stored[$key]['line']])->update($fields);
+            $this->db->table('receivings_items')->where(['receiving_id' => $receivingId, 'item_id' => $stored[$key]['item_id'], 'line' => $stored[$key]['line']])->update([...$fields, ...$this->unitAfterCorrection($stored[$key], $fields)]);
         }
 
         foreach ($removed as $key) {
@@ -597,6 +600,28 @@ class Receiving extends Model
         );
 
         $receipts->recordReceiving($receivingId, $orderId, $items, (int) $this->supplierOf($receivingId), $employeeId, $branchId, PurchaseOrderReceipts::RECEIPT_CHANGED);
+    }
+
+    /**
+     * A line entered in a larger unit whose quantity or price a correction changes is a line of base units
+     * from then on: what was entered no longer says what the line holds, and the base figures are the ones
+     * everything reads.
+     *
+     * @param array<string, mixed> $stored
+     * @param array<string, mixed> $fields
+     *
+     * @return array<string, null>
+     */
+    private function unitAfterCorrection(array $stored, array $fields): array
+    {
+        if (($stored['unit_id'] ?? null) === null) {
+            return [];
+        }
+
+        $moved = bccomp((string) $fields['quantity_purchased'], bcadd((string) $stored['quantity_purchased'], '0', 3), 3) !== 0
+            || bccomp((string) $fields['item_unit_price'], bcadd((string) $stored['item_unit_price'], '0', 2), 2) !== 0;
+
+        return $moved ? ['unit_id' => null, 'unit_factor' => null, 'unit_quantity' => null, 'unit_price_entered' => null] : [];
     }
 
     /**
@@ -1055,8 +1080,32 @@ class Receiving extends Model
             return -1;    // TODO: Replace -1 with a constant
         }
 
+        try {
+            $unitColumns = $this->unitColumnsOf($items);
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
         $config       = config(OSPOS::class)->settings;
         $type         = ReceivingType::ofQuantities(array_map(static fn (array $line): string => self::unitsOf($line), $items));
+        $tracking     = new StockTracking($this->db);
+
+        try {
+            if ($type !== ReceivingType::Receive) {
+                $tracking->requireUntracked(array_map(static fn (array $line): int => (int) $line['item_id'], $items));
+            } else {
+                foreach ($items as $itemData) {
+                    $tracking->assertSerialEntry((int) $itemData['item_id'], (int) $itemData['line'], sprintf('%.3F', (float) self::unitsOf($itemData)), TrackingEntry::ofLine($itemData));
+                }
+            }
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
         $branchIds    = $this->branchIdsOfItems($items);
         $between      = $this->transferBetweenBranches($items);
         $branchId     = $between['from'] ?? $branchIds[0] ?? (new BranchGuard($this->db))->companyDefaultBranchId();
@@ -1142,6 +1191,7 @@ class Receiving extends Model
                     'item_unit_price'    => $itemData['price'],
                     'item_location'      => $itemData['item_location'],
                     'tax_percent'        => $itemData['tax_percent'] ?? 0,
+                    ...$unitColumns[$line],
                 ];
 
                 $builder->insert($receivingsItemsData);
@@ -1178,7 +1228,12 @@ class Receiving extends Model
             foreach ($items as $line => $itemData) {
                 $itemsReceived = (float) self::unitsOf($itemData);
 
-                $itemQuantity->changeQuantity((int) $itemData['item_id'], (int) $itemData['item_location'], $itemsReceived);
+                if ($tracking->handles((int) $itemData['item_id'])) {
+                    $tracking->receive('receiving', (int) $receivingId, (int) $itemData['line'], (int) $itemData['item_id'], (int) $itemData['item_location'], sprintf('%.3F', $itemsReceived), TrackingEntry::ofLine($itemData));
+                } else {
+                    $this->assertNoTrackingEntry($itemData);
+                    $itemQuantity->changeQuantity((int) $itemData['item_id'], (int) $itemData['item_location'], $itemsReceived);
+                }
 
                 $invData = [
                     'trans_date'      => date('Y-m-d H:i:s'),
@@ -1210,6 +1265,39 @@ class Receiving extends Model
         $this->db->transComplete();
 
         return $this->db->transStatus() ? $receivingId : -1;
+    }
+
+    /**
+     * @param array<string, mixed> $line
+     *
+     * @throws AccountingException
+     */
+    private function assertNoTrackingEntry(array $line): void
+    {
+        $entry = $line['tracking'] ?? null;
+
+        if ($entry instanceof TrackingEntry ? ! $entry->isEmpty() : (is_array($entry) && array_filter($entry) !== [])) {
+            throw new AccountingException(AccountingError::TrackedEntryNotAllowed, 'The item is not tracked.', ['line' => (int) ($line['line'] ?? 0), 'name' => (string) ($line['name'] ?? $line['item_id'])]);
+        }
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $items
+     *
+     * @return array<int|string, array<string, string|int|null>> The columns that remember the unit of each line, by the key of the line.
+     *
+     * @throws AccountingException
+     */
+    private function unitColumnsOf(array $items): array
+    {
+        $units   = new UnitLines($this->db);
+        $columns = [];
+
+        foreach ($items as $key => $itemData) {
+            $columns[$key] = $units->columnsOf($itemData, (int) ($itemData['line'] ?? 0), 'quantity', 'price', 'receiving_quantity', 'unit_price_entered');
+        }
+
+        return $columns;
     }
 
     /**
@@ -1722,6 +1810,17 @@ class Receiving extends Model
         if ($update_inventory) {
             $inventory     = model('Inventory');
             $item_quantity = model(Item_quantity::class);
+            $tracking      = new StockTracking($this->db);
+            $reversed      = [];
+
+            try {
+                $reversed = $tracking->reverseSource('receiving', (int) $receiving_id);
+            } catch (AccountingException $refusal) {
+                $this->db->transRollback();
+                $this->accountingFailure = $refusal;
+
+                return false;
+            }
 
             foreach ($items as $item) {
                 $units = $item['quantity_purchased'] * (-$item['receiving_quantity']);
@@ -1739,7 +1838,9 @@ class Receiving extends Model
                 $inventory->insert($inv_data, false);
 
                 // Update quantities
-                $item_quantity->changeQuantity($item['item_id'], $item['item_location'], $units);
+                if (! in_array((int) $item['item_id'], $reversed, true)) {
+                    $item_quantity->changeQuantity($item['item_id'], $item['item_location'], $units);
+                }
             }
         }
 

@@ -43,7 +43,8 @@ final class StockLedger
             return;
         }
 
-        $rows = [];
+        $movements = $this->onePerSerial($movements);
+        $rows      = [];
 
         foreach (array_values($movements) as $index => $movement) {
             $rows[] = [
@@ -67,6 +68,66 @@ final class StockLedger
         if ($this->db->table('accounting_stock_entries')->insertBatch($rows) === false) {
             throw new PostingException(PostingError::WriteFailed, 'The stock movements could not be written.', ['source_type' => $sourceType, 'source_id' => $sourceId]);
         }
+    }
+
+    /**
+     * The movements of an item counted by serial number are written one for each serial number, as the
+     * permits of a tracked product are in the reference system: a movement of three units becomes three
+     * movements of one, and the value is shared among them to the last digit, so that the sum is what the
+     * journal says. A movement of anything else is written as it is.
+     *
+     * @param list<StockMovement> $movements
+     *
+     * @return list<StockMovement>
+     */
+    private function onePerSerial(array $movements): array
+    {
+        $serialItems = $this->serialTracked(array_values(array_unique(array_map(static fn (StockMovement $movement): int => $movement->itemId, $movements))));
+
+        if ($serialItems === []) {
+            return $movements;
+        }
+
+        $split = [];
+
+        foreach ($movements as $movement) {
+            $units = ltrim($movement->quantity, '-');
+
+            if (! in_array($movement->itemId, $serialItems, true) || bccomp($units, '1', self::QUANTITY_SCALE) <= 0 || bccomp($units, bcadd($units, '0', 0), self::QUANTITY_SCALE) !== 0) {
+                $split[] = $movement;
+
+                continue;
+            }
+
+            $count     = (int) $units;
+            $sign      = bccomp($movement->quantity, '0', self::QUANTITY_SCALE) < 0 ? '-' : '';
+            $each      = bcdiv($movement->value, (string) $count, self::VALUE_SCALE);
+            $remaining = $movement->value;
+
+            for ($index = 1; $index <= $count; $index++) {
+                $value     = $index === $count ? $remaining : $each;
+                $remaining = bcsub($remaining, $value, self::VALUE_SCALE);
+                $split[]   = new StockMovement($movement->itemId, $movement->locationId, $sign . '1', $value);
+            }
+        }
+
+        return $split;
+    }
+
+    /**
+     * @param list<int> $itemIds
+     *
+     * @return list<int> The items among them that are counted by serial number while tracking is on.
+     */
+    private function serialTracked(array $itemIds): array
+    {
+        $on = $this->db->table('app_config')->select('value')->where('key', 'stock_tracking_enabled')->get()->getRow();
+
+        if ($on === null || (string) $on->value !== '1' || $itemIds === []) {
+            return [];
+        }
+
+        return array_map('intval', array_column($this->db->table('item_stock_profiles')->select('item_id')->where('tracking_type', 'serial')->whereIn('item_id', $itemIds)->get()->getResultArray(), 'item_id'));
     }
 
     /**

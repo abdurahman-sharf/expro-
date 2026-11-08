@@ -45,6 +45,10 @@ use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\Roles\RecordScope;
 use App\Libraries\Sale_lib;
 use App\Libraries\ShippingTaxOption;
+use App\Libraries\Stock\StockUnitPermissions;
+use App\Libraries\Stock\TrackingType;
+use App\Libraries\Stock\UnitLine;
+use App\Libraries\Stock\UnitTemplates;
 use App\Libraries\Tax_lib;
 use App\Libraries\Token_lib;
 use App\Models\Customer;
@@ -1491,6 +1495,16 @@ class Sales extends Secure_Controller
         $mode = $this->sale_lib->get_mode();
         $quantity = ($mode == 'return') ? -$quantity : $quantity;
         $item_location = $this->sale_lib->get_sale_location();
+        $scannedUnit = $this->sale_lib->unitOfBarcode((string) $item_id_or_number_or_item_kit_or_receipt);
+
+        if ($scannedUnit !== null) {
+            $item_id_or_number_or_item_kit_or_receipt = (string) $scannedUnit['itemId'];
+
+            if ($scannedUnit['unitId'] !== null) {
+                $factor = (new UnitTemplates())->unitOfItem($scannedUnit['itemId'], $scannedUnit['unitId'])?->factor;
+                $quantity = $factor === null ? $quantity : bcmul((string) $quantity, $factor, 3);
+            }
+        }
 
         if ($mode == 'return' && $this->sale->isValidReceipt($item_id_or_number_or_item_kit_or_receipt)) {
             $originId = (int) (explode(' ', trim($item_id_or_number_or_item_kit_or_receipt))[1] ?? 0);
@@ -1540,6 +1554,10 @@ class Sales extends Secure_Controller
             if ($item_id_or_number_or_item_kit_or_receipt == '' || !$this->sale_lib->add_item($item_id_or_number_or_item_kit_or_receipt, $item_location, $quantity, $discount, $discount_type, PRICE_MODE_STANDARD, null, null, $price)) {
                 $data['error'] = lang('Sales.unable_to_add_item');
             } else {
+                if ($scannedUnit !== null && $scannedUnit['unitId'] !== null) {
+                    $this->sale_lib->enterInUnit((int) $scannedUnit['itemId'], $item_location, (int) $scannedUnit['unitId']);
+                }
+
                 $data['warning'] = $this->sale_lib->out_of_stock($item_id_or_number_or_item_kit_or_receipt, $item_location);
             }
         }
@@ -1632,9 +1650,12 @@ class Sales extends Secure_Controller
 
         if ($this->validate($rules, $messages)) {
             $description = $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-            $serialnumber = $this->request->getPost('serialnumber', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+            $lineBefore = $this->sale_lib->get_cart()[$line] ?? [];
+            $serialnumber = ($lineBefore['tracking_type'] ?? null) === TrackingType::Serial->value
+                ? $this->postedText('serialnumber')
+                : $this->request->getPost('serialnumber', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
             $price = parse_decimals($this->request->getPost('price'));
-            $price = $price !== false ? number_format((float) $price, totals_decimals(), '.', '') : $price;
+            $price = $price !== false ? number_format((float) $price, isset($lineBefore['unit_id']) ? UnitLine::COST_SCALE : totals_decimals(), '.', '') : $price;
             $quantity = parse_decimals($this->request->getPost('quantity'));
             $discount_type = $this->request->getPost('discount_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
             $discount = $discount_type
@@ -1661,9 +1682,9 @@ class Sales extends Secure_Controller
             }
 
             // sales_change_price grant is enforced server-side here; the UI-only "change_price" flag must not be trusted
-            $current_price = $this->sale_lib->get_cart()[$line]['price'] ?? null;
-            $employee_id = $this->employee->get_logged_in_employee_info()->person_id;
-            if ($current_price !== null && bccomp((string)$price, (string)$current_price, $precision) != 0 && !$this->employee->has_grant('sales_change_price', $employee_id)) {
+            $currentPrice = isset($lineBefore['unit_id']) ? ($lineBefore['unit_price'] ?? null) : ($lineBefore['price'] ?? null);
+            $employeeId = $this->employee->get_logged_in_employee_info()->person_id;
+            if ($currentPrice !== null && bccomp((string)$price, (string)$currentPrice, isset($lineBefore['unit_id']) ? UnitLine::COST_SCALE : $precision) != 0 && !$this->employee->has_grant('sales_change_price', $employeeId)) {
                 $data['error'] = lang('Sales.not_authorized');
                 return $this->reload($data);
             }
@@ -1675,7 +1696,27 @@ class Sales extends Secure_Controller
 
             $cartBefore = $this->sale_lib->get_cart();
 
-            $this->sale_lib->edit_item($line, $description, $serialnumber, $quantity, $discount, $discount_type, $price, $discounted_total);
+            $postedUnit = $this->request->getPost('unit_id');
+            $unitId     = $postedUnit === null || $postedUnit === '' ? null : (int) $postedUnit;
+            $inUnit     = isset($cartBefore[$line]['unit_id']) ? (int) $cartBefore[$line]['unit_id'] : null;
+
+            if ($postedUnit !== null && $unitId !== $inUnit) {
+                $this->sale_lib->changeUnit($line, $unitId);
+            } else {
+                $this->sale_lib->edit_item($line, $description, $serialnumber, $quantity, $discount, $discount_type, $price, $discounted_total);
+            }
+
+            $unitFailure = $this->sale_lib->unitFailure();
+
+            if ($unitFailure !== null) {
+                $data['error'] = AccountingMessage::of($unitFailure);
+
+                return $this->reload($data);
+            }
+
+            if ($this->request->getPost('batch_number') !== null && $this->employee->has_grant(StockUnitPermissions::BATCH_MANUAL_PICK, (int) $this->employee->get_logged_in_employee_info()->person_id)) {
+                $this->sale_lib->pickBatch($line, $this->postedText('batch_number'));
+            }
 
             $priceProblem = $this->refusedLinePrices($cartBefore);
 
@@ -2926,6 +2967,13 @@ class Sales extends Secure_Controller
         return (new RecordScope())->ownOnly((int) $this->session->get('person_id')) ? lang('Sales.not_authorized') : lang('Sales.branch_not_allowed');
     }
 
+    private function postedText(string $name): string
+    {
+        $value = $this->request->getPost($name);
+
+        return is_scalar($value) ? (string) $value : '';
+    }
+
     /**
      * @param array $data
      * @return void
@@ -2944,6 +2992,8 @@ class Sales extends Secure_Controller
         $data['cash_rounding'] = $cashRounding;
 
         $data['cart'] = $this->sale_lib->get_cart();
+        $data['unit_choices'] = $this->sale_lib->unitChoices($data['cart']);
+        $data['can_pick_batch'] = $this->employee->has_grant(StockUnitPermissions::BATCH_MANUAL_PICK, (int) $this->employee->get_logged_in_employee_info()->person_id);
         $customerInfo = $this->_load_customer_data($this->sale_lib->get_customer(), $data, true);
 
         $displayCurrency = $this->registerDisplayCurrency();

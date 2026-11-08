@@ -143,29 +143,35 @@ $hasCart     = count($cart) > 0;
                             </div>
 
                             <div class="cart-field" data-label="<?= lang("{$sectionName}.cost") ?>">
+                                <?php $enteredPrice = isset($item['unit_id']) ? to_unit_price((string) $item['unit_price']) : null; ?>
                                 <?php if ($canEditCost): ?>
-                                    <?= form_input(['name' => 'price', 'class' => 'form-control form-control-sm', 'value' => to_currency_no_money($item['price']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.cost"), 'onClick' => 'this.select();']) ?>
+                                    <?= form_input(['name' => 'price', 'class' => 'form-control form-control-sm', 'value' => $enteredPrice ?? to_currency_no_money($item['price']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.cost"), 'onClick' => 'this.select();']) ?>
                                 <?php else: ?>
-                                    <span class="num"><?= to_currency($item['price']) ?></span>
-                                    <?= form_hidden('price', to_currency_no_money($item['price'])) ?>
+                                    <span class="num"><?= $enteredPrice === null ? to_currency($item['price']) : esc($enteredPrice) ?></span>
+                                    <?= form_hidden('price', $enteredPrice ?? to_currency_no_money($item['price'])) ?>
                                 <?php endif; ?>
                             </div>
 
                             <div class="cart-field" data-label="<?= lang("{$sectionName}.quantity") ?>">
                                 <div class="qty">
                                     <button type="button" class="qty-b" data-step="-1" aria-label="<?= lang('Sales.decrease_quantity') ?>"><span class="bi bi-dash-lg" aria-hidden="true"></span></button>
-                                    <?= form_input(['name' => 'quantity', 'class' => 'qty-v', 'value' => to_quantity_decimals($item['quantity']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.quantity"), 'onClick' => 'this.select();']) ?>
+                                    <?= form_input(['name' => 'quantity', 'class' => 'qty-v', 'value' => to_quantity_decimals($item['unit_quantity'] ?? $item['quantity']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.quantity"), 'onClick' => 'this.select();']) ?>
                                     <button type="button" class="qty-b" data-step="1" aria-label="<?= lang('Sales.increase_quantity') ?>"><span class="bi bi-plus-lg" aria-hidden="true"></span></button>
                                 </div>
                             </div>
 
                             <div class="cart-field" data-label="<?= lang("{$sectionName}.ship_pack") ?>">
-                                <?= form_dropdown(
-                                    'receiving_quantity',
-                                    $item['receiving_quantity_choices'],
-                                    $item['receiving_quantity'],
-                                    ['class' => 'form-select form-select-sm', 'aria-label' => lang("{$sectionName}.ship_pack")],
-                                ) ?>
+                                <?php if (isset($unit_choices[(int) $item['item_id']])): ?>
+                                    <?= form_hidden('receiving_quantity', '1') ?>
+                                    <?= form_dropdown('unit_id', $unit_choices[(int) $item['item_id']], (string) ($item['unit_id'] ?? ''), ['class' => 'form-select form-select-sm', 'aria-label' => lang('Stock_units.unit')]) ?>
+                                <?php else: ?>
+                                    <?= form_dropdown(
+                                        'receiving_quantity',
+                                        $item['receiving_quantity_choices'],
+                                        $item['receiving_quantity'],
+                                        ['class' => 'form-select form-select-sm', 'aria-label' => lang("{$sectionName}.ship_pack")],
+                                    ) ?>
+                                <?php endif; ?>
                             </div>
 
                             <div class="cart-field" data-label="<?= lang("{$sectionName}.discount") ?>">
@@ -205,6 +211,12 @@ $hasCart     = count($cart) > 0;
                             </div>
 
                             <div class="cart-extra">
+                                <?php if (($item['tracking_type'] ?? 'none') === 'serial'): ?>
+                                    <?= form_textarea(['name' => 'tracking_serials', 'class' => 'form-control form-control-sm', 'dir' => 'ltr', 'rows' => 2, 'value' => implode("\n", $item['tracking']['serials'] ?? []), 'aria-label' => lang('Stock_units.serial_numbers'), 'placeholder' => lang('Stock_units.serial_numbers_placeholder')]) ?>
+                                <?php elseif (($item['tracking_type'] ?? 'none') === 'batch'): ?>
+                                    <?= form_input(['name' => 'batch_number', 'class' => 'form-control form-control-sm', 'dir' => 'ltr', 'value' => $item['tracking']['batches'][0]['number'] ?? '', 'aria-label' => lang('Stock_units.batch_number'), 'placeholder' => lang('Stock_units.batch_number')]) ?>
+                                    <?= form_input(['name' => 'batch_expiry', 'type' => 'date', 'class' => 'form-control form-control-sm', 'value' => $item['tracking']['batches'][0]['expiry'] ?? '', 'aria-label' => lang('Stock_units.batch_expiry')]) ?>
+                                <?php endif; ?>
                                 <?php if ($item['allow_alt_description'] == 1): ?>
                                     <?= form_input(['name' => 'description', 'class' => 'form-control form-control-sm', 'value' => $item['description'], 'aria-label' => lang('Sales.description_abbrv'), 'placeholder' => lang('Sales.description_abbrv')]) ?>
                                 <?php elseif ($item['description'] != ''): ?>
@@ -526,7 +538,7 @@ $hasCart     = count($cart) > 0;
             }
         }
 
-        $('[name="price"],[name="quantity"],[name="receiving_quantity"],[name="discount"],[name="tax_percent"],[name="description"],[name="serialnumber"]').change(function() {
+        $('[name="price"],[name="quantity"],[name="receiving_quantity"],[name="discount"],[name="tax_percent"],[name="description"],[name="serialnumber"],[name="unit_id"],[name="tracking_serials"],[name="batch_number"],[name="batch_expiry"]').change(function() {
             $(this).closest('form').submit();
         });
 

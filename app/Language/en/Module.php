@@ -99,6 +99,8 @@ return [
     'sales_desc'                   => 'Process Sales and Returns.',
     'stock_documents'              => 'Stock Documents',
     'stock_documents_desc'         => 'Numbered stock permits, stocktakes and stock requests between stock locations.',
+    'stock_units'                  => 'Units and Tracking',
+    'stock_units_desc'             => 'Unit templates, the units and tracking of items, and the settings of bundles and negative stock.',
     'supplier_quotations'          => 'Supplier Quotations',
     'supplier_quotations_desc'     => 'The prices a supplier quoted for what was asked, to be made into a purchase order: it posts nothing and moves no stock.',
     'suppliers'                    => 'Suppliers',

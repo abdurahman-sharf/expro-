@@ -31,6 +31,9 @@ use App\Libraries\ShippingTaxOption;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\SalesControlSettings;
+use App\Libraries\Stock\ItemStockProfile;
+use App\Libraries\Stock\StockUnitPermissions;
+use App\Libraries\Stock\TrackingType;
 use App\Models\Price_list;
 use PHPUnit\Framework\Attributes\DataProvider;
 use App\Models\Appconfig;
@@ -47,6 +50,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\SaleFixtureTrait;
+use Tests\Support\StockUnitsFixtureTrait;
 use App\Libraries\Roles\DefaultLocations;
 use App\Libraries\Roles\RoleGrants;
 
@@ -73,6 +77,7 @@ class SalesControllerTest extends CIUnitTestCase
     use RoleFixtureTrait;
     use SaleAccountingFixtureTrait;
     use SaleFixtureTrait;
+    use StockUnitsFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -99,6 +104,7 @@ class SalesControllerTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->trackSalesSince();
+        $this->stopStockUnits();
         $this->stopSelling();
 
         $db = Database::connect();
@@ -6729,6 +6735,123 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->post('/sales/editItem/1', ['price' => '90', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
 
         $this->assertSame('90.00', (string) Services::session()->get('sales_cart')[1]['price']);
+    }
+
+    /**
+     * A register line of five pieces at 3.33 that may be entered in sacks of 2.5.
+     *
+     * @return array{item: int, employee: int, sack: int}
+     */
+    private function lineInSacks(array $grants = []): array
+    {
+        $setup      = $this->registerWithPriceControls($grants, '3.33');
+        $templateId = $this->template('Sacks', [['name' => 'Sack', 'factor' => '2.5', 'small_name' => 'sk']]);
+
+        (new ItemStockProfile())->setTemplate($setup['item'], $templateId, $this->unitManagerId);
+        $this->withSession(array_merge($this->session, ['sales_cart' => [1 => [...$this->session['sales_cart'][1], 'quantity' => '5', 'total' => '16.65', 'discounted_total' => '16.65']]]));
+
+        return [...$setup, 'sack' => $this->unitIdOf($templateId, 'Sack')];
+    }
+
+    private function carryTheCart(): void
+    {
+        $this->withSession(array_merge($this->session, ['sales_cart' => Services::session()->get('sales_cart')]));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function editOf(string $price, string $quantity, array $more = []): array
+    {
+        return ['price' => $price, 'quantity' => $quantity, 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1', ...$more];
+    }
+
+    public function testPostEditItem_KeepsTheUnitPriceOfALineEnteredInSacksWhenOnlyTheQuantityChanges(): void
+    {
+        $setup = $this->lineInSacks(['sales_change_price']);
+
+        $this->post('/sales/editItem/1', $this->editOf('3.33', '5', ['unit_id' => (string) $setup['sack']]));
+
+        $line = Services::session()->get('sales_cart')[1];
+
+        $this->assertSame([$setup['sack'], '8.325000'], [(int) $line['unit_id'], (string) $line['unit_price']]);
+
+        $this->carryTheCart();
+        $this->post('/sales/editItem/1', $this->editOf('8.325', '4', ['unit_id' => (string) $setup['sack']]));
+
+        $line = Services::session()->get('sales_cart')[1];
+
+        $this->assertSame(['10.000', '3.33', '4.000', '8.325000'], [bcadd((string) $line['quantity'], '0', 3), bcadd((string) $line['price'], '0', 2), bcadd((string) $line['unit_quantity'], '0', 3), (string) $line['unit_price']]);
+    }
+
+    public function testPostEditItem_DoesNotTakeAnUntouchedUnitPriceForAPriceChangeOfWhoMayNotChangePrices(): void
+    {
+        $setup = $this->lineInSacks();
+
+        $this->post('/sales/editItem/1', $this->editOf('3.33', '5', ['unit_id' => (string) $setup['sack']]));
+        $this->carryTheCart();
+
+        $response = $this->post('/sales/editItem/1', $this->editOf('8.325', '4', ['unit_id' => (string) $setup['sack']]));
+
+        $response->assertDontSee(lang('Sales.not_authorized'));
+        $this->assertSame('4.000', bcadd((string) Services::session()->get('sales_cart')[1]['unit_quantity'], '0', 3));
+    }
+
+    public function testPostEditItem_RefusesAPriceChangeOfALineInSacksToWhoMayNotChangePrices(): void
+    {
+        $setup = $this->lineInSacks();
+
+        $this->post('/sales/editItem/1', $this->editOf('3.33', '5', ['unit_id' => (string) $setup['sack']]));
+        $this->carryTheCart();
+
+        $response = $this->post('/sales/editItem/1', $this->editOf('9.00', '4', ['unit_id' => (string) $setup['sack']]));
+
+        $response->assertSee(lang('Sales.not_authorized'));
+        $this->assertSame('8.325000', (string) Services::session()->get('sales_cart')[1]['unit_price']);
+    }
+
+    public function testPostEditItem_RefusesAPriceChangeInTheThirdDecimalOfALineInSacksToWhoMayNotChangePrices(): void
+    {
+        $setup = $this->lineInSacks();
+
+        $this->post('/sales/editItem/1', $this->editOf('3.33', '5', ['unit_id' => (string) $setup['sack']]));
+        $this->carryTheCart();
+
+        $response = $this->post('/sales/editItem/1', $this->editOf('8.326', '4', ['unit_id' => (string) $setup['sack']]));
+
+        $response->assertSee(lang('Sales.not_authorized'));
+        $this->assertSame('8.325000', (string) Services::session()->get('sales_cart')[1]['unit_price']);
+    }
+
+    public function testPostEditItem_KeepsTheSerialNumberOfATrackedItemAsItWasTyped(): void
+    {
+        $this->registerWithPriceControls(['sales_change_price'], '100.00');
+
+        $itemId = $this->trackedItem(TrackingType::Serial);
+
+        $this->withSession(array_merge($this->session, ['sales_cart' => [1 => [...$this->session['sales_cart'][1], 'item_id' => $itemId, 'is_serialized' => true, 'tracking_type' => 'serial']]]));
+        $this->post('/sales/editItem/1', $this->editOf('100.00', '1', ['serialnumber' => 'AB&C-1']));
+
+        $this->assertSame('AB&C-1', Services::session()->get('sales_cart')[1]['serialnumber']);
+    }
+
+    public function testPostEditItem_KeepsSanitisingTheSerialNumberOfALineThatIsNotTracked(): void
+    {
+        $this->registerWithPriceControls(['sales_change_price'], '100.00');
+
+        $this->post('/sales/editItem/1', $this->editOf('100.00', '1', ['serialnumber' => 'AB&C-1']));
+
+        $this->assertSame('AB&amp;C-1', Services::session()->get('sales_cart')[1]['serialnumber']);
+    }
+
+    public function testPostEditItem_IgnoresABatchNumberThatIsNotText(): void
+    {
+        $this->registerWithPriceControls(['sales_change_price', StockUnitPermissions::BATCH_MANUAL_PICK], '100.00');
+
+        $response = $this->post('/sales/editItem/1', $this->editOf('100.00', '1', ['batch_number' => ['B-1']]));
+
+        $response->assertStatus(200);
+        $this->assertArrayNotHasKey('tracking', Services::session()->get('sales_cart')[1]);
     }
 
     public function testPostAdd_PricesTheLineFromThePriceListOfTheCustomer(): void

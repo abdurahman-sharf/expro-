@@ -40,6 +40,7 @@ final class ReadinessRunner
             new RoutingChecks($this->db),
             new RecurringChecks($this->db),
             new PurchaseCycleChecks($this->db),
+            new StockTrackingChecks($this->db),
         ];
     }
 

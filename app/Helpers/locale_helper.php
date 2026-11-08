@@ -436,6 +436,31 @@ function to_currency_exact(?string $number): string
 }
 
 /**
+ * The price of a line entered in a larger unit, with every decimal it has up to six, in the number
+ * format of the shop, so that what the line shows is what parse_decimals reads back.
+ *
+ * @param string|null $number
+ * @return string
+ */
+function to_unit_price(?string $number): string
+{
+    if (!isset($number)) {
+        return '';
+    }
+
+    $config = config(OSPOS::class)->settings;
+    $fmt = new NumberFormatter(numberFormatterLocale($config['number_locale']), NumberFormatter::DECIMAL);
+    $fmt->setAttribute(NumberFormatter::MIN_FRACTION_DIGITS, (int) ($config['currency_decimals'] ?? 2));
+    $fmt->setAttribute(NumberFormatter::MAX_FRACTION_DIGITS, 6);
+
+    if (empty($config['thousands_separator'])) {
+        $fmt->setTextAttribute(NumberFormatter::GROUPING_SEPARATOR_SYMBOL, '');
+    }
+
+    return $fmt->format((float) $number);
+}
+
+/**
  * @param string|null $number
  * @return string
  */

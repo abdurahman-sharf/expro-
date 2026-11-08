@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Stock\StockTracking;
 use CodeIgniter\Database\RawSql;
 use CodeIgniter\Model;
 use stdClass;
@@ -45,6 +47,10 @@ class Item_quantity extends Model
      */
     public function save_value(array $location_detail, int $item_id, int $location_id): bool
     {
+        if (isset($location_detail['quantity']) && bccomp((string) $location_detail['quantity'], (string) $this->get_item_quantity($item_id, $location_id)->quantity, 3) !== 0) {
+            StockTracking::assertShelfMayChange($item_id, $this->db);
+        }
+
         if (!$this->exists($item_id, $location_id)) {
             $builder = $this->db->table('item_quantities');
             return $builder->insert($location_detail);
@@ -109,6 +115,8 @@ class Item_quantity extends Model
      */
     public function changeQuantity(int $itemId, int $locationId, float $quantityChange): bool
     {
+        StockTracking::assertShelfMayChange($itemId, $this->db);
+
         $builder = $this->db->table('item_quantities');
         $builder->set([
             'item_id'     => $itemId,
@@ -125,6 +133,8 @@ class Item_quantity extends Model
      */
     public function reset_quantity(int $item_id): bool
     {
+        $this->assertHoldingMayBeReset([$item_id]);
+
         $builder = $this->db->table('item_quantities');
         $builder->where('item_id', $item_id);
 
@@ -136,9 +146,32 @@ class Item_quantity extends Model
      */
     public function reset_quantity_list(array $item_ids): bool
     {
+        $this->assertHoldingMayBeReset($item_ids);
+
         $builder = $this->db->table('item_quantities');
         $builder->whereIn('item_id', $item_ids);
 
         return $builder->update(['quantity' => 0]);
+    }
+
+    /**
+     * Only an item that holds something is changed by a reset, so a tracked item with an empty shelf may
+     * be deleted and one that holds stock is refused by name.
+     *
+     * @param array<int|string> $itemIds
+     *
+     * @throws AccountingException
+     */
+    private function assertHoldingMayBeReset(array $itemIds): void
+    {
+        if ($itemIds === []) {
+            return;
+        }
+
+        $holding = $this->db->table('item_quantities')->select('item_id')->whereIn('item_id', array_map('intval', $itemIds))->where('quantity <>', 0)->distinct()->get()->getResultArray();
+
+        foreach (array_column($holding, 'item_id') as $itemId) {
+            StockTracking::assertShelfMayChange((int) $itemId, $this->db);
+        }
     }
 }

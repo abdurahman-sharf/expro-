@@ -6,9 +6,12 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Stock\ItemStockProfile;
+use App\Libraries\Stock\StockOptions;
 use App\Libraries\Stock\StockPermissions;
 use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockPermitSources;
+use App\Libraries\Stock\TrackingType;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -23,6 +26,7 @@ use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\StockDocumentFixtureTrait;
+use Tests\Support\StockUnitsFixtureTrait;
 
 /**
  * The screens of the stock permits: who may open them, what they list for the branches of the employee,
@@ -38,6 +42,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
     use PurchaseAccountingFixtureTrait;
     use SaleAccountingFixtureTrait;
     use StockDocumentFixtureTrait;
+    use StockUnitsFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -62,6 +67,7 @@ class StockPermitsControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopStockUnits();
         $this->stopStockDocuments();
         $this->stopBuying();
 
@@ -506,6 +512,160 @@ class StockPermitsControllerTest extends CIUnitTestCase
         $this->actAsWith([StockPermissions::MODULE]);
 
         $this->assertSame(403, $this->get('/stock_documents/items')->response()->getStatusCode());
+    }
+
+    public function testGetItems_TellsTheUnitsAndTheTrackingOfAnItemWhileTheirSettingsAreOn(): void
+    {
+        $setup = $this->cartonItem('5.00');
+
+        $this->switchOnStock('tracking');
+        (new ItemStockProfile())->setTracking($setup['item'], TrackingType::Serial, $this->unitManagerId);
+        $this->actAsKeeper();
+
+        $found = json_decode($this->get('/stock_documents/items?item_id=' . $setup['item'])->getJSON(), true)[0];
+
+        $this->assertSame('serial', $found['tracking']);
+        $this->assertSame([['value' => '', 'label' => 'Piece'], ['value' => (string) $setup['carton'], 'label' => 'Carton (x12)']], $found['units']);
+    }
+
+    public function testGetItems_TellsTheTrackingButNotTheUnitsWhileOnlyTheUnitsAreOff(): void
+    {
+        $setup = $this->cartonItem('5.00');
+
+        $this->switchOnStock('tracking');
+        (new ItemStockProfile())->setTracking($setup['item'], TrackingType::Batch, $this->unitManagerId);
+        $this->accountingDb()->table('app_config')->where('key', StockOptions::UNITS)->delete();
+        $this->actAsKeeper();
+
+        $found = json_decode($this->get('/stock_documents/items?item_id=' . $setup['item'])->getJSON(), true)[0];
+
+        $this->assertSame('batch', $found['tracking']);
+        $this->assertArrayNotHasKey('units', $found);
+    }
+
+    public function testGetItems_TellsNothingOfUnitsOrTrackingWhileTheirSettingsAreOff(): void
+    {
+        $setup = $this->cartonItem('5.00');
+
+        $this->accountingDb()->table('app_config')->whereIn('key', [StockOptions::UNITS, StockOptions::TRACKING])->delete();
+        $this->actAsKeeper();
+
+        $found = json_decode($this->get('/stock_documents/items?item_id=' . $setup['item'])->getJSON(), true)[0];
+
+        $this->assertArrayNotHasKey('tracking', $found);
+        $this->assertArrayNotHasKey('units', $found);
+    }
+
+    public function testGetForm_OffersTheUnitAndTheTrackingColumnsOnlyWhileTheirSettingsAreOn(): void
+    {
+        $this->actAsKeeper();
+
+        $off = $this->get('/stock_documents/permits/form/add');
+
+        $off->assertDontSee(lang('Stock_units.tracking_entry'));
+
+        $this->switchOnStock('units', 'tracking');
+
+        $on = $this->get('/stock_documents/permits/form/add');
+
+        $on->assertSee(lang('Stock_units.tracking_entry'));
+        $this->assertStringContainsString('const unitsOn = true;', $on->getBody());
+        $this->assertStringContainsString('const trackingOn = true;', $on->getBody());
+        $this->assertStringContainsString('<th scope="col">' . lang('Stock_units.unit') . '</th>', $on->getBody());
+    }
+
+    public function testGetForm_OffersTheUnitColumnWithoutTheTrackingColumnWhileOnlyUnitsAreOn(): void
+    {
+        $this->switchOnStock('units');
+        $this->actAsKeeper();
+
+        $body = $this->get('/stock_documents/permits/form/add')->getBody();
+
+        $this->assertStringContainsString('const unitsOn = true;', $body);
+        $this->assertStringContainsString('const trackingOn = false;', $body);
+        $this->assertStringContainsString('<th scope="col">' . lang('Stock_units.unit') . '</th>', $body);
+        $this->assertStringNotContainsString(lang('Stock_units.tracking_entry'), $body);
+    }
+
+    public function testGetForm_OffersTheTrackingColumnWithoutTheUnitColumnWhileOnlyTrackingIsOn(): void
+    {
+        $this->switchOnStock('tracking');
+        $this->actAsKeeper();
+
+        $body = $this->get('/stock_documents/permits/form/add')->getBody();
+
+        $this->assertStringContainsString('const unitsOn = false;', $body);
+        $this->assertStringContainsString('const trackingOn = true;', $body);
+        $this->assertStringNotContainsString('<th scope="col">' . lang('Stock_units.unit') . '</th>', $body);
+        $this->assertStringContainsString(lang('Stock_units.tracking_entry'), $body);
+    }
+
+    public function testPostSavePermit_SavesALineEnteredInCartonsInBaseUnits(): void
+    {
+        $setup = $this->cartonItem('5.00');
+
+        $this->actAsKeeper();
+
+        $answer = $this->postJson('/stock_documents/permits/save', ['type' => 'add', 'permit_date' => date('Y-m-d'), 'location_id' => (string) self::LOCATION_ID, 'lines' => [['item_id' => (string) $setup['item'], 'quantity' => '2', 'unit_cost' => '60', 'unit_id' => (string) $setup['carton']]]]);
+
+        $this->assertTrue($answer['success']);
+
+        $line = $this->permits->lines((int) $answer['id'])[0];
+
+        $this->assertSame(['24.000', '5.000000', $setup['carton'], '2.000'], [bcadd((string) $line->quantity, '0', 3), bcadd((string) $line->unit_cost, '0', 6), (int) $line->unit_id, bcadd((string) $line->unit_quantity, '0', 3)]);
+        $this->assertSame('24.000', $this->onHand($setup['item']));
+    }
+
+    public function testPostSavePermit_SavesTheSerialNumbersTypedForATrackedItem(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Serial, '0.00');
+
+        $this->actAsKeeper();
+
+        $answer = $this->postJson('/stock_documents/permits/save', ['type' => 'add', 'permit_date' => date('Y-m-d'), 'location_id' => (string) self::LOCATION_ID, 'lines' => [['item_id' => (string) $itemId, 'quantity' => '2', 'unit_cost' => '10', 'serials' => "SP-1\nSP-2"]]]);
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame(2, $this->accountingDb()->table('stock_serials')->where(['item_id' => $itemId, 'state' => 'in_stock'])->countAllResults());
+        $this->assertSame('2.000', $this->onHand($itemId));
+    }
+
+    public function testPostSavePermit_SavesTheSingleBatchTypedForATrackedItemForTheWholeQuantity(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Batch, '0.00');
+
+        $this->actAsKeeper();
+
+        $answer = $this->postJson('/stock_documents/permits/save', ['type' => 'add', 'permit_date' => date('Y-m-d'), 'location_id' => (string) self::LOCATION_ID, 'lines' => [['item_id' => (string) $itemId, 'quantity' => '6', 'unit_cost' => '10', 'batch_number' => 'SP-B1', 'batch_expiry' => date('Y-m-d', strtotime('+60 days'))]]]);
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame('6.000', bcadd((string) $this->accountingDb()->table('stock_batch_quantities q')->select('q.quantity')->join('stock_batches b', 'b.batch_id = q.batch_id')->where(['b.item_id' => $itemId, 'b.batch_number' => 'SP-B1'])->get()->getRow()->quantity, '0', 3));
+        $this->assertSame('6.000', $this->onHand($itemId));
+    }
+
+    public function testPostSavePermit_RejectsATrackedItemWithNoSerialNumberTypedAndSavesNothing(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Serial, '0.00');
+
+        $this->actAsKeeper();
+
+        $answer = $this->postJson('/stock_documents/permits/save', ['type' => 'add', 'permit_date' => date('Y-m-d'), 'location_id' => (string) self::LOCATION_ID, 'lines' => [['item_id' => (string) $itemId, 'quantity' => '2', 'unit_cost' => '10']]]);
+
+        $this->assertFalse($answer['success']);
+        $this->assertStringContainsString(lang('Accounting.error_tracked_entry_required', [1, (string) $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->name]), $answer['message']);
+        $this->assertSame('0.000', $this->onHand($itemId));
+    }
+
+    public function testGetEditForm_ShowsAUnitLineAsItWasEntered(): void
+    {
+        $setup    = $this->cartonItem('5.00');
+        $permitId = $this->permits->create(['type' => 'add', 'date' => date('Y-m-d'), 'location_id' => self::LOCATION_ID, 'lines' => [['item_id' => $setup['item'], 'unit_id' => $setup['carton'], 'unit_quantity' => '2', 'unit_price' => '60']]], $this->keeperId);
+
+        $this->actAsKeeper();
+
+        $page = $this->get('/stock_documents/permits/edit/' . $permitId);
+
+        $page->assertStatus(200);
+        $this->assertStringContainsString('"unit":"' . $setup['carton'] . '","quantity":"2","cost":"60"', $page->getBody());
     }
 
     public function testGetItems_ShowsWhatIsOnHandInTheLocationAskedForOnlyWhereTheEmployeeMayUseIt(): void

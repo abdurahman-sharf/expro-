@@ -28,6 +28,7 @@ use App\Libraries\MasterData\NamedLookup;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\SalesControlSettings;
+use App\Libraries\Stock\UnitBarcodes;
 use App\Models\Attribute;
 use App\Models\Inventory;
 use App\Models\Item;
@@ -822,6 +823,10 @@ class Items extends Secure_Controller
     {
         $itemNumber = $this->request->getPost('item_number');
 
+        if (is_string($itemNumber) && $itemNumber !== '' && (new UnitBarcodes())->exists($itemNumber)) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of(new AccountingException(AccountingError::UnitBarcodeTaken, 'The item number is the barcode of a unit.', ['code' => $itemNumber])), 'id' => $itemId]);
+        }
+
         if (!empty($itemNumber)) {
             $rules = [
                 'item_number' => 'alpha_numeric_punct',
@@ -1143,7 +1148,7 @@ class Items extends Secure_Controller
                 $itemQuantity = $this->item_quantity->get_item_quantity($itemId, $location['location_id']);
 
                 if ($itemQuantity->quantity != $updatedQuantity || $newItem) {
-                    $success = $success && $this->item_quantity->save_value($locationDetail, $itemId, $location['location_id']);
+                    $success = $success && $this->saveShelf($locationDetail, $itemId, (int) $location['location_id']);
 
                     $invData = [
                         'trans_date'      => date('Y-m-d H:i:s'),
@@ -1492,7 +1497,7 @@ class Items extends Secure_Controller
         ];
 
         $saved = $inventoryId !== false
-            && $this->item_quantity->save_value($item_quantity_data, $item_id, $locationId)
+            && $this->saveShelf($item_quantity_data, (int) $item_id, $locationId)
             && $this->postAdjustment((int) $item_id, (int) $locationId, $inv_data['trans_inventory'], $employee_id, $inventoryId);
 
         if ($saved) {
@@ -1994,14 +1999,14 @@ class Items extends Secure_Controller
 
             if (!empty($row["location_$location_name"]) || $row["location_$location_name"] === '0') {
                 $item_quantity_data['quantity'] = $row["location_$location_name"];
-                $success &= $this->item_quantity->save_value($item_quantity_data, $item_data['item_id'], $location_id);
+                $success &= $this->saveShelf($item_quantity_data, (int) $item_data['item_id'], (int) $location_id);
 
                 $csv_data['trans_inventory'] = $row["location_{$location_name}"] - $before;
             } elseif ($is_update) {
                 continue;
             } else {
                 $item_quantity_data['quantity'] = 0;
-                $success &= $this->item_quantity->save_value($item_quantity_data, $item_data['item_id'], $location_id);
+                $success &= $this->saveShelf($item_quantity_data, (int) $item_data['item_id'], (int) $location_id);
 
                 $csv_data['trans_inventory'] = 0 - $before;
             }
@@ -2041,6 +2046,17 @@ class Items extends Secure_Controller
         } catch (AccountingException|BranchException|PostingException $failure) {
             $this->adjustmentFailure = $failure;
             log_message('error', 'Stock adjustment of item ' . $itemId . ' refused: ' . $failure->getMessage());
+
+            return false;
+        }
+    }
+
+    private function saveShelf(array $quantityData, int $itemId, int $locationId): bool
+    {
+        try {
+            return $this->item_quantity->save_value($quantityData, $itemId, $locationId);
+        } catch (AccountingException $failure) {
+            $this->adjustmentFailure = $failure;
 
             return false;
         }

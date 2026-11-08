@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Stock\Bundles;
 use CodeIgniter\Model;
 
 /**
@@ -16,6 +18,13 @@ class Item_kit_items extends Model
     protected $allowedFields = [
         'kit_sequence'
     ];
+
+    private ?AccountingException $bundleRefusal = null;
+
+    public function bundleRefusal(): ?AccountingException
+    {
+        return $this->bundleRefusal;
+    }
 
     /**
      * Gets item kit items for a particular item kit
@@ -53,6 +62,18 @@ class Item_kit_items extends Model
      */
     public function save_value(array &$item_kit_items_data, int $item_kit_id): bool
     {
+        $this->bundleRefusal = null;
+
+        $kit = $this->db->table('item_kits')->select('item_id, price_option')->where('item_kit_id', $item_kit_id)->get()->getRow();
+
+        try {
+            (new Bundles($this->db))->assertValid($kit === null || $kit->item_id === null ? null : (int) $kit->item_id, array_map('intval', array_column($item_kit_items_data ?? [], 'item_id')), $kit === null || $kit->price_option === null ? null : (int) $kit->price_option);
+        } catch (AccountingException $refusal) {
+            $this->bundleRefusal = $refusal;
+
+            return false;
+        }
+
         $success = true;
 
         $this->db->transStart();

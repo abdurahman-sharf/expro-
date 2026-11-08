@@ -7,6 +7,8 @@
  * @var list<object>       $accounts
  * @var string|null        $number
  * @var string             $today
+ * @var bool               $unitsOn
+ * @var bool               $trackingOn
  */
 use App\Libraries\Stock\StockPermitType;
 
@@ -110,11 +112,17 @@ $sign     = $type === StockPermitType::Add ? 1 : -1;
                         <th scope="col"><?= lang('Stock_documents.item') ?></th>
                         <th scope="col" class="text-end"><?= lang('Stock_documents.on_hand') ?></th>
                         <th scope="col" class="text-end"><?= lang('Stock_documents.quantity') ?></th>
+                        <?php if ($unitsOn): ?>
+                            <th scope="col"><?= lang('Stock_units.unit') ?></th>
+                        <?php endif; ?>
                         <?php if (! $editing): ?>
                             <th scope="col" class="text-end"><?= lang('Stock_documents.balance_after') ?></th>
                         <?php endif; ?>
                         <?php if ($withCost): ?>
                             <th scope="col" class="text-end"><?= lang('Stock_documents.unit_cost') ?></th>
+                        <?php endif; ?>
+                        <?php if ($trackingOn): ?>
+                            <th scope="col"><?= lang('Stock_units.tracking_entry') ?></th>
                         <?php endif; ?>
                         <th scope="col"><span class="visually-hidden"><?= lang('Stock_documents.remove_line') ?></span></th>
                     </tr>
@@ -134,8 +142,10 @@ $sign     = $type === StockPermitType::Add ? 1 : -1;
         const withCost = <?= $withCost ? 'true' : 'false' ?>;
         const editing = <?= $editing ? 'true' : 'false' ?>;
         const sign = <?= $sign ?>;
+        const unitsOn = <?= $unitsOn ? 'true' : 'false' ?>;
+        const trackingOn = <?= $trackingOn ? 'true' : 'false' ?>;
         const fixedLocation = <?= $editing ? (int) $permit->location_id : 0 ?>;
-        const existing = <?= json_encode(array_map(static fn (object $line): array => ['id' => (int) $line->item_id, 'label' => $line->item_name, 'quantity' => rtrim(rtrim(bcadd((string) $line->quantity, '0', 3), '0'), '.'), 'cost' => rtrim(rtrim(bcadd((string) $line->unit_cost, '0', 6), '0'), '.')], $lines), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const existing = <?= json_encode(array_map(static fn (object $line): array => ['id' => (int) $line->item_id, 'label' => $line->item_name, 'unit' => $line->unit_id === null ? '' : (string) (int) $line->unit_id, 'quantity' => $line->unit_id === null ? rtrim(rtrim(bcadd((string) $line->quantity, '0', 3), '0'), '.') : rtrim(rtrim(bcadd((string) $line->unit_quantity, '0', 3), '0'), '.'), 'cost' => $line->unit_id === null ? rtrim(rtrim(bcadd((string) $line->unit_cost, '0', 6), '0'), '.') : rtrim(rtrim(bcadd((string) $line->unit_cost_entered, '0', 6), '0'), '.')], $lines), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         let next = 0;
 
         const locationId = function() {
@@ -149,6 +159,32 @@ $sign     = $type === StockPermitType::Add ? 1 : -1;
             row.data('after').text(onHand === undefined || isNaN(quantity) ? '-' : (parseFloat(onHand) + sign * quantity).toFixed(3));
         };
 
+        const applyItem = function(row, info) {
+            const unit = row.data('unit');
+            const type = info && info.tracking ? info.tracking : 'none';
+
+            if (unit !== undefined) {
+                const keep = unit.val() || row.data('wantedUnit') || '';
+
+                unit.empty();
+
+                if (info && info.units) {
+                    info.units.forEach(function(choice) {
+                        unit.append($('<option></option>').val(choice.value).text(choice.label));
+                    });
+                    unit.val(String(keep));
+                }
+
+                unit.prop('disabled', !(info && info.units)).toggleClass('d-none', !(info && info.units));
+            }
+
+            if (row.data('serials') !== undefined) {
+                row.data('serials').prop('disabled', type !== 'serial').toggleClass('d-none', type !== 'serial');
+                row.data('batch').prop('disabled', type !== 'batch').toggleClass('d-none', type !== 'batch');
+                row.data('expiry').prop('disabled', type !== 'batch').toggleClass('d-none', type !== 'batch');
+            }
+        };
+
         const refreshBalance = function(row) {
             const itemId = parseInt(row.data('id').val(), 10) || 0;
 
@@ -157,9 +193,13 @@ $sign     = $type === StockPermitType::Add ? 1 : -1;
 
             if (itemId > 0 && locationId() > 0) {
                 $.getJSON('stock_documents/items', {item_id: itemId, location_id: locationId()}, function(found) {
-                    if (found.length > 0 && found[0].on_hand !== undefined && parseInt(row.data('id').val(), 10) === itemId) {
-                        row.data('onHandValue', found[0].on_hand);
-                        row.data('onHand').text(found[0].on_hand);
+                    if (found.length > 0 && parseInt(row.data('id').val(), 10) === itemId) {
+                        applyItem(row, found[0]);
+
+                        if (found[0].on_hand !== undefined) {
+                            row.data('onHandValue', found[0].on_hand);
+                            row.data('onHand').text(found[0].on_hand);
+                        }
                     }
 
                     showAfter(row);
@@ -181,15 +221,32 @@ $sign     = $type === StockPermitType::Add ? 1 : -1;
             const after = $('<td class="text-end ltr-input" dir="ltr"></td>').text('-');
             const cells = [$('<td></td>').append(name, id), onHand, $('<td></td>').append(quantity)];
 
+            row.data({onHand: onHand, after: after, id: id, quantity: quantity, wantedUnit: line.unit || ''});
+
+            if (unitsOn) {
+                const unit = $('<select class="form-select form-select-sm d-none" disabled></select>').attr({name: 'lines[' + index + '][unit_id]', 'aria-label': "<?= esc(lang('Stock_units.unit'), 'js') ?>"});
+
+                cells.push($('<td></td>').append(unit));
+                row.data('unit', unit);
+            }
+
             if (! editing) {
                 cells.push(after);
             }
 
             row.append(cells);
-            row.data({onHand: onHand, after: after, id: id, quantity: quantity});
 
             if (withCost) {
                 row.append($('<td></td>').append($('<input type="text" class="form-control form-control-sm ltr-input text-end" dir="ltr" inputmode="decimal" autocomplete="off">').attr({name: 'lines[' + index + '][unit_cost]', 'aria-label': "<?= esc(lang('Stock_documents.unit_cost'), 'js') ?>"}).val(line.cost || '')));
+            }
+
+            if (trackingOn) {
+                const serials = $('<textarea class="form-control form-control-sm ltr-input d-none" dir="ltr" rows="2" disabled></textarea>').attr({name: 'lines[' + index + '][serials]', 'aria-label': "<?= esc(lang('Stock_units.serial_numbers'), 'js') ?>", placeholder: "<?= esc(lang('Stock_units.serial_numbers_placeholder'), 'js') ?>"});
+                const batch = $('<input type="text" class="form-control form-control-sm ltr-input d-none" dir="ltr" maxlength="60" autocomplete="off" disabled>').attr({name: 'lines[' + index + '][batch_number]', 'aria-label': "<?= esc(lang('Stock_units.batch_number'), 'js') ?>", placeholder: "<?= esc(lang('Stock_units.batch_number'), 'js') ?>"});
+                const expiry = withCost ? $('<input type="date" class="form-control form-control-sm ltr-input d-none" dir="ltr" disabled>').attr({name: 'lines[' + index + '][batch_expiry]', 'aria-label': "<?= esc(lang('Stock_units.batch_expiry'), 'js') ?>"}) : $();
+
+                row.append($('<td></td>').append(serials, batch, expiry));
+                row.data({serials: serials, batch: batch, expiry: expiry});
             }
 
             row.append($('<td></td>').append(remove));
@@ -203,12 +260,14 @@ $sign     = $type === StockPermitType::Add ? 1 : -1;
                 select: function(event, ui) {
                     id.val(ui.item.value);
                     name.val(ui.item.label);
+                    applyItem(row, ui.item);
                     refreshBalance(row);
 
                     return false;
                 }
             }).on('input', function() {
                 id.val('');
+                applyItem(row, null);
                 refreshBalance(row);
             });
 

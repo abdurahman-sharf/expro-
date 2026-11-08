@@ -9,7 +9,14 @@ use App\Libraries\Accounting\ItemPurchaseTax;
 use App\Libraries\Accounting\ReceivingAmounts;
 use App\Libraries\Accounting\ReceivingLine;
 use App\Libraries\Accounting\ReceivingType;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\ReturnDiscountShares;
+use App\Libraries\Stock\ItemStockProfile;
+use App\Libraries\Stock\StockOptions;
+use App\Libraries\Stock\StockTracking;
+use App\Libraries\Stock\TrackingEntry;
+use App\Libraries\Stock\UnitCart;
+use App\Libraries\Stock\UnitTemplates;
 use App\Models\Attribute;
 use App\Models\Item;
 use App\Models\Item_kit_items;
@@ -27,6 +34,8 @@ use Config\OSPOS;
  */
 class Receiving_lib
 {
+    private ?AccountingException $unitFailure = null;
+
     private Attribute $attribute;
     private Item $item;
     private Item_kit_items $item_kit_items;
@@ -333,6 +342,7 @@ class Receiving_lib
                 'attribute_dtvalues'         => $attributeLinks->attribute_dtvalues,
                 'allow_alt_description'      => $itemInfo->allow_alt_description,
                 'is_serialized'              => $itemInfo->is_serialized,
+                'tracking_type'              => (new StockTracking())->typeOf((int) $itemId)->value,
                 'quantity'                   => $quantity,
                 'discount'                   => $discount,
                 'discount_type'              => $discountType,
@@ -348,6 +358,7 @@ class Receiving_lib
         if ($itemAlreadyInSale) {
             $items[$updateKey]['quantity'] += $quantity;
             $items[$updateKey]['total'] = $this->get_item_total($items[$updateKey]['quantity'], $price, $discount, $discountType, $items[$updateKey]['receiving_quantity']);
+            $items[$updateKey] = (new UnitCart())->refresh($items[$updateKey]);
         } else {
             $items += $item;
         }
@@ -357,9 +368,140 @@ class Receiving_lib
         return true;
     }
 
-    public function edit_item($line, string $description, string $serialnumber, float $quantity, float $discount, ?int $discount_type, float $price, float $receiving_quantity, ?string $tax_percent = null): bool
+    /**
+     * What a line of a tracked item brings in: the serial numbers, one for each unit, or the batch with
+     * its expiry date.
+     */
+    public function setTracking(string $line, string $serials, string $batchNumber, string $batchExpiry): void
     {
         $items = $this->get_cart();
+
+        if (! isset($items[$line])) {
+            return;
+        }
+
+        $quantity = bcmul((string) $items[$line]['quantity'], (string) ($items[$line]['receiving_quantity'] ?: 1), 3);
+        $entry    = ['serials' => TrackingEntry::serialsOf($serials), 'batches' => trim($batchNumber) === '' ? [] : [['number' => trim($batchNumber), 'expiry' => trim($batchExpiry), 'quantity' => $quantity]]];
+
+        if ($entry['serials'] === [] && $entry['batches'] === []) {
+            unset($items[$line]['tracking']);
+        } else {
+            $items[$line]['tracking'] = $entry;
+        }
+
+        $this->set_cart($items);
+    }
+
+    public function unitFailure(): ?AccountingException
+    {
+        return $this->unitFailure;
+    }
+
+    /**
+     * Shows a line in a unit of its item, or in base units for a null unit. A line that counted packs is
+     * counted in base units first, because a line names a unit or a pack and never both.
+     */
+    public function changeUnit(string $line, ?int $unitId): bool
+    {
+        $this->unitFailure = null;
+        $items             = $this->get_cart();
+        $cart              = new UnitCart();
+
+        if (! isset($items[$line])) {
+            return false;
+        }
+
+        $current = $cart->hasUnit($items[$line]) ? (int) $items[$line]['unit_id'] : null;
+
+        if ($current === $unitId) {
+            return true;
+        }
+
+        $row = $items[$line];
+
+        if ((float) $row['receiving_quantity'] > 1) {
+            $row['quantity']           = bcmul((string) $row['quantity'], (string) $row['receiving_quantity'], 3);
+            $row['receiving_quantity'] = 1;
+        }
+
+        try {
+            $row = $cart->switchTo($row, $unitId);
+        } catch (AccountingException $refusal) {
+            $this->unitFailure = $refusal;
+
+            return false;
+        }
+
+        $row['total'] = $this->get_item_total((float) $row['quantity'], (float) $row['price'], (float) $row['discount'], (int) $row['discount_type'], (float) $row['receiving_quantity']);
+        $items[$line] = $row;
+
+        $this->set_cart($items);
+
+        return true;
+    }
+
+    /**
+     * The units each item of the cart may be entered in, by item: its base unit first (under the key of an
+     * empty unit) and then the larger units of its template. Empty while the units setting is off.
+     *
+     * @param array<int|string, array<string, mixed>> $cart
+     *
+     * @return array<int, array<string, string>>
+     */
+    public function unitChoices(array $cart): array
+    {
+        if (! (new StockOptions())->unitsEnabled()) {
+            return [];
+        }
+
+        $choices   = [];
+        $templates = new UnitTemplates();
+        $profiles  = new ItemStockProfile();
+
+        foreach ($cart as $line) {
+            $itemId = (int) $line['item_id'];
+
+            if (isset($choices[$itemId])) {
+                continue;
+            }
+
+            $templateId = $profiles->get($itemId)->unitTemplateId;
+            $template   = $templateId === null ? null : $templates->find($templateId);
+
+            if ($template === null) {
+                continue;
+            }
+
+            $choices[$itemId] = ['' => $template->mainUnitName];
+
+            foreach ($template->units as $unit) {
+                $choices[$itemId][(string) $unit->unitId] = $unit->name . ' (x' . rtrim(rtrim($unit->factor, '0'), '.') . ')';
+            }
+        }
+
+        return $choices;
+    }
+
+    public function edit_item($line, string $description, string $serialnumber, float $quantity, float $discount, ?int $discount_type, float $price, float $receiving_quantity, ?string $tax_percent = null): bool
+    {
+        $this->unitFailure = null;
+        $items             = $this->get_cart();
+        $typed             = null;
+
+        if (isset($items[$line]) && (new UnitCart())->hasUnit($items[$line])) {
+            try {
+                $typed = (new UnitCart())->enter($items[$line], sprintf('%.3F', $quantity), sprintf('%.6F', $price));
+            } catch (AccountingException $refusal) {
+                $this->unitFailure = $refusal;
+
+                return false;
+            }
+
+            $quantity           = (float) $typed['quantity'];
+            $price              = (float) $typed['price'];
+            $receiving_quantity = 1.0;
+        }
+
         if (isset($items[$line])) {
             $line                       = &$items[$line];
             $line['description']        = $description;
@@ -379,6 +521,17 @@ class Receiving_lib
             }
 
             $line['total'] = $this->get_item_total($quantity, $price, $discount, $discount_type, $receiving_quantity);
+
+            if (isset($line['tracking']['batches'][0])) {
+                $line['tracking']['batches'][0]['quantity'] = bcmul((string) $quantity, (string) ($receiving_quantity ?: 1), 3);
+            }
+
+            if ($typed !== null) {
+                $line['unit_factor']   = $typed['unit_factor'];
+                $line['unit_quantity'] = $typed['unit_quantity'];
+                $line['unit_price']    = $typed['unit_price'];
+            }
+
             $this->set_cart($items);
         }
 
@@ -474,6 +627,17 @@ class Receiving_lib
 
         foreach ($this->receiving->get_receiving_items($receiving_id)->getResult() as $row) {
             $this->add_item($row->item_id, $row->quantity_purchased, $row->item_location, $row->discount, $row->discount_type, $row->item_unit_price, $row->description, $row->serialnumber, $row->receiving_quantity, $receiving_id, true, (string) $row->tax_percent);
+
+            if (($row->unit_id ?? null) !== null) {
+                foreach ($this->get_cart() as $key => $cartLine) {
+                    if ((int) $cartLine['item_id'] === (int) $row->item_id && (int) $cartLine['item_location'] === (int) $row->item_location) {
+                        $this->changeUnit((string) $key, (int) $row->unit_id);
+
+                        break;
+                    }
+                }
+            }
+
             $this->addStoredShare((int) $row->item_id, (int) $row->item_location, (string) ($row->invoice_discount_share ?? '0'));
         }
 

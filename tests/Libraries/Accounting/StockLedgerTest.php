@@ -19,6 +19,7 @@ use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\StockUnitsFixtureTrait;
 
 /**
  * What stock is worth, from the movements that reached the books: that a movement is written
@@ -34,6 +35,7 @@ class StockLedgerTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
+    use StockUnitsFixtureTrait;
     use PurchaseAccountingFixtureTrait;
 
     protected $migrate     = true;
@@ -59,6 +61,7 @@ class StockLedgerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopStockUnits();
         $this->stopBuying();
 
         parent::tearDown();
@@ -379,5 +382,37 @@ class StockLedgerTest extends CIUnitTestCase
         $this->assertSame($before, $this->ledger->reconcile());
         $this->assertSame([], $this->ledger->mismatchedJournals());
         $this->assertGreaterThan(0, $receivingId);
+    }
+
+    public function testPosition_CountsAPurchaseInCartonsAndASaleInPiecesInBaseUnitsAtTheAverageOfAPiece(): void
+    {
+        $setup  = $this->cartonItem('0.00');
+        $itemId = $setup['item'];
+
+        $this->buy([$this->inUnit($this->purchaseLine($itemId, 0, '1', '1'), $setup['carton'], '2', '60')]);
+        $this->save([$this->line($itemId, 0, '5', '9.00', '5.00')]);
+
+        $this->assertSame(['quantity' => '19.000', 'value' => '95.00'], $this->stockOf($itemId));
+        $this->assertSame('5.00000000', bcadd($this->ledger->unitCost($itemId, self::LOCATION_ID, '0'), '0', 8));
+        $this->assertSame([], $this->ledger->mismatchedJournals());
+    }
+
+    public function testReverseSource_TakesBackTheBaseUnitsOfASaleEnteredInCartons(): void
+    {
+        $setup  = $this->cartonItem('5.00');
+        $itemId = $setup['item'];
+
+        $this->buy([$this->inUnit($this->purchaseLine($itemId, 0, '1', '1'), $setup['carton'], '3', '60')]);
+
+        $saleId = $this->save([$this->inUnit($this->line($itemId, 0, '1', '1', '5.00'), $setup['carton'], '2', '120')], [], [$this->payment(lang('Sales.cash'), '240.00')], SALE_TYPE_POS);
+
+        $this->assertSame(['quantity' => '12.000', 'value' => '60.00'], $this->stockOf($itemId));
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId), (string) $this->sales->accountingFailure()?->getMessage());
+        $this->assertSame(['quantity' => '36.000', 'value' => '180.00'], $this->stockOf($itemId));
+        $this->assertSame('36.000', $this->onHand($itemId));
+
+        foreach ($this->ledger->reconcile() as $location) {
+            $this->assertSame(bcadd($location['movements_value'], '0', 2), bcadd($location['account_balance'], '0', 2));
+        }
     }
 }

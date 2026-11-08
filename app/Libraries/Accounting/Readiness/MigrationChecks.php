@@ -49,6 +49,7 @@ final class MigrationChecks extends CheckGroup
         'ProductMasterData'                => [self::HEAVY, 'adds neutral or empty columns to items (brand, status, supplier code) on the largest master table; creates item_brands; down() refuses once a value is stored'],
         'StockLocationStatus'              => [self::DATA, 'adds the status and the primary flag to stock_locations and marks the location with the lowest number primary; a unique key keeps one live primary location'],
         'ShippingCompanies'                => [self::HEAVY, 'creates shipping_companies and adds the nullable sales.shipping_company_id with its index and key on a large table; down() refuses once a sale names a company'],
+        'StockUnitsAndTracking'            => [self::HEAVY, 'adds nullable unit columns and a shape check to sales_items, receivings_items and stock_permit_lines; creates the unit templates, item profiles, serial numbers, batches and the tracking record of each line; down() refuses once a line carries a unit or a serial number or a batch is on record'],
     ];
 
     public function run(): array

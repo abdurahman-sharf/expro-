@@ -257,6 +257,56 @@ $result = match ($method) {
         'location_id' => 1,
         'lines'       => [['item_id' => (int) $args[0], 'quantity' => (string) $args[1]]],
     ], (int) $args[2]), (string) $args[3]),
+    'issueSerialPermit' => $attempt(static fn () => (new StockPermit())->create([
+        'type'        => 'issue',
+        'date'        => date('Y-m-d'),
+        'location_id' => 1,
+        'lines'       => [['item_id' => (int) $args[0], 'quantity' => '1', 'tracking' => ['serials' => [(string) $args[1]]]]],
+    ], (int) $args[2]), (string) $args[3]),
+    'sellUnits' => (static function (array $args): bool {
+        $status = COMPLETED;
+        $items  = [[
+            'item_id'       => (int) $args[0],
+            'line'          => 0,
+            'description'   => 'Race',
+            'serialnumber'  => '',
+            'quantity'      => (string) $args[1],
+            'discount'      => '0',
+            'discount_type' => 0,
+            'cost_price'    => '0',
+            'price'         => '10.00',
+            'item_location' => 1,
+            'print_option'  => 0,
+        ]];
+        $taxes  = [[], []];
+        $result = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, -1, (int) $args[2], 'race', null, null, null, SALE_TYPE_POS, [['payment_type' => 'Cash', 'payment_amount' => '10.00', 'cash_refund' => '0', 'cash_adjustment' => 0, 'reference_code' => null]], null, $taxes, true);
+
+        file_put_contents((string) $args[3], $result > 0 ? 'done' : 'refused');
+
+        return $result > 0;
+    })($args),
+    'sellSerial' => (static function (array $args): bool {
+        $status = COMPLETED;
+        $items  = [[
+            'item_id'       => (int) $args[0],
+            'line'          => 0,
+            'description'   => 'Race',
+            'serialnumber'  => (string) $args[1],
+            'quantity'      => '1',
+            'discount'      => '0',
+            'discount_type' => 0,
+            'cost_price'    => '0',
+            'price'         => '10.00',
+            'item_location' => 1,
+            'print_option'  => 0,
+        ]];
+        $taxes  = [[], []];
+        $result = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, -1, (int) $args[2], 'race', null, null, null, SALE_TYPE_POS, [['payment_type' => 'Cash', 'payment_amount' => '10.00', 'cash_refund' => '0', 'cash_adjustment' => 0, 'reference_code' => null]], null, $taxes, true);
+
+        file_put_contents((string) $args[3], $result > 0 ? 'done' : 'refused');
+
+        return $result > 0;
+    })($args),
     'cancelPermit' => $attempt(static fn () => (new StockPermit())->cancel((int) $args[0], 'race', (int) $args[1]), (string) $args[2]),
     'fulfilRequest' => $attempt(static fn () => (new StockRequest())->fulfil((int) $args[0], (int) $args[1]), (string) $args[2]),
     'approveStocktake' => $attempt(static fn () => (new Stocktake())->approve((int) $args[0], (int) $args[1]), (string) $args[2]),

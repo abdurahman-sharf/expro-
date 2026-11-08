@@ -85,6 +85,8 @@ final class StockPermit
     private RoutingResolver $resolver;
     private AuditLog $audit;
     private DocumentNumbering $numbering;
+    private UnitLines $units;
+    private StockTracking $tracking;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
@@ -104,6 +106,8 @@ final class StockPermit
         $this->legs          = new InterBranchLegs($this->db);
         $this->audit         = new AuditLog($this->db);
         $this->numbering     = new DocumentNumbering($this->db);
+        $this->units         = new UnitLines($this->db);
+        $this->tracking      = new StockTracking($this->db, $this->guard);
     }
 
     /**
@@ -307,7 +311,7 @@ final class StockPermit
     public function lines(int $permitId): array
     {
         return $this->db->table('stock_permit_lines l')
-            ->select('l.line_no, l.item_id, l.quantity, l.unit_cost, i.name AS item_name, i.item_number')
+            ->select('l.line_no, l.item_id, l.quantity, l.unit_cost, l.unit_id, l.unit_factor, l.unit_quantity, l.unit_cost_entered, i.name AS item_name, i.item_number')
             ->join('items i', 'i.item_id = l.item_id')
             ->where('l.permit_id', $permitId)
             ->orderBy('l.line_no', 'ASC')
@@ -548,8 +552,9 @@ final class StockPermit
         foreach (array_values($lines) as $index => $line) {
             $number   = $index + 1;
             $itemId   = is_array($line) ? (int) ($line['item_id'] ?? 0) : 0;
-            $quantity = is_array($line) ? trim((string) ($line['quantity'] ?? '')) : '';
-            $cost     = is_array($line) && trim((string) ($line['unit_cost'] ?? '')) !== '' ? trim((string) $line['unit_cost']) : '0';
+            $unitId   = is_array($line) && isset($line['unit_id']) && $line['unit_id'] !== '' ? (int) $line['unit_id'] : null;
+            $quantity = is_array($line) ? trim((string) ($line[$unitId === null ? 'quantity' : 'unit_quantity'] ?? '')) : '';
+            $cost     = is_array($line) && trim((string) ($line[$unitId === null ? 'unit_cost' : 'unit_price'] ?? '')) !== '' ? trim((string) $line[$unitId === null ? 'unit_cost' : 'unit_price']) : '0';
 
             if (preg_match(self::QUANTITY, $quantity) !== 1 || bccomp($quantity, '0', 3) <= 0 || bccomp($quantity, '999999999', 3) > 0) {
                 throw new AccountingException(AccountingError::StockPermitLinesInvalid, "The quantity of line {$number} must be more than zero.", ['line' => $number]);
@@ -563,7 +568,23 @@ final class StockPermit
                 throw new AccountingException(AccountingError::StockPermitLinesInvalid, "Line {$number} is not an item that keeps stock.", ['line' => $number]);
             }
 
-            $list[] = ['item_id' => $itemId, 'quantity' => bcadd($quantity, '0', 3), 'unit_cost' => $type === StockPermitType::Add ? bcadd($cost, '0', 6) : '0.000000'];
+            $unit = UnitLine::base($quantity, $cost);
+
+            if ($unitId !== null) {
+                $unit     = $this->units->convert($itemId, $unitId, $quantity, $type === StockPermitType::Add ? $cost : '0', $number, UnitLine::COST_SCALE);
+                $quantity = $unit->baseQuantity;
+                $cost     = $unit->basePrice;
+
+                if (bccomp($quantity, '0', 3) <= 0 || bccomp($quantity, '999999999', 3) > 0) {
+                    throw new AccountingException(AccountingError::StockPermitLinesInvalid, "The quantity of line {$number} must be more than zero.", ['line' => $number]);
+                }
+            }
+
+            $entry = TrackingEntry::ofLine(is_array($line) ? $line : [])->filledFor(bcadd($quantity, '0', 3));
+
+            $this->tracking->assertSerialEntry($itemId, $number, bcadd($quantity, '0', 3), $entry);
+
+            $list[] = ['item_id' => $itemId, 'quantity' => bcadd($quantity, '0', 3), 'unit_cost' => $type === StockPermitType::Add ? bcadd($cost, '0', 6) : '0.000000', 'unit' => $unit->columns('unit_cost_entered'), 'tracking' => $entry];
         }
 
         return $list;
@@ -730,9 +751,50 @@ final class StockPermit
             $this->keepIssuedCosts($permitId, $data['lines'], $plan);
         }
 
-        $this->shelves->move($deltas, self::COMMENT . $permitId, $employeeId);
+        $this->applyTracking($permitId, $data, $employeeId);
+        $this->shelves->move($deltas, self::COMMENT . $permitId, $employeeId, $this->trackedItems($data['lines']));
 
         return $follows;
+    }
+
+    /**
+     * Brings in, takes out or moves the serial numbers and the batches of the tracked lines of a permit,
+     * which changes the shelves of those items itself.
+     *
+     * @param array{type: StockPermitType, date: string, location_id: int, to_location_id: ?int, lines: list<array<string, mixed>>} $data
+     *
+     * @throws AccountingException
+     */
+    private function applyTracking(int $permitId, array $data, int $employeeId): void
+    {
+        foreach (array_values($data['lines']) as $index => $line) {
+            $itemId = (int) $line['item_id'];
+            $entry  = $line['tracking'] ?? TrackingEntry::none();
+
+            if (! $this->tracking->handles($itemId)) {
+                if (! $entry->isEmpty()) {
+                    throw new AccountingException(AccountingError::TrackedEntryNotAllowed, 'The item is not tracked.', ['line' => $index + 1, 'name' => (string) $this->db->table('items')->select('name')->where('item_id', $itemId)->get()->getRow()->name]);
+                }
+
+                continue;
+            }
+
+            match ($data['type']) {
+                StockPermitType::Add      => $this->tracking->receive('stock_permit', $permitId, $index + 1, $itemId, $data['location_id'], $line['quantity'], $entry),
+                StockPermitType::Issue    => $this->tracking->issue('stock_permit', $permitId, $index + 1, $itemId, $data['location_id'], $line['quantity'], $entry, $data['date'], StockTracking::ISSUE, $employeeId),
+                StockPermitType::Transfer => $this->tracking->transfer('stock_permit', $permitId, $index + 1, $itemId, $data['location_id'], (int) $data['to_location_id'], $line['quantity'], $entry, $employeeId),
+            };
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $lines
+     *
+     * @return list<int>
+     */
+    private function trackedItems(array $lines): array
+    {
+        return array_values(array_filter(array_unique(array_map(static fn (array $line): int => (int) $line['item_id'], $lines)), fn (int $itemId): bool => $this->tracking->handles($itemId)));
     }
 
     /**
@@ -844,7 +906,9 @@ final class StockPermit
             $this->ledger->reverseSource($source, $permitId, JournalEntryType::General, $reversal === null ? $fallback : (string) $reversal->journal_date, $reversal === null ? null : (int) $reversal->journal_id);
         }
 
-        $this->shelves->move($this->deltas($document, -1), self::COMMENT . $permitId . ' reversed', $employeeId);
+        $reversed = $this->tracking->reverseSource('stock_permit', $permitId);
+
+        $this->shelves->move($this->deltas($document, -1), self::COMMENT . $permitId . ' reversed', $employeeId, $reversed);
     }
 
     private function isPosted(int $journalId): bool
@@ -1024,7 +1088,7 @@ final class StockPermit
         $rows = [];
 
         foreach (array_values($lines) as $index => $line) {
-            $rows[] = ['permit_id' => $permitId, 'line_no' => $index + 1, 'item_id' => $line['item_id'], 'quantity' => $line['quantity'], 'unit_cost' => $line['unit_cost']];
+            $rows[] = ['permit_id' => $permitId, 'line_no' => $index + 1, 'item_id' => $line['item_id'], 'quantity' => $line['quantity'], 'unit_cost' => $line['unit_cost'], ...($line['unit'] ?? [])];
         }
 
         $this->db->table('stock_permit_lines')->insertBatch($rows);

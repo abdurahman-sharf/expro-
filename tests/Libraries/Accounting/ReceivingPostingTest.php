@@ -3,6 +3,8 @@
 namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Receiving_lib;
+use App\Libraries\Stock\TrackingType;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
@@ -35,6 +37,7 @@ use Tests\Support\ParityCaseTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\PurchaseGoldenTrait;
+use Tests\Support\StockUnitsFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
@@ -57,6 +60,7 @@ class ReceivingPostingTest extends CIUnitTestCase
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
     use PurchaseGoldenTrait;
+    use StockUnitsFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -79,6 +83,7 @@ class ReceivingPostingTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_journal_description_purchases'])->delete();
+        $this->stopStockUnits();
         $this->stopBuying();
 
         parent::tearDown();
@@ -5139,5 +5144,224 @@ class ReceivingPostingTest extends CIUnitTestCase
     private function lastPaymentRow(int $receivingId): object
     {
         return $this->accountingDb()->table('receivings_payments')->where('receiving_id', $receivingId)->orderBy('payment_id', 'DESC')->get()->getRow();
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Lines entered in a larger unit
+    // ---------------------------------------------------------------------------------------
+
+    public function testSaveValue_StoresAPurchaseLineEnteredInCartonsInBaseUnitsAndPostsTheStockAtTheCostOfAPiece(): void
+    {
+        $setup  = $this->cartonItem('0.00');
+        $itemId = $setup['item'];
+
+        $receivingId = $this->buy([$this->inUnit($this->purchaseLine($itemId, 0, '1', '1'), $setup['carton'], '2', '60')]);
+
+        $this->assertGreaterThan(0, $receivingId);
+
+        $stored = $this->storedLine($receivingId, $itemId);
+
+        $this->assertSame(['24.000', '1.000', '5.00', $setup['carton'], '12.0000', '2.000', '60.000000'], [$stored->quantity_purchased, $stored->receiving_quantity, $stored->item_unit_price, (int) $stored->unit_id, $stored->unit_factor, $stored->unit_quantity, $stored->unit_price_entered]);
+        $this->assertSame('24.000', $this->onHand($itemId));
+        $this->assertSame(['quantity' => '24.000', 'value' => '120.00'], $this->stockOf($itemId));
+        $this->assertSame($this->expectedLines([['inventory', '120.00', '0.00'], ['supplier', '0.00', '120.00']]), $this->standingPurchase($receivingId)[0]['lines']);
+        $this->assertSame('5.0000', $this->itemCostOf($itemId));
+    }
+
+    public function testSaveValue_KeepsTheMovementsAndTheStockAccountExactInBaseUnitsWhenCartonsAreBoughtAndPiecesSold(): void
+    {
+        $setup  = $this->cartonItem('0.00');
+        $itemId = $setup['item'];
+
+        $this->buy([$this->inUnit($this->purchaseLine($itemId, 0, '1', '1'), $setup['carton'], '2', '60')]);
+        $this->save([$this->line($itemId, 0, '5', '9.00', '5.00')]);
+
+        $this->assertSame(['quantity' => '19.000', 'value' => '95.00'], $this->stockOf($itemId));
+
+        foreach ((new StockLedger())->reconcile() as $location) {
+            $this->assertSame(bcadd($location['movements_value'], '0', 2), bcadd($location['account_balance'], '0', 2));
+        }
+    }
+
+    public function testSaveValue_RejectsAPurchaseLineThatNamesAUnitAndAPack(): void
+    {
+        $setup = $this->cartonItem('0.00');
+        $line  = $this->inUnit($this->purchaseLine($setup['item'], 0, '1', '1'), $setup['carton'], '2', '60');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->buy([[...$line, 'receiving_quantity' => '6']]));
+        $this->assertSame(AccountingError::UnitWithPack, $this->failure()?->error);
+        $this->assertSame('0.000', $this->onHand($setup['item']));
+    }
+
+    public function testSaveValue_RejectsAPurchaseLineWhosePriceIsNotWhatItsUnitConvertsTo(): void
+    {
+        $setup = $this->cartonItem('0.00');
+        $line  = [...$this->inUnit($this->purchaseLine($setup['item'], 0, '1', '1'), $setup['carton'], '2', '60'), 'price' => '4.99'];
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->buy([$line]));
+        $this->assertSame(AccountingError::UnitQuantityInexact, $this->failure()?->error);
+        $this->assertSame(0, $this->accountingDb()->table('receivings_items')->where('item_id', $setup['item'])->countAllResults());
+    }
+
+    public function testSaveValue_RejectsAPurchaseLineInAUnitOfAnotherTemplate(): void
+    {
+        $setup = $this->cartonItem('0.00');
+        $other = $this->item('0.00');
+        $line  = [...$this->inUnit($this->purchaseLine($setup['item'], 0, '1', '1'), $setup['carton'], '2', '60'), 'item_id' => $other];
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->buy([$line]));
+        $this->assertSame(AccountingError::UnitNotOfItem, $this->failure()?->error);
+    }
+
+    public function testUpdateLines_TurnsALineEnteredInCartonsIntoABaseLineWhenACorrectionChangesItsQuantity(): void
+    {
+        $setup       = $this->cartonItem('0.00');
+        $itemId      = $setup['item'];
+        $receivingId = $this->buy([$this->inUnit($this->purchaseLine($itemId, 0, '1', '1'), $setup['carton'], '2', '60')]);
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['quantity' => '20']));
+
+        $stored = $this->storedLine($receivingId, $itemId);
+
+        $this->assertSame(['20.000', null, null, null, null], [$stored->quantity_purchased, $stored->unit_id, $stored->unit_factor, $stored->unit_quantity, $stored->unit_price_entered]);
+        $this->assertSame('20.000', $this->onHand($itemId));
+    }
+
+    public function testUpdateLines_KeepsTheUnitOfALineWhenOnlyItsDescriptionIsCorrected(): void
+    {
+        $setup       = $this->cartonItem('0.00');
+        $itemId      = $setup['item'];
+        $receivingId = $this->buy([$this->inUnit($this->purchaseLine($itemId, 0, '1', '1'), $setup['carton'], '2', '60')]);
+
+        $this->assertTrue($this->correct($receivingId, $itemId, ['description' => 'Carton of twelve']));
+
+        $stored = $this->storedLine($receivingId, $itemId);
+
+        $this->assertSame([$setup['carton'], '2.000'], [(int) $stored->unit_id, $stored->unit_quantity]);
+    }
+
+    private function purchaseRegister(): Receiving_lib
+    {
+        bcscale(4);
+
+        $register = new Receiving_lib();
+        $register->clear_all();
+        $register->set_mode('receive');
+
+        return $register;
+    }
+
+    public function testChangeUnit_CountsAPackLineInPiecesFirstThenShowsItInCartons(): void
+    {
+        $setup    = $this->cartonItem('0.00');
+        $register = $this->purchaseRegister();
+
+        $register->add_item((string) $setup['item'], 2, self::LOCATION_ID, 0, 0, 5.0, null, null, 12.0);
+
+        $line = (string) array_key_last($register->get_cart());
+
+        $this->assertTrue($register->changeUnit($line, $setup['carton']));
+
+        $cart = $register->get_cart()[$line];
+
+        $this->assertSame(['24.000', 1.0, '2.000', '60.000000'], [bcadd((string) $cart['quantity'], '0', 3), (float) $cart['receiving_quantity'], $cart['unit_quantity'], $cart['unit_price']]);
+    }
+
+    public function testEditItem_ConvertsWhatIsTypedInCartonsOnThePurchaseScreenAndRefusesAPriceThatDoesNotDivide(): void
+    {
+        $setup    = $this->cartonItem('0.00');
+        $register = $this->purchaseRegister();
+
+        $register->add_item((string) $setup['item'], 24, self::LOCATION_ID, 0, 0, 5.0);
+
+        $line = (string) array_key_last($register->get_cart());
+
+        $register->changeUnit($line, $setup['carton']);
+        $register->edit_item($line, '', '', 3.0, 0.0, 0, 66.0, 1.0);
+
+        $cart = $register->get_cart()[$line];
+
+        $this->assertSame(['36.000', '5.50', '3.000', '66.000000'], [bcadd((string) $cart['quantity'], '0', 3), bcadd((string) $cart['price'], '0', 2), $cart['unit_quantity'], $cart['unit_price']]);
+
+        $register->edit_item($line, '', '', 3.0, 0.0, 0, 100.0, 1.0);
+
+        $this->assertSame(AccountingError::UnitPriceInexact, $register->unitFailure()?->error);
+        $this->assertSame('36.000', bcadd((string) $register->get_cart()[$line]['quantity'], '0', 3));
+    }
+
+    public function testCopyEntireReceiving_ShowsASavedLineInCartonsAgain(): void
+    {
+        $setup       = $this->cartonItem('0.00');
+        $receivingId = $this->buy([$this->inUnit($this->purchaseLine($setup['item'], 0, '1', '1'), $setup['carton'], '2', '60')]);
+        $register    = $this->purchaseRegister();
+
+        $register->copy_entire_receiving($receivingId);
+
+        $cart = array_values($register->get_cart())[0];
+
+        $this->assertSame([$setup['carton'], '2.000', '60.000000'], [(int) $cart['unit_id'], $cart['unit_quantity'], $cart['unit_price']]);
+    }
+
+    public function testUnitChoices_ListsTheUnitsOfTheTemplateOfEachItemOnThePurchaseScreen(): void
+    {
+        $setup    = $this->cartonItem('0.00');
+        $register = $this->purchaseRegister();
+
+        $register->add_item((string) $setup['item'], 1, self::LOCATION_ID, 0, 0, 5.0);
+
+        $this->assertSame(['' => 'Piece', (string) $setup['carton'] => 'Carton (x12)'], $register->unitChoices($register->get_cart())[$setup['item']]);
+    }
+
+    public function testSetTracking_KeepsTheSerialNumbersAndTheBatchOfALineAndFollowsItsQuantityOnThePurchaseScreen(): void
+    {
+        $serial = $this->trackedItem(TrackingType::Serial);
+        $batch  = $this->trackedItem(TrackingType::Batch);
+
+        $register = $this->purchaseRegister();
+
+        $register->add_item((string) $serial, 2, self::LOCATION_ID, 0, 0, 5.0);
+        $register->add_item((string) $batch, 6, self::LOCATION_ID, 0, 0, 5.0);
+
+        $lines = array_keys($register->get_cart());
+
+        $register->setTracking((string) $lines[0], "A1\nA2, A3", '', '');
+        $register->setTracking((string) $lines[1], '', 'LOT-1', '2031-01-01');
+
+        $cart = $register->get_cart();
+
+        $this->assertSame(['A1', 'A2', 'A3'], $cart[$lines[0]]['tracking']['serials']);
+        $this->assertSame([['number' => 'LOT-1', 'expiry' => '2031-01-01', 'quantity' => '6.000']], $cart[$lines[1]]['tracking']['batches']);
+
+        $register->edit_item((string) $lines[1], '', '', 8.0, 0.0, 0, 5.0, 1.0);
+
+        $this->assertSame('8.000', $register->get_cart()[$lines[1]]['tracking']['batches'][0]['quantity']);
+
+        $register->setTracking((string) $lines[0], '', '', '');
+
+        $this->assertArrayNotHasKey('tracking', $register->get_cart()[$lines[0]]);
+    }
+
+    public function testSaveValue_ReceivesTheLinesOfThePurchaseScreenWithTheirSerialNumbersAndBatches(): void
+    {
+        $serial = $this->trackedItem(TrackingType::Serial);
+        $batch  = $this->trackedItem(TrackingType::Batch);
+
+        $register = $this->purchaseRegister();
+
+        $register->add_item((string) $serial, 2, self::LOCATION_ID, 0, 0, 5.0);
+        $register->add_item((string) $batch, 6, self::LOCATION_ID, 0, 0, 5.0);
+
+        $lines = array_keys($register->get_cart());
+
+        $register->setTracking((string) $lines[0], 'P1, P2', '', '');
+        $register->setTracking((string) $lines[1], '', 'LOT-9', date('Y-m-d', strtotime('+90 days')));
+
+        $this->assertGreaterThan(0, $this->buy(array_values($register->get_cart())));
+        $this->assertSame(['2.000', '6.000'], [$this->onHand($serial), $this->onHand($batch)]);
+        $this->assertSame(2, $this->accountingDb()->table('stock_serials')->where('item_id', $serial)->countAllResults());
+
+        foreach ((new StockLedger())->reconcile() as $location) {
+            $this->assertSame(bcadd($location['movements_value'], '0', 2), bcadd($location['account_balance'], '0', 2));
+        }
     }
 }

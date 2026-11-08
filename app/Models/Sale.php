@@ -43,6 +43,10 @@ use App\Libraries\Pricing\PriceControls;
 use App\Libraries\Roles\RecordScope;
 use App\Libraries\SalesOrders\SalesOrders;
 use App\Libraries\ShippingTaxOption;
+use App\Libraries\Stock\NegativeStockGuard;
+use App\Libraries\Stock\StockTracking;
+use App\Libraries\Stock\TrackingEntry;
+use App\Libraries\Stock\UnitLines;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -108,6 +112,47 @@ class Sale extends Model
     public function invoiceDiscountProblem(): ?InvoiceDiscountProblem
     {
         return $this->invoiceDiscountProblem;
+    }
+
+    /**
+     * Takes a line of a tracked item out by its serial numbers or batches, or puts it back when it is a
+     * return, and changes the shelf with it.
+     *
+     * @param array<string, mixed> $line
+     *
+     * @throws AccountingException
+     */
+    private function moveTrackedStock(StockTracking $tracking, int $saleId, array $line, ?int $originSaleId, string $date, ?int $employeeId): void
+    {
+        $quantity = sprintf('%.3F', abs((float) $line['quantity']));
+        $entry    = TrackingEntry::ofLine($line);
+
+        if ((float) $line['quantity'] > 0) {
+            $tracking->issue('sale', $saleId, (int) $line['line'], (int) $line['item_id'], (int) $line['item_location'], $quantity, $entry, $date, StockTracking::SALE, $employeeId);
+
+            return;
+        }
+
+        $tracking->putBack('sale', $saleId, (int) $line['line'], (int) $line['item_id'], (int) $line['item_location'], $quantity, $entry, $originSaleId);
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $items
+     *
+     * @return array<int|string, array<string, string|int|null>> The columns that remember the unit of each line, by the key of the line.
+     *
+     * @throws AccountingException
+     */
+    private function unitColumnsOf(array $items): array
+    {
+        $units   = new UnitLines($this->db);
+        $columns = [];
+
+        foreach ($items as $key => $itemData) {
+            $columns[$key] = $units->columnsOf($itemData, (int) ($itemData['line'] ?? 0), 'quantity', 'price', '', 'unit_price_entered');
+        }
+
+        return $columns;
     }
 
     /**
@@ -1174,8 +1219,28 @@ class Sale extends Model
             return ACCOUNTING_FAILED;
         }
 
+        try {
+            $unitColumns = $this->unitColumnsOf($items);
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
+        }
+
         // Only an invoice can be issued before its goods leave
         $delivered = $delivered || $saleType !== SALE_TYPE_INVOICE;
+
+        $tracking = new StockTracking($this->db);
+
+        if ($saleStatus == COMPLETED && $saleType === SALE_TYPE_INVOICE && ! $delivered) {
+            try {
+                $tracking->requireUntracked(array_map(static fn (array $line): int => (int) $line['item_id'], $items));
+            } catch (AccountingException $refusal) {
+                $this->accountingFailure = $refusal;
+
+                return ACCOUNTING_FAILED;
+            }
+        }
 
         try {
             $timing = $this->timingOf($saleId, $saleType, $saleStatus, $invoiceDate, $paymentTerms, $employeeId);
@@ -1389,6 +1454,7 @@ class Sale extends Model
                 'item_location'          => $itemData['item_location'],
                 'print_option'           => $itemData['print_option'],
                 'invoice_discount_share' => $itemData['invoice_discount_share'] ?? null,
+                ...$unitColumns[$line],
             ];
 
             $builder = $this->db->table('sales_items');
@@ -1396,7 +1462,20 @@ class Sale extends Model
 
             if ($curItemInfo->stock_type == HAS_STOCK && $saleStatus == COMPLETED && $delivered && ! $goodsNeverLeft) {    // TODO: === ?
                 // Update stock quantity if item type is a standard stock item and the sale is a standard sale
-                if (! $itemQuantity->changeQuantity(
+                try {
+                    if ($tracking->handles((int) $itemData['item_id'])) {
+                        $this->moveTrackedStock($tracking, $saleId, $itemData, $salesData['return_of_sale_id'], $timing['invoice_date'] ?? date('Y-m-d'), $employeeId);
+                    } else {
+                        (new NegativeStockGuard($this->db))->assertSale((int) $itemData['item_id'], (int) $itemData['item_location'], (string) $itemData['quantity']);
+                    }
+                } catch (AccountingException $refusal) {
+                    $this->db->transRollback();
+                    $this->accountingFailure = $refusal;
+
+                    return ACCOUNTING_FAILED;
+                }
+
+                if (! $tracking->handles((int) $itemData['item_id']) && ! $itemQuantity->changeQuantity(
                     $itemData['item_id'],
                     $itemData['item_location'],
                     -(float) $itemData['quantity'],
@@ -2451,6 +2530,18 @@ class Sale extends Model
 
             $items = $this->get_sale_items($sale_id)->getResultArray();
 
+            $tracking = new StockTracking($this->db);
+            $reversed = [];
+
+            try {
+                $reversed = $tracking->reverseSource('sale', (int) $sale_id);
+            } catch (AccountingException $refusal) {
+                $this->db->transRollback();
+                $this->accountingFailure = $refusal;
+
+                return false;
+            }
+
             foreach ($items as $item_data) {
                 $cur_item_info = $item->get_info($item_data['item_id']);
 
@@ -2468,7 +2559,9 @@ class Sale extends Model
                     $inventory->insert($inv_data, false);
 
                     // Update quantities
-                    $item_quantity->changeQuantity($item_data['item_id'], $item_data['item_location'], $item_data['quantity_purchased']);
+                    if (! in_array((int) $item_data['item_id'], $reversed, true)) {
+                        $item_quantity->changeQuantity($item_data['item_id'], $item_data['item_location'], $item_data['quantity_purchased']);
+                    }
                 }
             }
         }
@@ -2527,6 +2620,16 @@ class Sale extends Model
         $item         = model(Item::class);
         $itemQuantity = model(Item_quantity::class);
         $back         = (new UndeliveredReturns($this->db))->unitsOf($saleId);
+        $negative     = new NegativeStockGuard($this->db);
+
+        try {
+            (new StockTracking($this->db))->requireUntracked(array_map(static fn (array $row): int => (int) $row['item_id'], $this->get_sale_items($saleId)->getResultArray()));
+        } catch (AccountingException $refusal) {
+            $this->db->transRollback();
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
+        }
 
         foreach ($this->get_sale_items($saleId)->getResultArray() as $line) {
             $info = $item->get_info($line['item_id']);
@@ -2543,6 +2646,15 @@ class Sale extends Model
 
             if (bccomp($units, '0', 3) === 0) {
                 continue;
+            }
+
+            try {
+                $negative->assertSale((int) $line['item_id'], (int) $line['item_location'], $units, $saleId);
+            } catch (AccountingException $refusal) {
+                $this->db->transRollback();
+                $this->accountingFailure = $refusal;
+
+                return ACCOUNTING_FAILED;
             }
 
             $itemQuantity->changeQuantity($line['item_id'], $line['item_location'], -(float) $units);
@@ -2609,6 +2721,10 @@ class Sale extends Model
             item_location,
             print_option,
             invoice_discount_share,
+            sales_items.unit_id,
+            sales_items.unit_factor,
+            sales_items.unit_quantity,
+            sales_items.unit_price_entered,
             ' . $item->get_item_name('name') . ',
             category,
             item_type,

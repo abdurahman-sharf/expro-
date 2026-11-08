@@ -5,6 +5,8 @@ namespace Tests\Models;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Stock\TrackingType;
+use App\Libraries\Stock\UnitBarcodes;
 use App\Models\Item;
 use App\Models\Item_quantity;
 use CodeIgniter\Database\Config;
@@ -20,6 +22,7 @@ use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityFixture;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\StockUnitsFixtureTrait;
 
 class ItemTest extends CIUnitTestCase
 {
@@ -29,6 +32,7 @@ class ItemTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use StockUnitsFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -52,6 +56,7 @@ class ItemTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopStockUnits();
         $this->stopBuying();
         session()->remove('person_id');
 
@@ -304,6 +309,79 @@ class ItemTest extends CIUnitTestCase
         $this->assertSame('10.000', $this->onHand($itemId));
         $this->assertSame(0, $this->accountingDb()->table('inventory')->where('trans_items', $itemId)->where('trans_comment', lang('Items.is_deleted'))->countAllResults());
         $this->assertNotNull($items->accountingFailure());
+    }
+
+    private function trackedItemHoldingASerialNumber(): int
+    {
+        $this->startBuying();
+        $this->workInEveryBranch();
+        session()->set('person_id', $this->employeeId);
+
+        $itemId = $this->trackedItem(TrackingType::Serial);
+
+        $this->accountingDb()->table('item_quantities')->replace(['item_id' => $itemId, 'location_id' => 1, 'quantity' => '1']);
+        $this->accountingDb()->table('stock_serials')->insert(['item_id' => $itemId, 'serial_number' => 'DEL-1', 'state' => 'in_stock', 'location_id' => 1]);
+
+        return $itemId;
+    }
+
+    public function testDelete_DeletesATrackedItemWhoseShelfIsEmpty(): void
+    {
+        $this->startBuying();
+        $this->workInEveryBranch();
+        session()->set('person_id', $this->employeeId);
+
+        $itemId = $this->trackedItem(TrackingType::Serial);
+        $items  = model(Item::class);
+
+        $this->accountingDb()->table('item_quantities')->replace(['item_id' => $itemId, 'location_id' => 1, 'quantity' => '0']);
+
+        $this->assertTrue($items->delete($itemId));
+        $this->assertSame(1, (int) $items->get_info($itemId)->deleted);
+        $this->assertNull($items->accountingFailure());
+    }
+
+    public function testDelete_RejectsATrackedItemThatHoldsStockByNameAndChangesNothing(): void
+    {
+        $itemId = $this->trackedItemHoldingASerialNumber();
+        $items  = model(Item::class);
+
+        $this->assertFalse($items->delete($itemId));
+
+        $failure = $items->accountingFailure();
+
+        $this->assertInstanceOf(AccountingException::class, $failure);
+        $this->assertSame(AccountingError::TrackedPathUnsupported, $failure->error);
+        $this->assertSame(0, (int) $items->get_info($itemId)->deleted);
+        $this->assertSame('1.000', $this->onHand($itemId));
+        $this->assertSame(0, $this->accountingDb()->table('inventory')->where('trans_items', $itemId)->where('trans_comment', lang('Items.is_deleted'))->countAllResults());
+    }
+
+    public function testDeleteList_RejectsTheWholeListWhenOneTrackedItemHoldsStockByName(): void
+    {
+        $tracked = $this->trackedItemHoldingASerialNumber();
+        $plain   = $this->createTestItem();
+        $items   = model(Item::class);
+
+        $this->assertFalse($items->delete_list([$plain, $tracked]));
+
+        $failure = $items->accountingFailure();
+
+        $this->assertInstanceOf(AccountingException::class, $failure);
+        $this->assertSame(AccountingError::TrackedPathUnsupported, $failure->error);
+        $this->assertSame([0, 0], [(int) $items->get_info($plain)->deleted, (int) $items->get_info($tracked)->deleted]);
+    }
+
+    public function testItemNumberExists_ReturnsTrueForTheBarcodeOfAUnitAndFalseForAFreeNumber(): void
+    {
+        $setup = $this->cartonItem();
+
+        (new UnitBarcodes())->assign($setup['item'], $setup['carton'], 'CARTON-BC-1', $this->unitManagerId);
+
+        $items = model(Item::class);
+
+        $this->assertTrue($items->item_number_exists('CARTON-BC-1'));
+        $this->assertFalse($items->item_number_exists('FREE-NUMBER-1'));
     }
 
     private function stockOfAnotherBranchOutOfReachOfTheEmployee(int $itemId): int

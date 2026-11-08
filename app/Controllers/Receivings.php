@@ -415,7 +415,25 @@ class Receivings extends Secure_Controller
         if ($taxPercent !== null && (! is_numeric($taxPercent) || $taxPercent < 0 || $taxPercent > 100)) {
             $data['error'] = lang('Receivings.error_editing_item');
         } elseif ($this->validate($validation_rule)) {
-            $this->receiving_lib->edit_item($item_id, $description, $serialnumber, $quantity, $discount, $discount_type, $price, $receiving_quantity, $taxPercent);
+            $postedUnit = $this->request->getPost('unit_id');
+            $unitId     = $postedUnit === null || $postedUnit === '' ? null : (int) $postedUnit;
+            $inUnit     = isset($this->receiving_lib->get_cart()[$item_id]['unit_id']) ? (int) $this->receiving_lib->get_cart()[$item_id]['unit_id'] : null;
+
+            if ($postedUnit !== null && $unitId !== $inUnit) {
+                $this->receiving_lib->changeUnit((string) $item_id, $unitId);
+            } else {
+                $this->receiving_lib->edit_item($item_id, $description, $serialnumber, $quantity, $discount, $discount_type, $price, $receiving_quantity, $taxPercent);
+            }
+
+            $unitFailure = $this->receiving_lib->unitFailure();
+
+            if ($unitFailure !== null) {
+                $data['error'] = AccountingMessage::of($unitFailure);
+            }
+
+            if ($this->request->getPost('tracking_serials') !== null || $this->request->getPost('batch_number') !== null) {
+                $this->receiving_lib->setTracking((string) $item_id, $this->postedText('tracking_serials'), $this->postedText('batch_number'), $this->postedText('batch_expiry'));
+            }
         } else {
             $data['error'] = lang('Receivings.error_editing_item');
         }
@@ -917,9 +935,17 @@ class Receivings extends Secure_Controller
         return $data;
     }
 
+    private function postedText(string $name): string
+    {
+        $value = $this->request->getPost($name);
+
+        return is_scalar($value) ? (string) $value : '';
+    }
+
     private function _reload(array $data = []): string    // TODO: Hungarian notation
     {
         $data['cart']                 = $this->receiving_lib->get_cart();
+        $data['unit_choices']         = $this->receiving_lib->unitChoices($data['cart']);
         $data['modes']                = ['receive' => lang('Receivings.receiving'), 'return' => lang('Receivings.return')];
         $data['mode']                 = $this->receiving_lib->get_mode();
         $data['stock_locations']      = $this->stock_location->get_allowed_locations('receivings', true);
