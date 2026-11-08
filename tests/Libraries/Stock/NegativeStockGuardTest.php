@@ -255,4 +255,33 @@ final class NegativeStockGuardTest extends CIUnitTestCase
 
         $this->assertSame('3.000', (new NegativeStockGuard())->promised($itemId, self::LOCATION_ID));
     }
+
+    public function testPromised_LeavesOutADraftInvoiceAndACancelledOne(): void
+    {
+        $itemId = $this->stocked('20', '5');
+
+        $this->sellPieces($itemId, '3', false, SALE_TYPE_INVOICE);
+
+        $draft     = $this->save([$this->line($itemId, 0, '6', '10.00', '5.00')], [], [], SALE_TYPE_INVOICE, -1, false, null, SUSPENDED);
+        $cancelled = $this->save([$this->line($itemId, 0, '8', '10.00', '5.00')], [], [], SALE_TYPE_INVOICE, -1, false, null, SUSPENDED);
+
+        $this->assertTrue($this->sales->delete($cancelled, false, true, $this->employeeId));
+        $this->assertSame([(string) SUSPENDED, (string) CANCELED], [(string) $this->accountingDb()->table('sales')->where('sale_id', $draft)->get()->getRow()->sale_status, (string) $this->accountingDb()->table('sales')->where('sale_id', $cancelled)->get()->getRow()->sale_status]);
+        $this->assertSame('3.000', (new NegativeStockGuard())->promised($itemId, self::LOCATION_ID));
+    }
+
+    public function testAssertSale_AcceptsASaleThatOnlyADraftInvoicePromisedStockTo(): void
+    {
+        $itemId = $this->stocked('10', '5');
+
+        $this->option(NegativeStockOption::RefuseAvailable);
+        $this->save([$this->line($itemId, 0, '8', '10.00', '5.00')], [], [], SALE_TYPE_INVOICE, -1, false, null, SUSPENDED);
+
+        (new NegativeStockGuard())->assertSale($itemId, self::LOCATION_ID, '5');
+
+        $this->sellPieces($itemId, '8', false, SALE_TYPE_INVOICE);
+
+        $this->refusedWith(AccountingError::NegativeStockRefused, static fn () => (new NegativeStockGuard())->assertSale($itemId, self::LOCATION_ID, '5'));
+        $this->assertSame('10.000', $this->onHand($itemId));
+    }
 }

@@ -238,7 +238,7 @@ return [
     'error_batch_insufficient'                   => 'There is not enough of {0} in unexpired batches in this stock location.',
     'error_batch_invalid'                        => 'Line {0}: a batch needs a number of at most 60 characters and an expiry date, and its quantity must be above zero.',
     'error_batch_manual_pick_denied'             => 'You may not pick a batch by hand: the batch that expires first is taken.',
-    'error_batch_moved'                          => 'The batch {0} was put back by a return of this sale, so the sale cannot be taken back. Cancel the return first.',
+    'error_batch_moved'                          => 'The batch {0} was put back by a return of this sale, so the sale cannot be taken back.',
     'error_bundle_contains_bundle'               => 'A bundle cannot contain another bundle ({0}).',
     'error_bundle_contains_itself'               => 'A bundle cannot contain itself.',
     'error_bundle_keeps_stock'                   => 'The product that carries the price of a bundle must not keep stock of its own: a bundle has no stock, its components do.',

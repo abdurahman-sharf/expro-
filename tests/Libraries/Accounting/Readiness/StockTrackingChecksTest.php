@@ -154,7 +154,7 @@ final class StockTrackingChecksTest extends CIUnitTestCase
         $this->assertTrue(model(Item_kit::class)->save_value($data));
         $this->assertSame(CheckStatus::Pass, $this->results()[1]->status);
 
-        $this->switchOn('bundles');
+        $this->switchOnStock('bundles');
 
         [, $bundles] = $this->results();
 

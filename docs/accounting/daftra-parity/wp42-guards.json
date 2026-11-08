@@ -326,7 +326,7 @@
  {
   "name": "B03 a barcode that another unit has is refused",
   "file": "app/Libraries/Stock/UnitBarcodes.php",
-  "find": "if ($this->db->table('item_unit_barcodes')->where('barcode', $barcode)->countAllResults() > 0 || $this->db->table('items')->where('item_number', $barcode)->countAllResults() > 0) {",
+  "find": "if ($this->exists($barcode) || $this->db->table('items')->where('item_number', $barcode)->countAllResults() > 0) {",
   "replace": "if ($this->db->table('items')->where('item_number', $barcode)->countAllResults() > 0) {",
   "tests": [
    "tests/Libraries/Stock/UnitBarcodesTest.php"
@@ -335,8 +335,8 @@
  {
   "name": "B04 a barcode that is the number of an item is refused",
   "file": "app/Libraries/Stock/UnitBarcodes.php",
-  "find": "if ($this->db->table('item_unit_barcodes')->where('barcode', $barcode)->countAllResults() > 0 || $this->db->table('items')->where('item_number', $barcode)->countAllResults() > 0) {",
-  "replace": "if ($this->db->table('item_unit_barcodes')->where('barcode', $barcode)->countAllResults() > 0) {",
+  "find": "if ($this->exists($barcode) || $this->db->table('items')->where('item_number', $barcode)->countAllResults() > 0) {",
+  "replace": "if ($this->exists($barcode)) {",
   "tests": [
    "tests/Libraries/Stock/UnitBarcodesTest.php"
   ]
@@ -831,8 +831,8 @@
  {
   "name": "K26 a batch is never taken below nothing",
   "file": "app/Libraries/Stock/StockTracking.php",
-  "find": "        if ($this->db->affectedRows() !== 1) {\n            throw new AccountingException(AccountingError::BatchInsufficient, 'There is not enough in the batch.'",
-  "replace": "        if (false) {\n            throw new AccountingException(AccountingError::BatchInsufficient, 'There is not enough in the batch.'",
+  "find": "        if ($this->db->affectedRows() !== 1) {\n            throw new AccountingException(AccountingError::BatchInsufficient, \"There is not enough in the batch {$number}.\"",
+  "replace": "        if (false) {\n            throw new AccountingException(AccountingError::BatchInsufficient, \"There is not enough in the batch {$number}.\"",
   "tests": [
    "tests/Libraries/Stock/StockTrackingTest.php"
   ]
@@ -1056,8 +1056,8 @@
  {
   "name": "W08 a return to a supplier or a transfer between locations refuses tracked items",
   "file": "app/Models/Receiving.php",
-  "find": "        if ($type !== ReceivingType::Receive) {\n            try {\n                $tracking->requireUntracked",
-  "replace": "        if (false) {\n            try {\n                $tracking->requireUntracked",
+  "find": "            if ($type !== ReceivingType::Receive) {\n                $tracking->requireUntracked",
+  "replace": "            if (false) {\n                $tracking->requireUntracked",
   "tests": [
    "tests/Libraries/Stock/StockTrackingTest.php"
   ]
@@ -1173,7 +1173,7 @@
  {
   "name": "W21 a tracked item cannot be zeroed",
   "file": "app/Models/Item_quantity.php",
-  "find": "    public function reset_quantity(int $item_id): bool\n    {\n        StockTracking::assertShelfMayChange($item_id, $this->db);\n",
+  "find": "    public function reset_quantity(int $item_id): bool\n    {\n        $this->assertHoldingMayBeReset([$item_id]);\n",
   "replace": "    public function reset_quantity(int $item_id): bool\n    {\n",
   "tests": [
    "tests/Libraries/Stock/StockTrackingTest.php"
@@ -1182,7 +1182,7 @@
  {
   "name": "W22 a list of tracked items cannot be zeroed",
   "file": "app/Models/Item_quantity.php",
-  "find": "        foreach ($item_ids as $itemId) {\n            StockTracking::assertShelfMayChange((int) $itemId, $this->db);\n        }\n",
+  "find": "        $this->assertHoldingMayBeReset($item_ids);\n",
   "replace": "",
   "tests": [
    "tests/Libraries/Stock/StockTrackingTest.php"
@@ -1253,11 +1253,13 @@
  },
  {
   "name": "R01 a shelf that is not what its batches or serial numbers add up to fails the check",
-  "file": "app/Libraries/Accounting/Readiness/StockTrackingChecks.php",
+  "file": "app/Libraries/Stock/TrackingTies.php",
   "find": "HAVING ABS(shelf - tracked) > 0.0005",
   "replace": "HAVING ABS(shelf - tracked) > 999999",
   "tests": [
-   "tests/Libraries/Accounting/Readiness/StockTrackingChecksTest.php"
+   "tests/Libraries/Accounting/Readiness/StockTrackingChecksTest.php",
+   "--filter=testUpdate_RejectsSwitchingTrackingOn",
+   "tests/Libraries/Stock/StockOptionsTest.php"
   ]
  },
  {
@@ -1312,6 +1314,486 @@
   "replace": "parent::__construct('home', false);",
   "tests": [
    "tests/Controllers/StockUnitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F01 switching tracking is checked against the tracked stock",
+  "file": "app/Libraries/Stock/StockOptions.php",
+  "find": "        if (array_key_exists('tracking', $changes)) {\n            $this->assertTrackingMayChange((bool) $changes['tracking']);\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockOptionsTest.php"
+  ]
+ },
+ {
+  "name": "F02 tracking is not switched on while a tracked item does not tie",
+  "file": "app/Libraries/Stock/StockOptions.php",
+  "find": "            if ($untied !== []) {",
+  "replace": "            if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockOptionsTest.php"
+  ]
+ },
+ {
+  "name": "F03 tracking is not switched off while a tracked item holds stock",
+  "file": "app/Libraries/Stock/StockOptions.php",
+  "find": "        if ($holding !== []) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockOptionsTest.php"
+  ]
+ },
+ {
+  "name": "F04 a tracked item holds stock when its shelf holds some",
+  "file": "app/Libraries/Stock/TrackingTies.php",
+  "find": "                 EXISTS (SELECT 1 FROM {$shelves} q WHERE q.item_id = p.item_id AND q.quantity <> 0)\n                 OR EXISTS (SELECT 1 FROM {$serials} s",
+  "replace": "                 EXISTS (SELECT 1 FROM {$serials} s",
+  "tests": [
+   "tests/Libraries/Stock/StockOptionsTest.php"
+  ]
+ },
+ {
+  "name": "F05 a tracked item holds stock when a serial number is on hand",
+  "file": "app/Libraries/Stock/TrackingTies.php",
+  "find": "                 OR EXISTS (SELECT 1 FROM {$serials} s WHERE s.item_id = p.item_id AND s.state IN ('in_stock', 'returned'))\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockOptionsTest.php"
+  ]
+ },
+ {
+  "name": "F06 a tracked item holds stock when a batch holds some",
+  "file": "app/Libraries/Stock/TrackingTies.php",
+  "find": "                 OR EXISTS (SELECT 1 FROM {$stock} bq JOIN {$batches} b ON b.batch_id = bq.batch_id WHERE b.item_id = p.item_id AND bq.quantity <> 0)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockOptionsTest.php"
+  ]
+ },
+ {
+  "name": "F07 a template that did not change asks for no permission",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "$templateChanges = $templatePosted && $templateId !== $before->unitTemplateId;",
+  "replace": "$templateChanges = $templatePosted;",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "F08 a tracking type that did not change asks for no permission",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "$trackingChanges = $tracking !== null && $tracking !== $before->tracking;",
+  "replace": "$trackingChanges = $tracking !== null;",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "F09 the template and the tracking of an item are saved all or nothing",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "        $this->transactional(function () use ($itemId, $templateChanges, $templateId, $trackingChanges, $tracking, $employeeId): void {\n            if ($templateChanges) {\n                $this->setTemplate($itemId, $templateId, $employeeId);\n            }\n\n            if ($trackingChanges && $tracking !== null) {\n                $this->setTracking($itemId, $tracking, $employeeId);\n            }\n        });",
+  "replace": "        (function () use ($itemId, $templateChanges, $templateId, $trackingChanges, $tracking, $employeeId): void {\n            if ($templateChanges) {\n                $this->setTemplate($itemId, $templateId, $employeeId);\n            }\n\n            if ($trackingChanges && $tracking !== null) {\n                $this->setTracking($itemId, $tracking, $employeeId);\n            }\n        })();",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "F10 a template that was not posted is left as it is",
+  "file": "app/Controllers/StockUnits.php",
+  "find": "                $this->request->getPost('unit_template_id') !== null,\n",
+  "replace": "                true,\n",
+  "tests": [
+   "tests/Controllers/StockUnitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F11 the tracking select of an item is closed to whoever may not manage tracking",
+  "file": "app/Views/stock_units/manage.php",
+  "find": "($canTrack && $settings['tracking'] ? [] : ['disabled' => 'disabled'])",
+  "replace": "([])",
+  "tests": [
+   "tests/Controllers/StockUnitsControllerTest.php",
+   "--filter=testGetIndex_"
+  ]
+ },
+ {
+  "name": "F12 a sale of batches is not taken back while a return put a batch back",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if ((string) $row->movement === self::SALE && (string) $row->source_type === 'sale' && $this->returnedSince($row)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter=testDelete_",
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "F13 a return that was cancelled no longer holds the sale back",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "               AND NOT EXISTS (SELECT 1 FROM {$lines} r WHERE r.reversal_of = t.tracking_id)\",\n            [(int) $row->source_id",
+  "replace": "\",\n            [(int) $row->source_id",
+  "tests": [
+   "--filter=testDelete_",
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "F14 a serial item entry is checked before the books split the line",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "        if ($this->typeOf($itemId) === TrackingType::Serial) {\n            $this->serialsFor($itemId, $line, $quantity, $entry);\n        }",
+  "replace": "",
+  "tests": [
+   "--filter=RefusesAQuantityNoSerialEntry",
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "F15 a purchase checks its serial entries before the books split the lines",
+  "file": "app/Models/Receiving.php",
+  "find": "                    $tracking->assertSerialEntry((int) $itemData['item_id'], (int) $itemData['line'], sprintf('%.3F', (float) self::unitsOf($itemData)), TrackingEntry::ofLine($itemData));",
+  "replace": "",
+  "tests": [
+   "--filter=testReceive_RefusesAQuantityNoSerialEntry",
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "F16 a permit checks its serial entries before the books split the lines",
+  "file": "app/Libraries/Stock/StockPermit.php",
+  "find": "            $this->tracking->assertSerialEntry($itemId, $number, bcadd($quantity, '0', 3), $entry);\n",
+  "replace": "",
+  "tests": [
+   "--filter=testCreate_RefusesAQuantityNoSerialEntry",
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "F17 a single batch of a permit line takes the whole quantity",
+  "file": "app/Libraries/Stock/TrackingEntry.php",
+  "find": "        return new self($this->serials, [[...$this->batches[0], 'quantity' => $quantity]]);",
+  "replace": "        return $this;",
+  "tests": [
+   "--filter=testCreate_TakesTheSingleBatch",
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "F18 only an item that holds something is refused a reset",
+  "file": "app/Models/Item_quantity.php",
+  "find": "->whereIn('item_id', array_map('intval', $itemIds))->where('quantity <>', 0)->distinct()",
+  "replace": "->whereIn('item_id', array_map('intval', $itemIds))->distinct()",
+  "tests": [
+   "--filter=testResetQuantity_",
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "F19 the deletion of a tracked item that holds stock is refused by name",
+  "file": "app/Models/Item.php",
+  "find": "            $itemQuantity->reset_quantity($itemId);\n        } catch (AccountingException $refusal) {\n            $this->db->transRollback();\n            $this->accountingFailure = $refusal;\n\n            return false;\n        }",
+  "replace": "            $itemQuantity->reset_quantity($itemId);\n        } catch (AccountingException $refusal) {\n            throw $refusal;\n        }",
+  "tests": [
+   "--filter=RejectsATrackedItemThatHoldsStockByName",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "F20 the deletion of a list holding a tracked item is refused by name",
+  "file": "app/Models/Item.php",
+  "find": "            $itemQuantity->reset_quantity_list($itemIds);\n        } catch (AccountingException $refusal) {\n            $this->db->transRollback();\n            $this->accountingFailure = $refusal;\n\n            return false;\n        }",
+  "replace": "            $itemQuantity->reset_quantity_list($itemIds);\n        } catch (AccountingException $refusal) {\n            throw $refusal;\n        }",
+  "tests": [
+   "--filter=testDeleteList_RejectsTheWholeListWhenOneTracked",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "F21 an item number is taken when it is the barcode of a unit",
+  "file": "app/Models/Item.php",
+  "find": "        if ((new UnitBarcodes($this->db))->exists($item_number)) {\n            return true;\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "--filter=testItemNumberExists_",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "F22 a refusal of the shelf of a tracked item is answered by name",
+  "file": "app/Controllers/Items.php",
+  "find": "        } catch (AccountingException $failure) {\n            $this->adjustmentFailure = $failure;\n\n            return false;\n        }\n    }\n\n    private function adjustmentFailureNote",
+  "replace": "        } catch (AccountingException $failure) {\n            throw $failure;\n        }\n    }\n\n    private function adjustmentFailureNote",
+  "tests": [
+   "--filter=OfATrackedItemByName",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F23 an item cannot take the barcode of a unit as its number",
+  "file": "app/Controllers/Items.php",
+  "find": "if (is_string($itemNumber) && $itemNumber !== '' && (new UnitBarcodes())->exists($itemNumber)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter=BarcodeOfAUnit",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F24 a tracked item with stock cannot be deleted from the list",
+  "file": "app/Controllers/Items.php",
+  "find": "        $failure = $this->item->accountingFailure();\n        $note    = $failure instanceof AccountingException",
+  "replace": "        $failure = null;\n        $note    = $failure instanceof AccountingException",
+  "tests": [
+   "--filter=testPostDelete_RefusesATrackedItem",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F25 the unit of a draft line is carried to the invoice",
+  "file": "app/Libraries/Accounting/DraftInvoice.php",
+  "find": "            if ($row->unit_id !== null) {",
+  "replace": "            if (false) {",
+  "tests": [
+   "--filter=Unit",
+   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+  ]
+ },
+ {
+  "name": "F26 the unit of a draft line counts in its fingerprint",
+  "file": "app/Libraries/Accounting/DraftInvoice.php",
+  "find": "item_unit_price, item_location, print_option, unit_id, unit_factor, unit_quantity, unit_price_entered')\n            ->where('sale_id', $saleId)\n            ->orderBy('line', 'ASC')",
+  "replace": "item_unit_price, item_location, print_option')\n            ->where('sale_id', $saleId)\n            ->orderBy('line', 'ASC')",
+  "tests": [
+   "--filter=testFingerprint_",
+   "tests/Libraries/Accounting/DraftInvoiceTest.php"
+  ]
+ },
+ {
+  "name": "F27 an issued draft keeps the unit its lines were entered in",
+  "file": "app/Libraries/Accounting/DraftInvoice.php",
+  "find": "            if ($row->unit_id !== null) {",
+  "replace": "            if (false) {",
+  "tests": [
+   "--filter=testIssueDraft_KeepsTheUnit",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "F28 a unit price keeps its decimals on the register",
+  "file": "app/Controllers/Sales.php",
+  "find": "isset($lineBefore['unit_id']) ? UnitLine::COST_SCALE : totals_decimals(), '.', '')",
+  "replace": "totals_decimals(), '.', '')",
+  "tests": [
+   "--filter=Sacks",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "F29 the price of a unit line is compared to the decimal that was entered",
+  "file": "app/Controllers/Sales.php",
+  "find": "isset($lineBefore['unit_id']) ? UnitLine::COST_SCALE : $precision) != 0",
+  "replace": "$precision) != 0",
+  "tests": [
+   "--filter=Sacks",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "F30 the serial number of a tracked item is kept as typed",
+  "file": "app/Controllers/Sales.php",
+  "find": "($lineBefore['tracking_type'] ?? null) === TrackingType::Serial->value",
+  "replace": "false",
+  "tests": [
+   "--filter=SerialNumberOf",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "F31 a posted value that is not text is read as empty on the register",
+  "file": "app/Controllers/Sales.php",
+  "find": "        return is_scalar($value) ? (string) $value : '';",
+  "replace": "        return (string) $value;",
+  "tests": [
+   "--filter=BatchNumberThat",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "F32 the purchase screen offers the units of an item",
+  "file": "app/Controllers/Receivings.php",
+  "find": "        $data['unit_choices']         = $this->receiving_lib->unitChoices($data['cart']);\n        $data['modes']",
+  "replace": "        $data['modes']",
+  "tests": [
+   "--filter=testGetIndex_Offers",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F33 a posted value that is not text is read as empty on the purchase screen",
+  "file": "app/Controllers/Receivings.php",
+  "find": "        return is_scalar($value) ? (string) $value : '';",
+  "replace": "        return (string) $value;",
+  "tests": [
+   "--filter=testPostEditItem_IgnoresATracking",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F34 a permit line carries the unit it was entered in",
+  "file": "app/Controllers/StockDocumentController.php",
+  "find": "            if ($unit !== '') {",
+  "replace": "            if (false) {",
+  "tests": [
+   "--filter=InBaseUnits",
+   "tests/Controllers/StockPermitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F35 a permit line carries the serial numbers typed for it",
+  "file": "app/Controllers/StockDocumentController.php",
+  "find": "            if ($serials !== '') {",
+  "replace": "            if (false) {",
+  "tests": [
+   "--filter=SerialNumbersTyped",
+   "tests/Controllers/StockPermitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F36 a permit line carries the batch typed for it",
+  "file": "app/Controllers/StockDocumentController.php",
+  "find": "            } elseif ($batch !== '') {",
+  "replace": "            } elseif (false) {",
+  "tests": [
+   "--filter=SingleBatchTyped",
+   "tests/Controllers/StockPermitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F37 the item lookup tells the tracking type while tracking is on",
+  "file": "app/Controllers/StockDocumentController.php",
+  "find": "        if ($options->trackingEnabled()) {\n            $profile['tracking'] = $item->tracking->value;\n        }",
+  "replace": "",
+  "tests": [
+   "--filter=testGetItems_Tells",
+   "tests/Controllers/StockPermitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F38 the item lookup tells the units while units are on",
+  "file": "app/Controllers/StockDocumentController.php",
+  "find": "        $template = $options->unitsEnabled() && $item->unitTemplateId !== null ? (new UnitTemplates())->find($item->unitTemplateId) : null;",
+  "replace": "        $template = $item->unitTemplateId !== null ? (new UnitTemplates())->find($item->unitTemplateId) : null;",
+  "tests": [
+   "--filter=testGetItems_Tells",
+   "tests/Controllers/StockPermitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F39 the permit form offers the tracking column only while tracking is on",
+  "file": "app/Controllers/StockPermits.php",
+  "find": "'trackingOn' => $options->trackingEnabled()",
+  "replace": "'trackingOn' => true",
+  "tests": [
+   "--filter=testGetForm_OffersTheUnit",
+   "tests/Controllers/StockPermitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F40 the permit form offers the unit column only while units are on",
+  "file": "app/Controllers/StockPermits.php",
+  "find": "'unitsOn' => $options->unitsEnabled()",
+  "replace": "'unitsOn' => true",
+  "tests": [
+   "--filter=testGetForm_OffersTheUnit",
+   "tests/Controllers/StockPermitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "F41 invoices that are drafts or cancelled promise no stock",
+  "file": "app/Libraries/Stock/NegativeStockGuard.php",
+  "find": "s.sale_status = ? AND",
+  "replace": "? IS NOT NULL AND",
+  "tests": [
+   "tests/Libraries/Stock/NegativeStockGuardTest.php"
+  ]
+ },
+ {
+  "name": "F42 a barcode that is empty, too long or of no item is named invalid",
+  "file": "app/Libraries/Stock/UnitBarcodes.php",
+  "find": "if ($barcode === '' || mb_strlen($barcode) > self::MAX || $item === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitBarcodesTest.php"
+  ]
+ },
+ {
+  "name": "F43 a template without larger units is refused by its own name",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "if (! is_array($rows) || $rows === [] || count($rows) > self::UNITS_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "F44 the three line tables carry the check of the unit shape",
+  "file": "app/Database/Migrations/20273100000000_StockUnitsAndTracking.php",
+  "find": "        if (! $this->hasCheck($table, \"{$table}_unit_shape\")) {\n            $base",
+  "replace": "        if (false) {\n            $base",
+  "tests": [
+   "tests/Database/StockUnitsAndTrackingMigrationTest.php"
+  ]
+ },
+ {
+  "name": "F45 the base quantity of a purchase line counts its pack in the check",
+  "file": "app/Database/Migrations/20273100000000_StockUnitsAndTracking.php",
+  "find": "$table === 'receivings_items' ? '`quantity_purchased` * `receiving_quantity`' :",
+  "replace": "$table === 'receivings_items' ? '`quantity_purchased`' :",
+  "tests": [
+   "tests/Database/StockUnitsAndTrackingMigrationTest.php"
+  ]
+ },
+ {
+  "name": "F46 the factor of a unit line must be above zero",
+  "file": "app/Database/Migrations/20273100000000_StockUnitsAndTracking.php",
+  "find": "(`unit_factor` > 0 AND `unit_quantity` IS NOT NULL AND ROUND(",
+  "replace": "(`unit_quantity` IS NOT NULL AND ROUND(",
+  "tests": [
+   "tests/Database/StockUnitsAndTrackingMigrationTest.php"
+  ]
+ },
+ {
+  "name": "F47 a unit line must name the quantity entered",
+  "file": "app/Database/Migrations/20273100000000_StockUnitsAndTracking.php",
+  "find": "`unit_factor` > 0 AND `unit_quantity` IS NOT NULL AND ROUND(",
+  "replace": "`unit_factor` > 0 AND ROUND(",
+  "tests": [
+   "tests/Database/StockUnitsAndTrackingMigrationTest.php"
+  ]
+ },
+ {
+  "name": "F48 the base quantity must equal the quantity entered times the factor",
+  "file": "app/Database/Migrations/20273100000000_StockUnitsAndTracking.php",
+  "find": "ROUND({$base}, 3) = ROUND(`unit_quantity` * `unit_factor`, 3)",
+  "replace": "ROUND({$base}, 3) >= 0",
+  "tests": [
+   "tests/Database/StockUnitsAndTrackingMigrationTest.php"
+  ]
+ },
+ {
+  "name": "F49 the roll back stops once a line was entered in a unit",
+  "file": "app/Database/Migrations/20273100000000_StockUnitsAndTracking.php",
+  "find": "        $this->refuseWhenUsed();\n\n        $permissionIds",
+  "replace": "        $permissionIds",
+  "tests": [
+   "tests/Database/StockUnitsAndTrackingMigrationTest.php"
+  ]
+ },
+ {
+  "name": "F50 the roll back stops once a line was entered in a unit, whichever table",
+  "file": "app/Database/Migrations/20273100000000_StockUnitsAndTracking.php",
+  "find": "$this->hasColumn($table, 'unit_id') && $this->db->table($table)->where('unit_id IS NOT NULL', null, false)->countAllResults() > 0",
+  "replace": "false",
+  "tests": [
+   "tests/Database/StockUnitsAndTrackingMigrationTest.php"
   ]
  }
 ]

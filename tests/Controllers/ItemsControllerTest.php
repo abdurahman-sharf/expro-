@@ -3,6 +3,9 @@
 namespace Tests\Controllers;
 
 use App\Controllers\Items;
+use App\Libraries\Stock\StockOptions;
+use App\Libraries\Stock\TrackingType;
+use App\Libraries\Stock\UnitBarcodes;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\SalesControlSettings;
 use CodeIgniter\Database\Config;
@@ -25,6 +28,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\StockUnitsFixtureTrait;
 
 class ItemsControllerTest extends CIUnitTestCase
 {
@@ -35,6 +39,7 @@ class ItemsControllerTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use StockUnitsFixtureTrait;
 
     protected $migrate = true;
     protected $migrateOnce = true;
@@ -77,6 +82,7 @@ class ItemsControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopStockUnits();
         $this->stopBuying();
 
         parent::tearDown();
@@ -1651,6 +1657,21 @@ class ItemsControllerTest extends CIUnitTestCase
         return $itemId;
     }
 
+    private function trackedItemInTheBooks(): int
+    {
+        $itemId = $this->itemInTheBooks();
+
+        $this->accountingDb()->table('item_stock_profiles')->insert(['item_id' => $itemId, 'tracking_type' => 'serial']);
+        $this->setConfigValue(StockOptions::TRACKING, '1');
+
+        return $itemId;
+    }
+
+    private function trackedRefusal(int $itemId): string
+    {
+        return lang('Accounting.error_tracked_path_unsupported', [$this->item->get_info($itemId)->name]);
+    }
+
     /**
      * @return list<object>
      */
@@ -1693,6 +1714,21 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame(['quantity' => '12.000', 'value' => '600.00'], $this->stockOf($itemId));
         $this->assertCount(1, $this->adjustmentJournals());
         $this->assertStockTies();
+    }
+
+    public function testPostSaveInventory_RefusesToChangeTheQuantityOfATrackedItemByName(): void
+    {
+        $itemId = $this->trackedItemInTheBooks();
+        $log    = count($this->inventoryLog($itemId));
+
+        $response = $this->post('/items/saveInventory/' . $itemId, ['stock_location' => '1', 'newquantity' => '2', 'trans_comment' => 'Found two']);
+        $result   = json_decode($response->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString($this->trackedRefusal($itemId), $result['message']);
+        $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertSame($log, count($this->inventoryLog($itemId)));
+        $this->assertSame([], $this->adjustmentJournals());
     }
 
     public function testPostSaveInventory_PostsWhatWasTakenOffAtWhatAUnitIsWorth(): void
@@ -1745,6 +1781,35 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame(['quantity' => '13.000', 'value' => '650.00'], $this->stockOf($itemId));
         $this->assertCount(1, $this->adjustmentJournals());
         $this->assertStockTies();
+    }
+
+    public function testPostSave_RefusesToChangeTheQuantityOfATrackedItemByNameAndSavesNothing(): void
+    {
+        $itemId = $this->trackedItemInTheBooks();
+
+        $postData = array_merge($this->baseItemPostData(), ['tax_names' => ['VAT'], 'tax_percents' => ['0'], 'quantity_1' => '13', 'name' => 'Renamed', 'cost_price' => '50.00']);
+        $result   = json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString($this->trackedRefusal($itemId), $result['message']);
+        $this->assertNotSame('Renamed', $this->item->get_info($itemId)->name);
+        $this->assertSame('10.000', $this->onHand($itemId));
+    }
+
+    public function testPostSave_RefusesAnItemNumberThatIsTheBarcodeOfAUnit(): void
+    {
+        $setup = $this->cartonItem();
+        $other = $this->createTestItem();
+
+        (new UnitBarcodes())->assign($setup['item'], $setup['carton'], 'CTN-CLASH-1', $this->unitManagerId);
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData = array_merge($this->baseItemPostData(), ['tax_names' => ['VAT'], 'tax_percents' => ['0'], 'item_number' => 'CTN-CLASH-1', 'name' => 'Clashing', 'cost_price' => '5.00']);
+        $result   = json_decode($this->post('/items/save/' . $other, $postData)->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_unit_barcode_taken', ['CTN-CLASH-1']), $result['message']);
+        $this->assertNotSame('CTN-CLASH-1', (string) $this->item->get_info($other)->item_number);
     }
 
     public function testPostSave_PostsNothingWhenTheQuantityIsNotEdited(): void
@@ -1819,6 +1884,33 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->stockOf($itemId)['value']);
         $this->assertCount(1, $this->adjustmentJournals());
         $this->assertStockTies();
+    }
+
+    public function testPostDelete_RefusesATrackedItemThatHoldsStockByNameAndKeepsTheItem(): void
+    {
+        $itemId = $this->trackedItemInTheBooks();
+
+        $result = json_decode($this->post('/items/delete', ['ids' => [(string) $itemId]])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString(lang('Items.cannot_be_deleted'), $result['message']);
+        $this->assertStringContainsString($this->trackedRefusal($itemId), $result['message']);
+        $this->assertSame(0, (int) $this->item->get_info($itemId)->deleted);
+        $this->assertSame('10.000', $this->onHand($itemId));
+    }
+
+    public function testPostDelete_DeletesATrackedItemWhoseShelfIsEmpty(): void
+    {
+        $this->startBuying();
+
+        $itemId = $this->trackedItem(TrackingType::Serial);
+
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $result = json_decode($this->post('/items/delete', ['ids' => [(string) $itemId]])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(1, (int) $this->item->get_info($itemId)->deleted);
     }
 
     public function testPostDelete_RefusedByTheBooksLeavesTheItemAndItsStock(): void

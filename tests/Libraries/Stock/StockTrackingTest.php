@@ -748,7 +748,7 @@ final class StockTrackingTest extends CIUnitTestCase
 
     public function testChangeQuantity_LeavesAnUntrackedItemAloneWhileTrackingIsOn(): void
     {
-        $this->switchOn('tracking');
+        $this->switchOnStock('tracking');
 
         $itemId = $this->item('5.00');
 
@@ -943,7 +943,7 @@ final class StockTrackingTest extends CIUnitTestCase
 
         $this->assertGreaterThan(0, $saleId);
 
-        $this->switchOn('tracking');
+        $this->switchOnStock('tracking');
         (new ItemStockProfile())->setTracking($itemId, TrackingType::Serial, $this->unitManagerId);
 
         $this->assertSame(ACCOUNTING_FAILED, $this->sales->confirm_delivery($saleId, $this->employeeId));
@@ -1069,4 +1069,105 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(ACCOUNTING_FAILED, $this->sellPiece($serial, 'OFF-1'));
         $this->assertSame(AccountingError::SerialNotAvailable, $this->failure($this->sales));
     }
+
+    public function testDelete_RefusesASaleOfBatchesWhileAReturnPutTheBatchBack(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Batch);
+
+        $this->receiveBatch($itemId, 'B-RET', $this->inDays(30), '10');
+
+        $saleId = $this->sellUnits($itemId, '5');
+
+        $this->assertGreaterThan(0, $this->save([$this->line($itemId, 0, '-5', '10.00', '5.00')], [], [], SALE_TYPE_RETURN, origin: $saleId));
+        $this->assertFalse($this->sales->delete($saleId, false, true, $this->employeeId));
+        $this->assertSame(AccountingError::BatchMoved, $this->failure($this->sales));
+        $this->assertSame(['10.000', '10.000'], [$this->batchQuantity($itemId, 'B-RET'), $this->onHand($itemId)]);
+        $this->assertTied($itemId);
+        $this->assertBooksTie();
+    }
+
+    public function testDelete_TakesASaleOfBatchesBackOnceTheReturnWasCancelledWithTheBooksSwitchedOff(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Batch);
+
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->receiveBatch($itemId, 'B-RET', $this->inDays(30), '10');
+
+        $saleId   = $this->sellUnits($itemId, '5');
+        $returnId = $this->save([$this->line($itemId, 0, '-5', '10.00', '5.00')], [], [], SALE_TYPE_RETURN, origin: $saleId);
+
+        $this->assertGreaterThan(0, $returnId);
+        $this->assertFalse($this->sales->delete($saleId, false, true, $this->employeeId));
+        $this->assertSame(AccountingError::BatchMoved, $this->failure($this->sales));
+        $this->assertSame('10.000', $this->batchQuantity($itemId, 'B-RET'));
+
+        $this->assertTrue($this->sales->delete($returnId, false, true, $this->employeeId));
+        $this->assertSame('5.000', $this->batchQuantity($itemId, 'B-RET'));
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+        $this->assertSame(['10.000', '10.000'], [$this->batchQuantity($itemId, 'B-RET'), $this->onHand($itemId)]);
+        $this->assertTied($itemId);
+    }
+
+    public function testDelete_RefusesASaleOfSerialNumbersWhileAReturnPutOneBack(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Serial);
+
+        $this->receiveSerials($itemId, ['RB1', 'RB2']);
+
+        $saleId = $this->sellPiece($itemId, 'RB1');
+
+        $this->save([[...$this->line($itemId, 0, '-1', '10.00', '5.00'), 'serialnumber' => 'RB1']], [], [], SALE_TYPE_RETURN, origin: $saleId);
+
+        $this->assertFalse($this->sales->delete($saleId, false, true, $this->employeeId));
+        $this->assertSame(AccountingError::SerialMoved, $this->failure($this->sales));
+        $this->assertSame(['returned', '2.000'], [$this->serialState($itemId, 'RB1'), $this->onHand($itemId)]);
+        $this->assertTied($itemId);
+    }
+
+    public function testReceive_RefusesAQuantityNoSerialEntryAccountsForBeforeTheBooksSplitTheLine(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Serial);
+        $before = $this->accountingDb()->table('accounting_stock_entries')->countAllResults();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->buy([[...$this->purchaseLine($itemId, 0, '70000', '5.00'), 'tracking' => ['serials' => ['BIG-1']]]]));
+        $this->assertSame(AccountingError::TrackedEntryRequired, $this->failure($this->purchases));
+        $this->assertSame($before, $this->accountingDb()->table('accounting_stock_entries')->countAllResults());
+        $this->assertSame('0.000', $this->onHand($itemId));
+    }
+
+    public function testCreate_RefusesAQuantityNoSerialEntryAccountsForOnAnAddPermitBeforeTheBooksSplitTheLine(): void
+    {
+        $itemId  = $this->trackedItem(TrackingType::Serial, '0.00');
+        $permits = new StockPermit();
+        $before  = $this->accountingDb()->table('accounting_stock_entries')->countAllResults();
+
+        $this->refusedWith(AccountingError::TrackedEntryRequired, fn () => $permits->create(['type' => 'add', 'date' => date('Y-m-d'), 'location_id' => self::LOCATION_ID, 'lines' => [['item_id' => $itemId, 'quantity' => '70000', 'unit_cost' => '10', 'tracking' => ['serials' => ['HUGE-1']]]]], $this->keeperId));
+        $this->assertSame($before, $this->accountingDb()->table('accounting_stock_entries')->countAllResults());
+        $this->assertSame('0.000', $this->onHand($itemId));
+    }
+
+    public function testCreate_TakesTheSingleBatchOfAPermitLineForItsWholeQuantity(): void
+    {
+        $itemId  = $this->trackedItem(TrackingType::Batch, '0.00');
+        $permits = new StockPermit();
+
+        $permits->create(['type' => 'add', 'date' => date('Y-m-d'), 'location_id' => self::LOCATION_ID, 'lines' => [['item_id' => $itemId, 'quantity' => '6', 'unit_cost' => '10', 'tracking' => ['batches' => [['number' => 'PB-1', 'expiry' => $this->inDays(60), 'quantity' => '']]]]]], $this->keeperId);
+
+        $this->assertSame('6.000', $this->batchQuantity($itemId, 'PB-1'));
+        $this->assertTied($itemId);
+    }
+
+    public function testResetQuantity_AcceptsATrackedItemWhoseShelfIsEmptyAndRefusesOneThatHoldsStock(): void
+    {
+        $empty = $this->trackedItem(TrackingType::Serial);
+        $held  = $this->trackedItem(TrackingType::Batch);
+
+        $this->receiveBatch($held, 'B-HELD', $this->inDays(20), '2');
+
+        $this->assertTrue(model(Item_quantity::class)->reset_quantity($empty));
+        $this->assertTrue(model(Item_quantity::class)->reset_quantity_list([$empty]));
+        $this->refusedWith(AccountingError::TrackedPathUnsupported, static fn (): bool => model(Item_quantity::class)->reset_quantity_list([$empty, $held]));
+        $this->assertSame('2.000', $this->onHand($held));
+    }
 }
+

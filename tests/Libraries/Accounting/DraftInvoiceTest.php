@@ -18,6 +18,8 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\ShelfFixtureTrait;
+use Tests\Support\StockUnitsFixtureTrait;
 
 /**
  * A draft invoice as the books know it: a suspended sale made as an invoice, known by a temporary
@@ -30,6 +32,8 @@ class DraftInvoiceTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
+    use ShelfFixtureTrait;
+    use StockUnitsFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -55,6 +59,7 @@ class DraftInvoiceTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopStockUnits();
         $this->stopSelling();
 
         parent::tearDown();
@@ -223,6 +228,46 @@ class DraftInvoiceTest extends CIUnitTestCase
 
             $previous = $now;
         }
+    }
+
+    public function testForIssue_CarriesTheUnitOfALineEnteredInCartons(): void
+    {
+        $setup = $this->cartonItem('5.00');
+
+        $this->putOnShelf($setup['item'], '100');
+
+        $draft = $this->draftInvoice([$this->inUnit($this->line($setup['item'], 0, '1', '1', '5.00'), $setup['carton'], '2', '120')]);
+        $line  = $this->drafts->forIssue($draft)->items[0];
+
+        $this->assertSame([$setup['carton'], '12.0000', '2.000', '120.000000'], [$line['unit_id'], $line['unit_factor'], $line['unit_quantity'], $line['unit_price']]);
+        $this->assertSame(['24.000', '10.00'], [(string) $line['quantity'], (string) $line['price']]);
+    }
+
+    public function testForIssue_CarriesNoUnitForALineOfBaseUnits(): void
+    {
+        $itemId = $this->item('5.00');
+
+        $this->putOnShelf($itemId, '100');
+
+        $line = $this->drafts->forIssue($this->draftInvoice([$this->line($itemId, 0, '3', '10.00', '5.00')]))->items[0];
+
+        $this->assertArrayNotHasKey('unit_id', $line);
+    }
+
+    public function testFingerprint_ChangesWhenTheUnitOfALineChanges(): void
+    {
+        $setup = $this->cartonItem('5.00');
+
+        $this->putOnShelf($setup['item'], '100');
+
+        $draft  = $this->draftInvoice([$this->inUnit($this->line($setup['item'], 0, '1', '1', '5.00'), $setup['carton'], '2', '120')]);
+        $before = $this->drafts->fingerprint($draft);
+
+        $this->assertSame($before, $this->drafts->fingerprint($draft));
+
+        $this->accountingDb()->table('sales_items')->where('sale_id', $draft)->update(['unit_id' => null, 'unit_factor' => null, 'unit_quantity' => null, 'unit_price_entered' => null]);
+
+        $this->assertNotSame($before, $this->drafts->fingerprint($draft));
     }
 
     public function testForIssue_TakesTheFingerprintBeforeItReadsTheDraftSoAChangeWhileItReadsIsNotCoveredByIt(): void

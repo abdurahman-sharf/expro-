@@ -123,6 +123,16 @@ final class UnitBarcodesTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::UnitBarcodeInvalid, fn (): int => $this->barcodes->assign(999999999, null, 'NO-ITEM-1', $this->unitManagerId));
     }
 
+    public function testExists_ReturnsTrueForABarcodeSomeUnitHasEvenWhileTheUnitsSettingIsOffAndFalseForAnother(): void
+    {
+        $this->barcodes->assign($this->itemId, null, 'EX-001', $this->unitManagerId);
+        $this->setConfigValue(StockOptions::UNITS, '0');
+
+        $this->assertTrue($this->barcodes->exists('EX-001'));
+        $this->assertTrue($this->barcodes->exists(' EX-001 '));
+        $this->assertFalse($this->barcodes->exists('EX-002'));
+    }
+
     public function testResolve_IgnoresBarcodesWhileTheUnitsSettingIsOff(): void
     {
         $this->barcodes->assign($this->itemId, null, 'OFF-1', $this->unitManagerId);

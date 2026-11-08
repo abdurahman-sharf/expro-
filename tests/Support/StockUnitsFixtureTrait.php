@@ -49,7 +49,7 @@ trait StockUnitsFixtureTrait
         $db->table('accounting_audit_log')->whereIn('entity_type', ['unit_template', 'item_stock_profile', 'item_unit_barcode'])->delete();
     }
 
-    protected function switchOn(string ...$flags): void
+    protected function switchOnStock(string ...$flags): void
     {
         $keys = ['units' => StockOptions::UNITS, 'bundles' => StockOptions::BUNDLES, 'tracking' => StockOptions::TRACKING];
 
@@ -63,7 +63,8 @@ trait StockUnitsFixtureTrait
      */
     protected function template(string $name = 'Cartons', ?array $units = null): int
     {
-        $this->switchOn('units');
+        $this->readyStockUnits();
+        $this->switchOnStock('units');
 
         return (new UnitTemplates())->create([
             'name'            => $name,
@@ -123,7 +124,7 @@ trait StockUnitsFixtureTrait
     protected function trackedItem(TrackingType $type, string $cost = '5.00'): int
     {
         $this->readyStockUnits();
-        $this->switchOn('tracking');
+        $this->switchOnStock('tracking');
 
         $itemId = $this->createTestItem();
 

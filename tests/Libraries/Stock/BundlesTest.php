@@ -99,7 +99,7 @@ final class BundlesTest extends CIUnitTestCase
 
     public function testAssertValid_AcceptsAKitOfOrdinaryComponentsWhoseProductKeepsNoStockAndCarriesThePrice(): void
     {
-        $this->switchOn('bundles');
+        $this->switchOnStock('bundles');
 
         $this->bundles->assertValid($this->pricedProduct(), [$this->createTestItem(), $this->createTestItem()], PRICE_OPTION_KIT);
         $this->addToAssertionCount(1);
@@ -107,7 +107,7 @@ final class BundlesTest extends CIUnitTestCase
 
     public function testAssertValid_RejectsABundleThatContainsItself(): void
     {
-        $this->switchOn('bundles');
+        $this->switchOnStock('bundles');
 
         $priced = $this->pricedProduct();
 
@@ -116,7 +116,7 @@ final class BundlesTest extends CIUnitTestCase
 
     public function testAssertValid_RejectsAComponentThatIsTheProductOfAnotherBundle(): void
     {
-        $this->switchOn('bundles');
+        $this->switchOnStock('bundles');
 
         $inner = $this->pricedProduct();
 
@@ -127,21 +127,21 @@ final class BundlesTest extends CIUnitTestCase
 
     public function testAssertValid_RejectsAComponentOfTheKitType(): void
     {
-        $this->switchOn('bundles');
+        $this->switchOnStock('bundles');
 
         $this->refusedWith(AccountingError::BundleContainsBundle, fn () => $this->bundles->assertValid($this->pricedProduct(), [$this->pricedProduct()], PRICE_OPTION_KIT));
     }
 
     public function testAssertValid_RejectsAProductThatKeepsItsOwnStock(): void
     {
-        $this->switchOn('bundles');
+        $this->switchOnStock('bundles');
 
         $this->refusedWith(AccountingError::BundleKeepsStock, fn () => $this->bundles->assertValid($this->pricedProduct(true), [$this->createTestItem()], PRICE_OPTION_KIT));
     }
 
     public function testAssertValid_RejectsAKitWithNoPricedProductOrWithAPriceOptionOtherThanTheOneOfTheKit(): void
     {
-        $this->switchOn('bundles');
+        $this->switchOnStock('bundles');
 
         $this->refusedWith(AccountingError::BundleShapeInvalid, fn () => $this->bundles->assertValid(null, [$this->createTestItem()], PRICE_OPTION_KIT));
         $this->refusedWith(AccountingError::BundleShapeInvalid, fn () => $this->bundles->assertValid($this->pricedProduct(), [$this->createTestItem()], PRICE_OPTION_ALL));
@@ -161,7 +161,7 @@ final class BundlesTest extends CIUnitTestCase
         $good = $this->kit('Good', $this->pricedProduct(), [$this->createTestItem()]);
         $bad  = $this->kit('Bad', $this->pricedProduct(true), [$this->createTestItem()]);
 
-        $this->switchOn('bundles');
+        $this->switchOnStock('bundles');
 
         $found = $this->bundles->violations();
 
@@ -179,7 +179,7 @@ final class BundlesTest extends CIUnitTestCase
         $this->kit('Inner', $inner, [$part]);
         $kitId = $this->kit('Outer', $outer, [$part]);
 
-        $this->switchOn('bundles');
+        $this->switchOnStock('bundles');
 
         $model = model(Item_kit_items::class);
         $rows  = [['item_id' => $inner, 'quantity' => 1, 'kit_sequence' => 0]];
@@ -210,7 +210,7 @@ final class BundlesTest extends CIUnitTestCase
         $legacyProduct = $this->createTestItem(HAS_NO_STOCK);
 
         $this->kit('Legacy', $legacyProduct, [$this->createTestItem()], PRICE_OPTION_ALL);
-        $this->switchOn('bundles');
+        $this->switchOnStock('bundles');
 
         $this->refusedWith(AccountingError::BundleContainsBundle, fn () => $this->bundles->assertValid($this->pricedProduct(), [$legacyProduct], PRICE_OPTION_KIT));
     }

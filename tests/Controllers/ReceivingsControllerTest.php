@@ -7,6 +7,7 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Stock\StockOptions;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -23,6 +24,7 @@ use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\StockUnitsFixtureTrait;
 use App\Libraries\Roles\DefaultLocations;
 
 /**
@@ -40,6 +42,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
     use RoleFixtureTrait;
+    use StockUnitsFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -61,6 +64,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopStockUnits();
         $this->stopBuying();
 
         $db = $this->accountingDb();
@@ -226,6 +230,65 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $response->assertStatus(302);
         $response->assertRedirectTo('no_access/receivings/receivings_stock');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Units and tracking on a line
+    // ---------------------------------------------------------------------------------------
+
+    public function testGetIndex_OffersTheUnitsOfTheTemplateOfAnItemOnItsLine(): void
+    {
+        $setup = $this->cartonItem('5.00');
+
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($setup['item'], 1, '5', '5.00')]));
+
+        $response = $this->get('/receivings');
+
+        $response->assertStatus(200);
+        $response->assertSee('<select name="unit_id"');
+        $response->assertSee('Carton (x12)');
+    }
+
+    public function testGetIndex_OffersNoUnitChoiceWhileTheUnitsSettingIsOff(): void
+    {
+        $setup = $this->cartonItem('5.00');
+
+        $this->setConfigValue(StockOptions::UNITS, '0');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($setup['item'], 1, '5', '5.00')]));
+
+        $this->get('/receivings')->assertDontSee('<select name="unit_id"');
+    }
+
+    public function testPostEditItem_EntersALineInCartonsAndKeepsItsBaseQuantity(): void
+    {
+        $setup = $this->cartonItem('5.00');
+
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($setup['item'], 1, '24', '5.00')]));
+
+        $edit = ['price' => '60', 'quantity' => '2', 'discount' => '0', 'receiving_quantity' => '1', 'tax_percent' => '0', 'description' => 'x', 'discount_type' => '0', 'unit_id' => (string) $setup['carton']];
+
+        $this->post('/receivings/editItem/1', $edit)->assertStatus(200);
+
+        $this->assertSame([$setup['carton'], '24.000', '2.000'], [(int) session()->get('recv_cart')[1]['unit_id'], bcadd((string) session()->get('recv_cart')[1]['quantity'], '0', 3), bcadd((string) session()->get('recv_cart')[1]['unit_quantity'], '0', 3)]);
+
+        $this->withSession(array_merge($this->session, ['recv_cart' => session()->get('recv_cart')]));
+        $this->post('/receivings/editItem/1', [...$edit, 'quantity' => '3'])->assertStatus(200);
+
+        $line = session()->get('recv_cart')[1];
+
+        $this->assertSame([$setup['carton'], '36.000', '5.000000'], [(int) $line['unit_id'], bcadd((string) $line['quantity'], '0', 3), bcadd((string) $line['price'], '0', 6)]);
+        $this->assertSame(['3.000', '60.000000'], [bcadd((string) $line['unit_quantity'], '0', 3), bcadd((string) $line['unit_price'], '0', 6)]);
+    }
+
+    public function testPostEditItem_IgnoresATrackingFieldThatIsNotText(): void
+    {
+        $setup = $this->cartonItem('5.00');
+
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($setup['item'], 1, '5', '5.00')]));
+
+        $this->post('/receivings/editItem/1', ['price' => '5', 'quantity' => '5', 'discount' => '0', 'receiving_quantity' => '1', 'tax_percent' => '0', 'description' => 'x', 'discount_type' => '0', 'tracking_serials' => ['A', 'B'], 'batch_number' => ['X']])->assertStatus(200);
+
+        $this->assertArrayNotHasKey('tracking', session()->get('recv_cart')[1]);
     }
 
     // ---------------------------------------------------------------------------------------

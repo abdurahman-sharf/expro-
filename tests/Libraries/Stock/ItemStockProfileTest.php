@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Stock\ItemStockProfile;
 use App\Libraries\Stock\StockOptions;
+use App\Libraries\Stock\StockUnitPermissions;
 use App\Libraries\Stock\TrackingType;
 use App\Libraries\Stock\UnitTemplates;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -141,7 +142,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
     {
         $itemId = $this->createTestItem();
 
-        $this->switchOn('tracking');
+        $this->switchOnStock('tracking');
         $this->profiles->setTracking($itemId, TrackingType::Serial, $this->unitManagerId);
 
         $this->assertSame(TrackingType::Serial, $this->profiles->get($itemId)->tracking);
@@ -156,7 +157,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
     {
         $itemId = $this->createTestItem();
 
-        $this->switchOn('tracking');
+        $this->switchOnStock('tracking');
 
         $this->refusedWith(AccountingError::PermissionDenied, fn () => $this->profiles->setTracking($itemId, TrackingType::Serial, $this->employeeWithGrants([])));
         $this->assertSame(TrackingType::None, $this->profiles->get($itemId)->tracking);
@@ -172,7 +173,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
         $itemId = $this->createTestItem();
 
         $this->putOnShelf($itemId, '3');
-        $this->switchOn('tracking');
+        $this->switchOnStock('tracking');
 
         $this->refusedWith(AccountingError::TrackingChangeWithStock, fn () => $this->profiles->setTracking($itemId, TrackingType::Batch, $this->unitManagerId));
         $this->assertSame(TrackingType::None, $this->profiles->get($itemId)->tracking);
@@ -180,7 +181,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
 
     public function testSetTracking_RejectsAnItemThatKeepsNoStock(): void
     {
-        $this->switchOn('tracking');
+        $this->switchOnStock('tracking');
 
         $this->refusedWith(AccountingError::TrackingChangeWithStock, fn () => $this->profiles->setTracking($this->createTestItem(HAS_NO_STOCK), TrackingType::Serial, $this->unitManagerId));
     }
@@ -189,7 +190,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
     {
         $itemId = $this->createTestItem();
 
-        $this->switchOn('tracking');
+        $this->switchOnStock('tracking');
         $this->profiles->setTracking($itemId, TrackingType::Serial, $this->unitManagerId);
         $this->setConfigValue(StockOptions::TRACKING, '0');
 
@@ -213,5 +214,94 @@ final class ItemStockProfileTest extends CIUnitTestCase
         $batchId = (int) $db->insertID();
         $db->table('stock_batch_quantities')->insert(['batch_id' => $batchId, 'location_id' => 1, 'quantity' => '2']);
         $this->assertTrue($this->profiles->holdsStock($itemId));
+    }
+
+    public function testSaveProfile_SavesTheTemplateAndTheTrackingTogetherAndWritesTheAuditLog(): void
+    {
+        $templateId = $this->template();
+        $itemId     = $this->createTestItem();
+
+        $this->switchOnStock('tracking');
+        $this->profiles->saveProfile($itemId, true, $templateId, TrackingType::Serial, $this->unitManagerId);
+
+        $profile = $this->profiles->get($itemId);
+
+        $this->assertSame([$templateId, TrackingType::Serial], [$profile->unitTemplateId, $profile->tracking]);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item_stock_profile', 'action' => 'item_unit_template_set'])->countAllResults());
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item_stock_profile', 'action' => 'item_tracking_set'])->countAllResults());
+    }
+
+    public function testSaveProfile_AsksForNoPermissionAndNoSettingWhenNothingChanges(): void
+    {
+        $itemId = $this->createTestItem();
+
+        $this->profiles->saveProfile($itemId, true, null, TrackingType::None, $this->employeeWithGrants([]));
+
+        $this->assertSame(TrackingType::None, $this->profiles->get($itemId)->tracking);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'item_stock_profile')->countAllResults());
+    }
+
+    public function testSaveProfile_SavesTheTrackingWhileTheUnitsSettingIsOff(): void
+    {
+        $itemId = $this->createTestItem();
+
+        $this->switchOnStock('tracking');
+        $this->profiles->saveProfile($itemId, true, null, TrackingType::Batch, $this->unitManagerId);
+
+        $this->assertSame(TrackingType::Batch, $this->profiles->get($itemId)->tracking);
+    }
+
+    public function testSaveProfile_SavesTheTemplateWhileTheTrackingSettingIsOff(): void
+    {
+        $templateId = $this->template();
+        $itemId     = $this->createTestItem();
+
+        $this->profiles->saveProfile($itemId, true, $templateId, TrackingType::None, $this->unitManagerId);
+
+        $this->assertSame($templateId, $this->profiles->get($itemId)->unitTemplateId);
+    }
+
+    public function testSaveProfile_LeavesTheTemplateAloneWhenNoneWasPosted(): void
+    {
+        $templateId = $this->template();
+        $itemId     = $this->createTestItem();
+
+        $this->profiles->setTemplate($itemId, $templateId, $this->unitManagerId);
+        $this->switchOnStock('tracking');
+        $this->profiles->saveProfile($itemId, false, null, TrackingType::Serial, $this->unitManagerId);
+
+        $profile = $this->profiles->get($itemId);
+
+        $this->assertSame([$templateId, TrackingType::Serial], [$profile->unitTemplateId, $profile->tracking]);
+    }
+
+    public function testSaveProfile_SavesNothingWhenTheTrackingChangeIsRefused(): void
+    {
+        $templateId = $this->template();
+        $itemId     = $this->createTestItem();
+
+        $this->putOnShelf($itemId, '3');
+        $this->switchOnStock('tracking');
+
+        $this->refusedWith(AccountingError::TrackingChangeWithStock, fn () => $this->profiles->saveProfile($itemId, true, $templateId, TrackingType::Serial, $this->unitManagerId));
+
+        $profile = $this->profiles->get($itemId);
+
+        $this->assertSame([null, TrackingType::None], [$profile->unitTemplateId, $profile->tracking]);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item_stock_profile', 'action' => 'item_unit_template_set'])->countAllResults());
+    }
+
+    public function testSaveProfile_RequiresThePermissionOfWhatChanges(): void
+    {
+        $templateId = $this->template();
+        $itemId     = $this->createTestItem();
+        $trackOnly  = $this->employeeWithGrants([StockUnitPermissions::TRACKING_MANAGE]);
+
+        $this->switchOnStock('tracking');
+
+        $this->refusedWith(AccountingError::PermissionDenied, fn () => $this->profiles->saveProfile($itemId, true, $templateId, TrackingType::None, $trackOnly));
+        $this->profiles->saveProfile($itemId, true, null, TrackingType::Serial, $trackOnly);
+
+        $this->assertSame(TrackingType::Serial, $this->profiles->get($itemId)->tracking);
     }
 }

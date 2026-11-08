@@ -40,6 +40,7 @@ use App\Libraries\Sale_lib;
 use App\Libraries\Stock\StockOptions;
 use App\Libraries\Stock\TrackingType;
 use App\Libraries\Stock\UnitBarcodes;
+use App\Libraries\Stock\UnitTemplates;
 use App\Libraries\Tax_lib;
 use App\Models\Item_kit;
 use App\Models\Item_kit_items;
@@ -7527,6 +7528,26 @@ class SalePostingTest extends CIUnitTestCase
 
         $this->assertContains($this->accountId('cogs') . ':120.00:0.00', $cost);
         $this->assertContains($this->stockAccount() . ':0.00:120.00', $cost);
+    }
+
+    public function testIssueDraft_KeepsTheUnitOfALineEnteredInCartonsAndTheTemplateStaysUsed(): void
+    {
+        $setup  = $this->cartonItem('5.00');
+        $itemId = $setup['item'];
+
+        $this->putOnShelf($itemId, '100');
+
+        $draft = $this->draftInvoice([$this->inUnit($this->line($itemId, 0, '1', '1', '5.00'), $setup['carton'], '2', '120')]);
+
+        $this->assertGreaterThan(0, $draft);
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+
+        $stored = $this->accountingDb()->table('sales_items')->where(['sale_id' => $draft, 'item_id' => $itemId])->get()->getRow();
+
+        $this->assertSame(['24.000', '10.00', $setup['carton'], '12.0000', '2.000', '120.000000'], [$stored->quantity_purchased, $stored->item_unit_price, (int) $stored->unit_id, $stored->unit_factor, $stored->unit_quantity, $stored->unit_price_entered]);
+        $this->assertTrue((new UnitTemplates())->isUsed($setup['template']));
+        $this->assertSame('76.000', bcadd((string) $this->getItemQuantity($itemId, self::LOCATION_ID), '0', 3));
+        $this->assertSame([$this->customerAccount() . ':240.00:0.00', $this->accountId('sales_revenue') . ':0.00:240.00'], $this->standing($draft, 'revenue')[0]['lines']);
     }
 
     public function testSaveValue_StoresALineEnteredInCartonsInBaseUnitsWithTheBooksSwitchedOffAndPostsNothing(): void

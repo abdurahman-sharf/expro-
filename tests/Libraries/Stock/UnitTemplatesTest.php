@@ -85,7 +85,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
 
     public function testCreate_RequiresThePermissionToManageUnits(): void
     {
-        $this->switchOn('units');
+        $this->switchOnStock('units');
 
         $this->refusedWith(AccountingError::PermissionDenied, fn (): int => $this->templates->create($this->input(), $this->employeeWithGrants([])));
         $this->assertSame([], $this->templates->all());
@@ -98,7 +98,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
 
     public function testCreate_StoresTheTemplateWithItsLargerUnitsInOrder(): void
     {
-        $this->switchOn('units');
+        $this->switchOnStock('units');
 
         $templateId = $this->templates->create($this->input(['units' => [['name' => 'Carton', 'factor' => '12', 'small_name' => 'ctn'], ['name' => 'Pallet', 'factor' => '480.5', 'small_name' => 'plt']]]), $this->unitManagerId);
         $template   = $this->templates->find($templateId);
@@ -110,7 +110,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
 
     public function testCreate_AcceptsASmallNameOfTwentyFiveCharactersAndRejectsTwentySix(): void
     {
-        $this->switchOn('units');
+        $this->switchOnStock('units');
 
         $this->assertGreaterThan(0, $this->templates->create($this->input(['main_small_name' => str_repeat('a', 25)]), $this->unitManagerId));
         $this->refusedWith(AccountingError::UnitTemplateInvalid, fn (): int => $this->templates->create($this->input(['name' => 'Other', 'main_small_name' => str_repeat('a', 26)]), $this->unitManagerId));
@@ -119,7 +119,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
 
     public function testCreate_RejectsABlankTemplateNameMainUnitOrUnitList(): void
     {
-        $this->switchOn('units');
+        $this->switchOnStock('units');
 
         $this->refusedWith(AccountingError::UnitTemplateInvalid, fn (): int => $this->templates->create($this->input(['name' => '  ']), $this->unitManagerId));
         $this->refusedWith(AccountingError::UnitTemplateInvalid, fn (): int => $this->templates->create($this->input(['main_unit_name' => '']), $this->unitManagerId));
@@ -128,7 +128,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
 
     public function testCreate_RejectsAFactorThatIsZeroNegativeNotANumberOrHasMoreThanFourDecimals(): void
     {
-        $this->switchOn('units');
+        $this->switchOnStock('units');
 
         foreach (['0', '-2', 'abc', '1.00001', '', '0.0000'] as $factor) {
             $this->refusedWith(AccountingError::UnitFactorInvalid, fn (): int => $this->templates->create($this->input(['units' => [['name' => 'Carton', 'factor' => $factor, 'small_name' => 'c']]]), $this->unitManagerId));
@@ -137,7 +137,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
 
     public function testCreate_AcceptsAFactorOfFourDecimalsAndOfASmallFraction(): void
     {
-        $this->switchOn('units');
+        $this->switchOnStock('units');
 
         $templateId = $this->templates->create($this->input(['units' => [['name' => 'Half', 'factor' => '0.0001', 'small_name' => 'h'], ['name' => 'Big', 'factor' => '1234.5678', 'small_name' => 'b']]]), $this->unitManagerId);
 
@@ -146,7 +146,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
 
     public function testCreate_RejectsARepeatedUnitNameOrOneThatIsTheMainUnit(): void
     {
-        $this->switchOn('units');
+        $this->switchOnStock('units');
 
         $this->refusedWith(AccountingError::UnitNameRepeated, fn (): int => $this->templates->create($this->input(['units' => [['name' => 'Carton', 'factor' => '12', 'small_name' => 'c'], ['name' => 'carton', 'factor' => '24', 'small_name' => 'c']]]), $this->unitManagerId));
         $this->refusedWith(AccountingError::UnitNameRepeated, fn (): int => $this->templates->create($this->input(['units' => [['name' => 'Piece', 'factor' => '12', 'small_name' => 'c']]]), $this->unitManagerId));
@@ -181,7 +181,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
 
     public function testUpdate_RejectsATemplateThatDoesNotExist(): void
     {
-        $this->switchOn('units');
+        $this->switchOnStock('units');
 
         $this->refusedWith(AccountingError::UnitTemplateNotFound, fn () => $this->templates->update(999999, $this->input(), $this->unitManagerId));
     }

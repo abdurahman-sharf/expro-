@@ -27,6 +27,7 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
     private const TABLES      = ['unit_templates', 'unit_template_units', 'item_stock_profiles', 'item_unit_barcodes', 'stock_serials', 'stock_batches', 'stock_batch_quantities', 'stock_tracking_lines'];
     private const LINE_TABLES = ['sales_items', 'receivings_items', 'stock_permit_lines'];
     private const PERMISSIONS = ['stock_units', 'stk_units_manage', 'stk_tracking_manage', 'stk_batch_manual_pick'];
+    private const GHOST       = 999000001;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -42,6 +43,11 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         (new StockUnitsAndTracking())->up();
+
+        foreach (['sales_items' => 'sale_id', 'receivings_items' => 'receiving_id', 'stock_permit_lines' => 'permit_id'] as $table => $key) {
+            $this->accountingDb()->table($table)->where($key, self::GHOST)->delete();
+        }
+
         $this->stopStockUnits();
         $this->removeInsertedEntities();
 
@@ -66,6 +72,52 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
         } catch (DatabaseException) {
             $this->addToAssertionCount(1);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function insertWithoutParents(string $table, array $row): void
+    {
+        $db = $this->accountingDb();
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        try {
+            $db->table($table)->insert($row);
+        } finally {
+            $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $more
+     *
+     * @return array<string, mixed>
+     */
+    private function saleLine(array $more = []): array
+    {
+        return [...['sale_id' => self::GHOST, 'item_id' => self::GHOST, 'line' => 1, 'item_cost_price' => '0', 'item_unit_price' => '10.00', 'item_location' => 1, 'quantity_purchased' => '24.000', 'unit_id' => 1, 'unit_factor' => '12.0000', 'unit_quantity' => '2.000', 'unit_price_entered' => '120.000000'], ...$more];
+    }
+
+    /**
+     * @param array<string, mixed> $more
+     *
+     * @return array<string, mixed>
+     */
+    private function receivingLine(array $more = []): array
+    {
+        return [...['receiving_id' => self::GHOST, 'item_id' => self::GHOST, 'line' => 1, 'item_cost_price' => '0', 'item_unit_price' => '10.00', 'item_location' => 1, 'quantity_purchased' => '24.000', 'receiving_quantity' => '1.000', 'unit_id' => 1, 'unit_factor' => '12.0000', 'unit_quantity' => '2.000', 'unit_price_entered' => '120.000000'], ...$more];
+    }
+
+    /**
+     * @param array<string, mixed> $more
+     *
+     * @return array<string, mixed>
+     */
+    private function permitLine(array $more = []): array
+    {
+        return [...['permit_id' => self::GHOST, 'line_no' => 1, 'item_id' => self::GHOST, 'quantity' => '24.000', 'unit_cost' => '0', 'unit_id' => 1, 'unit_factor' => '12.0000', 'unit_quantity' => '2.000', 'unit_cost_entered' => '0'], ...$more];
     }
 
     public function testUp_CreatesTheEightTablesAndTheUnitColumnsOfTheThreeLineTables(): void
@@ -171,4 +223,77 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
 
         (new StockUnitsAndTracking())->down();
     }
+
+    public function testSalesItems_RejectsALineWhoseBaseQuantityIsNotItsUnitQuantityTimesTheFactor(): void
+    {
+        $this->refused(fn () => $this->insertWithoutParents('sales_items', $this->saleLine(['quantity_purchased' => '25.000'])));
+        $this->refused(fn () => $this->insertWithoutParents('sales_items', $this->saleLine(['unit_factor' => '0'])));
+        $this->refused(fn () => $this->insertWithoutParents('sales_items', $this->saleLine(['unit_quantity' => null])));
+
+        $this->insertWithoutParents('sales_items', $this->saleLine());
+
+        $this->assertSame(1, $this->accountingDb()->table('sales_items')->where('sale_id', self::GHOST)->countAllResults());
+    }
+
+    public function testSalesItems_AcceptsALineWithNoUnitWhateverItsQuantity(): void
+    {
+        $this->insertWithoutParents('sales_items', $this->saleLine(['quantity_purchased' => '7.000', 'unit_id' => null, 'unit_factor' => null, 'unit_quantity' => null, 'unit_price_entered' => null]));
+
+        $this->assertSame(1, $this->accountingDb()->table('sales_items')->where('sale_id', self::GHOST)->countAllResults());
+    }
+
+    public function testReceivingsItems_RejectsALineWhoseBaseQuantityIsNotItsUnitQuantityTimesTheFactor(): void
+    {
+        $this->refused(fn () => $this->insertWithoutParents('receivings_items', $this->receivingLine(['quantity_purchased' => '25.000'])));
+        $this->refused(fn () => $this->insertWithoutParents('receivings_items', $this->receivingLine(['quantity_purchased' => '2.000', 'receiving_quantity' => '1.000'])));
+
+        $this->insertWithoutParents('receivings_items', $this->receivingLine(['quantity_purchased' => '2.000', 'receiving_quantity' => '12.000']));
+
+        $this->assertSame(1, $this->accountingDb()->table('receivings_items')->where('receiving_id', self::GHOST)->countAllResults());
+    }
+
+    public function testStockPermitLines_RejectsALineWhoseBaseQuantityIsNotItsUnitQuantityTimesTheFactor(): void
+    {
+        $this->refused(fn () => $this->insertWithoutParents('stock_permit_lines', $this->permitLine(['quantity' => '25.000'])));
+        $this->refused(fn () => $this->insertWithoutParents('stock_permit_lines', $this->permitLine(['unit_factor' => '-12.0000'])));
+
+        $this->insertWithoutParents('stock_permit_lines', $this->permitLine());
+
+        $this->assertSame(1, $this->accountingDb()->table('stock_permit_lines')->where('permit_id', self::GHOST)->countAllResults());
+    }
+
+    public function testDown_RemovesTheTablesTheUnitColumnsAndThePermissionsWhenNothingWasRecorded(): void
+    {
+        (new StockUnitsAndTracking())->down();
+
+        foreach (self::TABLES as $table) {
+            $this->assertFalse($this->hasTable($table), $table);
+        }
+
+        foreach (self::LINE_TABLES as $table) {
+            $this->assertFalse($this->hasColumn($table, 'unit_id'), $table);
+        }
+
+        $this->assertSame(0, $this->accountingDb()->table('permissions')->whereIn('permission_id', self::PERMISSIONS)->countAllResults());
+        $this->assertSame(0, $this->accountingDb()->table('modules')->where('module_id', 'stock_units')->countAllResults());
+    }
+
+    public function testDown_RefusesWhileALineWasEnteredInAUnitAndDropsNothing(): void
+    {
+        $this->insertWithoutParents('sales_items', $this->saleLine());
+
+        try {
+            (new StockUnitsAndTracking())->down();
+            $this->fail('A line in a unit must stop the roll back.');
+        } catch (RuntimeException) {
+            $this->addToAssertionCount(1);
+        }
+
+        foreach (self::TABLES as $table) {
+            $this->assertTrue($this->hasTable($table), $table);
+        }
+
+        $this->assertTrue($this->hasColumn('sales_items', 'unit_id'));
+    }
 }
+
