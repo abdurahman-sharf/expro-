@@ -436,4 +436,35 @@ enum AccountingError: string
     case ReportTooLarge                   = 'report_too_large';
     case StatementAmountInvalid           = 'statement_amount_invalid';
     case ExportTooLarge                   = 'export_too_large';
+
+    case UnitsOff                 = 'stock_units_off';
+    case UnitTemplateNotFound     = 'unit_template_not_found';
+    case UnitTemplateInvalid      = 'unit_template_invalid';
+    case UnitTemplateNameTaken    = 'unit_template_name_taken';
+    case UnitFactorInvalid        = 'unit_factor_invalid';
+    case UnitTemplateUsed         = 'unit_template_used';
+    case UnitBarcodeTaken         = 'unit_barcode_taken';
+    case UnitNotOfItem            = 'unit_not_of_item';
+    case UnitQuantityInexact      = 'unit_quantity_inexact';
+    case UnitPriceInexact         = 'unit_price_inexact';
+    case UnitWithPack             = 'unit_with_pack';
+    case BundleContainsItself     = 'bundle_contains_itself';
+    case BundleContainsBundle     = 'bundle_contains_bundle';
+    case BundleKeepsStock         = 'bundle_keeps_stock';
+    case TrackingOff              = 'stock_tracking_off';
+    case TrackingChangeWithStock  = 'tracking_change_with_stock';
+    case TrackedEntryRequired     = 'tracked_entry_required';
+    case SerialInvalid            = 'serial_invalid';
+    case SerialDuplicate          = 'serial_duplicate';
+    case SerialNotAvailable       = 'serial_not_available';
+    case SerialNotSold            = 'serial_not_sold';
+    case SerialMoved              = 'serial_moved';
+    case BatchInvalid             = 'batch_invalid';
+    case BatchExpiryMismatch      = 'batch_expiry_mismatch';
+    case BatchExpired             = 'batch_expired';
+    case BatchInsufficient        = 'batch_insufficient';
+    case BatchManualPickDenied    = 'batch_manual_pick_denied';
+    case TrackedPathUnsupported   = 'tracked_path_unsupported';
+    case NegativeStockRefused     = 'negative_stock_refused';
+    case TrackedEntryNotAllowed   = 'tracked_entry_not_allowed';
 }
