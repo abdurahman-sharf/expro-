@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Add, Update, Delete, and Search Cashups.',
     'config'                       => 'Configuration',
     'config_desc'                  => 'Change the application settings.',
+    'custom_fields'                => 'Extra fields',
+    'custom_fields_desc'           => 'Define the extra fields of products and invoices, which print on the documents when marked to.',
     'customer_orders'              => 'Sales Orders',
     'customer_orders_desc'         => 'Orders customers have asked for, that post nothing and move no stock until an invoice is made from them.',
     'customers'                    => 'Customers',

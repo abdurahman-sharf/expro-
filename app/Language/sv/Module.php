@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Lägg till, uppdatera, ta bort och sök i dagskassor.',
     'config'                       => 'Konfiguration',
     'config_desc'                  => 'Ändra OSPOS\'s konfiguration.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Kunder',

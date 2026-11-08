@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Kasopmaak toevoegen, bijwerken, verwijderen en zoeken.',
     'config'                       => 'Configuratie',
     'config_desc'                  => 'OSPOS\'s configuratie wijzigen.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Klanten',

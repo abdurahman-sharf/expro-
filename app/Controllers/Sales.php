@@ -34,6 +34,9 @@ use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pdf_lib;
+use App\Libraries\Documents\CustomFields;
+use App\Libraries\Documents\CustomFieldType;
+use App\Libraries\Documents\DocumentException;
 use App\Libraries\Documents\RendersPdf;
 use App\Libraries\Documents\VoucherDocuments;
 use App\Libraries\Pricing\PriceControls;
@@ -423,6 +426,71 @@ class Sales extends Secure_Controller
     {
         $this->sale_lib->set_comment($this->request->getPost('comment', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
         return $this->response->setJSON(['success' => true]);
+    }
+
+    /**
+     * Keeps the values typed for the extra fields of the invoice. A value that does not fit its field
+     * is kept as typed and reported, and the invoice cannot be completed until it is right. Used in
+     * app/Views/sales/register.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postSetCustomFields(): ResponseInterface
+    {
+        $posted = $this->request->getPost('custom');
+        $posted = is_array($posted) ? $posted : [];
+        $fields = new CustomFields();
+        $kept   = [];
+
+        foreach ($fields->definitions('sale') as $definition) {
+            $raw = $posted[$definition->id] ?? '';
+
+            if (is_scalar($raw)) {
+                $kept[$definition->id] = mb_substr(trim((string) $raw), 0, CustomFieldType::MAX_TEXTAREA);
+            }
+        }
+
+        $this->sale_lib->setCustomFields($kept);
+
+        return $this->response->setJSON(['success' => true, 'problem' => $fields->problem('sale', $kept, false)]);
+    }
+
+    /**
+     * Keeps the extra fields of the invoice that was just saved. The values were checked before the
+     * invoice was saved; a failure here is logged and leaves the invoice as it was saved.
+     */
+    /**
+     * The extra fields of the invoice and of its items that print on its documents.
+     *
+     * @param array<int|string, array<string, mixed>> $cart
+     *
+     * @return array<string, mixed>
+     */
+    private function printedFieldsOf(mixed $saleId, array $cart): array
+    {
+        if (!is_int($saleId) && !is_numeric($saleId)) {
+            return [];
+        }
+
+        $fields = new CustomFields();
+
+        return [
+            'printed_fields'      => (int) $saleId > 0 ? $fields->printable('sale', (int) $saleId) : [],
+            'item_printed_fields' => $fields->printableFor('item', array_map(static fn (array $line): int => (int) $line['item_id'], array_values($cart))),
+        ];
+    }
+
+    private function keepCustomFields(mixed $saleId, bool $requireValues = true): void
+    {
+        if (!is_int($saleId) || $saleId <= 0) {
+            return;
+        }
+
+        try {
+            (new CustomFields())->save('sale', $saleId, $this->sale_lib->getCustomFields(), $requireValues);
+        } catch (DocumentException $exception) {
+            log_message('error', 'The extra fields of sale ' . $saleId . ' were not kept: ' . $exception->error->value);
+        }
     }
 
     /**
@@ -1757,6 +1825,13 @@ class Sales extends Secure_Controller
             return $this->reload($data);
         }
 
+        $customProblem = (new CustomFields())->problem('sale', $this->sale_lib->getCustomFields());
+
+        if ($customProblem !== null) {
+            $data['error'] = $customProblem;
+            return $this->reload($data);
+        }
+
         if (!$totals['payments_cover_total'] && !$this->sale_lib->is_invoice_mode() && !$this->sale_lib->is_quote_mode()) {
             $data['error'] = lang('Sales.amount_due_not_covered');
             return $this->reload($data);
@@ -1817,6 +1892,8 @@ class Sales extends Secure_Controller
 
                 // Save the data to the sales table
                 $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource(), headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId(), orderSourceId: $this->sale_lib->getOrderSource());
+                $this->keepCustomFields($data['sale_id_num']);
+                $data = [...$data, ...$this->printedFieldsOf($data['sale_id_num'], $data['cart'])];
                 $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
                 // Resort and filter cart lines for printing
@@ -1879,6 +1956,8 @@ class Sales extends Secure_Controller
                 $saleType = SALE_TYPE_WORK_ORDER;
 
                 $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
+                $this->keepCustomFields($data['sale_id_num']);
+                $data = [...$data, ...$this->printedFieldsOf($data['sale_id_num'], $data['cart'])];
 
                 if ($data['sale_id_num'] === INSUFFICIENT_GIFTCARD_BALANCE) {
                     $data['error_message'] = lang('Sales.insufficient_giftcard_balance');
@@ -1927,6 +2006,8 @@ class Sales extends Secure_Controller
                 $saleType = SALE_TYPE_QUOTE;
 
                 $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
+                $this->keepCustomFields($data['sale_id_num']);
+                $data = [...$data, ...$this->printedFieldsOf($data['sale_id_num'], $data['cart'])];
 
                 if ($data['sale_id_num'] === INSUFFICIENT_GIFTCARD_BALANCE) {
                     $data['error_message'] = lang('Sales.insufficient_giftcard_balance');
@@ -1967,6 +2048,8 @@ class Sales extends Secure_Controller
             }
 
             $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount, $this->sale_lib->getReturnDocument(), returnOverrideReason: $this->sale_lib->getReturnOverride(), headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
+            $this->keepCustomFields($data['sale_id_num']);
+            $data = [...$data, ...$this->printedFieldsOf($data['sale_id_num'], $data['cart'])];
 
             $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
@@ -2373,6 +2456,7 @@ class Sales extends Secure_Controller
         $this->sale_lib->copy_entire_sale($saleId);
         $data = [];
         $data['cart'] = $this->sale_lib->get_cart();
+        $data = [...$data, ...$this->printedFieldsOf($saleId, $data['cart'])];
         $data['payments'] = $this->sale_lib->getPayments();
         $data['selected_payment_type'] = $this->sale_lib->get_payment_type();
 
@@ -2903,6 +2987,8 @@ class Sales extends Secure_Controller
         $data['amount_change'] = $data['amount_due'] * -1;
 
         $data['comment'] = $this->sale_lib->get_comment();
+        $data['custom_fields'] = (new CustomFields())->definitions('sale');
+        $data['custom_values'] = $this->sale_lib->getCustomFields();
         $data['email_receipt'] = $this->sale_lib->is_email_receipt();
 
         if ($customerInfo && $this->config['customer_reward_enable']) {
@@ -3475,6 +3561,7 @@ class Sales extends Secure_Controller
         }
 
         $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms(), $saleType === SALE_TYPE_QUOTE ? QuoteStatus::Draft : null, $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId(), orderSourceId: $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getOrderSource() : null);
+        $this->keepCustomFields($saleIdNum, false);
 
         if ($saleIdNum === INSUFFICIENT_GIFTCARD_BALANCE) {
             $data['error'] = lang('Sales.insufficient_giftcard_balance');

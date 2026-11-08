@@ -12,7 +12,7 @@ $logo            = documentLogoSource($config, $context);
 $absolute        = $profile['absolute'];
 $figure          = static fn (mixed $amount): string => documentFigure($absolute, $amount);
 $terms           = documentTerms('purchase_invoice', $config);
-$itemExtraFields = $receiving['item_custom_fields'] ?? [];
+$itemExtraFields = $receiving['item_printed_fields'] ?? [];
 $discount        = (string) ($receiving['invoiceDiscountAmount'] ?? '0');
 $tax             = (string) ($receiving['tax_total'] ?? '0');
 $grand           = (string) ($receiving['total_with_tax'] ?? $receiving['total'] ?? '0');

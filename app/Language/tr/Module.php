@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Cashups, Güncelleme, Silme ve Arama.',
     'config'                       => 'Yapılandırma',
     'config_desc'                  => 'Yapılandırma bilgisi görme ve düzenleme.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Müşteriler',

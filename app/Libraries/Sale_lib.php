@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\ReturnDocument;
+use App\Libraries\Documents\CustomFields;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountPlan;
 use App\Libraries\InvoiceDiscountProblem;
@@ -505,6 +506,31 @@ class Sale_lib
     public function clear_comment(): void
     {
         $this->session->remove('sales_comment');
+    }
+
+    /**
+     * The values typed for the extra fields of the invoice in the register, by field.
+     *
+     * @return array<int, string>
+     */
+    public function getCustomFields(): array
+    {
+        $values = $this->session->get('sales_custom_fields');
+
+        return is_array($values) ? $values : [];
+    }
+
+    /**
+     * @param array<int, string> $values
+     */
+    public function setCustomFields(array $values): void
+    {
+        $this->session->set('sales_custom_fields', $values);
+    }
+
+    public function clearCustomFields(): void
+    {
+        $this->session->remove('sales_custom_fields');
     }
 
     /**
@@ -2038,6 +2064,7 @@ class Sale_lib
         $this->set_work_order_number($this->sale->get_work_order_number($saleId));
         $this->set_sale_type($this->sale->get_sale_type($saleId));
         $this->set_comment($this->sale->get_comment($saleId));
+        $this->setCustomFields((new CustomFields())->valuesOf('sale', $saleId));
         $this->set_dinner_table($this->sale->get_dinner_table($saleId));
         $this->set_delivered($this->sale->isDelivered($saleId));
         $this->set_return_origin($this->sale->getReturnOrigin($saleId));
@@ -2127,6 +2154,7 @@ class Sale_lib
         $this->clear_table();
         $this->empty_cart();
         $this->clear_comment();
+        $this->clearCustomFields();
         $this->clear_email_receipt();
         $this->clear_invoice_number();
         $this->clear_delivered();

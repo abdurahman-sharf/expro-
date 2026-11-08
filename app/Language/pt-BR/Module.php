@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Adicione, atualize, exclua e pesquise as liquidações.',
     'config'                       => 'Configurações',
     'config_desc'                  => 'Alterar configurações do sistema.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Clientes',

@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => '',
     'config'                       => 'Nastavení',
     'config_desc'                  => 'Změnit nastavení OSPOS.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Zákazníci',

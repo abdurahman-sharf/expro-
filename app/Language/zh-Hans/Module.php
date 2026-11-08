@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => '',
     'config'                       => '系統配置',
     'config_desc'                  => '修改系統配置',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => '客戶',

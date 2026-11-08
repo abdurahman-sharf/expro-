@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Tambah, Perbaharui, Hapus dan Cari Uang Tunai.',
     'config'                       => 'Konfigurasi',
     'config_desc'                  => 'Ubah Konfigurasi Toko.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Pelanggan',

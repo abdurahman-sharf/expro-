@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Zoek, bewerk, verwijder en voeg cashups toe.',
     'config'                       => 'Configuratie',
     'config_desc'                  => 'Globale configuratie aanpassen.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Klanten',

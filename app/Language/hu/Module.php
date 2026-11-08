@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => '',
     'config'                       => 'Bolt beállítás',
     'config_desc'                  => 'Bolt beállításainak módosítása',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Vevők',

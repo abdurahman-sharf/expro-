@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Agregar, Actualizar, Borrar y Buscar Turnos.',
     'config'                       => 'Configuración de la Tienda',
     'config_desc'                  => 'Cambiar la configuración de OSPOS.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Clientes',

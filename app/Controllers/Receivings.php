@@ -20,6 +20,7 @@ use App\Libraries\Accounting\SupplierPaymentDate;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Barcode_lib;
+use App\Libraries\Documents\CustomFields;
 use App\Libraries\Documents\RendersPdf;
 use App\Libraries\Documents\VoucherDocument;
 use App\Libraries\Documents\VoucherDocuments;
@@ -899,8 +900,9 @@ class Receivings extends Secure_Controller
             }
         }
 
-        $data['purchase_type'] = $type->value;
-        $data['paid']          = $paid;
+        $data['purchase_type']       = $type->value;
+        $data['item_printed_fields'] = (new CustomFields())->printableFor('item', array_map(static fn (array $line): int => (int) $line['item_id'], array_values($data['cart'])));
+        $data['paid']                = $paid;
         $data['receiving_num'] = $receivingId;
 
         return $data;

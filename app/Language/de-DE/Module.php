@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Hinzufügen, Ändern, Löschen und Suchen von Auszahlungen.',
     'config'                       => 'Einstellungen',
     'config_desc'                  => 'Ändere OSPOS Konfiguration.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Kunden',

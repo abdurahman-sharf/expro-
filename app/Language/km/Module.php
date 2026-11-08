@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'បន្ថែម, កែប្រែ, លុប, រឺស្វែងរក សាច់ប្រាក់ដែលបានទទួល។',
     'config'                       => 'ការកំណត់',
     'config_desc'                  => 'ផ្លាស់ប្ដូរការកំណត់របស់ OSPOS។',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'អតិថិជន',

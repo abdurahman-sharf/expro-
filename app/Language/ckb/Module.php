@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'زیادکردن، نوێکردنەوە، سڕینەوە و گەڕان بەدوای کاشکراوەکاندا.',
     'config'                       => 'ڕێکخستن',
     'config_desc'                  => 'گۆڕینی ڕێکخستنی OSPOS.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'کڕیاران',

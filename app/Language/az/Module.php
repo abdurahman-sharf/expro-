@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Əlavə et, Yenilə, Sil və Qazancları axtar.',
     'config'                       => 'Konfiqursiya',
     'config_desc'                  => 'ALSAN Konfiqurasiyasını dəyiş.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Müştərilər',

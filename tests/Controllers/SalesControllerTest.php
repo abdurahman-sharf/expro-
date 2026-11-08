@@ -23,6 +23,7 @@ use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Documents\CustomFields;
 use App\Libraries\HeaderCharges;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\ShippingTaxOption;
@@ -103,6 +104,7 @@ class SalesControllerTest extends CIUnitTestCase
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
+        $this->wipeCustomFields();
 
         $this->setConfigValue('accounting_customer_opening', '0');
         $this->resetSalesControls();
@@ -8490,5 +8492,251 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->get('/sales/paymentReceiptPdf/' . $payment)->assertStatus(200);
 
         $this->assertDatabaseUnchanged($before, 'Printing a receipt changed a row.');
+    }
+
+    private function wipeCustomFields(): void
+    {
+        $db = Database::connect();
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $db->table('custom_field_values')->truncate();
+        $db->table('custom_fields')->truncate();
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        $db->table('accounting_audit_log')->where('entity_type', 'custom_field')->delete();
+    }
+
+    private function newestSaleId(): int
+    {
+        return (int) Database::connect()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+    }
+
+    public function testPostComplete_KeepsTheExtraFieldsTypedForTheInvoiceAndPrintsOnlyTheOnesMarkedToPrint(): void
+    {
+        $fields = new CustomFields();
+        $po     = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'printable' => '1'], null);
+        $remark = $fields->create('sale', ['name' => 'Internal remark', 'type' => 'text'], null);
+
+        $this->completeAs('sale_invoice', ['sales_custom_fields' => [$po => 'PO-7731', $remark => 'call before delivery']])->assertStatus(200);
+        $saleId = $this->newestSaleId();
+
+        $this->assertSame([$po => 'PO-7731', $remark => 'call before delivery'], $fields->valuesOf('sale', $saleId));
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $page = $this->get('/sales/invoice/' . $saleId);
+
+        $page->assertSee('PO number');
+        $page->assertSee('PO-7731');
+        $page->assertDontSee('Internal remark');
+        $page->assertDontSee('call before delivery');
+    }
+
+    public function testPostComplete_PrintsTheExtraFieldsOnTheInvoiceThatIsShownRightAfterItIsSaved(): void
+    {
+        $fields = new CustomFields();
+        $po     = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'printable' => '1'], null);
+
+        $response = $this->completeAs('sale_invoice', ['sales_custom_fields' => [$po => 'PO-1']]);
+
+        $response->assertSee('PO number');
+        $response->assertSee('PO-1');
+    }
+
+    public function testPostComplete_SavesTheSameSaleWithAndWithoutExtraFields(): void
+    {
+        $fields = new CustomFields();
+        $po     = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'printable' => '1'], null);
+
+        $this->completeAs('sale_invoice');
+        $plain = $this->newestSaleId();
+        $this->completeAs('sale_invoice', ['sales_custom_fields' => [$po => 'PO-9']]);
+        $with = $this->newestSaleId();
+
+        $this->assertNotSame($plain, $with);
+
+        $plainData = $this->savedSaleData($plain);
+        $withData  = $this->savedSaleData($with);
+
+        foreach (['total', 'subtotal', 'amount_due', 'discount', 'invoice_discount'] as $key) {
+            $this->assertEquals($plainData[$key], $withData[$key], $key);
+        }
+
+        $this->assertEquals($plainData['taxes'], $withData['taxes']);
+        $this->assertCount(count($plainData['cart']), $withData['cart']);
+
+        $db = Database::connect();
+
+        foreach ([$plain, $with] as $saleId) {
+            $this->assertSame(1, $db->table('sales_items')->where('sale_id', $saleId)->countAllResults());
+        }
+
+        $this->assertSame($db->table('sales_items')->where('sale_id', $plain)->get()->getRow()->item_unit_price, $db->table('sales_items')->where('sale_id', $with)->get()->getRow()->item_unit_price);
+    }
+
+    public function testPostComplete_PostsTheSameJournalWithAndWithoutExtraFieldsWhenAccountingIsOn(): void
+    {
+        $this->startSelling();
+        $fields = new CustomFields();
+        $po     = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'printable' => '1'], null);
+
+        $plain = $this->invoiceOf('115.00');
+        $with  = $this->invoiceOf('115.00');
+        $fields->save('sale', $with, [$po => 'PO-9']);
+
+        $this->assertSame($this->journalFigures($plain), $this->journalFigures($with));
+        $this->assertSame($this->journalFigures($with), $this->journalFigures($with), 'Reading the values changes nothing.');
+        $this->assertSame([$po => 'PO-9'], $fields->valuesOf('sale', $with));
+    }
+
+    /**
+     * @return list<array{string, string, string}> The account, the debit and the credit of each line of the journals of a sale.
+     */
+    private function journalFigures(int $saleId): array
+    {
+        $db   = Database::connect();
+        $rows = $db->query(
+            'SELECT l.account_id, l.debit, l.credit FROM ' . $db->prefixTable('accounting_journal_lines') . ' l JOIN ' . $db->prefixTable('accounting_journals') . ' j ON j.journal_id = l.journal_id WHERE j.source_type = ? AND j.source_id = ? ORDER BY j.journal_id, l.line_no',
+            ['sale', $saleId],
+        )->getResultArray();
+
+        return array_map(static fn (array $row): array => [(string) $row['debit'], (string) $row['credit'], (string) ($row['account_id'] === null ? '' : 'a')], $rows);
+    }
+
+    public function testPostComplete_RefusesToCompleteWhileARequiredExtraFieldIsEmptyAndSavesNothing(): void
+    {
+        $fields = new CustomFields();
+        $po     = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'required' => '1'], null);
+        $before = Database::connect()->table('sales')->countAllResults();
+
+        $response = $this->completeAs('sale_invoice', ['sales_custom_fields' => [$po => '   ']]);
+
+        $response->assertSee(lang('Documents.error_custom_field_required'));
+        $response->assertSee('PO number');
+        $this->assertSame($before, Database::connect()->table('sales')->countAllResults());
+        $this->assertSame(0, Database::connect()->table('custom_field_values')->countAllResults());
+    }
+
+    public function testPostComplete_RefusesToCompleteWhileAnExtraFieldHoldsAValueThatDoesNotFitItsType(): void
+    {
+        $fields = new CustomFields();
+        $weight = $fields->create('sale', ['name' => 'Weight', 'type' => 'number'], null);
+        $before = Database::connect()->table('sales')->countAllResults();
+
+        $response = $this->completeAs('sale_invoice', ['sales_custom_fields' => [$weight => 'heavy']]);
+
+        $response->assertSee(lang('Documents.error_custom_field_value'));
+        $this->assertSame($before, Database::connect()->table('sales')->countAllResults());
+    }
+
+    public function testPostSetCustomFields_KeepsTheValuesAndSaysWhatIsWrongWithoutLosingThem(): void
+    {
+        $fields = new CustomFields();
+        $weight = $fields->create('sale', ['name' => 'Weight', 'type' => 'number'], null);
+        $po     = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'required' => '1'], null);
+        $this->loginAs($this->createCashierEmployee());
+
+        $result = $this->jsonOf($this->post('/sales/setCustomFields', ['custom' => [$weight => 'heavy', $po => '', 999 => 'ghost']]));
+
+        $this->assertTrue($result['success']);
+        $this->assertStringContainsString('Weight', (string) $result['problem']);
+        $this->assertSame([$weight => 'heavy', $po => ''], Services::session()->get('sales_custom_fields'));
+
+        $right = $this->jsonOf($this->post('/sales/setCustomFields', ['custom' => [$weight => '12.5', $po => 'PO-1']]));
+
+        $this->assertNull($right['problem']);
+    }
+
+    public function testPostSuspend_KeepsTheExtraFieldsAndPostUnsuspendBringsThemBack(): void
+    {
+        $fields = new CustomFields();
+        $po     = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'required' => '1'], null);
+        $cashier = $this->createCashierEmployee();
+        $itemId  = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->loginAs($cashier);
+        $this->seedCartLine(1, '100.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice', 'sales_custom_fields' => [$po => '']]));
+
+        $this->post('/sales/suspend');
+        $suspended = $this->newestSaleId();
+
+        $this->assertSame(SUSPENDED, (int) Database::connect()->table('sales')->where('sale_id', $suspended)->get()->getRow()->sale_status, 'A required field need not be filled to set a sale aside.');
+
+        $fields->save('sale', $suspended, [$po => 'PO-5']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'sale', 'sale_id' => NEW_ENTRY, 'sales_location' => 1]));
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => (string) $suspended]);
+
+        $this->assertSame([$po => 'PO-5'], Services::session()->get('sales_custom_fields'));
+    }
+
+    public function testGetIndex_AsksForTheExtraFieldsOfInvoicesInTheRegisterAndForNoOtherKind(): void
+    {
+        $fields = new CustomFields();
+        $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'required' => '1'], null);
+        $fields->create('sale', ['name' => 'Delivery', 'type' => 'select', 'options' => "Pickup\nCourier"], null);
+        $fields->create('item', ['name' => 'Product only field', 'type' => 'text'], null);
+        $stopped = $fields->create('sale', ['name' => 'Stopped field', 'type' => 'text'], null);
+        $fields->setActive($stopped, false, null);
+        $this->loginAs($this->createCashierEmployee());
+        $this->seedCartLine(1, '100.00', $this->createTestItem(HAS_NO_STOCK));
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'sale_invoice']));
+
+        $body = $this->get('/sales')->getBody();
+
+        $this->assertStringContainsString('id="custom_fields_block"', $body);
+        $this->assertStringContainsString('PO number', $body);
+        $this->assertStringContainsString('<option value="Courier">Courier</option>', $body);
+        $this->assertStringNotContainsString('Product only field', $body);
+        $this->assertStringNotContainsString('Stopped field', $body);
+    }
+
+    public function testGetIndex_AsksForNoExtraFieldWhileNoneIsDefined(): void
+    {
+        $this->loginAs($this->createCashierEmployee());
+        $this->seedCartLine(1, '100.00', $this->createTestItem(HAS_NO_STOCK));
+        $this->withSession(array_merge($this->session, ['sales_mode' => 'sale_invoice']));
+
+        $body = $this->get('/sales')->getBody();
+
+        $this->assertStringContainsString('id="comment"', $body);
+        $this->assertStringNotContainsString('id="custom_fields_block"', $body);
+    }
+
+    public function testRenderPdfHtml_PrintsTheExtraFieldsOfTheInvoiceAndOfItsItemsAndEscapesThem(): void
+    {
+        $invoice = $this->postedInvoice();
+        $fields  = new CustomFields();
+        $po      = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'printable' => '1'], null);
+        $hidden  = $fields->create('sale', ['name' => 'Secret', 'type' => 'text'], null);
+        $colour  = $fields->create('item', ['name' => 'Colour', 'type' => 'text', 'printable' => '1'], null);
+        $fields->save('sale', $invoice['saleId'], [$po => '<script>alert(1)</script>', $hidden => 'do not print']);
+        $fields->save('item', $invoice['cream'], [$colour => 'Rose <b>pink</b>']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $html = view('documents/pdf', ['type' => 'invoice', 'sale' => $this->savedSaleData($invoice['saleId'])]);
+
+        $this->assertStringContainsString('PO number', $html);
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $html);
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
+        $this->assertStringContainsString('Colour: Rose &lt;b&gt;pink&lt;/b&gt;', $html);
+        $this->assertStringNotContainsString('Secret', $html);
+        $this->assertStringNotContainsString('do not print', $html);
+    }
+
+    public function testRenderPdfHtml_PrintsTheSameTotalsWhateverTheExtraFieldsHold(): void
+    {
+        $invoice = $this->postedInvoice();
+        $fields  = new CustomFields();
+        $po      = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'printable' => '1'], null);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $before = $this->savedSaleData($invoice['saleId']);
+        $fields->save('sale', $invoice['saleId'], [$po => 'PO-1']);
+        $after = $this->savedSaleData($invoice['saleId']);
+
+        foreach (['total', 'subtotal', 'amount_due', 'discount', 'invoice_discount', 'taxes', 'header_charges'] as $key) {
+            $this->assertEquals($before[$key], $after[$key], $key);
+        }
+
+        $this->assertStringContainsString(documentIsolate(to_currency((string) $after['total'])), view('documents/pdf', ['type' => 'invoice', 'sale' => $after]));
     }
 }

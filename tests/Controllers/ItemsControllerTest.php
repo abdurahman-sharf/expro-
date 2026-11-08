@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Controllers\Items;
+use App\Libraries\Documents\CustomFields;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\SalesControlSettings;
 use CodeIgniter\Database\Config;
@@ -78,8 +79,19 @@ class ItemsControllerTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->stopBuying();
+        $this->wipeCustomFields();
 
         parent::tearDown();
+    }
+
+    private function wipeCustomFields(): void
+    {
+        $db = $this->accountingDb();
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $db->table('custom_field_values')->truncate();
+        $db->table('custom_fields')->truncate();
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        $db->table('accounting_audit_log')->where('entity_type', 'custom_field')->delete();
     }
 
     /**
@@ -2977,5 +2989,123 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame($items, $this->accountingDb()->table('items')->countAllResults(), 'the item is not saved without the prices that came with it');
 
         $this->resetItemControls();
+    }
+
+    public function testGetView_AsksForTheExtraFieldsOfProductsAndShowsWhatTheItemHolds(): void
+    {
+        $fields = new CustomFields();
+        $colour = $fields->create('item', ['name' => 'Colour', 'type' => 'select', 'options' => "Red\nBlue", 'required' => '1'], null);
+        $fields->create('sale', ['name' => 'Invoice only field', 'type' => 'text'], null);
+        $stopped = $fields->create('item', ['name' => 'Stopped field', 'type' => 'text'], null);
+        $fields->setActive($stopped, false, null);
+        $itemId = $this->createTestItem();
+        $fields->save('item', $itemId, [$colour => 'Blue']);
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $body = $this->get('/items/view/' . $itemId)->getBody();
+
+        $this->assertStringContainsString('name="custom[' . $colour . ']"', $body);
+        $this->assertStringContainsString('<option value="Blue" selected>Blue</option>', $body);
+        $this->assertStringNotContainsString('Invoice only field', $body);
+        $this->assertStringNotContainsString('Stopped field', $body);
+    }
+
+    public function testGetView_AsksForNoExtraFieldWhileNoneIsDefined(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $this->assertStringNotContainsString('name="custom[', $this->get('/items/view')->getBody());
+    }
+
+    public function testPostSave_SavesTheExtraFieldsOfTheItemAndKeepsTheItemTheSame(): void
+    {
+        $fields = new CustomFields();
+        $colour = $fields->create('item', ['name' => 'Colour', 'type' => 'text', 'printable' => '1'], null);
+        $weight = $fields->create('item', ['name' => 'Weight', 'type' => 'number'], null);
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData              = $this->baseItemPostData();
+        $postData['tax_names'] = ['VAT'];
+        $plain                 = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        $postData['name']   = $postData['name'] . ' with fields';
+        $postData['custom'] = [$colour => 'Rose', $weight => '12.5'];
+        $with               = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        $this->assertTrue($plain['success']);
+        $this->assertTrue($with['success']);
+        $this->assertSame([$colour => 'Rose', $weight => '12.5'], $fields->valuesOf('item', (int) $with['id']));
+        $this->assertSame([], $fields->valuesOf('item', (int) $plain['id']));
+
+        $plainRow = $this->itemRow((int) $plain['id']);
+        $withRow  = $this->itemRow((int) $with['id']);
+
+        foreach (['cost_price', 'unit_price', 'reorder_level', 'item_type', 'stock_type', 'tax_category_id'] as $column) {
+            $this->assertSame((string) $plainRow->{$column}, (string) $withRow->{$column}, $column);
+        }
+    }
+
+    public function testPostSave_RefusesAnExtraFieldThatDoesNotFitItsTypeAndSavesNothing(): void
+    {
+        $fields = new CustomFields();
+        $weight = $fields->create('item', ['name' => 'Weight', 'type' => 'number'], null);
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $before = $this->accountingDb()->table('items')->countAllResults();
+
+        $postData              = $this->baseItemPostData();
+        $postData['tax_names'] = ['VAT'];
+        $postData['custom']    = [$weight => 'heavy'];
+        $result             = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString(lang('Documents.error_custom_field_value'), $result['message']);
+        $this->assertSame($before, $this->accountingDb()->table('items')->countAllResults());
+        $this->assertSame(0, $this->accountingDb()->table('custom_field_values')->countAllResults());
+    }
+
+    public function testPostSave_RefusesAnItemWhileARequiredExtraFieldIsEmpty(): void
+    {
+        $fields = new CustomFields();
+        $origin = $fields->create('item', ['name' => 'Origin', 'type' => 'text', 'required' => '1'], null);
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData              = $this->baseItemPostData();
+        $postData['tax_names'] = ['VAT'];
+        $postData['custom']    = [$origin => ' '];
+        $result             = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString(lang('Documents.error_custom_field_required'), $result['message']);
+    }
+
+    public function testPostSave_LeavesTheExtraFieldsAloneWhenTheFormDoesNotCarryThem(): void
+    {
+        $fields = new CustomFields();
+        $colour = $fields->create('item', ['name' => 'Colour', 'type' => 'text'], null);
+        $itemId = $this->createTestItem();
+        $fields->save('item', $itemId, [$colour => 'Rose']);
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData              = $this->baseItemPostData();
+        $postData['tax_names'] = ['VAT'];
+
+        $this->assertTrue(json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true)['success']);
+        $this->assertSame([$colour => 'Rose'], $fields->valuesOf('item', $itemId));
+    }
+
+    public function testPostSave_TakesAwayTheValueOfAFieldTheFormLeavesEmpty(): void
+    {
+        $fields = new CustomFields();
+        $colour = $fields->create('item', ['name' => 'Colour', 'type' => 'text'], null);
+        $itemId = $this->createTestItem();
+        $fields->save('item', $itemId, [$colour => 'Rose']);
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData              = $this->baseItemPostData();
+        $postData['tax_names'] = ['VAT'];
+        $postData['custom']    = [$colour => ''];
+
+        $this->assertTrue(json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true)['success']);
+        $this->assertSame([], $fields->valuesOf('item', $itemId));
     }
 }

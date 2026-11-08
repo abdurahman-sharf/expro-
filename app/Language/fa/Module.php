@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'افزودن ، به روزرسانی ، حذف و جستجوی نقدی.',
     'config'                       => 'پیکربندی',
     'config_desc'                  => 'پیکربندی اوسپوس را تغییر دهید.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'مشتریان',

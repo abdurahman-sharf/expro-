@@ -19,8 +19,8 @@ $absolute            = $profile['absolute'];
 $figure              = static fn (mixed $amount): string => documentFigure($absolute, $amount);
 $qr                  = $profile['showQr'] ? documentQr($type, $sale, $config) : null;
 $terms               = documentTerms($type, $config);
-$extraFields         = $sale['custom_fields'] ?? [];
-$itemExtraFields     = $sale['item_custom_fields'] ?? [];
+$extraFields         = $sale['printed_fields'] ?? [];
+$itemExtraFields     = $sale['item_printed_fields'] ?? [];
 
 foreach ($payments as $payment) {
     $onlyCheck           = $onlyCheck           || $payment['payment_type'] === lang('Sales.check');

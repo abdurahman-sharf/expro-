@@ -272,6 +272,17 @@ $routes->group('tax_definitions', static function (RouteCollection $routes): voi
     $routes->post('delete', 'Tax_definitions::postDelete');
 });
 
+$routes->group('custom_fields', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Custom_fields::getIndex');
+    $routes->get('search', 'Custom_fields::getSearch');
+    $routes->get('row/(:num)', 'Custom_fields::getRow/$1');
+    $routes->get('view', 'Custom_fields::getView');
+    $routes->get('view/(:num)', 'Custom_fields::getView/$1');
+    $routes->post('save', 'Custom_fields::postSave');
+    $routes->post('save/(:num)', 'Custom_fields::postSave/$1');
+    $routes->post('status/(:num)/(:num)', 'Custom_fields::postStatus/$1/$2');
+});
+
 $routes->group('price_lists', static function (RouteCollection $routes): void {
     $routes->get('/', 'Price_lists::getIndex');
     $routes->get('search', 'Price_lists::getSearch');
