@@ -5241,6 +5241,23 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame(2, substr_count($page->getBody(), 'data-sale-id="'));
     }
 
+    public function testGetDocuments_KeepsThePageOfTheOtherListAndTheFilterInTheLinksOfOneList(): void
+    {
+        $this->supervisorForDocuments();
+
+        foreach ([SALE_TYPE_INVOICE, SALE_TYPE_QUOTE] as $type) {
+            $waiting = Database::connect()->table('sales')->where(['sale_status' => SUSPENDED, 'sale_type' => $type])->countAllResults();
+
+            $this->suspendedRows(SaleDocumentList::PAGE_SIZE * 2 + 1 - $waiting, $type);
+        }
+
+        $page = $this->get('/sales/documents?quote_status=' . QuoteStatus::Open->value . '&drafts_page=2&quotes_page=2');
+
+        $page->assertSee('id="drafts_next" href="' . site_url('sales/documents') . '?quote_status=' . QuoteStatus::Open->value . '&amp;drafts_page=3&amp;quotes_page=2"');
+        $page->assertSee('id="quotes_previous" href="' . site_url('sales/documents') . '?quote_status=' . QuoteStatus::Open->value . '&amp;drafts_page=2"');
+        $page->assertSee('id="drafts_previous" href="' . site_url('sales/documents') . '?quote_status=' . QuoteStatus::Open->value . '&amp;quotes_page=2"');
+    }
+
     public function testGetDocuments_ReadsAPageBeyondTheLastOrNotANumberAsTheLastOrTheFirst(): void
     {
         $this->supervisorForDocuments();

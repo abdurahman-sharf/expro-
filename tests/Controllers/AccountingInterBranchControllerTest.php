@@ -686,7 +686,11 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
 
         $some = $this->csvRows($this->get('/accounting_treasuries/inter_branch/csv'));
 
+        $sentence = explode('@@', lang('Accounting_treasuries.company_difference', ['@@']))[0];
+
         $this->assertNotContains([lang('Accounting_treasuries.company_difference', ['25.0000'])], $some);
+        $this->assertSame([], array_filter(array_merge(...$some), static fn (string $cell): bool => str_starts_with($cell, $sentence)), 'No sentence about the company difference is given to someone who reads some of the branches');
+        $this->assertNotSame([], array_filter(array_merge(...$all), static fn (string $cell): bool => str_starts_with($cell, $sentence)));
     }
 
     public function testGetCsv_RefusesADayThatIsNotOneInWords(): void

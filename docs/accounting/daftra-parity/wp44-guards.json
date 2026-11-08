@@ -165,13 +165,79 @@
     ]
   },
   {
-    "name": "G16 the heading is the first row that fills every column",
+    "name": "G16 the heading holds no number",
     "file": "app/Libraries/Accounting/Export/ReportSheet.php",
-    "find": "if (count($row) === $width) {",
-    "replace": "if (count($row) >= 1) {",
+    "find": "if (count($row) >= 2 && $this->holdsNoNumber($row) && $next",
+    "replace": "if (count($row) >= 2 && $next",
     "tests": [
       "--filter",
-      "FindsTheFirstRowThatFillsEveryColumn",
+      "PassesARowThatHoldsANumber",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G16b the heading is followed by a row of the same width",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "$next !== null && count($next) === count($row) && ",
+    "replace": "$next !== null && ",
+    "tests": [
+      "--filter",
+      "SkipsAContextRow",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G16c a row of one cell of a group may come between the heading and the rows",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "if (count($this->rows[$next]) !== 1) {",
+    "replace": "if (true) {",
+    "tests": [
+      "--filter",
+      "SkipsARowThatHoldsANumber",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G16d a table of two columns has a heading only when a number follows",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "(count($row) >= 3 || (! $this->holdsNoNumber($next) && ($index === 0 || count($this->rows[$index - 1]) !== 2)))",
+    "replace": "true",
+    "tests": [
+      "--filter",
+      "FindsNoHeadingInAFileOfNotes",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G16f a table of two columns does not start in the middle of a run of notes",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "($index === 0 || count($this->rows[$index - 1]) !== 2)",
+    "replace": "true",
+    "tests": [
+      "--filter",
+      "FindsNoHeadingInAFileOfNotes",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G16g a table of two columns may start on the first row",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "($index === 0 || count($this->rows[$index - 1]) !== 2)",
+    "replace": "(count($this->rows[$index - 1]) !== 2)",
+    "tests": [
+      "--filter",
+      "FindsTheHeadingOfATableOfTwoColumnsAtTheTop",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G16e a file of notes alone has no heading by width",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "if ($width < 3) {\n            return null;",
+    "replace": "if ($width < 2) {\n            return null;",
+    "tests": [
+      "--filter",
+      "FindsNoHeadingInAFileOfNotes",
       "tests/Libraries/Accounting/Export/ReportSheetTest.php"
     ]
   },
@@ -249,17 +315,6 @@
     "tests": [
       "--filter",
       "EscapesMarkupAndDropsCharacters",
-      "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
-    ]
-  },
-  {
-    "name": "G24 an invalid byte does not lose the cell",
-    "file": "app/Libraries/Accounting/Export/XlsxWriter.php",
-    "find": "mb_scrub($text)",
-    "replace": "$text",
-    "tests": [
-      "--filter",
-      "ReplacesInvalidUtf8",
       "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
     ]
   },
@@ -391,7 +446,7 @@
     "replace": "<?= $cell ?></th>",
     "tests": [
       "--filter",
-      "EscapesTheCells",
+      "EscapesTheCells|EscapesTheHeading",
       "tests/Libraries/Accounting/Export/ReportPdfTest.php"
     ]
   },
@@ -435,7 +490,7 @@
     "replace": "count($filled) === 1",
     "tests": [
       "--filter",
-      "SpansAWholeRow",
+      "SpansAWholeRow|DrawsARowWithOneFilledCell",
       "tests/Libraries/Accounting/Export/ReportPdfTest.php"
     ]
   },
@@ -864,7 +919,7 @@
     "replace": "return $this->count($this->quoteCondition(null), $branchIds, $viewerId);",
     "tests": [
       "--filter",
-      "CountQuotesCountsOnly",
+      "CountQuotes_CountsOnly",
       "tests/Libraries/Accounting/SaleDocumentListTest.php"
     ]
   },
@@ -897,7 +952,7 @@
     "replace": "foreach (['drafts_page' => $draftsPage] as $name => $number) {\n            if ($number > 1) {",
     "tests": [
       "--filter",
-      "GetDocuments_ShowsTheOlderDocumentsOnTheSecondPage",
+      "GetDocuments_ShowsTheOlderDocuments|GetDocuments_KeepsThePageOfTheOtherList",
       "tests/Controllers/SalesControllerTest.php"
     ]
   },

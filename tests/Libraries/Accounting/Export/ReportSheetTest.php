@@ -85,6 +85,80 @@ final class ReportSheetTest extends CIUnitTestCase
         $this->assertSame(2, $sheet->headerIndex());
     }
 
+    public function testHeaderIndex_SkipsAContextRowOfTheSameWidthThatIsFollowedByAShorterRow(): void
+    {
+        $sheet = new ReportSheet('T', [
+            ['Payments'],
+            ['From', '2026-10-01', 'To', '2026-10-31'],
+            ['Branches', 'HQ T2'],
+            [],
+            ['Customer', 'Method', 'Reference', 'Amount'],
+            ['Omar', 'Cash', 'R-1', '10.00'],
+            ['Total', '', '', '10.00'],
+            [],
+            ['Tie', '10.00', '10.00', '0.00', 'Ties'],
+        ]);
+
+        $this->assertSame(4, $sheet->headerIndex());
+    }
+
+    public function testHeaderIndex_SkipsARowThatHoldsANumberAndTheTieRowsBelowTheTable(): void
+    {
+        $sheet = new ReportSheet('T', [['Customer', 'Amount', 'Share'], ['Group'], ['Omar', '10.00', '5'], [], ['Tie', '10.00', '10.00', '0.00', 'Ties']]);
+
+        $this->assertSame(0, $sheet->headerIndex());
+    }
+
+    public function testHeaderIndex_FindsTheHeadingOfATableWithNoRowsAboveTiesThatAreWider(): void
+    {
+        $sheet = new ReportSheet('T', [
+            ['Payments'],
+            ['Customer', 'Method', 'Amount'],
+            ['Total', '', '0.0000'],
+            [],
+            ['Tie one', '0.0000', '0.0000', '0.0000', 'Ties'],
+            ['Tie two', '0.0000', '0.0000', '0.0000', 'Ties'],
+            ['Tie three', '0.0000', '0.0000', '0.0000', 'Ties'],
+        ]);
+
+        $this->assertSame(1, $sheet->headerIndex());
+    }
+
+    public function testHeaderIndex_FindsTheHeadingOfATableOfTwoColumnsBelowRowsOfNotes(): void
+    {
+        $sheet = new ReportSheet('T', [['Payments'], ['As of', '2026-10-31'], ['Branches', 'HQ'], [], ['Customer', 'Amount'], ['Omar', '10.00'], ['Total', '10.00']]);
+
+        $this->assertSame(4, $sheet->headerIndex());
+    }
+
+    public function testHeaderIndex_FindsTheHeadingOfATableOfTwoColumnsAtTheTopOfTheFile(): void
+    {
+        $sheet = new ReportSheet('T', [['Customer', 'Amount'], ['Omar', '10.00']]);
+
+        $this->assertSame(0, $sheet->headerIndex());
+    }
+
+    public function testHeaderIndex_FindsNoHeadingInAFileOfNotesAndTheirValues(): void
+    {
+        $sheet = new ReportSheet('T', [['Bank'], ['As of', '2026-03-31'], ['Branches', 'HQ'], ['Statement balance', 'Not entered'], ['Book balance', '975.00']]);
+
+        $this->assertNull($sheet->headerIndex());
+    }
+
+    public function testHeaderIndex_PassesARowThatHoldsANumberEvenWhenItHasTheWidthOfTheTable(): void
+    {
+        $sheet = new ReportSheet('T', [['Matches', '3', 'x'], ['Code', 'Name', 'Amount'], ['1', 'Cash', '5']]);
+
+        $this->assertSame(1, $sheet->headerIndex());
+    }
+
+    public function testHeaderIndex_TakesTheFirstWidestRowWhenNoRowLooksLikeAHeading(): void
+    {
+        $sheet = new ReportSheet('T', [['2025', '2026', '2027'], ['1', '2', '3']]);
+
+        $this->assertSame(0, $sheet->headerIndex());
+    }
+
     public function testHeaderIndex_IsNullForASingleColumn(): void
     {
         $this->assertNull((new ReportSheet('T', [['a'], ['b']]))->headerIndex());

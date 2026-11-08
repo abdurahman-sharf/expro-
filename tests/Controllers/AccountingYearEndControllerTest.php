@@ -2,6 +2,8 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\YearEndClosing;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -687,9 +689,16 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->twoBranchYear();
         $this->closer();
 
-        $rows = $this->csvRows($this->get('/accounting_periods/year_end/csv?year=' . $this->yearId() . '&scope=company'));
+        $preview  = (new YearEndClosing())->preview(null, $this->yearId(), $this->employeeWithGrants([AccountingGuard::YEAR_END_CLOSE]));
+        $blockers = array_map(static fn (AccountingException $blocker): string => AccountingMessage::of($blocker), $preview->blockers);
 
-        $this->assertNotNull(array_values(array_filter($rows, static fn (array $row): bool => count($row) === 1 && $row[0] !== '' && ! str_contains($row[0], ' (') && $row[0] !== lang('Accounting_periods.year_end_title')))[0] ?? null);
+        $this->assertNotSame([], $blockers, 'A year that is not closed through its last day has something that stops the closing');
+
+        $cells = array_merge(...$this->csvRows($this->get('/accounting_periods/year_end/csv?year=' . $this->yearId() . '&scope=company')));
+
+        foreach ($blockers as $blocker) {
+            $this->assertContains($blocker, $cells);
+        }
     }
 
     public function testGetCsv_IsNotFoundWithoutThePermissionToCloseAndForABranchOutsideTheScopeAndWhileAccountingIsOff(): void

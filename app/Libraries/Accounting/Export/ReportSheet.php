@@ -56,20 +56,65 @@ final readonly class ReportSheet
     }
 
     /**
-     * The first row that fills every column, which is the heading of the table in a file that opens with
-     * a title and notes.
+     * The heading of the table in a file that opens with a title and notes and ends with ties and notes: the
+     * first row of two cells or more that holds no number and is followed by a row of the same width (a
+     * one-cell row of a group may come between). A table of two columns has a heading only when the row that
+     * follows holds a number and it does not come right after another row of two cells, which is what a run of
+     * notes and their values looks like. A file with no such
+     * row falls back to the first row that fills the widest line, when that is three cells or more.
      */
     public function headerIndex(): ?int
     {
+        foreach ($this->rows as $index => $row) {
+            $next = $this->nextRow($index);
+
+            if (count($row) >= 2 && $this->holdsNoNumber($row) && $next !== null && count($next) === count($row) && (count($row) >= 3 || (! $this->holdsNoNumber($next) && ($index === 0 || count($this->rows[$index - 1]) !== 2)))) {
+                return $index;
+            }
+        }
+
+        return $this->firstWidestRow();
+    }
+
+    private function firstWidestRow(): ?int
+    {
         $width = $this->columnCount();
 
-        if ($width < 2) {
+        if ($width < 3) {
             return null;
         }
 
         foreach ($this->rows as $index => $row) {
             if (count($row) === $width) {
                 return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $row
+     */
+    private function holdsNoNumber(array $row): bool
+    {
+        foreach ($row as $cell) {
+            if ($cell !== '' && self::number($cell) !== null) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return list<string>|null The next row that is not a note of one cell.
+     */
+    private function nextRow(int $index): ?array
+    {
+        for ($next = $index + 1; isset($this->rows[$next]); $next++) {
+            if (count($this->rows[$next]) !== 1) {
+                return $this->rows[$next];
             }
         }
 

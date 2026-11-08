@@ -2509,7 +2509,10 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->invoiceOf('100.00');
         $this->viewer();
 
-        $this->assertNotContains(lang('Accounting_receivables.col_other'), $this->csvRows($this->get('/accounting_receivables/balances/csv'))[2]);
+        $before = $this->csvRows($this->get('/accounting_receivables/balances/csv'));
+
+        $this->assertNotContains(lang('Accounting_receivables.col_other'), $before[2]);
+        $this->assertContains(lang('Accounting_receivables.balance'), $before[2]);
 
         (new PostingService())->post(new JournalDraft(
             date: date('Y-m-d'),
