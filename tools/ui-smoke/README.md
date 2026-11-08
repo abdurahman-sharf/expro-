@@ -102,3 +102,16 @@ Counts legacy Bootstrap 3 classes, inline `style=` attributes and plugin referen
 ## Screens
 
 `screens.json` lists the screens in the order they are visited. Screens of the office menu group come last, because the active menu group is kept in the session. Steps are `click`, `open`, `fill`, `type`, `press`, `waitFor`, `pause` and `idle`. `open` clicks its selector only when it is visible, which opens the collapsed settings navigation on narrow screens.
+
+## Phone pass
+
+`phone-pass.mjs` measures the phone layout of the accounting pages without a running application. `tests/Support/PhonePagesDump.php` (outside the suite: its name does not end in `Test`) renders thirty pages through the controller test layer with real data and writes them as static HTML; the script opens each page at the given widths in Chromium with no network and prints, per page, the horizontal scroll of the page, every table of the content (stacked into cards or not, and whether it still scrolls sideways) and the elements that stick out of the screen outside a scrolling box.
+
+```sh
+PHONE_PAGES_DIR=/tmp/pages MYSQL_DB_NAME=ospos_test_x vendor/bin/phpunit --no-coverage tests/Support/PhonePagesDump.php
+npm run phone-pass -- --pages /tmp/pages [--widths 360,390,768] [--shots DIR] [--css FILE]
+```
+
+It exits with 1 when a page scrolls sideways or a table of the content scrolls sideways below 768 px, the breakpoint of the cards. `--css FILE` answers the request for `assets/css/app.css` with FILE, to measure the same pages with another stylesheet, such as the one of an earlier commit.
+
+It is not a live application: tables that Bootstrap loads by Ajax, dialogs and the behaviour of the server are not exercised, and `axe` is not run (it needs `npm install` in this folder and a live application: use `npm run smoke` for that).
