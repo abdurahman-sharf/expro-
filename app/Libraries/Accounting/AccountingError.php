@@ -468,4 +468,10 @@ enum AccountingError: string
     case TrackedPathUnsupported   = 'tracked_path_unsupported';
     case NegativeStockRefused     = 'negative_stock_refused';
     case TrackedEntryNotAllowed   = 'tracked_entry_not_allowed';
+    case TrackingOffWithStock     = 'tracking_off_with_stock';
+    case TrackingOnUntied         = 'tracking_on_untied';
+    case BatchMoved               = 'batch_moved';
+    case UnitBarcodeInvalid       = 'unit_barcode_invalid';
+    case UnitTemplateUnitsInvalid = 'unit_template_units_invalid';
+    case UnitNameRepeated         = 'unit_name_repeated';
 }

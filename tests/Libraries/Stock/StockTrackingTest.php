@@ -152,7 +152,7 @@ final class StockTrackingTest extends CIUnitTestCase
     // Serial numbers
     // ---------------------------------------------------------------------------------------
 
-    public function testReceiveBringsInOneSerialNumberForEachUnitOfAPurchaseAndTiesTheShelf(): void
+    public function testReceive_BringsInOneSerialNumberForEachUnitOfAPurchaseAndTiesTheShelf(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -166,7 +166,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testReceiveWritesOneMovementForEachSerialNumberAndTheJournalStillAddsUp(): void
+    public function testReceive_WritesOneMovementForEachSerialNumberAndTheJournalStillAddsUp(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -180,7 +180,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testReceiveRequiresOneSerialNumberForEachUnit(): void
+    public function testReceive_RequiresOneSerialNumberForEachUnit(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -190,7 +190,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('stock_serials')->where('item_id', $itemId)->countAllResults());
     }
 
-    public function testReceiveRequiresASerialNumberWhenTheLineHasNoEntryAtAll(): void
+    public function testReceive_RequiresASerialNumberWhenTheLineHasNoEntryAtAll(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -198,7 +198,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::TrackedEntryRequired, $this->failure($this->purchases));
     }
 
-    public function testReceiveRejectsASerialNumberThatIsAlreadyOnHand(): void
+    public function testReceive_RejectsASerialNumberThatIsAlreadyOnHand(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -209,7 +209,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('1.000', $this->onHand($itemId));
     }
 
-    public function testReceiveRejectsASerialNumberRepeatedInTheLineOrLongerThanThirtyCharacters(): void
+    public function testReceive_RejectsASerialNumberRepeatedInTheLineOrLongerThanThirtyCharacters(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -220,7 +220,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->receiveSerials($itemId, [str_repeat('x', 30)]));
     }
 
-    public function testReceiveRefusesAnEntryForAnItemThatIsNotTracked(): void
+    public function testReceive_RefusesAnEntryForAnItemThatIsNotTracked(): void
     {
         $itemId = $this->item('5.00');
 
@@ -228,7 +228,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::TrackedEntryNotAllowed, $this->failure($this->purchases));
     }
 
-    public function testSaveSellsASerialNumberOnceAndTakesItOutOfTheShelf(): void
+    public function testSave_SellsASerialNumberOnceAndTakesItOutOfTheShelf(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -243,7 +243,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testSaveRefusesToSellASerialNumberThatWasSoldAndLeavesNothingBehind(): void
+    public function testSave_RefusesToSellASerialNumberThatWasSoldAndLeavesNothingBehind(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -256,7 +256,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testSaveRequiresASerialNumberForASaleOfATrackedItem(): void
+    public function testSave_RequiresASerialNumberForASaleOfATrackedItem(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -266,7 +266,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::TrackedEntryRequired, $this->failure($this->sales));
     }
 
-    public function testSaveRefusesASerialNumberThatIsInAnotherStockLocation(): void
+    public function testSave_RefusesASerialNumberThatIsInAnotherStockLocation(): void
     {
         $itemId   = $this->trackedItem(TrackingType::Serial);
         $location = $this->openLocation();
@@ -277,7 +277,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::SerialNotAvailable, $this->failure($this->sales));
     }
 
-    public function testSavePutsASoldSerialNumberBackInStockOnAReturnAndRefusesOneThatWasNeverSold(): void
+    public function testSave_PutsASoldSerialNumberBackInStockOnAReturnAndRefusesOneThatWasNeverSold(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -297,7 +297,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testSaveLetsAReturnedSerialNumberBeSoldAgain(): void
+    public function testSave_LetsAReturnedSerialNumberBeSoldAgain(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -312,7 +312,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId));
     }
 
-    public function testDeleteOfASaleTakesTheSerialNumbersBackIntoStock(): void
+    public function testDelete_TakesTheSerialNumbersOfASaleBackIntoStock(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -327,7 +327,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testDeleteOfAPurchaseTakesItsSerialNumbersOutUnlessOneWasSold(): void
+    public function testDelete_TakesTheSerialNumbersOfAPurchaseOutUnlessOneWasSold(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -341,7 +341,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testDeleteOfAPurchaseOfSerialNumbersStillOnHandRemovesThemAndTheyCanComeInAgain(): void
+    public function testDelete_RemovesTheSerialNumbersOfAPurchaseStillOnHandAndLetsThemComeInAgain(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -355,7 +355,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testCreateAddsAndIssuesSerialNumbersWithAPermitAndMovesThemBetweenLocations(): void
+    public function testCreate_AddsAndIssuesSerialNumbersWithAPermitAndMovesThemBetweenLocations(): void
     {
         $itemId  = $this->trackedItem(TrackingType::Serial, '0.00');
         $second  = $this->openLocation('Back store');
@@ -385,7 +385,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCancelOfAnAddPermitRefusesWhileOneOfItsSerialNumbersWasSold(): void
+    public function testCancel_RefusesAnAddPermitWhileOneOfItsSerialNumbersWasSold(): void
     {
         $itemId  = $this->trackedItem(TrackingType::Serial, '0.00');
         $permits = new StockPermit();
@@ -401,7 +401,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCreateRequiresTheSerialNumbersOnAnIssuePermitOfATrackedItem(): void
+    public function testCreate_RequiresTheSerialNumbersOnAnIssuePermitOfATrackedItem(): void
     {
         $itemId  = $this->trackedItem(TrackingType::Serial, '0.00');
         $permits = new StockPermit();
@@ -412,7 +412,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('1.000', $this->onHand($itemId));
     }
 
-    public function testRaceOfTwoPermitsIssuingTheSameSerialNumberLetsExactlyOneThrough(): void
+    public function testCreate_LetsExactlyOneOfTwoPermitsIssuingTheSameSerialNumberThrough(): void
     {
         $itemId  = $this->trackedItem(TrackingType::Serial, '0.00');
         $permits = new StockPermit();
@@ -427,7 +427,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testRaceOfTwoSalesOfTheSameSerialNumberLetsExactlyOneThrough(): void
+    public function testSave_LetsExactlyOneOfTwoSalesOfTheSameSerialNumberThrough(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -447,7 +447,7 @@ final class StockTrackingTest extends CIUnitTestCase
     // Batches and expiry
     // ---------------------------------------------------------------------------------------
 
-    public function testReceivePutsTheQuantityOfAPurchaseIntoABatchWithItsExpiryAndTiesTheShelf(): void
+    public function testReceive_PutsTheQuantityOfAPurchaseIntoABatchWithItsExpiryAndTiesTheShelf(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -458,7 +458,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testReceiveAddsToABatchThatIsAlreadyThereWithTheSameExpiryAndRejectsAnotherExpiry(): void
+    public function testReceive_AddsToABatchThatIsAlreadyThereWithTheSameExpiryAndRejectsAnotherExpiry(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
         $expiry = $this->inDays(100);
@@ -473,7 +473,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testReceiveRequiresAnExpiryDateAndBatchesThatAddUpToTheQuantity(): void
+    public function testReceive_RequiresAnExpiryDateAndBatchesThatAddUpToTheQuantity(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -488,7 +488,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId));
     }
 
-    public function testReceiveAcceptsSeveralBatchesInOneLineThatAddUpToTheQuantity(): void
+    public function testReceive_AcceptsSeveralBatchesInOneLineThatAddUpToTheQuantity(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -499,7 +499,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testSaveTakesTheBatchThatExpiresFirstAndThenTheNext(): void
+    public function testSave_TakesTheBatchThatExpiresFirstAndThenTheNext(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -513,7 +513,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testSaveRefusesASaleOfMoreThanTheBatchesHoldEvenWhenNegativeStockIsAllowed(): void
+    public function testSave_RefusesASaleOfMoreThanTheBatchesHoldEvenWhenNegativeStockIsAllowed(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -525,7 +525,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testSaveDoesNotSellAnExpiredBatchWhileTheSettingRefusesIt(): void
+    public function testSave_RefusesToSellAnExpiredBatchWhileTheSettingRefusesIt(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -536,7 +536,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('5.000', $this->batchQuantity($itemId, 'OLD'));
     }
 
-    public function testSaveSkipsAnExpiredBatchAndTakesAnUnexpiredOne(): void
+    public function testSave_SkipsAnExpiredBatchAndTakesAnUnexpiredOne(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -547,7 +547,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(['5.000', '3.000'], [$this->batchQuantity($itemId, 'OLD'), $this->batchQuantity($itemId, 'NEW')]);
     }
 
-    public function testSaveSellsAnExpiredBatchWhenTheSettingAllowsIt(): void
+    public function testSave_SellsAnExpiredBatchWhenTheSettingAllowsIt(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -558,7 +558,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('3.000', $this->batchQuantity($itemId, 'OLD'));
     }
 
-    public function testSaveRefusesABatchPickedByHandThatHasExpired(): void
+    public function testSave_RefusesABatchPickedByHandThatHasExpired(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -570,7 +570,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::BatchExpired, $this->failure($this->sales));
     }
 
-    public function testSaveTakesABatchPickedByHandWhenTheEmployeeMayPickBatches(): void
+    public function testSave_TakesABatchPickedByHandWhenTheEmployeeMayPickBatches(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -584,7 +584,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testSaveRefusesABatchPickedByHandWithoutThePermission(): void
+    public function testSave_RefusesABatchPickedByHandWithoutThePermission(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -595,7 +595,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('5.000', $this->batchQuantity($itemId, 'SOON'));
     }
 
-    public function testSavePutsAReturnBackIntoTheBatchTheSaleTookItFrom(): void
+    public function testSave_PutsAReturnBackIntoTheBatchTheSaleTookItFrom(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -615,7 +615,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testSaveRequiresTheBatchOfAReturnThatNamesNoSale(): void
+    public function testSave_RequiresTheBatchOfAReturnThatNamesNoSale(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -625,7 +625,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::TrackedEntryRequired, $this->failure($this->sales));
     }
 
-    public function testDeleteOfASaleOfBatchesPutsTheQuantitiesBackIntoTheBatchesItTookThemFrom(): void
+    public function testDelete_PutsTheQuantitiesOfASaleOfBatchesBackIntoTheBatchesItTookThemFrom(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -641,7 +641,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testDeleteOfAPurchaseOfABatchRefusesWhileTheQuantityWasSold(): void
+    public function testDelete_RefusesAPurchaseOfABatchWhileTheQuantityWasSold(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -654,7 +654,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testCreateMovesABatchBetweenLocationsWithAPermit(): void
+    public function testCreate_MovesABatchBetweenLocationsWithAPermit(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch, '0.00');
         $second = $this->openLocation('Back store');
@@ -671,7 +671,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testCreateTakesABatchOutWithAnIssuePermitEvenWhenItHasExpired(): void
+    public function testCreate_TakesABatchOutWithAnIssuePermitEvenWhenItHasExpired(): void
     {
         $itemId  = $this->trackedItem(TrackingType::Batch, '0.00');
         $permits = new StockPermit();
@@ -687,7 +687,7 @@ final class StockTrackingTest extends CIUnitTestCase
     // What cannot be done to a tracked item, and legacy items
     // ---------------------------------------------------------------------------------------
 
-    public function testChangeQuantityRefusesAnyChangeOfTheShelfOfATrackedItemThatIsNotTheTracking(): void
+    public function testChangeQuantity_RefusesAnyChangeOfTheShelfOfATrackedItemThatIsNotTheTracking(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -695,7 +695,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId));
     }
 
-    public function testSaveValueRefusesToTypeAnotherQuantityForATrackedItemButKeepsTheSameOne(): void
+    public function testSaveValue_RefusesToTypeAnotherQuantityForATrackedItemButKeepsTheSameOne(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -705,7 +705,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTrue(model(Item_quantity::class)->save_value(['item_id' => $itemId, 'location_id' => self::LOCATION_ID, 'quantity' => 2], $itemId, self::LOCATION_ID));
     }
 
-    public function testSaveRefusesAnInvoiceIssuedBeforeItsGoodsLeaveWhenItHasATrackedItem(): void
+    public function testSave_RefusesAnInvoiceIssuedBeforeItsGoodsLeaveWhenItHasATrackedItem(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -716,7 +716,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('in_stock', $this->serialState($itemId, 'I1'));
     }
 
-    public function testSaveRefusesToReturnTrackedGoodsToASupplier(): void
+    public function testSave_RefusesToReturnTrackedGoodsToASupplier(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -727,7 +727,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('1.000', $this->onHand($itemId));
     }
 
-    public function testCreateLeavesATrackedItemOutOfAStocktake(): void
+    public function testCreate_LeavesATrackedItemOutOfAStocktake(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -737,7 +737,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertNotContains($itemId, (new Stocktake())->itemsOf(self::LOCATION_ID));
     }
 
-    public function testRequireUntrackedLetsAnUntrackedItemThroughAndRefusesATrackedOne(): void
+    public function testRequireUntracked_LetsAnUntrackedItemThroughAndRefusesATrackedOne(): void
     {
         $tracked   = $this->trackedItem(TrackingType::Batch);
         $untracked = $this->item('5.00');
@@ -746,7 +746,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::TrackedPathUnsupported, fn () => $this->tracking->requireUntracked([$untracked, $tracked]));
     }
 
-    public function testChangeQuantityLeavesAnUntrackedItemAloneWhileTrackingIsOn(): void
+    public function testChangeQuantity_LeavesAnUntrackedItemAloneWhileTrackingIsOn(): void
     {
         $this->switchOn('tracking');
 
@@ -758,7 +758,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testReceiveBehavesAsBeforeWhileTrackingIsOffEvenForAnItemThatHasAProfile(): void
+    public function testReceive_BehavesAsBeforeWhileTrackingIsOffEvenForAnItemThatHasAProfile(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -769,7 +769,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('stock_serials')->where('item_id', $itemId)->countAllResults());
     }
 
-    public function testReverseSourceReturnsTheItemsItChangedBackAndLeavesAnUntouchedSourceAlone(): void
+    public function testReverseSource_ReturnsTheItemsItChangedBackAndLeavesAnUntouchedSourceAlone(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -780,7 +780,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId));
     }
 
-    public function testSaveSellsALineOfTheRegisterFromTheBatchPickedByHand(): void
+    public function testSave_SellsALineOfTheRegisterFromTheBatchPickedByHand(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -810,7 +810,7 @@ final class StockTrackingTest extends CIUnitTestCase
     // Edges of the entries and the corrections
     // ---------------------------------------------------------------------------------------
 
-    public function testReceiveRejectsABatchEntryOnASerialItemAndAFractionalNumberOfSerialNumbers(): void
+    public function testReceive_RejectsABatchEntryOnASerialItemAndAFractionalNumberOfSerialNumbers(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -822,7 +822,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId));
     }
 
-    public function testReceiveRejectsABatchWithoutANumberAWrongDateOrAQuantityOfNothing(): void
+    public function testReceive_RejectsABatchWithoutANumberAWrongDateOrAQuantityOfNothing(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -834,7 +834,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId));
     }
 
-    public function testReceiveRefusesWhenTheShelfWasChangedOutsideTheTracking(): void
+    public function testReceive_RefusesWhenTheShelfWasChangedOutsideTheTracking(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -845,7 +845,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('5.000', $this->onHand($itemId));
     }
 
-    public function testReceiveWritesOneMovementForTheWholeQuantityWhileTrackingIsOff(): void
+    public function testReceive_WritesOneMovementForTheWholeQuantityWhileTrackingIsOff(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -856,7 +856,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(['3.000'], array_map(static fn (object $movement): string => bcadd((string) $movement->quantity, '0', 3), $this->movementsOfSource('purchase', $receivingId)));
     }
 
-    public function testCreateSharesTheValueOfAPermitAmongItsSerialNumbersToTheLastDigit(): void
+    public function testCreate_SharesTheValueOfAPermitAmongItsSerialNumbersToTheLastDigit(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial, '0.00');
 
@@ -867,7 +867,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testSaveRefusesToReturnASerialNumberAnotherSaleSold(): void
+    public function testSave_RefusesToReturnASerialNumberAnotherSaleSold(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -881,7 +881,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->save([[...$this->line($itemId, 0, '-1', '10.00', '5.00'), 'serialnumber' => 'A2']], [], [], SALE_TYPE_RETURN, origin: $second));
     }
 
-    public function testCreateRefusesToTransferASerialNumberThatIsNotInTheLocationItLeaves(): void
+    public function testCreate_RefusesToTransferASerialNumberThatIsNotInTheLocationItLeaves(): void
     {
         $itemId  = $this->trackedItem(TrackingType::Serial, '0.00');
         $second  = $this->openLocation('Back store');
@@ -896,7 +896,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame($second, (int) $this->accountingDb()->table('stock_serials')->where(['item_id' => $itemId, 'serial_number' => 'T-1'])->get()->getRow()->location_id);
     }
 
-    public function testCreateRefusesAnEntryForAnItemThatIsNotTrackedOnAPermit(): void
+    public function testCreate_RefusesAnEntryForAnItemThatIsNotTrackedOnAPermit(): void
     {
         $itemId = $this->item('0.00');
 
@@ -904,7 +904,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId));
     }
 
-    public function testSaveRefusesABatchPickedByHandOfMoreThanItHoldsAndOfABatchThatDoesNotExist(): void
+    public function testSave_RefusesABatchPickedByHandOfMoreThanItHoldsAndOfABatchThatDoesNotExist(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -919,7 +919,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('3.000', $this->onHand($itemId));
     }
 
-    public function testSavePutsASecondPartialReturnIntoTheNextBatchOnceTheFirstIsBackToWhatTheSaleTook(): void
+    public function testSave_PutsASecondPartialReturnIntoTheNextBatchOnceTheFirstIsBackToWhatTheSaleTook(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -936,7 +936,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testConfirmDeliveryRefusesAnInvoiceWhoseItemBecameTrackedAfterItWasIssued(): void
+    public function testConfirmDelivery_RefusesAnInvoiceWhoseItemBecameTrackedAfterItWasIssued(): void
     {
         $itemId = $this->item('5.00');
         $saleId = $this->save([$this->line($itemId, 0, '1', '10.00', '5.00')], delivered: false);
@@ -950,7 +950,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::TrackedPathUnsupported, $this->failure($this->sales));
     }
 
-    public function testResetQuantityRefusesToZeroTheShelfOfATrackedItem(): void
+    public function testResetQuantity_RefusesToZeroTheShelfOfATrackedItem(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -961,7 +961,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('2.000', $this->onHand($itemId));
     }
 
-    public function testTieSaysWhatTheShelfHoldsAndWhatTheSerialNumbersAndBatchesAddUpTo(): void
+    public function testTie_SaysWhatTheShelfHoldsAndWhatTheSerialNumbersAndBatchesAddUpTo(): void
     {
         $serial = $this->trackedItem(TrackingType::Serial);
         $batch  = $this->trackedItem(TrackingType::Batch);
@@ -974,7 +974,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame(['shelf' => '0.000', 'tracked' => '0.000'], $this->tracking->tie($batch, 99));
     }
 
-    public function testUpdateLinesRefusesToCorrectTheLineOfATrackedItemAndLeavesThePurchaseAsItWas(): void
+    public function testUpdateLines_RefusesToCorrectTheLineOfATrackedItemAndLeavesThePurchaseAsItWas(): void
     {
         $itemId      = $this->trackedItem(TrackingType::Batch);
         $receivingId = $this->receiveBatch($itemId, 'B-C', $this->inDays(40), '5');
@@ -988,7 +988,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testUpdateReplacesTheSerialNumbersOfAnAddPermitByTakingTheOldOnesBackAndBringingTheNewOnesIn(): void
+    public function testUpdate_ReplacesTheSerialNumbersOfAnAddPermitByTakingTheOldOnesBackAndBringingTheNewOnesIn(): void
     {
         $itemId  = $this->trackedItem(TrackingType::Serial, '0.00');
         $permits = new StockPermit();
@@ -1002,7 +1002,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testUpdateRequiresTheSerialNumbersAgainAndLeavesThePermitAsItWasWhenTheyAreMissing(): void
+    public function testUpdate_RequiresTheSerialNumbersAgainAndLeavesThePermitAsItWasWhenTheyAreMissing(): void
     {
         $itemId  = $this->trackedItem(TrackingType::Serial, '0.00');
         $permits = new StockPermit();
@@ -1013,7 +1013,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testSaveRefusesToReturnASerialNumberThatWasNeverSoldEvenWhenTheReturnNamesNoSale(): void
+    public function testSave_RefusesToReturnASerialNumberThatWasNeverSoldEvenWhenTheReturnNamesNoSale(): void
     {
         $itemId = $this->trackedItem(TrackingType::Serial);
 
@@ -1024,7 +1024,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('in_stock', $this->serialState($itemId, 'NS-1'));
     }
 
-    public function testReceiveRejectsABatchWhoseQuantityIsNegativeOrNothingEvenWhenTheBatchesAddUpToTheLine(): void
+    public function testReceive_RejectsABatchWhoseQuantityIsNegativeOrNothingEvenWhenTheBatchesAddUpToTheLine(): void
     {
         $itemId = $this->trackedItem(TrackingType::Batch);
 
@@ -1036,7 +1036,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId));
     }
 
-    public function testReceiveRefusesAnItemThatIsNotTrackedWhateverTheMovement(): void
+    public function testReceive_RefusesAnItemThatIsNotTrackedWhateverTheMovement(): void
     {
         $itemId = $this->item('5.00');
         $entry  = new TrackingEntry(['X-1']);
@@ -1048,7 +1048,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId));
     }
 
-    public function testSaveTracksSerialNumbersAndBatchesWithTheBooksSwitchedOffAndPostsNothing(): void
+    public function testSave_TracksSerialNumbersAndBatchesWithTheBooksSwitchedOffAndPostsNothing(): void
     {
         $serial = $this->trackedItem(TrackingType::Serial);
         $batch  = $this->trackedItem(TrackingType::Batch);

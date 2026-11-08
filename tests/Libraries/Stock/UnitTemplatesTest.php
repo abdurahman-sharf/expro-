@@ -83,7 +83,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         }
     }
 
-    public function testCreateRequiresThePermissionToManageUnits(): void
+    public function testCreate_RequiresThePermissionToManageUnits(): void
     {
         $this->switchOn('units');
 
@@ -91,12 +91,12 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertSame([], $this->templates->all());
     }
 
-    public function testCreateRefusesWhileTheUnitsSettingIsOff(): void
+    public function testCreate_RefusesWhileTheUnitsSettingIsOff(): void
     {
         $this->refusedWith(AccountingError::UnitsOff, fn (): int => $this->templates->create($this->input(), $this->unitManagerId));
     }
 
-    public function testCreateStoresTheTemplateWithItsLargerUnitsInOrder(): void
+    public function testCreate_StoresTheTemplateWithItsLargerUnitsInOrder(): void
     {
         $this->switchOn('units');
 
@@ -108,7 +108,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['action' => 'unit_template_created', 'entity_id' => $templateId])->countAllResults());
     }
 
-    public function testCreateAcceptsASmallNameOfTwentyFiveCharactersAndRejectsTwentySix(): void
+    public function testCreate_AcceptsASmallNameOfTwentyFiveCharactersAndRejectsTwentySix(): void
     {
         $this->switchOn('units');
 
@@ -117,16 +117,16 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::UnitTemplateInvalid, fn (): int => $this->templates->create($this->input(['name' => 'Third', 'units' => [['name' => 'Carton', 'factor' => '12', 'small_name' => str_repeat('b', 26)]]]), $this->unitManagerId));
     }
 
-    public function testCreateRejectsABlankTemplateNameMainUnitOrUnitList(): void
+    public function testCreate_RejectsABlankTemplateNameMainUnitOrUnitList(): void
     {
         $this->switchOn('units');
 
         $this->refusedWith(AccountingError::UnitTemplateInvalid, fn (): int => $this->templates->create($this->input(['name' => '  ']), $this->unitManagerId));
         $this->refusedWith(AccountingError::UnitTemplateInvalid, fn (): int => $this->templates->create($this->input(['main_unit_name' => '']), $this->unitManagerId));
-        $this->refusedWith(AccountingError::UnitTemplateInvalid, fn (): int => $this->templates->create($this->input(['units' => []]), $this->unitManagerId));
+        $this->refusedWith(AccountingError::UnitTemplateUnitsInvalid, fn (): int => $this->templates->create($this->input(['units' => []]), $this->unitManagerId));
     }
 
-    public function testCreateRejectsAFactorThatIsZeroNegativeNotANumberOrHasMoreThanFourDecimals(): void
+    public function testCreate_RejectsAFactorThatIsZeroNegativeNotANumberOrHasMoreThanFourDecimals(): void
     {
         $this->switchOn('units');
 
@@ -135,7 +135,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         }
     }
 
-    public function testCreateAcceptsAFactorOfFourDecimalsAndOfASmallFraction(): void
+    public function testCreate_AcceptsAFactorOfFourDecimalsAndOfASmallFraction(): void
     {
         $this->switchOn('units');
 
@@ -144,22 +144,22 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertSame(['0.0001', '1234.5678'], array_map(static fn ($unit): string => $unit->factor, $this->templates->find($templateId)->units));
     }
 
-    public function testCreateRejectsARepeatedUnitNameOrOneThatIsTheMainUnit(): void
+    public function testCreate_RejectsARepeatedUnitNameOrOneThatIsTheMainUnit(): void
     {
         $this->switchOn('units');
 
-        $this->refusedWith(AccountingError::UnitTemplateInvalid, fn (): int => $this->templates->create($this->input(['units' => [['name' => 'Carton', 'factor' => '12', 'small_name' => 'c'], ['name' => 'carton', 'factor' => '24', 'small_name' => 'c']]]), $this->unitManagerId));
-        $this->refusedWith(AccountingError::UnitTemplateInvalid, fn (): int => $this->templates->create($this->input(['units' => [['name' => 'Piece', 'factor' => '12', 'small_name' => 'c']]]), $this->unitManagerId));
+        $this->refusedWith(AccountingError::UnitNameRepeated, fn (): int => $this->templates->create($this->input(['units' => [['name' => 'Carton', 'factor' => '12', 'small_name' => 'c'], ['name' => 'carton', 'factor' => '24', 'small_name' => 'c']]]), $this->unitManagerId));
+        $this->refusedWith(AccountingError::UnitNameRepeated, fn (): int => $this->templates->create($this->input(['units' => [['name' => 'Piece', 'factor' => '12', 'small_name' => 'c']]]), $this->unitManagerId));
     }
 
-    public function testCreateRejectsASecondTemplateOfTheSameNameAndVersion(): void
+    public function testCreate_RejectsASecondTemplateOfTheSameNameAndVersion(): void
     {
         $this->template();
 
         $this->refusedWith(AccountingError::UnitTemplateNameTaken, fn (): int => $this->templates->create($this->input(), $this->unitManagerId));
     }
 
-    public function testUpdateChangesTheUnitsOfATemplateNoLineHasUsed(): void
+    public function testUpdate_ChangesTheUnitsOfATemplateNoLineHasUsed(): void
     {
         $templateId = $this->template();
 
@@ -171,7 +171,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['action' => 'unit_template_updated', 'entity_id' => $templateId])->countAllResults());
     }
 
-    public function testUpdateRequiresThePermissionToManageUnits(): void
+    public function testUpdate_RequiresThePermissionToManageUnits(): void
     {
         $templateId = $this->template();
 
@@ -179,14 +179,14 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertSame('Cartons', $this->templates->find($templateId)->name);
     }
 
-    public function testUpdateRejectsATemplateThatDoesNotExist(): void
+    public function testUpdate_RejectsATemplateThatDoesNotExist(): void
     {
         $this->switchOn('units');
 
         $this->refusedWith(AccountingError::UnitTemplateNotFound, fn () => $this->templates->update(999999, $this->input(), $this->unitManagerId));
     }
 
-    public function testUpdateRejectsTheNameOfAnotherTemplate(): void
+    public function testUpdate_RejectsTheNameOfAnotherTemplate(): void
     {
         $this->template('Cartons');
         $other = $this->template('Pallets', [['name' => 'Pallet', 'factor' => '100', 'small_name' => 'p']]);
@@ -194,7 +194,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::UnitTemplateNameTaken, fn () => $this->templates->update($other, $this->input(['name' => 'Cartons']), $this->unitManagerId));
     }
 
-    public function testSetActiveSwitchesATemplateOffAndOn(): void
+    public function testSetActive_SwitchesATemplateOffAndOn(): void
     {
         $templateId = $this->template();
 
@@ -206,7 +206,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertTrue($this->templates->find($templateId)->active);
     }
 
-    public function testSetActiveRequiresThePermissionToManageUnits(): void
+    public function testSetActive_RequiresThePermissionToManageUnits(): void
     {
         $templateId = $this->template();
 
@@ -214,7 +214,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertTrue($this->templates->find($templateId)->active);
     }
 
-    public function testNewVersionSavesTheChangedUnitsAsTheNextVersionAndSwitchesTheOldOneOff(): void
+    public function testNewVersion_SavesTheChangedUnitsAsTheNextVersionAndSwitchesTheOldOneOff(): void
     {
         $templateId = $this->template();
 
@@ -227,7 +227,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertSame([1, false, '12.0000'], [$old->version, $old->active, $old->units[0]->factor], 'the old version keeps its units and is switched off');
     }
 
-    public function testNewVersionRequiresThePermissionToManageUnits(): void
+    public function testNewVersion_RequiresThePermissionToManageUnits(): void
     {
         $templateId = $this->template();
 
@@ -235,7 +235,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertCount(1, $this->templates->all());
     }
 
-    public function testIsUsedIsFalseForATemplateNoLineHasUsed(): void
+    public function testIsUsed_ReturnsFalseForATemplateNoLineHasUsed(): void
     {
         $this->assertFalse($this->templates->isUsed($this->template()));
     }
@@ -249,7 +249,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $db->table('stock_permit_lines')->insert(['permit_id' => (int) $db->insertID(), 'line_no' => 1, 'item_id' => $itemId, 'quantity' => '24', 'unit_cost' => '5', 'unit_id' => $this->unitIdOf($templateId), 'unit_factor' => '12', 'unit_quantity' => '2', 'unit_cost_entered' => '60']);
     }
 
-    public function testIsUsedIsTrueOnceADocumentLineWasEnteredInAUnitOfTheTemplate(): void
+    public function testIsUsed_ReturnsTrueOnceADocumentLineWasEnteredInAUnitOfTheTemplate(): void
     {
         $templateId = $this->template();
 
@@ -258,7 +258,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertTrue($this->templates->isUsed($templateId));
     }
 
-    public function testUpdateRejectsChangingTheFactorOrTheUnitsOfATemplateADocumentLineUsed(): void
+    public function testUpdate_RejectsChangingTheFactorOrTheUnitsOfATemplateADocumentLineUsed(): void
     {
         $templateId = $this->template();
 
@@ -270,7 +270,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertSame('12.0000', $this->templates->find($templateId)->units[0]->factor);
     }
 
-    public function testUpdateAcceptsRenamingAUsedTemplateAndSwitchingItOffAndLeavesItsUnitsAlone(): void
+    public function testUpdate_AcceptsRenamingAUsedTemplateAndSwitchingItOffAndLeavesItsUnitsAlone(): void
     {
         $templateId = $this->template();
 
@@ -282,7 +282,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertSame(['Renamed', false, '12.0000'], [$template->name, $template->active, $template->units[0]->factor]);
     }
 
-    public function testNewVersionLeavesTheUsedTemplateAndTheUnitsItsLinesPointAtAsTheyWere(): void
+    public function testNewVersion_LeavesTheUsedTemplateAndTheUnitsItsLinesPointAtAsTheyWere(): void
     {
         $templateId = $this->template();
         $unitId     = $this->unitIdOf($templateId);
@@ -297,7 +297,7 @@ final class UnitTemplatesTest extends CIUnitTestCase
         $this->assertFalse($this->templates->isUsed($newId));
     }
 
-    public function testFindReturnsNullForAnUnknownTemplate(): void
+    public function testFind_ReturnsNullForAnUnknownTemplate(): void
     {
         $this->assertNull($this->templates->find(999999));
     }

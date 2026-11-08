@@ -93,7 +93,7 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         return ['name' => $name, 'main_unit_name' => 'Piece', 'main_small_name' => 'pc', 'active' => '1', 'unit_name' => ['Box', ''], 'unit_factor' => ['6', ''], 'unit_small_name' => ['bx', '']];
     }
 
-    public function testGetIndexShowsTheSettingsAndTheTemplatesToWhoMayManageThem(): void
+    public function testGetIndex_ShowsTheSettingsAndTheTemplatesToWhoMayManageThem(): void
     {
         $this->template('Cartons');
         $this->actAsManager();
@@ -106,14 +106,14 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $result->assertSee('template_new');
     }
 
-    public function testGetIndexIsClosedToAnEmployeeWithoutTheModule(): void
+    public function testGetIndex_RejectsAnEmployeeWithoutTheModule(): void
     {
         $this->actAs([]);
 
         $this->assertNotSame(200, $this->get('/stock_units')->response()->getStatusCode());
     }
 
-    public function testGetIndexHidesTheSettingsFromWhoMayNotChangeThem(): void
+    public function testGetIndex_HidesTheSettingsFromWhoMayNotChangeThem(): void
     {
         $this->actAs([StockUnitPermissions::MODULE, StockUnitPermissions::UNITS_MANAGE]);
 
@@ -123,7 +123,7 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $result->assertDontSee('stock_options_form');
     }
 
-    public function testPostSettingsSwitchesTheOptionsOnForWhoMayChangeTheSettings(): void
+    public function testPostSettings_SwitchesTheOptionsOnForWhoMayChangeTheSettings(): void
     {
         $this->actAsManager();
 
@@ -133,7 +133,7 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $this->assertSame(['units' => true, 'bundles' => false, 'tracking' => true, 'expired_refused' => true, 'negative_stock' => 'refuse'], (new StockOptions())->all());
     }
 
-    public function testPostSettingsRefusesWhoMayNotChangeTheSettings(): void
+    public function testPostSettings_RefusesWhoMayNotChangeTheSettings(): void
     {
         $this->actAs([StockUnitPermissions::MODULE, StockUnitPermissions::UNITS_MANAGE]);
 
@@ -143,7 +143,7 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $this->assertFalse((new StockOptions())->unitsEnabled());
     }
 
-    public function testPostSaveTemplateCreatesATemplateFromTheFormAndSkipsTheEmptyRow(): void
+    public function testPostSaveTemplate_CreatesATemplateFromTheFormAndSkipsTheEmptyRow(): void
     {
         $this->switchOn('units');
         $this->actAsManager();
@@ -158,7 +158,7 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $this->assertSame('6.0000', $template->units[0]->factor);
     }
 
-    public function testPostSaveTemplateRefusesAFactorThatIsNotPositiveWithAMessage(): void
+    public function testPostSaveTemplate_RefusesAFactorThatIsNotPositiveWithAMessage(): void
     {
         $this->switchOn('units');
         $this->actAsManager();
@@ -170,7 +170,7 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $this->assertSame([], (new UnitTemplates())->all());
     }
 
-    public function testPostSaveTemplateRefusesWhoMayNotManageUnits(): void
+    public function testPostSaveTemplate_RefusesWhoMayNotManageUnits(): void
     {
         $this->switchOn('units');
         $this->actAs([StockUnitPermissions::MODULE]);
@@ -179,14 +179,14 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $this->assertSame([], (new UnitTemplates())->all());
     }
 
-    public function testGetTemplateFormIsForbiddenToWhoMayNotManageUnits(): void
+    public function testGetTemplateForm_RejectsWhoMayNotManageUnits(): void
     {
         $this->actAs([StockUnitPermissions::MODULE]);
 
         $this->assertSame(403, $this->get('/stock_units/templateForm/-1')->response()->getStatusCode());
     }
 
-    public function testPostSetActiveSwitchesATemplateOff(): void
+    public function testPostSetActive_SwitchesATemplateOff(): void
     {
         $templateId = $this->template('Cartons');
         $this->actAsManager();
@@ -195,7 +195,7 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $this->assertFalse((new UnitTemplates())->find($templateId)->active);
     }
 
-    public function testPostSaveItemGivesAnItemItsTemplateAndItsTracking(): void
+    public function testPostSaveItem_GivesAnItemItsTemplateAndItsTracking(): void
     {
         $templateId = $this->template('Cartons');
         $itemId     = $this->createTestItem();
@@ -211,7 +211,7 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $this->assertSame([$templateId, TrackingType::Batch], [$profile->unitTemplateId, $profile->tracking]);
     }
 
-    public function testPostSaveItemRefusesWhoMayNotManageTracking(): void
+    public function testPostSaveItem_RefusesWhoMayNotManageTracking(): void
     {
         $templateId = $this->template('Cartons');
         $itemId     = $this->createTestItem();
@@ -225,7 +225,7 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $this->assertSame(TrackingType::None, (new ItemStockProfile())->get($itemId)->tracking);
     }
 
-    public function testPostSaveItemRefusesToChangeTheTrackingOfAnItemThatHoldsStock(): void
+    public function testPostSaveItem_RefusesToChangeTheTrackingOfAnItemThatHoldsStock(): void
     {
         $itemId = $this->createTestItem();
 
@@ -239,7 +239,7 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $this->accountingDb()->table('item_quantities')->where('item_id', $itemId)->delete();
     }
 
-    public function testPostAddBarcodeGivesAUnitABarcodeAndPostRemoveBarcodeTakesItAway(): void
+    public function testPostAddBarcode_GivesAUnitABarcodeAndPostRemoveBarcodeTakesItAway(): void
     {
         $setup = $this->cartonItem('5.00');
         $this->actAsManager();
@@ -252,7 +252,7 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $this->assertNull((new UnitBarcodes())->resolve('CTN-777'));
     }
 
-    public function testGetIndexOpensTheProfileOfAnItemFoundByItsNumber(): void
+    public function testGetIndex_OpensTheProfileOfAnItemFoundByItsNumber(): void
     {
         $setup = $this->cartonItem('5.00');
 
@@ -266,7 +266,7 @@ final class StockUnitsControllerTest extends CIUnitTestCase
         $result->assertSee('barcode_form');
     }
 
-    public function testGetIndexSaysSoWhenNoItemMatches(): void
+    public function testGetIndex_SaysSoWhenNoItemMatches(): void
     {
         $this->actAsManager();
 

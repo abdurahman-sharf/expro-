@@ -83,7 +83,7 @@ final class StockTrackingChecksTest extends CIUnitTestCase
         $db->table('stock_batch_quantities')->insert(['batch_id' => (int) $db->insertID(), 'location_id' => 1, 'quantity' => $quantity]);
     }
 
-    public function testRunPassesWhenNoItemIsTrackedAndNoKitBreaksTheRules(): void
+    public function testRun_PassesWhenNoItemIsTrackedAndNoKitBreaksTheRules(): void
     {
         [$tracking, $bundles] = $this->results();
 
@@ -91,7 +91,7 @@ final class StockTrackingChecksTest extends CIUnitTestCase
         $this->assertSame(CheckStatus::Pass, $bundles->status);
     }
 
-    public function testRunPassesForTrackedItemsWhoseShelvesEqualTheirBatchesAndSerialNumbers(): void
+    public function testRun_PassesForTrackedItemsWhoseShelvesEqualTheirBatchesAndSerialNumbers(): void
     {
         $batch  = $this->trackedItem(TrackingType::Batch);
         $serial = $this->trackedItem(TrackingType::Serial);
@@ -107,7 +107,7 @@ final class StockTrackingChecksTest extends CIUnitTestCase
         $this->assertSame(2, $tracking->data['tracked_items']);
     }
 
-    public function testRunFailsAndNamesAnItemWhoseShelfIsNotWhatItsBatchesAddUpTo(): void
+    public function testRun_FailsAndNamesAnItemWhoseShelfIsNotWhatItsBatchesAddUpTo(): void
     {
         $batch = $this->trackedItem(TrackingType::Batch);
 
@@ -122,7 +122,7 @@ final class StockTrackingChecksTest extends CIUnitTestCase
         $this->assertStringContainsString('4.000', $tracking->findings[0]);
     }
 
-    public function testRunFailsForAShelfOfASerialItemThatNoSerialNumberAccountsFor(): void
+    public function testRun_FailsForAShelfOfASerialItemThatNoSerialNumberAccountsFor(): void
     {
         $serial = $this->trackedItem(TrackingType::Serial);
 
@@ -133,7 +133,7 @@ final class StockTrackingChecksTest extends CIUnitTestCase
         $this->assertSame(CheckStatus::Fail, $tracking->status);
     }
 
-    public function testRunReviewsAnExpiredBatchThatStillStandsOnAShelf(): void
+    public function testRun_ReviewsAnExpiredBatchThatStillStandsOnAShelf(): void
     {
         $batch = $this->trackedItem(TrackingType::Batch);
 
@@ -146,7 +146,7 @@ final class StockTrackingChecksTest extends CIUnitTestCase
         $this->assertSame(1, $tracking->data['expired_on_hand']);
     }
 
-    public function testRunReviewsAKitThatBreaksTheRulesOfABundleOnlyWhileTheSettingIsOn(): void
+    public function testRun_ReviewsAKitThatBreaksTheRulesOfABundleOnlyWhileTheSettingIsOn(): void
     {
         $product = $this->createTestItem(HAS_STOCK);
         $data    = ['name' => 'Bad kit', 'item_id' => $product, 'kit_discount' => 0, 'kit_discount_type' => 0, 'price_option' => PRICE_OPTION_ALL, 'print_option' => 0, 'description' => ''];
@@ -162,7 +162,7 @@ final class StockTrackingChecksTest extends CIUnitTestCase
         $this->assertSame(1, $bundles->data['kits_off_the_rules']);
     }
 
-    public function testRunReviewsLinesEnteredInUnitsWhileTheUnitsSettingIsOff(): void
+    public function testRun_ReviewsLinesEnteredInUnitsWhileTheUnitsSettingIsOff(): void
     {
         $setup = $this->cartonItem('5.00');
 

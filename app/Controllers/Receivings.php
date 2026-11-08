@@ -421,7 +421,7 @@ class Receivings extends Secure_Controller
             }
 
             if ($this->request->getPost('tracking_serials') !== null || $this->request->getPost('batch_number') !== null) {
-                $this->receiving_lib->setTracking((string) $item_id, (string) $this->request->getPost('tracking_serials'), (string) $this->request->getPost('batch_number'), (string) $this->request->getPost('batch_expiry'));
+                $this->receiving_lib->setTracking((string) $item_id, $this->postedText('tracking_serials'), $this->postedText('batch_number'), $this->postedText('batch_expiry'));
             }
         } else {
             $data['error'] = lang('Receivings.error_editing_item');
@@ -746,7 +746,6 @@ class Receivings extends Secure_Controller
         $receivingInfo = $this->receiving->get_info($receiving_id)->getRowArray();
         $this->receiving_lib->copy_entire_receiving($receiving_id);
         $data['cart']                 = $this->receiving_lib->get_cart();
-        $data['unit_choices']         = $this->receiving_lib->unitChoices($data['cart']);
         $data['total']                = $this->receiving_lib->get_total();
         $data['tax_total']            = $this->receiving_lib->get_tax_total();
         $data['total_with_tax']       = $this->receiving_lib->get_total_with_tax();
@@ -793,9 +792,17 @@ class Receivings extends Secure_Controller
         return $view;
     }
 
+    private function postedText(string $name): string
+    {
+        $value = $this->request->getPost($name);
+
+        return is_scalar($value) ? (string) $value : '';
+    }
+
     private function _reload(array $data = []): string    // TODO: Hungarian notation
     {
         $data['cart']                 = $this->receiving_lib->get_cart();
+        $data['unit_choices']         = $this->receiving_lib->unitChoices($data['cart']);
         $data['modes']                = ['receive' => lang('Receivings.receiving'), 'return' => lang('Receivings.return')];
         $data['mode']                 = $this->receiving_lib->get_mode();
         $data['stock_locations']      = $this->stock_location->get_allowed_locations('receivings', true);

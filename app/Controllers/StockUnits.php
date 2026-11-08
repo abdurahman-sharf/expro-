@@ -33,6 +33,7 @@ class StockUnits extends AccountingController
             'used'        => $this->usedTemplates(),
             'settings'    => $options->all(),
             'canManage'   => $this->can(StockUnitPermissions::UNITS_MANAGE),
+            'canTrack'    => $this->can(StockUnitPermissions::TRACKING_MANAGE),
             'canSettings' => $this->can(AccountingGuard::SETTINGS_MANAGE),
             'item'        => $this->itemOf($this->queryText('item')),
             'itemSearch'  => $this->queryText('item'),
@@ -106,12 +107,15 @@ class StockUnits extends AccountingController
     public function postSaveItem(int $itemId): ResponseInterface
     {
         return $this->attempt(function () use ($itemId): array {
-            $profiles = new ItemStockProfile();
             $template = $this->textOf($this->request->getPost('unit_template_id'));
-            $tracking = TrackingType::tryFrom($this->textOf($this->request->getPost('tracking_type'))) ?? TrackingType::None;
 
-            $profiles->setTemplate($itemId, $template === '' ? null : (int) $template, $this->employeeId());
-            $profiles->setTracking($itemId, $tracking, $this->employeeId());
+            (new ItemStockProfile())->saveProfile(
+                $itemId,
+                $this->request->getPost('unit_template_id') !== null,
+                $template === '' ? null : (int) $template,
+                TrackingType::tryFrom($this->textOf($this->request->getPost('tracking_type'))),
+                $this->employeeId(),
+            );
 
             return ['success' => true, 'message' => lang('Stock_units.profile_saved'), 'id' => $itemId];
         });

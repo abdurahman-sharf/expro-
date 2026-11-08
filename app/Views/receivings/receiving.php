@@ -138,7 +138,7 @@ $hasCart     = count($cart) > 0;
                             </div>
 
                             <div class="cart-field" data-label="<?= lang("{$sectionName}.cost") ?>">
-                                <?php $enteredPrice = isset($item['unit_id']) ? rtrim(rtrim(number_format((float) $item['unit_price'], 6, '.', ''), '0'), '.') : null; ?>
+                                <?php $enteredPrice = isset($item['unit_id']) ? to_unit_price((string) $item['unit_price']) : null; ?>
                                 <?php if ($canEditCost): ?>
                                     <?= form_input(['name' => 'price', 'class' => 'form-control form-control-sm', 'value' => $enteredPrice ?? to_currency_no_money($item['price']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.cost"), 'onClick' => 'this.select();']) ?>
                                 <?php else: ?>
@@ -207,9 +207,9 @@ $hasCart     = count($cart) > 0;
 
                             <div class="cart-extra">
                                 <?php if (($item['tracking_type'] ?? 'none') === 'serial'): ?>
-                                    <?= form_textarea(['name' => 'tracking_serials', 'class' => 'form-control form-control-sm', 'rows' => 2, 'value' => implode("\n", $item['tracking']['serials'] ?? []), 'aria-label' => lang('Stock_units.serial_numbers'), 'placeholder' => lang('Stock_units.serial_numbers_placeholder')]) ?>
+                                    <?= form_textarea(['name' => 'tracking_serials', 'class' => 'form-control form-control-sm', 'dir' => 'ltr', 'rows' => 2, 'value' => implode("\n", $item['tracking']['serials'] ?? []), 'aria-label' => lang('Stock_units.serial_numbers'), 'placeholder' => lang('Stock_units.serial_numbers_placeholder')]) ?>
                                 <?php elseif (($item['tracking_type'] ?? 'none') === 'batch'): ?>
-                                    <?= form_input(['name' => 'batch_number', 'class' => 'form-control form-control-sm', 'value' => $item['tracking']['batches'][0]['number'] ?? '', 'aria-label' => lang('Stock_units.batch_number'), 'placeholder' => lang('Stock_units.batch_number')]) ?>
+                                    <?= form_input(['name' => 'batch_number', 'class' => 'form-control form-control-sm', 'dir' => 'ltr', 'value' => $item['tracking']['batches'][0]['number'] ?? '', 'aria-label' => lang('Stock_units.batch_number'), 'placeholder' => lang('Stock_units.batch_number')]) ?>
                                     <?= form_input(['name' => 'batch_expiry', 'type' => 'date', 'class' => 'form-control form-control-sm', 'value' => $item['tracking']['batches'][0]['expiry'] ?? '', 'aria-label' => lang('Stock_units.batch_expiry')]) ?>
                                 <?php endif; ?>
                                 <?php if ($item['allow_alt_description'] == 1): ?>

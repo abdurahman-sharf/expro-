@@ -54,6 +54,34 @@ final class ItemStockProfile
     }
 
     /**
+     * Saves what a screen posts for an item: the template when one was posted and is not the one the item has,
+     * the tracking type when one was posted and is not the one it has, all or nothing. What does not change
+     * asks for no permission and no setting, so an employee who may change only one of them saves that one.
+     *
+     * @throws AccountingException|PostingException
+     */
+    public function saveProfile(int $itemId, bool $templatePosted, ?int $templateId, ?TrackingType $tracking, ?int $employeeId = null): void
+    {
+        $before          = $this->get($itemId);
+        $templateChanges = $templatePosted && $templateId !== $before->unitTemplateId;
+        $trackingChanges = $tracking !== null && $tracking !== $before->tracking;
+
+        if (! $templateChanges && ! $trackingChanges) {
+            return;
+        }
+
+        $this->transactional(function () use ($itemId, $templateChanges, $templateId, $trackingChanges, $tracking, $employeeId): void {
+            if ($templateChanges) {
+                $this->setTemplate($itemId, $templateId, $employeeId);
+            }
+
+            if ($trackingChanges && $tracking !== null) {
+                $this->setTracking($itemId, $tracking, $employeeId);
+            }
+        });
+    }
+
+    /**
      * @throws AccountingException|PostingException
      */
     public function setTemplate(int $itemId, ?int $templateId, ?int $employeeId = null): void

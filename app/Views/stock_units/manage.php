@@ -7,6 +7,7 @@ use App\Libraries\Stock\UnitTemplate;
  * @var array<int, bool>                                                                                                       $used
  * @var array{units: bool, bundles: bool, tracking: bool, expired_refused: bool, negative_stock: string}                       $settings
  * @var bool                                                                                                                   $canManage
+ * @var bool                                                                                                                   $canTrack
  * @var bool                                                                                                                   $canSettings
  * @var array{id: int, name: string, template: ?int, tracking: string, barcodes: list<object>, units: array<int, string>}|null $item
  * @var string                                                                                                                 $itemSearch
@@ -98,7 +99,7 @@ foreach ($templates as $template) {
                         <th><?= lang('Stock_units.larger_units') ?></th>
                         <th><?= lang('Stock_units.active') ?></th>
                         <th><?= lang('Stock_units.used') ?></th>
-                        <th></th>
+                        <th><span class="visually-hidden"><?= lang('Stock_units.actions') ?></span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -112,8 +113,8 @@ foreach ($templates as $template) {
                                     <span class="d-block"><?= esc($unit->name) ?> &times; <bdi dir="ltr"><?= esc(rtrim(rtrim($unit->factor, '0'), '.')) ?></bdi> (<?= esc($unit->smallName) ?>)</span>
                                 <?php endforeach; ?>
                             </td>
-                            <td><?= $template->active ? '<span class="bi bi-check-lg" aria-hidden="true"></span>' : '' ?></td>
-                            <td><?= ($used[$template->templateId] ?? false) ? '<span class="bi bi-lock" aria-hidden="true"></span>' : '' ?></td>
+                            <td><?= $template->active ? '<span class="bi bi-check-lg" aria-hidden="true"></span>' : '' ?><span class="visually-hidden"><?= lang($template->active ? 'Common.yes' : 'Common.no') ?></span></td>
+                            <td><?= ($used[$template->templateId] ?? false) ? '<span class="bi bi-lock" aria-hidden="true"></span>' : '' ?><span class="visually-hidden"><?= lang(($used[$template->templateId] ?? false) ? 'Common.yes' : 'Common.no') ?></span></td>
                             <td>
                                 <?php if ($canManage): ?>
                                     <button class="btn btn-outline-secondary btn-sm modal-dlg units-dialog" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc(base_url('stock_units/templateForm/' . $template->templateId), 'attr') ?>" title="<?= lang('Common.edit') ?>"><span class="bi bi-pencil" aria-hidden="true"></span></button>
@@ -147,11 +148,11 @@ foreach ($templates as $template) {
             <div class="form-grid">
                 <div class="field">
                     <label class="form-label" for="unit_template_id"><?= lang('Stock_units.unit_template') ?></label>
-                    <div class="field-control"><?= form_dropdown('unit_template_id', $templateChoices, (string) ($item['template'] ?? ''), ['class' => 'form-select form-select-sm', 'id' => 'unit_template_id'] + ($canManage ? [] : ['disabled' => 'disabled'])) ?></div>
+                    <div class="field-control"><?= form_dropdown('unit_template_id', $templateChoices, (string) ($item['template'] ?? ''), ['class' => 'form-select form-select-sm', 'id' => 'unit_template_id'] + ($canManage && $settings['units'] ? [] : ['disabled' => 'disabled'])) ?></div>
                 </div>
                 <div class="field">
                     <label class="form-label" for="tracking_type"><?= lang('Stock_units.tracking_type') ?></label>
-                    <div class="field-control"><?= form_dropdown('tracking_type', ['none' => lang('Stock_units.tracking_none'), 'serial' => lang('Stock_units.tracking_serial'), 'batch' => lang('Stock_units.tracking_batch')], $item['tracking'], ['class' => 'form-select form-select-sm', 'id' => 'tracking_type']) ?></div>
+                    <div class="field-control"><?= form_dropdown('tracking_type', ['none' => lang('Stock_units.tracking_none'), 'serial' => lang('Stock_units.tracking_serial'), 'batch' => lang('Stock_units.tracking_batch')], $item['tracking'], ['class' => 'form-select form-select-sm', 'id' => 'tracking_type'] + ($canTrack && $settings['tracking'] ? [] : ['disabled' => 'disabled'])) ?></div>
                 </div>
             </div>
             <p class="small text-body-secondary mt-2"><?= lang('Stock_units.tracking_note') ?></p>
@@ -177,7 +178,7 @@ foreach ($templates as $template) {
         <?= form_open('stock_units/addBarcode/' . $item['id'], ['id' => 'barcode_form', 'class' => 'app-form units-ajax']) ?>
             <div class="input-group input-group-sm" style="max-width: 36rem">
                 <input type="text" name="barcode" class="form-control" maxlength="255" aria-label="<?= esc(lang('Stock_units.barcode'), 'attr') ?>" placeholder="<?= esc(lang('Stock_units.barcode'), 'attr') ?>" dir="ltr">
-                <?= form_dropdown('unit_id', ['' => lang('Stock_units.base_unit')] + array_map('strval', $item['units']), '', ['class' => 'form-select form-select-sm']) ?>
+                <?= form_dropdown('unit_id', ['' => lang('Stock_units.base_unit')] + array_map('strval', $item['units']), '', ['class' => 'form-select form-select-sm', 'aria-label' => lang('Stock_units.unit')]) ?>
                 <button type="submit" class="btn btn-outline-primary"><?= lang('Stock_units.add_barcode') ?></button>
             </div>
         <?= form_close() ?>

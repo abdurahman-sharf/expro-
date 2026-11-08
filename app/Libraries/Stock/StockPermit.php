@@ -307,7 +307,7 @@ final class StockPermit
     public function lines(int $permitId): array
     {
         return $this->db->table('stock_permit_lines l')
-            ->select('l.line_no, l.item_id, l.quantity, l.unit_cost, i.name AS item_name, i.item_number')
+            ->select('l.line_no, l.item_id, l.quantity, l.unit_cost, l.unit_id, l.unit_factor, l.unit_quantity, l.unit_cost_entered, i.name AS item_name, i.item_number')
             ->join('items i', 'i.item_id = l.item_id')
             ->where('l.permit_id', $permitId)
             ->orderBy('l.line_no', 'ASC')
@@ -576,7 +576,11 @@ final class StockPermit
                 }
             }
 
-            $list[] = ['item_id' => $itemId, 'quantity' => bcadd($quantity, '0', 3), 'unit_cost' => $type === StockPermitType::Add ? bcadd($cost, '0', 6) : '0.000000', 'unit' => $unit->columns('unit_cost_entered'), 'tracking' => TrackingEntry::ofLine(is_array($line) ? $line : [])];
+            $entry = TrackingEntry::ofLine(is_array($line) ? $line : [])->filledFor(bcadd($quantity, '0', 3));
+
+            $this->tracking->assertSerialEntry($itemId, $number, bcadd($quantity, '0', 3), $entry);
+
+            $list[] = ['item_id' => $itemId, 'quantity' => bcadd($quantity, '0', 3), 'unit_cost' => $type === StockPermitType::Add ? bcadd($cost, '0', 6) : '0.000000', 'unit' => $unit->columns('unit_cost_entered'), 'tracking' => $entry];
         }
 
         return $list;

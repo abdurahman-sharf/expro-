@@ -309,7 +309,7 @@ $employee        = model(Employee::class);
                             </div>
 
                             <div class="cart-field" data-label="<?= lang("{$sectionName}.price") ?>">
-                                <?php $enteredPrice = isset($item['unit_id']) ? rtrim(rtrim(number_format((float) $item['unit_price'], 6, '.', ''), '0'), '.') : null; ?>
+                                <?php $enteredPrice = isset($item['unit_id']) ? to_unit_price((string) $item['unit_price']) : null; ?>
                                 <?php if ($items_module_allowed && $change_price): ?>
                                     <?= form_input(['name' => 'price', 'class' => 'form-control form-control-sm', 'value' => $enteredPrice ?? to_currency_no_money($item['price']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.price"), 'onClick' => 'this.select();']) ?>
                                 <?php else: ?>
@@ -380,7 +380,7 @@ $employee        = model(Employee::class);
                                     <?php endif; ?>
 
                                     <?php if (($item['tracking_type'] ?? 'none') === 'batch' && ! empty($can_pick_batch)): ?>
-                                        <?= form_input(['name' => 'batch_number', 'class' => 'form-control form-control-sm', 'value' => $item['tracking']['batches'][0]['number'] ?? '', 'aria-label' => lang('Stock_units.batch_number'), 'placeholder' => lang('Stock_units.batch_pick_placeholder')]) ?>
+                                        <?= form_input(['name' => 'batch_number', 'class' => 'form-control form-control-sm', 'dir' => 'ltr', 'value' => $item['tracking']['batches'][0]['number'] ?? '', 'aria-label' => lang('Stock_units.batch_number'), 'placeholder' => lang('Stock_units.batch_pick_placeholder')]) ?>
                                     <?php endif; ?>
                                 <?php endif; ?>
                             </div>

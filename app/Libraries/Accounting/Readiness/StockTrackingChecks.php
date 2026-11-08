@@ -4,6 +4,7 @@ namespace App\Libraries\Accounting\Readiness;
 
 use App\Libraries\Stock\Bundles;
 use App\Libraries\Stock\StockOptions;
+use App\Libraries\Stock\TrackingTies;
 
 /**
  * Whether the quantities kept in units, bundles and tracking add up: the shelf of every tracked item in
@@ -31,31 +32,7 @@ final class StockTrackingChecks extends CheckGroup
             return CheckResult::pass('No item is tracked by serial number or by batch.', [], ['tracked_items' => 0]);
         }
 
-        $shelves = $this->db->prefixTable('item_quantities');
-        $serials = $this->db->prefixTable('stock_serials');
-        $batches = $this->db->prefixTable('stock_batches');
-        $stock   = $this->db->prefixTable('stock_batch_quantities');
-        $profile = $this->db->prefixTable('item_stock_profiles');
-        $items   = $this->db->prefixTable('items');
-
-        $rows = $this->db->query(
-            "SELECT k.item_id, k.location_id, i.name, p.tracking_type, COALESCE(q.quantity, 0) AS shelf,
-                    CASE p.tracking_type
-                        WHEN 'serial' THEN (SELECT COUNT(*) FROM {$serials} s WHERE s.item_id = k.item_id AND s.location_id = k.location_id AND s.state IN ('in_stock', 'returned'))
-                        ELSE (SELECT COALESCE(SUM(bq.quantity), 0) FROM {$stock} bq JOIN {$batches} b ON b.batch_id = bq.batch_id WHERE b.item_id = k.item_id AND bq.location_id = k.location_id)
-                    END AS tracked
-             FROM (
-                 SELECT item_id, location_id FROM {$shelves} WHERE item_id IN (SELECT item_id FROM {$profile} WHERE tracking_type <> 'none')
-                 UNION SELECT item_id, location_id FROM {$serials} WHERE location_id IS NOT NULL
-                 UNION SELECT b.item_id, bq.location_id FROM {$stock} bq JOIN {$batches} b ON b.batch_id = bq.batch_id
-             ) k
-             JOIN {$profile} p ON p.item_id = k.item_id AND p.tracking_type <> 'none'
-             JOIN {$items} i ON i.item_id = k.item_id
-             LEFT JOIN {$shelves} q ON q.item_id = k.item_id AND q.location_id = k.location_id
-             HAVING ABS(shelf - tracked) > 0.0005
-             ORDER BY k.item_id, k.location_id
-             LIMIT " . self::LISTED,
-        )->getResult();
+        $rows = (new TrackingTies($this->db))->untied(self::LISTED);
 
         $expired = $this->db->table('stock_batch_quantities q')
             ->select('b.item_id, b.batch_number, b.expiry_date, q.location_id, q.quantity')

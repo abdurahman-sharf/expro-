@@ -73,6 +73,20 @@ final class StockTracking
     }
 
     /**
+     * Refuses a line of a serial item whose serial numbers do not fit its quantity, before the document
+     * writes anything: the books split such a line into one movement for each unit, so a quantity no
+     * serial entry accounts for must be refused by name rather than split.
+     *
+     * @throws AccountingException
+     */
+    public function assertSerialEntry(int $itemId, int $line, string $quantity, TrackingEntry $entry): void
+    {
+        if ($this->typeOf($itemId) === TrackingType::Serial) {
+            $this->serialsFor($itemId, $line, $quantity, $entry);
+        }
+    }
+
+    /**
      * The last defence of the shelf of a tracked item: whatever is not the tracking itself that changes it
      * is refused.
      *
@@ -563,7 +577,7 @@ final class StockTracking
         );
 
         if ($this->db->affectedRows() !== 1) {
-            throw new AccountingException(AccountingError::BatchInsufficient, 'There is not enough in the batch.', ['name' => $this->nameOf($itemId), 'code' => $number]);
+            throw new AccountingException(AccountingError::BatchInsufficient, "There is not enough in the batch {$number}.", ['name' => $this->nameOf($itemId)]);
         }
     }
 
@@ -697,6 +711,10 @@ final class StockTracking
         $quantity   = bcadd((string) $row->quantity, '0', 3);
         $itemId     = (int) $row->item_id;
 
+        if ((string) $row->movement === self::SALE && (string) $row->source_type === 'sale' && $this->returnedSince($row)) {
+            throw new AccountingException(AccountingError::BatchMoved, 'A return of the sale has put the batch back.', ['code' => (string) $this->db->table('stock_batches')->select('batch_number')->where('batch_id', $batchId)->get()->getRow()->batch_number]);
+        }
+
         if (bccomp($quantity, '0', 3) > 0) {
             $this->takeFromBatch($batchId, $locationId, $quantity, (string) $this->db->table('stock_batches')->select('batch_number')->where('batch_id', $batchId)->get()->getRow()->batch_number, $itemId);
 
@@ -704,6 +722,21 @@ final class StockTracking
         }
 
         $this->putIntoBatch($batchId, $locationId, bcsub('0', $quantity, 3));
+    }
+
+    private function returnedSince(object $row): bool
+    {
+        $lines = $this->db->prefixTable('stock_tracking_lines');
+        $sales = $this->db->prefixTable('sales');
+
+        $back = $this->db->query(
+            "SELECT COUNT(*) AS n FROM {$lines} t JOIN {$sales} s ON s.sale_id = t.source_id AND t.source_type = 'sale'
+             WHERE s.return_of_sale_id = ? AND t.item_id = ? AND t.batch_id = ? AND t.movement = 'putback' AND t.reversal_of IS NULL
+               AND NOT EXISTS (SELECT 1 FROM {$lines} r WHERE r.reversal_of = t.tracking_id)",
+            [(int) $row->source_id, (int) $row->item_id, (int) $row->batch_id],
+        )->getRow();
+
+        return (int) $back->n > 0;
     }
 
     private function nameOf(int $itemId): string

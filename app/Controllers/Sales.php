@@ -39,6 +39,10 @@ use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\Roles\RecordScope;
 use App\Libraries\Sale_lib;
 use App\Libraries\ShippingTaxOption;
+use App\Libraries\Stock\StockUnitPermissions;
+use App\Libraries\Stock\TrackingType;
+use App\Libraries\Stock\UnitLine;
+use App\Libraries\Stock\UnitTemplates;
 use App\Libraries\Tax_lib;
 use App\Libraries\Token_lib;
 use App\Models\Customer;
@@ -48,8 +52,6 @@ use App\Models\Employee;
 use App\Models\Giftcard;
 use App\Models\Inventory;
 use App\Models\Item;
-use App\Libraries\Stock\StockUnitPermissions;
-use App\Libraries\Stock\UnitTemplates;
 use App\Models\Item_kit;
 use App\Models\Price_list;
 use App\Models\Sale;
@@ -1572,9 +1574,12 @@ class Sales extends Secure_Controller
 
         if ($this->validate($rules, $messages)) {
             $description = $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-            $serialnumber = $this->request->getPost('serialnumber', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+            $lineBefore = $this->sale_lib->get_cart()[$line] ?? [];
+            $serialnumber = ($lineBefore['tracking_type'] ?? null) === TrackingType::Serial->value
+                ? $this->postedText('serialnumber')
+                : $this->request->getPost('serialnumber', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
             $price = parse_decimals($this->request->getPost('price'));
-            $price = $price !== false ? number_format((float) $price, totals_decimals(), '.', '') : $price;
+            $price = $price !== false ? number_format((float) $price, isset($lineBefore['unit_id']) ? UnitLine::COST_SCALE : totals_decimals(), '.', '') : $price;
             $quantity = parse_decimals($this->request->getPost('quantity'));
             $discount_type = $this->request->getPost('discount_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
             $discount = $discount_type
@@ -1601,10 +1606,9 @@ class Sales extends Secure_Controller
             }
 
             // sales_change_price grant is enforced server-side here; the UI-only "change_price" flag must not be trusted
-            $currentLine   = $this->sale_lib->get_cart()[$line] ?? [];
-            $current_price = isset($currentLine['unit_id']) ? ($currentLine['unit_price'] ?? null) : ($currentLine['price'] ?? null);
-            $employee_id = $this->employee->get_logged_in_employee_info()->person_id;
-            if ($current_price !== null && bccomp((string)$price, (string)$current_price, $precision) != 0 && !$this->employee->has_grant('sales_change_price', $employee_id)) {
+            $currentPrice = isset($lineBefore['unit_id']) ? ($lineBefore['unit_price'] ?? null) : ($lineBefore['price'] ?? null);
+            $employeeId = $this->employee->get_logged_in_employee_info()->person_id;
+            if ($currentPrice !== null && bccomp((string)$price, (string)$currentPrice, isset($lineBefore['unit_id']) ? UnitLine::COST_SCALE : $precision) != 0 && !$this->employee->has_grant('sales_change_price', $employeeId)) {
                 $data['error'] = lang('Sales.not_authorized');
                 return $this->reload($data);
             }
@@ -1635,7 +1639,7 @@ class Sales extends Secure_Controller
             }
 
             if ($this->request->getPost('batch_number') !== null && $this->employee->has_grant(StockUnitPermissions::BATCH_MANUAL_PICK, (int) $this->employee->get_logged_in_employee_info()->person_id)) {
-                $this->sale_lib->pickBatch($line, (string) $this->request->getPost('batch_number'));
+                $this->sale_lib->pickBatch($line, $this->postedText('batch_number'));
             }
 
             $priceProblem = $this->refusedLinePrices($cartBefore);
@@ -2738,6 +2742,13 @@ class Sales extends Secure_Controller
     private function scopeMessage(): string
     {
         return (new RecordScope())->ownOnly((int) $this->session->get('person_id')) ? lang('Sales.not_authorized') : lang('Sales.branch_not_allowed');
+    }
+
+    private function postedText(string $name): string
+    {
+        $value = $this->request->getPost($name);
+
+        return is_scalar($value) ? (string) $value : '';
     }
 
     /**

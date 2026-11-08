@@ -84,7 +84,7 @@ final class DraftInvoice
             ->getRowArray();
 
         $lines = $this->db->table('sales_items')
-            ->select('item_id, line, description, serialnumber, quantity_purchased, discount, discount_type, item_unit_price, item_location, print_option')
+            ->select('item_id, line, description, serialnumber, quantity_purchased, discount, discount_type, item_unit_price, item_location, print_option, unit_id, unit_factor, unit_quantity, unit_price_entered')
             ->where('sale_id', $saleId)
             ->orderBy('line', 'ASC')
             ->get()
@@ -247,7 +247,7 @@ final class DraftInvoice
     private function lines(int $saleId): array
     {
         $rows = $this->db->table('sales_items i')
-            ->select('i.item_id, i.line, i.description, i.serialnumber, i.quantity_purchased, i.discount, i.discount_type, i.item_unit_price, i.item_location, i.print_option, it.cost_price, it.tax_category_id')
+            ->select('i.item_id, i.line, i.description, i.serialnumber, i.quantity_purchased, i.discount, i.discount_type, i.item_unit_price, i.item_location, i.print_option, i.unit_id, i.unit_factor, i.unit_quantity, i.unit_price_entered, it.cost_price, it.tax_category_id')
             ->join('items it', 'it.item_id = i.item_id')
             ->where('i.sale_id', $saleId)
             ->orderBy('i.line', 'ASC')
@@ -271,6 +271,10 @@ final class DraftInvoice
                 'print_option'    => (int) $row->print_option,
                 'tax_category_id' => $row->tax_category_id === null ? null : (int) $row->tax_category_id,
             ];
+
+            if ($row->unit_id !== null) {
+                $items[(int) $row->line] += ['unit_id' => (int) $row->unit_id, 'unit_factor' => (string) $row->unit_factor, 'unit_quantity' => (string) $row->unit_quantity, 'unit_price' => (string) $row->unit_price_entered];
+            }
         }
 
         return $items;

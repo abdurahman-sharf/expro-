@@ -51,12 +51,12 @@ final class StockOptionsTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testAllStartsWithEverythingOffAndNegativeStockAllowed(): void
+    public function testAll_StartsWithEverythingOffAndNegativeStockAllowed(): void
     {
         $this->assertSame(['units' => false, 'bundles' => false, 'tracking' => false, 'expired_refused' => true, 'negative_stock' => 'allow'], (new StockOptions())->all());
     }
 
-    public function testUpdateRequiresTheAccountingSettingsPermission(): void
+    public function testUpdate_RequiresTheAccountingSettingsPermission(): void
     {
         $stranger = $this->employeeWithGrants([]);
 
@@ -70,7 +70,7 @@ final class StockOptionsTest extends CIUnitTestCase
         $this->assertFalse((new StockOptions())->unitsEnabled());
     }
 
-    public function testUpdateSwitchesEachOptionAndWritesWhatItWasToTheAuditLog(): void
+    public function testUpdate_SwitchesEachOptionAndWritesWhatItWasToTheAuditLog(): void
     {
         $options = new StockOptions();
 
@@ -85,14 +85,14 @@ final class StockOptionsTest extends CIUnitTestCase
         $this->assertStringContainsString('"before"', (string) $audit->details);
     }
 
-    public function testUpdateWritesNothingWhenNothingChanges(): void
+    public function testUpdate_WritesNothingWhenNothingChanges(): void
     {
         (new StockOptions())->update(['units' => false, 'negative_stock' => 'allow'], $this->unitManagerId);
 
         $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where('action', 'stock_options_updated')->countAllResults());
     }
 
-    public function testUpdateRejectsAnOptionOfNegativeStockThatIsNotOneOfTheThree(): void
+    public function testUpdate_RejectsAnOptionOfNegativeStockThatIsNotOneOfTheThree(): void
     {
         try {
             (new StockOptions())->update(['negative_stock' => 'sometimes'], $this->unitManagerId);
@@ -104,7 +104,7 @@ final class StockOptionsTest extends CIUnitTestCase
         $this->assertSame(NegativeStockOption::Allow, (new StockOptions())->negativeStock());
     }
 
-    public function testNegativeStockFallsBackToAllowWhenTheStoredValueIsUnknown(): void
+    public function testNegativeStock_FallsBackToAllowWhenTheStoredValueIsUnknown(): void
     {
         $this->setConfigValue(StockOptions::NEGATIVE_STOCK, 'garbage');
 

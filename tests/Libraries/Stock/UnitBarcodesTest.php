@@ -70,7 +70,7 @@ final class UnitBarcodesTest extends CIUnitTestCase
         }
     }
 
-    public function testAssignGivesAUnitABarcodeThatResolvesToTheItemAndTheUnit(): void
+    public function testAssign_GivesAUnitABarcodeThatResolvesToTheItemAndTheUnit(): void
     {
         $unitId = $this->unitIdOf($this->templateId);
 
@@ -80,27 +80,27 @@ final class UnitBarcodesTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where('action', 'unit_barcode_assigned')->countAllResults());
     }
 
-    public function testAssignAcceptsABarcodeOfTheBaseUnitWithNoUnit(): void
+    public function testAssign_AcceptsABarcodeOfTheBaseUnitWithNoUnit(): void
     {
         $this->barcodes->assign($this->itemId, null, 'PC-001', $this->unitManagerId);
 
         $this->assertSame(['itemId' => $this->itemId, 'unitId' => null], $this->barcodes->resolve(' PC-001 '));
     }
 
-    public function testAssignRequiresThePermissionToManageUnits(): void
+    public function testAssign_RequiresThePermissionToManageUnits(): void
     {
         $this->refusedWith(AccountingError::PermissionDenied, fn (): int => $this->barcodes->assign($this->itemId, null, 'X-1', $this->employeeWithGrants([])));
         $this->assertNull($this->barcodes->resolve('X-1'));
     }
 
-    public function testAssignRejectsABarcodeAnotherUnitAlreadyHas(): void
+    public function testAssign_RejectsABarcodeAnotherUnitAlreadyHas(): void
     {
         $this->barcodes->assign($this->itemId, null, 'DUP-1', $this->unitManagerId);
 
         $this->refusedWith(AccountingError::UnitBarcodeTaken, fn (): int => $this->barcodes->assign($this->itemId, $this->unitIdOf($this->templateId), 'DUP-1', $this->unitManagerId));
     }
 
-    public function testAssignRejectsTheNumberOfAnItem(): void
+    public function testAssign_RejectsTheNumberOfAnItem(): void
     {
         $other = $this->createTestItem();
 
@@ -109,20 +109,21 @@ final class UnitBarcodesTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::UnitBarcodeTaken, fn (): int => $this->barcodes->assign($this->itemId, null, 'ITEM-NUMBER-9', $this->unitManagerId));
     }
 
-    public function testAssignRejectsAUnitThatIsNotOfTheTemplateOfTheItem(): void
+    public function testAssign_RejectsAUnitThatIsNotOfTheTemplateOfTheItem(): void
     {
         $otherTemplate = $this->template('Pallets', [['name' => 'Pallet', 'factor' => '100', 'small_name' => 'p']]);
 
         $this->refusedWith(AccountingError::UnitNotOfItem, fn (): int => $this->barcodes->assign($this->itemId, $this->unitIdOf($otherTemplate, 'Pallet'), 'PAL-1', $this->unitManagerId));
     }
 
-    public function testAssignRejectsABlankOrTooLongBarcode(): void
+    public function testAssign_RejectsABlankOrTooLongBarcode(): void
     {
-        $this->refusedWith(AccountingError::UnitBarcodeTaken, fn (): int => $this->barcodes->assign($this->itemId, null, '   ', $this->unitManagerId));
-        $this->refusedWith(AccountingError::UnitBarcodeTaken, fn (): int => $this->barcodes->assign($this->itemId, null, str_repeat('9', 256), $this->unitManagerId));
+        $this->refusedWith(AccountingError::UnitBarcodeInvalid, fn (): int => $this->barcodes->assign($this->itemId, null, '   ', $this->unitManagerId));
+        $this->refusedWith(AccountingError::UnitBarcodeInvalid, fn (): int => $this->barcodes->assign($this->itemId, null, str_repeat('9', 256), $this->unitManagerId));
+        $this->refusedWith(AccountingError::UnitBarcodeInvalid, fn (): int => $this->barcodes->assign(999999999, null, 'NO-ITEM-1', $this->unitManagerId));
     }
 
-    public function testResolveIgnoresBarcodesWhileTheUnitsSettingIsOff(): void
+    public function testResolve_IgnoresBarcodesWhileTheUnitsSettingIsOff(): void
     {
         $this->barcodes->assign($this->itemId, null, 'OFF-1', $this->unitManagerId);
         $this->setConfigValue(StockOptions::UNITS, '0');
@@ -130,7 +131,7 @@ final class UnitBarcodesTest extends CIUnitTestCase
         $this->assertNull($this->barcodes->resolve('OFF-1'));
     }
 
-    public function testRemoveTakesTheBarcodeAwayAndRequiresThePermission(): void
+    public function testRemove_TakesTheBarcodeAwayAndRequiresThePermission(): void
     {
         $barcodeId = $this->barcodes->assign($this->itemId, null, 'RM-1', $this->unitManagerId);
 
@@ -143,7 +144,7 @@ final class UnitBarcodesTest extends CIUnitTestCase
         $this->assertSame([], $this->barcodes->ofItem($this->itemId));
     }
 
-    public function testAssignRefusesWhileTheUnitsSettingIsOff(): void
+    public function testAssign_RefusesWhileTheUnitsSettingIsOff(): void
     {
         $this->setConfigValue(StockOptions::UNITS, '0');
 

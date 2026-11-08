@@ -306,7 +306,7 @@ final class UnitTemplates
         $rows  = $input['units'] ?? [];
 
         if (! is_array($rows) || $rows === [] || count($rows) > self::UNITS_MAX) {
-            throw new AccountingException(AccountingError::UnitTemplateInvalid, 'A template has from one to twenty larger units.', ['name' => 'units']);
+            throw new AccountingException(AccountingError::UnitTemplateUnitsInvalid, 'A template has from one to twenty larger units.', ['max' => self::UNITS_MAX]);
         }
 
         $units = [];
@@ -322,7 +322,7 @@ final class UnitTemplates
             }
 
             if (in_array(mb_strtolower($unitName), $names, true)) {
-                throw new AccountingException(AccountingError::UnitTemplateInvalid, 'A unit name is repeated.', ['name' => $unitName]);
+                throw new AccountingException(AccountingError::UnitNameRepeated, 'A unit name is repeated.', ['name' => $unitName]);
             }
 
             $names[] = mb_strtolower($unitName);
@@ -340,7 +340,7 @@ final class UnitTemplates
         $text = is_scalar($value) ? trim((string) $value) : '';
 
         if ($text === '' || mb_strlen($text) > $max) {
-            throw new AccountingException(AccountingError::UnitTemplateInvalid, "The {$field} is empty or too long.", ['name' => $field]);
+            throw new AccountingException(AccountingError::UnitTemplateInvalid, "The {$field} is empty or too long.");
         }
 
         return $text;

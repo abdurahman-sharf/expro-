@@ -84,7 +84,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         return $this->save([$this->line($itemId, 0, $quantity, '10.00', '5.00')], [], $type === SALE_TYPE_POS ? [$this->payment(lang('Sales.cash'), bcmul($quantity, '10.00', 2))] : [], $type, delivered: $delivered);
     }
 
-    public function testAssertSaleAllowsASaleBelowNothingByDefaultAsTheSystemAlwaysDid(): void
+    public function testAssertSale_AllowsASaleBelowNothingByDefaultAsTheSystemAlwaysDid(): void
     {
         $itemId = $this->stocked('3', '5');
 
@@ -92,7 +92,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertSame('-2.000', $this->onHand($itemId));
     }
 
-    public function testAssertSaleRefusesASaleOfMoreThanTheLocationHoldsWhenTheOptionRefuses(): void
+    public function testAssertSale_RefusesASaleOfMoreThanTheLocationHoldsWhenTheOptionRefuses(): void
     {
         $itemId = $this->stocked('3', '5');
 
@@ -105,7 +105,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testAssertSaleAllowsASaleOfExactlyWhatTheLocationHolds(): void
+    public function testAssertSale_AllowsASaleOfExactlyWhatTheLocationHolds(): void
     {
         $itemId = $this->stocked('3', '5');
 
@@ -115,7 +115,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertSame('0.000', $this->onHand($itemId));
     }
 
-    public function testAssertSaleNeverRefusesAReturn(): void
+    public function testAssertSale_AcceptsAReturn(): void
     {
         $itemId = $this->stocked('3', '5');
         $saleId = $this->sellPieces($itemId, '3');
@@ -126,7 +126,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertSame('2.000', $this->onHand($itemId));
     }
 
-    public function testAssertSaleCountsWhatInvoicesNotYetDeliveredPromiseWhenTheOptionIsBelowAvailable(): void
+    public function testAssertSale_CountsWhatInvoicesNotYetDeliveredPromiseWhenTheOptionIsBelowAvailable(): void
     {
         $itemId = $this->stocked('10', '5');
 
@@ -142,7 +142,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->sellPieces($itemId, '5'), 'on hand alone leaves five, so the second option lets it through');
     }
 
-    public function testConfirmDeliveryDeliversAnInvoiceWithoutCountingItsOwnPromiseAgainstItself(): void
+    public function testConfirmDelivery_DeliversAnInvoiceWithoutCountingItsOwnPromiseAgainstItself(): void
     {
         $itemId = $this->stocked('10', '5');
         $saleId = $this->sellPieces($itemId, '8', false, SALE_TYPE_INVOICE);
@@ -153,7 +153,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertSame('2.000', $this->onHand($itemId));
     }
 
-    public function testConfirmDeliveryRefusesADeliveryOfMoreThanTheLocationHoldsWhenTheOptionRefuses(): void
+    public function testConfirmDelivery_RefusesADeliveryOfMoreThanTheLocationHoldsWhenTheOptionRefuses(): void
     {
         $itemId = $this->stocked('10', '5');
         $saleId = $this->sellPieces($itemId, '8', false, SALE_TYPE_INVOICE);
@@ -166,7 +166,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertSame('4.000', $this->onHand($itemId));
     }
 
-    public function testAssertSaleLeavesAServiceItemAlone(): void
+    public function testAssertSale_LeavesAServiceItemAlone(): void
     {
         $itemId = $this->item('0.00', false);
 
@@ -175,7 +175,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->sellPieces($itemId, '3'));
     }
 
-    public function testAssertSaleHoldsTheShelfUnderALockSoTwoSalesOfTheLastUnitNeverBothPass(): void
+    public function testAssertSale_HoldsTheShelfUnderALockSoTwoSalesOfTheLastUnitNeverBothPass(): void
     {
         $itemId = $this->stocked('1', '5');
 
@@ -189,7 +189,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->accountingDb()->table('inventory')->like('trans_comment', 'POS ', 'after')->delete();
     }
 
-    public function testPromisedAddsUpTheUndeliveredInvoicesOfAnItemInALocation(): void
+    public function testPromised_AddsUpTheUndeliveredInvoicesOfAnItemInALocation(): void
     {
         $itemId = $this->stocked('20', '5');
 
@@ -203,7 +203,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertSame('0.000', $guard->promised($itemId, 99));
     }
 
-    public function testAssertSaleRefusesByNameWithoutTouchingTheShelfWhenCalledDirectly(): void
+    public function testAssertSale_RefusesByNameWithoutTouchingTheShelfWhenCalledDirectly(): void
     {
         $itemId = $this->stocked('2', '5');
 
@@ -213,7 +213,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertSame('2.000', $this->onHand($itemId));
     }
 
-    public function testAssertSaleReadsTheShelfUnderALockInTheTransactionOfTheSale(): void
+    public function testAssertSale_ReadsTheShelfUnderALockInTheTransactionOfTheSale(): void
     {
         $itemId = $this->stocked('5', '5');
 
@@ -224,7 +224,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertNotNull($this->firstQuery($queries, ['item_quantities', 'FOR UPDATE']));
     }
 
-    public function testAssertSaleReadsNothingWhileTheOptionAllowsANegativeStock(): void
+    public function testAssertSale_ReadsNothingWhileTheOptionAllowsANegativeStock(): void
     {
         $itemId = $this->stocked('5', '5');
 
@@ -233,7 +233,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertNull($this->firstQuery($queries, ['item_quantities']));
     }
 
-    public function testAssertSaleNeverRefusesAReturnEvenWhenTheShelfIsAlreadyBelowNothing(): void
+    public function testAssertSale_AcceptsAReturnEvenWhenTheShelfIsAlreadyBelowNothing(): void
     {
         $itemId = $this->stocked('2', '5');
         $saleId = $this->sellPieces($itemId, '5');
@@ -246,7 +246,7 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->assertSame('-1.000', $this->onHand($itemId));
     }
 
-    public function testPromisedLeavesOutInvoicesWhoseGoodsHaveLeft(): void
+    public function testPromised_LeavesOutInvoicesWhoseGoodsHaveLeft(): void
     {
         $itemId = $this->stocked('20', '5');
 

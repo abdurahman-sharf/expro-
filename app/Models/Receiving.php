@@ -1046,14 +1046,18 @@ class Receiving extends Model
         $type         = ReceivingType::ofQuantities(array_map(static fn (array $line): string => self::unitsOf($line), $items));
         $tracking     = new StockTracking($this->db);
 
-        if ($type !== ReceivingType::Receive) {
-            try {
+        try {
+            if ($type !== ReceivingType::Receive) {
                 $tracking->requireUntracked(array_map(static fn (array $line): int => (int) $line['item_id'], $items));
-            } catch (AccountingException $refusal) {
-                $this->accountingFailure = $refusal;
-
-                return ACCOUNTING_FAILED;
+            } else {
+                foreach ($items as $itemData) {
+                    $tracking->assertSerialEntry((int) $itemData['item_id'], (int) $itemData['line'], sprintf('%.3F', (float) self::unitsOf($itemData)), TrackingEntry::ofLine($itemData));
+                }
             }
+        } catch (AccountingException $refusal) {
+            $this->accountingFailure = $refusal;
+
+            return ACCOUNTING_FAILED;
         }
 
         $branchIds    = $this->branchIdsOfItems($items);

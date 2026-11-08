@@ -9,6 +9,7 @@ use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Stock\UnitBarcodes;
 use CodeIgniter\Database\RawSql;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -134,6 +135,10 @@ class Item extends Model
      */
     public function item_number_exists(string $item_number, string $item_id = ''): bool
     {
+        if ((new UnitBarcodes($this->db))->exists($item_number)) {
+            return true;
+        }
+
         $config = config(OSPOS::class)->settings;
 
         if ($config['allow_duplicate_barcodes']) {
@@ -906,7 +911,15 @@ class Item extends Model
         $removed   = $inventory->resetRows($itemId);
 
         $itemQuantity = model(Item_quantity::class);
-        $itemQuantity->reset_quantity($itemId);
+
+        try {
+            $itemQuantity->reset_quantity($itemId);
+        } catch (AccountingException $refusal) {
+            $this->db->transRollback();
+            $this->accountingFailure = $refusal;
+
+            return false;
+        }
 
         $builder = $this->db->table('items');
         $builder->where('item_id', $itemId);
@@ -1034,7 +1047,15 @@ class Item extends Model
         }
 
         $itemQuantity = model(Item_quantity::class);
-        $itemQuantity->reset_quantity_list($itemIds);
+
+        try {
+            $itemQuantity->reset_quantity_list($itemIds);
+        } catch (AccountingException $refusal) {
+            $this->db->transRollback();
+            $this->accountingFailure = $refusal;
+
+            return false;
+        }
 
         $builder = $this->db->table('items');
         $builder->whereIn('item_id', $itemIds);

@@ -68,7 +68,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
         }
     }
 
-    public function testGetGivesALegacyItemOneUnitAndNoTracking(): void
+    public function testGet_GivesALegacyItemOneUnitAndNoTracking(): void
     {
         $profile = $this->profiles->get($this->createTestItem());
 
@@ -76,7 +76,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
         $this->assertSame(TrackingType::None, $profile->tracking);
     }
 
-    public function testSetTemplateNamesTheTemplateOfTheItemAndWritesTheAuditLog(): void
+    public function testSetTemplate_NamesTheTemplateOfTheItemAndWritesTheAuditLog(): void
     {
         $itemId     = $this->createTestItem();
         $templateId = $this->template();
@@ -87,7 +87,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['action' => 'item_unit_template_set', 'entity_id' => $itemId])->countAllResults());
     }
 
-    public function testSetTemplateRequiresThePermissionToManageUnits(): void
+    public function testSetTemplate_RequiresThePermissionToManageUnits(): void
     {
         $itemId     = $this->createTestItem();
         $templateId = $this->template();
@@ -96,14 +96,14 @@ final class ItemStockProfileTest extends CIUnitTestCase
         $this->assertNull($this->profiles->get($itemId)->unitTemplateId);
     }
 
-    public function testSetTemplateRefusesWhileTheUnitsSettingIsOff(): void
+    public function testSetTemplate_RefusesWhileTheUnitsSettingIsOff(): void
     {
         $itemId = $this->createTestItem();
 
         $this->refusedWith(AccountingError::UnitsOff, fn () => $this->profiles->setTemplate($itemId, 1, $this->unitManagerId));
     }
 
-    public function testSetTemplateRejectsATemplateThatDoesNotExistOrIsSwitchedOff(): void
+    public function testSetTemplate_RejectsATemplateThatDoesNotExistOrIsSwitchedOff(): void
     {
         $itemId     = $this->createTestItem();
         $templateId = $this->template();
@@ -115,7 +115,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::UnitTemplateNotFound, fn () => $this->profiles->setTemplate($itemId, $templateId, $this->unitManagerId));
     }
 
-    public function testSetTemplateLetsAnItemKeepATemplateThatWasSwitchedOffAfterItWasGiven(): void
+    public function testSetTemplate_LetsAnItemKeepATemplateThatWasSwitchedOffAfterItWasGiven(): void
     {
         $itemId     = $this->createTestItem();
         $templateId = $this->template();
@@ -127,7 +127,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
         $this->assertSame($templateId, $this->profiles->get($itemId)->unitTemplateId);
     }
 
-    public function testSetTemplateTakesTheTemplateAwayWithANullTemplate(): void
+    public function testSetTemplate_TakesTheTemplateAwayWithANullTemplate(): void
     {
         $itemId = $this->createTestItem();
 
@@ -137,7 +137,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
         $this->assertNull($this->profiles->get($itemId)->unitTemplateId);
     }
 
-    public function testSetTrackingMakesAnItemWithNoStockSerialOrBatchTracked(): void
+    public function testSetTracking_MakesAnItemWithNoStockSerialOrBatchTracked(): void
     {
         $itemId = $this->createTestItem();
 
@@ -152,7 +152,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
         $this->assertSame(TrackingType::Batch, $this->profiles->get($itemId)->tracking);
     }
 
-    public function testSetTrackingRequiresThePermissionToManageTracking(): void
+    public function testSetTracking_RequiresThePermissionToManageTracking(): void
     {
         $itemId = $this->createTestItem();
 
@@ -162,12 +162,12 @@ final class ItemStockProfileTest extends CIUnitTestCase
         $this->assertSame(TrackingType::None, $this->profiles->get($itemId)->tracking);
     }
 
-    public function testSetTrackingRefusesWhileTheTrackingSettingIsOff(): void
+    public function testSetTracking_RefusesWhileTheTrackingSettingIsOff(): void
     {
         $this->refusedWith(AccountingError::TrackingOff, fn () => $this->profiles->setTracking($this->createTestItem(), TrackingType::Serial, $this->unitManagerId));
     }
 
-    public function testSetTrackingRejectsAnItemThatHoldsStock(): void
+    public function testSetTracking_RejectsAnItemThatHoldsStock(): void
     {
         $itemId = $this->createTestItem();
 
@@ -178,14 +178,14 @@ final class ItemStockProfileTest extends CIUnitTestCase
         $this->assertSame(TrackingType::None, $this->profiles->get($itemId)->tracking);
     }
 
-    public function testSetTrackingRejectsAnItemThatKeepsNoStock(): void
+    public function testSetTracking_RejectsAnItemThatKeepsNoStock(): void
     {
         $this->switchOn('tracking');
 
         $this->refusedWith(AccountingError::TrackingChangeWithStock, fn () => $this->profiles->setTracking($this->createTestItem(HAS_NO_STOCK), TrackingType::Serial, $this->unitManagerId));
     }
 
-    public function testTrackingOfIsNoneWhileTheTrackingSettingIsOff(): void
+    public function testTrackingOf_ReturnsNoneWhileTheTrackingSettingIsOff(): void
     {
         $itemId = $this->createTestItem();
 
@@ -196,7 +196,7 @@ final class ItemStockProfileTest extends CIUnitTestCase
         $this->assertSame(TrackingType::None, $this->profiles->trackingOf($itemId));
     }
 
-    public function testHoldsStockSeesAShelfAnOnHandSerialAndABatch(): void
+    public function testHoldsStock_SeesAShelfAnOnHandSerialAndABatch(): void
     {
         $db     = $this->accountingDb();
         $itemId = $this->createTestItem();

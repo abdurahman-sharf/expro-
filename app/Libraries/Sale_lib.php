@@ -1296,10 +1296,6 @@ class Sale_lib
     }
 
     /**
-     * Why the last item could not be added when the currency of the sale has no rate on this day or was
-     * switched off after it was chosen, or null.
-     */
-    /**
      * The units each item of the cart may be entered in, by item: its base unit first (under the key of
      * an empty unit) and then the larger units of its template. Empty while the units setting is off.
      *
@@ -1423,6 +1419,10 @@ class Sale_lib
         }
     }
 
+    /**
+     * Why the last item could not be added when the currency of the sale has no rate on this day or was
+     * switched off after it was chosen, or null.
+     */
     public function currencyFailure(): ?AccountingException
     {
         return $this->currencyFailure;

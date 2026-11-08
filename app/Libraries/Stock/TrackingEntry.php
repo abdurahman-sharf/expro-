@@ -78,6 +78,18 @@ final readonly class TrackingEntry
         return $found;
     }
 
+    /**
+     * A single batch that names no quantity takes the whole quantity of the line.
+     */
+    public function filledFor(string $quantity): self
+    {
+        if (count($this->batches) !== 1 || $this->batches[0]['quantity'] !== '') {
+            return $this;
+        }
+
+        return new self($this->serials, [[...$this->batches[0], 'quantity' => $quantity]]);
+    }
+
     public function isEmpty(): bool
     {
         return $this->serials === [] && $this->batches === [];

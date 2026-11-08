@@ -114,6 +114,10 @@ final class StockOptions
             return;
         }
 
+        if (array_key_exists('tracking', $changes)) {
+            $this->assertTrackingMayChange((bool) $changes['tracking']);
+        }
+
         $values = [];
 
         foreach ($changes as $name => $value) {
@@ -126,5 +130,32 @@ final class StockOptions
 
         $this->config->batch_save($values);
         $this->audit->write('settings', null, 'stock_options_updated', $employeeId, JournalOrigin::User, ['before' => array_intersect_key($before, $changes), 'after' => $changes]);
+    }
+
+    /**
+     * While tracking is off a tracked item is changed like any other, so it may be switched off only when no
+     * tracked item holds stock, and switched on again only when every tracked item still ties.
+     *
+     * @throws AccountingException
+     */
+    private function assertTrackingMayChange(bool $on): void
+    {
+        $ties = new TrackingTies($this->db);
+
+        if ($on) {
+            $untied = $ties->untied(1);
+
+            if ($untied !== []) {
+                throw new AccountingException(AccountingError::TrackingOnUntied, 'A tracked item holds stock its serial numbers or batches do not account for.', ['name' => (string) $untied[0]->name]);
+            }
+
+            return;
+        }
+
+        $holding = $ties->holding(1);
+
+        if ($holding !== []) {
+            throw new AccountingException(AccountingError::TrackingOffWithStock, 'A tracked item still holds stock.', ['name' => (string) $holding[0]->name]);
+        }
     }
 }

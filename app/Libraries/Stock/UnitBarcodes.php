@@ -49,14 +49,14 @@ final class UnitBarcodes
         $item    = $this->db->table('items')->select('item_id, name')->where(['item_id' => $itemId, 'deleted' => 0])->get()->getRow();
 
         if ($barcode === '' || mb_strlen($barcode) > self::MAX || $item === null) {
-            throw new AccountingException(AccountingError::UnitBarcodeTaken, 'The barcode is empty or too long.', ['code' => $barcode]);
+            throw new AccountingException(AccountingError::UnitBarcodeInvalid, 'The barcode is empty or too long, or the item does not exist.', ['max' => self::MAX]);
         }
 
         if ($unitId !== null && (new UnitTemplates($this->db, $this->guard))->unitOfItem($itemId, $unitId) === null) {
             throw new AccountingException(AccountingError::UnitNotOfItem, 'The unit is not a unit of the template of the item.', ['name' => (string) $item->name]);
         }
 
-        if ($this->db->table('item_unit_barcodes')->where('barcode', $barcode)->countAllResults() > 0 || $this->db->table('items')->where('item_number', $barcode)->countAllResults() > 0) {
+        if ($this->exists($barcode) || $this->db->table('items')->where('item_number', $barcode)->countAllResults() > 0) {
             throw new AccountingException(AccountingError::UnitBarcodeTaken, 'The barcode already belongs to an item or a unit.', ['code' => $barcode]);
         }
 
@@ -67,6 +67,11 @@ final class UnitBarcodes
         $this->audit->write('item_unit_barcode', $barcodeId, 'unit_barcode_assigned', $employeeId, JournalOrigin::User, ['item_id' => $itemId, 'unit_id' => $unitId, 'barcode' => $barcode]);
 
         return $barcodeId;
+    }
+
+    public function exists(string $barcode): bool
+    {
+        return $this->db->table('item_unit_barcodes')->where('barcode', trim($barcode))->countAllResults() > 0;
     }
 
     /**

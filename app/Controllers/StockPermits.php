@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Stock\StockOptions;
 use App\Libraries\Stock\StockPermissions;
 use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockPermitType;
@@ -66,6 +67,7 @@ class StockPermits extends StockDocumentController
             'accounts'  => $this->permits->allowedAccounts($kind),
             'number'    => $this->permits->peekNumber($kind),
             'today'     => date('Y-m-d'),
+            ...$this->entryOptions(),
         ]);
     }
 
@@ -87,7 +89,18 @@ class StockPermits extends StockDocumentController
             'accounts'  => $this->permits->allowedAccounts($kind),
             'number'    => $this->permits->numberOf($permitId),
             'today'     => date('Y-m-d'),
+            ...$this->entryOptions(),
         ]);
+    }
+
+    /**
+     * @return array{unitsOn: bool, trackingOn: bool}
+     */
+    private function entryOptions(): array
+    {
+        $options = new StockOptions();
+
+        return ['unitsOn' => $options->unitsEnabled(), 'trackingOn' => $options->trackingEnabled()];
     }
 
     public function getDocument(int $permitId): ResponseInterface|string

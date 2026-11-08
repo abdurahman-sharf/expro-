@@ -97,7 +97,7 @@ final class BundlesTest extends CIUnitTestCase
         }
     }
 
-    public function testAssertValidAcceptsAKitOfOrdinaryComponentsWhoseProductKeepsNoStockAndCarriesThePrice(): void
+    public function testAssertValid_AcceptsAKitOfOrdinaryComponentsWhoseProductKeepsNoStockAndCarriesThePrice(): void
     {
         $this->switchOn('bundles');
 
@@ -105,7 +105,7 @@ final class BundlesTest extends CIUnitTestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testAssertValidRejectsABundleThatContainsItself(): void
+    public function testAssertValid_RejectsABundleThatContainsItself(): void
     {
         $this->switchOn('bundles');
 
@@ -114,7 +114,7 @@ final class BundlesTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::BundleContainsItself, fn () => $this->bundles->assertValid($priced, [$this->createTestItem(), $priced], PRICE_OPTION_KIT));
     }
 
-    public function testAssertValidRejectsAComponentThatIsTheProductOfAnotherBundle(): void
+    public function testAssertValid_RejectsAComponentThatIsTheProductOfAnotherBundle(): void
     {
         $this->switchOn('bundles');
 
@@ -125,21 +125,21 @@ final class BundlesTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::BundleContainsBundle, fn () => $this->bundles->assertValid($this->pricedProduct(), [$inner], PRICE_OPTION_KIT));
     }
 
-    public function testAssertValidRejectsAComponentOfTheKitType(): void
+    public function testAssertValid_RejectsAComponentOfTheKitType(): void
     {
         $this->switchOn('bundles');
 
         $this->refusedWith(AccountingError::BundleContainsBundle, fn () => $this->bundles->assertValid($this->pricedProduct(), [$this->pricedProduct()], PRICE_OPTION_KIT));
     }
 
-    public function testAssertValidRejectsAProductThatKeepsItsOwnStock(): void
+    public function testAssertValid_RejectsAProductThatKeepsItsOwnStock(): void
     {
         $this->switchOn('bundles');
 
         $this->refusedWith(AccountingError::BundleKeepsStock, fn () => $this->bundles->assertValid($this->pricedProduct(true), [$this->createTestItem()], PRICE_OPTION_KIT));
     }
 
-    public function testAssertValidRejectsAKitWithNoPricedProductOrWithAPriceOptionOtherThanTheOneOfTheKit(): void
+    public function testAssertValid_RejectsAKitWithNoPricedProductOrWithAPriceOptionOtherThanTheOneOfTheKit(): void
     {
         $this->switchOn('bundles');
 
@@ -148,7 +148,7 @@ final class BundlesTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::BundleShapeInvalid, fn () => $this->bundles->assertValid($this->createTestItem(HAS_NO_STOCK), [$this->createTestItem()], PRICE_OPTION_KIT));
     }
 
-    public function testAssertValidAsksNothingOfAKitWhileTheBundlesSettingIsOff(): void
+    public function testAssertValid_AcceptsAnyKitWhileTheBundlesSettingIsOff(): void
     {
         $priced = $this->pricedProduct(true);
 
@@ -156,7 +156,7 @@ final class BundlesTest extends CIUnitTestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testViolationsListsTheKitsThatBreakTheRulesOfABundle(): void
+    public function testViolations_ListsTheKitsThatBreakTheRulesOfABundle(): void
     {
         $good = $this->kit('Good', $this->pricedProduct(), [$this->createTestItem()]);
         $bad  = $this->kit('Bad', $this->pricedProduct(true), [$this->createTestItem()]);
@@ -170,7 +170,7 @@ final class BundlesTest extends CIUnitTestCase
         $this->assertSame(AccountingError::BundleKeepsStock->value, $found[0]['problem']);
     }
 
-    public function testSaveValueOfTheKitItemsRefusesANestedBundleAndKeepsWhatWasSaved(): void
+    public function testSaveValue_RefusesANestedBundleAndKeepsWhatWasSaved(): void
     {
         $inner = $this->pricedProduct();
         $outer = $this->pricedProduct();
@@ -189,7 +189,7 @@ final class BundlesTest extends CIUnitTestCase
         $this->assertSame([$part], array_map('intval', array_column($model->get_info($kitId), 'item_id')));
     }
 
-    public function testSaveValueOfTheKitItemsKeepsSavingKitsAsBeforeWhileTheSettingIsOff(): void
+    public function testSaveValue_KeepsSavingKitsAsBeforeWhileTheSettingIsOff(): void
     {
         $inner = $this->pricedProduct();
         $outer = $this->kit('Outer', $this->pricedProduct(true), [$this->createTestItem()], PRICE_OPTION_ALL);
@@ -200,12 +200,12 @@ final class BundlesTest extends CIUnitTestCase
         $this->assertNull($model->bundleRefusal());
     }
 
-    public function testOptionsBundlesAreOffUntilSomeoneSwitchesThemOn(): void
+    public function testBundlesEnabled_StaysOffUntilSomeoneSwitchesItOn(): void
     {
         $this->assertFalse((new StockOptions())->bundlesEnabled());
     }
 
-    public function testAssertValidRejectsAComponentThatIsTheProductOfAnotherKitEvenWhenThatProductIsOfTheOrdinaryType(): void
+    public function testAssertValid_RejectsAComponentThatIsTheProductOfAnotherKitEvenWhenThatProductIsOfTheOrdinaryType(): void
     {
         $legacyProduct = $this->createTestItem(HAS_NO_STOCK);
 

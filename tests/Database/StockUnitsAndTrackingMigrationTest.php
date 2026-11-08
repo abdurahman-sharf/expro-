@@ -68,7 +68,7 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testUpCreatesTheEightTablesAndTheUnitColumnsOfTheThreeLineTables(): void
+    public function testUp_CreatesTheEightTablesAndTheUnitColumnsOfTheThreeLineTables(): void
     {
         foreach (self::TABLES as $table) {
             $this->assertTrue($this->hasTable($table), $table);
@@ -85,7 +85,7 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
         $this->assertTrue($this->hasColumn('stock_permit_lines', 'unit_cost_entered'));
     }
 
-    public function testUpRegistersTheModuleAndThePermissionsWithoutGrantingThem(): void
+    public function testUp_RegistersTheModuleAndThePermissionsWithoutGrantingThem(): void
     {
         $db = $this->accountingDb();
 
@@ -94,7 +94,7 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $db->table('grants')->whereIn('permission_id', self::PERMISSIONS)->countAllResults());
     }
 
-    public function testUpRunsTwiceWithoutAnError(): void
+    public function testUp_RunsTwiceWithoutAnError(): void
     {
         (new StockUnitsAndTracking())->up();
         (new StockUnitsAndTracking())->up();
@@ -102,13 +102,13 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
         $this->assertSame(4, $this->accountingDb()->table('permissions')->whereIn('permission_id', self::PERMISSIONS)->countAllResults());
     }
 
-    public function testUpLeavesAnExistingSaleLineWithoutAUnit(): void
+    public function testUp_LeavesAnExistingSaleLineWithoutAUnit(): void
     {
         $this->assertSame(0, $this->accountingDb()->table('sales_items')->where('unit_id IS NOT NULL', null, false)->countAllResults());
         $this->assertSame(0, $this->accountingDb()->table('receivings_items')->where('unit_id IS NOT NULL', null, false)->countAllResults());
     }
 
-    public function testUnitTemplateUnitsRejectsAFactorOfZeroOrLess(): void
+    public function testUnitTemplateUnits_RejectsAFactorOfZeroOrLess(): void
     {
         $db = $this->accountingDb();
 
@@ -119,7 +119,7 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
         $this->refused(static fn () => $db->table('unit_template_units')->insert(['template_id' => $templateId, 'name' => 'N', 'factor' => '-1', 'small_name' => 'n']));
     }
 
-    public function testItemStockProfilesRejectsAnUnknownTrackingType(): void
+    public function testItemStockProfiles_RejectsAnUnknownTrackingType(): void
     {
         $db     = $this->accountingDb();
         $itemId = $this->createTestItem();
@@ -127,7 +127,7 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
         $this->refused(static fn () => $db->table('item_stock_profiles')->insert(['item_id' => $itemId, 'tracking_type' => 'lot']));
     }
 
-    public function testStockSerialsRejectsTheSameSerialNumberTwiceForAnItemAndAnUnknownState(): void
+    public function testStockSerials_RejectsTheSameSerialNumberTwiceForAnItemAndAnUnknownState(): void
     {
         $db     = $this->accountingDb();
         $itemId = $this->createTestItem();
@@ -140,7 +140,7 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
         $this->refused(static fn () => $db->table('stock_serials')->insert(['item_id' => $itemId, 'serial_number' => 'S-4', 'state' => 'sold', 'location_id' => 1]));
     }
 
-    public function testStockBatchQuantitiesRejectsANegativeQuantity(): void
+    public function testStockBatchQuantities_RejectsANegativeQuantity(): void
     {
         $db     = $this->accountingDb();
         $itemId = $this->createTestItem();
@@ -152,7 +152,7 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
         $this->refused(static fn () => $db->table('stock_batches')->insert(['item_id' => $itemId, 'batch_number' => 'B-1', 'expiry_date' => '2032-01-01']));
     }
 
-    public function testStockTrackingLinesNeedsExactlyOneOfASerialAndABatch(): void
+    public function testStockTrackingLines_RequiresExactlyOneOfASerialAndABatch(): void
     {
         $db     = $this->accountingDb();
         $itemId = $this->createTestItem();
@@ -160,7 +160,7 @@ final class StockUnitsAndTrackingMigrationTest extends CIUnitTestCase
         $this->refused(static fn () => $db->table('stock_tracking_lines')->insert(['source_type' => 'sale', 'source_id' => 1, 'line_no' => 1, 'movement' => 'sale', 'item_id' => $itemId, 'location_id' => 1, 'quantity' => '-1']));
     }
 
-    public function testDownRefusesOnceTrackingRecordsExist(): void
+    public function testDown_RefusesOnceTrackingRecordsExist(): void
     {
         $db     = $this->accountingDb();
         $itemId = $this->createTestItem();

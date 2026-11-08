@@ -22,7 +22,7 @@ final class UnitLineTest extends CIUnitTestCase
         }
     }
 
-    public function testConvertMultipliesTheQuantityAndDividesThePriceByTheFactor(): void
+    public function testConvert_MultipliesTheQuantityAndDividesThePriceByTheFactor(): void
     {
         $line = UnitLine::convert(7, '12', '3', '120', 1);
 
@@ -32,7 +32,7 @@ final class UnitLineTest extends CIUnitTestCase
         $this->assertSame(7, $line->unitId);
     }
 
-    public function testConvertAcceptsAFractionalQuantityThatConvertsToWholeThousandths(): void
+    public function testConvert_AcceptsAFractionalQuantityThatConvertsToWholeThousandths(): void
     {
         $line = UnitLine::convert(7, '12.5', '2.4', '125', 1);
 
@@ -40,7 +40,7 @@ final class UnitLineTest extends CIUnitTestCase
         $this->assertSame('10.00', $line->basePrice);
     }
 
-    public function testConvertAcceptsTheFinestQuantityThatStillConvertsExactly(): void
+    public function testConvert_AcceptsTheFinestQuantityThatStillConvertsExactly(): void
     {
         $line = UnitLine::convert(7, '0.001', '1', '0.01', 1);
 
@@ -48,12 +48,12 @@ final class UnitLineTest extends CIUnitTestCase
         $this->assertSame('10.00', $line->basePrice);
     }
 
-    public function testConvertRejectsAQuantityThatDoesNotConvertToWholeThousandths(): void
+    public function testConvert_RejectsAQuantityThatDoesNotConvertToWholeThousandths(): void
     {
         $this->refusedWith(AccountingError::UnitQuantityInexact, static fn (): UnitLine => UnitLine::convert(7, '0.0001', '1', '1', 4));
     }
 
-    public function testConvertRejectsAPriceThatDoesNotDivideToTheCent(): void
+    public function testConvert_RejectsAPriceThatDoesNotDivideToTheCent(): void
     {
         try {
             UnitLine::convert(7, '12', '1', '100', 3);
@@ -64,12 +64,12 @@ final class UnitLineTest extends CIUnitTestCase
         }
     }
 
-    public function testConvertAcceptsAPriceOfZero(): void
+    public function testConvert_AcceptsAPriceOfZero(): void
     {
         $this->assertSame('0.00', UnitLine::convert(7, '12', '1', '0', 1)->basePrice);
     }
 
-    public function testConvertKeepsTheSignOfAReturn(): void
+    public function testConvert_KeepsTheSignOfAReturn(): void
     {
         $line = UnitLine::convert(7, '12', '-2', '120', 1);
 
@@ -77,19 +77,19 @@ final class UnitLineTest extends CIUnitTestCase
         $this->assertSame('10.00', $line->basePrice);
     }
 
-    public function testConvertDividesACostToSixDecimalsWhenTheScaleIsGiven(): void
+    public function testConvert_DividesACostToSixDecimalsWhenTheScaleIsGiven(): void
     {
         $line = UnitLine::convert(7, '8', '1', '1', 1, UnitLine::COST_SCALE);
 
         $this->assertSame('0.125000', $line->basePrice);
     }
 
-    public function testConvertRejectsACostThatDoesNotDivideToSixDecimals(): void
+    public function testConvert_RejectsACostThatDoesNotDivideToSixDecimals(): void
     {
         $this->refusedWith(AccountingError::UnitPriceInexact, static fn (): UnitLine => UnitLine::convert(7, '3', '1', '1', 1, UnitLine::COST_SCALE));
     }
 
-    public function testBaseHasNoUnitAndAFactorOfOne(): void
+    public function testBase_HasNoUnitAndAFactorOfOne(): void
     {
         $line = UnitLine::base('5', '2.50');
 
@@ -99,7 +99,7 @@ final class UnitLineTest extends CIUnitTestCase
         $this->assertSame(['unit_id' => null, 'unit_factor' => null, 'unit_quantity' => null, 'unit_price_entered' => null], $line->columns('unit_price_entered'));
     }
 
-    public function testColumnsRememberTheUnitTheFactorAndWhatWasEntered(): void
+    public function testColumns_RemembersTheUnitTheFactorAndWhatWasEntered(): void
     {
         $columns = UnitLine::convert(7, '12', '2', '120', 1)->columns('unit_price_entered');
 
