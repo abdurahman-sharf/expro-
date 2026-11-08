@@ -115,9 +115,3 @@ npm run phone-pass -- --pages /tmp/pages [--widths 360,390,768] [--shots DIR] [-
 It exits with 1 when a page scrolls sideways or a table of the content scrolls sideways below 768 px, the breakpoint of the cards. `--css FILE` answers the request for `assets/css/app.css` with FILE, to measure the same pages with another stylesheet, such as the one of an earlier commit.
 
 It is not a live application: tables that Bootstrap loads by Ajax, dialogs and the behaviour of the server are not exercised, and `axe` is not run (it needs `npm install` in this folder and a live application: use `npm run smoke` for that).
-
-`picker.mjs` checks the search box that replaces the list of accounts, customers or suppliers on the accounting screens when there are more entries than the threshold (setting `accounting_picker_threshold`, 200 by default). It opens `resources/assets/js/45-accounting.js` on a page of its own in Chromium, left to right and right to left, with the server answered by a stub, and checks the combobox roles and states, the live region, the arrow keys, Enter, Escape, the click, the limit of twenty and the message that says there are more, a row added after the page loaded, and that `public/assets/js/app.js` holds the same code. It needs no application and no database. It exits with 1 on a failure.
-
-```sh
-npm run picker
-```

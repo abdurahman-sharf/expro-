@@ -127,6 +127,13 @@ try {
         check(`${label}Escape closes the list and keeps what was typed`, (await list.isHidden()) && (await input.inputValue()) === 'cas');
 
         await input.fill('');
+        await page.keyboard.type('cash');
+        await list.waitFor({ state: 'visible' });
+        await input.blur();
+        check(`${label}leaving the box closes the list`, (await list.isHidden()) && (await input.getAttribute('aria-expanded')) === 'false');
+        await input.focus();
+
+        await input.fill('');
         await page.keyboard.type('none');
         await page.waitForFunction(() => document.querySelector('[role=status]').textContent.includes('No results'));
         check(`${label}a search with no result says so and shows no list`, await list.isHidden());
