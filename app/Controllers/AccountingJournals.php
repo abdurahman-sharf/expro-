@@ -766,7 +766,7 @@ class AccountingJournals extends AccountingController
             'cutoffs'                 => $this->cutoffs($branches === [] ? [$branchId] : array_map(static fn (object $branch): int => (int) $branch->branch_id, $branches)),
             'accounts'                => $this->journals->postableAccounts(),
             'cost_centers'            => $costCenters,
-            'center_labels'           => $service->labels(),
+            'centerLabels'            => $service->labels(),
             'settings'                => (new JournalSettings())->all(),
             'defaults'                => $service->defaultsByAccount(),
             'decimals'                => (new Currencies())->baseDecimals(),

@@ -1,21 +1,21 @@
 <?php
 /**
- * @var object       $journal
- * @var list<object> $costCenters
- * @var string       $currency
- * @var string       $numberLabel
- * @var string       $version
- * @var string       $sourceLabel
- * @var bool         $showBranch
- * @var string|null  $notice
- * @var array<int, string> $centerLabels
+ * @var object                                                                                                            $journal
+ * @var list<object>                                                                                                      $costCenters
+ * @var string                                                                                                            $currency
+ * @var string                                                                                                            $numberLabel
+ * @var string                                                                                                            $version
+ * @var string                                                                                                            $sourceLabel
+ * @var bool                                                                                                              $showBranch
+ * @var string|null                                                                                                       $notice
+ * @var array<int, string>                                                                                                $centerLabels
  * @var array{allow_over_100: bool, cost_center_required: bool, automatic_default: bool, line_tags: bool, line_tax: bool} $settings
- * @var int          $decimals
- * @var string       $cap
+ * @var int                                                                                                               $decimals
+ * @var string                                                                                                            $cap
  */
-$format        = static fn (?string $value): string => to_currency_no_money($value ?? '0');
-$date          = static fn (?string $value): string => $value === null || strtotime($value) === false ? '' : to_date(strtotime($value));
-$jsonFlags     = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+$format    = static fn (?string $value): string => to_currency_no_money($value ?? '0');
+$date      = static fn (?string $value): string => $value === null || strtotime($value) === false ? '' : to_date(strtotime($value));
+$jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
 
 <?= view('partial/header') ?>

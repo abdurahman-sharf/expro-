@@ -50,10 +50,10 @@ class AccountingSetup extends AccountingController
     {
         parent::__construct('accounting_settings', false);
 
-        $this->settings = new AccountingSettings(null, null, $this->branchGuard());
-        $this->years    = new FiscalYearService(null, null, $this->branchGuard());
-        $this->controls = new SalesControlSettings();
-        $this->journalSettings = new JournalSettings(null, null, $this->branchGuard());
+        $this->settings          = new AccountingSettings(null, null, $this->branchGuard());
+        $this->years             = new FiscalYearService(null, null, $this->branchGuard());
+        $this->controls          = new SalesControlSettings();
+        $this->journalSettings   = new JournalSettings(null, null, $this->branchGuard());
         $this->shippingCompanies = new ShippingCompanies(null, null, $this->branchGuard());
     }
 
@@ -84,10 +84,10 @@ class AccountingSetup extends AccountingController
             'template_max'             => JournalDescriptionTemplate::MAX,
             'template_placeholders'    => array_map(static fn (string $name): string => '{' . $name . '}', JournalDescriptionTemplate::PLACEHOLDERS),
             'controls'                 => $this->controls->all(),
-            'journal_settings'         => $this->journalSettings->all(),
-            'shipping_enabled'         => $this->shippingCompanies->enabled(),
-            'shipping_companies'       => $this->shippingCompanies->all(),
-            'shipping_accounts'        => $this->shippingCompanies->accountChoices(),
+            'journalSettings'          => $this->journalSettings->all(),
+            'shippingEnabled'          => $this->shippingCompanies->enabled(),
+            'shippingCompanies'        => $this->shippingCompanies->all(),
+            'shippingAccounts'         => $this->shippingCompanies->accountChoices(),
             'controlLists'             => array_column(array_map(static fn (object $list): array => ['id' => (int) $list->price_list_id, 'name' => $list->name], model(Price_list::class)->allLists()), 'name', 'id'),
             'controlCategories'        => $this->controls->itemCategories(),
             'locked'                   => $this->settings->isLocked(),

@@ -1,30 +1,28 @@
 <?php
 /**
- * @var object|null $journal
- * @var list<object> $branches
- * @var int $branch_id
- * @var array<int, array{date: string, label: string}|null> $cutoffs
- * @var list<object> $accounts
- * @var list<object> $cost_centers
- * @var string $currency
- * @var bool $can_post
- * @var string|null $notice
- * @var list<array{id: int, name: string, size: string, by: string, at: string, url: string}> $attachments
- * @var bool $canAttach
- * @var bool $lineDescriptionRequired
+ * @var object|null                                                                                                       $journal
+ * @var list<object>                                                                                                      $branches
+ * @var int                                                                                                               $branch_id
+ * @var array<int, array{date: string, label: string}|null>                                                               $cutoffs
+ * @var list<object>                                                                                                      $accounts
+ * @var list<object>                                                                                                      $cost_centers
+ * @var string                                                                                                            $currency
+ * @var bool                                                                                                              $can_post
+ * @var string|null                                                                                                       $notice
+ * @var list<array{id: int, name: string, size: string, by: string, at: string, url: string}>                             $attachments
+ * @var bool                                                                                                              $canAttach
+ * @var bool                                                                                                              $lineDescriptionRequired
  * @var array{allow_over_100: bool, cost_center_required: bool, automatic_default: bool, line_tags: bool, line_tax: bool} $settings
- * @var array<int, list<array{cost_center_id: int, percent: string}>> $defaults The default distribution of the accounts that have one.
- * @var array<int, string> $center_labels
- * @var int $decimals
- * @var string $cap
+ * @var array<int, list<array{cost_center_id: int, percent: string}>>                                                     $defaults The default distribution of the accounts that have one.
+ * @var array<int, string>                                                                                                $centerLabels
+ * @var int                                                                                                               $decimals
+ * @var string                                                                                                            $cap
  */
-
-
-$isNew       = $journal === null;
-$journalId   = $isNew ? NEW_ENTRY : (int) $journal->journal_id;
-$lines       = $isNew ? [] : $journal->lines;
-$jsonFlags   = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
-$accountLabel = static fn (object $account): string => $account->code . ' - ' . $account->name;
+$isNew         = $journal === null;
+$journalId     = $isNew ? NEW_ENTRY : (int) $journal->journal_id;
+$lines         = $isNew ? [] : $journal->lines;
+$jsonFlags     = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+$accountLabel  = static fn (object $account): string => $account->code . ' - ' . $account->name;
 $accountLabels = [];
 
 foreach ($accounts as $account) {
@@ -54,7 +52,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
             <?= view('accounting_journals/line_more', ['name' => 'lines[__INDEX__]', 'analysis' => null, 'settings' => $settings]) ?>
         </td>
         <td data-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>">
-            <?= view('accounting_journals/line_charge', ['name' => 'lines[__INDEX__]', 'analysis' => null, 'centers' => $cost_centers, 'labels' => $center_labels, 'amount' => null]) ?>
+            <?= view('accounting_journals/line_charge', ['name' => 'lines[__INDEX__]', 'analysis' => null, 'centers' => $cost_centers, 'labels' => $centerLabels, 'amount' => null]) ?>
         </td>
         <td data-label="<?= esc(lang('Accounting_journals.debit'), 'attr') ?>">
             <input type="text" name="lines[__INDEX__][debit]" class="form-control form-control-sm ltr-input acc-debit" dir="ltr" inputmode="decimal" autocomplete="off" aria-label="<?= esc(lang('Accounting_journals.debit'), 'attr') ?>">
@@ -152,7 +150,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
                             <?= view('accounting_journals/line_more', ['name' => "lines[{$index}]", 'analysis' => $line?->analysis, 'settings' => $settings]) ?>
                         </td>
                         <td data-label="<?= esc(lang('Accounting_journals.cost_center'), 'attr') ?>">
-                            <?= view('accounting_journals/line_charge', ['name' => "lines[{$index}]", 'analysis' => $line?->analysis, 'centers' => $cost_centers, 'labels' => $center_labels, 'amount' => null]) ?>
+                            <?= view('accounting_journals/line_charge', ['name' => "lines[{$index}]", 'analysis' => $line?->analysis, 'centers' => $cost_centers, 'labels' => $centerLabels, 'amount' => null]) ?>
                         </td>
                         <td data-label="<?= esc(lang('Accounting_journals.debit'), 'attr') ?>">
                             <input type="text" name="lines[<?= $index ?>][debit]" class="form-control form-control-sm ltr-input acc-debit" dir="ltr" inputmode="decimal" autocomplete="off" value="<?= esc($amount($line?->debit), 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.debit'), 'attr') ?>">
@@ -190,11 +188,11 @@ $rows   = $lines === [] ? [null, null] : $lines;
     $(document).ready(function() {
         const journalId = <?= $journalId ?>;
         const text = <?= json_encode([
-            'balanced' => lang('Accounting_journals.balanced'),
-            'unbalanced' => lang('Accounting_journals.unbalanced'),
+            'balanced'       => lang('Accounting_journals.balanced'),
+            'unbalanced'     => lang('Accounting_journals.unbalanced'),
             'confirm_delete' => lang('Accounting_journals.confirm_delete_draft'),
-            'failed' => lang('Accounting_journals.request_failed'),
-            'closed' => lang('Accounting_journals.closed_until'),
+            'failed'         => lang('Accounting_journals.request_failed'),
+            'closed'         => lang('Accounting_journals.closed_until'),
         ], $jsonFlags) ?>;
         const cutoffs = <?= json_encode($cutoffs, $jsonFlags) ?>;
         const textRequired = <?= $lineDescriptionRequired ? 'true' : 'false' ?>;

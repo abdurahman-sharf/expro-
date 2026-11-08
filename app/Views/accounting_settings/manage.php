@@ -20,10 +20,10 @@
  * @var string $journal_description_purchases
  * @var list<string> $template_placeholders
  * @var int $template_max
- * @var array{allow_over_100: bool, cost_center_required: bool, automatic_default: bool, line_tags: bool, line_tax: bool} $journal_settings
- * @var bool $shipping_enabled
- * @var list<object> $shipping_companies
- * @var array<int, string> $shipping_accounts
+ * @var array{allow_over_100: bool, cost_center_required: bool, automatic_default: bool, line_tags: bool, line_tax: bool} $journalSettings
+ * @var bool $shippingEnabled
+ * @var list<object> $shippingCompanies
+ * @var array<int, string> $shippingAccounts
  * @var array{price_lists: bool, default_list: ?int, change_list: bool, minimum_price: bool, max_discount_enabled: bool, max_discount: ?string, exempt_categories: list<string>, credit_limit: bool, credit_period: bool} $controls
  * @var array<int, string> $controlLists
  * @var list<string> $controlCategories
@@ -302,7 +302,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                     <div class="field span-all">
                         <div class="form-check form-switch">
                             <input type="hidden" name="<?= $name ?>" value="0">
-                            <input type="checkbox" class="form-check-input" role="switch" name="<?= $name ?>" id="journal_<?= $name ?>" value="1"<?= $journal_settings[$name] ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
+                            <input type="checkbox" class="form-check-input" role="switch" name="<?= $name ?>" id="journal_<?= $name ?>" value="1"<?= $journalSettings[$name] ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
                             <label class="form-check-label" for="journal_<?= $name ?>"><?= lang('Accounting_settings.journal_' . $name) ?></label>
                         </div>
                         <p class="form-text"><?= lang('Accounting_settings.journal_' . $name . '_desc') ?></p>
@@ -325,7 +325,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         <form id="shipping_switch_form" class="app-form" novalidate>
             <div class="form-check form-switch">
                 <input type="hidden" name="enabled" value="0">
-                <input type="checkbox" class="form-check-input" role="switch" name="enabled" id="shipping_enabled" value="1"<?= $shipping_enabled ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
+                <input type="checkbox" class="form-check-input" role="switch" name="enabled" id="shipping_enabled" value="1"<?= $shippingEnabled ? ' checked' : '' ?><?= $can_manage ? '' : ' disabled' ?>>
                 <label class="form-check-label" for="shipping_enabled"><?= lang('Accounting_settings.shipping_enabled') ?></label>
             </div>
             <?php if ($can_manage): ?>
@@ -333,7 +333,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             <?php endif; ?>
         </form>
 
-        <?php if ($shipping_companies !== []): ?>
+        <?php if ($shippingCompanies !== []): ?>
             <table class="table table-sm mt-3" id="shipping_companies_table">
                 <thead>
                     <tr>
@@ -344,7 +344,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($shipping_companies as $company): ?>
+                    <?php foreach ($shippingCompanies as $company): ?>
                         <tr>
                             <td><?= esc($company->name) ?></td>
                             <td><?= $company->account_id === null ? esc(lang('Accounting_settings.shipping_company_no_account')) : '<bdi dir="ltr">' . esc($company->account_code) . '</bdi> ' . esc($company->account_name) ?></td>
@@ -376,7 +376,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                         <div class="field-control">
                             <select name="account_id" id="shipping_company_account" class="form-select form-select-sm">
                                 <option value=""><?= lang('Accounting_settings.shipping_company_no_account') ?></option>
-                                <?php foreach ($shipping_accounts as $accountId => $label): ?>
+                                <?php foreach ($shippingAccounts as $accountId => $label): ?>
                                     <option value="<?= (int) $accountId ?>"><?= esc($label) ?></option>
                                 <?php endforeach; ?>
                             </select>

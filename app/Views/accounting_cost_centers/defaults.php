@@ -1,12 +1,12 @@
 <?php
 /**
  * @var array<int, string>                    $accounts   The accounts a default can be set on, by id.
- * @var int                                   $account_id The account being set, or 0.
+ * @var int                                   $accountId The account being set, or 0.
  * @var list<array{id: int, percent: string}> $rows       Its default distribution now.
  * @var list<object>                          $centers    The cost centers that may be chosen.
  * @var array<int, string>                    $labels
  * @var list<object>                          $defaults   The accounts that have a default.
- * @var bool                                  $can_manage
+ * @var bool                                  $canManage
  */
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 ?>
@@ -22,12 +22,12 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         <select id="defaults_account" class="form-select form-select-sm">
             <option value=""><?= lang('Accounting_cost_centers.defaults_choose_account') ?></option>
             <?php foreach ($accounts as $id => $label): ?>
-                <option value="<?= (int) $id ?>"<?= $id === $account_id ? ' selected' : '' ?>><?= esc($label) ?></option>
+                <option value="<?= (int) $id ?>"<?= $id === $accountId ? ' selected' : '' ?>><?= esc($label) ?></option>
             <?php endforeach; ?>
         </select>
     </div>
 
-    <?php if ($account_id > 0): ?>
+    <?php if ($accountId > 0): ?>
         <form id="defaults_form" class="app-form" novalidate>
             <table class="table table-sm" id="defaults_table">
                 <thead>
@@ -47,7 +47,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                 </tfoot>
             </table>
 
-            <?php if ($can_manage): ?>
+            <?php if ($canManage): ?>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="defaults_add"><?= lang('Accounting_cost_centers.defaults_add_row') ?></button>
                 <button type="submit" class="btn btn-primary btn-sm"><?= lang('Common.submit') ?></button>
                 <p class="form-text"><?= lang('Accounting_cost_centers.defaults_rule') ?></p>
@@ -74,7 +74,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         const centers = <?= json_encode(array_map(static fn (object $center): array => ['id' => (int) $center->cost_center_id, 'label' => $center->code . ' - ' . $center->name], $centers), $jsonFlags) ?>;
         const labels = <?= json_encode($labels, $jsonFlags) ?>;
         const rows = <?= json_encode($rows, $jsonFlags) ?>;
-        const editable = <?= $can_manage ? 'true' : 'false' ?>;
+        const editable = <?= $canManage ? 'true' : 'false' ?>;
         const remove = <?= json_encode(lang('Accounting_cost_centers.defaults_remove_row'), $jsonFlags) ?>;
         const centerLabel = <?= json_encode(lang('Accounting_cost_centers.defaults_center'), $jsonFlags) ?>;
         const percentLabel = <?= json_encode(lang('Accounting_cost_centers.defaults_percent'), $jsonFlags) ?>;
@@ -154,7 +154,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         $('#defaults_form').on('submit', function(event) {
             event.preventDefault();
 
-            $.post('accounting_cost_centers/save_defaults/<?= (int) $account_id ?>', $(this).serialize(), function(response) {
+            $.post('accounting_cost_centers/save_defaults/<?= (int) $accountId ?>', $(this).serialize(), function(response) {
                 toast_support.show(response.message, response.success ? 'success' : 'danger');
                 if (response.success) {
                     window.setTimeout(function() {
