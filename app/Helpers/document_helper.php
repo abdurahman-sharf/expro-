@@ -97,6 +97,52 @@ function documentReturnLabels(array $sale): array
 }
 
 /**
+ * Describes what a slip of a sale shows: its title and the blocks of text it carries, a label and a
+ * text each. The slips carry no price and no tax: they go with the goods.
+ *
+ * @param array<string, mixed> $sale
+ *
+ * @return array{type: string, title: string, number: string, meta: array<int, array{0: string, 1: string}>, blocks: list<array{0: string, 1: string}>}
+ */
+function slipProfile(string $type, array $sale, array $config): array
+{
+    $number    = (string) ($sale['invoice_number'] ?? '');
+    $customer  = trim((string) ($sale['customer_info'] ?? ''));
+    $shipTo    = trim((string) ($sale['ship_to'] ?? '')) !== '' ? trim((string) $sale['ship_to']) : $customer;
+    $company   = trim(implode("\n", array_filter([(string) ($config['company'] ?? ''), documentCompanyInfo($config)], static fn (string $line): bool => $line !== '')));
+    $locations = [];
+
+    foreach ($sale['cart'] ?? [] as $line) {
+        if (! empty($line['stock_name'])) {
+            $locations[(string) $line['stock_name']] = true;
+        }
+    }
+
+    $blocks = match ($type) {
+        'pick_list'      => [[lang('Documents.warehouse'), implode("\n", array_keys($locations))]],
+        'shipping_label' => [[lang('Documents.from'), $company], [lang('Documents.ship_to'), $shipTo]],
+        default          => [[lang('Documents.invoice_to'), $customer], [lang('Documents.ship_to'), $shipTo]],
+    };
+
+    $meta = [
+        [lang('Sales.invoice_number'), $number !== '' ? $number : (string) ($sale['sale_id'] ?? '')],
+        [lang('Common.date'), (string) ($sale['transaction_date'] ?? '')],
+    ];
+
+    if ((string) ($sale['employee'] ?? '') !== '') {
+        $meta[] = [lang('Sales.employee'), (string) $sale['employee']];
+    }
+
+    return [
+        'type'   => $type,
+        'title'  => lang('Documents.' . $type),
+        'number' => $number !== '' ? $number : (string) ($sale['sale_id'] ?? ''),
+        'meta'   => $meta,
+        'blocks' => array_values(array_filter($blocks, static fn (array $block): bool => trim($block[1]) !== '')),
+    ];
+}
+
+/**
  * Describes what the purchase invoice of a receiving shows: its title (a debit note when the goods went back
  * to the supplier), its number and the rows next to it.
  *

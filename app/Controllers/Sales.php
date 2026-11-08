@@ -29,16 +29,16 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\HeaderCharges;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountProblem;
-use App\Libraries\Numbering\DocumentNumbering;
-use App\Libraries\Numbering\DocumentType;
-use App\Libraries\Organization\BranchException;
-use App\Libraries\Organization\BranchGuard;
-use App\Libraries\Pdf_lib;
 use App\Libraries\Documents\CustomFields;
 use App\Libraries\Documents\CustomFieldType;
 use App\Libraries\Documents\DocumentException;
 use App\Libraries\Documents\RendersPdf;
 use App\Libraries\Documents\VoucherDocuments;
+use App\Libraries\Numbering\DocumentNumbering;
+use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Pdf_lib;
 use App\Libraries\Pricing\PriceControls;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\Roles\RecordScope;
@@ -456,10 +456,6 @@ class Sales extends Secure_Controller
     }
 
     /**
-     * Keeps the extra fields of the invoice that was just saved. The values were checked before the
-     * invoice was saved; a failure here is logged and leaves the invoice as it was saved.
-     */
-    /**
      * The extra fields of the invoice and of its items that print on its documents.
      *
      * @param array<int|string, array<string, mixed>> $cart
@@ -480,6 +476,10 @@ class Sales extends Secure_Controller
         ];
     }
 
+    /**
+     * Keeps the extra fields of the invoice that was just saved. The values were checked before the
+     * invoice was saved; a failure here is logged and leaves the invoice as it was saved.
+     */
     private function keepCustomFields(mixed $saleId, bool $requireValues = true): void
     {
         if (!is_int($saleId) || $saleId <= 0) {
@@ -2125,18 +2125,18 @@ class Sales extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
-        if (!in_array($type, [...documentTypes(), 'receipt'], true)) {
+        if (!in_array($type, [...documentTypes(), ...slipTypes(), 'receipt'], true)) {
             return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
         $saleData = $this->_load_sale_data($saleId);
         $this->sale_lib->clear_all();
 
-        if ($this->isNotCreditNote($type, $saleData)) {
+        if ($this->documentRefused($type, $saleData)) {
             return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
-        $number = $type === 'receipt' ? '' : documentProfile($type, $saleData)['number'];
+        $number = $type === 'receipt' ? '' : (in_array($type, slipTypes(), true) ? (string) ($saleData['invoice_number'] ?? '') : documentProfile($type, $saleData)['number']);
 
         try {
             $pdf = $this->renderPdf($type, $saleData);
@@ -2178,7 +2178,7 @@ class Sales extends Secure_Controller
 
         $saleData = $this->_load_sale_data($saleId);
 
-        if ($this->isNotCreditNote($type, $saleData)) {
+        if ($this->documentRefused($type, $saleData)) {
             $this->sale_lib->clear_all();
 
             return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
@@ -2289,28 +2289,37 @@ class Sales extends Secure_Controller
             return redirect()->to('no_access/sales/reports_sales');
         }
 
-        if (!in_array($type, documentTypes(), true)) {
+        if (!in_array($type, [...documentTypes(), ...slipTypes()], true)) {
             throw PageNotFoundException::forPageNotFound();
         }
 
         $data = $this->_load_sale_data($saleId);
         $this->sale_lib->clear_all();
 
-        if ($this->isNotCreditNote($type, $data)) {
+        if ($this->documentRefused($type, $data)) {
             throw PageNotFoundException::forPageNotFound();
         }
 
-        return view('sales/document_print', ['type' => $type, 'sale' => $data, 'sale_id_num' => $saleId, 'customer_email' => $data['customer_email'] ?? '']);
+        return view('sales/document_print', ['type' => $type, 'sale' => $data, 'sale_id_num' => $saleId, 'customer_email' => in_array($type, slipTypes(), true) ? '' : ($data['customer_email'] ?? '')]);
     }
 
     /**
-     * A credit note is the print of a return: the print of any other sale under that name is refused.
+     * Whether a document is refused for a sale. A credit note is the print of a return, and the slips that
+     * go with the goods are for a completed sale or invoice of goods: not for a return, a quote or a work order.
      *
      * @param array<string, mixed> $saleData
      */
-    private function isNotCreditNote(string $type, array $saleData): bool
+    private function documentRefused(string $type, array $saleData): bool
     {
-        return $type === 'credit_note' && empty($saleData['is_return']);
+        if ($type === 'credit_note') {
+            return empty($saleData['is_return']);
+        }
+
+        if (in_array($type, slipTypes(), true)) {
+            return !in_array((int) ($saleData['sale_type'] ?? -1), [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) || (int) ($saleData['sale_status'] ?? -1) !== COMPLETED;
+        }
+
+        return false;
     }
 
     private function renderPdf(string $type, array $saleData): string
@@ -2323,12 +2332,16 @@ class Sales extends Secure_Controller
             return $pdfLib->render(view('sales/receipt_email', $saleData), ['format' => 'A5', 'title' => lang('Sales.receipt')]);
         }
 
+        if (in_array($type, slipTypes(), true)) {
+            return $pdfLib->render(view('documents/slip_pdf', ['type' => $type, 'sale' => $saleData]), ['title' => lang('Documents.' . $type)]);
+        }
+
         return $pdfLib->render(view('documents/pdf', ['type' => $type, 'sale' => $saleData]), ['title' => lang('Sales.' . $type)]);
     }
 
     private function documentFilename(string $type, string $number): string
     {
-        $name = trim(lang('Sales.' . $type) . ' ' . $number);
+        $name = trim(lang(in_array($type, slipTypes(), true) ? 'Documents.' . $type : 'Sales.' . $type) . ' ' . $number);
 
         return preg_replace('~[\\\\/:*?"<>|\x00-\x1f]+~u', '-', $name) . '.pdf';
     }
@@ -2471,6 +2484,7 @@ class Sales extends Secure_Controller
         $data['sale_time_raw'] = (string) $saleInfo['sale_time'];
         $data['invoice_date_raw'] = $timing['invoice_date'] ?? null;
         $data['is_return'] = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS) === SALE_TYPE_RETURN;
+        $data['sale_type'] = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS);
         $data['due_date'] = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
         $data['show_stock_locations'] = $this->stock_location->show_locations('sales', true);
 

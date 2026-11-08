@@ -8668,6 +8668,40 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame([$po => 'PO-5'], Services::session()->get('sales_custom_fields'));
     }
 
+    public function testPostSuspend_KeepsTheValuesTypedForTheExtraFieldsOfTheSaleSetAside(): void
+    {
+        $fields  = new CustomFields();
+        $note    = $fields->create('sale', ['name' => 'Delivery note', 'type' => 'text'], null);
+        $cashier = $this->createCashierEmployee();
+
+        $this->loginAs($cashier);
+        $this->seedCartLine(1, '100.00', $this->createTestItem(HAS_NO_STOCK));
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice', 'sales_custom_fields' => [$note => 'DN-12']]));
+
+        $this->post('/sales/suspend');
+
+        $this->assertSame([$note => 'DN-12'], $fields->valuesOf('sale', $this->newestSaleId()));
+    }
+
+    public function testRenderPdfHtml_PrintsALegacyInvoiceWithoutAnyOfTheNewBlocks(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['tax_id' => '', 'document_terms_invoice' => '']);
+
+        try {
+            $html = view('documents/pdf', ['type' => 'invoice', 'sale' => $this->savedSaleData($invoice['saleId'])]);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        foreach (['class="doc-qr"', 'class="doc-terms"', 'doc-extra-fields"', 'doc-item-extra"', 'doc-qr-notice'] as $block) {
+            $this->assertStringNotContainsString($block, $html, $block);
+        }
+
+        $this->assertStringContainsString('class="doc-grand"', $html);
+    }
+
     public function testGetIndex_AsksForTheExtraFieldsOfInvoicesInTheRegisterAndForNoOtherKind(): void
     {
         $fields = new CustomFields();
@@ -8738,5 +8772,169 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
 
         $this->assertStringContainsString(documentIsolate(to_currency((string) $after['total'])), view('documents/pdf', ['type' => 'invoice', 'sale' => $after]));
+    }
+
+    public function testGetPrint_PrintsThePackingSlipWithItsItemsAndQuantitiesAndNoPriceOrTax(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $data = $this->savedSaleData($invoice['saleId']);
+
+        $response = $this->get('/sales/print/' . $invoice['saleId'] . '/packing_slip');
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Documents.packing_slip'));
+        $response->assertSee(lang('Documents.invoice_to'));
+        $response->assertSee(lang('Documents.ship_to'));
+        $response->assertSee(lang('Sales.item_name'));
+        $response->assertSee(lang('Sales.quantity'));
+        $response->assertSee($data['cart'][array_key_first($data['cart'])]['name']);
+        $response->assertDontSee(lang('Sales.price'));
+        $response->assertDontSee(lang('Sales.sub_total'));
+        $response->assertDontSee(lang('Sales.total'));
+        $response->assertDontSee(to_currency((string) $data['total']));
+    }
+
+    public function testGetPrint_PrintsThePickListNamingTheWarehouse(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/print/' . $invoice['saleId'] . '/pick_list');
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Documents.pick_list'));
+        $response->assertSee(lang('Documents.warehouse'));
+        $response->assertDontSee(lang('Documents.invoice_to'));
+    }
+
+    public function testGetPrint_PrintsTheShippingLabelWithTheShopAsTheSenderAndTheShipToBlock(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'Opes Trading', 'receipt_show_company_name' => '1']);
+
+        try {
+            $response = $this->get('/sales/print/' . $invoice['saleId'] . '/shipping_label');
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Documents.shipping_label'));
+        $response->assertSee(lang('Documents.from'));
+        $response->assertSee('Opes Trading');
+        $response->assertSee(lang('Documents.ship_to'));
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function slipProvider(): array
+    {
+        return ['the packing slip' => ['packing_slip'], 'the pick list' => ['pick_list'], 'the shipping label' => ['shipping_label']];
+    }
+
+    #[DataProvider('slipProvider')]
+    public function testGetPdf_ReturnsAPdfForEachSlipWithTheInvoiceNumberInItsName(string $slip): void
+    {
+        $this->startSelling();
+        $this->switchOn(DocumentType::SalesInvoice, 'INV-', 5);
+        $cycle   = $this->referenceInvoice();
+        $invoice = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/pdf/' . $invoice . '/' . $slip);
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->response()->getBody());
+        $this->assertStringContainsString(rawurlencode(lang('Documents.' . $slip) . ' INV-00001') . '.pdf', $response->response()->getHeaderLine('Content-Disposition'));
+    }
+
+    #[DataProvider('slipProvider')]
+    public function testGetPrint_RefusesASlipForAReturnAndAnUnknownSale(string $slip): void
+    {
+        $invoice = $this->postedInvoice();
+        $note    = $this->creditNoteOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/pdf/' . $note . '/' . $slip)->assertStatus(404);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/print/' . $note . '/' . $slip);
+    }
+
+    #[DataProvider('slipProvider')]
+    public function testGetPrint_HidesTheSlipOfABranchTheEmployeeDoesNotWorkIn(string $slip): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor($this->createSecondBranch()));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/print/' . $invoice['saleId'] . '/' . $slip);
+    }
+
+    #[DataProvider('slipProvider')]
+    public function testGetPdf_RefusesASlipToAnEmployeeWithoutReportsSales(string $slip): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createCashierEmployee());
+
+        $this->get('/sales/pdf/' . $invoice['saleId'] . '/' . $slip)->assertStatus(403);
+        $this->get('/sales/print/' . $invoice['saleId'] . '/' . $slip)->assertRedirect();
+    }
+
+    #[DataProvider('slipProvider')]
+    public function testGetSendPdf_NeverEmailsASlip(string $slip): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/sendPdf/' . $invoice['saleId'] . '/' . $slip)->assertStatus(404);
+    }
+
+    public function testRenderSlip_EscapesTheCustomerTheShipToAndTheItems(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $data                  = $this->savedSaleData($invoice['saleId']);
+        $data['customer_info'] = '<script>alert(1)</script> Customer';
+        $data['ship_to']       = '<img src=x onerror=alert(2)>';
+
+        $html = view('documents/slip_pdf', ['type' => 'packing_slip', 'sale' => $data]);
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
+        $this->assertStringNotContainsString('<img src=x', $html);
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt; Customer', $html);
+        $this->assertStringContainsString('&lt;img src=x onerror=alert(2)&gt;', $html);
+    }
+
+    public function testGetPrint_AndPdfOfASlipChangeNoRowOfTheBooksNorOfTheSale(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->databaseFingerprint();
+
+        foreach (['packing_slip', 'pick_list', 'shipping_label'] as $slip) {
+            $this->get('/sales/print/' . $invoice['saleId'] . '/' . $slip)->assertStatus(200);
+            $this->get('/sales/pdf/' . $invoice['saleId'] . '/' . $slip)->assertStatus(200);
+        }
+
+        $this->assertDatabaseUnchanged($before, 'Printing a slip changed a row.');
+    }
+
+    public function testGetInvoice_OffersTheThreeSlipsToAnEmployeeWithReportsSales(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $body = $this->get('/sales/invoice/' . $invoice['saleId'])->getBody();
+
+        foreach (['packing_slip', 'pick_list', 'shipping_label'] as $slip) {
+            $this->assertStringContainsString('id="show_' . $slip . '_button"', $body, $slip);
+        }
     }
 }

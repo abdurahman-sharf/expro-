@@ -41,6 +41,6 @@ $canPdf = model(Employee::class)->has_grant('reports_sales', session('person_id'
     ['id' => 'show_takings_button', 'label' => lang('Sales.takings'), 'icon' => 'bi-card-list', 'href' => 'sales/manage'],
 ]))]) ?>
 
-<?= view('documents/document', ['type' => $type, 'context' => 'screen', 'sale' => $sale]) ?>
+<?= view(in_array($type, slipTypes(), true) ? 'documents/slip' : 'documents/document', ['type' => $type, 'context' => 'screen', 'sale' => $sale]) ?>
 
 <?= view('partial/footer') ?>

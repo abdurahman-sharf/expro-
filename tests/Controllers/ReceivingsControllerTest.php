@@ -4,6 +4,7 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Documents\CustomFields;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
@@ -3646,6 +3647,42 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $response->assertSee(to_currency('200.00'));
         $response->assertSee(lang('Sales.amount_due'));
         $response->assertSee(to_currency('300.00'));
+    }
+
+    public function testGetPrint_CountsOnlyCompletedPaymentsAsPaidOnThePurchaseInvoice(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->payPurchase($receiving, '200.00');
+        $this->payPurchase($receiving, '100.00', null, 'draft');
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/print/' . $receiving)->getBody();
+
+        $this->assertStringContainsString(documentIsolate(to_currency('200.00')), $body);
+        $this->assertStringContainsString(documentIsolate(to_currency('300.00')), $body);
+        $this->assertStringNotContainsString(documentIsolate(to_currency('400.00')), $body);
+    }
+
+    public function testGetPrint_PrintsTheExtraFieldsOfTheProductsOnThePurchaseInvoice(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $itemId    = (int) $this->accountingDb()->table('receivings_items')->where('receiving_id', $receiving)->get()->getRow()->item_id;
+        $fields    = new CustomFields();
+        $colour    = $fields->create('item', ['name' => 'Colour', 'type' => 'text', 'printable' => '1'], null);
+        $fields->save('item', $itemId, [$colour => 'Rose <b>pink</b>']);
+        $this->loginAs($this->buyer());
+
+        try {
+            $body = $this->get('/receivings/print/' . $receiving)->getBody();
+        } finally {
+            $this->accountingDb()->query('SET FOREIGN_KEY_CHECKS = 0');
+            $this->accountingDb()->table('custom_field_values')->truncate();
+            $this->accountingDb()->table('custom_fields')->truncate();
+            $this->accountingDb()->query('SET FOREIGN_KEY_CHECKS = 1');
+            $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'custom_field')->delete();
+        }
+
+        $this->assertStringContainsString('Colour: Rose &lt;b&gt;pink&lt;/b&gt;', $body);
     }
 
     public function testGetPrint_CarriesNoCodeAndNoSalesWordsOnAPurchaseInvoiceEvenWithATaxNumber(): void

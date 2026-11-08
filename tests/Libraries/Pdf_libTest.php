@@ -69,4 +69,45 @@ class Pdf_libTest extends CIUnitTestCase
 
         $this->assertSame(['file'], $engine->whitelistStreamWrappers);
     }
+
+    public function testRender_BreaksALongTableOverSeveralPagesAndKeepsEveryRowTogether(): void
+    {
+        $rows = '';
+
+        foreach (range(1, 160) as $number) {
+            $rows .= '<tr><td>' . $number . '</td><td>بند رقم ' . $number . '</td><td>' . number_format($number * 1.5, 2) . '</td></tr>';
+        }
+
+        $one  = $this->pdf->render('<table style="width: 100%;"><tr><td>1</td></tr></table>');
+        $many = $this->pdf->render('<style>tr { page-break-inside: avoid; }</style><table style="width: 100%;">' . $rows . '</table>', ['rtl' => true]);
+
+        $this->assertSame(1, preg_match_all('/\/Type \/Page\b/', $one));
+        $this->assertGreaterThan(2, preg_match_all('/\/Type \/Page\b/', $many));
+    }
+
+    public function testRender_UsesTheMarginsGivenInMillimetres(): void
+    {
+        $narrow = $this->pdf->render('<p>x</p>', ['margins' => ['top' => 5.0, 'right' => 5.0, 'bottom' => 5.0, 'left' => 5.0]]);
+        $wide   = $this->pdf->render('<p>x</p>', ['margins' => ['top' => 40.0, 'right' => 40.0, 'bottom' => 40.0, 'left' => 40.0]]);
+
+        $this->assertStringStartsWith('%PDF-', $narrow);
+        $this->assertStringStartsWith('%PDF-', $wide);
+        $this->assertNotSame($narrow, $wide);
+    }
+
+    public function testRender_PutsTheTitleInTheDocumentInformation(): void
+    {
+        $output = $this->pdf->render('<p>x</p>', ['title' => 'Voucher 7']);
+
+        $this->assertStringContainsString('/Title', $output);
+        $this->assertStringContainsString(bin2hex(mb_convert_encoding('Voucher 7', 'UTF-16BE', 'UTF-8')), strtolower(bin2hex($output)));
+    }
+
+    public function testRender_WritesNoRemoteAddressThatTheDocumentAsked(): void
+    {
+        $output = $this->pdf->render('<p>x</p><a href="https://example.test/track">link</a><img src="https://example.test/a.png">');
+
+        $this->assertStringStartsWith('%PDF-', $output);
+        $this->assertStringNotContainsString('example.test/a.png', $output);
+    }
 }
