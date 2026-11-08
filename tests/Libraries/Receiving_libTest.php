@@ -272,4 +272,45 @@ class Receiving_libTest extends CIUnitTestCase
 
         $this->assertNull(session()->get('recv_invoice_discount'));
     }
+
+    public function testGetOrderSource_IsNothingUntilAnOrderIsSetAndTakesItBackWhenSetEmptyOrCleared(): void
+    {
+        $this->assertNull($this->receivingLib->getOrderSource());
+
+        $this->receivingLib->setOrderSource(7);
+
+        $this->assertSame(7, $this->receivingLib->getOrderSource());
+
+        $this->receivingLib->setOrderSource(null);
+
+        $this->assertNull($this->receivingLib->getOrderSource());
+
+        $this->receivingLib->setOrderSource(9);
+        $this->receivingLib->clearOrderSource();
+
+        $this->assertNull($this->receivingLib->getOrderSource());
+    }
+
+    public function testClearAll_ForgetsThePurchaseOrderTheReceivingWasConvertedFromSoTheNextReceivingIsNotTakenForIt(): void
+    {
+        $this->receivingLib->setOrderSource(7);
+        $this->receivingLib->clear_all();
+
+        $this->assertNull($this->receivingLib->getOrderSource());
+    }
+
+    public function testPrepareReceivingFromOrder_StartsFromAnEmptyRegisterAndRemembersTheOrderTheSupplierAndTheMode(): void
+    {
+        $this->receivingLib->set_mode('return');
+        $this->receivingLib->set_comment('left over');
+        $this->receivingLib->setOrderSource(3);
+
+        $this->receivingLib->prepareReceivingFromOrder(11, 5, 1, []);
+
+        $this->assertSame(11, $this->receivingLib->getOrderSource());
+        $this->assertSame(5, $this->receivingLib->get_supplier());
+        $this->assertSame('receive', $this->receivingLib->get_mode());
+        $this->assertSame('', $this->receivingLib->get_comment());
+        $this->assertSame([], $this->receivingLib->get_cart());
+    }
 }

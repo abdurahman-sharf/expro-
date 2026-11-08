@@ -7,6 +7,8 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
+use App\Libraries\PurchaseCycle\PurchaseDocumentStatus;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -21,6 +23,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\PurchaseCycleFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use App\Libraries\Roles\DefaultLocations;
@@ -39,6 +42,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use PurchaseCycleFixtureTrait;
     use RoleFixtureTrait;
 
     protected $migrate     = true;
@@ -61,6 +65,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopCycle();
         $this->stopBuying();
 
         $db = $this->accountingDb();
@@ -3624,5 +3629,70 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $this->assertNotSame($other, (int) Services::session()->get('recv_stock_source'), 'A location the employee holds no permission for is never preselected');
         $this->assertContains((int) Services::session()->get('recv_stock_source'), [1, $depot], 'The screen starts in one of the locations the employee may receive into, as it always did');
+    }
+
+    public function testGetIndex_ShowsThePurchaseOrderTheRegisterWasFilledFromAndNothingWhenItWasNot(): void
+    {
+        $this->startCycle();
+
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order);
+
+        $this->loginAs($this->buyer(), [...$this->cart([$this->cartLine($this->goods, 1, '2', '4.00')]), 'recv_order_source' => $orderId]);
+
+        $this->get('/receivings')->assertSee('id="order_source_banner"');
+
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($this->goods, 1, '2', '4.00')]));
+
+        $this->get('/receivings')->assertDontSee('id="order_source_banner"');
+    }
+
+    public function testPostComplete_TakesTheUnitsFromThePurchaseOrderTheRegisterWasFilledFromAndForgetsIt(): void
+    {
+        $this->startCycle();
+
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order);
+
+        $this->loginAs($this->buyer(), [...$this->cart([$this->cartLine($this->goods, 1, '4', '4.00')]), 'recv_order_source' => $orderId]);
+
+        $this->post('/receivings/complete', $this->completeForm())->assertSee('RECV ');
+
+        $this->assertSame(PurchaseDocumentStatus::PartlyReceived, $this->documentsOf(PurchaseDocumentKind::Order)->statusOf($orderId));
+        $this->assertSame('4.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
+        $this->assertNull(session()->get('recv_order_source'));
+        $this->assertSame('4.000', $this->onHand($this->goods));
+    }
+
+    public function testPostComplete_SaysWhyThePurchaseOrderRefusedTheReceivingAndKeepsTheCartAndTheOrder(): void
+    {
+        $this->startCycle();
+
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order);
+        $before  = $this->countRows('receivings');
+
+        $this->loginAs($this->buyer(), [...$this->cart([$this->cartLine($this->goods, 1, '11', '4.00')]), 'recv_order_source' => $orderId]);
+
+        $page = $this->post('/receivings/complete', $this->completeForm());
+
+        $page->assertSee(lang('Accounting.error_purchase_order_quantity_exceeded', ['10.000', (string) $this->accountingDb()->table('items')->where('item_id', $this->goods)->get()->getRow()->name]));
+        $this->assertSame($before, $this->countRows('receivings'));
+        $this->assertSame($orderId, session()->get('recv_order_source'), 'the register keeps the order so the quantity can be corrected');
+        $this->assertSame('0.000', $this->onHand($this->goods));
+    }
+
+    public function testPostChangeMode_ForgetsThePurchaseOrderWhenTheModeIsNotReceive(): void
+    {
+        $this->startCycle();
+
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order);
+
+        $this->loginAs($this->buyer(), [...$this->cart([$this->cartLine($this->goods, 1, '2', '4.00')]), 'recv_order_source' => $orderId]);
+
+        $this->post('/receivings/changeMode', ['mode' => 'receive'])->assertStatus(200);
+        $this->assertSame($orderId, session()->get('recv_order_source'), 'staying in receive mode keeps the order');
+
+        $this->withSession();
+        $this->post('/receivings/changeMode', ['mode' => 'return'])->assertStatus(200);
+
+        $this->assertNull(session()->get('recv_order_source'));
     }
 }
