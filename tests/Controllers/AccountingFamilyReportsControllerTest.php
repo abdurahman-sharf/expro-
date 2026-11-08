@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\FamilyReports\ChartReport;
 use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
 use App\Libraries\Accounting\JournalService;
@@ -404,5 +405,79 @@ final class AccountingFamilyReportsControllerTest extends FamilyReportTestCase
 
         $response->assertSee('supplier_id=' . $ids['second']);
         $this->assertSame('100.0000', $this->csvCell($this->get('/accounting_reports/purchases/csv?from=' . $this->today() . '&to=' . $this->today() . '&supplier_id=' . $ids['second']), lang('Accounting_family_reports.total'), 4));
+    }
+
+    public function testGetCsv_GivesTheCostCenterReportWithItsGroupsTotalsAndTies(): void
+    {
+        $centers = new CostCenterService();
+        $first   = $centers->create(['code' => 'A', 'name' => 'Alpha']);
+        $second  = $centers->create(['code' => 'B', 'name' => 'Beta']);
+        $input   = $this->journalInput('100.00');
+
+        $input['date']                     = $this->today();
+        $input['lines'][1]['distribution'] = [['cost_center_id' => $first, 'percent' => '60'], ['cost_center_id' => $second, 'percent' => '40']];
+
+        (new JournalService())->postNew($input);
+
+        $this->viewer($this->everyReportPermission());
+
+        $day  = '?from=' . $this->today() . '&to=' . $this->today();
+        $rows = $this->csvRows($this->get('/accounting_reports/cost_centers/csv' . $day));
+        $text = static fn (string $key): string => lang('Accounting_family_reports.' . $key);
+
+        $this->assertSame([$text('cost_centers_title')], $rows[0]);
+        $this->assertSame([$text('col_cost_center'), $text('col_main_center'), $text('col_account'), $text('col_debit'), $text('col_credit'), $text('col_balance')], $rows[1]);
+        $this->assertContains('A - Alpha', array_column($rows, 0));
+        $this->assertContains('B - Beta', array_column($rows, 0));
+        $this->assertContains($text('cost_center_none'), array_column($rows, 0));
+        $this->assertEqualsWithDelta(100.0, $this->grandFromCsv($this->get('/accounting_reports/cost_centers/csv' . $day), 'cost_centers', 'credit'), 0.001);
+        $this->assertEqualsWithDelta(100.0, $this->grandFromCsv($this->get('/accounting_reports/cost_centers/csv' . $day), 'cost_centers', 'debit'), 0.001);
+
+        $ties = array_values(array_filter($rows, static fn (array $row): bool => in_array($row[0], [$text('tie_cc_debit'), $text('tie_cc_credit')], true)));
+
+        $this->assertCount(2, $ties);
+
+        foreach ($ties as $tie) {
+            $this->assertSame($tie[1], $tie[2]);
+            $this->assertEqualsWithDelta(0.0, (float) $tie[3], 0.00001);
+        }
+    }
+
+    public function testGetShow_OpensTheCostCenterReportOnlyToWhoHoldsTheModuleOfTheReportsAndThePermissionOfTheCostCenters(): void
+    {
+        $this->viewer(['accounting_reports']);
+        $this->get('/accounting_reports/cost_centers')->assertRedirect();
+
+        $this->viewer(['accounting_cost_centers']);
+        $this->get('/accounting_reports/cost_centers')->assertRedirect();
+
+        $this->viewer(['accounting_reports', 'accounting_cost_centers']);
+        $this->get('/accounting_reports/cost_centers')->assertStatus(200);
+        $this->get('/accounting_reports/cost_centers/csv')->assertStatus(200);
+    }
+
+    public function testGetShow_CutsTheCostCenterReportDownToTheBranchesTheEmployeeWorksInWhateverTheRequestNames(): void
+    {
+        $branch = $this->createBranch('CCR', 'Cost center branch');
+        $center = (new CostCenterService())->create(['code' => 'A', 'name' => 'Alpha']);
+        $input  = $this->journalInput('100.00');
+
+        $input['date']                           = $this->today();
+        $input['lines'][1]['cost_center_id']     = $center;
+        (new JournalService())->postNew($input);
+        (new JournalService())->postNew($input + ['branch_id' => $branch]);
+
+        $day = '?from=' . $this->today() . '&to=' . $this->today();
+
+        $this->viewer($this->everyReportPermission(), [$branch]);
+
+        $limited = $this->grandFromCsv($this->get('/accounting_reports/cost_centers/csv' . $day . '&branches[]=1&branches[]=' . $branch), 'cost_centers', 'credit');
+
+        $this->viewer($this->everyReportPermission());
+
+        $everyone = $this->grandFromCsv($this->get('/accounting_reports/cost_centers/csv' . $day), 'cost_centers', 'credit');
+
+        $this->assertEqualsWithDelta(100.0, $limited, 0.001);
+        $this->assertEqualsWithDelta(200.0, $everyone, 0.001);
     }
 }

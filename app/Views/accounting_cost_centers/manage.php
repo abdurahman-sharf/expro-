@@ -48,6 +48,9 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 </script>
 
 <div id="title_bar" class="print_hide btn-toolbar">
+    <a class="btn btn-outline-secondary btn-sm float-end" href="<?= esc(base_url('accounting_cost_centers/defaults'), 'attr') ?>">
+        <span class="bi bi-diagram-3" aria-hidden="true">&nbsp;</span><?= lang('Accounting_cost_centers.defaults_link') ?>
+    </a>
     <?php if ($can_manage): ?>
         <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="accounting_cost_centers/view" title="<?= lang('Accounting_cost_centers.new') ?>">
             <span class="bi bi-plus-lg" aria-hidden="true">&nbsp;</span><?= lang('Accounting_cost_centers.new') ?>

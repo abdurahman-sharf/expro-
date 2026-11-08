@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\JournalSettings;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -37,6 +38,7 @@ class CostCenterServiceTest extends CIUnitTestCase
 
         $this->reinstallChart();
         $this->setConfigValue('accounting_base_currency', 'SAR');
+        $this->resetJournalSettings();
         $this->service = new CostCenterService();
     }
 
@@ -302,6 +304,335 @@ class CostCenterServiceTest extends CIUnitTestCase
         $this->expectException(BranchException::class);
 
         $this->service->delete($costCenterId, $this->limitedCostCenterManager());
+    }
+
+    /**
+     * @return array{0: int, 1: int, 2: int}
+     */
+    private function threeCenters(): array
+    {
+        return [
+            $this->service->create(['code' => 'A', 'name' => 'Alpha']),
+            $this->service->create(['code' => 'B', 'name' => 'Beta']),
+            $this->service->create(['code' => 'C', 'name' => 'Gamma']),
+        ];
+    }
+
+    public function testDistribute_PutsTheRoundingRemainderOnTheLargestShareOfAThreeWaySplit(): void
+    {
+        [$a, $b, $c] = $this->threeCenters();
+
+        $shares = $this->service->distribute([
+            ['cost_center_id' => $a, 'percent' => '33.3333'],
+            ['cost_center_id' => $b, 'percent' => '33.3333'],
+            ['cost_center_id' => $c, 'percent' => '33.3334'],
+        ], '100.0000');
+
+        $this->assertSame(['33.3300', '33.3300', '33.3400'], array_column($shares, 'amount'));
+        $this->assertSame('100.0000', bcadd(bcadd($shares[0]['amount'], $shares[1]['amount'], 4), $shares[2]['amount'], 4));
+        $this->assertSame(['33.3333', '33.3333', '33.3334'], array_column($shares, 'percent'));
+    }
+
+    public function testDistribute_GivesTheRemainderToTheFirstOfTwoEqualLargestShares(): void
+    {
+        [$a, $b] = $this->threeCenters();
+
+        $shares = $this->service->distribute([
+            ['cost_center_id' => $a, 'percent' => '50'],
+            ['cost_center_id' => $b, 'percent' => '50'],
+        ], '0.01');
+
+        $this->assertSame(['0.0000', '0.0100'], array_column($shares, 'amount'));
+    }
+
+    public function testDistribute_AcceptsTwentyRowsAndRejectsTwentyOne(): void
+    {
+        $rows = [];
+
+        foreach (range(1, 21) as $number) {
+            $rows[] = ['cost_center_id' => $this->service->create(['code' => 'R' . $number, 'name' => 'Center ' . $number]), 'percent' => '5'];
+        }
+
+        $this->assertCount(20, $this->service->distribute(array_slice($rows, 0, 20), '100'));
+        $this->assertFailsWith(AccountingError::DistributionTooManyRows, fn () => $this->service->distribute($rows, '100'));
+    }
+
+    public function testDistribute_NeverGivesAShareBelowNothingWhenEveryShareRoundsUp(): void
+    {
+        $centers = [];
+
+        foreach (range(1, 20) as $number) {
+            $centers[] = $this->service->create(['code' => 'N' . $number, 'name' => 'Center ' . $number]);
+        }
+
+        $four = array_map(static fn (int $center): array => ['cost_center_id' => $center, 'percent' => '25'], array_slice($centers, 0, 4));
+
+        $this->assertSame(['0.0000', '0.0000', '0.0100', '0.0100'], array_column($this->service->distribute($four, '0.02'), 'amount'));
+
+        $twenty = array_map(static fn (int $center): array => ['cost_center_id' => $center, 'percent' => '5'], $centers);
+        $shares = $this->service->distribute($twenty, '0.10');
+
+        $this->assertSame('0.1000', array_reduce($shares, static fn (string $sum, array $share): string => bcadd($sum, $share['amount'], 4), '0'));
+        $this->assertSame(0, count(array_filter($shares, static fn (array $share): bool => bccomp($share['amount'], '0', 4) < 0)));
+        $this->assertSame(10, count(array_filter($shares, static fn (array $share): bool => $share['amount'] === '0.0100')));
+    }
+
+    public function testDistribute_SumsToTheLineWithNoNegativeShareForEverySmallAmountOverSevenCenters(): void
+    {
+        $rows = [];
+
+        foreach (range(1, 7) as $number) {
+            $rows[] = ['cost_center_id' => $this->service->create(['code' => 'S' . $number, 'name' => 'Center ' . $number]), 'percent' => $number === 7 ? '14.2858' : '14.2857'];
+        }
+
+        foreach (range(1, 40) as $cents) {
+            $amount = bcdiv((string) $cents, '100', 2);
+            $shares = $this->service->distribute($rows, $amount);
+
+            $this->assertSame(bcadd($amount, '0', 4), array_reduce($shares, static fn (string $sum, array $share): string => bcadd($sum, $share['amount'], 4), '0'), "A line of {$amount}");
+            $this->assertSame([], array_filter($shares, static fn (array $share): bool => bccomp($share['amount'], '0', 4) < 0), "A line of {$amount}");
+        }
+    }
+
+    public function testDistribute_RoundsEveryShareToTheDecimalsOfTheBaseCurrency(): void
+    {
+        [$a, $b, $c] = $this->threeCenters();
+
+        $shares = $this->service->distribute([
+            ['cost_center_id' => $a, 'percent' => '10'],
+            ['cost_center_id' => $b, 'percent' => '20'],
+            ['cost_center_id' => $c, 'percent' => '70'],
+        ], '10.0149');
+
+        $this->assertSame(['1.0000', '2.0000', '7.0149'], array_column($shares, 'amount'));
+    }
+
+    public function testDistribute_SumsToTheAmountOfTheLineWhateverTheCents(): void
+    {
+        [$a, $b, $c] = $this->threeCenters();
+        $rows        = [['cost_center_id' => $a, 'percent' => '14.2857'], ['cost_center_id' => $b, 'percent' => '28.5714'], ['cost_center_id' => $c, 'percent' => '57.1429']];
+
+        foreach (['0.01', '0.05', '1.00', '99.99', '1234567.89'] as $amount) {
+            $sum = '0';
+
+            foreach ($this->service->distribute($rows, $amount) as $share) {
+                $sum = bcadd($sum, $share['amount'], 4);
+            }
+
+            $this->assertSame(bcadd($amount, '0', 4), $sum, "A line of {$amount}");
+        }
+    }
+
+    public function testDistribute_ReadsThePercentFromAnAmountWhenNoPercentIsGiven(): void
+    {
+        [$a, $b] = $this->threeCenters();
+
+        $shares = $this->service->distribute([['cost_center_id' => $a, 'amount' => '25'], ['cost_center_id' => $b, 'percent' => '75']], '100');
+
+        $this->assertSame(['25.0000', '75.0000'], array_column($shares, 'percent'));
+        $this->assertSame(['25.0000', '75.0000'], array_column($shares, 'amount'));
+    }
+
+    public function testDistribute_RequiresPercentageOrAmountOnEveryRow(): void
+    {
+        [$a, $b] = $this->threeCenters();
+
+        $this->assertFailsWith(AccountingError::DistributionPercentInvalid, fn () => $this->service->distribute([['cost_center_id' => $a, 'percent' => '100'], ['cost_center_id' => $b]], '100'));
+        $this->assertFailsWith(AccountingError::DistributionPercentInvalid, fn () => $this->service->distribute([['cost_center_id' => $a, 'percent' => '', 'amount' => '']], '100'));
+    }
+
+    public function testDistribute_RejectsPercentsThatAreNotWholeNumbersUnderTheLimit(): void
+    {
+        [$a] = $this->threeCenters();
+
+        foreach (['0', '-5', 'abc', '10.12345', '100.0001', '1e2', ' ', '١٠٠'] as $percent) {
+            $this->assertFailsWith(AccountingError::DistributionPercentInvalid, fn () => $this->service->distribute([['cost_center_id' => $a, 'percent' => $percent]], '100'));
+        }
+    }
+
+    public function testDistribute_RejectsPercentsThatDoNotAddUpTo100(): void
+    {
+        [$a, $b] = $this->threeCenters();
+
+        $this->assertFailsWith(AccountingError::DistributionTotalInvalid, fn () => $this->service->distribute([['cost_center_id' => $a, 'percent' => '50'], ['cost_center_id' => $b, 'percent' => '49.9999']], '100'));
+        $this->assertFailsWith(AccountingError::DistributionTotalInvalid, fn () => $this->service->distribute([['cost_center_id' => $a, 'percent' => '50'], ['cost_center_id' => $b, 'percent' => '50.0001']], '100'));
+        $this->assertFailsWith(AccountingError::DistributionTotalInvalid, fn () => $this->service->distribute([['cost_center_id' => $a, 'percent' => '33.3333'], ['cost_center_id' => $b, 'percent' => '33.3333'], ['cost_center_id' => $this->service->create(['code' => 'D', 'name' => 'Delta']), 'percent' => '33.3333']], '100'));
+    }
+
+    public function testDistribute_AcceptsAnIncompleteDistributionWhenItIsNotRequiredToBeWhole(): void
+    {
+        [$a, $b] = $this->threeCenters();
+
+        $shares = $this->service->distribute([['cost_center_id' => $a, 'percent' => '30'], ['cost_center_id' => $b, 'percent' => '20']], '100', 1, false);
+
+        $this->assertSame(['30.0000', '20.0000'], array_column($shares, 'amount'));
+        $this->assertFailsWith(AccountingError::DistributionTotalInvalid, fn () => $this->service->distribute([['cost_center_id' => $a, 'percent' => '60'], ['cost_center_id' => $b, 'percent' => '50']], '100', 1, false));
+    }
+
+    public function testDistribute_AcceptsMoreThan100OnlyWhileTheSettingIsOnAndUpToTheCap(): void
+    {
+        [$a, $b] = $this->threeCenters();
+        $rows    = [['cost_center_id' => $a, 'percent' => '100'], ['cost_center_id' => $b, 'percent' => '50']];
+
+        $this->assertFailsWith(AccountingError::DistributionTotalInvalid, fn () => $this->service->distribute($rows, '200'));
+
+        $this->setConfigValue(JournalSettings::OVER_100, '1');
+
+        $shares = $this->service->distribute($rows, '200');
+
+        $this->assertSame(['200.0000', '100.0000'], array_column($shares, 'amount'));
+        $this->assertSame(['100.0000', '100.0000'], array_column($this->service->distribute([['cost_center_id' => $a, 'percent' => '100'], ['cost_center_id' => $b, 'percent' => '100']], '50'), 'percent'));
+        $this->assertFailsWith(AccountingError::DistributionOverLimit, fn () => $this->service->distribute([['cost_center_id' => $a, 'percent' => '100'], ['cost_center_id' => $b, 'percent' => '100.0001']], '50'));
+        $this->assertFailsWith(AccountingError::DistributionPercentInvalid, fn () => $this->service->distribute([['cost_center_id' => $a, 'percent' => '200.0001']], '50'));
+    }
+
+    public function testDistribute_StillRequiresAtLeast100WhenTheSettingAllowsMore(): void
+    {
+        [$a] = $this->threeCenters();
+        $this->setConfigValue(JournalSettings::OVER_100, '1');
+
+        $this->assertFailsWith(AccountingError::DistributionTotalInvalid, fn () => $this->service->distribute([['cost_center_id' => $a, 'percent' => '99.9999']], '100'));
+    }
+
+    public function testDistribute_RejectsADuplicateAnInactiveAndAMissingCenterAndNamesTheLine(): void
+    {
+        [$a, $b] = $this->threeCenters();
+        $this->service->deactivate($b);
+
+        $this->assertFailsWith(AccountingError::DistributionDuplicate, fn () => $this->service->distribute([['cost_center_id' => $a, 'percent' => '50'], ['cost_center_id' => (string) $a, 'percent' => '50']], '100'));
+        $this->assertFailsWith(AccountingError::LineCostCenterInvalid, fn () => $this->service->distribute([['cost_center_id' => $a, 'percent' => '50'], ['cost_center_id' => $b, 'percent' => '50']], '100', 4));
+        $this->assertFailsWith(AccountingError::LineCostCenterInvalid, fn () => $this->service->distribute([['cost_center_id' => 999999, 'percent' => '100']], '100'));
+
+        try {
+            $this->service->distribute([['cost_center_id' => $b, 'percent' => '100']], '100', 4);
+        } catch (AccountingException $exception) {
+            $this->assertSame(4, $exception->context['line']);
+        }
+    }
+
+    public function testDistribute_RejectsARowWithoutACenterAndMoreRowsThanTheLimit(): void
+    {
+        [$a] = $this->threeCenters();
+
+        $this->assertFailsWith(AccountingError::DistributionRowInvalid, fn () => $this->service->distribute([['percent' => '100']], '100'));
+        $this->assertFailsWith(AccountingError::DistributionRowInvalid, fn () => $this->service->distribute(['x'], '100'));
+        $this->assertFailsWith(AccountingError::DistributionRowInvalid, fn () => $this->service->distribute([['cost_center_id' => '0', 'percent' => '100']], '100'));
+        $this->assertFailsWith(AccountingError::DistributionTooManyRows, fn () => $this->service->distribute(array_fill(0, CostCenterService::MAX_ROWS + 1, ['cost_center_id' => $a, 'percent' => '1']), '100', 1, false));
+    }
+
+    public function testDistribute_ReturnsNothingForNoRows(): void
+    {
+        $this->assertSame([], $this->service->distribute([], '100'));
+    }
+
+    public function testSetDefaults_StoresTheRowsAndWritesTheAuditLog(): void
+    {
+        [$a, $b] = $this->threeCenters();
+        $account = $this->accountId('cash');
+
+        $manager = $this->employeeWithGrants([AccountingGuard::COST_CENTERS_MANAGE]);
+        $changed = $this->service->setDefaults($account, [['cost_center_id' => $a, 'percent' => '60'], ['cost_center_id' => $b, 'percent' => '40']], $manager);
+
+        $this->assertTrue($changed);
+        $this->assertSame(['60.0000', '40.0000'], array_map(static fn (object $row): string => $row->percent, $this->service->defaultsOf($account)));
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'account')->where('entity_id', $account)->where('action', 'account_distribution_changed')->get()->getRow();
+
+        $this->assertNotNull($entry);
+        $this->assertSame($manager, (int) $entry->employee_id);
+        $this->assertSame([], json_decode($entry->details, true)['before']);
+        $this->assertCount(2, json_decode($entry->details, true)['after']);
+    }
+
+    public function testSetDefaults_ReplacesAndClearsTheRowsAndSaysWhenNothingChanged(): void
+    {
+        [$a, $b] = $this->threeCenters();
+        $account = $this->accountId('cash');
+
+        $this->service->setDefaults($account, [['cost_center_id' => $a, 'percent' => '100']]);
+
+        $this->assertFalse($this->service->setDefaults($account, [['cost_center_id' => $a, 'percent' => '100.0000']]));
+        $this->assertTrue($this->service->setDefaults($account, [['cost_center_id' => $b, 'percent' => '100']]));
+        $this->assertSame([$b], array_map(static fn (object $row): int => (int) $row->cost_center_id, $this->service->defaultsOf($account)));
+        $this->assertTrue($this->service->setDefaults($account, []));
+        $this->assertSame([], $this->service->defaultsOf($account));
+        $this->assertFalse($this->service->setDefaults($account, []));
+    }
+
+    public function testSetDefaults_RejectsRowsThatDoNotAddUpTo100EvenWhenTheSettingAllowsMore(): void
+    {
+        [$a, $b] = $this->threeCenters();
+        $this->setConfigValue(JournalSettings::OVER_100, '1');
+
+        $this->assertFailsWith(AccountingError::DefaultDistributionInvalid, fn () => $this->service->setDefaults($this->accountId('cash'), [['cost_center_id' => $a, 'percent' => '100'], ['cost_center_id' => $b, 'percent' => '50']]));
+        $this->assertFailsWith(AccountingError::DefaultDistributionInvalid, fn () => $this->service->setDefaults($this->accountId('cash'), [['cost_center_id' => $a, 'percent' => '90']]));
+        $this->assertSame([], $this->service->defaultsOf($this->accountId('cash')));
+    }
+
+    public function testSetDefaults_RejectsAGroupAndAMissingAccountAndAnInactiveCenter(): void
+    {
+        [$a, $b] = $this->threeCenters();
+        $this->service->deactivate($b);
+
+        $this->assertFailsWith(AccountingError::DefaultDistributionInvalid, fn () => $this->service->setDefaults($this->accountIdByCode('11'), [['cost_center_id' => $a, 'percent' => '100']]));
+        $this->assertFailsWith(AccountingError::AccountNotFound, fn () => $this->service->setDefaults(999999, [['cost_center_id' => $a, 'percent' => '100']]));
+        $this->assertFailsWith(AccountingError::DefaultDistributionInvalid, fn () => $this->service->setDefaults($this->accountId('cash'), [['cost_center_id' => $b, 'percent' => '100']]));
+    }
+
+    public function testSetDefaults_RequiresThePermissionToManageCostCenters(): void
+    {
+        [$a] = $this->threeCenters();
+        $nobody = $this->employeeWithGrants([]);
+
+        $this->assertFailsWith(AccountingError::PermissionDenied, fn () => $this->service->setDefaults($this->accountId('cash'), [['cost_center_id' => $a, 'percent' => '100']], $nobody));
+        $this->assertSame([], $this->service->defaultsOf($this->accountId('cash')));
+    }
+
+    public function testSetDefaults_RejectsAnEmployeeLimitedToBranches(): void
+    {
+        [$a] = $this->threeCenters();
+
+        $this->expectException(BranchException::class);
+
+        $this->service->setDefaults($this->accountId('cash'), [['cost_center_id' => $a, 'percent' => '100']], $this->limitedCostCenterManager());
+    }
+
+    public function testDelete_RejectsACostCenterThatAnAccountDefaultsToOrALineIsDistributedOver(): void
+    {
+        [$a, $b] = $this->threeCenters();
+        $this->service->setDefaults($this->accountId('cash'), [['cost_center_id' => $a, 'percent' => '100']]);
+
+        $this->assertFailsWith(AccountingError::CostCenterInUse, fn () => $this->service->delete($a));
+
+        $input = $this->journalInput();
+        $input['lines'][0]['distribution'] = [['cost_center_id' => $b, 'percent' => '60'], ['cost_center_id' => $this->service->create(['code' => 'D', 'name' => 'Delta']), 'percent' => '40']];
+        (new JournalService())->postNew($input);
+
+        $this->assertFailsWith(AccountingError::CostCenterInUse, fn () => $this->service->delete($b));
+        $this->assertTrue($this->service->isUsed($b));
+
+        $rows = [];
+
+        foreach ($this->service->all() as $row) {
+            $rows[$row->code] = (string) $row->used;
+        }
+
+        $this->assertSame('1', $rows['A']);
+        $this->assertSame('1', $rows['B']);
+        $this->assertSame('0', $rows['C']);
+    }
+
+    public function testDefaultsByAccount_ListsOnlyTheCentersThatAreOn(): void
+    {
+        [$a, $b] = $this->threeCenters();
+        $cash = $this->accountId('cash');
+
+        $this->service->setDefaults($cash, [['cost_center_id' => $a, 'percent' => '70'], ['cost_center_id' => $b, 'percent' => '30']]);
+        $this->service->deactivate($b);
+
+        $this->assertSame([$cash => [['cost_center_id' => $a, 'percent' => '70.0000']]], $this->service->defaultsByAccount());
+        $this->assertSame([$a], array_map(static fn (object $row): int => (int) $row->cost_center_id, $this->service->defaultsOf($cash, true)));
+        $this->assertCount(2, $this->service->defaultsOf($cash));
     }
 
     public function testCreate_IsIndependentOfTheBranch(): void

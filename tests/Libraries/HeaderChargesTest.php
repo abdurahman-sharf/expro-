@@ -124,6 +124,13 @@ class HeaderChargesTest extends CIUnitTestCase
         $this->assertTrue((new HeaderCharges('', ' ', ''))->isEmpty(), 'blank is nothing typed');
     }
 
+    public function testResolve_KeepsTheShippingCompanyOnlyWhileTheDocumentHasShipping(): void
+    {
+        $this->assertSame(7, (new HeaderCharges(shipping: '10', shippingCompanyId: 7))->resolve('50')->shippingCompanyId);
+        $this->assertNull((new HeaderCharges(shipping: '0', shippingCompanyId: 7))->resolve('50')->shippingCompanyId);
+        $this->assertNull((new HeaderCharges(shipping: '10'))->resolve('50')->shippingCompanyId);
+    }
+
     public function testHasAdjustmentAndHasShipping_SeeWhatIsThere(): void
     {
         $charges = new HeaderCharges('Fee', '-5', '0', ShippingTaxOption::None, '0', 2);

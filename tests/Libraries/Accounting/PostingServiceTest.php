@@ -3,12 +3,14 @@
 namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\JournalSettings;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingFailureLog;
@@ -64,7 +66,9 @@ class PostingServiceTest extends CIUnitTestCase
         }
 
         $this->setConfigValue('accounting_line_description_required', '0');
+        $this->resetJournalSettings();
         $this->removeInsertedEntities();
+        $this->clearCostCenters();
 
         parent::tearDown();
     }
@@ -401,6 +405,108 @@ class PostingServiceTest extends CIUnitTestCase
 
         $line = $this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $result->journalId)->where('line_no', 1)->get()->getRow();
         $this->assertSame((string) $costCenterId, (string) $line->cost_center_id);
+    }
+
+    public function testPost_GivesTheLinesOfAnAutomaticJournalTheDefaultDistributionOfTheirAccountOnlyWhileTheSettingIsOn(): void
+    {
+        [$a, $b] = $this->twoCenters();
+        (new CostCenterService())->setDefaults($this->accountId('sales_revenue'), [['cost_center_id' => $a, 'percent' => '25'], ['cost_center_id' => $b, 'percent' => '75']]);
+
+        $off = $this->service->post($this->balancedDraft(sourceId: 1))->journalId;
+
+        $this->assertSame([], $this->distributionRows($off));
+
+        $this->setConfigValue(JournalSettings::AUTOMATIC_DEFAULT, '1');
+
+        $on = $this->service->post($this->balancedDraft(sourceId: 2))->journalId;
+
+        $this->assertSame(['25.0000', '75.0000'], array_column($this->distributionRows($on), 'percent'));
+        $this->assertSame(['25.0000', '75.0000'], array_column($this->distributionRows($on), 'amount'));
+        $this->assertSame('2', $this->distributionRows($on)[0]['line_no']);
+        $this->assertSame([], $this->distributionRows($off));
+    }
+
+    public function testPost_LeavesALineThatHasACenterAndAManualJournalWithoutTheDefaultsAndSkipsACenterSwitchedOff(): void
+    {
+        [$a, $b] = $this->twoCenters();
+        $centers = new CostCenterService();
+        $centers->setDefaults($this->accountId('sales_revenue'), [['cost_center_id' => $a, 'percent' => '50'], ['cost_center_id' => $b, 'percent' => '50']]);
+        $this->setConfigValue(JournalSettings::AUTOMATIC_DEFAULT, '1');
+
+        $manual = $this->service->post($this->balancedDraft(sourceType: JournalDraft::SOURCE_MANUAL, sourceId: null))->journalId;
+
+        $this->assertSame([], $this->distributionRows($manual));
+
+        $withCenter = $this->service->post($this->draftWithLines([
+            new JournalLineDraft($this->accountId('cash'), debit: '10.00'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00', costCenterId: $a),
+        ]))->journalId;
+
+        $this->assertSame([], $this->distributionRows($withCenter));
+
+        $centers->deactivate($b);
+        $skipped = $this->service->post($this->balancedDraft(sourceId: 6))->journalId;
+
+        $this->assertSame([], $this->distributionRows($skipped));
+    }
+
+    public function testPost_GivesNoDefaultDistributionToAReversal(): void
+    {
+        [$a, $b] = $this->twoCenters();
+        (new CostCenterService())->setDefaults($this->accountId('sales_revenue'), [['cost_center_id' => $a, 'percent' => '50'], ['cost_center_id' => $b, 'percent' => '50']]);
+
+        $original = $this->service->post($this->balancedDraft(sourceId: 1))->journalId;
+
+        $this->setConfigValue(JournalSettings::AUTOMATIC_DEFAULT, '1');
+
+        $reversal = $this->service->post(new JournalDraft(
+            date: '2026-10-22',
+            lines: [new JournalLineDraft($this->accountId('cash'), credit: '100.00'), new JournalLineDraft($this->accountId('sales_revenue'), debit: '100.00')],
+            sourceType: JournalDraft::SOURCE_REVERSAL,
+            sourceId: $original,
+            currencyCode: 'SAR',
+            reversesJournalId: $original,
+        ))->journalId;
+
+        $this->assertSame([], $this->distributionRows($reversal));
+    }
+
+    public function testPost_DoesNotRequireACostCenterOnAnAutomaticJournalWhileTheMandatorySettingIsOn(): void
+    {
+        $this->setConfigValue(JournalSettings::CENTER_REQUIRED, '1');
+
+        $journalId = $this->service->post($this->balancedDraft(sourceId: 1))->journalId;
+
+        $this->assertSame('posted', $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->get()->getRow()->status);
+        $this->assertNull($this->accountingDb()->table('accounting_journal_lines')->where('journal_id', $journalId)->where('line_no', 2)->get()->getRow()->cost_center_id);
+    }
+
+    public function testPost_TakesBackACostCenterSwitchedOffSinceInAReversalAndRefusesItInAnyOtherJournal(): void
+    {
+        [$a] = $this->twoCenters();
+
+        $original = $this->service->post($this->draftWithLines([
+            new JournalLineDraft($this->accountId('cash'), debit: '10.00'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00', costCenterId: $a),
+        ]))->journalId;
+
+        (new CostCenterService())->deactivate($a);
+
+        $this->assertPostingFails(PostingError::CostCenterNotFound, $this->draftWithLines([
+            new JournalLineDraft($this->accountId('cash'), debit: '10.00'),
+            new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00', costCenterId: $a),
+        ], '2026-10-22'));
+
+        $reversal = $this->service->post(new JournalDraft(
+            date: '2026-10-22',
+            lines: [new JournalLineDraft($this->accountId('cash'), credit: '10.00'), new JournalLineDraft($this->accountId('sales_revenue'), debit: '10.00', costCenterId: $a)],
+            sourceType: JournalDraft::SOURCE_REVERSAL,
+            sourceId: $original,
+            currencyCode: 'SAR',
+            reversesJournalId: $original,
+        ));
+
+        $this->assertTrue($reversal->created);
     }
 
     public function testPost_RejectsAPartyWithAnUnknownType(): void
@@ -1589,5 +1695,40 @@ class PostingServiceTest extends CIUnitTestCase
 
         $this->assertTrue($jpy->created);
         $this->assertTrue($kwd->created);
+    }
+
+    /**
+     * @return array{0: int, 1: int}
+     */
+    private function twoCenters(): array
+    {
+        $centers = new CostCenterService();
+
+        return [$centers->create(['code' => 'A', 'name' => 'Alpha']), $centers->create(['code' => 'B', 'name' => 'Beta'])];
+    }
+
+    /**
+     * @return list<array{line_no: string, cost_center_id: string, percent: string, amount: string}>
+     */
+    private function distributionRows(int $journalId): array
+    {
+        return $this->accountingDb()->table('accounting_journal_line_distributions d')
+            ->select('l.line_no, d.cost_center_id, d.percent, d.amount')
+            ->join('accounting_journal_lines l', 'l.line_id = d.line_id')
+            ->where('l.journal_id', $journalId)
+            ->orderBy('l.line_no')
+            ->orderBy('d.distribution_id')
+            ->get()
+            ->getResultArray();
+    }
+
+    private function clearCostCenters(): void
+    {
+        $db = $this->accountingDb();
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $db->table('accounting_account_cost_centers')->truncate();
+        $db->table('accounting_cost_centers')->truncate();
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
     }
 }

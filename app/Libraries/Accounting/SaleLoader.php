@@ -23,7 +23,7 @@ final class SaleLoader
     public function load(int $saleId, bool $withOrigin = true): ?SaleDocument
     {
         $sale = $this->db->table('sales')
-            ->select('sale_id, sale_time, invoice_date, customer_id, sale_status, sale_type, branch_id, delivered, return_of_sale_id, return_document, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_amount, currency_code, currency_rate')
+            ->select('sale_id, sale_time, invoice_date, customer_id, sale_status, sale_type, branch_id, delivered, return_of_sale_id, return_document, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_amount, shipping_company_id, currency_code, currency_rate')
             ->where('sale_id', $saleId)
             ->get()
             ->getRow();
@@ -65,6 +65,8 @@ final class SaleLoader
             shippingTax: bcadd((string) ($sale->shipping_tax_amount ?? '0'), '0', SaleAmounts::SCALE),
             shippingTaxIncluded: ShippingTaxOption::fromStored($sale->shipping_tax_option) === ShippingTaxOption::Included,
             shippingOptions: $sale->shipping_options === null ? null : (int) $sale->shipping_options,
+            shippingCompanyId: $sale->shipping_company_id === null ? null : (int) $sale->shipping_company_id,
+            shippingAccountId: $sale->shipping_company_id === null ? null : (new ShippingCompanies($this->db))->accountOf((int) $sale->shipping_company_id),
         );
 
         return $charges->isEmpty() ? null : $charges;

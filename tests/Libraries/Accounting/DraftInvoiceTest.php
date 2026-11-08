@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting;
 
+use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\HeaderCharges;
 use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\InvoiceDiscountProblem;
@@ -478,6 +479,26 @@ class DraftInvoiceTest extends CIUnitTestCase
             $this->assertSame('20.0000', $issue->headerCharges->shipping);
         } finally {
             $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping'])->delete();
+        }
+    }
+
+    public function testForIssue_CarriesTheShippingCompanyTheDraftNamed(): void
+    {
+        $this->setConfigValue('accounting_sales_shipping', '1');
+        $companies = new ShippingCompanies();
+        $companies->setEnabled(true);
+
+        try {
+            $company = $companies->create(['name' => 'Fast Ship']);
+            $cycle   = $this->taxedReference();
+            $draft   = $this->save($cycle['items'], [], [], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED, headerCharges: new HeaderCharges(shipping: '20', shippingCompanyId: $company));
+            $issue   = $this->drafts->forIssue($draft);
+
+            $this->assertSame($company, $issue->headerCharges->shippingCompanyId);
+        } finally {
+            $companies->setEnabled(false);
+            $this->clearJournals();
+            $this->accountingDb()->table('app_config')->where('key', 'accounting_sales_shipping')->delete();
         }
     }
 

@@ -9,11 +9,13 @@ use App\Libraries\Accounting\AccountType;
 use App\Libraries\Accounting\BalanceSheet;
 use App\Libraries\Accounting\BalanceSheetReport;
 use App\Libraries\Accounting\ClosedPeriodService;
+use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\IncomeStatement;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\JournalSettings;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
@@ -210,6 +212,31 @@ final class YearEndClosingTest extends CIUnitTestCase
         }
 
         return $lines;
+    }
+
+    /**
+     * @return list<array{string, string, string}> The center, percent and amount of every distribution row of a journal, in line order.
+     */
+    private function distributionOf(int $journalId): array
+    {
+        $rows = $this->accountingDb()->table('accounting_journal_line_distributions d')
+            ->select('d.cost_center_id, d.percent, d.amount')
+            ->join('accounting_journal_lines l', 'l.line_id = d.line_id')
+            ->where('l.journal_id', $journalId)
+            ->orderBy('l.line_no')
+            ->orderBy('d.distribution_id')
+            ->get()
+            ->getResultArray();
+
+        return array_map(static fn (array $row): array => [(string) $row['cost_center_id'], $row['percent'], $row['amount']], $rows);
+    }
+
+    /**
+     * @return list<string> The cost centers named by the lines of a journal themselves.
+     */
+    private function centersOf(int $journalId): array
+    {
+        return array_map('strval', array_column($this->accountingDb()->table('accounting_journal_lines')->select('cost_center_id')->where('journal_id', $journalId)->where('cost_center_id IS NOT NULL', null, false)->orderBy('line_no')->get()->getResultArray(), 'cost_center_id'));
     }
 
     private function journal(int $journalId): object
@@ -1255,6 +1282,48 @@ final class YearEndClosingTest extends CIUnitTestCase
         $this->assertSame((string) $this->employee, (string) $entry->employee_id);
         $this->assertSame('Wrong figures', json_decode($entry->details, true)['reason']);
         $this->assertSame($reversal, json_decode($entry->details, true)['reversal_id']);
+    }
+
+    public function testReverse_CopiesTheDistributionTheClosingWasGiven(): void
+    {
+        $centers = new CostCenterService();
+        $first   = $centers->create(['code' => 'A', 'name' => 'Alpha']);
+        $second  = $centers->create(['code' => 'B', 'name' => 'Beta']);
+
+        $this->setConfigValue(JournalSettings::AUTOMATIC_DEFAULT, '1');
+        $centers->setDefaults($this->accountId('sales_revenue'), [['cost_center_id' => $first, 'percent' => '60'], ['cost_center_id' => $second, 'percent' => '40']]);
+        $this->twoBranchYear();
+        $this->closePeriods();
+
+        $closing  = $this->close(1)[0];
+        $original = (int) $this->closingOf(1)->journal_id;
+        $reversal = $this->service->reverse($closing, 'Wrong figures', $this->employee);
+
+        $closed = $this->distributionOf($original);
+
+        $this->assertSame([[(string) $first, '60.0000', '600.0000'], [(string) $second, '40.0000', '400.0000']], $closed);
+        $this->assertSame($closed, $this->distributionOf($reversal));
+    }
+
+    public function testReverse_TakesBackTheSingleCenterOfAClosingLineThatHasBeenSwitchedOffSince(): void
+    {
+        $centers = new CostCenterService();
+        $center  = $centers->create(['code' => 'A', 'name' => 'Alpha']);
+
+        $this->setConfigValue(JournalSettings::AUTOMATIC_DEFAULT, '1');
+        $centers->setDefaults($this->accountId('sales_revenue'), [['cost_center_id' => $center, 'percent' => '100']]);
+        $this->twoBranchYear();
+        $this->closePeriods();
+
+        $closing  = $this->close(1)[0];
+        $original = (int) $this->closingOf(1)->journal_id;
+
+        $centers->deactivate($center);
+
+        $reversal = $this->service->reverse($closing, 'Wrong figures', $this->employee);
+
+        $this->assertSame([(string) $center], $this->centersOf($original));
+        $this->assertSame([(string) $center], $this->centersOf($reversal));
     }
 
     public function testReverse_RequiresThePermissionAReasonAndTheBranchOfTheClosing(): void

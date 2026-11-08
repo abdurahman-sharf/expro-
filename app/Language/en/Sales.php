@@ -340,6 +340,8 @@ return [
     'service_charge'                    => 'Service Charge',
     'ship_to'                           => 'Ship to',
     'shipping'                          => 'Shipping',
+    'shipping_company'                  => 'Shipping company',
+    'shipping_company_none'             => 'No shipping company',
     'shipping_negative'                 => 'Shipping cannot be negative.',
     'shipping_options'                  => 'Shipping details',
     'shipping_options_auto'             => 'Automatic',

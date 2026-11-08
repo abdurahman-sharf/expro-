@@ -24,6 +24,7 @@
  * @var array     $header_charges
  * @var bool      $can_adjustment
  * @var bool      $can_shipping
+ * @var list<object> $shipping_companies
  * @var string    $shipping_tax_percent
  * @var bool      $shipping_taxed
  * @var \App\Libraries\HeaderCharges $header_charges_entry
@@ -499,6 +500,15 @@ $employee        = model(Employee::class);
                                 <?= form_input(['name' => 'shipping', 'id' => 'shipping', 'class' => 'form-control form-control-sm', 'value' => bccomp($header_charges_entry->shipping, '0', 4) !== 0 ? $header_charges_entry->shipping : '', 'inputmode' => 'decimal', 'autocomplete' => 'off', 'aria-describedby' => 'header_charges_help']) ?>
                                 <?= form_dropdown('shipping_options', ['' => lang('Sales.shipping_options_auto'), '1' => lang('Sales.shipping_options_hidden'), '2' => lang('Sales.shipping_options_customer_address'), '3' => lang('Sales.shipping_options_second_address')], (string) ($header_charges_entry->shippingOptions ?? ''), ['id' => 'shipping_options', 'class' => 'form-select form-select-sm', 'aria-label' => lang('Sales.shipping_options')]) ?>
                             </div>
+                            <?php if ($shipping_companies !== []): ?>
+                                <label for="shipping_company_id" class="pos-label"><?= lang('Sales.shipping_company') ?></label>
+                                <select name="shipping_company_id" id="shipping_company_id" class="form-select form-select-sm">
+                                    <option value=""><?= lang('Sales.shipping_company_none') ?></option>
+                                    <?php foreach ($shipping_companies as $company): ?>
+                                        <option value="<?= (int) $company->shipping_company_id ?>"<?= $header_charges_entry->shippingCompanyId === (int) $company->shipping_company_id ? ' selected' : '' ?>><?= esc($company->name) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php endif; ?>
                             <?php if (bccomp($shipping_tax_percent, '0', 4) > 0): ?>
                                 <div class="form-check">
                                     <input type="checkbox" class="form-check-input" name="shipping_taxed" id="shipping_taxed" value="1"<?= $shipping_taxed ? ' checked' : '' ?>>

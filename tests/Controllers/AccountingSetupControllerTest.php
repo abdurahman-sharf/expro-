@@ -5,9 +5,12 @@ namespace Tests\Controllers;
 use App\Controllers\AccountingSetup;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\JournalSettings;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\RoutingKey;
+use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Pricing\SalesControlSettings;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -44,6 +47,9 @@ class AccountingSetupControllerTest extends CIUnitTestCase
     {
         $this->releaseOpenTransactions();
         $this->setConfigValue('accounting_line_description_required', '0');
+        $this->resetJournalSettings();
+        $this->clearJournals();
+        $this->accountingDb()->table('app_config')->where('key', ShippingCompanies::ENABLED_KEY)->delete();
         $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent', 'accounting_debit_note', 'accounting_journal_description_sales', 'accounting_journal_description_purchases'])->delete();
 
         parent::tearDown();
@@ -945,5 +951,205 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/<input type="hidden" name="exempt_categories\[\]" value="">\s*<select name="exempt_categories\[\]"/', $body);
 
         $this->resetSalesControlSettings();
+    }
+
+    public function testGetIndex_ShowsTheSettingsOfTheJournalLinesWithTheirSwitchesOff(): void
+    {
+        $this->manager();
+
+        $page = $this->get('/accounting_settings')->response()->getBody();
+
+        $this->assertStringContainsString('id="journal_form"', $page);
+
+        foreach (['allow_over_100', 'cost_center_required', 'automatic_default', 'line_tags', 'line_tax'] as $name) {
+            $this->assertStringContainsString('name="' . $name . '"', $page, $name);
+            $this->assertStringContainsString(lang('Accounting_settings.journal_' . $name), $page, $name);
+        }
+
+        $this->assertStringNotContainsString('id="journal_allow_over_100" value="1" checked', $page);
+    }
+
+    public function testPostSaveJournal_TurnsTheSettingsOnAndWritesWhatChangedToTheAuditLog(): void
+    {
+        $manager = $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_settings/save_journal', ['allow_over_100' => '1', 'cost_center_required' => '1', 'automatic_default' => '0', 'line_tags' => '1', 'line_tax' => '0']));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Accounting_settings.journal_saved'), $result['message']);
+        $this->assertSame(['allow_over_100' => true, 'cost_center_required' => true, 'automatic_default' => false, 'line_tags' => true, 'line_tax' => false], (new JournalSettings())->all());
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'settings', 'action' => 'settings_updated'])->get()->getRow();
+
+        $this->assertSame($manager, (int) $entry->employee_id);
+        $this->assertSame(true, json_decode($entry->details, true)['after']['allow_over_100']);
+    }
+
+    public function testPostSaveJournal_ChangesOnlyWhatTheFormSent(): void
+    {
+        $this->manager();
+
+        $this->post('/accounting_settings/save_journal', ['line_tags' => '1']);
+        $this->post('/accounting_settings/save_journal', ['line_tax' => '1']);
+
+        $this->assertTrue((new JournalSettings())->lineTags());
+        $this->assertTrue((new JournalSettings())->lineTax());
+        $this->assertFalse((new JournalSettings())->allowOver100());
+    }
+
+    public function testPostSaveJournal_RefusesSomeoneWhoMayNotChangeTheSettingsAndChangesNothing(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $result = $this->jsonOf($this->post('/accounting_settings/save_journal', ['allow_over_100' => '1']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $result['message']);
+        $this->assertFalse((new JournalSettings())->allowOver100());
+    }
+
+    public function testPostSaveJournal_RefusesAnEmployeeLimitedToSomeBranches(): void
+    {
+        $this->manager([1]);
+
+        $result = $this->jsonOf($this->post('/accounting_settings/save_journal', ['allow_over_100' => '1']));
+
+        $this->assertFalse($result['success']);
+        $this->assertFalse((new JournalSettings())->allowOver100());
+    }
+
+    public function testPostSaveJournal_RedirectsAUserWithoutTheModuleGrant(): void
+    {
+        $this->actAs($this->employeeWithGrants([AccountingGuard::SETTINGS_MANAGE]));
+
+        $this->post('/accounting_settings/save_journal', ['allow_over_100' => '1'])->assertRedirect();
+        $this->assertFalse((new JournalSettings())->allowOver100());
+    }
+
+    public function testGetIndex_ShowsTheShippingCompaniesCardWithTheCompaniesAndTheAccountsTheyMayTake(): void
+    {
+        $this->manager();
+        $account = $this->customAccount('2212', '22121', 'Owed to Fast Ship');
+        $company = (new ShippingCompanies())->create(['name' => 'Fast Ship', 'account_id' => $account]);
+
+        $page = $this->get('/accounting_settings')->response()->getBody();
+
+        $this->assertStringContainsString('id="shipping_switch_form"', $page);
+        $this->assertStringContainsString('id="shipping_company_form"', $page);
+        $this->assertStringContainsString('Fast Ship', $page);
+        $this->assertStringContainsString('22121', $page);
+        $this->assertStringContainsString('data-id="' . $company . '"', $page);
+        $this->assertStringContainsString('>' . lang('Accounting_settings.shipping_company_edit') . '</button>', $page);
+        $this->assertStringContainsString('<option value="' . $account . '">22121 - Owed to Fast Ship</option>', $page);
+        $this->assertStringNotContainsString('<option value="' . $this->accountId('cash') . '">', substr($page, (int) strpos($page, 'id="shipping_company_account"')));
+    }
+
+    public function testGetIndex_ShowsTheCompaniesButNoFormToWhoMayNotChangeTheSettings(): void
+    {
+        (new ShippingCompanies())->create(['name' => 'Fast Ship']);
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $page = $this->get('/accounting_settings')->response()->getBody();
+
+        $this->assertStringContainsString('Fast Ship', $page);
+        $this->assertStringNotContainsString('id="shipping_company_form"', $page);
+        $this->assertStringNotContainsString('data-account=', $page);
+    }
+
+    public function testPostSaveShippingCompanies_TurnsTheSettingOnAndOff(): void
+    {
+        $this->manager();
+
+        $on = $this->jsonOf($this->post('/accounting_settings/save_shipping_companies', ['enabled' => '1']));
+
+        $this->assertTrue($on['success']);
+        $this->assertSame(lang('Accounting_settings.shipping_saved'), $on['message']);
+        $this->assertTrue((new ShippingCompanies())->enabled());
+
+        $this->post('/accounting_settings/save_shipping_companies', ['enabled' => '0']);
+
+        $this->assertFalse((new ShippingCompanies())->enabled());
+    }
+
+    public function testPostSaveShippingCompany_AddsAndChangesACompanyWithItsAccount(): void
+    {
+        $manager = $this->manager();
+        $account = $this->customAccount('2212', '22121', 'Owed to Fast Ship');
+
+        $added = $this->jsonOf($this->post('/accounting_settings/save_shipping_company', ['name' => 'Fast Ship', 'account_id' => (string) $account]));
+
+        $this->assertTrue($added['success']);
+        $this->assertSame(lang('Accounting_settings.shipping_company_saved'), $added['message']);
+        $this->assertSame($account, (new ShippingCompanies())->accountOf($added['id']));
+
+        $renamed = $this->jsonOf($this->post('/accounting_settings/save_shipping_company/' . $added['id'], ['name' => 'Fast Ship Ltd', 'account_id' => '']));
+
+        $this->assertTrue($renamed['success']);
+        $this->assertSame('Fast Ship Ltd', (new ShippingCompanies())->find($added['id'])->name);
+        $this->assertNull((new ShippingCompanies())->accountOf($added['id']));
+        $this->assertSame($manager, (int) $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'shipping_company')->where('action', 'updated')->get()->getRow()->employee_id);
+    }
+
+    public function testPostSaveShippingCompany_RefusesTheAccountOfASupplierAndDoesNotOfferIt(): void
+    {
+        $this->manager();
+        $supplierAccount = (new EntityAccountService())->ensure(EntityAccountService::SUPPLIER, 7, 'Acme Supplies');
+
+        $refused = $this->jsonOf($this->post('/accounting_settings/save_shipping_company', ['name' => 'Fast Ship', 'account_id' => (string) $supplierAccount]));
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_shipping_account_invalid'), $refused['message']);
+        $this->assertSame([], (new ShippingCompanies())->all());
+
+        $page = $this->get('/accounting_settings')->response()->getBody();
+
+        $this->assertStringNotContainsString('<option value="' . $supplierAccount . '">', substr($page, (int) strpos($page, 'id="shipping_company_account"')));
+    }
+
+    public function testPostSaveShippingCompany_SaysWhyACompanyIsRefusedAndKeepsWhatWasThere(): void
+    {
+        $this->manager();
+        $companies = new ShippingCompanies();
+        $companies->create(['name' => 'Fast Ship']);
+
+        $duplicate = $this->jsonOf($this->post('/accounting_settings/save_shipping_company', ['name' => 'Fast Ship']));
+        $cash      = $this->jsonOf($this->post('/accounting_settings/save_shipping_company', ['name' => 'Other', 'account_id' => (string) $this->accountId('cash')]));
+
+        $this->assertFalse($duplicate['success']);
+        $this->assertSame(lang('Accounting.error_name_taken', ['Fast Ship']), $duplicate['message']);
+        $this->assertFalse($cash['success']);
+        $this->assertSame(lang('Accounting.error_shipping_account_invalid'), $cash['message']);
+        $this->assertCount(1, $companies->all());
+    }
+
+    public function testPostToggleShippingCompany_SwitchesACompanyOffAndOn(): void
+    {
+        $this->manager();
+        $companies = new ShippingCompanies();
+        $id        = $companies->create(['name' => 'Fast Ship']);
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/toggle_shipping_company/' . $id))['success']);
+        $this->assertSame('0', (string) $companies->find($id)->active);
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/toggle_shipping_company/' . $id))['success']);
+        $this->assertSame('1', (string) $companies->find($id)->active);
+        $this->assertFalse($this->jsonOf($this->post('/accounting_settings/toggle_shipping_company/999999'))['success']);
+    }
+
+    public function testPostSaveShippingCompany_RefusesSomeoneWhoMayNotChangeTheSettingsAndAnEmployeeOfSomeBranches(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_settings']));
+
+        $refused = $this->jsonOf($this->post('/accounting_settings/save_shipping_company', ['name' => 'Fast Ship']));
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $refused['message']);
+
+        $this->manager([1]);
+
+        $this->assertFalse($this->jsonOf($this->post('/accounting_settings/save_shipping_company', ['name' => 'Fast Ship']))['success']);
+        $this->assertFalse($this->jsonOf($this->post('/accounting_settings/save_shipping_companies', ['enabled' => '1']))['success']);
+        $this->assertSame([], (new ShippingCompanies())->all());
+        $this->assertFalse((new ShippingCompanies())->enabled());
     }
 }

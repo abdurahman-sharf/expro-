@@ -24,6 +24,7 @@ use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\SaleDocumentList;
 use App\Libraries\Accounting\SalePosting;
+use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\HeaderCharges;
@@ -491,6 +492,7 @@ class Sales extends Secure_Controller
         $shipping = $settings->salesShippingEnabled() ? ($posted('shipping') === '' ? '0' : $posted('shipping')) : '0';
         $taxed = $settings->salesShippingEnabled() && $this->request->getPost('shipping_taxed') === '1' && bccomp($settings->shippingTaxPercent(), '0', 4) > 0;
         $option = $settings->salesShippingEnabled() && $posted('shipping_options') !== '' ? (int) $posted('shipping_options') : null;
+        $company = $settings->salesShippingEnabled() && ctype_digit($posted('shipping_company_id')) && (int) $posted('shipping_company_id') > 0 ? (int) $posted('shipping_company_id') : null;
 
         $charges = new HeaderCharges(
             $label,
@@ -499,6 +501,7 @@ class Sales extends Secure_Controller
             $taxed ? ($this->config['tax_included'] ? ShippingTaxOption::Included : ShippingTaxOption::Added) : ShippingTaxOption::None,
             $taxed ? $settings->shippingTaxPercent() : '0',
             $option,
+            $company,
         );
 
         if (!$this->mayGiveHeaderCharges($charges, $this->sale_lib->is_return_mode())) {
@@ -2745,6 +2748,8 @@ class Sales extends Secure_Controller
         $data['can_adjustment'] = $allowed && $chargeSettings->salesAdjustmentEnabled();
         $data['can_shipping'] = $allowed && $chargeSettings->salesShippingEnabled();
         $data['shipping_tax_percent'] = $chargeSettings->shippingTaxPercent();
+        $shippingCompanies = new ShippingCompanies();
+        $data['shipping_companies'] = $data['can_shipping'] && $shippingCompanies->enabled() ? $shippingCompanies->selectable() : [];
         $data['header_charges_entry'] = $this->sale_lib->getHeaderCharges();
         $data['shipping_taxed'] = $data['header_charges_entry']->shippingTaxOption !== ShippingTaxOption::None;
 

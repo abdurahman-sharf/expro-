@@ -11,12 +11,14 @@ use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\AuditPeriods;
 use App\Libraries\Accounting\ChequeSources;
 use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\InterBranchLegs;
 use App\Libraries\Accounting\JournalAttachments;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\JournalSettings;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PeriodGuard;
 use App\Libraries\Accounting\PostingException;
@@ -126,20 +128,26 @@ class AccountingJournals extends AccountingController
         }
 
         $costCenters = [];
+        $service     = new CostCenterService();
+        $settings    = new JournalSettings();
 
-        foreach ((new CostCenterService())->selectable() as $center) {
+        foreach ($service->selectable() as $center) {
             $costCenters[] = $center;
         }
 
         return view('accounting_journals/edit_details', [
-            'journal'     => $journal,
-            'costCenters' => $costCenters,
-            'currency'    => (new AccountingSettings())->baseCurrency(),
-            'numberLabel' => $this->displayNumber($journal->series, $journal->number),
-            'sourceLabel' => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
-            'showBranch'  => $this->seesBranches(),
-            'version'     => $this->journals->detailsVersion($journal, $journal->lines),
-            'notice'      => session()->getFlashdata('accounting_notice'),
+            'journal'      => $journal,
+            'costCenters'  => $costCenters,
+            'centerLabels' => $service->labels(),
+            'settings'     => $settings->all(),
+            'decimals'     => (new Currencies())->baseDecimals(),
+            'cap'          => CostCenterService::TOTAL_CAP,
+            'currency'     => (new AccountingSettings())->baseCurrency(),
+            'numberLabel'  => $this->displayNumber($journal->series, $journal->number),
+            'sourceLabel'  => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
+            'showBranch'   => $this->seesBranches(),
+            'version'      => $this->journals->detailsVersion($journal, $journal->lines),
+            'notice'       => session()->getFlashdata('accounting_notice'),
         ]);
     }
 
@@ -163,6 +171,7 @@ class AccountingJournals extends AccountingController
 
         return view('accounting_journals/view', [
             'journal'        => $journal,
+            'centerLabels'   => (new CostCenterService())->labels(),
             'audit'          => $audit,
             'currency'       => $base,
             'can_draft'      => $this->can(AccountingGuard::JOURNALS_DRAFT),
@@ -738,8 +747,9 @@ class AccountingJournals extends AccountingController
     private function form(?object $journal): string
     {
         $costCenters = [];
+        $service     = new CostCenterService();
 
-        foreach ((new CostCenterService())->selectable() as $center) {
+        foreach ($service->selectable() as $center) {
             $costCenters[] = $center;
         }
 
@@ -756,6 +766,11 @@ class AccountingJournals extends AccountingController
             'cutoffs'                 => $this->cutoffs($branches === [] ? [$branchId] : array_map(static fn (object $branch): int => (int) $branch->branch_id, $branches)),
             'accounts'                => $this->journals->postableAccounts(),
             'cost_centers'            => $costCenters,
+            'centerLabels'            => $service->labels(),
+            'settings'                => (new JournalSettings())->all(),
+            'defaults'                => $service->defaultsByAccount(),
+            'decimals'                => (new Currencies())->baseDecimals(),
+            'cap'                     => CostCenterService::TOTAL_CAP,
             'currency'                => (new AccountingSettings())->baseCurrency(),
             'can_post'                => $this->can(AccountingGuard::JOURNALS_POST),
             'notice'                  => session()->getFlashdata('accounting_notice'),

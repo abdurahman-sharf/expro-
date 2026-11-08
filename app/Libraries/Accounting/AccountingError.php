@@ -42,6 +42,24 @@ enum AccountingError: string
     case LineOnBothSides       = 'line_on_both_sides';
     case LineCostCenterInvalid = 'line_cost_center_invalid';
 
+    case DistributionRowInvalid     = 'distribution_row_invalid';
+    case DistributionPercentInvalid = 'distribution_percent_invalid';
+    case DistributionDuplicate      = 'distribution_center_duplicate';
+    case DistributionTooManyRows    = 'distribution_too_many_rows';
+    case DistributionTotalInvalid   = 'distribution_total_invalid';
+    case DistributionOverLimit      = 'distribution_over_limit';
+    case DefaultDistributionInvalid = 'default_distribution_invalid';
+    case CostCenterRequired         = 'cost_center_required';
+    case LineTagInvalid             = 'line_tag_invalid';
+    case LineTagsOff                = 'line_tags_off';
+    case LineTaxInvalid             = 'line_tax_invalid';
+    case LineTaxOff                 = 'line_tax_off';
+
+    case ShippingCompanyNotFound = 'shipping_company_not_found';
+    case ShippingCompanyInvalid  = 'shipping_company_invalid';
+    case ShippingAccountInvalid  = 'shipping_account_invalid';
+    case ShippingCompaniesOff    = 'shipping_companies_off';
+
     case PostedJournalLocked     = 'posted_journal_locked';
     case JournalNotPosted        = 'journal_not_posted';
     case JournalLineNotFound     = 'journal_line_not_found';

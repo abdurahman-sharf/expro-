@@ -233,6 +233,47 @@
     font-weight: 700;
 }
 
+.acc-dist-single {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.acc-dist-panel {
+    margin-top: 6px;
+    min-width: 260px;
+}
+
+.acc-dist-table th,
+.acc-dist-table td {
+    vertical-align: middle;
+}
+
+.acc-dist-table .acc-dist-percent {
+    min-width: 80px;
+    text-align: end;
+}
+
+.acc-line-more {
+    margin-top: 4px;
+}
+
+.acc-line-more summary {
+    cursor: pointer;
+    font-size: 0.85em;
+}
+
+.acc-line-tax {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+
+.acc-line-tax .form-control {
+    max-width: 120px;
+}
+
 .acc-totals {
     display: flex;
     flex-wrap: wrap;

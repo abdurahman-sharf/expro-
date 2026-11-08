@@ -6,6 +6,7 @@ use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\SaleAmounts;
+use App\Libraries\Accounting\YearEndEntries;
 use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -99,10 +100,11 @@ final class ControlAccounts
      *
      * @param list<int>         $accountIds
      * @param list<string>|null $standingSources The sources of the journals to count, which count only while they stand; null counts every journal.
+     * @param bool              $leaveOutYearEnd Whether the journals that close a year are left out.
      *
      * @return numeric-string
      */
-    public function movement(array $accountIds, ReportScope $scope, ?string $from, ?string $to, ?array $standingSources = null): string
+    public function movement(array $accountIds, ReportScope $scope, ?string $from, ?string $to, ?array $standingSources = null, bool $leaveOutYearEnd = false): string
     {
         if ($accountIds === [] || $scope->isEmpty()) {
             return '0.0000';
@@ -127,6 +129,10 @@ final class ControlAccounts
 
         if ($to !== null) {
             $builder->where('j.journal_date <=', $to);
+        }
+
+        if ($leaveOutYearEnd) {
+            YearEndEntries::leaveOut($builder, $this->db);
         }
 
         return bcadd((string) $builder->get()->getRow()->balance, '0', SaleAmounts::SCALE);

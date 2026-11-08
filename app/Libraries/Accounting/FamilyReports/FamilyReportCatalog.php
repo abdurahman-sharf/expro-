@@ -75,7 +75,10 @@ final class FamilyReportCatalog
                 $group(['category', 'user', 'treasury', 'day', 'week', 'month', 'year']), $view(), ...$range(), $pick('treasury_id', 'treasuries'), $pick('category_id', 'revenue_categories'), $pick('employee_id', 'employees'),
             ]],
             'journal_movements' => ['class' => JournalMovementsReport::class, 'permission' => 'accounting_journals', 'family' => 'books', 'filters' => [
-                $group(JournalMovementsReport::GROUPS), ...$range(), $pick('source', 'sources'), $pick('account_id', 'accounts'),
+                $group(JournalMovementsReport::GROUPS), ...$range(), $pick('source', 'sources'), $pick('account_id', 'accounts'), $pick('cost_center_id', 'cost_centers'), ['name' => 'without_cost_center', 'type' => 'flag'],
+            ]],
+            'cost_centers' => ['class' => CostCenterReport::class, 'permission' => 'accounting_cost_centers', 'family' => 'books', 'filters' => [
+                $group(CostCenterReport::GROUPS), ...$range(), $pick('cost_center_id', 'cost_centers'), $pick('account_id', 'accounts'), ['name' => 'without_cost_center', 'type' => 'flag'],
             ]],
             'journals' => ['class' => JournalsReport::class, 'permission' => 'accounting_journals', 'family' => 'books', 'filters' => [
                 ...$range(), $pick('source', 'sources'), ['name' => 'search', 'type' => 'text'],

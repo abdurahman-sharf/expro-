@@ -48,6 +48,7 @@ final class MigrationChecks extends CheckGroup
         'CustomerMasterData'               => [self::HEAVY, 'adds neutral or empty columns to customers (classification, manual status, assigned employee, area, country code, type, government flag, billing method) and suppliers.country_code; creates customer_classifications; down() refuses once a value is stored'],
         'ProductMasterData'                => [self::HEAVY, 'adds neutral or empty columns to items (brand, status, supplier code) on the largest master table; creates item_brands; down() refuses once a value is stored'],
         'StockLocationStatus'              => [self::DATA, 'adds the status and the primary flag to stock_locations and marks the location with the lowest number primary; a unique key keeps one live primary location'],
+        'ShippingCompanies'                => [self::HEAVY, 'creates shipping_companies and adds the nullable sales.shipping_company_id with its index and key on a large table; down() refuses once a sale names a company'],
     ];
 
     public function run(): array

@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\FamilyReports\JournalMovementsReport;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
@@ -187,6 +188,80 @@ final class JournalMovementsReportTest extends FamilyReportTestCase
 
         $this->assertGreaterThan(1, count($codes));
         $this->assertSame($sorted, $codes);
+    }
+
+    /**
+     * A journal of 100 whose revenue line is split 60 and 40 between two centers, and one of 30 whose
+     * revenue line is charged in full to the first.
+     *
+     * @return array{first: int, second: int, split: int, single: int}
+     */
+    private function chargedJournals(): array
+    {
+        $centers = new CostCenterService();
+        $first   = $centers->create(['code' => 'A', 'name' => 'Alpha']);
+        $second  = $centers->create(['code' => 'B', 'name' => 'Beta']);
+        $service = new JournalService();
+        $lines   = static fn (CostCenterService $unused, int $accountCash, int $accountRevenue, string $amount, array $charge): array => ['date' => date('Y-m-d'), 'description' => 'Charged', 'lines' => [
+            ['account_id' => $accountCash, 'debit' => $amount],
+            ['account_id' => $accountRevenue, 'credit' => $amount] + $charge,
+        ]];
+        $cash    = $this->accountId('cash');
+        $revenue = $this->accountId('sales_revenue');
+        $split   = $service->postNew($lines($centers, $cash, $revenue, '100.00', ['distribution' => [['cost_center_id' => $first, 'percent' => '60'], ['cost_center_id' => $second, 'percent' => '40']]]));
+        $single  = $service->postNew($lines($centers, $cash, $revenue, '30.00', ['cost_center_id' => $first]));
+
+        return ['first' => $first, 'second' => $second, 'split' => $split, 'single' => $single];
+    }
+
+    public function testBuild_SaysWhichCostCentersEachLineIsChargedTo(): void
+    {
+        $this->entries();
+        $this->chargedJournals();
+
+        $centers = array_values(array_filter($this->columnOf($this->built($this->report, $this->thisDay()), 'centers'), static fn (string $text): bool => $text !== ''));
+
+        sort($centers);
+
+        $this->assertSame(['A - Alpha', 'A - Alpha 60%; B - Beta 40%'], $centers);
+    }
+
+    public function testBuild_CutsDownToACostCenterWithItsSubCentersAndLeavesTheTieOut(): void
+    {
+        $ids = $this->chargedJournals();
+        $sub = (new CostCenterService())->create(['code' => 'A1', 'name' => 'Alpha sub', 'parent_id' => $ids['first']]);
+
+        (new JournalService())->postNew(['date' => date('Y-m-d'), 'description' => 'Sub', 'lines' => [
+            ['account_id' => $this->accountId('cash'), 'debit' => '5.00'],
+            ['account_id' => $this->accountId('sales_revenue'), 'credit' => '5.00', 'cost_center_id' => $sub],
+        ]]);
+
+        $first  = $this->built($this->report, [...$this->thisDay(), 'cost_center_id' => (string) $ids['first']]);
+        $second = $this->built($this->report, [...$this->thisDay(), 'cost_center_id' => (string) $ids['second']]);
+
+        $this->assertCount(3, $this->rowsOf($first));
+        $this->assertAmount('135.00', $this->grandOf($first, 'credit'));
+        $this->assertAmount('0.00', $this->grandOf($first, 'debit'));
+        $this->assertSame([], $first->ties);
+        $this->assertStringContainsString(lang('Accounting_family_reports.note_journal_narrowed'), implode(' ', $first->notes));
+        $this->assertCount(1, $this->rowsOf($second));
+        $this->assertAmount('100.00', $this->grandOf($second, 'credit'));
+    }
+
+    public function testBuild_CutsDownToTheLinesWithoutCostCentersAndLeavesTheTieOut(): void
+    {
+        $this->entries();
+        $this->chargedJournals();
+
+        $all   = $this->rowsOf($this->built($this->report, $this->thisDay()));
+        $table = $this->built($this->report, [...$this->thisDay(), 'without_cost_center' => '1']);
+
+        $this->assertCount(count($all) - 2, $this->rowsOf($table));
+        $this->assertSame([], $table->ties);
+
+        foreach ($this->columnOf($table, 'centers') as $text) {
+            $this->assertSame('', $text);
+        }
     }
 
     public function testBuild_ReadsOnlyTheBranchesOfTheScopeAndTheJournalsOfTheOwnerWhenGivenOne(): void

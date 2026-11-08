@@ -12,6 +12,7 @@ use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalLineDraft;
+use App\Libraries\Accounting\JournalSettings;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Events\Events;
@@ -34,6 +35,13 @@ trait AccountingFixtureTrait
     protected function setConfigValue(string $key, string $value): void
     {
         $this->accountingDb()->table('app_config')->replace(['key' => $key, 'value' => $value]);
+    }
+
+    protected function resetJournalSettings(): void
+    {
+        foreach ([JournalSettings::OVER_100, JournalSettings::CENTER_REQUIRED, JournalSettings::AUTOMATIC_DEFAULT, JournalSettings::LINE_TAGS, JournalSettings::LINE_TAX] as $key) {
+            $this->setConfigValue($key, '0');
+        }
     }
 
     protected function clearJournals(): void
@@ -71,6 +79,8 @@ trait AccountingFixtureTrait
             'accounting_year_end_closings',
             'accounting_allocations',
             'accounting_journal_attachments',
+            'accounting_journal_line_distributions',
+            'accounting_journal_line_meta',
             'accounting_journal_lines',
             'accounting_journals',
             'accounting_backfill_items',
@@ -80,6 +90,7 @@ trait AccountingFixtureTrait
             'accounting_closed_periods',
             'accounting_opening_drafts',
             'accounting_currency_rates',
+            'shipping_companies',
         ] as $table) {
             $db->table($table)->truncate();
         }
@@ -148,7 +159,7 @@ trait AccountingFixtureTrait
         $this->clearJournals();
         $db->query('SET FOREIGN_KEY_CHECKS = 0');
 
-        foreach (['accounting_routing', 'accounting_cost_centers', 'accounting_accounts', 'accounting_fiscal_years'] as $table) {
+        foreach (['accounting_routing', 'accounting_account_cost_centers', 'accounting_cost_centers', 'accounting_accounts', 'accounting_fiscal_years'] as $table) {
             $db->table($table)->truncate();
         }
 

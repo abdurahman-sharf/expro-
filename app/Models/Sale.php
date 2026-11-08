@@ -25,6 +25,7 @@ use App\Libraries\Accounting\ReturnOverride;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\SaleLoader;
 use App\Libraries\Accounting\SalePosting;
+use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Accounting\SalesTaxSettings;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
@@ -1225,6 +1226,7 @@ class Sale extends Model
             'adjustment_amount'    => null,
             'shipping_amount'      => null,
             'shipping_options'     => null,
+            'shipping_company_id'  => null,
             'shipping_tax_option'  => null,
             'shipping_tax_percent' => null,
             'shipping_tax_amount'  => null,
@@ -1971,7 +1973,7 @@ class Sale extends Model
     public function getHeaderCharges(int $saleId): HeaderCharges
     {
         $row = $this->db->table('sales')
-            ->select('adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent')
+            ->select('adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_percent, shipping_company_id')
             ->where('sale_id', $saleId)
             ->get()
             ->getRow();
@@ -1987,6 +1989,7 @@ class Sale extends Model
             ShippingTaxOption::fromStored($row->shipping_tax_option),
             (string) ($row->shipping_tax_percent ?? '0'),
             $row->shipping_options === null ? null : (int) $row->shipping_options,
+            $row->shipping_company_id === null ? null : (int) $row->shipping_company_id,
         );
     }
 
@@ -2011,6 +2014,14 @@ class Sale extends Model
 
         if (($charges->hasAdjustment() && ! $settings->salesAdjustmentEnabled()) || ($charges->hasShipping() && ! $settings->salesShippingEnabled())) {
             return new AccountingException(AccountingError::HeaderChargesOff, 'The adjustment or the shipping is not turned on.', ['sale_id' => $saleId]);
+        }
+
+        if ($charges->shippingCompanyId !== null && $charges->hasShipping()) {
+            try {
+                (new ShippingCompanies($this->db))->requireNameable($charges->shippingCompanyId);
+            } catch (AccountingException $refusal) {
+                return $refusal;
+            }
         }
 
         $sale = (new SaleLoader($this->db))->load($saleId, false);
@@ -2040,6 +2051,7 @@ class Sale extends Model
             'adjustment_amount'    => $zero($resolved->adjustment),
             'shipping_amount'      => $zero($resolved->shipping),
             'shipping_options'     => $resolved->shippingOptions,
+            'shipping_company_id'  => $resolved->shippingCompanyId,
             'shipping_tax_option'  => $taxed ? $charges->shippingTaxOption->value : null,
             'shipping_tax_percent' => $taxed ? $charges->shippingTaxPercent : null,
             'shipping_tax_amount'  => $taxed ? $resolved->shippingTax : null,
