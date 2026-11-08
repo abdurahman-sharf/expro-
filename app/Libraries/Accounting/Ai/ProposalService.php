@@ -152,7 +152,7 @@ final class ProposalService
             (new PeriodLocks($this->db))->shareForPosting((int) $head->branch_id);
 
             $table = $this->db->prefixTable('accounting_ai_proposals');
-            $row   = LockedRead::row($this->db, "SELECT *, (expires_at IS NOT NULL AND expires_at < NOW()) AS is_expired FROM {$table} WHERE proposal_id = ? FOR UPDATE", [$proposalId]);
+            $row   = LockedRead::row($this->db, "SELECT *, (expires_at < NOW()) AS is_expired FROM {$table} WHERE proposal_id = ? FOR UPDATE", [$proposalId]);
 
             if ($row === null) {
                 throw new AccountingException(AccountingError::AiProposalNotFound, "Proposal {$proposalId} does not exist.");
@@ -266,35 +266,16 @@ final class ProposalService
      */
     public function expireDue(): int
     {
-        $ids = array_column(
-            $this->db->table('accounting_ai_proposals')
-                ->select('proposal_id')
-                ->where('status', ProposalStatus::Proposed->value)
-                ->where('expires_at IS NOT NULL AND expires_at < NOW()', null, false)
-                ->orderBy('proposal_id', 'ASC')
-                ->get()
-                ->getResultArray(),
-            'proposal_id',
-        );
+        return $this->transactional(function (): int {
+            $table = $this->db->prefixTable('accounting_ai_proposals');
+            $rows  = LockedRead::rows($this->db, "SELECT * FROM {$table} WHERE status = ? AND expires_at < NOW() ORDER BY proposal_id FOR UPDATE", [ProposalStatus::Proposed->value]);
 
-        $expired = 0;
-
-        foreach ($ids as $id) {
-            $expired += $this->transactional(function () use ($id): int {
-                $table = $this->db->prefixTable('accounting_ai_proposals');
-                $row   = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE proposal_id = ? AND status = ? AND expires_at IS NOT NULL AND expires_at < NOW() FOR UPDATE", [(int) $id, ProposalStatus::Proposed->value]);
-
-                if ($row === null) {
-                    return 0;
-                }
-
+            foreach ($rows as $row) {
                 $this->close($row, ProposalStatus::Expired, null, null, 'proposal_expired', null);
+            }
 
-                return 1;
-            });
-        }
-
-        return $expired;
+            return count($rows);
+        });
     }
 
     /**
@@ -307,7 +288,7 @@ final class ProposalService
         $this->guard->require(AccountingGuard::AI_USE, $employeeId);
 
         $row = $this->db->table('accounting_ai_proposals p')
-            ->select("p.*, br.code AS branch_code, j.number AS journal_number, j.series AS journal_series, TRIM(CONCAT(d.first_name, ' ', d.last_name)) AS decider_name, TRIM(CONCAT(r.first_name, ' ', r.last_name)) AS requester_name, (p.expires_at IS NOT NULL AND p.expires_at < NOW()) AS is_expired", false)
+            ->select("p.*, br.code AS branch_code, j.number AS journal_number, j.series AS journal_series, TRIM(CONCAT(d.first_name, ' ', d.last_name)) AS decider_name, TRIM(CONCAT(r.first_name, ' ', r.last_name)) AS requester_name, (p.expires_at < NOW()) AS is_expired", false)
             ->join('branches br', 'br.branch_id = p.branch_id', 'left')
             ->join('accounting_journals j', 'j.journal_id = p.journal_id', 'left')
             ->join('people d', 'd.person_id = p.decided_by', 'left')
@@ -346,7 +327,7 @@ final class ProposalService
 
         $allowed = $this->branches->allowedBranchIds($employeeId);
         $builder = $this->db->table('accounting_ai_proposals p')
-            ->select('p.proposal_id, p.kind, p.status, p.title, p.template_args, p.proposer, p.proposal_date, p.branch_id, p.created_at, p.decided_at, p.journal_id, br.code AS branch_code, (p.expires_at IS NOT NULL AND p.expires_at < NOW()) AS is_expired', false)
+            ->select('p.proposal_id, p.kind, p.status, p.title, p.template_args, p.proposer, p.proposal_date, p.branch_id, p.created_at, p.decided_at, p.journal_id, br.code AS branch_code, (p.expires_at < NOW()) AS is_expired', false)
             ->join('branches br', 'br.branch_id = p.branch_id', 'left');
 
         if ($allowed !== null) {

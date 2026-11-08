@@ -468,6 +468,50 @@ final class ProposalServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('accounting_ai_proposals'));
     }
 
+    public function testApprove_RefusesAProposalThatVanishedBetweenTheReadAndTheLock(): void
+    {
+        $id = $this->service->create($this->proposalDraft(), $this->approver);
+
+        $this->assertSame(AccountingError::AiProposalNotFound, $this->refused(fn () => $this->vanishingAfterFirstLock($id, fn () => $this->service->approve($id, $this->approver)))->error);
+        $this->assertSame(0, $this->aiJournals());
+    }
+
+    public function testReject_RefusesAProposalThatVanishedBetweenTheReadAndTheLock(): void
+    {
+        $id = $this->service->create($this->proposalDraft(), $this->approver);
+
+        $this->assertSame(AccountingError::AiProposalNotFound, $this->refused(fn () => $this->vanishingAfterHead($id, fn () => $this->service->reject($id, 'No', $this->approver)))->error);
+    }
+
+    private function vanishingAfterFirstLock(int $id, callable $action): mixed
+    {
+        return $this->vanishingWhen($id, $action, 'accounting_period_locks');
+    }
+
+    private function vanishingAfterHead(int $id, callable $action): mixed
+    {
+        return $this->vanishingWhen($id, $action, '`proposal_date`');
+    }
+
+    private function vanishingWhen(int $id, callable $action, string $marker): mixed
+    {
+        $gone     = false;
+        $listener = function ($query) use ($id, &$gone, $marker): void {
+            if (! $gone && str_contains((string) $query->getQuery(), $marker)) {
+                $gone = true;
+                $this->openSecondConnection()->table('accounting_ai_proposals')->where('proposal_id', $id)->delete();
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            return $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+    }
+
     public function testApprove_RefusesASecondApprovalAndPostsNoSecondJournal(): void
     {
         $id = $this->service->create($this->proposalDraft(), $this->approver);
