@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => '',
     'config'                       => '',
     'config_desc'                  => '',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => '',

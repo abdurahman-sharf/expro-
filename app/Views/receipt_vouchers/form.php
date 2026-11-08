@@ -23,6 +23,9 @@ $isNew = $voucher === null;
                 <?= form_label(lang('Receipt_vouchers.number'), 'revenue_number', ['class' => 'form-label']) ?>
                 <div class="field-control">
                     <span class="form-control-plaintext" id="revenue_number"><bdi dir="ltr"><?= esc($number ?? lang('Receipt_vouchers.number_automatic')) ?></bdi></span>
+                    <?php if (! $isNew && (int) $voucher->deleted === 0): ?>
+                        <a id="revenue_voucher_link" href="<?= esc(site_url('receipt_vouchers/print/' . (int) $voucher->revenue_id), 'attr') ?>" target="_blank" rel="noopener"><?= lang('Documents.receipt_voucher') ?></a>
+                    <?php endif; ?>
                 </div>
             </div>
 

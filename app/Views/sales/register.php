@@ -41,6 +41,8 @@
  * @var list<string> $treasury_free_types
  * @var string    $mode_label
  * @var string    $comment
+ * @var list<App\Libraries\Documents\CustomFieldDefinition>|null $custom_fields
+ * @var array<int, string>|null $custom_values
  * @var bool      $print_after_sale
  * @var bool      $accounting_enabled
  * @var bool      $delivered
@@ -627,6 +629,13 @@ $employee        = model(Employee::class);
                             <?= form_textarea(['name' => 'comment', 'id' => 'comment', 'class' => 'form-control', 'value' => $comment, 'rows' => '2']) ?>
                         </div>
 
+                        <?php if (! empty($custom_fields)): ?>
+                            <div id="custom_fields_block" class="pos-custom-fields">
+                                <?= view('custom_fields/inputs', ['fields' => $custom_fields, 'values' => $custom_values ?? [], 'idPrefix' => 'sale_custom_']) ?>
+                                <div id="custom_fields_problem" class="text-danger small" role="alert" hidden></div>
+                            </div>
+                        <?php endif; ?>
+
                         <label for="sales_print_after_sale" class="choice">
                             <?= form_checkbox(['name' => 'sales_print_after_sale', 'id' => 'sales_print_after_sale', 'value' => 1, 'checked' => $print_after_sale]) ?>
                             <?= lang("{$sectionName}.print_after_sale") ?>
@@ -807,6 +816,12 @@ $employee        = model(Employee::class);
             $.post("<?= esc(site_url("{$controller_name}/setComment")) ?>", {
                 comment: $('#comment').val()
             });
+        });
+
+        $('#custom_fields_block').on('change keyup', ':input', function() {
+            $.post("<?= esc(site_url("{$controller_name}/setCustomFields")) ?>", $('#custom_fields_block :input').serialize(), function(response) {
+                $('#custom_fields_problem').text(response.problem || '').prop('hidden', !response.problem);
+            }, 'json');
         });
 
         <?php if ($config['invoice_enable']) { ?>

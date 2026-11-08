@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Aggiungi, aggiorna, elimina e cerca incassi.',
     'config'                       => 'Configurazione',
     'config_desc'                  => 'Modifica Configurazione OSPOS.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Clienti',

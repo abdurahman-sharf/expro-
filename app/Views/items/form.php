@@ -102,6 +102,10 @@ $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_in
             </script>
         </div>
 
+        <?php if (! empty($custom_fields)): ?>
+            <?= view('custom_fields/inputs', ['fields' => $custom_fields, 'values' => $custom_values ?? [], 'idPrefix' => 'item_custom_']) ?>
+        <?php endif; ?>
+
         <div class="field">
             <span id="stock_type_label" class="form-label<?= !empty($basic_version) ? ' text-danger required' : '' ?>"><?= lang('Items.stock_type') ?></span>
             <div class="field-control" role="radiogroup" aria-labelledby="stock_type_label">

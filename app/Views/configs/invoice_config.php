@@ -4,6 +4,8 @@
  * @var array $line_sequence_options
  * @var array $config
  */
+
+use App\Libraries\Documents\DocumentTerms;
 ?>
 
 <?= form_open('config/saveInvoice/', ['id' => 'invoice_config_form', 'class' => 'app-form']) ?>
@@ -61,6 +63,25 @@
                     ]) ?>
                 </div>
             </div>
+
+            <?php foreach (['invoice', 'credit_note', 'quote', 'work_order', 'purchase_invoice'] as $termsFamily): ?>
+                <div class="row mb-3">
+                    <?= form_label(lang('Config.document_terms_' . $termsFamily), 'document_terms_' . $termsFamily, ['class' => 'col-form-label col-3 col-md-2']) ?>
+                    <div class="col-9 col-md-6 col-lg-5 col-xl-4">
+                        <?= form_textarea([
+                            'name'      => 'document_terms_' . $termsFamily,
+                            'id'        => 'document_terms_' . $termsFamily,
+                            'class'     => 'form-control form-control-sm',
+                            'style'     => 'resize: vertical',
+                            'maxlength' => DocumentTerms::MAX_LENGTH,
+                            'value'     => $config['document_terms_' . $termsFamily] ?? ''
+                        ]) ?>
+                        <?php if ($termsFamily === 'invoice'): ?>
+                            <div class="form-text"><?= lang('Config.document_terms_help') ?></div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
 
             <div class="row mb-3">
                 <?= form_label(lang('Config.invoice_email_message'), 'invoice_email_message', ['class' => 'col-form-label col-3 col-md-2']) ?>

@@ -1563,6 +1563,17 @@ class Sale extends Model
     }
 
     /**
+     * The time a stored sale was saved, read from the sale alone: no temporary table is built, and an empty
+     * text stands for a sale that does not exist.
+     */
+    public function getSaleTime(int $saleId): string
+    {
+        $row = $this->db->table('sales')->select('sale_time')->where('sale_id', $saleId)->get()->getRow();
+
+        return $row === null ? '' : (string) $row->sale_time;
+    }
+
+    /**
      * The currency a stored sale is in, or null when it is in the base currency.
      */
     public function getCurrencyCode(int $saleId): ?string

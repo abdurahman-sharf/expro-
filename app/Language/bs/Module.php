@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Dodavanje, ažuriranje, brisanje i pretraživanje isplata.',
     'config'                       => 'Podešavanja',
     'config_desc'                  => 'Promijenite konfiguraciju OSPOS-a.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Kupci',

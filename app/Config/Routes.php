@@ -265,6 +265,8 @@ $routes->group('receipt_vouchers', static function (RouteCollection $routes): vo
     $routes->get('row/(:num)', 'Receipt_vouchers::getRow/$1');
     $routes->get('view', 'Receipt_vouchers::getView');
     $routes->get('view/(:num)', 'Receipt_vouchers::getView/$1');
+    $routes->get('print/(:num)', 'Receipt_vouchers::getPrint/$1');
+    $routes->get('pdf/(:num)', 'Receipt_vouchers::getPdf/$1');
     $routes->post('save', 'Receipt_vouchers::postSave');
     $routes->post('save/(:num)', 'Receipt_vouchers::postSave/$1');
     $routes->post('delete', 'Receipt_vouchers::postDelete');
@@ -290,6 +292,17 @@ $routes->group('tax_definitions', static function (RouteCollection $routes): voi
     $routes->post('save', 'Tax_definitions::postSave');
     $routes->post('save/(:num)', 'Tax_definitions::postSave/$1');
     $routes->post('delete', 'Tax_definitions::postDelete');
+});
+
+$routes->group('custom_fields', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Custom_fields::getIndex');
+    $routes->get('search', 'Custom_fields::getSearch');
+    $routes->get('row/(:num)', 'Custom_fields::getRow/$1');
+    $routes->get('view', 'Custom_fields::getView');
+    $routes->get('view/(:num)', 'Custom_fields::getView/$1');
+    $routes->post('save', 'Custom_fields::postSave');
+    $routes->post('save/(:num)', 'Custom_fields::postSave/$1');
+    $routes->post('status/(:num)/(:num)', 'Custom_fields::postStatus/$1/$2');
 });
 
 $routes->group('price_lists', static function (RouteCollection $routes): void {
@@ -524,6 +537,8 @@ $routes->group('accounting_journals', static function (RouteCollection $routes):
     $routes->get('new', 'AccountingJournals::getNew');
     $routes->get('edit/(:num)', 'AccountingJournals::getEdit/$1');
     $routes->get('view/(:num)', 'AccountingJournals::getShow/$1');
+    $routes->get('print/(:num)', 'AccountingJournals::getPrint/$1');
+    $routes->get('pdf/(:num)', 'AccountingJournals::getPdf/$1');
     $routes->get('reverse_form/(:num)', 'AccountingJournals::getReverseForm/$1');
     $routes->get('edit_details/(:num)', 'AccountingJournals::getEditDetails/$1');
     $routes->get('attachment/(:num)', 'AccountingJournals::getAttachment/$1');

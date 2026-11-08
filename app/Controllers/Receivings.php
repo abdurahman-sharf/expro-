@@ -20,6 +20,11 @@ use App\Libraries\Accounting\SupplierPaymentDate;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Barcode_lib;
+use App\Libraries\Documents\CustomFields;
+use App\Libraries\Documents\PurchasePaidAmounts;
+use App\Libraries\Documents\RendersPdf;
+use App\Libraries\Documents\VoucherDocument;
+use App\Libraries\Documents\VoucherDocuments;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -40,6 +45,8 @@ use ReflectionException;
 
 class Receivings extends Secure_Controller
 {
+    use RendersPdf;
+
     private Receiving_lib $receiving_lib;
     private Token_lib $token_lib;
     private Barcode_lib $barcode_lib;
@@ -470,6 +477,11 @@ class Receivings extends Secure_Controller
         $data['paymentNumbers']         = (new DocumentNumbering())->numbers(DocumentType::SupplierPayment, 'receivings_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
         $data['paymentDates']           = [];
         $data['today']                  = date('Y-m-d');
+        $vouchers                       = new VoucherDocuments();
+        $data['receiptIds']             = array_values(array_filter(
+            array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']),
+            static fn (int $paymentId): bool => $vouchers->supplierPayment($paymentId, (int) $currentEmployeeId) !== null,
+        ));
 
         foreach ($data['payments'] as $payment) {
             $data['paymentDates'][(int) $payment->payment_id] = SupplierPaymentDate::of($payment->payment_date, (string) $payment->payment_time);
@@ -729,23 +741,43 @@ class Receivings extends Secure_Controller
             throw PageNotFoundException::forPageNotFound();
         }
 
-        $receivingInfo = $this->receiving->get_info($receiving_id)->getRowArray();
-        $this->receiving_lib->copy_entire_receiving($receiving_id);
+        $data = $this->receivingData((int) $receiving_id);
+
+        $data['print_after_sale'] = false;
+
+        $view = view('receivings/receipt', $data);
+
+        $this->receiving_lib->clear_all();
+
+        return $view;
+    }
+
+    /**
+     * What the receipt and the documents of a receiving show: its lines, its totals, its supplier and the
+     * numbers it goes by. It leaves the lines of the receiving in the register of the library, which the
+     * caller clears.
+     *
+     * @return array<string, mixed>
+     */
+    private function receivingData(int $receivingId): array
+    {
+        $receivingInfo = $this->receiving->get_info($receivingId)->getRowArray();
+        $this->receiving_lib->copy_entire_receiving($receivingId);
         $data['cart']                 = $this->receiving_lib->get_cart();
         $data['total']                = $this->receiving_lib->get_total();
         $data['tax_total']            = $this->receiving_lib->get_tax_total();
         $data['total_with_tax']       = $this->receiving_lib->get_total_with_tax();
         $data['mode']                 = $this->receiving_lib->get_mode();
-        $timing                       = $this->receiving->getInvoiceTiming((int) $receiving_id);
+        $timing                       = $this->receiving->getInvoiceTiming((int) $receivingId);
         $data['transaction_time']     = to_datetime(strtotime($receivingInfo['receiving_time']));
         $data['invoice_date']         = $timing['invoice_date'] === null ? null : to_date(strtotime($timing['invoice_date']));
         $data['due_date']             = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
         $data['show_stock_locations'] = $this->stock_location->show_locations('receivings');
         $data['payment_type']         = $receivingInfo['payment_type'];
         $data['reference']            = $this->receiving_lib->get_reference();
-        $data['receiving_id']         = 'RECV ' . $receiving_id;
+        $data['receiving_id']         = 'RECV ' . $receivingId;
         $data['barcode']              = $this->barcode_lib->generate_receipt_barcode($data['receiving_id']);
-        $data += $this->documentNumberOf((int) $receiving_id);
+        $data += $this->documentNumberOf((int) $receivingId);
 
         $data['invoiceDiscount']       = $this->receiving_lib->getInvoiceDiscount();
         $data['invoiceDiscountAmount'] = $this->receiving_lib->getInvoiceDiscountAmount();
@@ -769,13 +801,120 @@ class Receivings extends Secure_Controller
             }
         }
 
-        $data['print_after_sale'] = false;
+        return $data;
+    }
 
-        $view = view('receivings/receipt', $data);
+    /**
+     * The purchase invoice of a receiving, or its debit note when it sent goods back, ready to print.
+     * Used in app/Views/receivings/receipt.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function getPrint(int $receivingId): string
+    {
+        $data = $this->purchaseDocument($receivingId);
 
+        return view('documents/screen', [
+            'inner'     => 'documents/purchase_invoice',
+            'data'      => ['receiving' => $data],
+            'pdfUrl'    => 'receivings/pdf/' . $receivingId,
+            'backUrl'   => 'receivings',
+            'backLabel' => lang('Receivings.register'),
+            'backIcon'  => 'bi-box-arrow-in-down',
+        ]);
+    }
+
+    /**
+     * @noinspection PhpUnused
+     */
+    public function getPdf(int $receivingId): ResponseInterface
+    {
+        $data    = $this->purchaseDocument($receivingId);
+        $profile = purchaseDocumentProfile($data);
+
+        return $this->pdfResponse($this->response, view('documents/purchase_invoice_pdf', ['receiving' => $data]), $profile['title'], $profile['number']);
+    }
+
+    /**
+     * The receipt of a payment made to a supplier, ready to print. Linked from the payments of app/Views/receivings/form.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function getPaymentReceipt(int $paymentId): string
+    {
+        $voucher = $this->supplierReceipt($paymentId);
+
+        return view('documents/screen', [
+            'inner'     => 'documents/voucher',
+            'data'      => ['voucher' => $voucher],
+            'pdfUrl'    => 'receivings/paymentReceiptPdf/' . $paymentId,
+            'backUrl'   => 'receivings',
+            'backLabel' => lang('Receivings.register'),
+            'backIcon'  => 'bi-box-arrow-in-down',
+        ]);
+    }
+
+    /**
+     * @noinspection PhpUnused
+     */
+    public function getPaymentReceiptPdf(int $paymentId): ResponseInterface
+    {
+        $voucher = $this->supplierReceipt($paymentId);
+
+        return $this->pdfResponse($this->response, view('documents/voucher_pdf', ['voucher' => $voucher]), $voucher->title, $voucher->number);
+    }
+
+    private function supplierReceipt(int $paymentId): VoucherDocument
+    {
+        $voucher = (new VoucherDocuments())->supplierPayment($paymentId, (int) $this->session->get('person_id'));
+
+        if ($voucher === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return $voucher;
+    }
+
+    /**
+     * What the purchase invoice of a receiving shows: the data of its receipt, what has been paid of it,
+     * and what kind of document it is. A receiving the employee may not see, one that does not exist and a
+     * stock requisition are not purchase invoices.
+     *
+     * @return array<string, mixed>
+     */
+    private function purchaseDocument(int $receivingId): array
+    {
+        if ($this->outsideViewScope($receivingId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $info = $this->receiving->get_info($receivingId)->getRowArray();
+        $type = ReceivingType::tryFrom((string) ($info['receiving_type'] ?? ''));
+
+        if ($type === null || $type === ReceivingType::Requisition) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $data = $this->receivingData($receivingId);
         $this->receiving_lib->clear_all();
 
-        return $view;
+        $settled = $type === ReceivingType::Return
+            ? ['paid' => '0', 'due' => '0']
+            : (new PurchasePaidAmounts())->read(
+                $receivingId,
+                ($info['supplier_id'] ?? null) === null ? null : (int) $info['supplier_id'],
+                $info['payment_type'] ?? null,
+                ($info['currency_code'] ?? null) !== null,
+                bcadd((string) $data['total_with_tax'], '0', 4),
+            );
+
+        $data['purchase_type']       = $type->value;
+        $data['item_printed_fields'] = (new CustomFields())->printableFor('item', array_map(static fn (array $line): int => (int) $line['item_id'], array_values($data['cart'])));
+        $data['paid']                = $settled['paid'];
+        $data['due']                 = $settled['due'];
+        $data['receiving_num']       = $receivingId;
+
+        return $data;
     }
 
     private function _reload(array $data = []): string    // TODO: Hungarian notation

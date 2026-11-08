@@ -9,6 +9,9 @@ use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Documents\RendersPdf;
+use App\Libraries\Documents\VoucherDocument;
+use App\Libraries\Documents\VoucherDocuments;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -22,6 +25,8 @@ use Config\Services;
 
 class Expenses extends Secure_Controller
 {
+    use RendersPdf;
+
     private Expense $expense;
     private Expense_category $expense_category;
 
@@ -167,6 +172,46 @@ class Expenses extends Secure_Controller
         $data['branchSelected']       = ($data['expenses_info']->treasury_branch_id ?? null) === null ? 0 : (int) $data['expenses_info']->branch_id;
 
         return view("expenses/form", $data);
+    }
+
+    /**
+     * The payment voucher of an expense, ready to print. Used in app/Views/expenses/form.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function getVoucher(int $expenseId): string
+    {
+        $voucher = $this->voucherOrNotFound($expenseId);
+
+        return view('documents/screen', [
+            'inner'     => 'documents/voucher',
+            'data'      => ['voucher' => $voucher],
+            'pdfUrl'    => 'expenses/voucherPdf/' . $expenseId,
+            'backUrl'   => 'expenses',
+            'backLabel' => lang('Documents.back'),
+            'backIcon'  => 'bi-arrow-left',
+        ]);
+    }
+
+    /**
+     * @noinspection PhpUnused
+     */
+    public function getVoucherPdf(int $expenseId): ResponseInterface
+    {
+        $voucher = $this->voucherOrNotFound($expenseId);
+
+        return $this->pdfResponse($this->response, view('documents/voucher_pdf', ['voucher' => $voucher]), $voucher->title, $voucher->number);
+    }
+
+    private function voucherOrNotFound(int $expenseId): VoucherDocument
+    {
+        $voucher = (new VoucherDocuments())->expense($expenseId, (int) $this->employee->get_logged_in_employee_info()->person_id);
+
+        if ($voucher === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return $voucher;
     }
 
     /**

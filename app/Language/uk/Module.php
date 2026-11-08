@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Додавання, оновлення, видалення та пошук готівки.',
     'config'                       => 'Конфігурація',
     'config_desc'                  => 'Змініть конфігуряцію OSPOS.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Клієнти',

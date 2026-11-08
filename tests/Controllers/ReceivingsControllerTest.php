@@ -3,7 +3,9 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\InvoiceDiscount;
+use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Documents\CustomFields;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
@@ -20,6 +22,7 @@ use DOMDocument;
 use DOMXPath;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
@@ -38,6 +41,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use FeatureTestTrait;
     use AccountingFixtureTrait;
+    use DatabaseFingerprintTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -3720,5 +3724,358 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->post('/receivings/changeMode', ['mode' => 'return'])->assertStatus(200);
 
         $this->assertNull(session()->get('recv_order_source'));
+    }
+
+    public function testGetPrint_PrintsThePurchaseInvoiceWithItsSupplierLinesTotalsAndWhatWasPaid(): void
+    {
+        (new DocumentNumbering())->configure(DocumentType::Purchase, ['enabled' => true, 'prefix' => 'PUR-', 'padding' => 5, 'next_number' => 1]);
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->payPurchase($receiving, '200.00');
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/print/' . $receiving);
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Documents.purchase_invoice'));
+        $response->assertSee('PUR-00001');
+        $response->assertSee('Gulf Supplies');
+        $response->assertSee(to_currency('500.00'));
+        $response->assertSee(lang('Documents.paid'));
+        $response->assertSee(to_currency('200.00'));
+        $response->assertSee(lang('Sales.amount_due'));
+        $response->assertSee(to_currency('300.00'));
+    }
+
+    public function testGetPrint_CountsOnlyCompletedPaymentsAsPaidOnThePurchaseInvoice(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->payPurchase($receiving, '200.00');
+        $this->payPurchase($receiving, '150.00', null, 'draft');
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/print/' . $receiving)->getBody();
+
+        $this->assertStringContainsString(documentIsolate(to_currency('200.00')), $body);
+        $this->assertStringContainsString(documentIsolate(to_currency('300.00')), $body);
+        $this->assertStringNotContainsString(documentIsolate(to_currency('350.00')), $body);
+        $this->assertStringNotContainsString(documentIsolate(to_currency('150.00')), $body);
+    }
+
+    private function totalsRowOf(string $html, string $label): string
+    {
+        $found = preg_match('~<td class="[^"]*">' . preg_quote($label, '~') . '</td>\s*<td class="[^"]*">(.*?)</td>~s', $html, $matches);
+
+        $this->assertSame(1, $found, 'The totals have no row ' . $label);
+
+        return trim(strip_tags($matches[1]));
+    }
+
+    public function testGetPrint_PrintsAPurchasePaidAtOnceAsPaidInFullWithNothingDue(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId, lang('Sales.cash'));
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/print/' . $receiving)->getBody();
+
+        $this->assertSame(to_currency('500.00'), $this->totalsRowOf($body, lang('Documents.paid')));
+        $this->assertSame(to_currency('0.00'), $this->totalsRowOf($body, lang('Sales.amount_due')));
+        $this->assertSame('0.0000', $this->supplierPosition()->open(), 'The books owe the supplier nothing for it');
+    }
+
+    public function testGetPrint_PrintsTheCreditAppliedToAPurchaseAsSettledAndWhatIsLeftAsDue(): void
+    {
+        $first = $this->purchaseOf('200.00', $this->supplierId, lang('Sales.cash'));
+        $this->debitNoteOf($first, '200.00');
+        $second = $this->purchaseOf('500.00', $this->supplierId);
+        $figures = $this->supplierPosition()->purchase($second);
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/print/' . $second)->getBody();
+
+        $this->assertSame('200.0000', bcadd($figures->applied, '0', 4));
+        $this->assertSame(to_currency('200.00'), $this->totalsRowOf($body, lang('Documents.paid')));
+        $this->assertSame(to_currency('300.00'), $this->totalsRowOf($body, lang('Sales.amount_due')));
+        $this->assertSame(to_currency('300.00'), to_currency(bcadd($figures->open(), '0', 2)));
+    }
+
+    public function testGetPrint_PrintsAPurchaseSavedWithoutTheBooksFromItsPaymentType(): void
+    {
+        $paid = $this->purchaseOf('500.00', $this->supplierId, lang('Sales.cash'));
+        $due  = $this->purchaseOf('300.00', $this->supplierId);
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->loginAs($this->buyer());
+
+        try {
+            $paidBody = $this->get('/receivings/print/' . $paid)->getBody();
+            $dueBody  = $this->get('/receivings/print/' . $due)->getBody();
+        } finally {
+            $this->setConfigValue('accounting_enabled', '1');
+        }
+
+        $this->assertSame(to_currency('500.00'), $this->totalsRowOf($paidBody, lang('Documents.paid')));
+        $this->assertSame(to_currency('0.00'), $this->totalsRowOf($paidBody, lang('Sales.amount_due')));
+        $this->assertSame(to_currency('0.00'), $this->totalsRowOf($dueBody, lang('Documents.paid')));
+        $this->assertSame(to_currency('300.00'), $this->totalsRowOf($dueBody, lang('Sales.amount_due')));
+    }
+
+    public function testGetPrint_PrintsAPurchaseInAForeignCurrencyFromItsOwnAmountsAndNotFromTheBooksInTheBaseCurrency(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId, lang('Sales.cash'));
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receiving)->update(['payment_type' => lang('Sales.due'), 'currency_code' => 'USD', 'currency_rate' => '3.7500']);
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/print/' . $receiving)->getBody();
+
+        $this->assertSame(to_currency('0.00'), $this->totalsRowOf($body, lang('Documents.paid')));
+        $this->assertSame(to_currency('500.00'), $this->totalsRowOf($body, lang('Sales.amount_due')));
+    }
+
+    public function testGetPrint_PrintsNothingDueForAPurchaseThatWasPaidBeyondItsTotal(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId, lang('Sales.cash'));
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receiving)->update(['payment_type' => 'Cash', 'currency_code' => 'USD', 'currency_rate' => '3.7500']);
+        $this->accountingDb()->table('receivings_payments')->insert(['receiving_id' => $receiving, 'payment_type' => 'Cash', 'payment_amount' => '100.00', 'payment_time' => '2026-10-22 11:15:00']);
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/print/' . $receiving)->getBody();
+
+        $this->assertSame(to_currency('600.00'), $this->totalsRowOf($body, lang('Documents.paid')));
+        $this->assertSame(to_currency('0.00'), $this->totalsRowOf($body, lang('Sales.amount_due')));
+    }
+
+    public function testGetPrint_ShowsNoPurchaseInvoiceForAStockRequisition(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receiving)->update(['receiving_type' => ReceivingType::Requisition->value]);
+        $this->loginAs($this->buyer());
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receivings/print/' . $receiving);
+    }
+
+    public function testGetPrint_PrintsTheExtraFieldsOfTheProductsOnThePurchaseInvoice(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $itemId    = (int) $this->accountingDb()->table('receivings_items')->where('receiving_id', $receiving)->get()->getRow()->item_id;
+        $fields    = new CustomFields();
+        $colour    = $fields->create('item', ['name' => 'Colour', 'type' => 'text', 'printable' => '1'], null);
+        $fields->save('item', $itemId, [$colour => 'Rose <b>pink</b>']);
+        $this->loginAs($this->buyer());
+
+        try {
+            $body = $this->get('/receivings/print/' . $receiving)->getBody();
+        } finally {
+            $this->accountingDb()->query('SET FOREIGN_KEY_CHECKS = 0');
+            $this->accountingDb()->table('custom_field_values')->truncate();
+            $this->accountingDb()->table('custom_fields')->truncate();
+            $this->accountingDb()->query('SET FOREIGN_KEY_CHECKS = 1');
+            $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'custom_field')->delete();
+        }
+
+        $this->assertStringContainsString('Colour: Rose &lt;b&gt;pink&lt;/b&gt;', $body);
+    }
+
+    public function testGetPrint_CarriesNoCodeAndNoSalesWordsOnAPurchaseInvoiceEvenWithATaxNumber(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->loginAs($this->buyer());
+        $before = config(OSPOS::class)->settings;
+        config(OSPOS::class)->settings['company'] = 'opes';
+        config(OSPOS::class)->settings['tax_id']  = '300000000000003';
+
+        try {
+            $body = $this->get('/receivings/print/' . $receiving)->getBody();
+        } finally {
+            config(OSPOS::class)->settings = $before;
+        }
+
+        $this->assertStringNotContainsString('class="doc-qr', $body);
+        $this->assertStringNotContainsString(lang('Documents.qr_label'), $body);
+    }
+
+    public function testGetPrint_PrintsTheTermsOfPurchaseInvoicesAndEscapesThem(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->loginAs($this->buyer());
+        $before = config(OSPOS::class)->settings;
+        config(OSPOS::class)->settings['document_terms_purchase_invoice'] = 'Pay <b>within</b> 30 days';
+        config(OSPOS::class)->settings['document_terms_invoice']          = 'Invoice terms only';
+
+        try {
+            $body = $this->get('/receivings/print/' . $receiving)->getBody();
+        } finally {
+            config(OSPOS::class)->settings = $before;
+        }
+
+        $this->assertStringContainsString('Pay &lt;b&gt;within&lt;/b&gt; 30 days', $body);
+        $this->assertStringNotContainsString('Invoice terms only', $body);
+    }
+
+    public function testGetPrint_TitlesAReturnToTheSupplierAsADebitNoteWithPositiveAmounts(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $note      = $this->debitNoteOf($receiving, '100.00', $this->supplierId);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/print/' . $note);
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Receivings.debit_note'));
+        $response->assertSee(to_currency('100.00'));
+        $response->assertDontSee(to_currency('-100.00'));
+        $response->assertDontSee(lang('Documents.paid'));
+    }
+
+    public function testGetPrint_EscapesTheNameOfTheSupplier(): void
+    {
+        $supplier  = $this->supplier('<script>alert(1)</script> Trading');
+        $receiving = $this->purchaseOf('500.00', $supplier);
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/print/' . $receiving)->getBody();
+
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt; Trading', $body);
+    }
+
+    public function testGetPrint_HidesAPurchaseOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->loginAs($this->buyer([$this->anotherBranch()]));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receivings/print/' . $receiving);
+    }
+
+    public function testGetPrint_ShowsNoPurchaseInvoiceForAReceivingThatDoesNotExist(): void
+    {
+        $this->loginAs($this->buyer());
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receivings/print/987654');
+    }
+
+    public function testGetPrint_RefusesAnEmployeeWithoutTheReceivingsModule(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->loginAs($this->createEmployee(grants: [['permission_id' => 'sales', 'menu_group' => 'home']]));
+
+        $this->get('/receivings/print/' . $receiving)->assertRedirect();
+    }
+
+    public function testGetPdf_ReturnsAPdfOfThePurchaseInvoiceWithItsNumberInItsName(): void
+    {
+        (new DocumentNumbering())->configure(DocumentType::Purchase, ['enabled' => true, 'prefix' => 'PUR-', 'padding' => 5, 'next_number' => 1]);
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/pdf/' . $receiving);
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->response()->getBody());
+        $this->assertStringContainsString(rawurlencode(lang('Documents.purchase_invoice') . ' PUR-00001') . '.pdf', $response->response()->getHeaderLine('Content-Disposition'));
+    }
+
+    public function testGetPdf_HidesAPurchaseOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->loginAs($this->buyer([$this->anotherBranch()]));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receivings/pdf/' . $receiving);
+    }
+
+    public function testGetPrint_AndPdfChangeNoRowOfTheBooksNorOfThePurchase(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->payPurchase($receiving, '200.00');
+        $this->loginAs($this->buyer());
+        $before = $this->databaseFingerprint();
+
+        $this->get('/receivings/print/' . $receiving)->assertStatus(200);
+        $this->get('/receivings/pdf/' . $receiving)->assertStatus(200);
+
+        $this->assertDatabaseUnchanged($before, 'Printing a purchase invoice changed a row.');
+    }
+
+    public function testGetReceipt_OffersThePurchaseInvoiceAndStillShowsTheReceipt(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/receipt/' . $receiving);
+
+        $response->assertStatus(200);
+        $response->assertSee('show_invoice_button');
+        $response->assertSee(lang('Receivings.receipt'));
+    }
+
+    public function testGetEdit_LinksTheReceiptOfEachCompletedPaymentToTheSupplierAndOfNoOtherPayment(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $done      = $this->payPurchase($receiving, '200.00');
+        $draft     = $this->payPurchase($receiving, '100.00', null, 'draft');
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/edit/' . $receiving)->getBody();
+
+        $this->assertStringContainsString('id="payment_receipt_' . $done . '"', $body);
+        $this->assertStringContainsString('href="' . site_url('receivings/paymentReceipt/' . $done) . '"', $body);
+        $this->assertStringNotContainsString('id="payment_receipt_' . $draft . '"', $body);
+    }
+
+    public function testGetPaymentReceipt_PrintsTheSupplierTheAmountAndTheAmountInWords(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $payment   = $this->payPurchase($receiving, '500.00');
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/paymentReceipt/' . $payment);
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Documents.supplier_receipt'));
+        $response->assertSee('Gulf Supplies');
+        $response->assertSee('500.00 SAR');
+        $response->assertSee('Five hundred Saudi Riyals');
+    }
+
+    public function testGetPaymentReceipt_ShowsNoReceiptOfAPaymentThatIsNotCompletedOrUnknown(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $payment   = $this->payPurchase($receiving, '100.00', null, 'draft');
+        $this->loginAs($this->buyer());
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receivings/paymentReceipt/' . $payment);
+    }
+
+    public function testGetPaymentReceipt_HidesAPaymentOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $payment   = $this->payPurchase($receiving, '500.00');
+        $this->loginAs($this->buyer([$this->anotherBranch()]));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receivings/paymentReceipt/' . $payment);
+    }
+
+    public function testGetPaymentReceiptPdf_ReturnsAPdf(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $payment   = $this->payPurchase($receiving, '500.00');
+        $this->loginAs($this->buyer());
+
+        $response = $this->get('/receivings/paymentReceiptPdf/' . $payment);
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $response->response()->getBody());
     }
 }

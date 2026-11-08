@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\SalesTaxSettings;
+use App\Libraries\Documents\DocumentTerms;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Stock\StockLocationLifecycle;
@@ -43,6 +44,8 @@ class ConfigTest extends CIUnitTestCase
         $db->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->delete();
         (new SalesTaxSettings())->update([SalesTaxSettings::INCLUDED_KEY => false, SalesTaxSettings::TAX_ONE_KEY => false]);
         $db->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->delete();
+        $db->table('app_config')->whereIn('key', DocumentTerms::settingKeys())->delete();
+        $db->table('accounting_audit_log')->where('action', 'document_terms_updated')->delete();
 
         parent::tearDown();
     }
@@ -906,5 +909,92 @@ class ConfigTest extends CIUnitTestCase
         $this->assertSame('1', (string) $this->locationRow($spare)['status']);
 
         $this->restoreLocations();
+    }
+
+    /**
+     * What the form of the invoice settings posts when it is saved as it stands.
+     *
+     * @return array<string, string>
+     */
+    private function invoiceSettingsPayload(array $override = []): array
+    {
+        $settings = config(OSPOS::class)->settings;
+        $payload  = [];
+
+        foreach (['sales_invoice_format', 'sales_quote_format', 'recv_invoice_format', 'invoice_default_comments', 'invoice_email_message', 'line_sequence', 'last_used_invoice_number', 'last_used_quote_number', 'quote_default_comments', 'work_order_format', 'last_used_work_order_number', 'invoice_type'] as $key) {
+            $payload[$key] = (string) ($settings[$key] ?? '');
+        }
+
+        foreach (['invoice_enable', 'work_order_enable'] as $key) {
+            if (! empty($settings[$key])) {
+                $payload[$key] = $key;
+            }
+        }
+
+        return $override + $payload;
+    }
+
+    public function testSaveInvoice_SavesTheTermsOfEachFamilyAndAuditsTheChange(): void
+    {
+        $this->resetSession();
+
+        $result = json_decode($this->post('/config/saveInvoice', $this->invoiceSettingsPayload([
+            'document_terms_invoice'          => 'Goods stay ours until paid.',
+            'document_terms_credit_note'      => 'Credit is used within 90 days.',
+            'document_terms_quote'            => 'Valid for 14 days.',
+            'document_terms_work_order'       => 'Repairs carry a month of guarantee.',
+            'document_terms_purchase_invoice' => 'Pay in 30 days.',
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+
+        $db = Database::connect();
+
+        foreach (['document_terms_invoice' => 'Goods stay ours until paid.', 'document_terms_credit_note' => 'Credit is used within 90 days.', 'document_terms_quote' => 'Valid for 14 days.', 'document_terms_work_order' => 'Repairs carry a month of guarantee.', 'document_terms_purchase_invoice' => 'Pay in 30 days.'] as $key => $text) {
+            $this->assertSame($text, $db->table('app_config')->where('key', $key)->get()->getRow()->value, $key);
+        }
+
+        $entry = $db->table('accounting_audit_log')->where('action', 'document_terms_updated')->get()->getRow();
+
+        $this->assertSame(1, (int) $entry->employee_id);
+        $this->assertSame('Goods stay ours until paid.', json_decode((string) $entry->details, true)['after']['document_terms_invoice']);
+    }
+
+    public function testSaveInvoice_LeavesTheTermsAsTheyAreWhenTheirFieldsAreNotPosted(): void
+    {
+        $this->resetSession();
+        $this->post('/config/saveInvoice', $this->invoiceSettingsPayload(['document_terms_invoice' => 'Keep me']));
+
+        $this->post('/config/saveInvoice', $this->invoiceSettingsPayload());
+
+        $this->assertSame('Keep me', Database::connect()->table('app_config')->where('key', 'document_terms_invoice')->get()->getRow()->value);
+        $this->assertSame(1, Database::connect()->table('accounting_audit_log')->where('action', 'document_terms_updated')->countAllResults());
+    }
+
+    public function testSaveInvoice_RefusesAnEmployeeWithoutTheSettingsPermissionAndSavesNoTerms(): void
+    {
+        $employee = $this->createEmployee(grants: [['permission_id' => 'sales', 'menu_group' => 'home']]);
+        $this->withSession(['person_id' => $employee, 'menu_group' => 'home']);
+
+        $response = $this->post('/config/saveInvoice', $this->invoiceSettingsPayload(['document_terms_invoice' => 'Sneaked in']));
+
+        $response->assertRedirect();
+        $this->assertStringContainsString('no_access', $response->getRedirectUrl());
+        $this->assertNull(Database::connect()->table('app_config')->where('key', 'document_terms_invoice')->get()->getRow());
+    }
+
+    public function testInvoiceConfigView_OffersAFieldForTheTermsOfEachFamilyAndShowsWhatIsSaved(): void
+    {
+        $this->resetSession();
+        $this->post('/config/saveInvoice', $this->invoiceSettingsPayload(['document_terms_quote' => 'Valid for 14 days <b>only</b>']));
+
+        $body = $this->settingsPage()->getBody();
+
+        foreach (['invoice', 'credit_note', 'quote', 'work_order', 'purchase_invoice'] as $family) {
+            $this->assertStringContainsString('name="document_terms_' . $family . '"', $body, $family);
+        }
+
+        $this->assertStringContainsString('Valid for 14 days &lt;b&gt;only&lt;/b&gt;', $body);
+        $this->assertStringNotContainsString('<b>only</b>', $body);
     }
 }

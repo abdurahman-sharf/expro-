@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => '',
     'config'                       => 'Configuration',
     'config_desc'                  => 'Change OSPOS\'s Configuration.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Customers',

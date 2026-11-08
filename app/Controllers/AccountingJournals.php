@@ -25,6 +25,7 @@ use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingFailureReader;
 use App\Libraries\Accounting\RevenuePostingBuilder;
 use App\Libraries\Accounting\YearEndEntries;
+use App\Libraries\Documents\RendersPdf;
 use App\Libraries\Organization\BranchContext;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchService;
@@ -34,6 +35,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 class AccountingJournals extends AccountingController
 {
     use ExportsCsv;
+    use RendersPdf;
 
     private const DETAIL_LIMIT = 8;
 
@@ -186,6 +188,46 @@ class AccountingJournals extends AccountingController
             'number_label'   => $this->displayNumber($journal->series, $journal->number),
             'show_branch'    => $this->seesBranches(),
         ]);
+    }
+
+    public function getPrint(int $journalId): string
+    {
+        return view('documents/screen', [
+            'inner'     => 'documents/journal',
+            'data'      => $this->journalDocument($journalId),
+            'pdfUrl'    => 'accounting_journals/pdf/' . $journalId,
+            'backUrl'   => 'accounting_journals/view/' . $journalId,
+            'backLabel' => lang('Accounting_journals.back'),
+            'backIcon'  => 'bi-arrow-left',
+        ]);
+    }
+
+    public function getPdf(int $journalId): ResponseInterface
+    {
+        $data = $this->journalDocument($journalId);
+
+        return $this->pdfResponse($this->response, view('documents/journal_pdf', $data), lang('Documents.journal'), $data['number']);
+    }
+
+    /**
+     * What the printed journal shows. The journal is found as the screen finds it, so a branch the
+     * employee does not work in, a journal that is only a preview and one that does not exist are a page
+     * that is not there.
+     *
+     * @return array<string, mixed>
+     */
+    private function journalDocument(int $journalId): array
+    {
+        $journal = $this->findOrFail($journalId);
+
+        return [
+            'journal'     => $journal,
+            'number'      => $this->displayNumber($journal->series, $journal->number),
+            'source'      => $this->sourceLabel($journal->source_type, (string) ($journal->entry_type ?? 'general')),
+            'status'      => lang('Accounting.state_' . $journal->status),
+            'show_branch' => $this->seesBranches(),
+            'currency'    => (string) ($journal->currency_code ?? (new AccountingSettings())->baseCurrency()),
+        ];
     }
 
     public function getReverseForm(int $journalId): string

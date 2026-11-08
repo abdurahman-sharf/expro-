@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Thêm, cập nhật, xóa và tìm kiếm về tiền mặt.',
     'config'                       => 'Cấu hình',
     'config_desc'                  => 'Thay đổi cấu hình của OSPOS.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Khách hàng',

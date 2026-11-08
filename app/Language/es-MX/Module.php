@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Agregar, Actualizar, Borrar y Buscar Cortes de Caja.',
     'config'                       => 'Configuración',
     'config_desc'                  => 'Cambiar Configuracion de OSPOS.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Clientes',

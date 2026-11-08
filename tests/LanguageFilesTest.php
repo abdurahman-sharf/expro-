@@ -8,6 +8,8 @@ use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\ReadinessCode;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
+use App\Libraries\Documents\CustomFieldType;
+use App\Libraries\Documents\DocumentError;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
@@ -503,6 +505,99 @@ class LanguageFilesTest extends CIUnitTestCase
             preg_match_all('/\{\d+\}/', $messages[$key], $given);
 
             $this->assertEqualsCanonicalizing($wanted[0], $given[0], "{$locale} {$key}: the placeholders are kept");
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testDocumentsFile_DefinesAMessageForEveryErrorOfTheDocuments(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Documents.php";
+
+        foreach (DocumentError::cases() as $error) {
+            $this->assertNotSame('', $messages['error_' . $error->value] ?? '', "{$locale} lacks the message for {$error->value}");
+        }
+    }
+
+    #[DataProvider('arabicLocaleProvider')]
+    public function testDocumentsFile_IsTranslatedIntoArabicWithoutEnglishText(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Documents.php";
+        $english  = include __DIR__ . '/../app/Language/en/Documents.php';
+
+        foreach ($english as $key => $line) {
+            $this->assertNotSame($line, $messages[$key], "{$locale} shows English for {$key}");
+            $this->assertNotSame('', $messages[$key], "{$locale} lacks {$key}");
+        }
+    }
+
+    #[DataProvider('everyLocaleProvider')]
+    public function testDocumentsFile_KeepsTheKeysOfEnglishInTheirOrderAndLeavesWhatIsNotTranslatedEmpty(string $locale): void
+    {
+        $english  = include __DIR__ . '/../app/Language/en/Documents.php';
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Documents.php";
+
+        $this->assertSame(array_keys($english), array_keys($messages), $locale);
+        $keys = array_keys($english);
+        $sorted = $keys;
+        sort($sorted);
+        $this->assertSame($sorted, $keys, 'The keys of the English file are in alphabetical order.');
+
+        if (! in_array($locale, ['en', 'en-GB', 'ar-EG', 'ar-LB'], true)) {
+            $this->assertSame([''], array_values(array_unique($messages)), "{$locale} holds text that is not translated");
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testCustomFieldsFiles_NameTheModuleLabelThePermissionAndTheTypesOfField(string $locale): void
+    {
+        $module   = include __DIR__ . "/../app/Language/{$locale}/Module.php";
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Custom_fields.php";
+        $english  = include __DIR__ . '/../app/Language/en/Custom_fields.php';
+
+        foreach (['custom_fields', 'custom_fields_desc'] as $key) {
+            $this->assertNotSame('', $module[$key] ?? '', "{$locale} lacks the module label {$key}");
+        }
+
+        $this->assertNotSame('', $messages['custom_fields_manage'] ?? '', "{$locale} lacks the label of the permission acc_custom_fields_manage");
+
+        foreach (CustomFieldType::cases() as $type) {
+            $this->assertNotSame('', $messages[str_replace('Custom_fields.', '', $type->languageKey())] ?? '', "{$locale} lacks the type {$type->value}");
+        }
+
+        foreach (array_keys($english) as $key) {
+            $this->assertNotSame('', $messages[$key] ?? '', "{$locale} lacks {$key}");
+        }
+
+        foreach (['entity_item', 'entity_sale'] as $key) {
+            $this->assertNotSame('', $messages[$key] ?? '', "{$locale} lacks {$key}");
+        }
+    }
+
+    #[DataProvider('arabicLocaleProvider')]
+    public function testCustomFieldsFile_IsTranslatedIntoArabicWithoutEnglishText(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Custom_fields.php";
+        $english  = include __DIR__ . '/../app/Language/en/Custom_fields.php';
+
+        foreach ($english as $key => $line) {
+            $this->assertNotSame($line, $messages[$key], "{$locale} shows English for {$key}");
+        }
+    }
+
+    #[DataProvider('everyLocaleProvider')]
+    public function testCustomFieldsFile_KeepsTheKeysOfEnglishInTheirOrderAndLeavesWhatIsNotTranslatedEmpty(string $locale): void
+    {
+        $english  = include __DIR__ . '/../app/Language/en/Custom_fields.php';
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Custom_fields.php";
+        $keys     = array_keys($english);
+        $sorted   = $keys;
+        sort($sorted);
+
+        $this->assertSame($keys, array_keys($messages), $locale);
+        $this->assertSame($sorted, $keys, 'The keys of the English file are in alphabetical order.');
+
+        if (! in_array($locale, ['en', 'en-GB', 'ar-EG', 'ar-LB'], true)) {
+            $this->assertSame([''], array_values(array_unique($messages)), "{$locale} holds text that is not translated");
         }
     }
 }

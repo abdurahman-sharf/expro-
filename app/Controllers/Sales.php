@@ -27,6 +27,11 @@ use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Documents\CustomFields;
+use App\Libraries\Documents\CustomFieldType;
+use App\Libraries\Documents\DocumentException;
+use App\Libraries\Documents\RendersPdf;
+use App\Libraries\Documents\VoucherDocuments;
 use App\Libraries\HeaderCharges;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountProblem;
@@ -66,6 +71,8 @@ use stdClass;
 
 class Sales extends Secure_Controller
 {
+    use RendersPdf;
+
     protected $helpers = ['file'];
     private Barcode_lib $barcode_lib;
     private Email_lib $email_lib;
@@ -420,6 +427,72 @@ class Sales extends Secure_Controller
     {
         $this->sale_lib->set_comment($this->request->getPost('comment', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
         return $this->response->setJSON(['success' => true]);
+    }
+
+    /**
+     * Keeps the values typed for the extra fields of the invoice. A value that does not fit its field
+     * is kept as typed and reported, and the invoice cannot be completed until it is right. Used in
+     * app/Views/sales/register.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function postSetCustomFields(): ResponseInterface
+    {
+        $posted = $this->request->getPost('custom');
+        $posted = is_array($posted) ? $posted : [];
+        $fields = new CustomFields();
+        $kept   = [];
+
+        foreach ($fields->definitions('sale') as $definition) {
+            $raw = $posted[$definition->id] ?? '';
+
+            if (is_scalar($raw)) {
+                $kept[$definition->id] = mb_substr(trim((string) $raw), 0, CustomFieldType::MAX_TEXTAREA);
+            }
+        }
+
+        $this->sale_lib->setCustomFields($kept);
+
+        return $this->response->setJSON(['success' => true, 'problem' => $fields->problem('sale', $kept, false, (int) $this->session->get('sale_id'))]);
+    }
+
+    /**
+     * The extra fields of the invoice and of its items that print on its documents.
+     *
+     * @param array<int|string, array<string, mixed>> $cart
+     *
+     * @return array<string, mixed>
+     */
+    private function printedFieldsOf(mixed $saleId, array $cart): array
+    {
+        if (! is_int($saleId) && ! is_numeric($saleId)) {
+            return [];
+        }
+
+        $fields = new CustomFields();
+
+        return [
+            'printed_fields'      => (int) $saleId > 0 ? $fields->printable('sale', (int) $saleId) : [],
+            'item_printed_fields' => $fields->printableFor('item', array_map(static fn (array $line): int => (int) $line['item_id'], array_values($cart))),
+        ];
+    }
+
+    /**
+     * Keeps the extra fields of the invoice that was just saved. The values were checked before the
+     * invoice was saved, so a failure here is only a change made in between: it is logged and leaves the
+     * invoice as it was saved.
+     */
+    private function keepCustomFields(mixed $saleId, bool $requireValues = true): void
+    {
+        if (! is_int($saleId) || $saleId <= 0) {
+            return;
+        }
+
+        try {
+            (new CustomFields())->save('sale', $saleId, $this->sale_lib->getCustomFields(), $requireValues);
+        } catch (DocumentException $exception) {
+            log_message('error', 'The extra fields of sale ' . $saleId . ' were not kept: ' . $exception->error->value);
+        }
     }
 
     /**
@@ -1756,6 +1829,14 @@ class Sales extends Secure_Controller
             return $this->reload($data);
         }
 
+        $customProblem = (new CustomFields())->problem('sale', $this->sale_lib->getCustomFields(), entityId: (int) $saleId);
+
+        if ($customProblem !== null) {
+            $data['error'] = $customProblem;
+
+            return $this->reload($data);
+        }
+
         if (!$totals['payments_cover_total'] && !$this->sale_lib->is_invoice_mode() && !$this->sale_lib->is_quote_mode()) {
             $data['error'] = lang('Sales.amount_due_not_covered');
             return $this->reload($data);
@@ -1816,6 +1897,8 @@ class Sales extends Secure_Controller
 
                 // Save the data to the sales table
                 $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, $this->sale_lib->is_delivered(), null, $invoiceDiscount, invoiceDate: $this->sale_lib->getInvoiceDate(), paymentTerms: $this->sale_lib->getPaymentTerms(), quoteSourceId: $this->sale_lib->getQuoteSource(), headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId(), orderSourceId: $this->sale_lib->getOrderSource());
+                $this->keepCustomFields($data['sale_id_num']);
+                $data = [...$data, ...$this->printedFieldsOf($data['sale_id_num'], $data['cart'])];
                 $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
                 // Resort and filter cart lines for printing
@@ -1846,6 +1929,10 @@ class Sales extends Secure_Controller
                     if ($timing['invoice_date'] !== null) {
                         $data['transaction_date'] = to_date(strtotime($timing['invoice_date']));
                     }
+
+                    $data['sale_time_raw'] = $this->sale->getSaleTime((int) $data['sale_id_num']);
+                    $data['invoice_date_raw'] = $timing['invoice_date'];
+                    $data['currency_code'] = $this->sale->getCurrencyCode((int) $data['sale_id_num']);
 
                     $data['due_date'] = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
 
@@ -1878,6 +1965,8 @@ class Sales extends Secure_Controller
                 $saleType = SALE_TYPE_WORK_ORDER;
 
                 $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
+                $this->keepCustomFields($data['sale_id_num']);
+                $data = [...$data, ...$this->printedFieldsOf($data['sale_id_num'], $data['cart'])];
 
                 if ($data['sale_id_num'] === INSUFFICIENT_GIFTCARD_BALANCE) {
                     $data['error_message'] = lang('Sales.insufficient_giftcard_balance');
@@ -1926,6 +2015,8 @@ class Sales extends Secure_Controller
                 $saleType = SALE_TYPE_QUOTE;
 
                 $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, null, $invoiceDiscount, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
+                $this->keepCustomFields($data['sale_id_num']);
+                $data = [...$data, ...$this->printedFieldsOf($data['sale_id_num'], $data['cart'])];
 
                 if ($data['sale_id_num'] === INSUFFICIENT_GIFTCARD_BALANCE) {
                     $data['error_message'] = lang('Sales.insufficient_giftcard_balance');
@@ -1966,6 +2057,8 @@ class Sales extends Secure_Controller
             }
 
             $data['sale_id_num'] = $this->sale->save_value($saleId, $data['sale_status'], $data['cart'], $customerId, $employeeId, $data['comments'], $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $data['payments'], $data['dinner_table'], $taxDetails, true, $this->sale_lib->get_return_origin(), $invoiceDiscount, $this->sale_lib->getReturnDocument(), returnOverrideReason: $this->sale_lib->getReturnOverride(), headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId());
+            $this->keepCustomFields($data['sale_id_num']);
+            $data = [...$data, ...$this->printedFieldsOf($data['sale_id_num'], $data['cart'])];
 
             $data['sale_id'] = 'POS ' . $data['sale_id_num'];
 
@@ -2041,13 +2134,18 @@ class Sales extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
-        if (!in_array($type, [...documentTypes(), 'receipt'], true)) {
+        if (! in_array($type, [...documentTypes(), ...slipTypes(), 'receipt'], true) || ! $this->sale->exists($saleId)) {
             return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
         $saleData = $this->_load_sale_data($saleId);
-        $number = $saleData[$type . '_number'] ?? '';
         $this->sale_lib->clear_all();
+
+        if ($this->documentRefused($type, $saleData)) {
+            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
+
+        $number = $type === 'receipt' ? '' : (in_array($type, slipTypes(), true) ? (string) ($saleData['invoice_number'] ?? '') : documentProfile($type, $saleData)['number']);
 
         try {
             $pdf = $this->renderPdf($type, $saleData);
@@ -2059,7 +2157,7 @@ class Sales extends Secure_Controller
 
         return $this->response
             ->setHeader('Content-Type', 'application/pdf')
-            ->setHeader('Content-Disposition', 'inline; filename="' . rawurlencode($this->documentFilename($type, $number)) . '"')
+            ->setHeader('Content-Disposition', 'inline; filename="' . rawurlencode($this->documentFilename($this->documentTitle($type, $saleData), $number)) . '"')
             ->setBody($pdf);
     }
 
@@ -2083,19 +2181,25 @@ class Sales extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
-        if (!in_array($type, [...documentTypes(), 'receipt'], true)) {
+        if (! in_array($type, [...documentTypes(), 'receipt'], true) || ! $this->sale->exists($saleId)) {
             return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
         $saleData = $this->_load_sale_data($saleId);
+
+        if ($this->documentRefused($type, $saleData)) {
+            $this->sale_lib->clear_all();
+
+            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
 
         $result = false;
         $message = lang('Sales.invoice_no_email');
 
         if (!empty($saleData['customer_email'])) {
             $to = $saleData['customer_email'];
-            $number = array_key_exists($type . "_number", $saleData) ?  $saleData[$type . "_number"] : "";
-            $subject = lang('Sales.' . $type) . ' ' . $number;
+            $number = $type === 'receipt' ? '' : documentProfile($type, $saleData)['number'];
+            $subject = $this->documentTitle($type, $saleData) . ' ' . $number;
 
             $text = $this->config['invoice_email_message'];
             $tokens = [
@@ -2105,7 +2209,7 @@ class Sales extends Secure_Controller
             ];
             $text = $this->token_lib->render($text, $tokens);
 
-            $filename = sys_get_temp_dir() . '/' . $this->documentFilename($type, $number);
+            $filename = sys_get_temp_dir() . '/' . $this->documentFilename($this->documentTitle($type, $saleData), $number);
 
             try {
                 if (file_put_contents($filename, $this->renderPdf($type, $saleData)) !== false) {
@@ -2127,24 +2231,134 @@ class Sales extends Secure_Controller
         return $this->response->setJSON(['success' => $result, 'message' => $message, 'id' => $saleId]);
     }
 
+    /**
+     * The receipt of a payment of a customer, ready to print. Linked from the payments of app/Views/sales/form.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function getPaymentReceipt(int $paymentId): ResponseInterface|string
+    {
+        $personId = (int) $this->session->get('person_id');
+
+        if (! $this->employee->has_grant('reports_sales', $personId)) {
+            return redirect()->to('no_access/sales/reports_sales');
+        }
+
+        $voucher = (new VoucherDocuments())->customerPayment($paymentId, $personId);
+
+        if ($voucher === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return view('documents/screen', [
+            'inner'     => 'documents/voucher',
+            'data'      => ['voucher' => $voucher],
+            'pdfUrl'    => 'sales/paymentReceiptPdf/' . $paymentId,
+            'backUrl'   => 'sales/manage',
+            'backLabel' => lang('Sales.takings'),
+            'backIcon'  => 'bi-card-list',
+        ]);
+    }
+
+    /**
+     * @noinspection PhpUnused
+     */
+    public function getPaymentReceiptPdf(int $paymentId): ResponseInterface
+    {
+        $personId = (int) $this->session->get('person_id');
+
+        if (! $this->employee->has_grant('reports_sales', $personId)) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
+        }
+
+        $voucher = (new VoucherDocuments())->customerPayment($paymentId, $personId);
+
+        if ($voucher === null) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return $this->pdfResponse($this->response, view('documents/voucher_pdf', ['voucher' => $voucher]), $voucher->title, $voucher->number);
+    }
+
+    /**
+     * The printable page of a document of a sale: its credit note or any other of its documents.
+     * Used in app/Views/sales/receipt.php
+     *
+     * @noinspection PhpUnused
+     */
+    public function getPrint(int $saleId, string $type = 'credit_note'): ResponseInterface|string
+    {
+        if ($this->outsideBranchScope($saleId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        if (! $this->employee->has_grant('reports_sales', $this->session->get('person_id'))) {
+            return redirect()->to('no_access/sales/reports_sales');
+        }
+
+        if (! in_array($type, [...documentTypes(), ...slipTypes()], true) || ! $this->sale->exists($saleId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        $data = $this->_load_sale_data($saleId);
+        $this->sale_lib->clear_all();
+
+        if ($this->documentRefused($type, $data)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return view('sales/document_print', ['type' => $type, 'sale' => $data, 'sale_id_num' => $saleId, 'customer_email' => in_array($type, slipTypes(), true) ? '' : ($data['customer_email'] ?? '')]);
+    }
+
+    /**
+     * Whether a document is refused for a sale. A credit note is the print of a return, and the slips that
+     * go with the goods are for a completed sale or invoice of goods: not for a return, a quote or a work order.
+     *
+     * @param array<string, mixed> $saleData
+     */
+    private function documentRefused(string $type, array $saleData): bool
+    {
+        if ($type === 'credit_note') {
+            return empty($saleData['is_return']);
+        }
+
+        if (in_array($type, slipTypes(), true)) {
+            return ! in_array((int) ($saleData['sale_type'] ?? -1), [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) || (int) ($saleData['sale_status'] ?? -1) !== COMPLETED;
+        }
+
+        return false;
+    }
+
     private function renderPdf(string $type, array $saleData): string
     {
         $pdfLib = new Pdf_lib();
+        $title  = $this->documentTitle($type, $saleData);
 
         if ($type === 'receipt') {
             $saleData['pdf'] = true;
 
-            return $pdfLib->render(view('sales/receipt_email', $saleData), ['format' => 'A5', 'title' => lang('Sales.receipt')]);
+            return $pdfLib->render(view('sales/receipt_email', $saleData), ['format' => 'A5', 'title' => $title]);
         }
 
-        return $pdfLib->render(view('documents/pdf', ['type' => $type, 'sale' => $saleData]), ['title' => lang('Sales.' . $type)]);
+        if (in_array($type, slipTypes(), true)) {
+            return $pdfLib->render(view('documents/slip_pdf', ['type' => $type, 'sale' => $saleData]), ['title' => $title]);
+        }
+
+        return $pdfLib->render(view('documents/pdf', ['type' => $type, 'sale' => $saleData]), ['title' => $title]);
     }
 
-    private function documentFilename(string $type, string $number): string
+    private function documentTitle(string $type, array $saleData): string
     {
-        $name = trim(lang('Sales.' . $type) . ' ' . $number);
+        if ($type === 'receipt') {
+            return lang('Sales.receipt');
+        }
 
-        return preg_replace('~[\\\\/:*?"<>|\x00-\x1f]+~u', '-', $name) . '.pdf';
+        return in_array($type, slipTypes(), true) ? lang('Documents.' . $type) : documentProfile($type, $saleData)['title'];
+    }
+
+    private function documentFilename(string $title, string $number): string
+    {
+        return preg_replace('~[\\\\/:*?"<>|\x00-\x1f]+~u', '-', trim($title . ' ' . $number)) . '.pdf';
     }
 
     /**
@@ -2270,6 +2484,7 @@ class Sales extends Secure_Controller
         $this->sale_lib->copy_entire_sale($saleId);
         $data = [];
         $data['cart'] = $this->sale_lib->get_cart();
+        $data = [...$data, ...$this->printedFieldsOf($saleId, $data['cart'])];
         $data['payments'] = $this->sale_lib->getPayments();
         $data['selected_payment_type'] = $this->sale_lib->get_payment_type();
 
@@ -2281,6 +2496,11 @@ class Sales extends Secure_Controller
         $timing = $this->sale->getInvoiceTiming((int) $saleId);
         $data['transaction_time'] = to_datetime(strtotime($saleInfo['sale_time']));
         $data['transaction_date'] = to_date(strtotime($timing['invoice_date'] ?? $saleInfo['sale_time']));
+        $data['sale_time_raw'] = (string) $saleInfo['sale_time'];
+        $data['invoice_date_raw'] = $timing['invoice_date'] ?? null;
+        $data['currency_code'] = $this->sale->getCurrencyCode((int) $saleId);
+        $data['is_return'] = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS) === SALE_TYPE_RETURN;
+        $data['sale_type'] = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS);
         $data['due_date'] = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
         $data['show_stock_locations'] = $this->stock_location->show_locations('sales', true);
 
@@ -2799,6 +3019,8 @@ class Sales extends Secure_Controller
         $data['amount_change'] = $data['amount_due'] * -1;
 
         $data['comment'] = $this->sale_lib->get_comment();
+        $data['custom_fields'] = (new CustomFields())->definitions('sale');
+        $data['custom_values'] = $this->sale_lib->getCustomFields();
         $data['email_receipt'] = $this->sale_lib->is_email_receipt();
 
         if ($customerInfo && $this->config['customer_reward_enable']) {
@@ -2977,6 +3199,12 @@ class Sales extends Secure_Controller
         $numbering                = new DocumentNumbering();
         $data['paymentNumbers']   = $numbering->numbers(DocumentType::CustomerPayment, 'sales_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
         $data = [...$data, ...$this->returnDocumentNumbersOf($saleId)];
+
+        $vouchers           = new VoucherDocuments();
+        $data['receiptIds'] = array_values(array_filter(
+            array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']),
+            static fn (int $paymentId): bool => $vouchers->customerPayment($paymentId, (int) $personId) !== null,
+        ));
 
         $data['treasury_options']     = [];
         $data['new_treasury_options'] = [];
@@ -3370,7 +3598,16 @@ class Sales extends Secure_Controller
             return $this->reload(['error' => lang('Sales.not_authorized')]);
         }
 
+        $customProblem = (new CustomFields())->problem('sale', $this->sale_lib->getCustomFields(), false, (int) $saleId);
+
+        if ($customProblem !== null) {
+            $data['error'] = $customProblem;
+
+            return $this->reload($data);
+        }
+
         $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms(), $saleType === SALE_TYPE_QUOTE ? QuoteStatus::Draft : null, $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId(), orderSourceId: $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getOrderSource() : null);
+        $this->keepCustomFields($saleIdNum, false);
 
         if ($saleIdNum === INSUFFICIENT_GIFTCARD_BALANCE) {
             $data['error'] = lang('Sales.insufficient_giftcard_balance');

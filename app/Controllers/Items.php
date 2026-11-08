@@ -18,6 +18,8 @@ use App\Libraries\Accounting\RoutingResolver;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Barcode_lib;
+use App\Libraries\Documents\CustomFields;
+use App\Libraries\Documents\DocumentException;
 use App\Libraries\Item_lib;
 use App\Libraries\MasterData\ItemFields;
 use App\Libraries\MasterData\ItemStatus;
@@ -523,7 +525,7 @@ class Items extends Secure_Controller
             $data['selected_low_sell_item'] = '';
         }
 
-        return view('items/form', $data + $this->pricingFormData($item_id) + $this->itemAccountsFormData($item_id) + $this->masterDataFormData($item_info));
+        return view('items/form', $data + $this->pricingFormData($item_id) + $this->itemAccountsFormData($item_id) + $this->masterDataFormData($item_info) + $this->customFieldsFormData($item_id));
     }
 
     /**
@@ -985,6 +987,12 @@ class Items extends Secure_Controller
             return $validationError;
         }
 
+        $customProblem = $this->customFieldProblem($itemId);
+
+        if ($customProblem !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $customProblem, 'id' => $itemId]);
+        }
+
         $uploadData = $this->upload_image();
         $uploadSuccess = empty($uploadData['error']);
 
@@ -1158,6 +1166,7 @@ class Items extends Secure_Controller
             $success = $success && $this->saveItemAttributes($itemId);
             $success = $success && $this->saveListPrices($itemId);
             $success = $success && $this->saveItemAccounts($itemId);
+            $success = $success && $this->saveItemCustomFields($itemId);
 
             if ($success) {
                 $this->auditPriceBounds($itemId, $boundsBefore, $itemData, (int) $employeeId);
@@ -1286,6 +1295,46 @@ class Items extends Secure_Controller
         }
 
         return ['itemAccountRows' => $rows];
+    }
+
+    /**
+     * The extra fields the form of an item asks for and what the item holds in them.
+     *
+     * @return array<string, mixed>
+     */
+    private function customFieldsFormData(int $itemId): array
+    {
+        $fields = new CustomFields();
+
+        return ['custom_fields' => $fields->definitions('item'), 'custom_values' => $itemId > 0 ? $fields->valuesOf('item', $itemId) : []];
+    }
+
+    /**
+     * What is wrong with the extra fields typed on the form of an item, in words, or null when they are right
+     * or the form has none.
+     */
+    private function customFieldProblem(int $itemId): ?string
+    {
+        $posted = $this->request->getPost('custom');
+
+        return is_array($posted) ? (new CustomFields())->problem('item', $posted, entityId: $itemId) : null;
+    }
+
+    private function saveItemCustomFields(int $itemId): bool
+    {
+        $posted = $this->request->getPost('custom');
+
+        if (! is_array($posted)) {
+            return true;
+        }
+
+        try {
+            (new CustomFields())->save('item', $itemId, $posted);
+        } catch (DocumentException) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

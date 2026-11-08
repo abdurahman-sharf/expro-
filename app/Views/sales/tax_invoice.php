@@ -60,6 +60,7 @@ if (isset($error_message)) {
 <?= view('partial/document_actions', ['actions' => array_values(array_filter([
         ['id' => 'show_print_button', 'label' => lang('Common.print'), 'icon' => 'bi-printer', 'onclick' => 'printdoc();'],
         model(Employee::class)->has_grant('reports_sales', session('person_id')) ? ['id' => 'show_pdf_button', 'label' => lang('Sales.pdf'), 'icon' => 'bi-file-earmark-pdf', 'href' => "sales/pdf/$sale_id_num/tax_invoice", 'target' => '_blank'] : null,
+        ...(model(Employee::class)->has_grant('reports_sales', session('person_id')) ? array_map(static fn (string $slip): array => ['id' => 'show_' . $slip . '_button', 'label' => lang('Documents.print_' . $slip), 'icon' => 'bi-box-seam', 'href' => "sales/print/$sale_id_num/$slip", 'target' => '_blank'], slipTypes()) : []),
         !empty($customer_email) ? ['id' => 'show_email_button', 'label' => lang('Sales.send_invoice'), 'icon' => 'bi-envelope'] : null,
         ['id' => 'show_sales_button', 'label' => lang('Sales.register'), 'icon' => 'bi-cart3', 'href' => 'sales', 'class' => 'btn-primary'],
         ['id' => 'show_takings_button', 'label' => lang('Sales.takings'), 'icon' => 'bi-card-list', 'href' => 'sales/manage']

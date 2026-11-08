@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'הוספה, עדכון, מחיקה וחיפוש בקופת מזומן.',
     'config'                       => 'הגדרות',
     'config_desc'                  => 'שנה הגדרות OSPOS\'s .',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'לקוחות',

@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'Ajout, mise à jour, suppression et recherche d\'encaissements.',
     'config'                       => 'Paramètres',
     'config_desc'                  => 'Paramètres de la boutique.',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Clients',

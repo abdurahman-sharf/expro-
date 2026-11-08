@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => 'เพิ่ม, ปรับปรุง, ลบ, และค้นหายอดรับเงินสด',
     'config'                       => 'ตั้งค่า',
     'config_desc'                  => 'ปรับแต่งร้านค้า',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'ลูกค้า',

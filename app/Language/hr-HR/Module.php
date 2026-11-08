@@ -38,6 +38,8 @@ return [
     'cashups_desc'                 => '',
     'config'                       => 'Postavke',
     'config_desc'                  => 'Promijeni postavke',
+    'custom_fields'                => '',
+    'custom_fields_desc'           => '',
     'customer_orders'              => '',
     'customer_orders_desc'         => '',
     'customers'                    => 'Kupci',
