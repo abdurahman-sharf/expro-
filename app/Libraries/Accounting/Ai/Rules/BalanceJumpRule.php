@@ -27,10 +27,13 @@ final class BalanceJumpRule implements AnomalyRule
 
     public function detect(AnomalyContext $context): array
     {
-        $before = $context->today->modify('-' . $context->settings->int('jump_days') . ' days')->format('Y-m-d');
-        $today  = $context->today->format('Y-m-d');
-        $quoted = $context->db->escape($before);
-        $net    = 'l.debit - l.credit';
+        $days    = $context->settings->int('jump_days');
+        $minimum = $context->settings->value('jump_min');
+        $percent = (string) $context->settings->int('jump_percent');
+        $before  = $context->today->modify('-' . $days . ' days')->format('Y-m-d');
+        $today   = $context->today->format('Y-m-d');
+        $quoted  = $context->db->escape($before);
+        $net     = 'l.debit - l.credit';
 
         $builder = $context->db->table('accounting_journal_lines l')
             ->select("a.account_id, a.entity_id AS customer_id, a.name, j.branch_id, SUM(CASE WHEN j.journal_date <= {$quoted} THEN {$net} ELSE 0 END) AS prior, SUM({$net}) AS balance, MAX(CASE WHEN j.journal_date > {$quoted} THEN j.journal_id END) AS last_journal_id", false)
@@ -50,14 +53,12 @@ final class BalanceJumpRule implements AnomalyRule
 
         $rows = $builder
             ->groupBy('a.account_id, a.entity_id, a.name, j.branch_id')
-            ->having("SUM({$net}) - SUM(CASE WHEN j.journal_date <= {$quoted} THEN {$net} ELSE 0 END) >= " . $context->db->escape($context->settings->value('jump_min')), null, false)
+            ->having("SUM({$net}) - SUM(CASE WHEN j.journal_date <= {$quoted} THEN {$net} ELSE 0 END) >= " . $context->db->escape($minimum), null, false)
             ->orderBy('a.account_id', 'ASC')
             ->orderBy('j.branch_id', 'ASC')
             ->get()
             ->getResult();
 
-        $minimum  = $context->settings->value('jump_min');
-        $percent  = (string) $context->settings->int('jump_percent');
         $findings = [];
 
         foreach ($rows as $row) {
@@ -91,7 +92,7 @@ final class BalanceJumpRule implements AnomalyRule
                 subjectType: 'customer',
                 subjectId: (int) $row->customer_id,
                 occurredOn: $today,
-                templateArgs: ['customer' => (string) $row->name, 'prior' => $prior, 'balance' => $balance, 'increase' => $increase, 'days' => $context->settings->int('jump_days')],
+                templateArgs: ['customer' => (string) $row->name, 'prior' => $prior, 'balance' => $balance, 'increase' => $increase, 'days' => $days],
                 evidence: $evidence,
             );
         }
