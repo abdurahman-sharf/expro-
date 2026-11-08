@@ -889,6 +889,41 @@ final class ProposalServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->service->search([], $this->agentEmployee([], []))['total']);
     }
 
+    public function testSearch_FiltersByTheDayTheProposalWasMade(): void
+    {
+        $old = $this->service->create($this->proposalDraft('500.00', 'old'), $this->approver);
+        $new = $this->service->create($this->proposalDraft('500.00', 'new'), $this->approver);
+        $this->accountingDb()->table('accounting_ai_proposals')->where('proposal_id', $old)->update(['created_at' => '2026-09-10 08:00:00']);
+        $this->accountingDb()->table('accounting_ai_proposals')->where('proposal_id', $new)->update(['created_at' => '2026-09-12 20:00:00']);
+
+        $ids = static fn (array $result): array => array_map(static fn (object $row): int => (int) $row->proposal_id, $result['rows']);
+
+        $this->assertSame([$new], $ids($this->service->search(['from' => '2026-09-11'], $this->approver)));
+        $this->assertSame([$old], $ids($this->service->search(['to' => '2026-09-11'], $this->approver)));
+        $this->assertSame([$new, $old], $ids($this->service->search(['from' => '2026-09-10', 'to' => '2026-09-12'], $this->approver)));
+        $this->assertSame([$new], $ids($this->service->search(['from' => '2026-09-12'], $this->approver)));
+        $this->assertSame([$old], $ids($this->service->search(['to' => '2026-09-10'], $this->approver)));
+    }
+
+    public function testSearch_GivesAtMostTheLargestPageWhateverIsAsked(): void
+    {
+        $rows = [];
+
+        for ($index = 0; $index < ProposalService::PAGE_MAX + 20; $index++) {
+            $rows[] = ['kind' => 'recurring', 'status' => 'proposed', 'payload' => '{}', 'branch_id' => 1, 'dedupe_key' => hash('sha256', 'page' . $index)];
+        }
+
+        $this->accountingDb()->table('accounting_ai_proposals')->insertBatch($rows);
+
+        $result = $this->service->search([], $this->approver, 10000);
+
+        $this->assertSame(ProposalService::PAGE_MAX + 20, $result['total']);
+        $this->assertCount(ProposalService::PAGE_MAX, $result['rows']);
+        $this->assertCount(1, $this->service->search([], $this->approver, 0)['rows']);
+        $this->assertCount(20, $this->service->search([], $this->approver, 100, ProposalService::PAGE_MAX)['rows']);
+        $this->assertCount(ProposalService::PAGE_MAX, $this->service->search([], $this->approver, 500, -5)['rows']);
+    }
+
     public function testCounts_CountsTheProposalsOfEachStatusTheReaderMaySee(): void
     {
         $branch = $this->createBranch();

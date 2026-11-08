@@ -308,6 +308,79 @@ final class FindingServiceTest extends CIUnitTestCase
         $this->assertSame([$one], array_map(static fn (object $row): int => (int) $row->finding_id, iterator_to_array($this->service->stream(['rule' => 'AI-ROUND'], $this->agentEmployee([], [1])), false)));
     }
 
+    public function testSearch_GivesAtMostTheLargestPageWhateverIsAsked(): void
+    {
+        $this->findings(FindingService::PAGE_MAX + 20);
+
+        $result = $this->service->search([], $this->reader, 10000);
+
+        $this->assertSame(FindingService::PAGE_MAX + 20, $result['total']);
+        $this->assertCount(FindingService::PAGE_MAX, $result['rows']);
+        $this->assertCount(1, $this->service->search([], $this->reader, 0)['rows']);
+        $this->assertCount(20, $this->service->search([], $this->reader, 100, FindingService::PAGE_MAX)['rows']);
+        $this->assertCount(FindingService::PAGE_MAX, $this->service->search([], $this->reader, 500, -5)['rows']);
+    }
+
+    public function testStream_GivesAtMostTheLargestFileAndEveryFindingBelowIt(): void
+    {
+        $this->findings(FindingService::EXPORT_MAX + 7);
+
+        $count = 0;
+        $first = null;
+        $last  = null;
+
+        foreach ($this->service->stream([], $this->reader) as $row) {
+            $first ??= (int) $row->finding_id;
+            $last   = (int) $row->finding_id;
+            $count++;
+        }
+
+        $this->assertSame(FindingService::EXPORT_MAX, $count);
+        $this->assertSame($first - FindingService::EXPORT_MAX + 1, $last);
+    }
+
+    public function testStream_WalksThePagesWithoutRepeatingOrLeavingOneOut(): void
+    {
+        $this->findings(1200);
+
+        $ids = array_map(static fn (object $row): int => (int) $row->finding_id, iterator_to_array($this->service->stream([], $this->reader), false));
+
+        $this->assertCount(1200, $ids);
+        $this->assertSame($ids, array_values(array_unique($ids)));
+        $sorted = $ids;
+        rsort($sorted);
+        $this->assertSame($sorted, $ids);
+    }
+
+    /**
+     * @return void Inserts findings without evidence worth the name, as fast as the table takes them.
+     */
+    private function findings(int $count): void
+    {
+        $base = $this->counter;
+
+        for ($offset = 0; $offset < $count; $offset += 2000) {
+            $rows = [];
+
+            for ($index = $offset; $index < min($count, $offset + 2000); $index++) {
+                $rows[] = [
+                    'rule_code'    => 'AI-ROUND',
+                    'severity'     => 'low',
+                    'finding_key'  => hash('sha256', 'bulk' . $base . '-' . $index),
+                    'branch_id'    => 1,
+                    'subject_type' => 'journal',
+                    'subject_id'   => $index + 1,
+                    'occurred_on'  => '2026-10-10',
+                    'evidence'     => '[]',
+                ];
+            }
+
+            $this->accountingDb()->table('accounting_ai_findings')->insertBatch($rows);
+        }
+
+        $this->counter += $count;
+    }
+
     public function testStream_RequiresThePermission(): void
     {
         $this->assertSame(AccountingError::PermissionDenied, $this->refused(fn () => iterator_to_array($this->service->stream([], $this->employeeWithGrants([])), false))->error);
