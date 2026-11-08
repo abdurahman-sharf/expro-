@@ -2,10 +2,10 @@
 
 namespace Tests\Libraries\Accounting\Ai;
 
-use App\Libraries\Accounting\Ai\FindingService;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\Ai\FindingService;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -28,7 +28,6 @@ final class FindingServiceTest extends CIUnitTestCase
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace   = null;
-
     private FindingService $service;
     private int $reader;
     private int $counter = 0;
@@ -176,6 +175,13 @@ final class FindingServiceTest extends CIUnitTestCase
         $this->assertSame(['open' => 1, 'dismissed' => 1, 'confirmed' => 0], $this->service->counts($this->agentEmployee([], [1])));
     }
 
+    public function testCounts_RequiresThePermissionToUseTheAgent(): void
+    {
+        $this->finding();
+
+        $this->assertSame(AccountingError::PermissionDenied, $this->refused(fn () => $this->service->counts($this->employeeWithGrants([])))->error);
+    }
+
     public function testRules_ListsTheRulesThatHaveAFinding(): void
     {
         $this->finding('AI-ROUND');
@@ -194,6 +200,13 @@ final class FindingServiceTest extends CIUnitTestCase
         $this->assertSame($mine, (int) $this->service->find($mine, $this->reader)->finding_id);
         $this->assertSame(AccountingError::AiFindingNotFound, $this->refused(fn () => $this->service->find($other, $this->agentEmployee([], [1])))->error);
         $this->assertSame(AccountingError::AiFindingNotFound, $this->refused(fn () => $this->service->find(999999, $this->reader))->error);
+    }
+
+    public function testFind_RequiresThePermissionToUseTheAgent(): void
+    {
+        $id = $this->finding();
+
+        $this->assertSame(AccountingError::PermissionDenied, $this->refused(fn () => $this->service->find($id, $this->employeeWithGrants([])))->error);
     }
 
     public function testDecide_DismissesAnOpenFindingWithTheReasonAndWhoDecided(): void
@@ -302,6 +315,15 @@ final class FindingServiceTest extends CIUnitTestCase
         $this->assertSame('open', $this->service->find($id, $this->reader)->status);
     }
 
+    public function testDecide_AsksForThePermissionBeforeItChecksWhatWasAsked(): void
+    {
+        $id     = $this->finding();
+        $nobody = $this->employeeWithGrants([]);
+
+        $this->assertSame(AccountingError::PermissionDenied, $this->refused(fn () => $this->service->decide($id, 'maybe', '', $nobody))->error);
+        $this->assertSame(AccountingError::AiDecisionInvalid, $this->refused(fn () => $this->service->decide($id, 'maybe', 'Fine', $this->reader))->error);
+    }
+
     public function testDecide_RefusesAFindingOutsideTheBranchScope(): void
     {
         $branch = $this->createBranch();
@@ -355,7 +377,7 @@ final class FindingServiceTest extends CIUnitTestCase
 
         foreach ($this->service->stream([], $this->reader) as $row) {
             $first ??= (int) $row->finding_id;
-            $last   = (int) $row->finding_id;
+            $last = (int) $row->finding_id;
             $count++;
         }
 
@@ -431,7 +453,7 @@ final class FindingServiceTest extends CIUnitTestCase
 
     public function testTable_KeepsOneFindingForOneKey(): void
     {
-        $id = $this->finding();
+        $id  = $this->finding();
         $key = $this->accountingDb()->table('accounting_ai_findings')->where('finding_id', $id)->get()->getRow()->finding_key;
 
         $this->expectException(DatabaseException::class);

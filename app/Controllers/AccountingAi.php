@@ -245,7 +245,6 @@ class AccountingAi extends AccountingController
         return view('accounting_ai/settings', [
             'enabled'    => $this->settings->isSwitchedOn(),
             'canManage'  => $canManage,
-            'canSwitch'  => $canManage || $this->can(AccountingGuard::AI_USE),
             'thresholds' => $this->settings->thresholds(),
             'defaults'   => AiSettings::THRESHOLDS,
             'notice'     => session()->getFlashdata('accounting_notice'),

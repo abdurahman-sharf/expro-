@@ -26,7 +26,6 @@ final class BalanceJumpRuleTest extends CIUnitTestCase
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace   = null;
-
     private BalanceJumpRule $rule;
     private EntityAccountService $entities;
     private int $customer;
@@ -94,6 +93,7 @@ final class BalanceJumpRuleTest extends CIUnitTestCase
         $this->assertSame('journal', $finding->evidence[1]['type']);
         $this->assertSame($last, $finding->evidence[1]['journal_id']);
         $this->assertSame('15000.0000', $finding->evidence[1]['debit']);
+        $this->assertCount(2, $finding->evidence);
     }
 
     public function testDetect_FlagsACustomerWhoOwedNothingBeforeAndRoseByExactlyTheAmount(): void
@@ -164,6 +164,47 @@ final class BalanceJumpRuleTest extends CIUnitTestCase
         $this->pays('2026-10-25', '15000.00');
 
         $this->assertSame([], $this->rule->detect($this->ruleContext()));
+    }
+
+    public function testDetect_FlagsNothingWhenAPaymentWasTakenBack(): void
+    {
+        $payment = $this->pays('2026-10-20', '5000.00');
+        (new JournalService())->reverse($payment, '2026-10-21', 'Wrong', null);
+
+        $this->assertSame([], $this->rule->detect($this->ruleContext()));
+    }
+
+    public function testDetect_ShowsTheLargestMovementsOfTheDaysFirstAndNoMoreThanTen(): void
+    {
+        $this->owes('2026-09-01', '1000.00');
+
+        for ($index = 1; $index <= 11; $index++) {
+            $this->owes('2026-10-' . (10 + $index), '1000.00');
+        }
+
+        $largest = $this->owes('2026-10-25', '4000.00');
+
+        $evidence = $this->rule->detect($this->ruleContext())[0]->evidence;
+
+        $this->assertCount(11, $evidence);
+        $this->assertSame($largest, $evidence[1]['journal_id']);
+        $this->assertSame('4000.0000', $evidence[1]['debit']);
+    }
+
+    public function testDetect_ShowsOnlyTheMovementsOfTheBranchAndTheDaysAsEvidence(): void
+    {
+        $branch = $this->createBranch();
+
+        $before = $this->owes('2026-09-01', '1000.00');
+        $inside = $this->owes('2026-10-20', '6000.00');
+        $other  = $this->owes('2026-10-21', '9000.00', $branch);
+
+        $findings = $this->rule->detect($this->ruleContext([1]));
+
+        $this->assertCount(1, $findings);
+        $this->assertSame([$inside], array_column(array_slice($findings[0]->evidence, 1), 'journal_id'));
+        $this->assertNotContains($before, array_column($findings[0]->evidence, 'journal_id'));
+        $this->assertNotContains($other, array_column($findings[0]->evidence, 'journal_id'));
     }
 
     public function testDetect_ReadsOnlyTheAccountsOfCustomers(): void
@@ -244,7 +285,7 @@ final class BalanceJumpRuleTest extends CIUnitTestCase
     {
         $this->owes('2026-10-20', '15000.00');
 
-        $this->assertEquals($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
+        $this->assertSame($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
         $this->assertSame('AI-BALANCE-JUMP', $this->rule->code());
     }
 }

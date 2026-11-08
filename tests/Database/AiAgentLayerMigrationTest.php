@@ -90,6 +90,28 @@ final class AiAgentLayerMigrationTest extends CIUnitTestCase
         $this->proposal('pending');
     }
 
+    public function testUp_StartsAProposalAsProposedWhenNoStatusIsGiven(): void
+    {
+        $this->accountingDb()->table('accounting_ai_proposals')->insert(['kind' => 'recurring', 'payload' => '{}', 'dedupe_key' => hash('sha256', 'no status')]);
+
+        $this->assertSame('proposed', $this->accountingDb()->table('accounting_ai_proposals')->where('proposal_id', $this->accountingDb()->insertID())->get()->getRow()->status);
+    }
+
+    public function testUp_ConvertsAProposalOfTheOldStatusPendingToProposed(): void
+    {
+        $table = $this->accountingDb()->prefixTable('accounting_ai_proposals');
+        $this->accountingDb()->query("ALTER TABLE `{$table}` DROP CONSTRAINT `{$table}_status_check`");
+        $id = $this->proposal('pending');
+
+        (new AiAgentLayer())->up();
+
+        $this->assertSame('proposed', $this->accountingDb()->table('accounting_ai_proposals')->where('proposal_id', $id)->get()->getRow()->status);
+
+        $this->expectException(DatabaseException::class);
+
+        $this->proposal('pending');
+    }
+
     public function testUp_RefusesAnApprovedProposalWithoutAJournalAndAJournalOnAProposalThatIsNotApproved(): void
     {
         $journal = $this->manualJournalForMigration();

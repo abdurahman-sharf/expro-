@@ -2,13 +2,14 @@
 
 namespace Tests\Libraries\Accounting\Ai;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Ai\ProposalDraft;
 use App\Libraries\Accounting\Ai\ProposalRunner;
 use App\Libraries\Accounting\Ai\ProposalService;
 use App\Libraries\Accounting\Ai\Proposer;
-use App\Libraries\Accounting\AccountingError;
-use App\Libraries\Accounting\AccountingException;
-use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\JournalLineDraft;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -32,7 +33,6 @@ final class ProposalRunnerTest extends CIUnitTestCase
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace   = null;
-
     private DateTimeImmutable $today;
 
     public static function setUpBeforeClass(): void
@@ -140,6 +140,18 @@ final class ProposalRunnerTest extends CIUnitTestCase
         $this->assertNotSame('', $report->refused[0]['reason']);
     }
 
+    public function testRun_ListsASuggestionThatTheChecksOfTheServiceRefuseAndGoesOn(): void
+    {
+        $foreign = new ProposalDraft('recurring', 'rules:test', 'foreign', '2026-11-10', 1, 'x', [new JournalLineDraft($this->rentExpense(), debit: '10.00', foreignAmount: '3.00', currencyCode: 'USD'), new JournalLineDraft($this->cashAccount(), credit: '10.00')], [['type' => 'journal', 'journal_id' => 1]], []);
+
+        $report = (new ProposalRunner(null, null, null, [$this->fixed([$foreign, $this->proposalDraft('500.00', 'fine')])]))->run(null, $this->today);
+
+        $this->assertSame(1, $report->createdCount());
+        $this->assertCount(1, $report->refused);
+        $this->assertSame('foreign', $report->refused[0]['key']);
+        $this->assertNotSame('', $report->refused[0]['reason']);
+    }
+
     public function testRun_RunsAProposerThatWasAddedThroughTheInterface(): void
     {
         $report = (new ProposalRunner(null, null, null, [$this->fixed([$this->proposalDraft('500.00', 'added')])]))->run(null, $this->today);
@@ -176,6 +188,23 @@ final class ProposalRunnerTest extends CIUnitTestCase
         }
 
         $this->assertSame(0, $this->countRows('accounting_ai_proposals'));
+        $this->assertSame(0, (int) $this->accountingDb()->table('accounting_audit_log')->where('action', 'proposers_run')->countAllResults());
+    }
+
+    public function testRun_ExpiresNothingAndWritesNothingWhenTheAgentIsSwitchedOffAndNothingIsSuggested(): void
+    {
+        $id = (new ProposalService())->create($this->proposalDraft('500.00', 'late'), $this->agentEmployee());
+        $this->accountingDb()->table('accounting_ai_proposals')->where('proposal_id', $id)->update(['expires_at' => '2020-01-01 00:00:00']);
+        $this->setConfigValue('accounting_ai_enabled', '0');
+
+        try {
+            (new ProposalRunner(null, null, null, [$this->fixed([])]))->run($this->agentEmployee(), $this->today);
+            $this->fail('The run was not refused.');
+        } catch (AccountingException $failure) {
+            $this->assertSame(AccountingError::AiDisabled, $failure->error);
+        }
+
+        $this->assertSame('proposed', $this->accountingDb()->table('accounting_ai_proposals')->where('proposal_id', $id)->get()->getRow()->status);
         $this->assertSame(0, (int) $this->accountingDb()->table('accounting_audit_log')->where('action', 'proposers_run')->countAllResults());
     }
 
@@ -238,6 +267,7 @@ final class ProposalRunnerTest extends CIUnitTestCase
         $all   = (new ProposalRunner())->run($this->agentEmployee(), $this->today);
 
         $this->assertSame(0, $local->createdCount());
+        $this->assertSame([], $local->refused);
         $this->assertSame(1, $all->createdCount());
     }
 

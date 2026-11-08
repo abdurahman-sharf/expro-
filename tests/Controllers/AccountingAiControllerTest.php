@@ -2,10 +2,10 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Ai\AiSettings;
 use App\Libraries\Accounting\Ai\FindingService;
 use App\Libraries\Accounting\Ai\ProposalService;
-use App\Libraries\Accounting\AccountingGuard;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -15,9 +15,9 @@ use Config\Database;
 use Config\Filters;
 use Config\Services;
 use ReflectionClass;
-use Throwable;
 use Tests\Support\AiFixtureTrait;
 use Tests\Support\CsvResponseTrait;
+use Throwable;
 
 /**
  * The screens of the agent layer: who may open them, what they show of the proposals and the findings of the branches
@@ -37,7 +37,6 @@ final class AccountingAiControllerTest extends CIUnitTestCase
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace   = null;
-
     private ProposalService $proposals;
     private int $approver;
 
@@ -121,6 +120,25 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         return (int) $this->accountingDb()->insertID();
     }
 
+    /**
+     * @return array<string, string> The filters the link to the file of findings carries.
+     */
+    private function fileQuery(TestResponse $page): array
+    {
+        $this->assertSame(1, preg_match('/id="ai_findings_csv" href="([^"]*)"/', $page->getBody(), $match));
+
+        parse_str((string) parse_url(html_entity_decode($match[1]), PHP_URL_QUERY), $query);
+
+        return $query;
+    }
+
+    private function rowOfProposal(string $body, int $proposalId): string
+    {
+        $this->assertSame(1, preg_match('/id="ai_proposal_' . $proposalId . '".*?<\/tr>/s', $body, $match));
+
+        return $match[0];
+    }
+
     private function aiJournals(): int
     {
         return (int) $this->accountingDb()->table('accounting_journals')->where('source_type', ProposalService::SOURCE)->countAllResults();
@@ -202,12 +220,42 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         $byKind->assertDontSee('id="ai_proposal_' . $one . '"');
     }
 
+    public function testGetIndex_LeavesOutWhatCannotBeAFilterAndKeepsTheList(): void
+    {
+        $one = $this->proposal('one', 1, 'recurring');
+        $two = $this->proposal('two', 1, 'reclassify');
+
+        $page = $this->get('/accounting_ai?status=zzstatus&kind=ZZ%20kind&from=zzday&to=zzday');
+
+        $page->assertStatus(200);
+        $page->assertSee('id="ai_proposal_' . $one . '"');
+        $page->assertSee('id="ai_proposal_' . $two . '"');
+
+        foreach (['zzstatus', 'ZZ kind', 'zzday'] as $junk) {
+            $page->assertDontSee($junk);
+        }
+    }
+
+    public function testGetIndex_KeepsTheDaysThatAreDaysInTheForm(): void
+    {
+        $this->proposal('one', 1, 'recurring');
+
+        $page = $this->get('/accounting_ai?from=2026-01-01&to=2030-12-31');
+
+        $page->assertSee('id="f_from" name="from" value="2026-01-01"');
+        $page->assertSee('id="f_to" name="to" value="2030-12-31"');
+    }
+
     public function testGetIndex_ShowsAnExpiredProposalAsExpiredAndPagesTheList(): void
     {
-        $id = $this->proposal();
-        $this->accountingDb()->table('accounting_ai_proposals')->update(['expires_at' => '2020-01-01 00:00:00']);
+        $id   = $this->proposal();
+        $live = $this->proposal('live');
+        $this->accountingDb()->table('accounting_ai_proposals')->where('proposal_id', $id)->update(['expires_at' => '2020-01-01 00:00:00']);
 
-        $this->get('/accounting_ai')->assertSee(lang('Accounting_ai.status_expired'));
+        $body = $this->get('/accounting_ai')->getBody();
+
+        $this->assertStringContainsString('<span class="badge text-bg-secondary">' . lang('Accounting_ai.status_expired') . '</span>', $this->rowOfProposal($body, $id));
+        $this->assertStringContainsString('<span class="badge text-bg-warning">' . lang('Accounting_ai.status_proposed') . '</span>', $this->rowOfProposal($body, $live));
 
         for ($index = 0; $index < 26; $index++) {
             $this->proposal('many-' . $index);
@@ -613,6 +661,26 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         $byStatus->assertDontSee('id="ai_finding_' . $round . '"');
     }
 
+    public function testGetFindings_CarriesTheFiltersThatAreValidToTheFileAndLeavesOutTheOthers(): void
+    {
+        $round     = $this->finding('AI-ROUND');
+        $duplicate = $this->finding('AI-DUPLICATE');
+
+        $valid = $this->get('/accounting_ai/findings?status=open&rule=AI-ROUND&severity=low&from=2026-10-01&to=2026-10-31');
+
+        $this->assertSame(['status' => 'open', 'rule' => 'AI-ROUND', 'severity' => 'low', 'from' => '2026-10-01', 'to' => '2026-10-31'], $this->fileQuery($valid));
+
+        $junk = $this->get('/accounting_ai/findings?status=zzstatus&rule=zzrule&severity=zzseverity&from=zzday&to=zzday');
+
+        $this->assertSame([], $this->fileQuery($junk));
+        $junk->assertSee('id="ai_finding_' . $round . '"');
+        $junk->assertSee('id="ai_finding_' . $duplicate . '"');
+
+        foreach (['zzstatus', 'zzrule', 'zzseverity', 'zzday'] as $word) {
+            $junk->assertDontSee($word);
+        }
+    }
+
     public function testGetFindings_KeepsToTheBranchesOfTheReaderAndReadsWhileTheAgentIsSwitchedOff(): void
     {
         $branch = $this->createBranch();
@@ -765,6 +833,18 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         $this->assertSame('500.0000', $settings->value('round_unit'));
         $this->assertSame(1, (int) $this->accountingDb()->table('accounting_audit_log')->where('action', 'ai_enabled')->countAllResults());
         $this->assertSame(1, (int) $this->accountingDb()->table('accounting_audit_log')->where('action', 'ai_settings_updated')->countAllResults());
+    }
+
+    public function testPostSettings_SwitchesTheAgentOffWhenTheBoxIsNotTicked(): void
+    {
+        $this->actAsWith(['accounting_ai', AccountingGuard::SETTINGS_MANAGE]);
+        $this->setConfigValue('accounting_ai_enabled', '1');
+
+        $result = $this->json($this->post('/accounting_ai/settings', ['threshold' => ['duplicate_days' => '4']]));
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertFalse((new AiSettings())->isSwitchedOn());
+        $this->assertSame(4, (new AiSettings())->int('duplicate_days'));
     }
 
     public function testPostSettings_RefusesAValueOutsideWhatAThresholdTakesInWords(): void

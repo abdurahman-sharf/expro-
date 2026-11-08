@@ -53,7 +53,7 @@ final class BalanceJumpRule implements AnomalyRule
 
         $rows = $builder
             ->groupBy('a.account_id, a.entity_id, a.name, j.branch_id')
-            ->having("SUM({$net}) - SUM(CASE WHEN j.journal_date <= {$quoted} THEN {$net} ELSE 0 END) >= " . $context->db->escape($minimum), null, false)
+            ->having("SUM({$net}) - GREATEST(SUM(CASE WHEN j.journal_date <= {$quoted} THEN {$net} ELSE 0 END), 0) >= " . $context->db->escape($minimum), null, false)
             ->orderBy('a.account_id', 'ASC')
             ->orderBy('j.branch_id', 'ASC')
             ->get()
@@ -66,7 +66,7 @@ final class BalanceJumpRule implements AnomalyRule
             $balance  = bcadd((string) $row->balance, '0', self::SCALE);
             $increase = bcsub($balance, $prior, self::SCALE);
 
-            if (bccomp($increase, $minimum, self::SCALE) < 0 || ($prior !== '0.0000' && bccomp(bcmul($increase, '100', self::SCALE), bcmul($prior, $percent, self::SCALE), self::SCALE) < 0)) {
+            if (bccomp(bcmul($increase, '100', self::SCALE), bcmul($prior, $percent, self::SCALE), self::SCALE) < 0) {
                 continue;
             }
 

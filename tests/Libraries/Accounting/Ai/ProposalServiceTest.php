@@ -2,12 +2,13 @@
 
 namespace Tests\Libraries\Accounting\Ai;
 
-use App\Libraries\Accounting\Ai\ProposalDraft;
-use App\Libraries\Accounting\Ai\ProposalService;
-use App\Libraries\Accounting\Ai\ProposalStatus;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\Ai\ProposalDraft;
+use App\Libraries\Accounting\Ai\ProposalService;
+use App\Libraries\Accounting\Ai\ProposalStatus;
+use App\Libraries\Accounting\Ai\ProposalText;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalOrigin;
@@ -40,7 +41,6 @@ final class ProposalServiceTest extends CIUnitTestCase
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace   = null;
-
     private ProposalService $service;
     private int $approver;
 
@@ -79,6 +79,14 @@ final class ProposalServiceTest extends CIUnitTestCase
     private function aiJournals(): int
     {
         return (int) $this->accountingDb()->table('accounting_journals')->where('source_type', ProposalService::SOURCE)->countAllResults();
+    }
+
+    /**
+     * @param array<string, scalar>|null $args
+     */
+    private function withChange(ProposalDraft $draft, ?string $proposer = null, ?string $key = null, ?string $description = null, ?array $args = null): ProposalDraft
+    {
+        return new ProposalDraft($draft->kind, $proposer ?? $draft->proposer, $key ?? $draft->dedupeKey, $draft->date, $draft->branchId, $description ?? $draft->description, $draft->lines, $draft->evidence, $args ?? $draft->templateArgs, $draft->subjectJournals);
     }
 
     private function refused(callable $call): AccountingException
@@ -290,6 +298,42 @@ final class ProposalServiceTest extends CIUnitTestCase
         $this->assertSame(AccountingError::AiProposalInvalid, $this->refused(fn () => $this->service->create($bare, $this->approver))->error);
     }
 
+    public function testCreate_AcceptsAProposerNameOfSixtyFourCharactersAndRejectsOneOfSixtyFive(): void
+    {
+        $id = $this->service->create($this->withChange($this->proposalDraft('500.00', 'long-1'), proposer: str_repeat('p', 64)), $this->approver);
+
+        $this->assertSame(str_repeat('p', 64), $this->proposalRow($id)->proposer);
+        $this->assertSame(AccountingError::AiProposalInvalid, $this->refused(fn () => $this->service->create($this->withChange($this->proposalDraft('500.00', 'long-2'), proposer: str_repeat('p', 65)), $this->approver))->error);
+        $this->assertSame(1, $this->countRows('accounting_ai_proposals'));
+    }
+
+    public function testCreate_RejectsAProposalWithoutAKey(): void
+    {
+        $this->assertSame(AccountingError::AiProposalInvalid, $this->refused(fn () => $this->service->create($this->withChange($this->proposalDraft(), key: ''), $this->approver))->error);
+        $this->assertSame(0, $this->countRows('accounting_ai_proposals'));
+    }
+
+    public function testCreate_AcceptsATitleOfTheLargestLengthAndRejectsALongerOne(): void
+    {
+        $draft = $this->proposalDraft('500.00', 'title-1');
+        $room  = ProposalService::TITLE_MAX - mb_strlen(ProposalText::fill('title', $draft->kind, [...$draft->templateArgs, 'account' => '']));
+
+        $id = $this->service->create($this->withChange($draft, args: [...$draft->templateArgs, 'account' => str_repeat('x', $room)]), $this->approver);
+
+        $this->assertSame(ProposalService::TITLE_MAX, mb_strlen($this->proposalRow($id)->title));
+        $this->assertSame(AccountingError::AiProposalInvalid, $this->refused(fn () => $this->service->create($this->withChange($this->proposalDraft('500.00', 'title-2'), args: [...$draft->templateArgs, 'account' => str_repeat('x', $room + 1)]), $this->approver))->error);
+        $this->assertSame(1, $this->countRows('accounting_ai_proposals'));
+    }
+
+    public function testCreate_AcceptsATextOfTheLargestLengthAndRejectsALongerOne(): void
+    {
+        $id = $this->service->create($this->withChange($this->proposalDraft('500.00', 'text-1'), description: str_repeat('d', ProposalService::TEXT_MAX)), $this->approver);
+
+        $this->assertSame(ProposalService::TEXT_MAX, mb_strlen((string) json_decode((string) $this->proposalRow($id)->payload, true)['description']));
+        $this->assertSame(AccountingError::AiProposalInvalid, $this->refused(fn () => $this->service->create($this->withChange($this->proposalDraft('500.00', 'text-2'), description: str_repeat('d', ProposalService::TEXT_MAX + 1)), $this->approver))->error);
+        $this->assertSame(1, $this->countRows('accounting_ai_proposals'));
+    }
+
     public function testCreate_RejectsTheSameProposalWhileItStandsAndAfterItWasRejected(): void
     {
         $id = $this->service->create($this->proposalDraft('500.00', 'rent-1'), $this->approver);
@@ -331,6 +375,19 @@ final class ProposalServiceTest extends CIUnitTestCase
 
         $this->assertSame(AccountingError::CostCenterRequired, $failure->error);
         $this->assertSame(1, $failure->context['line']);
+    }
+
+    public function testCreate_AsksForACostCenterOnNoLineOfAnAccountThatIsNotIncomeOrExpense(): void
+    {
+        $this->setConfigValue(JournalSettings::CENTER_REQUIRED, '1');
+        $this->accountingDb()->table('accounting_cost_centers')->insert(['code' => 'CC1', 'name' => 'Shop', 'active' => 1]);
+        $center = (int) $this->accountingDb()->insertID();
+        $draft  = $this->proposalDraft('500.00', 'center-1');
+        $lines  = [new JournalLineDraft($this->rentExpense(), debit: '500.00', description: 'Rent', costCenterId: $center), new JournalLineDraft($this->cashAccount(), credit: '500.00', description: 'Rent')];
+
+        $id = $this->service->create(new ProposalDraft($draft->kind, $draft->proposer, $draft->dedupeKey, $draft->date, $draft->branchId, $draft->description, $lines, $draft->evidence, $draft->templateArgs), $this->approver);
+
+        $this->assertSame('proposed', $this->proposalRow($id)->status);
     }
 
     public function testCreate_RejectsASubjectJournalThatIsNotPosted(): void
@@ -398,6 +455,7 @@ final class ProposalServiceTest extends CIUnitTestCase
         $this->assertCount(1, $decided);
         $this->assertSame($this->approver, (int) $decided[0]->employee_id);
         $this->assertSame($journal, json_decode((string) $decided[0]->details, true)['journal_id']);
+        $this->assertSame(JournalOrigin::User->value, $decided[0]->origin);
         $this->assertCount(1, $posted);
         $this->assertSame('ai', $posted[0]->origin);
         $this->assertSame($this->approver, (int) $posted[0]->employee_id);
@@ -559,7 +617,7 @@ final class ProposalServiceTest extends CIUnitTestCase
 
     public function testApprove_RequiresThePermissionToPostJournals(): void
     {
-        $id      = $this->service->create($this->proposalDraft(), $this->approver);
+        $id       = $this->service->create($this->proposalDraft(), $this->approver);
         $noPoster = $this->employeeWithGrants([AccountingGuard::AI_USE, AccountingGuard::AI_APPROVE]);
 
         $failure = $this->refused(fn () => $this->service->approve($id, $noPoster));
@@ -905,6 +963,28 @@ final class ProposalServiceTest extends CIUnitTestCase
         $this->assertSame([$old], $ids($this->service->search(['to' => '2026-09-10'], $this->approver)));
     }
 
+    public function testSearch_RequiresThePermissionToUseTheAgent(): void
+    {
+        $this->service->create($this->proposalDraft(), $this->approver);
+
+        $this->assertSame(AccountingError::PermissionDenied, $this->refused(fn () => $this->service->search([], $this->employeeWithGrants([])))->error);
+    }
+
+    public function testSearch_TellsAProposalPastItsTimeFromOneThatIsNot(): void
+    {
+        $late = $this->service->create($this->proposalDraft('500.00', 'late'), $this->approver);
+        $live = $this->service->create($this->proposalDraft('500.00', 'live'), $this->approver);
+        $this->accountingDb()->table('accounting_ai_proposals')->where('proposal_id', $late)->update(['expires_at' => '2020-01-01 00:00:00']);
+
+        $overdue = [];
+
+        foreach ($this->service->search([], $this->approver)['rows'] as $row) {
+            $overdue[(int) $row->proposal_id] = (int) $row->is_expired;
+        }
+
+        $this->assertSame([$live => 0, $late => 1], $overdue);
+    }
+
     public function testSearch_GivesAtMostTheLargestPageWhateverIsAsked(): void
     {
         $rows = [];
@@ -933,6 +1013,11 @@ final class ProposalServiceTest extends CIUnitTestCase
 
         $this->assertSame(['proposed' => 1, 'approved' => 0, 'rejected' => 1, 'expired' => 0, 'superseded' => 0], $this->service->counts($this->approver));
         $this->assertSame(['proposed' => 0, 'approved' => 0, 'rejected' => 1, 'expired' => 0, 'superseded' => 0], $this->service->counts($this->agentEmployee([], [1])));
+    }
+
+    public function testCounts_RequiresThePermissionToUseTheAgent(): void
+    {
+        $this->assertSame(AccountingError::PermissionDenied, $this->refused(fn () => $this->service->counts($this->employeeWithGrants([])))->error);
     }
 
     public function testKinds_ListsTheKindsThatHaveProposals(): void

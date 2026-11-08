@@ -30,7 +30,6 @@ final class RecurringEntryProposerTest extends CIUnitTestCase
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace   = null;
-
     private RecurringEntryProposer $proposer;
     private DateTimeImmutable $today;
 
@@ -221,6 +220,52 @@ final class RecurringEntryProposerTest extends CIUnitTestCase
         }
 
         $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_SuggestsNothingForCreditsOnAnExpenseAccount(): void
+    {
+        foreach (['2026-08-05', '2026-09-05', '2026-10-05'] as $date) {
+            $this->manualJournal($date, $this->cashAccount(), $this->rentExpense(), '2000.00', 'Office rent');
+        }
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_SuggestsNothingForTheExpenseLinesOfJournalsThatSalesMade(): void
+    {
+        foreach (['2026-08-05', '2026-09-05', '2026-10-05'] as $index => $date) {
+            (new PostingService())->post(new JournalDraft(
+                date: $date,
+                lines: [new JournalLineDraft($this->rentExpense(), debit: '2000.00'), new JournalLineDraft($this->cashAccount(), credit: '2000.00')],
+                sourceType: 'sale',
+                sourceId: 200 + $index,
+                branchId: 1,
+            ));
+        }
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_SuggestsWhenTheAmountsVaryExactlyAsMuchAsTheToleranceAndNotMore(): void
+    {
+        $this->rent(['2026-08-05', '2026-09-05'], '1000.00');
+        $this->rent(['2026-10-05'], '1250.00');
+
+        $this->setThreshold('recurring_tolerance', '20');
+
+        $this->assertCount(1, $this->proposer->propose($this->today, null));
+
+        $this->setThreshold('recurring_tolerance', '19');
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_ReadsNoMoreRowsThanItIsAllowed(): void
+    {
+        $this->rent(['2026-08-05', '2026-09-05', '2026-10-05']);
+
+        $this->assertCount(1, $this->proposer->propose($this->today, null));
+        $this->assertSame([], (new RecurringEntryProposer(null, null, 2))->propose($this->today, null));
     }
 
     public function testPropose_ReadsTheExpenseDocumentsAsOneExpenseOfTheirAccount(): void

@@ -28,7 +28,6 @@ final class DuplicateRuleTest extends CIUnitTestCase
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace   = null;
-
     private DuplicateRule $rule;
 
     public static function setUpBeforeClass(): void
@@ -149,6 +148,14 @@ final class DuplicateRuleTest extends CIUnitTestCase
         $this->assertSame([], $this->rule->detect($this->ruleContext()));
     }
 
+    public function testDetect_FlagsNothingForTheSameAmountsOnTheSameAccountsOnOtherSides(): void
+    {
+        $this->keyed('2026-10-10');
+        $this->manualJournal('2026-10-11', $this->cashAccount(), $this->rentExpense(), '500.00', 'Swapped');
+
+        $this->assertSame([], $this->rule->detect($this->ruleContext()));
+    }
+
     public function testDetect_FlagsAChainOfThreeAsTwoPairs(): void
     {
         $one   = $this->keyed('2026-10-10');
@@ -216,7 +223,7 @@ final class DuplicateRuleTest extends CIUnitTestCase
         $this->keyed('2026-10-10');
         $this->keyed('2026-10-11');
 
-        $this->assertEquals($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
+        $this->assertSame($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
         $this->assertSame('AI-DUPLICATE', $this->rule->code());
     }
 }

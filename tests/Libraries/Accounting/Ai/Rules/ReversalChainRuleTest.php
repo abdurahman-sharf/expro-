@@ -27,7 +27,6 @@ final class ReversalChainRuleTest extends CIUnitTestCase
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace   = null;
-
     private ReversalChainRule $rule;
 
     public static function setUpBeforeClass(): void
@@ -157,6 +156,32 @@ final class ReversalChainRuleTest extends CIUnitTestCase
         $this->assertSame([], $this->rule->detect($this->ruleContext()));
     }
 
+    public function testDetect_ShowsTheChainAsEvidenceUpToTwentyJournals(): void
+    {
+        $posting = new PostingService();
+
+        for ($revision = 1; $revision <= 11; $revision++) {
+            $id = $posting->post(new JournalDraft(
+                date: '2026-10-10',
+                lines: [new JournalLineDraft($this->rentExpense(), debit: '10.00'), new JournalLineDraft($this->cashAccount(), credit: '10.00')],
+                sourceType: 'expense',
+                sourceId: 5,
+                revision: $revision,
+                branchId: 1,
+            ))->journalId;
+
+            (new JournalService())->reverseAutomatic($id, '2026-10-12', 'Changed', null);
+        }
+
+        $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->update(['posted_at' => '2026-10-20 10:00:00']);
+
+        $findings = $this->rule->detect($this->ruleContext());
+
+        $this->assertCount(1, $findings);
+        $this->assertCount(20, $findings[0]->evidence);
+        $this->assertSame(11, $findings[0]->templateArgs['reversals']);
+    }
+
     public function testDetect_LeavesOutTheClosingOfAYear(): void
     {
         $this->chain('expense', 5, 3);
@@ -187,7 +212,7 @@ final class ReversalChainRuleTest extends CIUnitTestCase
     {
         $this->chain('expense', 5, 3);
 
-        $this->assertEquals($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
+        $this->assertSame($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
         $this->assertSame('AI-REVERSAL-CHAIN', $this->rule->code());
     }
 }

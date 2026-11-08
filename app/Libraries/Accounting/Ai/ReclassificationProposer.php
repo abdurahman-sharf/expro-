@@ -29,7 +29,7 @@ final class ReclassificationProposer implements Proposer
     private BaseConnection $db;
     private AiSettings $settings;
 
-    public function __construct(?BaseConnection $db = null, ?AiSettings $settings = null)
+    public function __construct(?BaseConnection $db = null, ?AiSettings $settings = null, private readonly int $subjectCap = self::SUBJECTS)
     {
         $this->db       = $db ?? Database::connect();
         $this->settings = $settings ?? new AiSettings($this->db);
@@ -133,7 +133,7 @@ final class ReclassificationProposer implements Proposer
             $builder->whereIn('j.branch_id', $branchIds);
         }
 
-        return $builder->orderBy('j.journal_id', 'ASC')->orderBy('l.line_no', 'ASC')->limit(self::SUBJECTS)->get()->getResult();
+        return $builder->orderBy('j.journal_id', 'ASC')->orderBy('l.line_no', 'ASC')->limit($this->subjectCap)->get()->getResult();
     }
 
     /**
@@ -152,9 +152,7 @@ final class ReclassificationProposer implements Proposer
             ->whereIn('j.source_type', self::HISTORY_SOURCES)
             ->where('j.journal_id <', (int) $subject->journal_id)
             ->where('a.account_type', $type)
-            ->where('a.is_group', 0)
             ->where('a.active', 1)
-            ->where('a.entity_type IS NULL', null, false)
             ->whereNotIn('a.account_id', $otherIds)
             ->where($isDebit ? 'l.debit >' : 'l.credit >', 0)
             ->where(CounterpartText::sql('l', 'j') . ' = ' . $this->db->escape($text), null, false)

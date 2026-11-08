@@ -26,7 +26,7 @@ final class RecurringEntryProposer implements Proposer
     private BaseConnection $db;
     private AiSettings $settings;
 
-    public function __construct(?BaseConnection $db = null, ?AiSettings $settings = null)
+    public function __construct(?BaseConnection $db = null, ?AiSettings $settings = null, private readonly int $rowCap = self::ROW_CAP)
     {
         $this->db       = $db ?? Database::connect();
         $this->settings = $settings ?? new AiSettings($this->db);
@@ -79,11 +79,8 @@ final class RecurringEntryProposer implements Proposer
             ->join('accounting_journals j', 'j.journal_id = l.journal_id')
             ->join('accounting_accounts a', 'a.account_id = l.account_id')
             ->where('a.account_type', 'expense')
-            ->where('a.is_group', 0)
-            ->where('a.entity_type IS NULL', null, false)
             ->where('l.debit >', 0)
             ->where('j.status', JournalStatus::Posted->value)
-            ->where('j.entry_type', 'general')
             ->whereIn('j.source_type', self::SOURCES)
             ->where('j.journal_date >=', $first->format('Y-m-d'))
             ->where('j.journal_date <=', $today->format('Y-m-d'));
@@ -94,7 +91,7 @@ final class RecurringEntryProposer implements Proposer
 
         $groups = [];
 
-        foreach ($builder->orderBy('j.journal_id', 'ASC')->orderBy('l.line_no', 'ASC')->limit(self::ROW_CAP)->get()->getResult() as $row) {
+        foreach ($builder->orderBy('j.journal_id', 'ASC')->orderBy('l.line_no', 'ASC')->limit($this->rowCap)->get()->getResult() as $row) {
             $text = $this->textOf($row);
             $key  = (int) $row->branch_id . '|' . (int) $row->account_id . '|' . $text;
             $mon  = substr((string) $row->journal_date, 0, 7);
@@ -102,8 +99,6 @@ final class RecurringEntryProposer implements Proposer
             $groups[$key] ??= ['branch_id' => (int) $row->branch_id, 'account_id' => (int) $row->account_id, 'text' => $text, 'occurrences' => []];
             $groups[$key]['occurrences'][$mon][] = $row;
         }
-
-        ksort($groups);
 
         return array_values($groups);
     }
@@ -248,7 +243,7 @@ final class RecurringEntryProposer implements Proposer
             }
         }
 
-        if ($expenseLines !== 1 || count($rows) < 2) {
+        if ($expenseLines > 1) {
             return null;
         }
 

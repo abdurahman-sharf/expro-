@@ -29,7 +29,6 @@ final class ReclassificationProposerTest extends CIUnitTestCase
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace   = null;
-
     private ReclassificationProposer $proposer;
     private DateTimeImmutable $today;
 
@@ -258,12 +257,118 @@ final class ReclassificationProposerTest extends CIUnitTestCase
         $this->assertSame([], $this->proposer->propose($this->today, []));
     }
 
+    public function testPropose_SuggestsNothingForAnAmountOnAnAccountThatIsNotTheDefault(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->manualJournal('2026-10-20', $this->rentExpense(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_SuggestsNothingForAJournalDatedAfterToday(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->manualJournal('2026-10-26', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_CountsTheJournalsTheAgentMadeAsFurtherUsesOfTheAccount(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 2);
+        $first    = $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+        $approver = $this->agentEmployee();
+        $service  = new ProposalService();
+
+        $service->approve($service->create($this->proposer->propose($this->today, null)[0], $approver), $approver);
+
+        $this->manualJournal('2026-10-22', $this->otherExpenses(), $this->cashAccount(), '90.00', 'Gulf Cleaning');
+
+        $second = array_values(array_filter($this->proposer->propose($this->today, null), static fn ($draft): bool => $draft->subjectJournals !== [$first]));
+
+        $this->assertCount(1, $second);
+        $this->assertSame(3, $second[0]->templateArgs['uses']);
+        $this->assertSame(3, $second[0]->templateArgs['total']);
+    }
+
+    public function testPropose_CountsOnlyAccountsThatAreActive(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->maintenance())->update(['active' => 0]);
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_SuggestsAtExactlyTheMinimumShareAndNotBelowIt(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 4);
+        $this->history('Gulf Cleaning', $this->electricityExpense(), 1, '2026-09-10');
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+
+        $this->assertCount(1, $this->proposer->propose($this->today, null));
+
+        $this->setThreshold('reclass_min_share', '81');
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_ShowsNoMoreThanFiveRowsOfTheFrequencyTable(): void
+    {
+        $this->setThreshold('reclass_min_count', '1');
+        $this->setThreshold('reclass_min_share', '1');
+
+        foreach (['5201', '5202', '5203', '5204', '5205', '5206', '542'] as $index => $code) {
+            $this->manualJournal('2026-09-0' . ($index + 1), $this->accountIdByCode($code), $this->cashAccount(), '100.00', 'Gulf Cleaning');
+        }
+
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+
+        $evidence = $this->proposer->propose($this->today, null)[0]->evidence;
+
+        $this->assertCount(6, $evidence);
+        $this->assertSame(['journal', 'history', 'history', 'history', 'history', 'history'], array_column($evidence, 'type'));
+    }
+
+    public function testPropose_CarriesTheCostCenterOfTheLineToBothLinesOfTheMove(): void
+    {
+        $db = $this->accountingDb();
+        $db->table('accounting_cost_centers')->insert(['code' => 'CC1', 'name' => 'Warehouse', 'active' => 1]);
+        $center = (int) $db->insertID();
+
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        (new JournalService())->postNew([
+            'date'        => '2026-10-20',
+            'description' => 'Gulf Cleaning',
+            'lines'       => [
+                ['account_id' => $this->otherExpenses(), 'debit' => '250.00', 'credit' => '', 'description' => '', 'cost_center_id' => $center],
+                ['account_id' => $this->cashAccount(), 'debit' => '', 'credit' => '250.00', 'description' => ''],
+            ],
+        ], null);
+
+        $lines = $this->proposer->propose($this->today, null)[0]->lines;
+
+        $this->assertSame($center, $lines[0]->costCenterId);
+        $this->assertSame($center, $lines[1]->costCenterId);
+    }
+
+    public function testPropose_LooksAtNoMoreSubjectsThanItIsAllowed(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->history('Power bill', $this->electricityExpense(), 3, '2026-09-10');
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+        $this->manualJournal('2026-10-21', $this->otherExpenses(), $this->cashAccount(), '80.00', 'Power bill');
+
+        $this->assertCount(2, $this->proposer->propose($this->today, null));
+        $this->assertCount(1, (new ReclassificationProposer(null, null, 1))->propose($this->today, null));
+    }
+
     public function testPropose_GivesTheSameSuggestionsEveryTime(): void
     {
         $this->history('Gulf Cleaning', $this->maintenance(), 3);
         $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
 
-        $this->assertEquals($this->proposer->propose($this->today, null), $this->proposer->propose($this->today, null));
+        $this->assertSame($this->proposer->propose($this->today, null), $this->proposer->propose($this->today, null));
     }
 
     public function testPropose_GivesDraftsTheServiceAcceptsAndTheApprovalPostsAsTheMoveOfTheAmount(): void

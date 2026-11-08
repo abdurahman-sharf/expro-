@@ -44,7 +44,7 @@
 
     <p class="text-body-secondary small"><?= lang('Accounting_ai.kill_switch_note') ?></p>
 
-    <?php if ($enabled && $canSwitch): ?>
+    <?php if ($enabled): ?>
         <p><button type="button" class="btn btn-danger btn-sm" id="ai_disable"><span class="bi bi-power" aria-hidden="true">&nbsp;</span><?= lang('Accounting_ai.switch_off') ?></button></p>
     <?php endif; ?>
 

@@ -2,8 +2,6 @@
 
 namespace App\Commands;
 
-use App\Libraries\Accounting\AccountingException;
-use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\Ai\AiSettings;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
@@ -27,14 +25,8 @@ class AccountingAiSwitch extends BaseCommand
 
         $settings = new AiSettings();
 
-        try {
-            if ($word !== 'status') {
-                $settings->setEnabled($word === 'on', null);
-            }
-        } catch (AccountingException $failure) {
-            CLI::error(AccountingMessage::of($failure));
-
-            return EXIT_ERROR;
+        if ($word !== 'status') {
+            $settings->setEnabled($word === 'on', null);
         }
 
         CLI::write('The AI agent is ' . ($settings->isSwitchedOn() ? 'on' : 'off') . '.');

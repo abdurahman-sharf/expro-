@@ -27,7 +27,6 @@ final class BackdatedRuleTest extends CIUnitTestCase
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace   = null;
-
     private BackdatedRule $rule;
 
     public static function setUpBeforeClass(): void
@@ -146,6 +145,24 @@ final class BackdatedRuleTest extends CIUnitTestCase
         $this->assertCount(1, $this->rule->detect($this->ruleContext()));
     }
 
+    public function testDetect_ReadsOnlyTheClosingsOfTheCompanyOfTheJournal(): void
+    {
+        $this->backdated('2026-09-10', '2026-10-30 10:00:00');
+
+        $db = $this->accountingDb();
+        $db->table('companies')->insert(['name' => 'Another company']);
+        $company = (int) $db->insertID();
+
+        $db->table('accounting_closed_periods')->insert(['company_id' => $company, 'date_from' => '2020-01-01', 'date_to' => '2026-09-30', 'active' => 1, 'created_at' => '2026-11-01 09:00:00']);
+
+        try {
+            $this->assertSame([], $this->rule->detect($this->ruleContext()));
+        } finally {
+            $db->table('accounting_closed_periods')->where('company_id', $company)->delete();
+            $db->table('companies')->where('company_id', $company)->delete();
+        }
+    }
+
     public function testDetect_ReadsExpensesButNotTheJournalsOfSales(): void
     {
         $posting = new PostingService();
@@ -203,7 +220,7 @@ final class BackdatedRuleTest extends CIUnitTestCase
         $this->backdated('2026-09-10', '2026-10-30 10:00:00');
         $this->closedAt('2026-09-30', '2026-11-01 09:00:00');
 
-        $this->assertEquals($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
+        $this->assertSame($this->rule->detect($this->ruleContext()), $this->rule->detect($this->ruleContext()));
         $this->assertSame('AI-BACKDATED', $this->rule->code());
     }
 }
