@@ -344,6 +344,25 @@ final class StockLocationLifecycleTest extends CIUnitTestCase
         $this->assertSame(1, $this->statusOf($spare));
     }
 
+    public function testDeactivate_RejectsALocationWhoseBooksReceivedAMovementAfterTheSnapshotOfTheCaller(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+        $itemId  = $this->itemIds[] = $this->createTestItem();
+        $other   = $this->openSecondConnection();
+        $this->startWithSnapshot($other);
+
+        $this->accountingDb()->table('accounting_stock_entries')->insert(['source_type' => 'receiving', 'source_id' => 5, 'line_no' => 1, 'entry_date' => '2026-10-01', 'item_id' => $itemId, 'location_id' => $spare, 'quantity' => 2, 'value' => 20]);
+
+        try {
+            $this->assertSame(AccountingError::StockLocationHoldsValue, $this->refusalOf(fn () => (new StockLocationLifecycle($other))->deactivate($spare, null)));
+        } finally {
+            $other->transRollback();
+            $other->close();
+        }
+
+        $this->assertSame(1, $this->statusOf($spare));
+    }
+
     public function testDeactivate_RejectsALocationNamedInADocumentAddedAfterTheSnapshotOfTheCaller(): void
     {
         [$spare] = $this->twoSpareLocations();
@@ -610,7 +629,7 @@ final class StockLocationLifecycleTest extends CIUnitTestCase
         $this->assertSame('4.000', (string) $this->accountingDb()->table('item_quantities')->where('location_id', $primary)->get()->getRow()->quantity);
     }
 
-    public function testTheTable_RefusesASecondLiveLocationWithThePrimaryFlag(): void
+    public function testMakePrimary_RejectsASecondLiveLocationWithThePrimaryFlagAtTheTable(): void
     {
         [$spare] = $this->twoSpareLocations();
 
@@ -619,7 +638,7 @@ final class StockLocationLifecycleTest extends CIUnitTestCase
         $this->accountingDb()->table('stock_locations')->where('location_id', $spare)->update(['is_primary' => 1]);
     }
 
-    public function testTheTable_RefusesAStatusThatIsNeitherActiveNorInactive(): void
+    public function testDeactivate_RejectsAStatusThatIsNeitherActiveNorInactiveAtTheTable(): void
     {
         [$spare] = $this->twoSpareLocations();
 

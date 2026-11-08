@@ -116,9 +116,9 @@ final class Stocktake
 
         $this->access->assertActive((int) $location->location_id);
 
-        $date     = $this->day((string) ($input['date'] ?? date('Y-m-d')));
-        $note     = $this->note((string) ($input['note'] ?? ''));
-        $itemIds  = ! empty($input['all_items']) ? $this->itemsOf((int) $location->location_id) : $this->checkedItems($input['item_ids'] ?? []);
+        $date    = $this->day((string) ($input['date'] ?? date('Y-m-d')));
+        $note    = $this->note((string) ($input['note'] ?? ''));
+        $itemIds = ! empty($input['all_items']) ? $this->itemsOf((int) $location->location_id) : $this->checkedItems($input['item_ids'] ?? []);
 
         return $this->transactional(function () use ($location, $date, $note, $itemIds, $employeeId): int {
             $this->lockLocation((int) $location->location_id);

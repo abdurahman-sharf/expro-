@@ -102,7 +102,7 @@ final class ProductMasterDataMigrationTest extends CIUnitTestCase
         $this->assertNotNull($this->column('status'));
     }
 
-    public function testUp_RefusesAStatusOutsideTheThreeAndABrandThatDoesNotExistAtTheDatabase(): void
+    public function testUp_RejectsAStatusOutsideTheThreeAndABrandThatDoesNotExistAtTheDatabase(): void
     {
         $itemId = $this->itemIds[] = $this->createTestItem();
 
@@ -148,7 +148,7 @@ final class ProductMasterDataMigrationTest extends CIUnitTestCase
     }
 
     #[DataProvider('enteredProvider')]
-    public function testDown_RefusesOnceAnItemCarriesAValue(string $column, mixed $value): void
+    public function testDown_RejectsOnceAnItemCarriesAValue(string $column, mixed $value): void
     {
         $itemId = $this->itemIds[] = $this->createTestItem();
         $this->accountingDb()->table('items')->where('item_id', $itemId)->update([$column => $value]);
@@ -158,7 +158,7 @@ final class ProductMasterDataMigrationTest extends CIUnitTestCase
         (new ProductMasterData())->down();
     }
 
-    public function testDown_RefusesOnceAnItemCarriesABrandAndWhileABrandExists(): void
+    public function testDown_RejectsOnceAnItemCarriesABrandAndWhileABrandExists(): void
     {
         $db = $this->accountingDb();
         $db->table('item_brands')->insert(['name' => 'Acme']);

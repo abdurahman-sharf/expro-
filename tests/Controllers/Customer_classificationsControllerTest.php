@@ -122,7 +122,7 @@ final class Customer_classificationsControllerTest extends CIUnitTestCase
         $this->assertSame('1', (string) $this->lookup()->get($id)->status);
     }
 
-    public function testPostStatus_NotFoundForAClassificationThatDoesNotExist(): void
+    public function testPostStatus_RejectsAClassificationThatDoesNotExist(): void
     {
         $this->expectException(PageNotFoundException::class);
 
@@ -183,7 +183,7 @@ final class Customer_classificationsControllerTest extends CIUnitTestCase
         $this->get('/customer_classifications/view/' . $id)->assertSee('Wholesale');
     }
 
-    public function testGetView_NotFoundForAClassificationThatDoesNotExist(): void
+    public function testGetView_RejectsAClassificationThatDoesNotExist(): void
     {
         $this->expectException(PageNotFoundException::class);
 
@@ -199,14 +199,14 @@ final class Customer_classificationsControllerTest extends CIUnitTestCase
         $this->assertSame(['Wholesale', 0], [$row['name'], $row['uses']]);
     }
 
-    public function testGetRow_NotFoundForAClassificationThatDoesNotExist(): void
+    public function testGetRow_RejectsAClassificationThatDoesNotExist(): void
     {
         $this->expectException(PageNotFoundException::class);
 
         $this->get('/customer_classifications/row/987654');
     }
 
-    public function testTheScreen_RedirectsAnEmployeeWhoDoesNotHoldTheCustomersModule(): void
+    public function testGetIndex_RejectsAnEmployeeWhoDoesNotHoldTheCustomersModule(): void
     {
         $stranger = $this->createEmployee(grants: [['permission_id' => 'items', 'menu_group' => 'home']]);
         $this->withSession(['person_id' => $stranger, 'menu_group' => 'home']);
@@ -216,7 +216,7 @@ final class Customer_classificationsControllerTest extends CIUnitTestCase
         $this->assertSame([], $this->lookup()->all());
     }
 
-    public function testTheScreen_IsOpenToAnEmployeeWhoHoldsTheCustomersModule(): void
+    public function testPostSave_AcceptsAnEmployeeWhoHoldsTheCustomersModule(): void
     {
         $manager = $this->createEmployee(grants: [['permission_id' => 'customers', 'menu_group' => 'home']]);
         $this->withSession(['person_id' => $manager, 'menu_group' => 'home']);

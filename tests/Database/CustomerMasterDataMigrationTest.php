@@ -110,7 +110,7 @@ final class CustomerMasterDataMigrationTest extends CIUnitTestCase
         $this->assertNotNull($this->column('customers', 'area'));
     }
 
-    public function testUp_RefusesAStatusOutsideTheFiveAndATypeOutsideTheTwoAtTheDatabase(): void
+    public function testUp_RejectsAStatusOutsideTheFiveAndATypeOutsideTheTwoAtTheDatabase(): void
     {
         $customerId = $this->insertCustomer();
 
@@ -126,7 +126,7 @@ final class CustomerMasterDataMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testUp_RefusesAClassificationOrAnEmployeeThatDoesNotExistAtTheDatabase(): void
+    public function testUp_RejectsAClassificationOrAnEmployeeThatDoesNotExistAtTheDatabase(): void
     {
         $customerId = $this->insertCustomer();
 
@@ -169,7 +169,7 @@ final class CustomerMasterDataMigrationTest extends CIUnitTestCase
     }
 
     #[DataProvider('enteredProvider')]
-    public function testDown_RefusesOnceAValueIsStored(string $table, string $column, mixed $value): void
+    public function testDown_RejectsOnceAValueIsStored(string $table, string $column, mixed $value): void
     {
         $db = $this->accountingDb();
 
@@ -187,7 +187,7 @@ final class CustomerMasterDataMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testDown_RefusesWhileAClassificationExists(): void
+    public function testDown_RejectsWhileAClassificationExists(): void
     {
         $this->accountingDb()->table('customer_classifications')->insert(['name' => 'Gold']);
 

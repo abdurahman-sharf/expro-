@@ -1685,7 +1685,7 @@ class CustomersControllerTest extends CIUnitTestCase
      * @param list<string> $cells
      */
     #[DataProvider('refusedImportCellsProvider')]
-    public function testPostImportCsvFile_RefusesARowWhoseAppendedValueIsNotAllowedAndStillImportsTheGoodRow(array $cells): void
+    public function testPostImportCsvFile_RejectsARowWhoseAppendedValueIsNotAllowedAndStillImportsTheGoodRow(array $cells): void
     {
         $this->classification('Gold');
 

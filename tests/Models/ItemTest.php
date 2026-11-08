@@ -896,7 +896,7 @@ class ItemTest extends CIUnitTestCase
         $this->cleanStatusFixtures();
     }
 
-    public function testDelete_RefusesAnItemASuspendedSaleStillNamesAndKeepsItWithItsStock(): void
+    public function testDelete_RejectsAnItemASuspendedSaleStillNamesAndKeepsItWithItsStock(): void
     {
         $model  = model(Item::class);
         $itemId = $this->itemWithStatus(0, 'Named ' . uniqid());
@@ -924,7 +924,7 @@ class ItemTest extends CIUnitTestCase
         $this->cleanStatusFixtures();
     }
 
-    public function testDeleteList_RefusesTheWholeListWhenOneItemIsNamedInADraftAndNamesIt(): void
+    public function testDeleteList_RejectsTheWholeListWhenOneItemIsNamedInADraftAndNamesIt(): void
     {
         $model = model(Item::class);
         $free  = $this->itemWithStatus(0, 'Free ' . uniqid());
@@ -937,7 +937,7 @@ class ItemTest extends CIUnitTestCase
         $this->cleanStatusFixtures();
     }
 
-    public function testIsMentionedInOpenDocuments_IsFalseForAnItemNoDocumentNamesAndForNoItems(): void
+    public function testIsMentionedInOpenDocuments_AcceptsAnItemNoDocumentNamesAndNoItems(): void
     {
         $model  = model(Item::class);
         $itemId = $this->itemWithStatus(0, 'Alone ' . uniqid());

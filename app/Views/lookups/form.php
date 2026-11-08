@@ -1,7 +1,7 @@
 <?php
 /**
- * @var string $resource
- * @var string $kind
+ * @var string      $resource
+ * @var string      $kind
  * @var object|null $entry
  */
 $isNew = $entry === null;

@@ -108,7 +108,7 @@ final class StockLocationStatusMigrationTest extends CIUnitTestCase
         $this->assertSame([$second], $this->primaryIds());
     }
 
-    public function testUp_RefusesASecondLivePrimaryLocationAtTheDatabase(): void
+    public function testUp_RejectsASecondLivePrimaryLocationAtTheDatabase(): void
     {
         $second = $this->insertStockLocation('Second');
 
@@ -136,7 +136,7 @@ final class StockLocationStatusMigrationTest extends CIUnitTestCase
         $this->assertNull($this->column('primary_slot'));
     }
 
-    public function testDown_RefusesWhileALocationIsInactive(): void
+    public function testDown_RejectsWhileALocationIsInactive(): void
     {
         $second = $this->insertStockLocation('Second');
         $this->accountingDb()->table('stock_locations')->where('location_id', $second)->update(['status' => 0]);
@@ -149,7 +149,7 @@ final class StockLocationStatusMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testDown_RefusesOnceThePrimaryWasMovedToAnotherLocation(): void
+    public function testDown_RejectsOnceThePrimaryWasMovedToAnotherLocation(): void
     {
         $second = $this->insertStockLocation('Second');
         $db     = $this->accountingDb();

@@ -370,7 +370,7 @@ class Stock_locationTest extends CIUnitTestCase
         $this->assertSame('1', (string) $this->accountingDb()->table('stock_locations')->where('location_id', $locationId)->get()->getRow()->status);
     }
 
-    public function testDelete_RefusesThePrimaryLocationAndKeepsItsSubAccountOpen(): void
+    public function testDelete_RejectsThePrimaryLocationAndKeepsItsSubAccountOpen(): void
     {
         $entities = $this->startAccounting();
         $primary  = (int) (new StockLocationLifecycle())->primaryId();
@@ -384,7 +384,7 @@ class Stock_locationTest extends CIUnitTestCase
         $this->assertSame('1', (string) $this->accountingDb()->table('accounting_accounts')->where('account_id', $entities->accountFor(EntityAccountService::STOCK_LOCATION, $primary))->get()->getRow()->active);
     }
 
-    public function testDelete_RefusesALocationThatHoldsStockAndLeavesItsAccountOpen(): void
+    public function testDelete_RejectsALocationThatHoldsStockAndLeavesItsAccountOpen(): void
     {
         $entities   = $this->startAccounting();
         $locationId = $this->saveLocation('Loaded place');

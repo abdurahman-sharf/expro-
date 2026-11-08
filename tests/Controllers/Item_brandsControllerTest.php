@@ -97,7 +97,7 @@ final class Item_brandsControllerTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item_brand', 'entity_id' => $added['id'], 'action' => 'lookup_created'])->countAllResults());
     }
 
-    public function testPostDelete_RefusesABrandAnItemCarriesAndRemovesAFreeOne(): void
+    public function testPostDelete_RejectsABrandAnItemCarriesAndRemovesAFreeOne(): void
     {
         $free   = $this->lookup()->save('Free', true, null, 1);
         $held   = $this->lookup()->save('Held', true, null, 1);
@@ -123,7 +123,7 @@ final class Item_brandsControllerTest extends CIUnitTestCase
         $this->assertSame([['Held', 1]], array_map(static fn (array $row): array => [$row['name'], $row['uses']], $found['rows']));
     }
 
-    public function testTheScreen_RedirectsAnEmployeeWhoDoesNotHoldTheItemsModuleEvenWithTheCustomersModule(): void
+    public function testGetIndex_RejectsAnEmployeeWhoDoesNotHoldTheItemsModuleEvenWithTheCustomersModule(): void
     {
         $stranger = $this->createEmployee(grants: [['permission_id' => 'customers', 'menu_group' => 'home']]);
         $this->withSession(['person_id' => $stranger, 'menu_group' => 'home']);
@@ -133,7 +133,7 @@ final class Item_brandsControllerTest extends CIUnitTestCase
         $this->assertSame([], $this->lookup()->all());
     }
 
-    public function testTheScreen_IsOpenToAnEmployeeWhoHoldsTheItemsModule(): void
+    public function testPostSave_AcceptsAnEmployeeWhoHoldsTheItemsModule(): void
     {
         $manager = $this->createEmployee(grants: [['permission_id' => 'items', 'menu_group' => 'home'], ['permission_id' => 'items_stock', 'menu_group' => 'home']]);
         $this->withSession(['person_id' => $manager, 'menu_group' => 'home']);

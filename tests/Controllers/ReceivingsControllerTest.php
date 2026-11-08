@@ -3626,7 +3626,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertContains((int) Services::session()->get('recv_stock_source'), [1, $depot], 'The screen starts in one of the locations the employee may receive into, as it always did');
     }
 
-    public function testGetItemSearchAndGetStockItemSearch_LeaveOutAnInactiveAndASuspendedItem(): void
+    public function testGetItemSearch_LeavesOutAnInactiveAndASuspendedItemAlsoInTheStockSearch(): void
     {
         $this->loginAs($this->buyer());
         $token     = 'Recvsearch' . uniqid();

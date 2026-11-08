@@ -760,12 +760,18 @@ class ConfigTest extends CIUnitTestCase
     public function testSaveLocations_LetsTheFormerPrimaryLocationBeMadeInactiveInTheSameSave(): void
     {
         $this->resetSession();
-        $new = $this->spareLocation('New primary');
+        $former = $this->spareLocation('Former primary');
+        $new    = $this->spareLocation('New primary');
+        $db     = Database::connect();
 
-        $result = json_decode($this->post('/config/saveLocations', $this->locationsForm(['location_status' => [1 => '0'], 'location_primary' => (string) $new]))->getJSON(), true);
+        $db->table('stock_locations')->update(['is_primary' => 0]);
+        $db->table('stock_locations')->where('location_id', $former)->update(['is_primary' => 1]);
 
-        $this->assertTrue($result['success']);
-        $this->assertSame('0', (string) $this->locationRow(1)['status']);
+        $result = json_decode($this->post('/config/saveLocations', $this->locationsForm(['location_status' => [$former => '0'], 'location_primary' => (string) $new]))->getJSON(), true);
+
+        $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+        $this->assertSame('0', (string) $this->locationRow($former)['status']);
+        $this->assertSame('0', (string) $this->locationRow($former)['is_primary']);
         $this->assertSame('1', (string) $this->locationRow($new)['is_primary']);
 
         $this->restoreLocations();
@@ -822,7 +828,7 @@ class ConfigTest extends CIUnitTestCase
         $this->restoreLocations();
     }
 
-    public function testSaveLocations_RefusesToRemoveThePrimaryLocation(): void
+    public function testSaveLocations_RejectsToRemoveThePrimaryLocation(): void
     {
         $this->resetSession();
         $spare = $this->spareLocation('Spare');
@@ -854,7 +860,7 @@ class ConfigTest extends CIUnitTestCase
         $this->restoreLocations();
     }
 
-    public function testSaveLocations_RefusesToRemoveALocationThatHoldsStock(): void
+    public function testSaveLocations_RejectsToRemoveALocationThatHoldsStock(): void
     {
         $this->resetSession();
         $loaded = $this->spareLocation('Loaded');
@@ -888,7 +894,7 @@ class ConfigTest extends CIUnitTestCase
         $this->restoreLocations();
     }
 
-    public function testSaveLocations_RedirectsAnEmployeeWithoutTheSettingsPermissionAndChangesNothing(): void
+    public function testSaveLocations_RejectsAnEmployeeWithoutTheSettingsPermissionAndChangesNothing(): void
     {
         $stranger = $this->createEmployee(grants: [['permission_id' => 'items', 'menu_group' => 'home']]);
         $spare    = $this->spareLocation('Spare');

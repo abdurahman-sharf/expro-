@@ -3154,7 +3154,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->cleanMasterItems();
     }
 
-    public function testPostSave_ASuspendedItemKeepsItsStockItsNameAndItsShelves(): void
+    public function testPostSave_KeepsTheStockTheNameAndTheShelvesOfASuspendedItem(): void
     {
         $result = $this->saveMasterItem(['status' => '0']);
         $itemId = (int) $result['id'];
@@ -3202,7 +3202,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->cleanMasterItems();
     }
 
-    public function testPostDelete_RefusesAnItemADraftAQuoteOrASuspendedSaleStillNamesWithANamedMessage(): void
+    public function testPostDelete_RejectsAnItemADraftAQuoteOrASuspendedSaleStillNamesWithANamedMessage(): void
     {
         foreach ([[SALE_TYPE_INVOICE, 'a draft invoice'], [SALE_TYPE_QUOTE, 'a quote'], [SALE_TYPE_POS, 'a suspended sale'], [SALE_TYPE_WORK_ORDER, 'a work order']] as [$type, $kind]) {
             $itemId = (int) $this->saveMasterItem()['id'];
@@ -3226,7 +3226,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->cleanMasterItems();
     }
 
-    public function testPostDelete_RefusesTheWholeListAndDeletesNoneWhenOneItemIsNamedInADraft(): void
+    public function testPostDelete_RejectsTheWholeListAndDeletesNoneWhenOneItemIsNamedInADraft(): void
     {
         $free  = (int) $this->saveMasterItem()['id'];
         $named = (int) $this->saveMasterItem()['id'];
@@ -3254,7 +3254,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->cleanMasterItems();
     }
 
-    public function testPostSave_RefusesToDeleteThroughTheFormAnItemADraftStillNames(): void
+    public function testPostSave_RejectsToDeleteThroughTheFormAnItemADraftStillNames(): void
     {
         $itemId = (int) $this->saveMasterItem()['id'];
         $this->suspendDocumentNaming($itemId);
@@ -3397,7 +3397,7 @@ class ItemsControllerTest extends CIUnitTestCase
      * @param array<string, string> $cells
      */
     #[DataProvider('refusedItemCellsProvider')]
-    public function testPostImportCsvFile_RefusesARowWhoseOptionalValueIsNotAllowedAndSavesNothing(array $cells): void
+    public function testPostImportCsvFile_RejectsARowWhoseOptionalValueIsNotAllowedAndSavesNothing(array $cells): void
     {
         $this->brand('Acme');
         $this->loginAsItemsEmployee($this->createItemsEmployee());
