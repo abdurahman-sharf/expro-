@@ -111,9 +111,14 @@ final class EInvoiceSettings
         $this->branches ??= new BranchGuard($this->db);
         $this->branches->requireCompanyScope($employeeId);
 
-        $before  = $this->all() + [self::ENABLED => $this->stored() ? '1' : '0'];
-        $merged  = $this->all();
+        $current = $this->all();
+        $merged  = $current;
+        $before  = [self::ENABLED => $this->stored() ? '1' : '0'];
         $changes = [];
+
+        foreach (self::FIELDS as $field => $key) {
+            $before[$key] = $current[$field];
+        }
 
         foreach (array_keys(self::FIELDS) as $field) {
             if (array_key_exists($field, $input)) {
@@ -124,7 +129,7 @@ final class EInvoiceSettings
         $this->validate($merged);
 
         foreach (self::FIELDS as $field => $key) {
-            if ($merged[$field] !== $before[$field]) {
+            if ($merged[$field] !== $current[$field]) {
                 $changes[$key] = $merged[$field];
             }
         }

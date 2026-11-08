@@ -58,27 +58,20 @@ final class EInvoiceReadiness
      */
     public function customersWithoutIdentification(int $limit = 50, int $offset = 0): array
     {
-        $business = "(c.tax_id <> '' OR c.is_government_entity = 1 OR c.customer_type = 'commercial')";
-        $missing  = "(c.tax_id NOT REGEXP '^3[0-9]{13}3\$' AND (e.person_id IS NULL OR e.identification_type IS NULL OR e.identification_number = ''))";
+        $customers = $this->db->prefixTable('customers');
+        $people    = $this->db->prefixTable('people');
+        $parties   = $this->db->prefixTable('customer_einvoice_parties');
+        $business  = "(c.tax_id <> '' OR c.is_government_entity = 1 OR c.customer_type = 'commercial')";
+        $from      = "FROM {$customers} c JOIN {$people} p ON p.person_id = c.person_id LEFT JOIN {$parties} e ON e.person_id = c.person_id"
+            . " WHERE c.deleted = 0 AND c.tax_id NOT REGEXP '^3[0-9]{13}3\$' AND (e.person_id IS NULL OR e.identification_type IS NULL OR e.identification_number = '')";
 
-        $from = $this->db->table('customers c')
-            ->join('people p', 'p.person_id = c.person_id')
-            ->join('customer_einvoice_parties e', 'e.person_id = c.person_id', 'left')
-            ->where('c.deleted', 0);
+        $counts = $this->db->query("SELECT COUNT(*) AS total, COALESCE(SUM({$business}), 0) AS businesses {$from}")->getRow();
+        $rows   = [];
 
-        $total      = (clone $from)->where($missing, null, false)->countAllResults();
-        $businesses = (clone $from)->where($missing . ' AND ' . $business, null, false)->countAllResults();
-
-        $rows = [];
-
-        foreach ((clone $from)
-            ->select("c.person_id, c.company_name, c.tax_id, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS name, ({$business}) AS is_business", false)
-            ->where($missing, null, false)
-            ->orderBy('is_business', 'DESC')
-            ->orderBy('c.person_id', 'ASC')
-            ->limit($limit, $offset)
-            ->get()
-            ->getResult() as $row) {
+        foreach ($this->db->query(
+            "SELECT c.person_id, c.company_name, c.tax_id, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS name, {$business} AS is_business {$from} ORDER BY is_business DESC, c.person_id ASC LIMIT ? OFFSET ?",
+            [$limit, $offset],
+        )->getResult() as $row) {
             $rows[] = [
                 'person_id' => (int) $row->person_id,
                 'name'      => trim((string) $row->company_name) !== '' ? (string) $row->company_name : (string) $row->name,
@@ -87,7 +80,7 @@ final class EInvoiceReadiness
             ];
         }
 
-        return ['total' => $total, 'businesses' => $businesses, 'rows' => $rows];
+        return ['total' => (int) $counts->total, 'businesses' => (int) $counts->businesses, 'rows' => $rows];
     }
 
     /**
