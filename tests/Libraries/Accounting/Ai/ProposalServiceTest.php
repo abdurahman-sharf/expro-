@@ -13,10 +13,12 @@ use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalSettings;
+use App\Libraries\Accounting\PeriodLocks;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Database\Exceptions\DatabaseException;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -399,6 +401,71 @@ final class ProposalServiceTest extends CIUnitTestCase
         $this->assertCount(1, $posted);
         $this->assertSame('ai', $posted[0]->origin);
         $this->assertSame($this->approver, (int) $posted[0]->employee_id);
+    }
+
+    public function testApprove_TakesThePeriodLocksOfItsBranchBeforeItLocksTheProposal(): void
+    {
+        $branch = $this->createBranch();
+        $id     = $this->service->create($this->proposalDraft('500.00', 'k', '2026-10-21', $branch), $this->approver);
+        $seen   = [];
+
+        $listener = static function ($query) use (&$seen): void {
+            $sql = (string) $query->getQuery();
+
+            if (str_contains($sql, 'accounting_period_locks') && (str_contains($sql, 'LOCK IN SHARE MODE') || str_contains($sql, 'FOR UPDATE'))) {
+                $seen[] = 'period';
+            } elseif (str_contains($sql, 'accounting_ai_proposals') && str_contains($sql, 'FOR UPDATE')) {
+                $seen[] = 'proposal';
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $this->service->approve($id, $this->approver);
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        $this->assertSame('period', $seen[0]);
+        $this->assertContains('proposal', $seen);
+        $this->assertLessThan(array_search('proposal', $seen, true), array_search('period', $seen, true));
+        $this->assertSame([$branch], $this->periodLocksTakenBy(function () use ($branch): void {
+            $other = $this->service->create($this->proposalDraft('500.00', 'second', '2026-10-21', $branch), $this->approver);
+            $this->service->approve($other, $this->approver);
+        }));
+    }
+
+    public function testApprove_WaitsForAClosingThatHoldsTheLocksOfThePeriodsInsteadOfPostingPastIt(): void
+    {
+        $id   = $this->service->create($this->proposalDraft(), $this->approver);
+        $main = $this->accountingDb();
+
+        $main->resetTransStatus();
+        $main->transStart();
+        (new PeriodLocks($main))->holdBranch(1);
+
+        try {
+            $this->assertWaitsForLock(fn () => (new ProposalService($this->openSecondConnection()))->approve($id, $this->approver));
+        } finally {
+            $main->transRollback();
+            $main->resetTransStatus();
+        }
+
+        $this->assertSame(0, $this->aiJournals());
+        $this->assertSame('proposed', $this->proposalRow($id)->status);
+    }
+
+    public function testCreate_RefusesTheSameProposalWhereTheDatabaseGivesAFailedQueryBackInsteadOfAnException(): void
+    {
+        $this->service->create($this->proposalDraft('500.00', 'once'), $this->approver);
+
+        $second = new ProposalService($this->openSecondConnection(false));
+
+        $failure = $this->refused(fn () => $second->create($this->proposalDraft('500.00', 'once'), $this->approver));
+
+        $this->assertSame(AccountingError::AiProposalDuplicate, $failure->error);
+        $this->assertSame(1, $this->countRows('accounting_ai_proposals'));
     }
 
     public function testApprove_RefusesASecondApprovalAndPostsNoSecondJournal(): void

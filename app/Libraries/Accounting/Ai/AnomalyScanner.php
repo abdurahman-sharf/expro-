@@ -11,7 +11,6 @@ use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use DateTimeImmutable;
-use Throwable;
 
 /**
  * Runs the rules over the books and keeps what they find. The scan reads the books and writes only the findings
@@ -21,8 +20,6 @@ use Throwable;
  */
 final class AnomalyScanner
 {
-    private const DUPLICATE = 1062;
-
     private BaseConnection $db;
     private AccountingGuard $guard;
     private BranchGuard $branches;
@@ -98,44 +95,33 @@ final class AnomalyScanner
     }
 
     /**
+     * Writes the finding unless one stands for the same thing already, which the unique key on its key says in one
+     * statement, so that two scans at once cannot both write it.
+     *
      * @return bool Whether the finding was new.
+     *
+     * @throws AccountingException
      */
     private function keep(Finding $finding): bool
     {
-        $digest = $finding->digest();
+        $insert = $this->db->table('accounting_ai_findings')->set([
+            'rule_code'     => $finding->rule,
+            'severity'      => $finding->severity,
+            'finding_key'   => $finding->digest(),
+            'branch_id'     => $finding->branchId,
+            'subject_type'  => $finding->subjectType,
+            'subject_id'    => $finding->subjectId,
+            'occurred_on'   => $finding->occurredOn,
+            'template_args' => json_encode($finding->templateArgs, JSON_UNESCAPED_UNICODE),
+            'evidence'      => json_encode($finding->evidence, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ])->getCompiledInsert();
 
-        if ($this->db->table('accounting_ai_findings')->where('finding_key', $digest)->countAllResults() > 0) {
-            return false;
-        }
+        $result = $this->db->query($insert . ' ON DUPLICATE KEY UPDATE finding_id = finding_id');
 
-        try {
-            $inserted = $this->db->table('accounting_ai_findings')->insert([
-                'rule_code'     => $finding->rule,
-                'severity'      => $finding->severity,
-                'finding_key'   => $digest,
-                'branch_id'     => $finding->branchId,
-                'subject_type'  => $finding->subjectType,
-                'subject_id'    => $finding->subjectId,
-                'occurred_on'   => $finding->occurredOn,
-                'template_args' => json_encode($finding->templateArgs, JSON_UNESCAPED_UNICODE),
-                'evidence'      => json_encode($finding->evidence, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-            ]);
-        } catch (Throwable $failure) {
-            if ($failure->getCode() === self::DUPLICATE || str_contains($failure->getMessage(), 'Duplicate entry')) {
-                return false;
-            }
-
-            throw $failure;
-        }
-
-        if ($inserted === false) {
-            if (($this->db->error()['code'] ?? 0) === self::DUPLICATE) {
-                return false;
-            }
-
+        if ($result === false) {
             throw new AccountingException(AccountingError::WriteFailed, 'The finding could not be saved.');
         }
 
-        return true;
+        return $this->db->affectedRows() === 1;
     }
 }

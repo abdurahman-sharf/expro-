@@ -14,7 +14,6 @@ use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalSettings;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\LockedRead;
-use App\Libraries\Accounting\PeriodGuard;
 use App\Libraries\Accounting\PeriodLocks;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingService;
@@ -24,7 +23,6 @@ use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\RawSql;
 use Config\Database;
-use Throwable;
 
 /**
  * The agent proposes and a person decides. A proposal is a journal written down as a draft in the proposals
@@ -45,14 +43,12 @@ final class ProposalService
     public const PAGE_MAX      = 200;
     private const KIND_PATTERN = '/^[a-z][a-z0-9_]{0,31}$/';
     private const CONTROL      = [EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION];
-    private const DUPLICATE    = 1062;
 
     private BaseConnection $db;
     private AuditLog $audit;
     private AccountingGuard $guard;
     private PostingService $posting;
     private BranchGuard $branches;
-    private PeriodGuard $periods;
     private AiSettings $settings;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?PostingService $posting = null, ?BranchGuard $branches = null, ?AiSettings $settings = null)
@@ -62,7 +58,6 @@ final class ProposalService
         $this->guard    = $guard ?? new AccountingGuard();
         $this->posting  = $posting ?? new PostingService($this->db);
         $this->branches = $branches ?? new BranchGuard($this->db);
-        $this->periods  = new PeriodGuard($this->db);
         $this->settings = $settings ?? new AiSettings($this->db, $this->guard);
     }
 
@@ -103,10 +98,6 @@ final class ProposalService
         $key = hash('sha256', $draft->kind . '|' . $draft->dedupeKey);
 
         return $this->transactional(function () use ($draft, $core, $payload, $key, $employeeId, $branchId, $prepared): int {
-            if ($this->db->table('accounting_ai_proposals')->where('dedupe_key', $key)->countAllResults() > 0) {
-                throw new AccountingException(AccountingError::AiProposalDuplicate, 'The same proposal is standing already.');
-            }
-
             $values = [
                 'kind'          => $draft->kind,
                 'status'        => ProposalStatus::Proposed->value,
@@ -124,12 +115,7 @@ final class ProposalService
                 'branch_id'     => $branchId,
             ];
 
-            $inserted = $this->insertProposal($values);
-            $id       = (int) $this->db->insertID();
-
-            if ($inserted === false) {
-                throw new AccountingException(AccountingError::WriteFailed, 'The proposal could not be saved.');
-            }
+            $id = $this->insertOnce($values);
 
             $this->audit->write('ai_proposal', $id, 'proposal_created', $employeeId, JournalOrigin::Ai, [
                 'kind'     => $draft->kind,
@@ -161,10 +147,6 @@ final class ProposalService
         $this->guard->require(AccountingGuard::JOURNALS_POST, $approver);
 
         $head = $this->head($proposalId, $approver);
-
-        if ($head->status === ProposalStatus::Proposed->value) {
-            $this->periods->prepare((string) $head->proposal_date);
-        }
 
         $outcome = $this->transactional(function () use ($proposalId, $approver, $head): array {
             (new PeriodLocks($this->db))->shareForPosting((int) $head->branch_id);
@@ -723,19 +705,29 @@ final class ProposalService
     }
 
     /**
+     * Writes the proposal unless one stands for the same thing already, which the unique key on the place it holds
+     * says in one statement, so that two runs at once cannot both make it.
+     *
      * @param array<string, mixed> $values
+     *
+     * @return int The id of the proposal that was written.
+     *
+     * @throws AccountingException
      */
-    private function insertProposal(array $values): bool
+    private function insertOnce(array $values): int
     {
-        try {
-            return $this->db->table('accounting_ai_proposals')->insert($values) !== false;
-        } catch (Throwable $failure) {
-            if ($failure->getCode() === self::DUPLICATE || str_contains($failure->getMessage(), 'Duplicate entry')) {
-                throw new AccountingException(AccountingError::AiProposalDuplicate, 'The same proposal is standing already.', [], $failure);
-            }
+        $insert = $this->db->table('accounting_ai_proposals')->set($values)->getCompiledInsert();
+        $result = $this->db->query($insert . ' ON DUPLICATE KEY UPDATE proposal_id = proposal_id');
 
-            throw $failure;
+        if ($result === false) {
+            throw new AccountingException(AccountingError::WriteFailed, 'The proposal could not be saved.');
         }
+
+        if ($this->db->affectedRows() === 0) {
+            throw new AccountingException(AccountingError::AiProposalDuplicate, 'The same proposal is standing already.');
+        }
+
+        return (int) $this->db->insertID();
     }
 
     /**
