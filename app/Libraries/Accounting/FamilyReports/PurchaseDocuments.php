@@ -97,6 +97,7 @@ final class PurchaseDocuments
                 $row->journal_total === null ? null : bcadd((string) $row->journal_total, '0', SaleAmounts::SCALE),
                 $this->withRounding($parts['lines'], $type, bcsub($totals['total'], bcadd($totals['net'], $totals['tax'], SaleAmounts::SCALE), SaleAmounts::SCALE)),
                 $state,
+                $row->currency_code === null || $row->currency_code === '' ? null : (string) $row->currency_code,
             );
         }
 
@@ -190,7 +191,7 @@ final class PurchaseDocuments
             "SELECT r.receiving_id, r.receiving_type, r.supplier_id, r.employee_id, r.branch_id, COALESCE(r.invoice_date, DATE(r.receiving_time)) AS doc_date,
                     CASE WHEN j.journal_id IS NULL THEN NULL WHEN sa.account_id IS NULL THEN j.total_debit
                          ELSE (SELECT ABS(COALESCE(SUM(l.credit - l.debit), 0)) FROM {$lines} l WHERE l.journal_id = j.journal_id AND l.account_id = sa.account_id) END AS journal_total,
-                    s.tax_id, b.code AS branch_code,
+                    s.tax_id, b.code AS branch_code, r.currency_code,
                     COALESCE(NULLIF(s.company_name, ''), TRIM(CONCAT(COALESCE(sp.first_name, ''), ' ', COALESCE(sp.last_name, '')))) AS supplier_name,
                     TRIM(CONCAT(COALESCE(ep.first_name, ''), ' ', COALESCE(ep.last_name, ''))) AS employee_name
              FROM " . $this->db->prefixTable('receivings') . ' r

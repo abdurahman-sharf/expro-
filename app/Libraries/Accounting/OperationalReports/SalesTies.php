@@ -17,10 +17,10 @@ final class SalesTies
      */
     public static function of(array $documents): array
     {
-        return [
+        return ForeignAmounts::guard([
             new TieCheck('Accounting_operational_reports.tie_sales_total', Amounts::sum(array_map(static fn (ReportDocument $document): string => $document->total, $documents)), Amounts::sum(array_map(static fn (ReportDocument $document): string => $document->ledgerTotal, $documents))),
             new TieCheck('Accounting_operational_reports.tie_sales_tax', Amounts::sum(array_map(static fn (ReportDocument $document): string => $document->tax, $documents)), Amounts::sum(array_map(static fn (ReportDocument $document): string => $document->ledgerTax, $documents))),
             new TieCheck('Accounting_operational_reports.tie_sales_revenue', Amounts::sum(array_map(static fn (ReportDocument $document): string => $document->revenue(), $documents)), Amounts::sum(array_map(static fn (ReportDocument $document): string => $document->ledgerRevenue, $documents))),
-        ];
+        ], $documents);
     }
 }

@@ -296,6 +296,7 @@ final class ReportDocuments
                 originId: $sale->returnOfSaleId,
                 headerCharges: Amounts::signed($sale->charges?->addedToTotal() ?? Amounts::ZERO, $sign),
                 lines: $withLines ? $sale->lines : [],
+                currencyCode: $sale->currency?->code,
             );
         }
 

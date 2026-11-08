@@ -85,7 +85,7 @@ final class NetPositionReport
             columns: $this->columns($scope),
             blocks: $details ? $blocks : [new ReportBlock([], $rows)],
             total: $this->addUp($rows, self::FIGURES),
-            ties: $this->ties($invoices),
+            ties: ForeignAmounts::guard($this->ties($invoices), [...$invoices, ...$orphans]),
             notes: ['Accounting_operational_reports.note_net_position'],
             documents: count($invoices) + count($orphans),
         );

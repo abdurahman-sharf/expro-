@@ -349,6 +349,7 @@ return [
     'tie_debit_credit' => '',
     'tie_differs' => '',
     'tie_expense_journals' => '',
+    'tie_foreign_currency' => '',
     'tie_income_journals' => '',
     'tie_lines_documents' => '',
     'tie_net_purchases' => '',

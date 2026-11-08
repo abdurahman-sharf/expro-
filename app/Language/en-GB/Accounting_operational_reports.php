@@ -180,6 +180,7 @@ return [
     'tie_advances'          => 'Advances and the amounts they were saved with',
     'tie_cross_reference'   => 'Returns of the invoices and the ledger of the customers',
     'tie_difference'        => 'Difference',
+    'tie_foreign_currency'  => 'Not compared with the books: the report holds documents in a foreign currency ({0}). Their amounts are in that currency and the books keep the base currency, so the two cannot be added or compared.',
     'tie_items_total'       => 'Lines of the documents and their journals without the header charges (within a cent a document)',
     'tie_ledger'            => 'Books',
     'tie_net_paid'          => 'Settled on the invoices and the ledger of the customers',

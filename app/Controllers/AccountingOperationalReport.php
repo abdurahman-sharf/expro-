@@ -280,7 +280,7 @@ abstract class AccountingOperationalReport extends AccountingController
         $this->csvRow($handle, []);
 
         foreach ($table->ties as $tie) {
-            $this->csvRow($handle, [lang($tie->labelKey), $tie->reported, $tie->ledger, $tie->difference(), lang($tie->ties() ? 'Accounting_operational_reports.ties' : 'Accounting_operational_reports.differs')]);
+            $this->csvRow($handle, $tie->isRefused() ? [lang($tie->labelKey), '', '', '', lang((string) $tie->refusal, $tie->refusalArguments)] : [lang($tie->labelKey), $tie->reported, $tie->ledger, $tie->difference(), lang($tie->ties() ? 'Accounting_operational_reports.ties' : 'Accounting_operational_reports.differs')]);
         }
 
         foreach ($table->notes as $note) {

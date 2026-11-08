@@ -180,6 +180,7 @@ return [
     'tie_advances'          => '',
     'tie_cross_reference'   => '',
     'tie_difference'        => '',
+    'tie_foreign_currency'  => '',
     'tie_items_total'       => '',
     'tie_ledger'            => '',
     'tie_net_paid'          => '',

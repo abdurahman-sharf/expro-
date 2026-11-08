@@ -58,7 +58,7 @@ final class SupplierPaymentRows
     /**
      * @param array{supplier_id?: int, employee_id?: int, payment_type?: string} $filters
      *
-     * @return list<object{kind: string, source_id: int, receiving_id: ?int, supplier_id: int, supplier_name: string, doc_date: string, amount: string, payment_type: string, treasury_name: string, employee_id: ?int, employee_name: string, reference_code: string, branch_code: string, number: string}>
+     * @return list<object{kind: string, source_id: int, receiving_id: ?int, supplier_id: int, supplier_name: string, doc_date: string, amount: string, payment_type: string, treasury_name: string, employee_id: ?int, employee_name: string, reference_code: string, branch_code: string, number: string, currency_code: ?string}>
      */
     public function read(ReportScope $scope, ReportPeriod $period, ?int $viewerId = null, array $filters = []): array
     {
@@ -76,23 +76,23 @@ final class SupplierPaymentRows
                 FROM (
                     SELECT 'saved' AS kind, r.receiving_id AS source_id, r.receiving_id AS receiving_id, r.supplier_id AS supplier_id, j.journal_date AS doc_date,
                            CASE WHEN r.receiving_type = 'return' THEN 0 - j.total_debit ELSE j.total_debit END AS amount,
-                           r.payment_type AS payment_type, r.treasury_id AS treasury_id, r.employee_id AS employee_id, r.reference AS reference_code, r.branch_id AS branch_id
+                           r.payment_type AS payment_type, r.treasury_id AS treasury_id, r.employee_id AS employee_id, r.reference AS reference_code, r.branch_id AS branch_id, NULL AS currency_code
                     FROM " . $this->db->prefixTable('receivings') . " r
                     {$standing(ReceivingPostingBuilder::SOURCE_PAYMENT, 'r.receiving_id')}
                     WHERE r.supplier_id IS NOT NULL AND r.receiving_type IN ('receive', 'return')
                     UNION ALL
                     SELECT 'payment', p.payment_id, p.receiving_id, r.supplier_id, COALESCE(p.payment_date, DATE(p.payment_time)), p.payment_amount,
-                           p.payment_type, p.treasury_id, p.employee_id, p.reference_code, r.branch_id
+                           p.payment_type, p.treasury_id, p.employee_id, p.reference_code, r.branch_id, p.currency_code
                     FROM " . $this->db->prefixTable('receivings_payments') . ' p
                     JOIN ' . $this->db->prefixTable('receivings') . " r ON r.receiving_id = p.receiving_id
                     {$standing(ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT, 'p.payment_id')}
                     UNION ALL
-                    SELECT 'advance', a.advance_id, NULL, a.supplier_id, a.advance_date, a.amount, a.payment_type, a.treasury_id, a.created_by, a.reference_code, a.branch_id
+                    SELECT 'advance', a.advance_id, NULL, a.supplier_id, a.advance_date, a.amount, a.payment_type, a.treasury_id, a.created_by, a.reference_code, a.branch_id, NULL
                     FROM " . $this->db->prefixTable('supplier_advances') . " a
                     {$standing(SupplierAdvances::SOURCE, 'a.advance_id')}
                     WHERE a.kind = ?
                     UNION ALL
-                    SELECT 'refund', f.refund_id, NULL, f.supplier_id, f.refund_date, 0 - f.amount, f.payment_type, f.treasury_id, f.created_by, f.reference_code, f.branch_id
+                    SELECT 'refund', f.refund_id, NULL, f.supplier_id, f.refund_date, 0 - f.amount, f.payment_type, f.treasury_id, f.created_by, f.reference_code, f.branch_id, NULL
                     FROM " . $this->db->prefixTable('supplier_credit_refunds') . " f
                     {$standing(CreditRefunds::SUPPLIER_SOURCE, 'f.refund_id')}
                 ) d
@@ -144,6 +144,7 @@ final class SupplierPaymentRows
             $row->payment_type   = (string) ($row->payment_type ?? '');
             $row->treasury_name  = (string) ($row->treasury_name ?? '');
             $row->branch_code    = (string) ($row->branch_code ?? '');
+            $row->currency_code  = $row->currency_code === null || $row->currency_code === '' ? null : (string) $row->currency_code;
         }
 
         return $rows;

@@ -349,6 +349,7 @@ return [
     'tie_debit_credit' => 'Debit and credit of the lines',
     'tie_differs' => '{0}: the report says {1} and the books say {2} (difference {3}).',
     'tie_expense_journals' => 'Expenses and the journals that stand for them',
+    'tie_foreign_currency' => 'Not compared with the books: the report holds documents in a foreign currency ({0}). Their amounts are in that currency and the books keep the base currency, so the two cannot be added or compared.',
     'tie_income_journals' => 'Receipt vouchers and the journals that stand for them',
     'tie_lines_documents' => 'Sum of the lines and the net purchases of the documents',
     'tie_net_purchases' => 'Net purchases of the documents and of their journals',

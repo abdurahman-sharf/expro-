@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\FamilyReports\PurchasesReport;
 use App\Libraries\Roles\RoleService;
 use Tests\Support\FamilyReportTestCase;
@@ -55,6 +56,21 @@ final class PurchasesReportTest extends FamilyReportTestCase
             $this->assertAmount('395.00', $this->grandOf($summary, 'net'), "summary by {$group}");
             $this->assertAmount('395.00', $this->grandOf($detail, 'total'), "detail by {$group}");
         }
+    }
+
+    public function testBuild_RefusesTheCheckAgainstTheBooksByNameWhenAPurchaseIsInAForeignCurrency(): void
+    {
+        $facts = $this->market();
+
+        (new Currencies())->setActive('USD', true);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $facts['other'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+
+        $table = $this->built($this->report, $this->thisDay());
+
+        $this->assertCount(1, $table->ties);
+        $this->assertTrue($table->ties[0]->isRefused());
+        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['USD']), $table->ties[0]->refusal);
+        $this->assertSame(lang('Accounting_family_reports.tie_net_purchases'), $table->ties[0]->label);
     }
 
     public function testBuild_TiesTheNetPurchasesToTheJournalsOfThePurchases(): void

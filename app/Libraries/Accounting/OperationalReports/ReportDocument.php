@@ -45,6 +45,7 @@ final readonly class ReportDocument
         public ?int $originId = null,
         public string $headerCharges = '0.0000',
         public array $lines = [],
+        public ?string $currencyCode = null,
     ) {
     }
 

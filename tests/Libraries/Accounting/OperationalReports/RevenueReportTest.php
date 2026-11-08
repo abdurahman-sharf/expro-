@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
 use App\Libraries\Accounting\OperationalReports\RevenueGroup;
 use App\Libraries\Accounting\OperationalReports\RevenueReport;
@@ -107,6 +108,38 @@ class RevenueReportTest extends CIUnitTestCase
             foreach ([false, true] as $details) {
                 $this->assertSame('258.7500', $this->table($group, $details)->total['total'], $group->value . ($details ? ' in detail' : ' in summary'));
             }
+        }
+    }
+
+    public function testBuild_RefusesTheThreeChecksAgainstTheBooksByNameWhenADocumentIsInAForeignCurrency(): void
+    {
+        $ids = $this->sales();
+
+        (new Currencies())->setActive('USD', true);
+        $this->accountingDb()->table('sales')->where('sale_id', $ids['second'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+
+        $table = $this->table(RevenueGroup::Customer);
+
+        $this->assertCount(3, $table->ties);
+
+        foreach ($table->ties as $tie) {
+            $this->assertTrue($tie->isRefused(), $tie->labelKey);
+            $this->assertSame(['USD'], $tie->refusalArguments);
+        }
+
+        $this->assertSame(
+            ['Accounting_operational_reports.tie_sales_total', 'Accounting_operational_reports.tie_sales_tax', 'Accounting_operational_reports.tie_sales_revenue'],
+            array_map(static fn ($tie): string => $tie->labelKey, $table->ties),
+        );
+    }
+
+    public function testBuild_KeepsTheThreeChecksAgainstTheBooksWhileEveryDocumentIsInTheBaseCurrency(): void
+    {
+        $this->sales();
+
+        foreach ($this->table(RevenueGroup::Customer)->ties as $tie) {
+            $this->assertFalse($tie->isRefused(), $tie->labelKey);
+            $this->assertTrue($tie->ties(), $tie->labelKey);
         }
     }
 
