@@ -241,6 +241,7 @@ return [
     'error_bundle_contains_bundle'               => 'A bundle cannot contain another bundle ({0}).',
     'error_bundle_contains_itself'               => 'A bundle cannot contain itself.',
     'error_bundle_keeps_stock'                   => 'The product that carries the price of a bundle must not keep stock of its own: a bundle has no stock, its components do.',
+    'error_bundle_shape_invalid'                 => 'A bundle needs a product of type kit that carries its price, and the price option must be the one of the kit: the revenue of a bundle is its price and its components are sold at nothing.',
     'error_cannot_reverse_reversal'              => 'A reversal journal cannot be reversed.',
     'error_cash_flow_account_invalid'            => 'The accounts of the cash flow line "{0}" are not valid: choose accounts of the chart that are not treasuries or banks, and do not choose a main account together with an account under it.',
     'error_cash_flow_line_invalid'               => 'The cash flow line "{1}" is not valid: it needs a title of up to 80 characters and a known formula, and there can be at most {0} custom lines.',

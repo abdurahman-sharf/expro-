@@ -241,6 +241,7 @@ return [
     'error_bundle_contains_bundle'               => '',
     'error_bundle_contains_itself'               => '',
     'error_bundle_keeps_stock'                   => '',
+    'error_bundle_shape_invalid'                 => '',
     'error_cannot_reverse_reversal'              => '',
     'error_cash_flow_account_invalid'            => '',
     'error_cash_flow_line_invalid'               => '',

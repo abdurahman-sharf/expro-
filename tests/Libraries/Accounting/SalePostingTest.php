@@ -40,6 +40,8 @@ use App\Libraries\Sale_lib;
 use App\Libraries\Stock\StockOptions;
 use App\Libraries\Stock\UnitBarcodes;
 use App\Libraries\Tax_lib;
+use App\Models\Item_kit;
+use App\Models\Item_kit_items;
 use App\Models\Item_taxes;
 use Config\OSPOS;
 use CodeIgniter\Database\Query;
@@ -7792,5 +7794,83 @@ class SalePostingTest extends CIUnitTestCase
         $templateId = $this->template('Pallets', [['name' => 'Pallet', 'factor' => '100', 'small_name' => 'p']]);
 
         return $this->unitIdOf($templateId, 'Pallet');
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Bundles
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * A bundle of two components at 40 and 60 whose product, which keeps no stock, is priced at 150.
+     *
+     * @return array{kit: int, product: int, first: int, second: int}
+     */
+    private function bundleOfTwo(): array
+    {
+        $first   = $this->item('40.00');
+        $second  = $this->item('60.00');
+        $product = $this->item('0.00', false);
+
+        $this->accountingDb()->table('items')->where('item_id', $product)->update(['item_type' => ITEM_KIT, 'unit_price' => '150.00']);
+
+        $data = ['name' => 'Gift box', 'item_id' => $product, 'kit_discount' => 0, 'kit_discount_type' => 0, 'price_option' => PRICE_OPTION_KIT, 'print_option' => 0, 'description' => ''];
+
+        $this->assertTrue(model(Item_kit::class)->save_value($data));
+
+        $rows = [['item_id' => $first, 'quantity' => 1, 'kit_sequence' => 0], ['item_id' => $second, 'quantity' => 2, 'kit_sequence' => 1]];
+
+        $this->assertTrue(model(Item_kit_items::class)->save_value($rows, (int) $data['item_kit_id']));
+
+        return ['kit' => (int) $data['item_kit_id'], 'product' => $product, 'first' => $first, 'second' => $second];
+    }
+
+    public function testSaveValue_SellsABundleAtItsPriceAndTakesItsComponentsOutAtTheirCosts(): void
+    {
+        $bundle   = $this->bundleOfTwo();
+        $register = $this->register();
+        $discount = '0';
+        $warning  = null;
+        $product  = (string) $bundle['product'];
+
+        $this->putOnShelf($bundle['first'], '10');
+        $this->putOnShelf($bundle['second'], '10');
+        $this->assertTrue($register->add_item($product, self::LOCATION_ID, '1', $discount, 0, PRICE_MODE_KIT, PRICE_OPTION_KIT, PRINT_ALL));
+        $this->assertTrue($register->add_item_kit((string) $bundle['kit'], self::LOCATION_ID, 0.0, '0', true, true, $warning));
+
+        $saleId = $this->save(array_values($register->get_cart()));
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertSame([$this->customerAccount() . ':150.00:0.00', $this->accountId('sales_revenue') . ':0.00:150.00'], $this->standing($saleId, 'revenue')[0]['lines']);
+
+        $cost = $this->standing($saleId, 'cogs')[0]['lines'];
+
+        $this->assertContains($this->accountId('cogs') . ':160.00:0.00', $cost, 'a first component at 40 and two of a second at 60');
+        $this->assertContains($this->stockAccount() . ':0.00:160.00', $cost);
+        $this->assertSame(['9.000', '8.000'], [bcadd((string) $this->getItemQuantity($bundle['first'], self::LOCATION_ID), '0', 3), bcadd((string) $this->getItemQuantity($bundle['second'], self::LOCATION_ID), '0', 3)]);
+        $this->assertSame('0.000', bcadd((string) $this->getItemQuantity($bundle['product'], self::LOCATION_ID), '0', 3), 'a bundle has no stock of its own');
+    }
+
+    public function testDelete_PutsTheComponentsOfACancelledBundleBack(): void
+    {
+        $bundle   = $this->bundleOfTwo();
+        $register = $this->register();
+        $discount = '0';
+        $warning  = null;
+
+        $this->putOnShelf($bundle['first'], '10');
+        $this->putOnShelf($bundle['second'], '10');
+        $product  = (string) $bundle['product'];
+
+        $register->add_item($product, self::LOCATION_ID, '1', $discount, 0, PRICE_MODE_KIT, PRICE_OPTION_KIT, PRINT_ALL);
+        $register->add_item_kit((string) $bundle['kit'], self::LOCATION_ID, 0.0, '0', true, true, $warning);
+
+        $saleId = $this->save(array_values($register->get_cart()), [], [$this->payment(lang('Sales.cash'), '150.00')], SALE_TYPE_POS);
+
+        $this->assertTrue($this->sales->delete($saleId, false, true, $this->employeeId));
+        $this->assertSame(['10.000', '10.000'], [bcadd((string) $this->getItemQuantity($bundle['first'], self::LOCATION_ID), '0', 3), bcadd((string) $this->getItemQuantity($bundle['second'], self::LOCATION_ID), '0', 3)]);
+
+        foreach ((new StockLedger())->reconcile() as $location) {
+            $this->assertSame(bcadd($location['movements_value'], '0', 2), bcadd($location['account_balance'], '0', 2));
+        }
     }
 }

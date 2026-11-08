@@ -451,6 +451,7 @@ enum AccountingError: string
     case BundleContainsItself     = 'bundle_contains_itself';
     case BundleContainsBundle     = 'bundle_contains_bundle';
     case BundleKeepsStock         = 'bundle_keeps_stock';
+    case BundleShapeInvalid       = 'bundle_shape_invalid';
     case TrackingOff              = 'stock_tracking_off';
     case TrackingChangeWithStock  = 'tracking_change_with_stock';
     case TrackedEntryRequired     = 'tracked_entry_required';

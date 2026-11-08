@@ -8,6 +8,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use App\Models\Item;
+use App\Libraries\Stock\StockOptions;
 use App\Models\Item_kit;
 use Config\OSPOS;
 use Exception;
@@ -135,5 +136,96 @@ class ItemKitsControllerTest extends CIUnitTestCase
 
         $response->assertStatus(200);
         $this->assertStringContainsString('KIT ' . $itemKitId, $response->getBody());
+    }
+
+    private function withNumberSettings(): void
+    {
+        $ospos           = config(OSPOS::class);
+        $ospos->settings = [...$ospos->settings, 'number_locale' => 'en_US', 'quantity_decimals' => 2, 'currency_decimals' => 2, 'tax_decimals' => 2, 'thousands_separator' => '0'];
+    }
+
+    private function createPricedProduct(): int
+    {
+        $itemData = ['item_id' => null, 'name' => 'Bundle product', 'category' => 'Test', 'cost_price' => 0, 'unit_price' => 150, 'deleted' => 0, 'stock_type' => HAS_NO_STOCK, 'item_type' => ITEM_KIT];
+
+        $this->assertTrue($this->item->save_value($itemData));
+
+        return (int) $itemData['item_id'];
+    }
+
+    private function createComponent(): int
+    {
+        $itemData = ['item_id' => null, 'name' => 'Component', 'category' => 'Test', 'cost_price' => 10, 'unit_price' => 20, 'deleted' => 0, 'stock_type' => HAS_STOCK, 'item_type' => ITEM];
+
+        $this->assertTrue($this->item->save_value($itemData));
+
+        return (int) $itemData['item_id'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function bundleForm(int $pricedItemId, array $components, int $priceOption = PRICE_OPTION_KIT): array
+    {
+        return [
+            'name'         => 'Bundle ' . uniqid(),
+            'kit_item_id'  => $pricedItemId,
+            'kit_discount' => '0',
+            'price_option' => $priceOption,
+            'print_option' => 0,
+            'description'  => '',
+            'item_kit_qty' => array_fill_keys($components, '1'),
+        ];
+    }
+
+    public function testPostSave_RefusesABundleThatContainsTheProductOfAnotherBundleAndSavesNothing(): void
+    {
+        $this->loginAsAdmin();
+        $this->withNumberSettings();
+        $db = Config::connect($this->DBGroup);
+        $db->table('app_config')->replace(['key' => StockOptions::BUNDLES, 'value' => '1']);
+
+        try {
+            $inner = $this->createPricedProduct();
+
+            $this->post('/item_kits/save/-1', $this->bundleForm($inner, [$this->createComponent()]))->assertOK();
+
+            $before = $db->table('item_kits')->countAllResults();
+            $result = $this->post('/item_kits/save/-1', $this->bundleForm($this->createPricedProduct(), [$inner]));
+
+            $result->assertOK();
+            $this->assertFalse(json_decode($result->getJSON(), true)['success']);
+            $this->assertSame($before, $db->table('item_kits')->countAllResults());
+        } finally {
+            $db->table('app_config')->where('key', StockOptions::BUNDLES)->delete();
+        }
+    }
+
+    public function testPostSave_SavesABundleOfOrdinaryComponentsWhoseProductKeepsNoStock(): void
+    {
+        $this->loginAsAdmin();
+        $this->withNumberSettings();
+        $db = Config::connect($this->DBGroup);
+        $db->table('app_config')->replace(['key' => StockOptions::BUNDLES, 'value' => '1']);
+
+        try {
+            $result = $this->post('/item_kits/save/-1', $this->bundleForm($this->createPricedProduct(), [$this->createComponent(), $this->createComponent()]));
+
+            $result->assertOK();
+            $this->assertTrue(json_decode($result->getJSON(), true)['success']);
+        } finally {
+            $db->table('app_config')->where('key', StockOptions::BUNDLES)->delete();
+        }
+    }
+
+    public function testPostSave_KeepsSavingAnyKitWhileTheBundlesSettingIsOff(): void
+    {
+        $this->loginAsAdmin();
+        $this->withNumberSettings();
+
+        $result = $this->post('/item_kits/save/-1', $this->bundleForm($this->createComponent(), [$this->createComponent()], PRICE_OPTION_ALL));
+
+        $result->assertOK();
+        $this->assertTrue(json_decode($result->getJSON(), true)['success']);
     }
 }
