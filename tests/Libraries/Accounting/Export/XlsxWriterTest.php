@@ -7,45 +7,22 @@ use App\Libraries\Accounting\Export\XlsxWriter;
 use CodeIgniter\Test\CIUnitTestCase;
 use DOMDocument;
 use DOMXPath;
-use ZipArchive;
+use Tests\Support\WorkbookPartsTrait;
 
 /**
  * @internal
  */
 final class XlsxWriterTest extends CIUnitTestCase
 {
+    use WorkbookPartsTrait;
+
     private const MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
-
-    /**
-     * @return array<string, string> The text of each part of the workbook by its name.
-     */
-    private function parts(string $workbook): array
-    {
-        $path = tempnam(sys_get_temp_dir(), 'xlsxunit');
-
-        file_put_contents($path, $workbook);
-
-        $zip = new ZipArchive();
-
-        $this->assertTrue($zip->open($path));
-
-        $parts = [];
-
-        for ($index = 0; $index < $zip->numFiles; $index++) {
-            $parts[(string) $zip->getNameIndex($index)] = (string) $zip->getFromIndex($index);
-        }
-
-        $zip->close();
-        unlink($path);
-
-        return $parts;
-    }
 
     private function sheetXpath(string $workbook): DOMXPath
     {
         $document = new DOMDocument();
 
-        $this->assertTrue($document->loadXML($this->parts($workbook)['xl/worksheets/sheet1.xml']));
+        $this->assertTrue($document->loadXML($this->workbookParts($workbook)['xl/worksheets/sheet1.xml']));
 
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('m', self::MAIN);
@@ -63,7 +40,7 @@ final class XlsxWriterTest extends CIUnitTestCase
 
     public function testRender_WritesTheSixPartsOfAWorkbookAsWellFormedXml(): void
     {
-        $parts = $this->parts($this->render([['Code', 'Amount'], ['1101', '5.00']]));
+        $parts = $this->workbookParts($this->render([['Code', 'Amount'], ['1101', '5.00']]));
 
         $this->assertEqualsCanonicalizing(['[Content_Types].xml', '_rels/.rels', 'xl/workbook.xml', 'xl/_rels/workbook.xml.rels', 'xl/styles.xml', 'xl/worksheets/sheet1.xml'], array_keys($parts));
 
@@ -77,7 +54,7 @@ final class XlsxWriterTest extends CIUnitTestCase
     public function testRender_StartsWithTheZipSignatureAndRelatesTheWorkbookToTheSheetAndTheStyles(): void
     {
         $workbook = $this->render([['a']]);
-        $parts    = $this->parts($workbook);
+        $parts    = $this->workbookParts($workbook);
 
         $this->assertStringStartsWith('PK', $workbook);
         $this->assertStringContainsString('Target="xl/workbook.xml"', $parts['_rels/.rels']);
@@ -102,7 +79,7 @@ final class XlsxWriterTest extends CIUnitTestCase
     {
         $workbook = $this->render([['x', 'y', 'z'], ['1', '2.50', '3.1234']]);
         $xpath    = $this->sheetXpath($workbook);
-        $styles   = $this->parts($workbook)['xl/styles.xml'];
+        $styles   = $this->workbookParts($workbook)['xl/styles.xml'];
 
         $this->assertSame('2', $xpath->query('//m:c[@r="A2"]')->item(0)->getAttribute('s'));
         $this->assertSame('4', $xpath->query('//m:c[@r="B2"]')->item(0)->getAttribute('s'));
@@ -120,7 +97,7 @@ final class XlsxWriterTest extends CIUnitTestCase
         $this->assertSame('=HYPERLINK("http://evil","x")', $xpath->query('//m:c[@r="A2"]/m:is/m:t')->item(0)->textContent);
         $this->assertSame('inlineStr', $xpath->query('//m:c[@r="B2"]')->item(0)->getAttribute('t'));
         $this->assertSame('inlineStr', $xpath->query('//m:c[@r="B3"]')->item(0)->getAttribute('t'));
-        $this->assertStringNotContainsString('<f>', $this->parts($workbook)['xl/worksheets/sheet1.xml']);
+        $this->assertStringNotContainsString('<f>', $this->workbookParts($workbook)['xl/worksheets/sheet1.xml']);
     }
 
     public function testRender_EscapesMarkupAndDropsCharactersThatBreakTheFile(): void
@@ -208,7 +185,7 @@ final class XlsxWriterTest extends CIUnitTestCase
     {
         $workbook = $this->render([['a']], false, 'Profit/Loss: [2026]?');
         $document = new DOMDocument();
-        $document->loadXML($this->parts($workbook)['xl/workbook.xml']);
+        $document->loadXML($this->workbookParts($workbook)['xl/workbook.xml']);
 
         $this->assertSame('Profit Loss 2026', trim((string) preg_replace('/\s+/', ' ', $document->getElementsByTagName('sheet')->item(0)->getAttribute('name'))));
     }

@@ -145,6 +145,48 @@ final class ReportSheetTest extends CIUnitTestCase
         $this->assertNull($sheet->headerIndex());
     }
 
+    public function testHeaderIndex_SkipsALabelWithATextValueThatOpensAGroupOfNotesAndFindsTheTableBelow(): void
+    {
+        $sheet = new ReportSheet('T', [
+            ['Bank statement'],
+            ['As of', '2026-03-31'],
+            [],
+            ['Books'],
+            ['Book balance', '975.00'],
+            ['Adjusted book', '925.00'],
+            [],
+            ['Bank'],
+            ['Statement balance', 'Not entered'],
+            ['Outstanding (1)', '75.00'],
+            [],
+            ['Unmatched'],
+            ['Date', 'Description', 'Reference', 'Amount'],
+            ['2026-03-05', 'Bank fee', 'FEE-3', '-50.00'],
+        ]);
+
+        $this->assertSame(12, $sheet->headerIndex());
+    }
+
+    public function testHeaderIndex_SkipsTheDateLineWhenTheOnlyBranchCodeIsANumber(): void
+    {
+        $sheet = new ReportSheet('T', [
+            ['Balances between branches'],
+            ['As of', '2026-10-31'],
+            ['Branches', '5'],
+            ['The whole company: every branch is added up.'],
+            ['Branch', 'With branch', 'Owed to the branch', 'Net'],
+            ['5', '6', '10.00', '10.00'],
+        ]);
+
+        $this->assertSame(4, $sheet->headerIndex());
+    }
+
+    public function testHeaderIndex_FindsTheHeadingOfATableOfTwoColumnsOnlyAtTheTopOfTheFileOrBelowABlankRow(): void
+    {
+        $this->assertNull((new ReportSheet('T', [['Group'], ['Customer', 'Amount'], ['Omar', '10.00']]))->headerIndex());
+        $this->assertSame(2, (new ReportSheet('T', [['Group'], [], ['Customer', 'Amount'], ['Omar', '10.00']]))->headerIndex());
+    }
+
     public function testHeaderIndex_PassesARowThatHoldsANumberEvenWhenItHasTheWidthOfTheTable(): void
     {
         $sheet = new ReportSheet('T', [['Matches', '3', 'x'], ['Code', 'Name', 'Amount'], ['1', 'Cash', '5']]);

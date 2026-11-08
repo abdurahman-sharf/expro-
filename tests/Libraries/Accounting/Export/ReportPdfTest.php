@@ -192,4 +192,42 @@ final class ReportPdfTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/MediaBox \[0 0 841\.8\d* 595\.2\d*\]/', (new ReportPdf())->render($narrow, new ExportOptions(ExportOptions::ORIENTATION_LANDSCAPE)));
         $this->assertMatchesRegularExpression('/MediaBox \[0 0 595\.2\d* 841\.8\d*\]/', (new ReportPdf())->render($wide, new ExportOptions(ExportOptions::ORIENTATION_PORTRAIT)));
     }
+
+    /**
+     * @return list<string> The sizes of type the pages of the file are drawn in, as the engine writes them.
+     */
+    private function fontSizesOf(string $pdf): array
+    {
+        preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $pdf, $streams);
+
+        $sizes = [];
+
+        foreach ($streams[1] as $stream) {
+            $content = @gzuncompress($stream);
+
+            if ($content !== false && preg_match_all('#/F\d+ ([\d.]+) Tf#', $content, $found) > 0) {
+                $sizes = [...$sizes, ...array_map(static fn (string $size): string => rtrim(rtrim($size, '0'), '.'), $found[1])];
+            }
+        }
+
+        return array_values(array_unique($sizes));
+    }
+
+    public function testRender_DrawsTheTextOfTheTableInTheSizeAskedAndNotOnlyTheDefaultOfTheLayout(): void
+    {
+        $default = $this->fontSizesOf((new ReportPdf())->render($this->sheet(), new ExportOptions()));
+        $double  = $this->fontSizesOf((new ReportPdf())->render($this->sheet(), new ExportOptions(fontSize: 20)));
+
+        foreach (['9', '9.5', '14', '16'] as $size) {
+            $this->assertContains($size, $default, 'The default draws the cells, the heading, the company and the title in their usual sizes');
+        }
+
+        foreach (['18', '19', '28', '32'] as $size) {
+            $this->assertContains($size, $double, 'Twice the size draws every one of them twice as large');
+        }
+
+        foreach (['9', '9.5', '14', '16'] as $size) {
+            $this->assertNotContains($size, $double, 'None of the usual sizes is left in the file of twice the size');
+        }
+    }
 }

@@ -7,11 +7,15 @@ use App\Libraries\Accounting\Bank\BankDirectory;
 use App\Libraries\Accounting\Bank\BankMatches;
 use App\Libraries\Accounting\Bank\StatementMapping;
 use App\Libraries\Accounting\Bank\StatementParser;
+use App\Libraries\Accounting\Export\ExportOptions;
+use App\Libraries\Accounting\Export\ReportPdf;
+use App\Libraries\Accounting\Export\ReportSheet;
 use App\Libraries\Accounting\JournalService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
+use CodeIgniter\Test\TestResponse;
 use Config\Database;
 use DOMDocument;
 use DOMXPath;
@@ -20,6 +24,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\BankFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\WorkbookPartsTrait;
 
 /**
  * The screens of the reconciliation of bank accounts: who may open them and what they show, the import
@@ -34,6 +39,7 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use BankFixtureTrait;
     use DatabaseFingerprintTrait;
+    use WorkbookPartsTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -1026,7 +1032,7 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
     /**
      * @return list<list<string>>
      */
-    private function csvRows(\CodeIgniter\Test\TestResponse $response): array
+    private function csvRows(TestResponse $response): array
     {
         $body = $response->response()->getBody();
 
@@ -1137,5 +1143,76 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
         $response->assertSee('id="bank_report_csv" href="' . site_url('accounting_treasuries/bank/' . $this->bankId . '/report/csv') . '?as_of=2026-03-31&amp;statement_balance=1150.00"');
         $response->assertSee('id="bank_report_csv_xlsx" href="' . site_url('accounting_treasuries/bank/' . $this->bankId . '/report/xlsx') . '?as_of=2026-03-31&amp;statement_balance=1150.00"');
         $response->assertSee('id="bank_report_csv_pdf" href="' . site_url('accounting_treasuries/bank/' . $this->bankId . '/report/pdf') . '?as_of=2026-03-31&amp;statement_balance=1150.00"');
+    }
+
+    /**
+     * @return list<string> The texts of the bold cells of the sheet: the heading of the table.
+     */
+    private function boldRowOf(string $workbook): array
+    {
+        $sheet = $this->workbookParts($workbook)['xl/worksheets/sheet1.xml'];
+
+        $document = new DOMDocument();
+        $document->loadXML($sheet);
+
+        $texts = [];
+
+        foreach ((new DOMXPath($document))->query('//*[local-name()="c"][@s="1"]') as $cell) {
+            $texts[] = $cell->textContent;
+        }
+
+        return $texts;
+    }
+
+    public function testGetReportXlsx_MakesTheHeadingOfTheFirstTableTheBoldRowWhenNoStatementBalanceWasEntered(): void
+    {
+        $this->scenario();
+        $this->actAsReconciler();
+
+        $response = $this->get($this->accountUrl('/report/xlsx?as_of=2026-03-31'));
+
+        $response->assertStatus(200);
+
+        $this->assertSame(
+            [lang('Accounting_bank.date'), lang('Accounting_bank.description'), lang('Accounting_bank.reference'), lang('Accounting_bank.amount')],
+            $this->boldRowOf($response->response()->getBody()),
+        );
+    }
+
+    public function testGetReportPdf_RepeatsTheHeadingOfTheFirstTableAndNotTheStatementBalanceLineWhenNoBalanceWasEntered(): void
+    {
+        $this->scenario();
+        $this->actAsReconciler();
+
+        $this->get($this->accountUrl('/report/pdf?as_of=2026-03-31'))->assertStatus(200);
+
+        $csv  = $this->get($this->accountUrl('/report/csv?as_of=2026-03-31'))->response()->getBody();
+        $html = (new ReportPdf())->html(ReportSheet::fromCsv($csv, ''), new ExportOptions());
+
+        preg_match('#<thead>(.*?)</thead>#s', $html, $head);
+
+        $this->assertStringContainsString(lang('Accounting_bank.description'), $head[1]);
+        $this->assertStringContainsString(lang('Accounting_bank.reference'), $head[1]);
+        $this->assertStringNotContainsString(lang('Accounting_bank.not_entered'), $head[1]);
+    }
+
+    public function testGetReportCsv_TreatsAnAddressThatGivesTheBalanceOrTheDayMoreThanOnceAsNotGivenInEveryFormat(): void
+    {
+        $this->scenario();
+        $this->actAsReconciler();
+
+        foreach (['csv', 'xlsx', 'pdf'] as $format) {
+            $response = $this->get($this->accountUrl('/report/' . $format . '?statement_balance[]=1&as_of[]=2026-03-31'));
+
+            $response->assertStatus(200);
+        }
+
+        $rows = $this->csvRows($this->get($this->accountUrl('/report/csv?statement_balance[]=1&as_of[]=2026-03-31')));
+        $flat = array_merge(...$rows);
+
+        $this->assertContains(lang('Accounting_bank.not_entered'), $flat);
+        $this->assertContains(date('Y-m-d'), $flat);
+
+        $this->get($this->accountUrl('/report?statement_balance[]=1&as_of[]=2026-03-31'))->assertStatus(200);
     }
 }

@@ -46,6 +46,7 @@ final class ReportPdf
             'title'   => $sheet->title,
             'date'    => to_datetime(time()),
             'size'    => $options->fontSize,
+            'scale'   => $options->fontSize / ExportOptions::DEFAULT_FONT_SIZE,
             'columns' => $columns,
             'widths'  => $this->widths($sheet, $columns),
             'intro'   => $this->intro($sheet, $header),

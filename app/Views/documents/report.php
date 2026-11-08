@@ -3,6 +3,7 @@
  * @var string                                       $title
  * @var string                                       $date
  * @var int                                          $size
+ * @var float                                        $scale
  * @var int                                          $columns
  * @var list<int>                                    $widths
  * @var list<string>                                 $intro
@@ -19,7 +20,14 @@ $alignEnd   = $rtl ? 'al-l' : 'al-r';
     <meta charset="utf-8">
     <title><?= esc($title) ?></title>
     <style><?= file_get_contents(FCPATH . 'assets/css/document.css') ?></style>
-    <style>.doc { font-size: <?= (int) $size ?>pt; }</style>
+    <style>
+        .doc { font-size: <?= (int) $size ?>pt; }
+        .doc .doc-company-name { font-size: <?= round(14 * $scale, 2) ?>pt; }
+        .doc .doc-title-small { font-size: <?= round(16 * $scale, 2) ?>pt; }
+        .doc .doc-grid-meta { font-size: <?= round(9 * $scale, 2) ?>pt; }
+        .doc .doc-grid th { font-size: <?= round(9 * $scale, 2) ?>pt; }
+        .doc .doc-grid td { font-size: <?= round(9.5 * $scale, 2) ?>pt; }
+    </style>
 </head>
 <body>
 <div class="doc" dir="<?= textDirection() ?>">

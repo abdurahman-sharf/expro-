@@ -273,7 +273,7 @@ class AccountingBankReconciliation extends AccountingController
     {
         $treasury = $this->visible($treasuryId);
         $asOf     = $this->dateParameter('as_of') ?? date('Y-m-d');
-        $balance  = trim((string) $this->request->getGet('statement_balance'));
+        $balance  = $this->queryText('statement_balance');
         $error    = '';
         $figures  = null;
 
@@ -307,7 +307,7 @@ class AccountingBankReconciliation extends AccountingController
     {
         $treasury = $this->visible($treasuryId);
         $asOf     = $this->dateParameter('as_of') ?? date('Y-m-d');
-        $balance  = trim((string) $this->request->getGet('statement_balance'));
+        $balance  = $this->queryText('statement_balance');
 
         try {
             $figures = $this->bank->report($treasuryId, $asOf, $balance === '' ? null : $balance, $this->employeeId());
@@ -413,10 +413,17 @@ class AccountingBankReconciliation extends AccountingController
 
     private function dateParameter(string $name): ?string
     {
-        $value = trim((string) $this->request->getGet($name));
+        $value = $this->queryText($name);
         $date  = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
 
         return $date !== false && $date->format('Y-m-d') === $value ? $value : null;
+    }
+
+    private function queryText(string $name): string
+    {
+        $value = $this->request->getGet($name);
+
+        return is_string($value) ? trim($value) : '';
     }
 
     private function bankName(object $treasury): string

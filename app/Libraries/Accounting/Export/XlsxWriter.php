@@ -2,13 +2,10 @@
 
 namespace App\Libraries\Accounting\Export;
 
-use RuntimeException;
-use ZipArchive;
-
 /**
- * Writes a report as an .xlsx workbook of one sheet: the zip of the parts the format requires, numbers
- * as numbers and every other cell as text. No cell is ever a formula, so a name that starts with an equals
- * sign is shown as it was typed.
+ * Writes a report as an .xlsx workbook of one sheet: the zip of the parts the format requires, numbers as
+ * numbers and every other cell as text. No cell is ever a formula, so a name that starts with an equals sign
+ * is shown as it was typed.
  */
 final class XlsxWriter
 {
@@ -22,36 +19,16 @@ final class XlsxWriter
 
     public function render(ReportSheet $sheet, bool $rightToLeft = false): string
     {
-        $path = tempnam(sys_get_temp_dir(), 'xlsx');
+        $zip = new ZipWriter();
 
-        if ($path === false) {
-            throw new RuntimeException('A temporary file for the workbook could not be made.');
-        }
+        $zip->add('[Content_Types].xml', $this->contentTypes());
+        $zip->add('_rels/.rels', $this->rootRelationships());
+        $zip->add('xl/workbook.xml', $this->workbook($sheet->title));
+        $zip->add('xl/_rels/workbook.xml.rels', $this->workbookRelationships());
+        $zip->add('xl/styles.xml', $this->styles());
+        $zip->add('xl/worksheets/sheet1.xml', $this->worksheet($sheet, $rightToLeft));
 
-        try {
-            $zip = new ZipArchive();
-
-            if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
-                throw new RuntimeException('The workbook could not be opened for writing.');
-            }
-
-            $zip->addFromString('[Content_Types].xml', $this->contentTypes());
-            $zip->addFromString('_rels/.rels', $this->rootRelationships());
-            $zip->addFromString('xl/workbook.xml', $this->workbook($sheet->title));
-            $zip->addFromString('xl/_rels/workbook.xml.rels', $this->workbookRelationships());
-            $zip->addFromString('xl/styles.xml', $this->styles());
-            $zip->addFromString('xl/worksheets/sheet1.xml', $this->worksheet($sheet, $rightToLeft));
-
-            if (! $zip->close()) {
-                throw new RuntimeException('The workbook could not be written.');
-            }
-
-            return (string) file_get_contents($path);
-        } finally {
-            if (is_file($path)) {
-                unlink($path);
-            }
-        }
+        return $zip->render();
     }
 
     public static function sheetName(string $title): string

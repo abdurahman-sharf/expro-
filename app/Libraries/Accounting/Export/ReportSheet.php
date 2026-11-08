@@ -59,16 +59,17 @@ final readonly class ReportSheet
      * The heading of the table in a file that opens with a title and notes and ends with ties and notes: the
      * first row of two cells or more that holds no number and is followed by a row of the same width (a
      * one-cell row of a group may come between). A table of two columns has a heading only when the row that
-     * follows holds a number and it does not come right after another row of two cells, which is what a run of
-     * notes and their values looks like. A file with no such
-     * row falls back to the first row that fills the widest line, when that is three cells or more.
+     * follows holds a number and the heading opens the file or follows a blank row, because a label and its
+     * value also have two cells and a run of them starts right after the one-cell name of its group. A file
+     * with no such row falls back to the first row that fills the widest line, when that is three cells or
+     * more.
      */
     public function headerIndex(): ?int
     {
         foreach ($this->rows as $index => $row) {
             $next = $this->nextRow($index);
 
-            if (count($row) >= 2 && $this->holdsNoNumber($row) && $next !== null && count($next) === count($row) && (count($row) >= 3 || (! $this->holdsNoNumber($next) && ($index === 0 || count($this->rows[$index - 1]) !== 2)))) {
+            if (count($row) >= 2 && $this->holdsNoNumber($row) && $next !== null && count($next) === count($row) && (count($row) >= 3 || (! $this->holdsNoNumber($next) && ($index === 0 || $this->rows[$index - 1] === [])))) {
                 return $index;
             }
         }

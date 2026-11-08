@@ -18,7 +18,7 @@ use DOMXPath;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingControllerFixtureTrait;
 use Tests\Support\ReportFixtureTrait;
-use ZipArchive;
+use Tests\Support\WorkbookPartsTrait;
 
 /**
  * The files of the reports in the formats other than CSV: each is the same report the CSV address gives,
@@ -30,6 +30,7 @@ class ReportExportTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use AccountingControllerFixtureTrait;
     use ReportFixtureTrait;
+    use WorkbookPartsTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -110,23 +111,8 @@ class ReportExportTest extends CIUnitTestCase
      */
     private function workbookGrid(string $workbook): array
     {
-        $path = tempnam(sys_get_temp_dir(), 'xlsxtest');
-
-        file_put_contents($path, $workbook);
-
-        $zip = new ZipArchive();
-
-        $this->assertTrue($zip->open($path), 'The file is a zip');
-
-        $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
-
-        $zip->close();
-        unlink($path);
-
-        $this->assertIsString($sheet);
-
         $document = new DOMDocument();
-        $document->loadXML($sheet);
+        $document->loadXML($this->workbookParts($workbook)['xl/worksheets/sheet1.xml']);
 
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
@@ -427,17 +413,7 @@ class ReportExportTest extends CIUnitTestCase
         $this->assertContains("'=HYPERLINK(\"http://evil\",\"x\")", $names);
         $this->assertNotContains('=HYPERLINK("http://evil","x")', $names);
 
-        $path = tempnam(sys_get_temp_dir(), 'xlsxtest');
-
-        file_put_contents($path, $workbook);
-
-        $zip = new ZipArchive();
-        $zip->open($path);
-
-        $this->assertStringNotContainsString('<f>', (string) $zip->getFromName('xl/worksheets/sheet1.xml'));
-
-        $zip->close();
-        unlink($path);
+        $this->assertStringNotContainsString('<f>', $this->workbookParts($workbook)['xl/worksheets/sheet1.xml']);
     }
 
     public function testAfter_PassesTheRefusalOfTheReportThroughInWordsInEveryFormat(): void
@@ -474,18 +450,7 @@ class ReportExportTest extends CIUnitTestCase
         $this->accountingDb()->table('employees')->where('person_id', $person)->update(['language_code' => 'ar-EG', 'language' => 'arabic-egypt']);
 
         try {
-            $workbook = $this->workbookOf('/accounting_reports/xlsx?type=balances&to=2026-10-31');
-            $path     = tempnam(sys_get_temp_dir(), 'xlsxtest');
-
-            file_put_contents($path, $workbook);
-
-            $zip = new ZipArchive();
-            $zip->open($path);
-
-            $sheet = (string) $zip->getFromName('xl/worksheets/sheet1.xml');
-
-            $zip->close();
-            unlink($path);
+            $sheet = $this->workbookParts($this->workbookOf('/accounting_reports/xlsx?type=balances&to=2026-10-31'))['xl/worksheets/sheet1.xml'];
 
             $this->assertStringContainsString('rightToLeft="1"', $sheet);
             $this->assertStringContainsString('الحساب', $sheet);
