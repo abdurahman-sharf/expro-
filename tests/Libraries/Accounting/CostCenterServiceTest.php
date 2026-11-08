@@ -345,6 +345,18 @@ class CostCenterServiceTest extends CIUnitTestCase
         $this->assertSame(['0.0000', '0.0100'], array_column($shares, 'amount'));
     }
 
+    public function testDistribute_AcceptsTwentyRowsAndRejectsTwentyOne(): void
+    {
+        $rows = [];
+
+        foreach (range(1, 21) as $number) {
+            $rows[] = ['cost_center_id' => $this->service->create(['code' => 'R' . $number, 'name' => 'Center ' . $number]), 'percent' => '5'];
+        }
+
+        $this->assertCount(20, $this->service->distribute(array_slice($rows, 0, 20), '100'));
+        $this->assertFailsWith(AccountingError::DistributionTooManyRows, fn () => $this->service->distribute($rows, '100'));
+    }
+
     public function testDistribute_NeverGivesAShareBelowNothingWhenEveryShareRoundsUp(): void
     {
         $centers = [];

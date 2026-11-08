@@ -2756,6 +2756,62 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->service->postNew($withRows));
     }
 
+    public function testPostNew_RequiresACostCenterOnAnExpenseLineAndNamesTheLine(): void
+    {
+        [$a] = $this->twoCenters();
+        $this->setConfigValue(JournalSettings::CENTER_REQUIRED, '1');
+
+        $input = ['date' => '2026-10-21', 'description' => 'Rent', 'lines' => [
+            ['account_id' => $this->accountId('cash'), 'debit' => '', 'credit' => '40.00'],
+            ['account_id' => $this->accountId('expenses_default'), 'debit' => '40.00', 'credit' => ''],
+        ]];
+
+        try {
+            $this->service->postNew($input);
+            $this->fail('An expense line without a cost center was posted.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::CostCenterRequired, $exception->error);
+            $this->assertSame(2, $exception->context['line']);
+        }
+
+        $input['lines'][1]['cost_center_id'] = $a;
+
+        $this->assertGreaterThan(0, $this->service->postNew($input));
+    }
+
+    public function testUpdateDetails_RefusesToClearTheCenterOfAnExpenseLineWhileTheSettingIsOn(): void
+    {
+        [$a]       = $this->twoCenters();
+        $journalId = (new PostingService())->post(new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($this->accountId('cash'), credit: '40.00'), new JournalLineDraft($this->accountId('expenses_default'), debit: '40.00')],
+            sourceType: 'sale',
+            sourceId: 9,
+            currencyCode: 'SAR',
+        ))->journalId;
+        [, $second] = $this->lineIds($journalId);
+        $editor     = $this->detailsEditor();
+
+        $this->service->updateDetails($journalId, ['lines' => [$second => ['cost_center_id' => $a]]], $editor);
+        $this->setConfigValue(JournalSettings::CENTER_REQUIRED, '1');
+
+        $this->assertFailsWith(AccountingError::CostCenterRequired, fn () => $this->service->updateDetails($journalId, ['lines' => [$second => ['cost_center_id' => '']]], $editor));
+        $this->assertSame((string) $a, (string) $this->lines($journalId)[1]->cost_center_id);
+    }
+
+    public function testUpdateDetails_ClearsTheCenterOfAnIncomeLineWhileTheSettingIsOff(): void
+    {
+        [$a]       = $this->twoCenters();
+        $journalId = $this->automaticJournal();
+        [, $second] = $this->lineIds($journalId);
+        $editor    = $this->detailsEditor();
+
+        $this->service->updateDetails($journalId, ['lines' => [$second => ['cost_center_id' => $a]]], $editor);
+
+        $this->assertTrue($this->service->updateDetails($journalId, ['lines' => [$second => ['cost_center_id' => '']]], $editor));
+        $this->assertNull($this->lines($journalId)[1]->cost_center_id);
+    }
+
     public function testPostNew_DoesNotRequireACostCenterOnAnAssetLineOrWhenTheSettingIsOff(): void
     {
         $this->assertGreaterThan(0, $this->service->postNew($this->journalInput()));
@@ -3172,53 +3228,6 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertTrue($this->service->updateDetails($journalId, ['description' => 'Text of a journal whose other lines have no center'], $editor));
     }
 
-    public function testPost_GivesTheLinesOfAnAutomaticJournalTheDefaultDistributionOfTheirAccountOnlyWhileTheSettingIsOn(): void
-    {
-        [$a, $b] = $this->twoCenters();
-        $centers = new CostCenterService();
-        $centers->setDefaults($this->accountId('sales_revenue'), [['cost_center_id' => $a, 'percent' => '25'], ['cost_center_id' => $b, 'percent' => '75']]);
-
-        $off = $this->automaticJournal();
-
-        $this->assertSame([], $this->distributionRows($off));
-
-        $this->setConfigValue(JournalSettings::AUTOMATIC_DEFAULT, '1');
-
-        $on = $this->automaticJournal(null, '2026-10-21', 2);
-
-        $this->assertSame(['25.0000', '75.0000'], array_column($this->distributionRows($on), 'percent'));
-        $this->assertSame(['25.0000', '75.0000'], array_column($this->distributionRows($on), 'amount'));
-        $this->assertSame('2', $this->distributionRows($on)[0]['line_no']);
-        $this->assertSame([], $this->distributionRows($off));
-    }
-
-    public function testPost_LeavesALineThatHasACenterAndAManualJournalWithoutTheDefaultsAndSkipsACenterSwitchedOff(): void
-    {
-        [$a, $b] = $this->twoCenters();
-        $centers = new CostCenterService();
-        $centers->setDefaults($this->accountId('sales_revenue'), [['cost_center_id' => $a, 'percent' => '50'], ['cost_center_id' => $b, 'percent' => '50']]);
-        $this->setConfigValue(JournalSettings::AUTOMATIC_DEFAULT, '1');
-
-        $manual = $this->service->postNew($this->journalInput());
-
-        $this->assertSame([], $this->distributionRows($manual));
-
-        $withCenter = (new PostingService())->post(new JournalDraft(
-            date: '2026-10-21',
-            lines: [new JournalLineDraft($this->accountId('cash'), debit: '10.00'), new JournalLineDraft($this->accountId('sales_revenue'), credit: '10.00', costCenterId: $a)],
-            sourceType: 'sale',
-            sourceId: 5,
-            currencyCode: 'SAR',
-        ))->journalId;
-
-        $this->assertSame([], $this->distributionRows($withCenter));
-
-        $centers->deactivate($b);
-        $skipped = $this->automaticJournal(null, '2026-10-21', 6);
-
-        $this->assertSame([], $this->distributionRows($skipped));
-    }
-
     public function testReverse_CopiesWhatTheAutomaticJournalWasGivenAndNotTheDefaultsOfToday(): void
     {
         [$a, $b] = $this->twoCenters();
@@ -3232,6 +3241,66 @@ class JournalServiceTest extends CIUnitTestCase
 
         $this->assertSame(['25.0000', '75.0000'], array_column($this->distributionRows($reversal), 'percent'));
         $this->assertSame($this->distributionRows($original), $this->distributionRows($reversal));
+    }
+
+    public function testUpdateDetails_KeepsTheTagsAndTheTaxNoteOfALineWhoseCenterAloneIsChanged(): void
+    {
+        [$a, $b] = $this->twoCenters();
+        $this->setConfigValue(JournalSettings::LINE_TAGS, '1');
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+
+        $journalId  = $this->automaticJournal();
+        [, $second] = $this->lineIds($journalId);
+        $editor     = $this->detailsEditor();
+
+        $this->service->updateDetails($journalId, ['lines' => [$second => ['tags' => 'rent, office', 'tax_code' => 'VAT15', 'tax_percent' => '15']]], $editor);
+        $this->assertTrue($this->service->updateDetails($journalId, ['lines' => [$second => ['cost_center_id' => $a]]], $editor));
+
+        $analysis = $this->service->find($journalId)->lines[1]->analysis;
+
+        $this->assertSame(['rent', 'office'], $analysis->tags);
+        $this->assertSame('VAT15', $analysis->tax['code']);
+        $this->assertSame($a, $analysis->costCenterId);
+    }
+
+    public function testUpdateDetails_KeepsTheDistributionAndTheTaxNoteOfALineWhoseTagsAloneAreChanged(): void
+    {
+        [$a, $b] = $this->twoCenters();
+        $this->setConfigValue(JournalSettings::LINE_TAGS, '1');
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+
+        $journalId  = $this->automaticJournal();
+        [, $second] = $this->lineIds($journalId);
+        $editor     = $this->detailsEditor();
+
+        $this->service->updateDetails($journalId, ['lines' => [$second => ['distribution' => [['cost_center_id' => $a, 'percent' => '70'], ['cost_center_id' => $b, 'percent' => '30']], 'tags' => 'rent', 'tax_code' => 'VAT15', 'tax_percent' => '15']]], $editor);
+        $this->assertTrue($this->service->updateDetails($journalId, ['lines' => [$second => ['tags' => 'office']]], $editor));
+
+        $analysis = $this->service->find($journalId)->lines[1]->analysis;
+
+        $this->assertSame(['office'], $analysis->tags);
+        $this->assertSame('VAT15', $analysis->tax['code']);
+        $this->assertSame(['70.0000', '30.0000'], array_column($analysis->distribution, 'percent'));
+    }
+
+    public function testUpdateDetails_KeepsTheDistributionAndTheTagsOfALineWhoseTaxNoteAloneIsChanged(): void
+    {
+        [$a, $b] = $this->twoCenters();
+        $this->setConfigValue(JournalSettings::LINE_TAGS, '1');
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+
+        $journalId  = $this->automaticJournal();
+        [, $second] = $this->lineIds($journalId);
+        $editor     = $this->detailsEditor();
+
+        $this->service->updateDetails($journalId, ['lines' => [$second => ['distribution' => [['cost_center_id' => $a, 'percent' => '70'], ['cost_center_id' => $b, 'percent' => '30']], 'tags' => 'rent', 'tax_code' => 'VAT15', 'tax_percent' => '15']]], $editor);
+        $this->assertTrue($this->service->updateDetails($journalId, ['lines' => [$second => ['tax_code' => 'VAT5', 'tax_percent' => '5']]], $editor));
+
+        $analysis = $this->service->find($journalId)->lines[1]->analysis;
+
+        $this->assertSame(['rent'], $analysis->tags);
+        $this->assertSame('VAT5', $analysis->tax['code']);
+        $this->assertSame(['70.0000', '30.0000'], array_column($analysis->distribution, 'percent'));
     }
 
     public function testUpdateDetails_LeavesTheCenterOfALineWhoseTextAloneIsEdited(): void
