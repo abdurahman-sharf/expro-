@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Bearbeitung von Verkäufen und Retouren.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Lieferanten',
     'suppliers_desc'               => 'Hinzufügen, Ändern, Löschen und Suchen von Lieferanten.',
     'taxes'                        => 'Steuern',

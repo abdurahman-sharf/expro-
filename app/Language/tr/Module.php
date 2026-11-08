@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Satış ve iade.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Sağlayıcılar',
     'suppliers_desc'               => 'Ekleme, değiştirme, silme ve arama.',
     'taxes'                        => 'Vergiler',

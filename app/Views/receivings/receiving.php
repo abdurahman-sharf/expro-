@@ -206,6 +206,12 @@ $hasCart     = count($cart) > 0;
                             </div>
 
                             <div class="cart-extra">
+                                <?php if (($item['tracking_type'] ?? 'none') === 'serial'): ?>
+                                    <?= form_textarea(['name' => 'tracking_serials', 'class' => 'form-control form-control-sm', 'rows' => 2, 'value' => implode("\n", $item['tracking']['serials'] ?? []), 'aria-label' => lang('Stock_units.serial_numbers'), 'placeholder' => lang('Stock_units.serial_numbers_placeholder')]) ?>
+                                <?php elseif (($item['tracking_type'] ?? 'none') === 'batch'): ?>
+                                    <?= form_input(['name' => 'batch_number', 'class' => 'form-control form-control-sm', 'value' => $item['tracking']['batches'][0]['number'] ?? '', 'aria-label' => lang('Stock_units.batch_number'), 'placeholder' => lang('Stock_units.batch_number')]) ?>
+                                    <?= form_input(['name' => 'batch_expiry', 'type' => 'date', 'class' => 'form-control form-control-sm', 'value' => $item['tracking']['batches'][0]['expiry'] ?? '', 'aria-label' => lang('Stock_units.batch_expiry')]) ?>
+                                <?php endif; ?>
                                 <?php if ($item['allow_alt_description'] == 1): ?>
                                     <?= form_input(['name' => 'description', 'class' => 'form-control form-control-sm', 'value' => $item['description'], 'aria-label' => lang('Sales.description_abbrv'), 'placeholder' => lang('Sales.description_abbrv')]) ?>
                                 <?php elseif ($item['description'] != ''): ?>
@@ -527,7 +533,7 @@ $hasCart     = count($cart) > 0;
             }
         }
 
-        $('[name="price"],[name="quantity"],[name="receiving_quantity"],[name="discount"],[name="tax_percent"],[name="description"],[name="serialnumber"],[name="unit_id"]').change(function() {
+        $('[name="price"],[name="quantity"],[name="receiving_quantity"],[name="discount"],[name="tax_percent"],[name="description"],[name="serialnumber"],[name="unit_id"],[name="tracking_serials"],[name="batch_number"],[name="batch_expiry"]').change(function() {
             $(this).closest('form').submit();
         });
 

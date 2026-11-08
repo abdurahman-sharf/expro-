@@ -378,6 +378,10 @@ $employee        = model(Employee::class);
                                     <?php else: ?>
                                         <?= form_hidden('serialnumber', '') ?>
                                     <?php endif; ?>
+
+                                    <?php if (($item['tracking_type'] ?? 'none') === 'batch' && ! empty($can_pick_batch)): ?>
+                                        <?= form_input(['name' => 'batch_number', 'class' => 'form-control form-control-sm', 'value' => $item['tracking']['batches'][0]['number'] ?? '', 'aria-label' => lang('Stock_units.batch_number'), 'placeholder' => lang('Stock_units.batch_pick_placeholder')]) ?>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         <?= form_close() ?>
@@ -911,7 +915,7 @@ $employee        = model(Employee::class);
             }
         }
 
-        $('[name="price"],[name="quantity"],[name="discount"],[name="description"],[name="serialnumber"],[name="discounted_total"],[name="unit_id"]').change(function() {
+        $('[name="price"],[name="quantity"],[name="discount"],[name="description"],[name="serialnumber"],[name="discounted_total"],[name="unit_id"],[name="batch_number"]').change(function() {
             $(this).closest('form').submit();
         });
 

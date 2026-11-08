@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Process Sales and Returns.',
     'stock_documents'              => 'Stock Documents',
     'stock_documents_desc'         => 'Numbered stock permits, stocktakes and stock requests between stock locations.',
+    'stock_units'                  => 'Units and Tracking',
+    'stock_units_desc'             => 'Unit templates, the units and tracking of items, and the settings of bundles and negative stock.',
     'suppliers'                    => 'Suppliers',
     'suppliers_desc'               => 'Add, Update, Delete, and Search Suppliers.',
     'taxes'                        => 'Taxes',

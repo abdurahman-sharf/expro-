@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'งานขาย และ รับคืน',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'ผู้ผลิต',
     'suppliers_desc'               => 'เพิ่ม, อัพเดท, ลบ, และค้นหา ผู้ผลิต',
     'taxes'                        => 'ภาษี',

@@ -38,6 +38,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Sale_lib;
 use App\Libraries\Stock\StockOptions;
+use App\Libraries\Stock\TrackingType;
 use App\Libraries\Stock\UnitBarcodes;
 use App\Libraries\Tax_lib;
 use App\Models\Item_kit;
@@ -7872,5 +7873,49 @@ class SalePostingTest extends CIUnitTestCase
         foreach ((new StockLedger())->reconcile() as $location) {
             $this->assertSame(bcadd($location['movements_value'], '0', 2), bcadd($location['account_balance'], '0', 2));
         }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Tracked items on the register
+    // ---------------------------------------------------------------------------------------
+
+    public function testAddItem_GivesATrackedSerialItemALineForEachScanSoEachCarriesItsOwnSerialNumber(): void
+    {
+        $itemId   = $this->trackedItem(TrackingType::Serial);
+        $register = $this->register();
+        $discount = '0';
+        $code     = (string) $itemId;
+
+        $register->add_item($code, self::LOCATION_ID, '1', $discount, 0, PRICE_MODE_STANDARD, null, null, '10.00');
+        $register->add_item($code, self::LOCATION_ID, '1', $discount, 0, PRICE_MODE_STANDARD, null, null, '10.00');
+
+        $cart = array_values($register->get_cart());
+
+        $this->assertCount(2, $cart);
+        $this->assertSame([true, true, 'serial'], [(bool) $cart[0]['is_serialized'], (bool) $cart[1]['is_serialized'], $cart[0]['tracking_type']]);
+    }
+
+    public function testPickBatch_RecordsTheBatchOfALineFollowsItsQuantityAndTakesItBackWithNothingPicked(): void
+    {
+        $itemId   = $this->trackedItem(TrackingType::Batch);
+        $register = $this->register();
+        $discount = '0';
+        $code     = (string) $itemId;
+
+        $register->add_item($code, self::LOCATION_ID, '2', $discount, 0, PRICE_MODE_STANDARD, null, null, '10.00');
+
+        $line = (string) array_key_last($register->get_cart());
+
+        $register->pickBatch($line, ' B-9 ');
+
+        $this->assertSame([['number' => 'B-9', 'quantity' => '2']], $register->get_cart()[$line]['tracking']['batches']);
+
+        $register->edit_item($line, '', '', '5', '0', null, '10.00');
+
+        $this->assertSame('5', $register->get_cart()[$line]['tracking']['batches'][0]['quantity']);
+
+        $register->pickBatch($line, '');
+
+        $this->assertArrayNotHasKey('tracking', $register->get_cart()[$line]);
     }
 }

@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'תהליך מכירות והחזרות.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'ספקים',
     'suppliers_desc'               => 'הוספה, עדכון, מחיקה וחיפוש ספקים.',
     'taxes'                        => 'מסים',

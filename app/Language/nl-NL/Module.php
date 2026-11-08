@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Verkopen en retouren verwerken.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Leveranciers',
     'suppliers_desc'               => 'Leveranciers toevoegen, bijwerken, verwijderen en zoeken.',
     'taxes'                        => 'Belastingen',

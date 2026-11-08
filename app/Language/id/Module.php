@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Proses Penjualan dan Retur.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Pemasok',
     'suppliers_desc'               => 'Tambah, ubah, hapus dan cari Pemasok.',
     'taxes'                        => 'Pajak',

@@ -160,6 +160,17 @@ $routes->group('accounting_debit_notes', static function (RouteCollection $route
     $routes->post('reverse/(:num)', 'AccountingDebitNotes::postReverse/$1');
 });
 
+$routes->group('stock_units', static function (RouteCollection $routes): void {
+    $routes->get('/', 'StockUnits::getIndex');
+    $routes->get('templateForm/(:segment)', 'StockUnits::getTemplateForm/$1');
+    $routes->post('saveTemplate/(:segment)', 'StockUnits::postSaveTemplate/$1');
+    $routes->post('setActive/(:num)', 'StockUnits::postSetActive/$1');
+    $routes->post('settings', 'StockUnits::postSettings');
+    $routes->post('saveItem/(:num)', 'StockUnits::postSaveItem/$1');
+    $routes->post('addBarcode/(:num)', 'StockUnits::postAddBarcode/$1');
+    $routes->post('removeBarcode/(:num)', 'StockUnits::postRemoveBarcode/$1');
+});
+
 $routes->group('stock_documents', static function (RouteCollection $routes): void {
     $routes->get('/', 'StockPermits::getIndex');
     $routes->get('permits', 'StockPermits::getIndex');

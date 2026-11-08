@@ -5,6 +5,7 @@ namespace Tests\Libraries\Stock;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\StockLedger;
+use App\Libraries\Sale_lib;
 use App\Libraries\Stock\StockOptions;
 use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockPermitSources;
@@ -774,5 +775,31 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertSame([$itemId], $this->tracking->reverseSource('receiving', $receivingId));
         $this->assertSame([], $this->tracking->reverseSource('receiving', $receivingId), 'taking back twice changes nothing');
         $this->assertSame('0.000', $this->onHand($itemId));
+    }
+
+    public function testSaveSellsALineOfTheRegisterFromTheBatchPickedByHand(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Batch);
+
+        $this->buy([[...$this->purchaseLine($itemId, 0, '5', '5.00'), 'tracking' => ['batches' => [['number' => 'SOON', 'expiry' => date('Y-m-d', strtotime('+10 days')), 'quantity' => '5']]]]]);
+        $this->buy([[...$this->purchaseLine($itemId, 0, '5', '5.00'), 'tracking' => ['batches' => [['number' => 'LATE', 'expiry' => date('Y-m-d', strtotime('+300 days')), 'quantity' => '5']]]]]);
+
+        bcscale(4);
+
+        $register = new Sale_lib();
+        $register->clear_all();
+        $register->set_mode('sale');
+        $register->set_customer($this->customerId);
+
+        $discount = '0';
+        $code     = (string) $itemId;
+
+        $register->add_item($code, self::LOCATION_ID, '2', $discount, 0, PRICE_MODE_STANDARD, null, null, '10.00');
+        $register->pickBatch((string) array_key_last($register->get_cart()), 'LATE');
+
+        $this->employeeId = $this->unitManagerId;
+
+        $this->assertGreaterThan(0, $this->save(array_values($register->get_cart()), [], [$this->payment(lang('Sales.cash'), '20.00')], SALE_TYPE_POS));
+        $this->assertSame('3.000', $this->accountingDb()->table('stock_batch_quantities q')->select('q.quantity')->join('stock_batches b', 'b.batch_id = q.batch_id')->where('b.batch_number', 'LATE')->get()->getRow()->quantity);
     }
 }

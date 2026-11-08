@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Obrada prodaje i povrata.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Dobavljači',
     'suppliers_desc'               => 'Dodajte, ažurirajte, izbrišite i pretražite dobavljače.',
     'taxes'                        => 'Porezi',

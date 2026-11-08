@@ -48,6 +48,7 @@ use App\Models\Employee;
 use App\Models\Giftcard;
 use App\Models\Inventory;
 use App\Models\Item;
+use App\Libraries\Stock\StockUnitPermissions;
 use App\Libraries\Stock\UnitTemplates;
 use App\Models\Item_kit;
 use App\Models\Price_list;
@@ -1633,6 +1634,10 @@ class Sales extends Secure_Controller
                 return $this->reload($data);
             }
 
+            if ($this->request->getPost('batch_number') !== null && $this->employee->has_grant(StockUnitPermissions::BATCH_MANUAL_PICK, (int) $this->employee->get_logged_in_employee_info()->person_id)) {
+                $this->sale_lib->pickBatch($line, (string) $this->request->getPost('batch_number'));
+            }
+
             $priceProblem = $this->refusedLinePrices($cartBefore);
 
             if ($priceProblem !== null) {
@@ -2754,6 +2759,7 @@ class Sales extends Secure_Controller
 
         $data['cart'] = $this->sale_lib->get_cart();
         $data['unit_choices'] = $this->sale_lib->unitChoices($data['cart']);
+        $data['can_pick_batch'] = $this->employee->has_grant(StockUnitPermissions::BATCH_MANUAL_PICK, (int) $this->employee->get_logged_in_employee_info()->person_id);
         $customerInfo = $this->_load_customer_data($this->sale_lib->get_customer(), $data, true);
 
         $displayCurrency = $this->registerDisplayCurrency();

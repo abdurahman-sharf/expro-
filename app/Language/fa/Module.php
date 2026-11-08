@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'فرآیند فروش و بازده.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'تهیه کنندگان',
     'suppliers_desc'               => 'افزودن ، به روزرسانی ، حذف و جستجوی تولید کنندگان.',
     'taxes'                        => 'مالیات',

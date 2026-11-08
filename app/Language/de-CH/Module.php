@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Hinzufügen, Ändern, Löschen und Suchen',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Lieferanten',
     'suppliers_desc'               => 'Hinzufügen, Ändern, Löschen und Suchen',
     'taxes'                        => '',

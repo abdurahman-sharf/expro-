@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Satış prosesləri və Qaytarılanlar.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Təchizatçılar',
     'suppliers_desc'               => 'Əlavə et, Yenilə, Sil və Təchizatçıları Axtar.',
     'taxes'                        => 'Vergi',

@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Receiving_lib;
+use App\Libraries\Stock\TrackingType;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
@@ -5309,5 +5310,58 @@ class ReceivingPostingTest extends CIUnitTestCase
         $register->add_item((string) $setup['item'], 1, self::LOCATION_ID, 0, 0, 5.0);
 
         $this->assertSame(['' => 'Piece', (string) $setup['carton'] => 'Carton (x12)'], $register->unitChoices($register->get_cart())[$setup['item']]);
+    }
+
+    public function testSetTracking_KeepsTheSerialNumbersAndTheBatchOfALineAndFollowsItsQuantityOnThePurchaseScreen(): void
+    {
+        $serial = $this->trackedItem(TrackingType::Serial);
+        $batch  = $this->trackedItem(TrackingType::Batch);
+
+        $register = $this->purchaseRegister();
+
+        $register->add_item((string) $serial, 2, self::LOCATION_ID, 0, 0, 5.0);
+        $register->add_item((string) $batch, 6, self::LOCATION_ID, 0, 0, 5.0);
+
+        $lines = array_keys($register->get_cart());
+
+        $register->setTracking((string) $lines[0], "A1\nA2, A3", '', '');
+        $register->setTracking((string) $lines[1], '', 'LOT-1', '2031-01-01');
+
+        $cart = $register->get_cart();
+
+        $this->assertSame(['A1', 'A2', 'A3'], $cart[$lines[0]]['tracking']['serials']);
+        $this->assertSame([['number' => 'LOT-1', 'expiry' => '2031-01-01', 'quantity' => '6.000']], $cart[$lines[1]]['tracking']['batches']);
+
+        $register->edit_item((string) $lines[1], '', '', 8.0, 0.0, 0, 5.0, 1.0);
+
+        $this->assertSame('8.000', $register->get_cart()[$lines[1]]['tracking']['batches'][0]['quantity']);
+
+        $register->setTracking((string) $lines[0], '', '', '');
+
+        $this->assertArrayNotHasKey('tracking', $register->get_cart()[$lines[0]]);
+    }
+
+    public function testSaveValue_ReceivesTheLinesOfThePurchaseScreenWithTheirSerialNumbersAndBatches(): void
+    {
+        $serial = $this->trackedItem(TrackingType::Serial);
+        $batch  = $this->trackedItem(TrackingType::Batch);
+
+        $register = $this->purchaseRegister();
+
+        $register->add_item((string) $serial, 2, self::LOCATION_ID, 0, 0, 5.0);
+        $register->add_item((string) $batch, 6, self::LOCATION_ID, 0, 0, 5.0);
+
+        $lines = array_keys($register->get_cart());
+
+        $register->setTracking((string) $lines[0], 'P1, P2', '', '');
+        $register->setTracking((string) $lines[1], '', 'LOT-9', date('Y-m-d', strtotime('+90 days')));
+
+        $this->assertGreaterThan(0, $this->buy(array_values($register->get_cart())));
+        $this->assertSame(['2.000', '6.000'], [$this->onHand($serial), $this->onHand($batch)]);
+        $this->assertSame(2, $this->accountingDb()->table('stock_serials')->where('item_id', $serial)->countAllResults());
+
+        foreach ((new StockLedger())->reconcile() as $location) {
+            $this->assertSame(bcadd($location['movements_value'], '0', 2), bcadd($location['account_balance'], '0', 2));
+        }
     }
 }

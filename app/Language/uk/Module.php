@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Процес продажу та повернення.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Постачальники',
     'suppliers_desc'               => 'Додавання, оновлення, видалення та пошук постачальників.',
     'taxes'                        => 'Податки',

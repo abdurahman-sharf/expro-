@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Slouží ke prodeji a vrácení položek.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Dodavatelé',
     'suppliers_desc'               => 'Slouží k přidání, úpravání, mazání a hledání dodavatelů.',
     'taxes'                        => 'Daně',

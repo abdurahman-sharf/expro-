@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Процесс продажи и возвртов.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Поставщики',
     'suppliers_desc'               => 'Добавление, обновление, удаление и поиск поставщиков.',
     'taxes'                        => 'Налоги',

@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Procesar Ventas y Devoluciones.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Proveedores',
     'suppliers_desc'               => 'Agregar, Actualizar, Borrar, y Buscar Proveedores.',
     'taxes'                        => 'Impuestos',

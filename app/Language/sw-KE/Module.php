@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Shughulikia Mauzo na Marejesho.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Wasambazaji',
     'suppliers_desc'               => 'Ongeza, Sasisha, Futa, na Tafuta Wasambazaji.',
     'taxes'                        => 'Kodi',

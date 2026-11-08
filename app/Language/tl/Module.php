@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Process Sales and Returns.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Suppliers',
     'suppliers_desc'               => 'Add, Update, Delete, and Search Customers.',
     'taxes'                        => 'Taxes',

@@ -93,7 +93,7 @@ class ReadinessRunnerTest extends CIUnitTestCase
         $result = (new ReadinessRunner())->run();
         $ids    = array_map(static fn (CheckResult $check): string => $check->id, $result->checks);
 
-        $this->assertCount(25, $result->checks);
+        $this->assertCount(27, $result->checks);
         $this->assertSame($ids, array_values(array_unique($ids)));
         $this->assertSame('migrations', $ids[0]);
         $this->assertSame(['purchase_discount', 'bank_placement', 'bank_details', 'payment_stamping'], array_slice($ids, 1, 4));

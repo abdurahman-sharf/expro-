@@ -16,6 +16,8 @@ use App\Libraries\ResolvedCharges;
 use App\Libraries\ShippingTaxOption;
 use App\Libraries\Stock\ItemStockProfile;
 use App\Libraries\Stock\StockOptions;
+use App\Libraries\Stock\StockTracking;
+use App\Libraries\Stock\TrackingType;
 use App\Libraries\Stock\UnitBarcodes;
 use App\Libraries\Stock\UnitCart;
 use App\Libraries\Stock\UnitTemplates;
@@ -1339,6 +1341,29 @@ class Sale_lib
         return $choices;
     }
 
+    /**
+     * The batch a line takes its units from when it is picked by hand. Nothing picked leaves the batch
+     * that expires first to the sale.
+     */
+    public function pickBatch(string $line, string $batchNumber): void
+    {
+        $items = $this->get_cart();
+
+        if (! isset($items[$line])) {
+            return;
+        }
+
+        $batchNumber = trim($batchNumber);
+
+        if ($batchNumber === '') {
+            unset($items[$line]['tracking']);
+        } else {
+            $items[$line]['tracking'] = ['batches' => [['number' => $batchNumber, 'quantity' => (string) abs((float) $items[$line]['quantity'])]]];
+        }
+
+        $this->set_cart($items);
+    }
+
     public function unitFailure(): ?AccountingException
     {
         return $this->unitFailure;
@@ -1820,7 +1845,7 @@ class Sale_lib
             if ($item['item_id'] == $item_id && $item['item_location'] == $item_location) {    // TODO: === ?
                 $itemalreadyinsale = true;
                 $updatekey = $item['line'];
-                if (!$item_info->is_serialized) {
+                if (!$item_info->is_serialized && (new StockTracking())->typeOf((int) $item_id) !== TrackingType::Serial) {
                     $quantity = bcadd($quantity, $items[$updatekey]['quantity']);
                 }
             }
@@ -1856,6 +1881,9 @@ class Sale_lib
 
         $attribute_links = $this->attribute->get_link_values($item_id, 'sale_id', $sale_id, Attribute::SHOW_IN_SALES)->getRowObject();
 
+        $trackedSerial = (new StockTracking())->typeOf((int) $item_id) === TrackingType::Serial;
+        $item_info->is_serialized = $item_info->is_serialized || $trackedSerial;
+
         // Item already exists and is not serialized, add to quantity
         if (!$itemalreadyinsale || $item_info->is_serialized) {
             $item = [
@@ -1872,6 +1900,7 @@ class Sale_lib
                     'serialnumber'          => $serialnumber != null ? $serialnumber : '',
                     'allow_alt_description' => $item_info->allow_alt_description,
                     'is_serialized'         => $item_info->is_serialized,
+                    'tracking_type'         => (new StockTracking())->typeOf((int) $item_id)->value,
                     'quantity'              => $quantity,
                     'discount'              => $applied_discount,
                     'discount_type'         => $discount_type,
@@ -2017,6 +2046,10 @@ class Sale_lib
             $line['price'] = $price;
             $line['total'] = $this->get_item_total($quantity, $price, $discount, $line['discount_type']);
             $line['discounted_total'] = $this->get_item_total($quantity, $price, $discount, $line['discount_type'], true);
+
+            if (isset($line['tracking']['batches'][0])) {
+                $line['tracking']['batches'][0]['quantity'] = (string) abs((float) $quantity);
+            }
 
             if (isset($typed)) {
                 $line['unit_factor']   = $typed['unit_factor'];

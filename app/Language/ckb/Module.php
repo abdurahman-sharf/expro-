@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'پرۆسەی فرۆشتن و گەڕانەوە.',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'دابینکەران',
     'suppliers_desc'               => 'زیادکردن، نوێکردنەوە، سڕینەوە و گەڕان بەدوای دابینکەران.',
     'taxes'                        => 'باجەکان',

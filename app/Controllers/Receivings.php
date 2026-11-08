@@ -419,6 +419,10 @@ class Receivings extends Secure_Controller
             if ($unitFailure !== null) {
                 $data['error'] = AccountingMessage::of($unitFailure);
             }
+
+            if ($this->request->getPost('tracking_serials') !== null || $this->request->getPost('batch_number') !== null) {
+                $this->receiving_lib->setTracking((string) $item_id, (string) $this->request->getPost('tracking_serials'), (string) $this->request->getPost('batch_number'), (string) $this->request->getPost('batch_expiry'));
+            }
         } else {
             $data['error'] = lang('Receivings.error_editing_item');
         }

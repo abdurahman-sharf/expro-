@@ -13,6 +13,8 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\ReturnDiscountShares;
 use App\Libraries\Stock\ItemStockProfile;
 use App\Libraries\Stock\StockOptions;
+use App\Libraries\Stock\StockTracking;
+use App\Libraries\Stock\TrackingEntry;
 use App\Libraries\Stock\UnitCart;
 use App\Libraries\Stock\UnitTemplates;
 use App\Models\Attribute;
@@ -338,6 +340,7 @@ class Receiving_lib
                 'attribute_dtvalues'         => $attributeLinks->attribute_dtvalues,
                 'allow_alt_description'      => $itemInfo->allow_alt_description,
                 'is_serialized'              => $itemInfo->is_serialized,
+                'tracking_type'              => (new StockTracking())->typeOf((int) $itemId)->value,
                 'quantity'                   => $quantity,
                 'discount'                   => $discount,
                 'discount_type'              => $discountType,
@@ -361,6 +364,30 @@ class Receiving_lib
         $this->set_cart($items);
 
         return true;
+    }
+
+    /**
+     * What a line of a tracked item brings in: the serial numbers, one for each unit, or the batch with
+     * its expiry date.
+     */
+    public function setTracking(string $line, string $serials, string $batchNumber, string $batchExpiry): void
+    {
+        $items = $this->get_cart();
+
+        if (! isset($items[$line])) {
+            return;
+        }
+
+        $quantity = bcmul((string) $items[$line]['quantity'], (string) ($items[$line]['receiving_quantity'] ?: 1), 3);
+        $entry    = ['serials' => TrackingEntry::serialsOf($serials), 'batches' => trim($batchNumber) === '' ? [] : [['number' => trim($batchNumber), 'expiry' => trim($batchExpiry), 'quantity' => $quantity]]];
+
+        if ($entry['serials'] === [] && $entry['batches'] === []) {
+            unset($items[$line]['tracking']);
+        } else {
+            $items[$line]['tracking'] = $entry;
+        }
+
+        $this->set_cart($items);
     }
 
     public function unitFailure(): ?AccountingException
@@ -492,6 +519,10 @@ class Receiving_lib
             }
 
             $line['total'] = $this->get_item_total($quantity, $price, $discount, $discount_type, $receiving_quantity);
+
+            if (isset($line['tracking']['batches'][0])) {
+                $line['tracking']['batches'][0]['quantity'] = bcmul((string) $quantity, (string) ($receiving_quantity ?: 1), 3);
+            }
 
             if ($typed !== null) {
                 $line['unit_factor']   = $typed['unit_factor'];

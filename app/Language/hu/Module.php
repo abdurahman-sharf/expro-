@@ -91,6 +91,8 @@ return [
     'sales_desc'                   => 'Termékek értékesítése és visszavétele',
     'stock_documents'              => '',
     'stock_documents_desc'         => '',
+    'stock_units'                  => '',
+    'stock_units_desc'             => '',
     'suppliers'                    => 'Beszállítók',
     'suppliers_desc'               => 'Beszállítók hozzáadása, módosítása, törlése és keresése',
     'taxes'                        => '',
