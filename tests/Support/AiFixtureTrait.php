@@ -3,6 +3,7 @@
 namespace Tests\Support;
 
 use App\Libraries\Accounting\Ai\AiSettings;
+use App\Libraries\Accounting\Ai\AnomalyContext;
 use App\Libraries\Accounting\Ai\ProposalDraft;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\EntityAccountService;
@@ -11,6 +12,7 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use Config\Services;
+use DateTimeImmutable;
 
 /**
  * The books a test of the agent layer starts from: the default chart in the base currency, the master switch
@@ -147,6 +149,33 @@ trait AiFixtureTrait
         $scopes->apply($treasuryId, $scopes->validated(['withdraw_scope' => TreasuryScopes::STAFF, 'withdraw_members' => [$employeeId]]), null);
 
         return $treasuries->accountOf($treasuryId);
+    }
+
+    /**
+     * @param list<int>|null $branchIds
+     */
+    protected function ruleContext(?array $branchIds = null, string $today = '2026-11-08', string $since = '2026-08-01'): AnomalyContext
+    {
+        return new AnomalyContext($this->accountingDb(), new AiSettings(), new DateTimeImmutable($today), $since, $branchIds);
+    }
+
+    protected function postedAt(int $journalId, string $postedAt): void
+    {
+        $this->accountingDb()->table('accounting_journals')->where('journal_id', $journalId)->update(['posted_at' => $postedAt]);
+    }
+
+    protected function closedAt(string $dateTo, string $createdAt, ?int $branchId = null, string $dateFrom = '2020-01-01'): int
+    {
+        $this->accountingDb()->table('accounting_closed_periods')->insert([
+            'company_id' => 1,
+            'branch_id'  => $branchId,
+            'date_from'  => $dateFrom,
+            'date_to'    => $dateTo,
+            'active'     => 1,
+            'created_at' => $createdAt,
+        ]);
+
+        return (int) $this->accountingDb()->insertID();
     }
 
     protected function journalCount(): int
