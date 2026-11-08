@@ -8,7 +8,6 @@ return [
     'entity'                 => 'Belongs to',
     'entity_item'            => 'Products',
     'entity_sale'            => 'Invoices',
-    'fields_title'           => 'Extra fields',
     'id'                     => 'ID',
     'inactive'               => 'Inactive',
     'manage_note'            => 'An extra field never changes a journal or an amount: it is information kept next to a product or an invoice.',

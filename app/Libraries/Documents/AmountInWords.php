@@ -89,7 +89,7 @@ final class AmountInWords
             throw new DocumentException(DocumentError::AmountTooLarge, context: ['maximum' => self::MAX_WHOLE]);
         }
 
-        return [$currency, (int) $split[0], $places === 0 ? 0 : (int) $split[1]];
+        return [$currency, (int) $split[0], $places === 0 ? 0 : (int) str_pad($split[1], $currency->decimals, '0')];
     }
 
     private function arabicPhrase(int $count, WordsUnit $unit): string

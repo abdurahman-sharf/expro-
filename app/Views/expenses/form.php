@@ -11,6 +11,8 @@
  * @var array $config
  * @var string|null $expenseNumber
  */
+
+use App\Libraries\Documents\VoucherDocuments;
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
@@ -25,7 +27,7 @@
                 <?php if (! empty($expenseNumber)) { ?>
                     &mdash; <?= lang('Numbering.document_number') ?> <span class="ltr"><?= esc($expenseNumber) ?></span>
                 <?php } ?>
-                <?php if (empty($expenses_info->deleted) && bccomp((string) $expenses_info->amount, '0', 4) > 0) { ?>
+                <?php if (empty($expenses_info->deleted) && bccomp((string) $expenses_info->amount, '0', 4) > 0 && ! VoucherDocuments::isDue($expenses_info->payment_type ?? null)) { ?>
                     &mdash; <a id="expense_voucher_link" href="<?= esc(site_url('expenses/voucher/' . (int) $expenses_info->expense_id), 'attr') ?>" target="_blank" rel="noopener"><?= lang('Documents.payment_voucher') ?></a>
                 <?php } ?>
             </p>

@@ -109,6 +109,15 @@ class AmountInWordsTest extends CIUnitTestCase
         $this->assertSame('بيسة واحدة', $this->words->arabic('0.001', 'OMR'));
     }
 
+    public function testSpell_ScalesTheMinorUnitWhenTheDocumentKeepsFewerDecimalsThanTheCurrency(): void
+    {
+        $this->assertSame('One Kuwaiti Dinar and two hundred fifty Fils', $this->words->english('1.25', 'KWD', 2));
+        $this->assertSame('دينار كويتي واحد ومائتان وخمسون فلسًا', $this->words->arabic('1.25', 'KWD', 2));
+        $this->assertSame('One Kuwaiti Dinar and five hundred Fils', $this->words->english('1.5', 'KWD', 1));
+        $this->assertSame('One Kuwaiti Dinar and ten Fils', $this->words->english('1.01', 'KWD', 2));
+        $this->assertSame('One Kuwaiti Dinar and one Fils', $this->words->english('1.001', 'KWD', 3));
+    }
+
     public function testSpell_DropsTheMinorUnitWhenTheDocumentShowsNoDecimals(): void
     {
         $this->assertSame('ريال سعودي واحد', $this->words->arabic('0.50', 'SAR', 0));

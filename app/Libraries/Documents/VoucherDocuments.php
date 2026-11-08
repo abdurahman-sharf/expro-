@@ -5,6 +5,7 @@ namespace App\Libraries\Documents;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\PaymentStatus;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\RevenueVouchers;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -21,7 +22,8 @@ use Config\OSPOS;
  * while it stands (not deleted, a payment that is completed, an amount that is money going out or in the
  * way the voucher says), and only by someone who may see it: a branch the viewer does not work in, or a
  * record that is not theirs when they see their own records only, is a document that is not there.
- * Nothing is written.
+ * What is left due is not money that moved, so an expense or a sale payment of the type Due has no
+ * voucher or receipt. Nothing is written.
  */
 final class VoucherDocuments
 {
@@ -52,7 +54,7 @@ final class VoucherDocuments
             ->get()
             ->getRow();
 
-        if ($row === null || (int) $row->deleted === 1 || bccomp((string) $row->amount, '0', 4) <= 0 || ! $this->visible($row->branch_id, $row->employee_id, $viewerId)) {
+        if ($row === null || (int) $row->deleted === 1 || bccomp((string) $row->amount, '0', 4) <= 0 || self::isDue($row->payment_type) || ! $this->visible($row->branch_id, $row->employee_id, $viewerId)) {
             return null;
         }
 
@@ -125,7 +127,7 @@ final class VoucherDocuments
             ->get()
             ->getRow();
 
-        if ($row === null || (int) $row->sale_status !== COMPLETED || (int) $row->cash_adjustment !== 0 || ! PaymentStatus::fromStored($row->payment_status)->posts()) {
+        if ($row === null || (int) $row->sale_status !== COMPLETED || (int) $row->cash_adjustment !== 0 || self::isDue($row->payment_type) || ! PaymentStatus::fromStored($row->payment_status)->posts()) {
             return null;
         }
 
@@ -210,6 +212,11 @@ final class VoucherDocuments
             [lang('Documents.signature_receiver')],
             (int) ($row->branch_id ?? 0),
         );
+    }
+
+    public static function isDue(mixed $paymentType): bool
+    {
+        return PaymentType::fromLabel((string) $paymentType) === PaymentType::Due;
     }
 
     private function visible(mixed $branchId, mixed $ownerId, ?int $viewerId): bool

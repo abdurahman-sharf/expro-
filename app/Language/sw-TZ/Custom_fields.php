@@ -8,7 +8,6 @@ return [
     'entity'                 => '',
     'entity_item'            => '',
     'entity_sale'            => '',
-    'fields_title'           => '',
     'id'                     => '',
     'inactive'               => '',
     'manage_note'            => '',

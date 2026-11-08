@@ -210,6 +210,15 @@ class VoucherDocumentsTest extends CIUnitTestCase
         $this->assertSame([lang('Documents.signature_payer'), lang('Documents.signature_cashier')], $voucher->signatures);
     }
 
+    public function testExpense_IsNotThereWhileTheExpenseIsDueAndIsThereOnceItIsPaid(): void
+    {
+        $due = $this->expenseOf('1000.00', ['payment_type' => lang('Sales.due')]);
+
+        $this->assertNull($this->vouchers->expense($due, $this->clerkId));
+        $this->accountingDb()->table('expenses')->where('expense_id', $due)->update(['payment_type' => lang('Sales.cash')]);
+        $this->assertNotNull($this->vouchers->expense($due, $this->clerkId));
+    }
+
     public function testRevenue_ShowsTheTaxItHoldsAndIsNotThereOnceDeleted(): void
     {
         $id = $this->revenueOf('115.00', ['tax_amount' => '15.00']);
@@ -251,6 +260,18 @@ class VoucherDocumentsTest extends CIUnitTestCase
         $id   = (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $sale)->get()->getRow()->payment_id;
 
         $this->assertSame('100.00', $this->vouchers->customerPayment($id, $this->clerkId)->amount);
+    }
+
+    public function testCustomerPayment_IsNotThereForTheDuePartOfAnInvoiceThatNobodyPaid(): void
+    {
+        $sale = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '40.00'), $this->payment(lang('Sales.due'), '60.00')]);
+        $rows = $this->accountingDb()->table('sales_payments')->where('sale_id', $sale)->orderBy('payment_id')->get()->getResult();
+
+        $this->assertCount(2, $rows);
+        $this->assertSame(lang('Sales.cash'), $rows[0]->payment_type);
+        $this->assertSame(lang('Sales.due'), $rows[1]->payment_type);
+        $this->assertSame('40.00', $this->vouchers->customerPayment((int) $rows[0]->payment_id, $this->clerkId)->amount);
+        $this->assertNull($this->vouchers->customerPayment((int) $rows[1]->payment_id, $this->clerkId));
     }
 
     public function testCustomerPayment_IsNotThereForAPaymentThatIsNotCompletedOrOnlyRoundsCash(): void
