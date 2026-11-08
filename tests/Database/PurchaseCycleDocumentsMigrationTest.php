@@ -4,6 +4,7 @@ namespace Tests\Database;
 
 use App\Database\Migrations\PurchaseCycleDocuments;
 use App\Models\Employee;
+use App\Models\Receiving;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -320,5 +321,26 @@ class PurchaseCycleDocumentsMigrationTest extends CIUnitTestCase
         }
 
         $this->assertTrue($this->hasTable('purchase_orders'));
+    }
+
+    public function testLegacyReceiving_IsDeletedAndCorrectedAsItAlwaysWasOnADatabaseThatDoesNotHaveTheTablesYet(): void
+    {
+        $db        = $this->accountingDb();
+        $employee  = $this->createEmployee();
+        $migration = new PurchaseCycleDocuments();
+
+        $db->table('receivings')->insert(['employee_id' => $employee, 'comment' => 'migration-test', 'receiving_type' => 'receive', 'branch_id' => 1, 'supplier_id' => $this->supplier()]);
+
+        $receivingId = (int) $db->insertID();
+
+        try {
+            $migration->down();
+
+            $this->assertFalse($this->hasTable('purchase_order_receivings'));
+            $this->assertTrue(model(Receiving::class)->delete_value($receivingId, $employee), 'the code does not look for a table the migration has not made');
+            $this->assertSame(0, $db->table('receivings')->where('receiving_id', $receivingId)->countAllResults());
+        } finally {
+            $migration->up();
+        }
     }
 }

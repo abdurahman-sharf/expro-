@@ -1111,6 +1111,17 @@ class PurchaseDocumentsTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows($kind->next()->table()));
     }
 
+    #[DataProvider('stepProvider')]
+    public function testConvert_SaysTheCycleIsOffBeforeItSaysAnythingAboutTheDocument(PurchaseDocumentKind $kind): void
+    {
+        $sourceId = $this->makeDocument($kind);
+
+        $this->documentsOf($kind)->cancel($sourceId, 'no', $this->clerk);
+        $this->setConfigValue('enable_purchase_cycle', '0');
+
+        $this->assertRefused(AccountingError::PurchaseDocumentModuleOff, fn () => $this->documentsOf($kind)->convert($sourceId, $this->clerk));
+    }
+
     public function testUpdate_RefusesAnOrderAReceivingWasMadeFromEvenWhenItIsOpenAndLeavesItAsItWas(): void
     {
         $this->allowEmployeeEverywhere();

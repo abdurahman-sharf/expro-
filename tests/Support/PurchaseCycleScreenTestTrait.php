@@ -437,6 +437,25 @@ trait PurchaseCycleScreenTestTrait
         $this->assertSame(['4.000', '3.50', 'typed'], [$lines[0]->quantity, $lines[0]->unit_price, $lines[0]->description]);
     }
 
+    public function testScreens_WorkWhileAccountingIsOffAndLeaveTheBooksAlone(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $before = $this->bookCounts();
+
+        $this->actAsWith([$this->permission(PurchaseDocuments::ADD), $this->permission(PurchaseDocuments::VIEW_ALL), $this->permission(PurchaseDocuments::DELETE)]);
+
+        $result = $this->postJson('/' . $this->module() . '/save', $this->formData());
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->get('/' . $this->module())->assertSee('id="document_' . $result['id'] . '"');
+        $this->get('/' . $this->module() . '/view/' . $result['id'])->assertSee('id="document_header"');
+        $this->assertTrue($this->postJson('/' . $this->module() . '/cancel/' . $result['id'], ['reason' => 'no'])['success']);
+        $this->assertSame($before, $this->bookCounts());
+
+        $this->setConfigValue('accounting_enabled', '1');
+    }
+
     public function testPostSave_RefusesInWordsWhatTheServiceRefuses(): void
     {
         $this->actAsWith([$this->permission(PurchaseDocuments::ADD)]);

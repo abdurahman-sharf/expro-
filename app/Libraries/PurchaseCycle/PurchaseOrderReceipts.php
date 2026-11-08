@@ -73,10 +73,15 @@ final class PurchaseOrderReceipts
     }
 
     /**
-     * The order a receiving was made from, or null.
+     * The order a receiving was made from, or null; a database that does not have the table yet has none, so that
+     * the receivings made before the migration are deleted and corrected as they always were.
      */
     public function orderOfReceiving(int $receivingId): ?int
     {
+        if (! $this->db->tableExists('purchase_order_receivings', false)) {
+            return null;
+        }
+
         $row = $this->db->table('purchase_order_receivings')->select('order_id')->where('receiving_id', $receivingId)->get()->getRow();
 
         return $row === null ? null : (int) $row->order_id;
