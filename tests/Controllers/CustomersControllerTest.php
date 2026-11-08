@@ -1376,16 +1376,23 @@ class CustomersControllerTest extends CIUnitTestCase
     public function testGetSearch_SortsByTheNewColumns(): void
     {
         $token = 'Sorted' . uniqid();
-        $a     = $this->saveMaster(['area' => 'Zeta', 'company_name' => $token . ' A']);
-        $b     = $this->saveMaster(['area' => 'Alpha', 'company_name' => $token . ' B']);
+        $a     = $this->saveMaster(['area' => 'Zeta', 'company_name' => $token . ' A'], NEW_ENTRY, ['city' => 'Aswan']);
+        $b     = $this->saveMaster(['area' => 'Alpha', 'company_name' => $token . ' B'], NEW_ENTRY, ['city' => 'Tanta']);
+        $db    = $this->accountingDb();
 
-        $ascending  = $this->directoryIds(['search' => $token, 'sort' => 'area', 'order' => 'asc']);
-        $descending = $this->directoryIds(['search' => $token, 'sort' => 'area', 'order' => 'desc']);
+        $db->table('customers')->where('person_id', $a['id'])->update(['date' => '2021-06-01 10:00:00']);
+        $db->table('customers')->where('person_id', $b['id'])->update(['date' => '2019-02-03 10:00:00']);
 
-        $this->assertSame([(int) $b['id'], (int) $a['id']], $ascending);
-        $this->assertSame([(int) $a['id'], (int) $b['id']], $descending);
-        $this->assertNotEmpty($this->directoryIds(['sort' => 'city']));
-        $this->assertNotEmpty($this->directoryIds(['sort' => 'created']));
+        $ids = fn (string $sort, string $order): array => $this->directoryIds(['search' => $token, 'sort' => $sort, 'order' => $order]);
+        $ab  = [(int) $a['id'], (int) $b['id']];
+        $ba  = [(int) $b['id'], (int) $a['id']];
+
+        $this->assertSame($ba, $ids('area', 'asc'));
+        $this->assertSame($ab, $ids('area', 'desc'));
+        $this->assertSame($ab, $ids('city', 'asc'));
+        $this->assertSame($ba, $ids('city', 'desc'));
+        $this->assertSame($ba, $ids('created', 'asc'));
+        $this->assertSame($ab, $ids('created', 'desc'));
         $this->cleanMaster();
     }
 

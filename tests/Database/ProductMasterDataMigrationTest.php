@@ -107,12 +107,14 @@ final class ProductMasterDataMigrationTest extends CIUnitTestCase
         $itemId = $this->itemIds[] = $this->createTestItem();
 
         foreach ([['status', 3], ['brand_id', 987654]] as [$column, $value]) {
+            $accepted = false;
+
             try {
-                $this->accountingDb()->table('items')->where('item_id', $itemId)->update([$column => $value]);
-                $this->fail("The database accepted {$value} for {$column}");
-            } catch (Throwable $refusal) {
-                $this->assertInstanceOf(Throwable::class, $refusal);
+                $accepted = $this->accountingDb()->table('items')->where('item_id', $itemId)->update([$column => $value]) !== false;
+            } catch (Throwable) {
             }
+
+            $this->assertFalse($accepted, "The database accepted {$value} for {$column}");
         }
     }
 

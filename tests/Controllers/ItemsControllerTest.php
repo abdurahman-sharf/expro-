@@ -3280,15 +3280,17 @@ class ItemsControllerTest extends CIUnitTestCase
     public function testGetSearch_NarrowsTheListByInactiveSuspendedUnavailableAndAvailable(): void
     {
         $active    = (int) $this->saveMasterItem(['status' => '0', 'name' => 'Filter active ' . uniqid()])['id'];
+        $emptied   = (int) $this->saveMasterItem(['status' => '0', 'name' => 'Filter emptied ' . uniqid()])['id'];
         $inactive  = (int) $this->saveMasterItem(['status' => '1', 'name' => 'Filter inactive ' . uniqid()])['id'];
         $suspended = (int) $this->saveMasterItem(['status' => '2', 'name' => 'Filter suspended ' . uniqid()])['id'];
         $db        = $this->accountingDb();
 
         $db->table('item_quantities')->where('item_id', $active)->where('location_id', 1)->update(['quantity' => 5]);
+        $db->table('item_quantities')->where('item_id', $emptied)->where('location_id', 1)->update(['quantity' => -2]);
         $db->table('item_quantities')->where('item_id', $inactive)->where('location_id', 1)->update(['quantity' => 5]);
         $db->table('item_quantities')->where('item_id', $suspended)->where('location_id', 1)->update(['quantity' => 0]);
 
-        $mine = [$active, $inactive, $suspended];
+        $mine = [$active, $emptied, $inactive, $suspended];
         $ids  = function (array $filters) use ($mine): array {
             $found = json_decode($this->get('/items/search', ['search' => 'Filter ', 'stock_location' => '1', 'limit' => '50', 'offset' => '0', 'order' => 'asc', 'filters' => $filters])->getJSON(), true);
 
@@ -3297,9 +3299,9 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $this->assertSame([$inactive], $ids(['status_inactive']));
         $this->assertSame([$suspended], $ids(['status_suspended']));
-        $this->assertSame([$suspended], $ids(['out_of_stock']));
+        $this->assertEqualsCanonicalizing([$emptied, $suspended], $ids(['out_of_stock']));
         $this->assertSame([$active], $ids(['available']));
-        $this->assertSame($mine, $ids([]));
+        $this->assertEqualsCanonicalizing($mine, $ids([]));
         $this->cleanMasterItems();
     }
 

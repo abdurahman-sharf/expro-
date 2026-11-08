@@ -336,7 +336,7 @@
   "replace": "$this->limitToBranches($builder, $branchIds);\n        $builder->limit(1);",
   "tests": [
    "--filter",
-   "HidesAnInactiveLocation",
+   "HidesAnInactiveLocation|SkipsAnInactiveLocationThatComesFirst",
    "tests/Models/Stock_locationTest.php"
   ]
  },
@@ -853,7 +853,7 @@
   "replace": "static fn (int $id): bool => true",
   "tests": [
    "--filter",
-   "ListsOnlyTheItemsThatAreNamed",
+   "ListsOnlyTheItemsThatAreNamed|AsksNothingOfTheDatabase",
    "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
   ]
  },
@@ -880,18 +880,7 @@
   ]
  },
  {
-  "name": "G81 the lists leave out an inactive item found through its attributes",
-  "file": "app/Models/Item.php",
-  "find": "if ($throughLinks) {",
-  "replace": "if (false) {",
-  "tests": [
-   "--filter",
-   "LeavesOutInactiveAndSuspendedItemsOnlyWhenAskedTo",
-   "tests/Models/ItemTest.php"
-  ]
- },
- {
-  "name": "G82 the top sellers leave out inactive and suspended items",
+  "name": "G81 the top sellers leave out inactive and suspended items",
   "file": "app/Models/Item.php",
   "find": "$builder->where('items.status', ItemStatus::Active->value);\n        $builder->groupBy('items.item_id');",
   "replace": "$builder->groupBy('items.item_id');",
@@ -902,7 +891,7 @@
   ]
  },
  {
-  "name": "G83 an item an open document names is not deleted one by one",
+  "name": "G82 an item an open document names is not deleted one by one",
   "file": "app/Models/Item.php",
   "find": "if ($this->isMentionedInOpenDocuments([(int) $itemId]) || ",
   "replace": "if (false || ",
@@ -913,7 +902,7 @@
   ]
  },
  {
-  "name": "G84 an item an open document names is not deleted from a list",
+  "name": "G83 an item an open document names is not deleted from a list",
   "file": "app/Models/Item.php",
   "find": "if ($this->isMentionedInOpenDocuments(array_map('intval', $itemIds)) || ",
   "replace": "if (false || ",
@@ -924,7 +913,7 @@
   ]
  },
  {
-  "name": "G85 the refusal names the item and the number of documents",
+  "name": "G84 the refusal names the item and the number of documents",
   "file": "app/Models/Item.php",
   "find": "['name' => $found['name'], 'count' => $found['count']]",
   "replace": "['name' => '', 'count' => 0]",
@@ -935,7 +924,7 @@
   ]
  },
  {
-  "name": "G86 the item form saves the brand, the status and the supplier code only when it carries them",
+  "name": "G85 the item form saves the brand, the status and the supplier code only when it carries them",
   "file": "app/Controllers/Items.php",
   "find": "if ($this->request->getPost(ItemFields::MARKER) === '1') {",
   "replace": "if (false) {",
@@ -946,7 +935,7 @@
   ]
  },
  {
-  "name": "G87 the values the form gave are written to the item",
+  "name": "G86 the values the form gave are written to the item",
   "file": "app/Controllers/Items.php",
   "find": "$itemData += $master;",
   "replace": "",
@@ -957,7 +946,7 @@
   ]
  },
  {
-  "name": "G88 a change of the brand, the status or the supplier code is audited",
+  "name": "G87 a change of the brand, the status or the supplier code is audited",
   "file": "app/Controllers/Items.php",
   "find": "(new ItemFields())->audit($itemId, $masterBefore, $master, (int) $employeeId);",
   "replace": "",
@@ -968,7 +957,7 @@
   ]
  },
  {
-  "name": "G89 an item an open document names is not deleted through the form",
+  "name": "G88 an item an open document names is not deleted through the form",
   "file": "app/Controllers/Items.php",
   "find": "($this->item->isMentionedInOpenDocuments([$itemId]) || ",
   "replace": "(false || ",
@@ -979,7 +968,7 @@
   ]
  },
  {
-  "name": "G90 the list filters inactive items",
+  "name": "G89 the list filters inactive items",
   "file": "app/Models/Item.php",
   "find": "$idBuilder->where('items.status', ItemStatus::Inactive->value);",
   "replace": "",
@@ -990,7 +979,7 @@
   ]
  },
  {
-  "name": "G91 the list filters suspended items",
+  "name": "G90 the list filters suspended items",
   "file": "app/Models/Item.php",
   "find": "$idBuilder->where('items.status', ItemStatus::Suspended->value);",
   "replace": "",
@@ -1001,7 +990,7 @@
   ]
  },
  {
-  "name": "G92 the list filters items that are out of stock",
+  "name": "G91 the list filters items that are out of stock",
   "file": "app/Models/Item.php",
   "find": "$idBuilder->where('item_quantities.quantity <=', 0);",
   "replace": "",
@@ -1012,7 +1001,7 @@
   ]
  },
  {
-  "name": "G93 the list filters items that are available",
+  "name": "G92 the list filters items that are available",
   "file": "app/Models/Item.php",
   "find": "$idBuilder->where('item_quantities.quantity >', 0);",
   "replace": "",
@@ -1023,7 +1012,7 @@
   ]
  },
  {
-  "name": "G94 the list shows the brand of each item",
+  "name": "G93 the list shows the brand of each item",
   "file": "app/Models/Item.php",
   "find": "$builder->select('MAX(item_brands.name) AS brand_name');\n\n        $builder->select('MAX(suppliers.person_id) AS person_id');",
   "replace": "$builder->select(\"'' AS brand_name\");\n\n        $builder->select('MAX(suppliers.person_id) AS person_id');",
@@ -1034,7 +1023,7 @@
   ]
  },
  {
-  "name": "G95 an import row may add the optional columns",
+  "name": "G94 an import row may add the optional columns",
   "file": "app/Controllers/Items.php",
   "find": "$itemData += $this->optionalColumnsOfImportRow($row);",
   "replace": "",
@@ -1045,7 +1034,7 @@
   ]
  },
  {
-  "name": "G96 an import row with a brand that does not exist is refused",
+  "name": "G95 an import row with a brand that does not exist is refused",
   "file": "app/Controllers/Items.php",
   "find": "if ($found === false) {\n                throw new AccountingException(AccountingError::ItemBrandInvalid",
   "replace": "if (false) {\n                throw new AccountingException(AccountingError::ItemBrandInvalid",
@@ -1056,7 +1045,7 @@
   ]
  },
  {
-  "name": "G97 an import row with a purchase tax over one hundred is refused",
+  "name": "G96 an import row with a purchase tax over one hundred is refused",
   "file": "app/Controllers/Items.php",
   "find": "|| (float) $parsed > 100",
   "replace": "",
@@ -1067,7 +1056,7 @@
   ]
  },
  {
-  "name": "G98 an import file made before the optional columns still imports",
+  "name": "G97 an import file made before the optional columns still imports",
   "file": "app/Helpers/importfile_helper.php",
   "find": "array_diff(str_getcsv($template_header_line), optional_item_import_columns())",
   "replace": "str_getcsv($template_header_line)",
@@ -1078,7 +1067,7 @@
   ]
  },
  {
-  "name": "G99 the kit form picker leaves out inactive and suspended items",
+  "name": "G98 the kit form picker leaves out inactive and suspended items",
   "file": "app/Controllers/Items.php",
   "find": "['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true]",
   "replace": "['search_custom' => false, 'is_deleted' => false]",
@@ -1089,7 +1078,7 @@
   ]
  },
  {
-  "name": "G100 the register list leaves out inactive and suspended items",
+  "name": "G99 the register list leaves out inactive and suspended items",
   "file": "app/Controllers/Sales.php",
   "find": "'is_deleted' => false, 'hide_inactive' => true",
   "replace": "'is_deleted' => false",
@@ -1100,7 +1089,7 @@
   ]
  },
  {
-  "name": "G101 the receiving list leaves out inactive and suspended items",
+  "name": "G100 the receiving list leaves out inactive and suspended items",
   "file": "app/Controllers/Receivings.php",
   "find": "get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true]",
   "replace": "get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false]",
@@ -1111,7 +1100,7 @@
   ]
  },
  {
-  "name": "G102 the stock receiving list leaves out inactive and suspended items",
+  "name": "G101 the stock receiving list leaves out inactive and suspended items",
   "file": "app/Controllers/Receivings.php",
   "find": "get_stock_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true]",
   "replace": "get_stock_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false]",
@@ -1122,7 +1111,7 @@
   ]
  },
  {
-  "name": "G103 the order, schedule and document lookups leave out inactive and suspended items",
+  "name": "G102 the order, schedule and document lookups leave out inactive and suspended items",
   "file": "app/Controllers/DocumentScreen.php",
   "find": "->where('deleted', 0)->where('status', ItemStatus::Active->value);",
   "replace": "->where('deleted', 0);",
@@ -1133,7 +1122,7 @@
   ]
  },
  {
-  "name": "G104 the permit lookup leaves out inactive and suspended items",
+  "name": "G103 the permit lookup leaves out inactive and suspended items",
   "file": "app/Controllers/StockDocumentController.php",
   "find": "'stock_type' => HAS_STOCK, 'status' => ItemStatus::Active->value]",
   "replace": "'stock_type' => HAS_STOCK]",
@@ -1144,7 +1133,7 @@
   ]
  },
  {
-  "name": "G105 the customer form saves the master data only when it carries it",
+  "name": "G104 the customer form saves the master data only when it carries it",
   "file": "app/Controllers/Customers.php",
   "find": "if ($this->request->getPost(CustomerFields::MARKER) === '1') {",
   "replace": "if (false) {",
@@ -1155,7 +1144,7 @@
   ]
  },
  {
-  "name": "G106 the validated values are written to the customer",
+  "name": "G105 the validated values are written to the customer",
   "file": "app/Controllers/Customers.php",
   "find": "$customerData += $master;\n        }\n\n        if ($customerData['account_number']",
   "replace": "}\n\n        if ($customerData['account_number']",
@@ -1166,7 +1155,7 @@
   ]
  },
  {
-  "name": "G107 a change of the master data is audited",
+  "name": "G106 a change of the master data is audited",
   "file": "app/Controllers/Customers.php",
   "find": "(new CustomerFields())->audit((int) ($customerData['person_id'] ?? $customerId), $before, $master, $this->viewerId());",
   "replace": "",
@@ -1177,7 +1166,7 @@
   ]
  },
  {
-  "name": "G108 the creation date is set once and kept when the customer is edited",
+  "name": "G107 the creation date is set once and kept when the customer is edited",
   "file": "app/Controllers/Customers.php",
   "find": "if ($isNew) {\n            $customerData['date']",
   "replace": "if (true) {\n            $customerData['date']",
@@ -1188,7 +1177,7 @@
   ]
  },
  {
-  "name": "G109 the observed lengths are checked before a customer is saved",
+  "name": "G108 the observed lengths are checked before a customer is saved",
   "file": "app/Controllers/Customers.php",
   "find": "PartyLengths::check(",
   "replace": "(static fn () => null)(",
@@ -1199,7 +1188,7 @@
   ]
  },
  {
-  "name": "G110 the directory shows the total of the branches the viewer works in",
+  "name": "G109 the directory shows the total of the branches the viewer works in",
   "file": "app/Controllers/Customers.php",
   "find": "$stats = $this->customer->get_stats($person->person_id, $scope);",
   "replace": "$stats = $this->customer->get_stats($person->person_id);",
@@ -1210,7 +1199,7 @@
   ]
  },
  {
-  "name": "G111 the row of one customer shows the total of the branches of the viewer",
+  "name": "G110 the row of one customer shows the total of the branches of the viewer",
   "file": "app/Controllers/Customers.php",
   "find": "$stats = $this->customer->get_stats($person->person_id, $this->branchScope());",
   "replace": "$stats = $this->customer->get_stats($person->person_id);",
@@ -1221,7 +1210,7 @@
   ]
  },
  {
-  "name": "G112 the form of a customer shows the total of the branches of the viewer",
+  "name": "G111 the form of a customer shows the total of the branches of the viewer",
   "file": "app/Controllers/Customers.php",
   "find": "$stats = $this->customer->get_stats($customerId, $this->branchScope());",
   "replace": "$stats = $this->customer->get_stats($customerId);",
@@ -1232,7 +1221,7 @@
   ]
  },
  {
-  "name": "G113 an employee outside the branches of the viewer is neither named nor a filter",
+  "name": "G112 an employee outside the branches of the viewer is neither named nor a filter",
   "file": "app/Controllers/Customers.php",
   "find": "$filters['visible_employee_ids'] = $scope === null ? null : array_keys((new CustomerFields())->assignableEmployees($this->viewerId()));",
   "replace": "$filters['visible_employee_ids'] = null;",
@@ -1243,7 +1232,7 @@
   ]
  },
  {
-  "name": "G114 the directory ignores a filter value the lists do not offer",
+  "name": "G113 the directory ignores a filter value the lists do not offer",
   "file": "app/Controllers/Customers.php",
   "find": "if (CustomerStatus::tryFrom($get('manual_status')) !== null) {",
   "replace": "if ($get('manual_status') !== '') {",
@@ -1254,7 +1243,7 @@
   ]
  },
  {
-  "name": "G115 the directory ignores a day that is not a day",
+  "name": "G114 the directory ignores a day that is not a day",
   "file": "app/Controllers/Customers.php",
   "find": "if ($day !== false && $day->format('Y-m-d') === $get($name)) {",
   "replace": "if ($get($name) !== '') {",
@@ -1265,7 +1254,7 @@
   ]
  },
  {
-  "name": "G116 an import row with a value that is not allowed is refused",
+  "name": "G115 an import row with a value that is not allowed is refused",
   "file": "app/Controllers/Customers.php",
   "find": "$master        = $this->masterDataOfImportRow($data, $email);",
   "replace": "$master        = [];",
@@ -1276,7 +1265,7 @@
   ]
  },
  {
-  "name": "G117 an import row with a classification that does not exist is refused",
+  "name": "G116 an import row with a classification that does not exist is refused",
   "file": "app/Controllers/Customers.php",
   "find": "if ($found === false) {\n                throw new AccountingException(AccountingError::CustomerClassificationInvalid",
   "replace": "if (false) {\n                throw new AccountingException(AccountingError::CustomerClassificationInvalid",
@@ -1287,7 +1276,7 @@
   ]
  },
  {
-  "name": "G118 the directory narrows by classification, status, area, country and type",
+  "name": "G117 the directory narrows by classification, status, area, country and type",
   "file": "app/Models/Customer.php",
   "find": "foreach (['classification_id', 'manual_status', 'area', 'country_code', 'customer_type'] as $column) {",
   "replace": "foreach ([] as $column) {",
@@ -1298,7 +1287,7 @@
   ]
  },
  {
-  "name": "G119 the directory narrows by city",
+  "name": "G118 the directory narrows by city",
   "file": "app/Models/Customer.php",
   "find": "$builder->where('people.city', $filters['city']);",
   "replace": "",
@@ -1309,7 +1298,7 @@
   ]
  },
  {
-  "name": "G120 the directory narrows by the day of creation from",
+  "name": "G119 the directory narrows by the day of creation from",
   "file": "app/Models/Customer.php",
   "find": "$builder->where('DATE(customers.date) >=', $filters['created_from']);",
   "replace": "",
@@ -1320,7 +1309,7 @@
   ]
  },
  {
-  "name": "G121 the directory narrows by the day of creation to",
+  "name": "G120 the directory narrows by the day of creation to",
   "file": "app/Models/Customer.php",
   "find": "$builder->where('DATE(customers.date) <=', $filters['created_to']);",
   "replace": "",
@@ -1331,7 +1320,7 @@
   ]
  },
  {
-  "name": "G122 an employee filter outside the visible employees shows nothing",
+  "name": "G121 an employee filter outside the visible employees shows nothing",
   "file": "app/Models/Customer.php",
   "find": "if ($visible !== null && ! in_array((int) $filters['assigned_employee_id'], array_map('intval', $visible), true)) {",
   "replace": "if (false) {",
@@ -1342,7 +1331,7 @@
   ]
  },
  {
-  "name": "G123 the name of an employee outside the visible ones is hidden",
+  "name": "G122 the name of an employee outside the visible ones is hidden",
   "file": "app/Models/Customer.php",
   "find": "($visible === [] ? ' AND 1 = 0' : ' AND customers.assigned_employee_id IN (' . implode(',', array_map('intval', $visible)) . ')')",
   "replace": "''",
@@ -1353,7 +1342,7 @@
   ]
  },
  {
-  "name": "G124 the totals of a customer count the sales of the given branches only",
+  "name": "G123 the totals of a customer count the sales of the given branches only",
   "file": "app/Models/Customer.php",
   "find": "$branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('sales.branch_id', $branchIds);",
   "replace": "",
@@ -1364,10 +1353,10 @@
   ]
  },
  {
-  "name": "G125 the directory sorts by city and by the day of creation without ambiguity",
+  "name": "G124 the directory sorts by the day of creation",
   "file": "app/Models/Customer.php",
-  "find": "'phone_number', 'city'], true) => 'people.' . $sort,",
-  "replace": "'phone_number'], true) => 'people.' . $sort,",
+  "find": "$sort === 'created'                                                                  => 'customers.date',\n",
+  "replace": "",
   "tests": [
    "--filter",
    "SortsByTheNewColumns",
@@ -1375,7 +1364,7 @@
   ]
  },
  {
-  "name": "G126 the observed lengths are checked before a supplier is saved",
+  "name": "G125 the observed lengths are checked before a supplier is saved",
   "file": "app/Controllers/Suppliers.php",
   "find": "PartyLengths::check(",
   "replace": "(static fn () => null)(",
@@ -1386,7 +1375,7 @@
   ]
  },
  {
-  "name": "G127 a supplier country code is kept in capitals and two letters",
+  "name": "G126 a supplier country code is kept in capitals and two letters",
   "file": "app/Controllers/Suppliers.php",
   "find": "CustomerFields::countryCode(trim((string) $this->request->getPost('country_code')))",
   "replace": "trim((string) $this->request->getPost('country_code'))",
@@ -1397,7 +1386,7 @@
   ]
  },
  {
-  "name": "G128 the screen of the classifications belongs to the customers module",
+  "name": "G127 the screen of the classifications belongs to the customers module",
   "file": "app/Controllers/Customer_classifications.php",
   "find": "parent::__construct('customers', 'customer_classifications', LookupKind::CustomerClassification);",
   "replace": "parent::__construct('config', 'customer_classifications', LookupKind::CustomerClassification);",
@@ -1408,7 +1397,7 @@
   ]
  },
  {
-  "name": "G129 the screen of the brands belongs to the items module",
+  "name": "G128 the screen of the brands belongs to the items module",
   "file": "app/Controllers/Item_brands.php",
   "find": "parent::__construct('items', 'item_brands', LookupKind::ItemBrand);",
   "replace": "parent::__construct('customers', 'item_brands', LookupKind::ItemBrand);",
@@ -1419,7 +1408,7 @@
   ]
  },
  {
-  "name": "G130 an entry that does not exist is not found",
+  "name": "G129 an entry that does not exist is not found",
   "file": "app/Controllers/LookupScreen.php",
   "find": "if ($entry === null) {\n            throw PageNotFoundException::forPageNotFound();",
   "replace": "if (false) {\n            throw PageNotFoundException::forPageNotFound();",
@@ -1430,7 +1419,7 @@
   ]
  },
  {
-  "name": "G131 any status but zero is active",
+  "name": "G130 any status but zero is active",
   "file": "app/Controllers/LookupScreen.php",
   "find": "(string) $this->request->getPost('status', FILTER_SANITIZE_NUMBER_INT) !== '0'",
   "replace": "(string) $this->request->getPost('status', FILTER_SANITIZE_NUMBER_INT) === '1'",
@@ -1441,7 +1430,7 @@
   ]
  },
  {
-  "name": "G132 down() of the stock location migration keeps an inactive location",
+  "name": "G131 down() of the stock location migration keeps an inactive location",
   "file": "app/Database/Migrations/20272700000000_StockLocationStatus.php",
   "find": "if ($inactive > 0 || $this->primaryWasMoved()) {",
   "replace": "if (false) {",
@@ -1452,7 +1441,7 @@
   ]
  },
  {
-  "name": "G133 the migration keeps a primary location that was already marked",
+  "name": "G132 the migration keeps a primary location that was already marked",
   "file": "app/Database/Migrations/20272700000000_StockLocationStatus.php",
   "find": "if ($hasPrimary) {\n            return;\n        }",
   "replace": "if (false) {\n            return;\n        }",
@@ -1463,7 +1452,7 @@
   ]
  },
  {
-  "name": "G134 the database refuses a second live primary location",
+  "name": "G133 the database refuses a second live primary location",
   "file": "app/Database/Migrations/20272700000000_StockLocationStatus.php",
   "find": "ADD UNIQUE KEY `{$key}`",
   "replace": "ADD KEY `{$key}`",
@@ -1474,7 +1463,7 @@
   ]
  },
  {
-  "name": "G135 the database refuses a status that is neither active nor inactive",
+  "name": "G134 the database refuses a status that is neither active nor inactive",
   "file": "app/Database/Migrations/20272700000000_StockLocationStatus.php",
   "find": "CHECK (`status` IN (0, 1) AND `is_primary` IN (0, 1))",
   "replace": "CHECK (1 = 1)",
@@ -1485,7 +1474,7 @@
   ]
  },
  {
-  "name": "G136 down() of the customer migration keeps the values that were stored",
+  "name": "G135 down() of the customer migration keeps the values that were stored",
   "file": "app/Database/Migrations/20272700000001_CustomerMasterData.php",
   "find": "if ($names !== []) {",
   "replace": "if (false) {",
@@ -1496,7 +1485,7 @@
   ]
  },
  {
-  "name": "G137 the database refuses a manual status outside the five",
+  "name": "G136 the database refuses a manual status outside the five",
   "file": "app/Database/Migrations/20272700000001_CustomerMasterData.php",
   "find": "'status'  => '`manual_status` IS NULL OR `manual_status` IN (' . self::STATUSES . ')',",
   "replace": "'status'  => '1 = 1',",
@@ -1507,7 +1496,7 @@
   ]
  },
  {
-  "name": "G138 the database refuses a customer type outside the two",
+  "name": "G137 the database refuses a customer type outside the two",
   "file": "app/Database/Migrations/20272700000001_CustomerMasterData.php",
   "find": "'type'    => \"`customer_type` IS NULL OR `customer_type` IN ('individual', 'commercial')\",",
   "replace": "'type'    => '1 = 1',",
@@ -1518,7 +1507,7 @@
   ]
  },
  {
-  "name": "G139 the name of a classification is unique",
+  "name": "G138 the name of a classification is unique",
   "file": "app/Database/Migrations/20272700000001_CustomerMasterData.php",
   "find": "UNIQUE KEY `{$table}_name` (`name`),",
   "replace": "KEY `{$table}_name` (`name`),",
@@ -1529,7 +1518,7 @@
   ]
  },
  {
-  "name": "G140 down() of the product migration keeps the values that were stored",
+  "name": "G139 down() of the product migration keeps the values that were stored",
   "file": "app/Database/Migrations/20272700000002_ProductMasterData.php",
   "find": "if ($names !== []) {",
   "replace": "if (false) {",
@@ -1540,7 +1529,7 @@
   ]
  },
  {
-  "name": "G141 the database refuses an item status outside the three",
+  "name": "G140 the database refuses an item status outside the three",
   "file": "app/Database/Migrations/20272700000002_ProductMasterData.php",
   "find": "CHECK (`status` IN (0, 1, 2))",
   "replace": "CHECK (1 = 1)",

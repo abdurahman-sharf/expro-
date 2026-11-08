@@ -577,7 +577,7 @@ final class StockLocationLifecycleTest extends CIUnitTestCase
         $db->transStart();
 
         try {
-            $db->query('SELECT location_id FROM ' . $db->prefixTable('stock_locations') . ' WHERE deleted = 0 FOR UPDATE');
+            $db->query('SELECT location_id FROM ' . $db->prefixTable('stock_locations') . ' WHERE location_id = ? FOR UPDATE', [$this->primaryLocationId()]);
 
             $this->assertWaitsForLock(fn () => (new StockLocationLifecycle($this->openSecondConnection()))->deactivate($spare, null));
         } finally {

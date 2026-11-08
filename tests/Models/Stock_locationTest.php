@@ -325,6 +325,18 @@ class Stock_locationTest extends CIUnitTestCase
         $this->assertArrayHasKey($depot, array_column($model->get_all()->getResultArray(), null, 'location_id'), 'The settings still list it');
     }
 
+    public function testGetDefaultLocationId_SkipsAnInactiveLocationThatComesFirst(): void
+    {
+        $branch   = $this->createBranch('B2');
+        $personId = $this->salesEmployee([$branch]);
+        $quiet    = $this->createLocation('a quiet depot', $branch, $personId);
+        $open     = $this->createLocation('b open depot', $branch, $personId);
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $quiet)->update(['status' => 0]);
+
+        $this->assertSame($open, (int) (new Stock_location())->get_default_location_id('sales', true));
+    }
+
     public function testSaveValue_MakesTheFirstLocationOfACompanyWithoutAPrimaryLocationPrimary(): void
     {
         $this->accountingDb()->table('stock_locations')->update(['is_primary' => 0]);

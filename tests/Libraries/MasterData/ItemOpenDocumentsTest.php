@@ -3,6 +3,7 @@
 namespace Tests\Libraries\MasterData;
 
 use App\Libraries\MasterData\ItemOpenDocuments;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -139,6 +140,25 @@ final class ItemOpenDocumentsTest extends CIUnitTestCase
         $this->assertSame([$named => 1], $this->documents()->counts([$named, $free, 0, -3]));
         $this->assertSame([], $this->documents()->counts([]));
         $this->assertSame([], $this->documents()->counts([$free]));
+    }
+
+    public function testCounts_AsksNothingOfTheDatabaseWhenNoIdIsAnItem(): void
+    {
+        $queries  = 0;
+        $listener = static function () use (&$queries): void {
+            $queries++;
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $counts = $this->documents()->counts([0, -3]);
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        $this->assertSame([], $counts);
+        $this->assertSame(0, $queries);
     }
 
     public function testFirst_NamesTheItemAndCountsItsDocuments(): void

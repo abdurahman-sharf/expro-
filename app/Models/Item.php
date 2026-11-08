@@ -979,15 +979,9 @@ class Item extends Model
      *
      * @param array<string, mixed> $filters
      */
-    private function hideInactive(BaseBuilder $builder, array $filters, bool $throughLinks = false): void
+    private function hideInactive(BaseBuilder $builder, array $filters): void
     {
         if (empty($filters['hide_inactive'])) {
-            return;
-        }
-
-        if ($throughLinks) {
-            $builder->where('attribute_links.item_id IN (SELECT item_id FROM ' . $this->db->prefixTable('items') . ' WHERE status = ' . ItemStatus::Active->value . ')', null, false);
-
             return;
         }
 
@@ -1332,7 +1326,6 @@ class Item extends Model
                 $builder->like('attribute_value', $search);
                 $builder->where('definition_type', TEXT);
                 $builder->where('deleted', $filters['is_deleted']);
-                $this->hideInactive($builder, $filters, true);
                 $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
 
                 foreach ($builder->get()->getResult() as $row) {
@@ -1446,7 +1439,6 @@ class Item extends Model
                 $builder->where('definition_type', TEXT);
                 $builder->where('stock_type', '0'); // Stocked items only
                 $builder->where('deleted', $filters['is_deleted']);
-                $this->hideInactive($builder, $filters, true);
 
                 foreach ($builder->get()->getResult() as $row) {
                     $suggestions[] = ['value' => $row->item_id, 'label' => $this->get_search_suggestion_label($row)];
@@ -1554,7 +1546,6 @@ class Item extends Model
                 $builder->where('definition_type', TEXT);
                 $builder->where('stock_type', '0'); // Stocked items only
                 $builder->where('deleted', $filters['is_deleted']);
-                $this->hideInactive($builder, $filters, true);
 
                 foreach ($builder->get()->getResult() as $row) {
                     $suggestions[] = ['value' => $row->item_id, 'label' => $this->get_search_suggestion_label($row)];

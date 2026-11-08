@@ -114,12 +114,14 @@ final class CustomerMasterDataMigrationTest extends CIUnitTestCase
         $customerId = $this->insertCustomer();
 
         foreach ([['manual_status', 'vip'], ['customer_type', 'both'], ['billing_method', 'fax'], ['is_government_entity', 2]] as [$column, $value]) {
+            $accepted = false;
+
             try {
-                $this->accountingDb()->table('customers')->where('person_id', $customerId)->update([$column => $value]);
-                $this->fail("The database accepted {$value} for {$column}");
-            } catch (Throwable $refusal) {
-                $this->assertInstanceOf(Throwable::class, $refusal);
+                $accepted = $this->accountingDb()->table('customers')->where('person_id', $customerId)->update([$column => $value]) !== false;
+            } catch (Throwable) {
             }
+
+            $this->assertFalse($accepted, "The database accepted {$value} for {$column}");
         }
     }
 
