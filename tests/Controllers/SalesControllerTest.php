@@ -706,16 +706,25 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame($salesCountBefore, $salesCountAfter);
     }
 
-    public function testPostComplete_ReloadsTheRegisterWithTheOutOfStockMessageWhenTheSaveSaysThereIsNotEnoughStock(): void
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function provideCompletionModes(): array
+    {
+        return ['a point of sale' => ['sale', '0.00'], 'an invoice' => ['sale_invoice', '100.00'], 'a work order' => ['sale_work_order', '0.00'], 'a quote' => ['sale_quote', '100.00']];
+    }
+
+    #[DataProvider('provideCompletionModes')]
+    public function testPostComplete_ReloadsTheRegisterWithTheOutOfStockMessageWhenTheSaveSaysThereIsNotEnoughStock(string $mode, string $price): void
     {
         $cashierId = $this->createCashierEmployee();
         $itemId    = $this->createTestItem(HAS_NO_STOCK);
         $this->loginAs($cashierId);
-        $this->seedCartLine(1, '100.00', $itemId);
-        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice']));
+        $this->seedCartLine(1, $price, $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => $mode]));
 
         $sales = $this->getMockBuilder(Sale::class)->onlyMethods(['save_value'])->getMock();
-        $sales->method('save_value')->willReturn(INSUFFICIENT_STOCK);
+        $sales->expects($this->once())->method('save_value')->willReturn(INSUFFICIENT_STOCK);
         Factories::injectMock('models', Sale::class, $sales);
 
         try {

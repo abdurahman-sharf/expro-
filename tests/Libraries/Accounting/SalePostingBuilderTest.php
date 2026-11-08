@@ -1873,6 +1873,79 @@ use ItemFixtureTrait;
         );
     }
 
+    public function testInvoice_PutsTheConversionRoundingOnTheLargestGoodsLineBehindTheDiscountLine(): void
+    {
+        [$first, $second] = $this->itemsOfTwoAccountsAndOneWithout();
+        $third            = $this->createTestItem();
+        $this->nameAccount($third, RoutingKey::SalesRevenue, $this->customAccount('41', '4103', 'Third revenue'));
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+        $this->setRouting(RoutingKey::SalesDiscount, RoutingType::Auto, 'sales_discount');
+
+        $sale = $this->sale(
+            [$this->line('1', '33.33', '10', PERCENT, itemId: $first), $this->line('1', '33.33', '10', PERCENT, itemId: $second), $this->line('1', '33.34', '10', PERCENT, itemId: $third)],
+            currency: $this->foreign('USD', '1.00500000', 2),
+        );
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':90.46:0.00',
+                $this->accountId('sales_discount') . ':10.04:0.00',
+                $this->accountIdByCode('4101') . ':0.00:33.50',
+                $this->accountIdByCode('4102') . ':0.00:33.50',
+                $this->accountIdByCode('4103') . ':0.00:33.50',
+            ],
+            $this->shape($this->builder->invoice($sale, 1)),
+        );
+    }
+
+    public function testInvoice_PutsTheConversionRoundingOnTheLargestGoodsLineBehindTheLineOfANegativeAdjustment(): void
+    {
+        [$first, $second] = $this->itemsOfTwoAccountsAndOneWithout();
+        $third            = $this->createTestItem();
+        $this->nameAccount($third, RoutingKey::SalesRevenue, $this->customAccount('41', '4103', 'Third revenue'));
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $sale = $this->sale(
+            [$this->line('1', '33.33', itemId: $first), $this->line('1', '33.33', itemId: $second), $this->line('1', '33.34', itemId: $third)],
+            charges: new ResolvedCharges('Fee', '-2.0000'),
+            currency: $this->foreign('USD', '1.00500000', 2),
+        );
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':98.49:0.00',
+                $this->accountId(RoutingKey::SalesAdjustment->defaultSystemKey()) . ':2.01:0.00',
+                $this->accountIdByCode('4101') . ':0.00:33.50',
+                $this->accountIdByCode('4102') . ':0.00:33.50',
+                $this->accountIdByCode('4103') . ':0.00:33.50',
+            ],
+            $this->shape($this->builder->invoice($sale, 1)),
+        );
+    }
+
+    public function testInvoice_PutsTheConversionRoundingOnTheFirstOfTwoEqualGoodsLines(): void
+    {
+        [$first, $second] = $this->itemsOfTwoAccountsAndOneWithout();
+        $third            = $this->createTestItem();
+        $this->nameAccount($third, RoutingKey::SalesRevenue, $this->customAccount('41', '4103', 'Third revenue'));
+        $this->setRouting(RoutingKey::SalesRevenue, RoutingType::PerItem);
+
+        $sale = $this->sale(
+            [$this->line('1', '33.33', itemId: $first), $this->line('1', '33.33', itemId: $second), $this->line('1', '33.33', itemId: $third)],
+            currency: $this->foreign('USD', '1.00500000', 2),
+        );
+
+        $this->assertSame(
+            [
+                $this->customerAccount() . ':100.49:0.00',
+                $this->accountIdByCode('4101') . ':0.00:33.49',
+                $this->accountIdByCode('4102') . ':0.00:33.50',
+                $this->accountIdByCode('4103') . ':0.00:33.50',
+            ],
+            $this->shape($this->builder->invoice($sale, 1)),
+        );
+    }
+
     public function testInvoice_KeepsTheRoundingOnTheSingleGoodsLineOfARowThatIsNotPerItem(): void
     {
         $sale = $this->sale([$this->line('1', '33.33', itemId: 1), $this->line('1', '33.33', itemId: 2), $this->line('1', '33.34', itemId: 3)], currency: $this->foreign('USD', '1.00500000', 2));

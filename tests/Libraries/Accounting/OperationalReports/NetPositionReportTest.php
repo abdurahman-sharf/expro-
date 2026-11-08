@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\OperationalReports\NetPositionReport;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
 use App\Libraries\Accounting\JournalService;
@@ -237,6 +238,23 @@ class NetPositionReportTest extends CIUnitTestCase
             $settled = array_sum(array_map('floatval', array_column(array_filter($block->rows, static fn (array $row): bool => in_array($row['kind'], [lang('Accounting_operational_reports.row_payment'), lang('Accounting_operational_reports.row_credit_applied')], true)), 'paid')));
 
             $this->assertEqualsWithDelta((float) $block->rows[0]['paid'], $settled, 0.00001);
+        }
+    }
+
+    public function testBuild_RefusesBothChecksByNameWhenAnInvoiceIsInAForeignCurrency(): void
+    {
+        $ids = $this->documents();
+
+        (new Currencies())->setActive('USD', true);
+        $this->accountingDb()->table('sales')->whereIn('sale_id', array_values($ids))->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+
+        $table = $this->table();
+
+        $this->assertCount(2, $table->ties);
+
+        foreach ($table->ties as $tie) {
+            $this->assertTrue($tie->isRefused());
+            $this->assertSame(['USD'], $tie->refusalArguments);
         }
     }
 

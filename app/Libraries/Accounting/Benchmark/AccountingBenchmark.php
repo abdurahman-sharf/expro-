@@ -23,6 +23,7 @@ use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\TrialBalance;
 use App\Models\Item;
 use App\Models\Sale;
+use Closure;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use RuntimeException;
@@ -48,7 +49,10 @@ final class AccountingBenchmark
 
     private BaseConnection $db;
 
-    public function __construct(?BaseConnection $db = null)
+    /**
+     * @param (Closure(BaseConnection): void)|null $afterMeasuring Work done inside the transaction after the measurements, which a test uses to leave a row behind and see that it is noticed.
+     */
+    public function __construct(?BaseConnection $db = null, private readonly ?Closure $afterMeasuring = null)
     {
         $this->db = $db ?? Database::connect();
     }
@@ -76,12 +80,22 @@ final class AccountingBenchmark
             foreach ($this->measurements() as $name => $work) {
                 $results[] = $this->measure($name, $work);
             }
+
+            $this->afterMeasuring === null || ($this->afterMeasuring)($this->db);
         } finally {
             $this->db->transRollback();
             $this->db->resetTransStatus();
         }
 
-        $left = array_filter(array_map(static fn (int $now, int $was): int => $now - $was, $this->rowCounts(), $before));
+        $left = [];
+
+        foreach ($this->rowCounts() as $table => $now) {
+            $difference = $now - ($before[$table] ?? 0);
+
+            if ($difference !== 0) {
+                $left[$table] = $difference;
+            }
+        }
 
         if ($left !== []) {
             throw new RuntimeException('The benchmark could not undo its writes: ' . json_encode($left));

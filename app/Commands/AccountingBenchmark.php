@@ -26,13 +26,13 @@ class AccountingBenchmark extends BaseCommand
 
     public function run(array $params): int
     {
-        $database = Database::connect()->getDatabase();
-
-        if (ENVIRONMENT === 'production') {
+        if ($this->environment() === 'production') {
             CLI::error('The benchmark never runs where CI_ENVIRONMENT is production.');
 
             return EXIT_USER_INPUT;
         }
+
+        $database = Database::connect()->getDatabase();
 
         if (($params['confirm'] ?? CLI::getOption('confirm')) !== $database) {
             CLI::error("Pass --confirm {$database} to say that this is a copy of the data or a development database. It rolls back what it writes, but it holds locks and fills the log of the database while it runs.");
@@ -71,6 +71,11 @@ class AccountingBenchmark extends BaseCommand
         CLI::write(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
 
         return EXIT_SUCCESS;
+    }
+
+    protected function environment(): string
+    {
+        return ENVIRONMENT;
     }
 
     /**

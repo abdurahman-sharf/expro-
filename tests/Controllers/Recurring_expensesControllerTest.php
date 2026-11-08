@@ -209,6 +209,23 @@ class Recurring_expensesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('id="supplier_text"', $body);
     }
 
+    public function testGetForm_ListsEverySupplierUpToTheThresholdEvenWhenThereAreMoreThanTwoHundred(): void
+    {
+        $this->setConfigValue('accounting_picker_threshold', '260');
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $last = 0;
+
+        for ($index = 1; $index <= 230; $index++) {
+            $last = $this->insertSupplier('Recurring Bulk Supplier ' . str_pad((string) $index, 3, '0', STR_PAD_LEFT));
+        }
+
+        $body = $this->get('/recurring_expenses/add')->getBody();
+
+        $this->assertStringContainsString('<option value="' . $last . '">Recurring Bulk Supplier 230</option>', $body);
+        $this->assertStringContainsString('<select name="supplier_id" id="supplier_id"', $body);
+    }
+
     public function testGetForm_ReplacesTheSelectOfSuppliersByASearchBoxAboveTheThresholdAndKeepsTheChosenName(): void
     {
         $supplier   = $this->insertSupplier('Recurring Chosen Supplies');

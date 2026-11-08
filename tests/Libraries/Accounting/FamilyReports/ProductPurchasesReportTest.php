@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting\FamilyReports;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\FamilyReports\ProductPurchasesReport;
 use Tests\Support\FamilyReportTestCase;
 
@@ -21,6 +22,23 @@ final class ProductPurchasesReportTest extends FamilyReportTestCase
         parent::setUp();
 
         $this->report = new ProductPurchasesReport();
+    }
+
+    public function testBuild_RefusesBothChecksByNameWhenAPurchaseIsInAForeignCurrency(): void
+    {
+        $facts = $this->market();
+
+        (new Currencies())->setActive('USD', true);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $facts['other'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+
+        $table = $this->built($this->report, $this->thisDay());
+
+        $this->assertCount(2, $table->ties);
+
+        foreach ($table->ties as $tie) {
+            $this->assertTrue($tie->isRefused());
+            $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['USD']), $tie->refusal);
+        }
     }
 
     public function testBuild_SumsTheQuantityAndTheValuePerItemNetOfReturns(): void

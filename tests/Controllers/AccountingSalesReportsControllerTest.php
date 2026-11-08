@@ -2,6 +2,7 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\OperationalReports\DateFilter;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -103,6 +104,29 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
             $this->assertStringContainsString(lang('Accounting_operational_reports.ties'), $row);
             $this->assertStringNotContainsString(lang('Accounting_operational_reports.differs'), $row);
         }
+    }
+
+    public function testGetRevenue_SaysByNameThatTheChecksAreNotMadeWhenADocumentIsInAForeignCurrencyOnTheScreenAndInTheFile(): void
+    {
+        $this->sell();
+        $this->reader();
+
+        (new Currencies())->setActive('USD', true);
+        $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->limit(1)->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+
+        $ties = $this->tieRows($this->fetch(self::REVENUE . '?show=1&group=customer'));
+
+        $this->assertCount(3, $ties);
+
+        foreach ($ties as $row) {
+            $this->assertStringContainsString(lang('Accounting_operational_reports.tie_foreign_currency', ['USD']), $row);
+            $this->assertStringNotContainsString(lang('Accounting_operational_reports.differs'), $row);
+        }
+
+        $csv = $this->fetch(self::REVENUE . '/csv?group=customer')->response()->getBody();
+
+        $this->assertStringContainsString(lang('Accounting_operational_reports.tie_foreign_currency', ['USD']), $csv);
+        $this->assertStringNotContainsString(lang('Accounting_operational_reports.differs'), $csv);
     }
 
     public function testGetRevenue_RedirectsSomeoneWithoutTheModuleOfTheFinancialReports(): void

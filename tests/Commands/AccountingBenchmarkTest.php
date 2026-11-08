@@ -2,10 +2,14 @@
 
 namespace Tests\Commands;
 
+use App\Commands\AccountingBenchmark;
+use App\Libraries\Accounting\Benchmark\AccountingBenchmark as Benchmark;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\StreamFilterTrait;
 use Config\Database;
+use RuntimeException;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -151,6 +155,45 @@ class AccountingBenchmarkTest extends CIUnitTestCase
         }
 
         $this->assertDatabaseUnchanged($before, 'The benchmark left rows behind.');
+    }
+
+    public function testRun_NeverRunsWhereTheEnvironmentIsProductionWhateverItIsTold(): void
+    {
+        $command = new class(service('logger'), service('commands')) extends AccountingBenchmark {
+            protected function environment(): string
+            {
+                return 'production';
+            }
+        };
+
+        $before = $this->databaseFingerprint();
+
+        $this->resetStreamFilterBuffer();
+        $exit = $command->run(['confirm' => $this->database(), 'documents' => '3']);
+
+        $this->assertSame(EXIT_USER_INPUT, $exit);
+        $this->assertStringContainsString('production', $this->getStreamFilterBuffer());
+        $this->assertDatabaseUnchanged($before);
+    }
+
+    public function testRun_NoticesARowItsWorkLeftBehindOutsideTheTransaction(): void
+    {
+        $leak = static function (): void {
+            $other = Database::connect('tests', false);
+
+            $other->table('people')->insert(['first_name' => 'Benchmark', 'last_name' => 'Leak', 'phone_number' => '', 'email' => '', 'address_1' => '', 'address_2' => '', 'city' => '', 'state' => '', 'zip' => '', 'country' => '', 'comments' => '']);
+            $other->close();
+        };
+
+        try {
+            (new Benchmark(null, $leak))->run(2);
+            $this->fail('A row left behind was not noticed.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('could not undo', $exception->getMessage());
+            $this->assertStringContainsString('people', $exception->getMessage());
+        } finally {
+            $this->accountingDb()->table('people')->where('last_name', 'Leak')->delete();
+        }
     }
 
     public function testRun_SavesNoSaleOfItsOwnInTheTablesOfTheSales(): void

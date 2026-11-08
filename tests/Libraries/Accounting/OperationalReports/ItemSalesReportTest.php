@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\OperationalReports\DocumentKind;
 use App\Libraries\Accounting\OperationalReports\ItemGroup;
 use App\Libraries\Accounting\OperationalReports\ItemSalesReport;
@@ -166,6 +167,21 @@ class ItemSalesReportTest extends CIUnitTestCase
         $this->assertSame('100.0000', $this->table(ItemGroup::User)->total['total']);
         $this->assertSame('50.0000', $this->table(ItemGroup::Item, false, ['item' => $this->oil])->total['total']);
         $this->assertSame('50.0000', $this->table(ItemGroup::Category, false, ['category' => 'Oils'])->total['total']);
+    }
+
+    public function testBuild_RefusesTheCheckAgainstTheBooksByNameWhenADocumentIsInAForeignCurrency(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, $this->customerId);
+
+        (new Currencies())->setActive('USD', true);
+        $this->accountingDb()->table('sales')->where('sale_id', $saleId)->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+
+        $table = $this->table();
+
+        $this->assertCount(1, $table->ties);
+        $this->assertTrue($table->ties[0]->isRefused());
+        $this->assertSame(['USD'], $table->ties[0]->refusalArguments);
     }
 
     public function testBuild_TiesTheLinesToTheJournalsWithoutTheHeaderChargesWithinACent(): void

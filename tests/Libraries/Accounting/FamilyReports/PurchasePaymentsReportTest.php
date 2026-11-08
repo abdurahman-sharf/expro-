@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting\FamilyReports;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\FamilyReports\PurchasePaymentsReport;
 use App\Libraries\Roles\RoleService;
 use Tests\Support\FamilyReportTestCase;
@@ -58,6 +59,20 @@ final class PurchasePaymentsReportTest extends FamilyReportTestCase
         $this->assertAmount('0.00', $other->cell('remaining'));
         $this->assertAmount('130.00', $other->cell('paid'));
         $this->assertStringContainsString(to_currency_no_money('30'), implode(' ', $table->notes));
+    }
+
+    public function testBuild_RefusesTheCheckAgainstTheAccountsByNameWhenAPurchaseIsInAForeignCurrency(): void
+    {
+        $ids = $this->market();
+
+        (new Currencies())->setActive('USD', true);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $ids['other'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+
+        $table = $this->built($this->report, ['to' => $this->today()]);
+
+        $this->assertCount(1, $table->ties);
+        $this->assertTrue($table->ties[0]->isRefused());
+        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['USD']), $table->ties[0]->refusal);
     }
 
     public function testBuild_TiesWhatIsLeftLessTheCreditToTheAccountsOfTheSuppliers(): void
