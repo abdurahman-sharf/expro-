@@ -16,6 +16,7 @@ use App\Libraries\EInvoicing\OriginalReference;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use ReflectionMethod;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EInvoiceFixtureTrait;
 use Tests\Support\EInvoiceSaleFixtureTrait;
@@ -354,6 +355,26 @@ class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame('0.00', $document->lines[0]->allowance);
         $this->assertSame('13.04', $document->lines[0]->vatAmount);
         $this->assertSame('100.00', $document->taxInclusive);
+    }
+
+    public function testFromSale_RefusesATaxTheBooksDoNotHoldEvenWhenTheTotalTies(): void
+    {
+        $sale    = (new SaleLoader())->load($this->referenceSale());
+        $figures = SaleAmounts::figures($sale, totals_decimals());
+        $rules   = ['subtotals' => [], 'lineExtension' => '0.00', 'tax' => bcadd(SaleAmounts::round($figures['tax'], 2), '0.01', 2), 'total' => bcadd($figures['total'], '0', 2)];
+        $tie     = new ReflectionMethod($this->builder, 'tieToTheBooks');
+
+        try {
+            $tie->invoke($this->builder, $sale, $rules);
+            $this->fail('A tax the books do not hold was accepted');
+        } catch (EInvoiceException $refusal) {
+            $this->assertSame(EInvoiceError::TotalsDoNotTie, $refusal->error);
+            $this->assertSame('tax', $refusal->context['rule']);
+        }
+
+        $rules['tax'] = SaleAmounts::round($figures['tax'], 2);
+
+        $this->assertNull($tie->invoke($this->builder, $sale, $rules));
     }
 
     public function testFromSale_RefusesATotalThatTheStandardCannotWriteTheWayTheBooksHaveIt(): void

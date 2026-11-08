@@ -161,7 +161,7 @@ class CustomerPartiesTest extends CIUnitTestCase
         $this->parties->save($this->customerId, $this->input(), 7);
         $this->parties->save($this->customerId, $this->input(['city' => 'Jeddah']), 7);
 
-        $rows    = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer_einvoice_party', 'entity_id' => $this->customerId])->orderBy('audit_id', 'ASC')->get()->getResult();
+        $rows    = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer_einvoice_party', 'entity_id' => $this->customerId, 'action' => 'updated'])->orderBy('audit_id', 'ASC')->get()->getResult();
         $details = json_decode((string) $rows[1]->details, true);
 
         $this->assertCount(2, $rows);

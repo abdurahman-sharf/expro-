@@ -274,6 +274,24 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame($note->documentId, $this->service->issueDebitNote($noteId, 'again', $invoice->documentId, $clerk)->documentId);
     }
 
+    public function testIssueDebitNote_RefusesANoteWhoseTaxTheJournalOfTheNoteDoesNotHoldAndStoresNothing(): void
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $invoice = $this->issue();
+        $clerk   = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE, AccountingGuard::EINVOICING_MANAGE]);
+        $noteId  = (new SalesDebitNotes())->create(['customer_id' => $this->customerId, 'date' => $this->daysAgo(1), 'amount' => '200', 'tax_percent' => '15', 'note' => 'Freight recovered'], $clerk);
+        $journal = $this->accountingDb()->table('accounting_journals')->where(['source_type' => SalesDebitNotes::SOURCE, 'source_id' => $noteId])->get()->getRow();
+
+        $this->accountingDb()->table('accounting_journal_lines')->where(['journal_id' => (int) $journal->journal_id, 'credit' => '30.0000'])->update(['credit' => '29.0000']);
+
+        $refusal = $this->refusal(fn () => $this->service->issueDebitNote($noteId, 'Amendment of the supply price which leads to the change of VAT', $invoice->documentId, $clerk));
+
+        $this->assertSame('journal tax', $refusal->context['rule']);
+        $this->assertSame(1, $this->countRows('einvoice_documents'));
+        $this->assertSame(1, $this->counter()['icv']);
+    }
+
     public function testIssueDebitNote_RefusesANoteThatRefersToNothingOrToAnotherDebitNote(): void
     {
         $this->setConfigValue('accounting_debit_note', '1');
