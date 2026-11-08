@@ -38,9 +38,11 @@ final class ItemOpenDocumentsTest extends CIUnitTestCase
     {
         $db = $this->accountingDb();
 
-        foreach (['stock_request_lines', 'stock_requests', 'stocktake_lines', 'stocktakes', 'recurring_schedule_lines', 'recurring_schedules', 'sales_order_invoice_lines', 'sales_order_invoices', 'sales_order_lines', 'sales_orders', 'sales_items', 'sales'] as $table) {
+        foreach (['purchase_order_receiving_lines', 'purchase_order_receivings', 'purchase_order_lines', 'purchase_orders', 'supplier_quotation_lines', 'supplier_quotations', 'quotation_request_lines', 'quotation_requests', 'purchase_request_lines', 'purchase_requests', 'stock_request_lines', 'stock_requests', 'stocktake_lines', 'stocktakes', 'recurring_schedule_lines', 'recurring_schedules', 'sales_order_invoice_lines', 'sales_order_invoices', 'sales_order_lines', 'sales_orders', 'sales_items', 'sales'] as $table) {
             $db->query('DELETE FROM ' . $db->prefixTable($table));
         }
+
+        $db->table('receivings')->where('comment', 'received')->delete();
 
         foreach ($this->itemIds as $itemId) {
             $db->table('item_quantities')->where('item_id', $itemId)->delete();
@@ -181,6 +183,50 @@ final class ItemOpenDocumentsTest extends CIUnitTestCase
         $db->table('stocktake_lines')->insert(['stocktake_id' => (int) $db->insertID(), 'item_id' => $itemId, 'system_quantity' => 1]);
 
         $this->assertSame([$itemId => 3], $this->documents()->counts([$itemId]));
+    }
+
+    public function testCounts_CountsAPurchaseDocumentThatIsOpenSentOrApprovedAndNotACancelledOne(): void
+    {
+        $itemId = $this->item();
+        $db     = $this->accountingDb();
+
+        foreach (['open', 'sent', 'approved', 'cancelled'] as $status) {
+            $db->table('purchase_requests')->insert(['location_id' => 1, 'document_date' => '2026-10-01', 'status' => $status]);
+            $db->table('purchase_request_lines')->insert(['request_id' => (int) $db->insertID(), 'line_no' => 1, 'item_id' => $itemId, 'quantity' => 1]);
+        }
+
+        $this->assertSame([$itemId => 3], $this->documents()->counts([$itemId]));
+
+        $db->table('quotation_requests')->insert(['location_id' => 1, 'document_date' => '2026-10-01', 'status' => 'open']);
+        $db->table('quotation_request_lines')->insert(['rfq_id' => (int) $db->insertID(), 'line_no' => 1, 'item_id' => $itemId, 'quantity' => 1]);
+
+        $supplierId = $this->insertSupplier('Quoting supplier');
+
+        $db->table('supplier_quotations')->insert(['location_id' => 1, 'supplier_id' => $supplierId, 'document_date' => '2026-10-01', 'status' => 'sent']);
+        $db->table('supplier_quotation_lines')->insert(['quotation_id' => (int) $db->insertID(), 'line_no' => 1, 'item_id' => $itemId, 'quantity' => 1]);
+
+        $this->assertSame([$itemId => 5], $this->documents()->counts([$itemId]));
+    }
+
+    public function testCounts_CountsAPurchaseOrderOnlyWhileALineHasSomethingLeftToReceive(): void
+    {
+        $itemId     = $this->item();
+        $supplierId = $this->insertSupplier('Ordering supplier');
+        $db         = $this->accountingDb();
+
+        $db->table('purchase_orders')->insert(['location_id' => 1, 'supplier_id' => $supplierId, 'document_date' => '2026-10-01', 'status' => 'approved']);
+        $orderId = (int) $db->insertID();
+        $db->table('purchase_order_lines')->insert(['order_id' => $orderId, 'line_no' => 1, 'item_id' => $itemId, 'quantity' => 4]);
+        $lineId = (int) $db->insertID();
+
+        $this->assertSame([$itemId => 1], $this->documents()->counts([$itemId]));
+
+        $db->table('receivings')->insert(['employee_id' => 1, 'supplier_id' => $supplierId, 'comment' => 'received']);
+        $receivingId = (int) $db->insertID();
+        $db->table('purchase_order_receivings')->insert(['receiving_id' => $receivingId, 'order_id' => $orderId]);
+        $db->table('purchase_order_receiving_lines')->insert(['receiving_id' => $receivingId, 'order_line_id' => $lineId, 'quantity' => 4]);
+
+        $this->assertSame([], $this->documents()->counts([$itemId]));
     }
 
     public function testCounts_ListsOnlyTheItemsThatAreNamedAndIgnoresIdsThatAreNotItems(): void

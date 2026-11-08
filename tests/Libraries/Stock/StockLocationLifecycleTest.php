@@ -63,6 +63,10 @@ final class StockLocationLifecycleTest extends CIUnitTestCase
 
         $db->table('accounting_audit_log')->where('entity_type', 'stock_location')->delete();
         $db->table('accounting_stock_entries')->delete(['company_id' => 1]);
+        foreach (['purchase_order_receiving_lines', 'purchase_order_receivings', 'purchase_order_lines', 'purchase_orders', 'supplier_quotation_lines', 'supplier_quotations', 'quotation_request_lines', 'quotation_requests', 'purchase_request_lines', 'purchase_requests'] as $cycleTable) {
+            $db->query('DELETE FROM ' . $db->prefixTable($cycleTable));
+        }
+
         $db->query('DELETE FROM ' . $db->prefixTable('stock_request_lines'));
         $db->query('DELETE FROM ' . $db->prefixTable('stock_requests'));
         $db->query('DELETE FROM ' . $db->prefixTable('stocktakes'));
@@ -442,6 +446,23 @@ final class StockLocationLifecycleTest extends CIUnitTestCase
         $this->assertSame(AccountingError::StockLocationOpenDocuments, $this->refusalOf(fn () => $this->lifecycle()->deactivate($other, null)));
 
         $db->table('stock_requests')->where('request_id', $requestId)->update(['status' => 'fulfilled']);
+
+        $this->lifecycle()->deactivate($spare, null);
+
+        $this->assertSame(0, $this->statusOf($spare));
+    }
+
+    public function testDeactivate_RejectsALocationNamedInAnOpenPurchaseDocumentAndFreesItWhenTheDocumentIsCancelled(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+        $db      = $this->accountingDb();
+
+        $db->table('purchase_requests')->insert(['location_id' => $spare, 'document_date' => '2026-10-01', 'status' => 'open']);
+        $requestId = (int) $db->insertID();
+
+        $this->assertSame(AccountingError::StockLocationOpenDocuments, $this->refusalOf(fn () => $this->lifecycle()->deactivate($spare, null)));
+
+        $db->table('purchase_requests')->where('request_id', $requestId)->update(['status' => 'cancelled']);
 
         $this->lifecycle()->deactivate($spare, null);
 

@@ -34,6 +34,10 @@ final class StockLocationLifecycle
         'recurring_schedules' => "SELECT COUNT(DISTINCT r.schedule_id) AS n FROM {recurring_schedules} r JOIN {recurring_schedule_lines} l ON l.schedule_id = r.schedule_id WHERE r.status IN ('active', 'paused') AND l.item_location = ?",
         'stock_requests'      => "SELECT COUNT(*) AS n FROM {stock_requests} q WHERE q.status IN ('requested', 'approved') AND (q.from_location_id = ? OR q.to_location_id = ?)",
         'stocktakes'          => "SELECT COUNT(*) AS n FROM {stocktakes} t WHERE t.status = 'counting' AND t.location_id = ?",
+        'purchase_requests'   => "SELECT COUNT(*) AS n FROM {purchase_requests} d WHERE d.status IN ('open', 'sent', 'approved') AND d.location_id = ?",
+        'quotation_requests'  => "SELECT COUNT(*) AS n FROM {quotation_requests} d WHERE d.status IN ('open', 'sent', 'approved') AND d.location_id = ?",
+        'supplier_quotations' => "SELECT COUNT(*) AS n FROM {supplier_quotations} d WHERE d.status IN ('open', 'sent', 'approved') AND d.location_id = ?",
+        'purchase_orders'     => "SELECT COUNT(*) AS n FROM {purchase_orders} d WHERE d.status IN ('open', 'sent', 'approved') AND d.location_id = ? AND EXISTS (SELECT 1 FROM {purchase_order_lines} l WHERE l.order_id = d.order_id AND l.quantity > COALESCE((SELECT SUM(t.quantity) FROM {purchase_order_receiving_lines} t WHERE t.order_line_id = l.line_id), 0))",
     ];
 
     private BaseConnection $db;

@@ -9,7 +9,9 @@ use Config\Database;
 /**
  * The documents that are not final and still name an item: a draft, a quote or a suspended sale, an open
  * or approved sales order that still has a quantity of the item to invoice, an active or paused schedule,
- * a stock request that is not settled and a stocktake that is still counting. An item they name is not
+ * a stock request that is not settled, a stocktake that is still counting and a purchase request, a
+ * quotation request, a supplier quotation or a purchase order that is still open, sent or approved (an order
+ * counts only while a line of it has a quantity left to receive). An item they name is not
  * deleted, because the document would lose its line. A completed sale, a posted permit, a cancelled
  * document, a quote that became an invoice and an order line that was invoiced in full are final and do
  * not count.
@@ -22,6 +24,10 @@ final class ItemOpenDocuments
         "SELECT l.item_id, COUNT(DISTINCT r.schedule_id) AS n FROM {recurring_schedules} r JOIN {recurring_schedule_lines} l ON l.schedule_id = r.schedule_id WHERE r.status IN ('active', 'paused') AND l.item_id IN (%2\$s) GROUP BY l.item_id",
         "SELECT l.item_id, COUNT(DISTINCT q.request_id) AS n FROM {stock_requests} q JOIN {stock_request_lines} l ON l.request_id = q.request_id WHERE q.status IN ('requested', 'approved') AND l.item_id IN (%2\$s) GROUP BY l.item_id",
         "SELECT l.item_id, COUNT(DISTINCT t.stocktake_id) AS n FROM {stocktakes} t JOIN {stocktake_lines} l ON l.stocktake_id = t.stocktake_id WHERE t.status = 'counting' AND l.item_id IN (%2\$s) GROUP BY l.item_id",
+        "SELECT l.item_id, COUNT(DISTINCT d.request_id) AS n FROM {purchase_requests} d JOIN {purchase_request_lines} l ON l.request_id = d.request_id WHERE d.status IN ('open', 'sent', 'approved') AND l.item_id IN (%2\$s) GROUP BY l.item_id",
+        "SELECT l.item_id, COUNT(DISTINCT d.rfq_id) AS n FROM {quotation_requests} d JOIN {quotation_request_lines} l ON l.rfq_id = d.rfq_id WHERE d.status IN ('open', 'sent', 'approved') AND l.item_id IN (%2\$s) GROUP BY l.item_id",
+        "SELECT l.item_id, COUNT(DISTINCT d.quotation_id) AS n FROM {supplier_quotations} d JOIN {supplier_quotation_lines} l ON l.quotation_id = d.quotation_id WHERE d.status IN ('open', 'sent', 'approved') AND l.item_id IN (%2\$s) GROUP BY l.item_id",
+        "SELECT l.item_id, COUNT(DISTINCT d.order_id) AS n FROM {purchase_orders} d JOIN {purchase_order_lines} l ON l.order_id = d.order_id WHERE d.status IN ('open', 'sent', 'approved') AND l.item_id IN (%2\$s) AND l.quantity > COALESCE((SELECT SUM(t.quantity) FROM {purchase_order_receiving_lines} t WHERE t.order_line_id = l.line_id), 0) GROUP BY l.item_id",
     ];
 
     private BaseConnection $db;

@@ -5314,7 +5314,11 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $page->assertDontSee('id="drafts_previous"');
         $page->assertDontSee('id="quotes_pager"');
         $this->assertStringContainsString(lang('Sales.documents_page_of', [1, 2, SaleDocumentList::PAGE_SIZE + 1]), $page->getBody());
-        $this->assertSame(SaleDocumentList::PAGE_SIZE, substr_count($page->getBody(), 'data-sale-id="'));
+        $body   = $page->getBody();
+        $start  = (int) strpos($body, 'id="drafts_table"');
+        $drafts = substr($body, $start, (int) strpos($body, '</table>', $start) - $start);
+
+        $this->assertSame(SaleDocumentList::PAGE_SIZE, substr_count($drafts, 'data-sale-id="'));
     }
 
     public function testGetDocuments_ShowsTheOlderDocumentsOnTheSecondPageAndKeepsTheOtherListAndTheFilter(): void

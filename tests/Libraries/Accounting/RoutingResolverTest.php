@@ -246,6 +246,7 @@ class RoutingResolverTest extends CIUnitTestCase
             'Libraries/Accounting/Readiness/RoutingChecks.php',
             'Libraries/Accounting/RoutingResolver.php',
             'Libraries/Accounting/RoutingService.php',
+            'Libraries/Accounting/ShippingCompanies.php',
             'Libraries/Accounting/TaxDefinitions.php',
             'Libraries/Accounting/TaxReport.php',
         ];

@@ -2,6 +2,7 @@
 
 namespace Tests\Support;
 
+use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
 /**
@@ -29,9 +30,51 @@ trait DatabaseFingerprintTrait
             }
         }
 
+        foreach ($this->tablesWithGeneratedColumns($db) as $table => $columns) {
+            if (isset($print[$table])) {
+                $print[$table]['checksum'] = $this->contentChecksum($db, $table, $columns);
+            }
+        }
+
         ksort($print);
 
         return $print;
+    }
+
+    /**
+     * CHECKSUM TABLE of a table with a generated column is not stable for the same rows, so such a
+     * table is fingerprinted by the content of its stored columns.
+     *
+     * @return array<string, list<string>> The stored columns of each table that has a generated one.
+     */
+    private function tablesWithGeneratedColumns(BaseConnection $db): array
+    {
+        $rows      = $db->query('SELECT TABLE_NAME AS t, COLUMN_NAME AS c, EXTRA AS e FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME, ORDINAL_POSITION')->getResultArray();
+        $stored    = [];
+        $generated = [];
+
+        foreach ($rows as $row) {
+            if (str_contains(strtoupper((string) $row['e']), 'GENERATED')) {
+                $generated[(string) $row['t']] = true;
+
+                continue;
+            }
+
+            $stored[(string) $row['t']][] = (string) $row['c'];
+        }
+
+        return array_intersect_key($stored, $generated);
+    }
+
+    /**
+     * @param list<string> $columns
+     */
+    private function contentChecksum(BaseConnection $db, string $table, array $columns): string
+    {
+        $parts = array_map(static fn (string $column): string => "IFNULL(CAST(`{$column}` AS CHAR), '\\0')", $columns);
+        $row   = $db->query('SELECT COALESCE(SUM(CRC32(CONCAT_WS(0x1f, ' . implode(', ', $parts) . '))), 0) AS c FROM `' . $table . '`')->getRow();
+
+        return (string) $row->c;
     }
 
     /**
