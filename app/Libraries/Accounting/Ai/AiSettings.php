@@ -5,6 +5,7 @@ namespace App\Libraries\Accounting\Ai;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Models\Appconfig;
@@ -67,7 +68,16 @@ final class AiSettings
         $this->guard  = $guard ?? new AccountingGuard();
     }
 
+    /**
+     * Whether the agent works: its switch is on and the books are on. Where accounting is off there is nothing for it
+     * to look at.
+     */
     public function isEnabled(): bool
+    {
+        return $this->isSwitchedOn() && (new AccountingSettings($this->db))->isEnabled();
+    }
+
+    public function isSwitchedOn(): bool
     {
         return $this->config->get_value(self::ENABLED_KEY, '0') === '1';
     }
@@ -78,7 +88,7 @@ final class AiSettings
     public function assertEnabled(): void
     {
         if (! $this->isEnabled()) {
-            throw new AccountingException(AccountingError::AiDisabled, 'The agent layer is switched off.');
+            throw new AccountingException(AccountingError::AiDisabled, 'The agent layer is switched off, or the books are.');
         }
     }
 
@@ -96,7 +106,7 @@ final class AiSettings
             $this->guard->require(AccountingGuard::AI_USE, $employeeId);
         }
 
-        if ($this->isEnabled() === $enabled) {
+        if ($this->isSwitchedOn() === $enabled) {
             return;
         }
 
