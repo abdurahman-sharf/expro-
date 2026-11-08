@@ -9,8 +9,13 @@ use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\FamilyReports\CostCenterReport;
 use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
 use App\Libraries\Accounting\FamilyReports\ReportTable;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalEntryType;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalSettings;
+use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\YearEndEntries;
 use Tests\Support\FamilyReportTestCase;
 
 /**
@@ -311,6 +316,42 @@ final class CostCenterReportTest extends FamilyReportTestCase
         $this->assertSame(lang('Accounting_family_reports.tie_cc_account'), $table->ties[0]->label);
         $this->assertAmount('-100.00', $table->ties[0]->book);
         $this->assertReportTies($table);
+    }
+
+    public function testBuild_LeavesTheJournalsThatCloseAYearOutAsTheTrialBalanceDoesAndStillTies(): void
+    {
+        [$a] = $this->twoCenters();
+
+        $this->journal('100.00', null, $a);
+
+        $closing = (new PostingService())->postYearEnd(new JournalDraft(
+            date: $this->today(),
+            lines: [new JournalLineDraft($this->accountId('sales_revenue'), debit: '100.00'), new JournalLineDraft($this->accountId('retained_earnings'), credit: '100.00')],
+            sourceType: YearEndEntries::SOURCE_TYPE,
+            sourceId: 900001,
+            currencyCode: 'SAR',
+            entryType: JournalEntryType::YearEnd,
+        ))->journalId;
+
+        (new PostingService())->postYearEnd(new JournalDraft(
+            date: $this->today(),
+            lines: [new JournalLineDraft($this->accountId('sales_revenue'), credit: '100.00'), new JournalLineDraft($this->accountId('retained_earnings'), debit: '100.00')],
+            sourceType: JournalDraft::SOURCE_REVERSAL,
+            sourceId: $closing,
+            currencyCode: 'SAR',
+            reversesJournalId: $closing,
+            entryType: JournalEntryType::YearEnd,
+        ));
+
+        $whole   = $this->built($this->report, $this->thisDay());
+        $revenue = $this->built($this->report, [...$this->thisDay(), 'account_id' => (string) $this->accountId('sales_revenue')]);
+
+        $this->assertAmount('100.00', $this->grandOf($whole, 'credit'));
+        $this->assertAmount('100.00', $this->grandOf($whole, 'debit'));
+        $this->assertAmount('100.00', $this->grandOf($revenue, 'credit'));
+        $this->assertAmount('0.00', $this->grandOf($revenue, 'debit'));
+        $this->assertReportTies($whole);
+        $this->assertReportTies($revenue);
     }
 
     public function testBuild_TakesTheReversalOfADistributedJournalBackToZeroForEveryCenter(): void

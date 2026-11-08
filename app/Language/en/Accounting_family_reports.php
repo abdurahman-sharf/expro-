@@ -191,7 +191,7 @@ return [
     'note_cc_assumption' => 'The columns and the groupings of this report are an assumption: the reference system was not seen with any cost center, so its own report was never observed.',
     'note_cc_excess' => 'A distribution over 100% counts more than its line. The excess is shown as a row of its own so that the totals still tie to the books.',
     'note_cc_narrowed' => 'A cost center, the lines without a cost center, or the journals of one person were asked for, so the totals are not compared with the trial balance.',
-    'note_cc_rule' => 'A line counts to the rows of its distribution; a line with none counts in full to its single cost center; a line with neither counts under no cost center. A distribution never changes a debit or a credit.',
+    'note_cc_rule' => 'A line counts to the rows of its distribution; a line with none counts in full to its single cost center; a line with neither counts under no cost center. A distribution never changes a debit or a credit. The journals that close a year are left out, as the trial balance and the statements leave them out.',
     'note_chart_balances' => 'Each account holds what the journals of the branches read put on it itself, debit less credit.',
     'note_chart_company' => 'The chart is the same for every branch.',
     'note_count_sheet' => 'Lists the stock items that hold stock; tick "also the items with no stock" to add the others. The count and note columns are left empty to write in.',

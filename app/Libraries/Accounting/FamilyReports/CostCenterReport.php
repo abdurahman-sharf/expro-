@@ -8,6 +8,7 @@ use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\TrialBalance;
+use App\Libraries\Accounting\YearEndEntries;
 use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
@@ -19,7 +20,8 @@ use Config\Database;
  * with none counts in full to its single cost center; a line with neither counts under no cost
  * center. The amounts of the shares add up to the line, so the centers and the lines with none add
  * up to the trial balance of the same branches and days; a distribution over 100 percent counts
- * more than its line, and the excess is a row of its own so that the total still ties. It reads the
+ * more than its line, and the excess is a row of its own so that the total still ties. The journals
+ * that close a year are left out, as the trial balance and the statements leave them out. It reads the
  * books and writes nothing. The columns are an assumption: no cost center existed in the account
  * the reference system was observed in.
  */
@@ -112,7 +114,7 @@ final class CostCenterReport implements FamilyReport
         if ($narrowed || $without || $input->journalOwner !== null) {
             $notes[] = $this->text('note_cc_narrowed');
         } elseif ($account > 0) {
-            $held   = $this->accounts->movement($under, $input->scope, $period->from, $period->to);
+            $held   = $this->accounts->movement($under, $input->scope, $period->from, $period->to, leaveOutYearEnd: true);
             $ties[] = new TieCheck($this->text('tie_cc_account'), bcsub($grand->cell('debit'), $grand->cell('credit'), SaleAmounts::SCALE), $held);
         } else {
             $totals = $input->scope->isEmpty() ? ['debit' => '0.0000', 'credit' => '0.0000'] : $this->trialBalance->build($input->scope, $period)->totals;
@@ -210,7 +212,7 @@ final class CostCenterReport implements FamilyReport
             $builder->where('j.created_by', $owner);
         }
 
-        return $builder;
+        return YearEndEntries::leaveOut($builder, $this->db);
     }
 
     private function bucket(string $group): string
