@@ -1375,7 +1375,7 @@
   {
     "name": "SC25 the register tells the problem of a value against the sale it holds",
     "file": "app/Controllers/Sales.php",
-    "find": "$fields->problem('sale', $kept, false, (int) $this->sale_lib->get_sale_id())",
+    "find": "$fields->problem('sale', $kept, false, (int) $this->session->get('sale_id'))",
     "replace": "$fields->problem('sale', $kept, false)",
     "tests": [
       "--filter",
@@ -1387,7 +1387,7 @@
   {
     "name": "SC26 the invoice shown after the sale carries the time of the sale for its code",
     "file": "app/Controllers/Sales.php",
-    "find": "$data['sale_time_raw'] = (string) $this->sale->get_info($data['sale_id_num'])->getRowArray()['sale_time'];",
+    "find": "$data['sale_time_raw'] = $this->sale->getSaleTime((int) $data['sale_id_num']);",
     "replace": "",
     "tests": [
       "--filter",
@@ -1591,6 +1591,18 @@
     "replace": "lang('Documents.purchase_number')",
     "tests": [
       "tests/helpers/DocumentHelperTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SM01 the time a sale was saved at is read from the sale",
+    "file": "app/Models/Sale.php",
+    "find": "return $row === null ? '' : (string) $row->sale_time;",
+    "replace": "return '';",
+    "tests": [
+      "--filter",
+      "testGetSaleTime_",
+      "tests/Models/SaleTest.php"
     ],
     "all": false
   }

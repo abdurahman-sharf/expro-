@@ -14,6 +14,7 @@ use App\Models\Appconfig;
 use App\Models\Price_list;
 use App\Models\Sale;
 use CodeIgniter\Database\Config;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -608,6 +609,36 @@ class SaleTest extends CIUnitTestCase
     public function testGetBranchId_ReturnsNullWhenThereIsNoSuchSale(): void
     {
         $this->assertNull(model(Sale::class)->getBranchId(999999999));
+    }
+
+    public function testGetSaleTime_ReadsTheTimeASaleWasSavedAtWithoutBuildingATemporaryTable(): void
+    {
+        $saleModel = model(Sale::class);
+        $saleId    = $this->saveSale(SALE_TYPE_INVOICE, []);
+
+        $saleModel->get_info($saleId);
+        $this->assertTrue($this->temporaryTableExists('sales_items_temp'), 'Reading a sale whole builds the temporary table.');
+        Database::connect()->query('DROP TEMPORARY TABLE IF EXISTS ' . Database::connect()->prefixTable('sales_items_temp'));
+
+        $time = $saleModel->getSaleTime($saleId);
+
+        $this->assertSame($this->theSaleRow($saleId)['sale_time'], $time);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $time);
+        $this->assertSame('', $saleModel->getSaleTime(999999999));
+        $this->assertFalse($this->temporaryTableExists('sales_items_temp'), 'Reading the time of a sale must leave no temporary table behind.');
+    }
+
+    private function temporaryTableExists(string $table): bool
+    {
+        $db = Database::connect();
+
+        try {
+            $db->query('SELECT 1 FROM ' . $db->prefixTable($table) . ' LIMIT 1');
+
+            return true;
+        } catch (DatabaseException) {
+            return false;
+        }
     }
 
     public function testIsDelivered_IsFalseOnlyForAnInvoiceWhoseGoodsHaveNotLeft(): void

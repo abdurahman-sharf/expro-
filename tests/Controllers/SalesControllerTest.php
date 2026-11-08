@@ -8232,6 +8232,22 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         return ['invoice' => ['invoice'], 'tax invoice' => ['tax_invoice'], 'quote' => ['quote'], 'work order' => ['work_order'], 'credit note' => ['credit_note'], 'packing slip' => ['packing_slip'], 'receipt' => ['receipt']];
     }
 
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function emailedDocumentProvider(): array
+    {
+        return array_diff_key(self::documentOfASaleProvider(), ['packing slip' => true]);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function printedDocumentProvider(): array
+    {
+        return array_diff_key(self::documentOfASaleProvider(), ['receipt' => true]);
+    }
+
     #[DataProvider('documentOfASaleProvider')]
     public function testGetPdf_RefusesASaleThatDoesNotExist(string $type): void
     {
@@ -8241,26 +8257,18 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->get('/sales/pdf/999999/' . $type)->assertStatus(404);
     }
 
-    #[DataProvider('documentOfASaleProvider')]
+    #[DataProvider('emailedDocumentProvider')]
     public function testGetSendPdf_RefusesASaleThatDoesNotExist(string $type): void
     {
-        if ($type === 'packing_slip') {
-            $this->markTestSkipped('A slip is never emailed.');
-        }
-
         $this->startSelling();
         $this->loginAs($this->createBranchLimitedSupervisor(1));
 
         $this->get('/sales/sendPdf/999999/' . $type)->assertStatus(404);
     }
 
-    #[DataProvider('documentOfASaleProvider')]
+    #[DataProvider('printedDocumentProvider')]
     public function testGetPrint_RefusesASaleThatDoesNotExist(string $type): void
     {
-        if ($type === 'receipt') {
-            $this->markTestSkipped('A receipt is not one of the documents of a sale to print.');
-        }
-
         $this->startSelling();
         $this->loginAs($this->createBranchLimitedSupervisor(1));
 
@@ -8451,6 +8459,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         [, $itemId] = $this->foreignRegister('USD', '3.75', 'sale_invoice', '375.00');
         $this->chooseCurrency('USD');
         $this->addToTheRegister($itemId);
+        $this->withSession(array_merge($this->session, Services::session()->get(), ['sales_customer' => $this->customerId]));
         $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
 
         try {

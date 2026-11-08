@@ -452,7 +452,7 @@ class Sales extends Secure_Controller
 
         $this->sale_lib->setCustomFields($kept);
 
-        return $this->response->setJSON(['success' => true, 'problem' => $fields->problem('sale', $kept, false, (int) $this->sale_lib->get_sale_id())]);
+        return $this->response->setJSON(['success' => true, 'problem' => $fields->problem('sale', $kept, false, (int) $this->session->get('sale_id'))]);
     }
 
     /**
@@ -1927,7 +1927,7 @@ class Sales extends Secure_Controller
                         $data['transaction_date'] = to_date(strtotime($timing['invoice_date']));
                     }
 
-                    $data['sale_time_raw'] = (string) $this->sale->get_info($data['sale_id_num'])->getRowArray()['sale_time'];
+                    $data['sale_time_raw'] = $this->sale->getSaleTime((int) $data['sale_id_num']);
                     $data['invoice_date_raw'] = $timing['invoice_date'];
                     $data['currency_code'] = $this->sale->getCurrencyCode((int) $data['sale_id_num']);
 

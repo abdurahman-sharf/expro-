@@ -1084,8 +1084,8 @@ class ExpensesControllerTest extends CIUnitTestCase
 
     public function testGetView_LinksTheVoucherOfAnExpenseThatWasPaidAndNotOfOneThatIsStillDue(): void
     {
-        $paid = $this->voucherExpense();
-        $due  = $this->voucherExpense(['payment_type' => 'Due']);
+        $paid = $this->voucherExpense(['description' => 'Rent of the second floor']);
+        $due  = $this->voucherExpense(['description' => 'Rent of the third floor', 'payment_type' => 'Due']);
         $this->actAsWith();
 
         $paidPage = $this->get('/expenses/view/' . $paid)->getBody();
