@@ -128,6 +128,18 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $page->assertSee('No tax number and no identification');
     }
 
+    public function testGetIndex_OffersNoSaveButtonToAManagerWhoWorksInSomeBranchesOnly(): void
+    {
+        $other = $this->createBranch('B2');
+
+        $this->manager([$other]);
+
+        $page = $this->get('/accounting_einvoicing');
+
+        $page->assertStatus(200);
+        $page->assertDontSee('id="einvoice_save"');
+    }
+
     public function testGetIndex_SaysTheLayerIsOffUntilItIsSwitchedOn(): void
     {
         $this->reader();

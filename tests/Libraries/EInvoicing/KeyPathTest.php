@@ -127,4 +127,20 @@ class KeyPathTest extends CIUnitTestCase
 
         KeyPath::check($directory . '/key.pem', [$directory]);
     }
+
+    public function testCheck_AcceptsADirectoryWhoseNameOnlyBeginsLikeAProtectedOne(): void
+    {
+        $protected = $this->temporaryDirectory();
+        $sibling   = $protected . '_keys';
+
+        mkdir($sibling, 0700);
+        file_put_contents($sibling . '/key.pem', 'x');
+
+        try {
+            $this->assertSame(realpath($sibling . '/key.pem'), KeyPath::check($sibling . '/key.pem', [$protected]));
+        } finally {
+            unlink($sibling . '/key.pem');
+            rmdir($sibling);
+        }
+    }
 }

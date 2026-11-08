@@ -101,4 +101,20 @@ class StampKeysTest extends CIUnitTestCase
 
         $this->assertSame(EInvoiceError::CertificateKeyMismatch, $this->refusal($first['key'], $second['certificate'])->error);
     }
+
+    public function testLoad_RejectsAnOpensslThatDoesNotOfferTheCurveOfTheStandard(): void
+    {
+        $pair = $this->generateKeyPair();
+
+        try {
+            StampKeys::load($pair['key'], $pair['certificate'], null, ['prime256v1', 'secp384r1']);
+            $this->fail('A key was loaded on an OpenSSL without the curve.');
+        } catch (EInvoiceException $failure) {
+            $this->assertSame(EInvoiceError::CurveUnsupported, $failure->error);
+            $this->assertStringContainsString('does not offer the curve', $failure->getMessage());
+        }
+
+        $this->assertFalse(StampKeys::curveAvailable(['prime256v1']));
+        $this->assertTrue(StampKeys::curveAvailable(['secp256k1']));
+    }
 }

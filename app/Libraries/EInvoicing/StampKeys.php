@@ -12,22 +12,26 @@ final class StampKeys
 {
     public const CURVE = 'secp256k1';
 
-    public static function curveAvailable(): bool
+    /**
+     * @param list<string>|null $curves The curves the OpenSSL offers, for a test; asked of OpenSSL when none is given.
+     */
+    public static function curveAvailable(?array $curves = null): bool
     {
-        return in_array(self::CURVE, openssl_get_curve_names() ?: [], true);
+        return in_array(self::CURVE, $curves ?? openssl_get_curve_names() ?: [], true);
     }
 
     /**
      * @param list<string>|null $protected The directories of the application, for a test that checks the refusal elsewhere.
+     * @param list<string>|null $curves    The curves the OpenSSL offers, for a test.
      *
      * @throws EInvoiceException
      */
-    public static function load(string $keyPath, string $certificatePath, ?array $protected = null): StampMaterial
+    public static function load(string $keyPath, string $certificatePath, ?array $protected = null, ?array $curves = null): StampMaterial
     {
         $keyFile         = KeyPath::check($keyPath, $protected);
         $certificateFile = KeyPath::check($certificatePath, $protected);
 
-        if (! self::curveAvailable()) {
+        if (! self::curveAvailable($curves)) {
             throw new EInvoiceException(EInvoiceError::CurveUnsupported, 'The installed OpenSSL does not offer the curve ' . self::CURVE . '.');
         }
 

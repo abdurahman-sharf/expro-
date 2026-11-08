@@ -9,7 +9,7 @@ namespace App\Libraries\EInvoicing;
  * certificate and the moment. A candidate: the policy identifier the standard's table mentions has no value
  * published in the documents read, and is not written. To be verified against the toolbox of the authority.
  */
-final class XadesStamp
+class XadesStamp
 {
     public const NS_SIG    = 'urn:oasis:names:specification:ubl:schema:xsd:CommonSignatureComponents-2';
     public const NS_SAC    = 'urn:oasis:names:specification:ubl:schema:xsd:SignatureAggregateComponents-2';

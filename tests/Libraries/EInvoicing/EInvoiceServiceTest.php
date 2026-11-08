@@ -30,6 +30,7 @@ use Tests\Support\EInvoiceSaleFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\WorkerRequestTrait;
 
 /**
  * Issuing the documents: the counter and the chain of hashes, the document that is stored once and never
@@ -47,6 +48,7 @@ class EInvoiceServiceTest extends CIUnitTestCase
     use EInvoiceSaleFixtureTrait;
     use ConcurrentDbRaceTrait;
     use DatabaseFingerprintTrait;
+    use WorkerRequestTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -510,6 +512,11 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(2, $this->countRows('einvoice_transport_log'));
         $this->assertSame('not_submitted', $this->service->submit($document->documentId, $this->clerk)->status);
         $this->assertSame('not_submitted', $this->service->submissionOf($document->documentId));
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'einvoice_document', 'entity_id' => $document->documentId, 'action' => 'submission_recorded'])->orderBy('audit_id', 'ASC')->get()->getRow();
+
+        $this->assertSame($this->clerk, (int) $entry->employee_id);
+        $this->assertSame('fake', json_decode((string) $entry->details, true)['transport']);
     }
 
     public function testSubmit_RequiresThePermissionAndTheBranchAndNamesNothingTheDocumentDoesNotHave(): void
@@ -669,5 +676,95 @@ class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame($off, $on);
         $this->assertSame($on, array_map(fn (int $id): array => $this->bookOf($id), $ids));
         $this->assertSame(3, $this->countRows('einvoice_documents'));
+    }
+
+    public function testIssueSale_CreatesTheCounterRowOfTheCompanyWhenItIsNotThere(): void
+    {
+        $this->accountingDb()->table('einvoice_counters')->where('company_id', 1)->delete();
+
+        $document = $this->issue();
+
+        $this->assertSame(1, $document->icv);
+        $this->assertSame(['icv' => 1, 'hash' => $document->hash], $this->counter());
+    }
+
+    public function testIssueSale_WritesTheAuditEntryOfTheDocumentWithItsCounterAndHash(): void
+    {
+        $document = $this->issue();
+
+        $entry   = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'einvoice_document', 'entity_id' => $document->documentId, 'action' => 'issued'])->get()->getRow();
+        $details = json_decode((string) $entry->details, true);
+
+        $this->assertSame($this->clerk, (int) $entry->employee_id);
+        $this->assertSame(1, (int) $entry->branch_id);
+        $this->assertSame(1, $details['icv']);
+        $this->assertSame($document->hash, $details['hash']);
+        $this->assertSame('sale:' . $document->sourceId, $details['source']);
+    }
+
+    public function testIssueSale_WaitsForTheLockOfTheCounterBeforeItTakesTheNextNumber(): void
+    {
+        $saleId = $this->referenceSale();
+        $db     = $this->accountingDb();
+
+        $db->transBegin();
+        $db->query('SELECT last_icv FROM ' . $db->prefixTable('einvoice_counters') . ' WHERE company_id = 1 FOR UPDATE');
+
+        try {
+            $request = $this->startWorkerRequest('issueEInvoice', (string) $saleId);
+
+            $this->waitUntilARequestWaitsForARowLock();
+
+            $this->assertSame(0, $this->countRows('einvoice_documents'));
+        } finally {
+            $db->transCommit();
+        }
+
+        $finished = $this->finishWorkerRequest($request);
+
+        $this->assertSame('1', $finished['output'], $finished['error']);
+        $this->assertSame(1, $this->countRows('einvoice_documents'));
+        $this->assertSame(1, $this->counter()['icv']);
+    }
+
+    public function testIssueDebitNote_RefusesANoteOfABranchTheEmployeeDoesNotWorkInAndStoresNothing(): void
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $other   = $this->createBranch('B2');
+        $invoice = $this->issue();
+        $clerk   = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+        $noteId  = (new SalesDebitNotes())->create(['customer_id' => $this->customerId, 'date' => $this->daysAgo(1), 'amount' => '100', 'tax_percent' => '15', 'note' => 'Freight', 'branch_id' => $other], $clerk);
+        $limited = $this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE], [1]);
+
+        try {
+            $this->service->issueDebitNote($noteId, 'a reason', $invoice->documentId, $limited);
+            $this->fail('A document of another branch was issued.');
+        } catch (BranchException $failure) {
+            $this->assertSame(BranchError::NotAllowed, $failure->error);
+        }
+
+        $this->assertSame(1, $this->countRows('einvoice_documents'));
+    }
+
+    public function testIssueDebitNote_RequiresThePermissionAndTheLayerAndAnExistingNote(): void
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $invoice = $this->issue();
+        $other   = $this->employeeWithGrants([AccountingGuard::JOURNALS_POST]);
+
+        try {
+            $this->service->issueDebitNote(1, 'reason', $invoice->documentId, $other);
+            $this->fail('A debit note was issued without the permission.');
+        } catch (AccountingException $failure) {
+            $this->assertSame(AccountingError::PermissionDenied, $failure->error);
+        }
+
+        $this->assertSame(EInvoiceError::SourceNotFound, $this->refusal(fn () => $this->service->issueDebitNote(987654321, 'reason', $invoice->documentId, $this->clerk))->error);
+
+        $this->configureEInvoicing([EInvoiceSettings::ENABLED => '0']);
+
+        $this->assertSame(EInvoiceError::Disabled, $this->refusal(fn () => $this->service->issueDebitNote(1, 'reason', $invoice->documentId, $this->clerk))->error);
     }
 }

@@ -240,10 +240,6 @@ final class EInvoiceService
             ->limit($limit);
 
         if ($branchIds !== null) {
-            if ($branchIds === []) {
-                return [];
-            }
-
             $builder->whereIn('branch_id', $branchIds);
         }
 

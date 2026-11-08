@@ -2,13 +2,18 @@
 
 namespace Tests\Libraries\EInvoicing;
 
+use App\Libraries\Documents\SimplifiedInvoiceQr;
 use App\Libraries\EInvoicing\DocumentStamper;
+use App\Libraries\EInvoicing\EcdsaSigner;
+use App\Libraries\EInvoicing\EInvoiceError;
+use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\EInvoiceSubtype;
 use App\Libraries\EInvoicing\InvoiceHash;
 use App\Libraries\EInvoicing\StampKeys;
 use App\Libraries\EInvoicing\StampMaterial;
 use App\Libraries\EInvoicing\StampVerifier;
 use App\Libraries\EInvoicing\UblInvoiceXml;
+use App\Libraries\EInvoicing\XadesStamp;
 use CodeIgniter\Test\CIUnitTestCase;
 use Tests\Support\EInvoiceFixtureTrait;
 
@@ -150,5 +155,28 @@ class DocumentStamperTest extends CIUnitTestCase
         $this->assertStringContainsString('<ds:X509IssuerName>' . htmlspecialchars($material->issuerName, ENT_XML1) . '</ds:X509IssuerName>', $stamped->xml);
         $this->assertStringContainsString('<ds:X509SerialNumber>' . $material->serialNumber . '</ds:X509SerialNumber>', $stamped->xml);
         $this->assertStringContainsString('<ds:X509Certificate>' . $material->certificateBase64 . '</ds:X509Certificate>', $stamped->xml);
+    }
+
+    public function testSigned_RefusesAFileWhoseHashIsNotTheHashThatWasSigned(): void
+    {
+        $stamp = new class () extends XadesStamp {
+            public function extensions(string $documentHash, string $signatureValue, string $certificate, string $signingTime, string $certificateDigest, string $issuerName, string $serialNumber, string $propertiesDigest): string
+            {
+                return '<cbc:Note>not an extension, so the hash of the file moves</cbc:Note>';
+            }
+
+            public function propertiesDigest(string $xml): string
+            {
+                return 'digest';
+            }
+        };
+
+        try {
+            (new DocumentStamper(new UblInvoiceXml(), new SimplifiedInvoiceQr(), new EcdsaSigner(), $stamp))->signed($this->simplifiedDocument(), $this->material(), '2022-08-17T14:41:08Z');
+            $this->fail('A file whose hash moved was stamped.');
+        } catch (EInvoiceException $failure) {
+            $this->assertSame(EInvoiceError::SigningFailed, $failure->error);
+            $this->assertStringContainsString('not the hash that was signed', $failure->getMessage());
+        }
     }
 }

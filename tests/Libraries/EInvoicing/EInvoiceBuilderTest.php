@@ -455,4 +455,94 @@ class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::SourceNotIssuable, $this->refusal(fn () => $this->builder->fromDebitNote($noteId, 'a reason', $original))->error);
         $this->assertSame(EInvoiceError::SourceNotFound, $this->refusal(fn () => $this->builder->fromDebitNote(987654321, 'a reason', $original))->error);
     }
+
+    public function testFromSale_RefusesATaxRateThatHasMoreThanTwoDecimals(): void
+    {
+        $item   = $this->item('0', false);
+        $saleId = $this->save([$this->line($item, 0, '1', '100')], [$this->taxRow($item, 0, 'VAT', '15.1250', 1, '15.13')]);
+
+        $refusal = $this->refusal(fn () => $this->builder->fromSale($saleId));
+
+        $this->assertSame(EInvoiceError::RateNotRepresentable, $refusal->error);
+        $this->assertSame('15.1250', $refusal->context['actual']);
+    }
+
+    public function testFromSale_RefusesATaxOfACategoryThatIsNotItsTaxableAmountTimesItsRate(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], [$this->tax($cycle['cream'], 0, '40.00'), $this->tax($cycle['perfume'], 1, '66.00')]);
+
+        $refusal = $this->refusal(fn () => $this->builder->fromSale($saleId));
+
+        $this->assertSame(EInvoiceError::RuleBroken, $refusal->error);
+        $this->assertSame('BR-CO-17', $refusal->context['rule']);
+        $this->assertSame('106.50', $refusal->context['expected']);
+        $this->assertSame('106.00', $refusal->context['actual']);
+    }
+
+    public function testFromSale_RefusesALineThatIsNotItsQuantityTimesItsPriceLessItsDiscountAfterRounding(): void
+    {
+        $item   = $this->item('0', false);
+        $saleId = $this->save([$this->line($item, 0, '1', '10.00')], [$this->tax($item, 0, '1.50')]);
+
+        $this->accountingDb()->table('sales_items')->where('sale_id', $saleId)->update(['invoice_discount_share' => '0.0050']);
+
+        $refusal = $this->refusal(fn () => $this->builder->fromSale($saleId));
+
+        $this->assertSame(EInvoiceError::RuleBroken, $refusal->error);
+        $this->assertSame('BR-KSA-EN16931-11', $refusal->context['rule']);
+        $this->assertSame(1, $refusal->context['line']);
+    }
+
+    public function testFromSale_RefusesALineThatComesToLessThanNothing(): void
+    {
+        $item   = $this->item('0', false);
+        $saleId = $this->save([$this->line($item, 0, '1', '10.00')], [$this->tax($item, 0, '1.50')]);
+
+        $this->accountingDb()->table('sales_items')->where('sale_id', $saleId)->update(['discount' => '150', 'discount_type' => PERCENT]);
+
+        $refusal = $this->refusal(fn () => $this->builder->fromSale($saleId));
+
+        $this->assertSame(EInvoiceError::RuleBroken, $refusal->error);
+        $this->assertSame('BR-24', $refusal->context['rule']);
+    }
+
+    public function testFromSale_RefusesATaxInvoiceToAnonymousBuyerAndOneToACustomerWithNoName(): void
+    {
+        $counter = $this->counterSale();
+
+        $this->assertSame(EInvoiceError::StandardNeedsCustomer, $this->refusal(fn () => $this->builder->fromSale($counter, EInvoiceSubtype::Standard))->error);
+
+        $this->makeBusinessCustomer(null, '311111111111113', '');
+        $this->accountingDb()->table('people')->where('person_id', $this->customerId)->update(['first_name' => '', 'last_name' => '']);
+
+        $named = $this->referenceSale($this->customerId);
+
+        $this->assertSame(EInvoiceError::BuyerNameMissing, $this->refusal(fn () => $this->builder->fromSale($named, EInvoiceSubtype::Standard))->error);
+    }
+
+    public function testFromSale_RefusesASaleWhoseLinesAreAllOfZeroQuantity(): void
+    {
+        $saleId = $this->referenceSale();
+
+        $this->accountingDb()->table('sales_items')->where('sale_id', $saleId)->update(['quantity_purchased' => '0']);
+
+        $this->assertSame(EInvoiceError::NothingToIssue, $this->refusal(fn () => $this->builder->fromSale($saleId))->error);
+    }
+
+    public function testFromDebitNote_RefusesANoteWhoseTotalIsNotItsAmountPlusItsTax(): void
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $clerk  = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+        $noteId = (new SalesDebitNotes())->create(['customer_id' => $this->customerId, 'date' => $this->daysAgo(2), 'amount' => '200', 'tax_percent' => '15', 'note' => 'x'], $clerk);
+
+        $this->accountingDb()->table('sales_debit_notes')->where('debit_note_id', $noteId)->update(['total' => '230.01']);
+
+        $refusal = $this->refusal(fn () => $this->builder->fromDebitNote($noteId, 'a reason', new OriginalReference(3, 'INV-3', EInvoiceSubtype::Simplified)));
+
+        $this->assertSame(EInvoiceError::TotalsDoNotTie, $refusal->error);
+        $this->assertSame('230.01', $refusal->context['expected']);
+        $this->assertSame('230.00', $refusal->context['actual']);
+    }
 }
