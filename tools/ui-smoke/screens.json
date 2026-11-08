@@ -1479,6 +1479,46 @@
       "id": "accounting-statements-balance-sheet-detail",
       "group": "accounting",
       "path": "/accounting_statements/balance_sheet?level=5&display=hide_zero&entities=1"
+    },
+    {
+      "id": "accounting-receivables-aged-ledger",
+      "group": "accounting",
+      "path": "/accounting_receivables/aged_ledger"
+    },
+    {
+      "id": "accounting-receivables-balances",
+      "group": "accounting",
+      "path": "/accounting_receivables/balances"
+    },
+    {
+      "id": "accounting-payables-aged-ledger",
+      "group": "accounting",
+      "path": "/accounting_payables/aged_ledger"
+    },
+    {
+      "id": "accounting-payables-balances",
+      "group": "accounting",
+      "path": "/accounting_payables/balances"
+    },
+    {
+      "id": "accounting-inventory-valuation",
+      "group": "accounting",
+      "path": "/accounting_reports/inventory_valuation"
+    },
+    {
+      "id": "accounting-tax-report",
+      "group": "accounting",
+      "path": "/accounting_reports/tax"
+    },
+    {
+      "id": "accounting-inter-branch",
+      "group": "accounting",
+      "path": "/accounting_treasuries/inter_branch"
+    },
+    {
+      "id": "accounting-year-end",
+      "group": "accounting",
+      "path": "/accounting_periods/year_end"
     }
   ]
 }

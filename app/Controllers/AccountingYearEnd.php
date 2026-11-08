@@ -59,7 +59,7 @@ class AccountingYearEnd extends AccountingController
             'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'        => fn (string $value): string => $this->formatDate($value),
             'status_text' => static fn (YearEndBranchPlan $plan): string => lang('Accounting_periods.year_end_status_' . $plan->status->value),
-            'csv_url'     => $yearId === null || $scope === '' ? null : base_url('accounting_periods/year_end/csv') . '?' . http_build_query(['year' => $yearId, 'scope' => $scope]),
+            'csvUrl'      => $yearId === null || $scope === '' ? null : base_url('accounting_periods/year_end/csv') . '?' . http_build_query(['year' => $yearId, 'scope' => $scope]),
         ]);
     }
 

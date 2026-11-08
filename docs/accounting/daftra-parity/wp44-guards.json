@@ -999,5 +999,208 @@
       "OffersThePagesOfAList",
       "tests/Controllers/SalesControllerTest.php"
     ]
+  },
+  {
+    "name": "G85 the page of drafts is counted for the documents the employee may read, not for the whole branch",
+    "file": "app/Controllers/Sales.php",
+    "find": "$lists->countDrafts($branchIds, $personId)",
+    "replace": "$lists->countDrafts($branchIds)",
+    "tests": [
+      "--filter",
+      "CountsAndPagesOnlyTheDocumentsOfAnEmployeeWhoSeesTheirOwnRecords",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G86 the page of quotes is counted for the documents the employee may read, not for the whole branch",
+    "file": "app/Controllers/Sales.php",
+    "find": "$lists->countQuotes($branchIds, $only, $personId)",
+    "replace": "$lists->countQuotes($branchIds, $only)",
+    "tests": [
+      "--filter",
+      "CountsAndPagesOnlyTheDocumentsOfAnEmployeeWhoSeesTheirOwnRecords",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G87 the count of drafts keeps the own-records limit of the reader",
+    "file": "app/Libraries/Accounting/SaleDocumentList.php",
+    "find": "return $this->count(self::DRAFTS, $branchIds, $viewerId);",
+    "replace": "return $this->count(self::DRAFTS, $branchIds, null);",
+    "tests": [
+      "--filter",
+      "CountDraftsAndCountQuotes_CountOnlyTheDocumentsAnEmployeeWhoSeesTheirOwnRecordsMade",
+      "tests/Libraries/Accounting/SaleDocumentListTest.php"
+    ]
+  },
+  {
+    "name": "G88 the count of quotes keeps the own-records limit of the reader",
+    "file": "app/Libraries/Accounting/SaleDocumentList.php",
+    "find": "return $this->count($this->quoteCondition($only), $branchIds, $viewerId);",
+    "replace": "return $this->count($this->quoteCondition($only), $branchIds, null);",
+    "tests": [
+      "--filter",
+      "CountDraftsAndCountQuotes_CountOnlyTheDocumentsAnEmployeeWhoSeesTheirOwnRecordsMade",
+      "tests/Libraries/Accounting/SaleDocumentListTest.php"
+    ]
+  },
+  {
+    "name": "G89 a table of two columns has its heading only at the top of the file or below a blank row",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "($index === 0 || $this->rows[$index - 1] === [])",
+    "replace": "true",
+    "tests": [
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php",
+      "--filter",
+      "HeaderIndex"
+    ]
+  },
+  {
+    "name": "G90 the heading of the bank statement file is the table and not the statement balance line",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "($index === 0 || $this->rows[$index - 1] === [])",
+    "replace": "true",
+    "tests": [
+      "--filter",
+      "GetReportXlsx_MakesTheHeadingOfTheFirstTable|GetReportPdf_RepeatsTheHeadingOfTheFirstTable",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "G91 the size of the type asked scales the text of the table of the PDF",
+    "file": "app/Libraries/Accounting/Export/ReportPdf.php",
+    "find": "'scale'   => $options->fontSize / ExportOptions::DEFAULT_FONT_SIZE,",
+    "replace": "'scale'   => 1,",
+    "tests": [
+      "--filter",
+      "DrawsTheTextOfTheTableInTheSizeAsked",
+      "tests/Libraries/Accounting/Export/ReportPdfTest.php"
+    ]
+  },
+  {
+    "name": "G92 the size of the type asked scales the title and the company of the PDF",
+    "file": "app/Views/documents/report.php",
+    "find": ".doc .doc-title-small { font-size: <?= round(16 * $scale, 2) ?>pt; }",
+    "replace": ".doc .doc-title-small { font-size: 16pt; }",
+    "tests": [
+      "--filter",
+      "DrawsTheTextOfTheTableInTheSizeAsked",
+      "tests/Libraries/Accounting/Export/ReportPdfTest.php"
+    ]
+  },
+  {
+    "name": "G93 a value of the bank statement address given more than once is not text",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "return is_string($value) ? trim($value) : '';",
+    "replace": "return trim((string) $value);",
+    "tests": [
+      "--filter",
+      "TreatsAnAddressThatGivesTheBalanceOrTheDayMoreThanOnce",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "G94 every file of the zip of a workbook has the checksum of its content",
+    "file": "app/Libraries/Accounting/Export/ZipWriter.php",
+    "find": "$checksum = crc32($content);",
+    "replace": "$checksum = 0;",
+    "tests": [
+      "tests/Libraries/Accounting/Export/ZipWriterTest.php"
+    ]
+  },
+  {
+    "name": "G95 a name of a file in the zip must be plain text",
+    "file": "app/Libraries/Accounting/Export/ZipWriter.php",
+    "find": "|| preg_match('/[^\\x20-\\x7E]/', $name) === 1",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "AddRejects",
+      "tests/Libraries/Accounting/Export/ZipWriterTest.php"
+    ]
+  },
+  {
+    "name": "G96 the record at the end of the zip counts its files",
+    "file": "app/Libraries/Accounting/Export/ZipWriter.php",
+    "find": "self::END_OF_ARCHIVE, 0, 0, $this->count, $this->count,",
+    "replace": "self::END_OF_ARCHIVE, 0, 0, 0, 0,",
+    "tests": [
+      "tests/Libraries/Accounting/Export/ZipWriterTest.php"
+    ]
+  },
+  {
+    "name": "G97 the Excel and PDF buttons of the activity log add the filters to their address",
+    "file": "app/Views/accounting_journals/audit.php",
+    "find": "$('#audit_export, #audit_export_xlsx, #audit_export_pdf').on('click'",
+    "replace": "$('#audit_export').on('click'",
+    "tests": [
+      "--filter",
+      "GetAudit_OffersTheLogAsCsvExcelAndPdfFiles",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G98 the activity log screen offers the Excel and PDF files beside the CSV",
+    "file": "app/Views/accounting_journals/audit.php",
+    "find": "<?= view('partial/report_files', ['csvUrl' => base_url('accounting_journals/audit/csv'), 'id' => 'audit_export']) ?>",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "GetAudit_OffersTheLogAsCsvExcelAndPdfFiles",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G99 the table of the aged ledger is marked to be stacked on a phone",
+    "file": "app/Views/accounting_parties/aged_ledger.php",
+    "find": "<table class=\"table table-sm acc-lines\" id=\"aged_ledger_table\">",
+    "replace": "<table class=\"table table-sm\" id=\"aged_ledger_table\">",
+    "tests": [
+      "tests/Views/StackedTablesTest.php"
+    ]
+  },
+  {
+    "name": "G100 the style sheet of the source stacks the rows of a marked table below the breakpoint",
+    "file": "resources/assets/css/37-accounting.css",
+    "find": "    .acc-lines,\n    .acc-lines tbody,\n    .acc-lines tr,\n    .acc-lines td {\n        display: block;\n        width: 100%;",
+    "replace": "    .acc-lines,\n    .acc-lines tbody,\n    .acc-lines tr,\n    .acc-lines td {\n        display: table-cell;\n        width: 100%;",
+    "tests": [
+      "--filter",
+      "Stylesheets_Stack",
+      "tests/Views/StackedTablesTest.php"
+    ]
+  },
+  {
+    "name": "G101 the style sheet that is served stacks the rows of a marked table below the breakpoint",
+    "file": "public/assets/css/app.css",
+    "find": "    .acc-lines,\n    .acc-lines tbody,\n    .acc-lines tr,\n    .acc-lines td {\n        display: block;\n        width: 100%;",
+    "replace": "    .acc-lines,\n    .acc-lines tbody,\n    .acc-lines tr,\n    .acc-lines td {\n        display: table-cell;\n        width: 100%;",
+    "tests": [
+      "--filter",
+      "Stylesheets_Stack",
+      "tests/Views/StackedTablesTest.php"
+    ]
+  },
+  {
+    "name": "G102 the script of the source labels the cells of the marked tables",
+    "file": "resources/assets/js/46-stacked-tables.js",
+    "find": "document.querySelectorAll('table.acc-lines').forEach(labelCells);",
+    "replace": "document.querySelectorAll('table.acc-lines-none').forEach(labelCells);",
+    "tests": [
+      "--filter",
+      "Scripts_Label",
+      "tests/Views/StackedTablesTest.php"
+    ]
+  },
+  {
+    "name": "G103 the script that is served labels the cells of the marked tables",
+    "file": "public/assets/js/app.js",
+    "find": "document.querySelectorAll('table.acc-lines').forEach(labelCells);",
+    "replace": "document.querySelectorAll('table.acc-lines-none').forEach(labelCells);",
+    "tests": [
+      "--filter",
+      "Scripts_Label",
+      "tests/Views/StackedTablesTest.php"
+    ]
   }
 ]

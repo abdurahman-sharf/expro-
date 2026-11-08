@@ -109,7 +109,7 @@ return [
     'documents_drafts_empty'            => 'لا توجد فواتير مسودة.',
     'documents_next'                    => 'التالي',
     'documents_note'                    => 'للمسودة رقم مؤقت ولا ترحّل شيئًا، وتأخذ رقم الفاتورة التالي عند إصدارها.',
-    'documents_page_of'                 => 'صفحة {0} من {1} ({2} مستندًا)',
+    'documents_page_of'                 => 'صفحة {0} من {1} (عدد المستندات: {2})',
     'documents_pager'                   => 'صفحات القائمة',
     'documents_previous'                => 'السابق',
     'documents_quotes'                  => 'عروض الأسعار',

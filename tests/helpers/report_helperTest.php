@@ -586,26 +586,4 @@ final class report_helperTest extends CIUnitTestCase
             $this->assertContains($route, $routes, $route . ' is exempt but is not a route');
         }
     }
-
-    public function testNavigationSearchIndex_OffersTheReportsOfTheBooksBehindTheirPermissionAndOnlyWhileAccountingIsOn(): void
-    {
-        helper('navigation');
-
-        $this->readingAs('every');
-        $this->setConfigValue('accounting_enabled', '1');
-
-        $modules = [(object) ['module_id' => 'reports']];
-        $urls    = static fn (array $permissions): array => array_column(array_filter(navigationSearchIndex($modules, $permissions), static fn (array $entry): bool => $entry['type'] === 'report'), 'url');
-
-        $cheques = $urls(['accounting_cheques']);
-
-        $this->assertContains(site_url('accounting_cheques/report/received'), $cheques);
-        $this->assertNotContains(site_url('accounting_statements/income_statement'), $cheques);
-        $this->assertContains(site_url('accounting_statements/income_statement'), $urls(['accounting_reports']));
-        $this->assertContains(site_url('accounting_receivables/aged_ledger'), $urls(['accounting_receivables']));
-
-        $this->setConfigValue('accounting_enabled', '0');
-
-        $this->assertSame([], $urls(['accounting_cheques', 'accounting_reports', 'accounting_receivables']));
-    }
 }

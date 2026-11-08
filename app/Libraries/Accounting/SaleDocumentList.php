@@ -17,8 +17,7 @@ use Config\Database;
 final class SaleDocumentList
 {
     public const PAGE_SIZE = 50;
-
-    private const DRAFTS = 's.sale_type = ' . SALE_TYPE_INVOICE;
+    private const DRAFTS   = 's.sale_type = ' . SALE_TYPE_INVOICE;
 
     private BaseConnection $db;
 

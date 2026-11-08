@@ -14,6 +14,7 @@ use Config\Services;
 use ReflectionClass;
 use Tests\Support\AccountingControllerFixtureTrait;
 use Tests\Support\ReportFixtureTrait;
+use Tests\Support\CsvResponseTrait;
 
 /**
  * @internal
@@ -23,6 +24,7 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use AccountingControllerFixtureTrait;
     use ReportFixtureTrait;
+    use CsvResponseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -613,28 +615,6 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
 
         $this->assertFalse($this->jsonOf($this->post('/accounting_periods/year_end/reverse/' . $closing, ['reason' => 'Why']))['success']);
         $this->assertSame('active', $this->accountingDb()->table('accounting_year_end_closings')->where('closing_id', $closing)->get()->getRow()->status);
-    }
-
-    /**
-     * @return list<list<string>>
-     */
-    private function csvRows(\CodeIgniter\Test\TestResponse $response): array
-    {
-        $body = $response->response()->getBody();
-
-        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-
-        $handle = fopen('php://temp', 'r+b');
-        fwrite($handle, substr($body, 3));
-        rewind($handle);
-
-        $rows = [];
-
-        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
-            $rows[] = $row === [null] ? [] : $row;
-        }
-
-        return $rows;
     }
 
     public function testGetCsv_GivesThePreviewOfTheScreenWithTheLinesAndTheResultOfEachBranch(): void

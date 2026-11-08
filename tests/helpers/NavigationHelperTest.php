@@ -2,15 +2,43 @@
 
 namespace Tests\Helpers;
 
+use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
+use CodeIgniter\Test\DatabaseTestTrait;
+use Tests\Support\AccountingFixtureTrait;
 
 class NavigationHelperTest extends CIUnitTestCase
 {
+    use DatabaseTestTrait;
+    use AccountingFixtureTrait;
+
+    protected $migrate     = true;
+    protected $migrateOnce = true;
+    protected $seedOnce    = true;
+    protected $refresh     = false;
+    protected $namespace   = null;
+
+    private static bool $doneBootstrap = false;
+
     protected function setUp(): void
     {
+        if (self::$doneBootstrap === false) {
+            Config::seeder($this->DBGroup)->call('App\Database\Seeds\TestDatabaseBootstrapSeeder');
+            Config::connect($this->DBGroup)->close();
+
+            self::$doneBootstrap = true;
+        }
+
         parent::setUp();
 
         helper('navigation');
+    }
+
+    protected function tearDown(): void
+    {
+        session()->remove('person_id');
+
+        parent::tearDown();
     }
 
     private function modules(string ...$moduleIds): array
@@ -149,5 +177,34 @@ class NavigationHelperTest extends CIUnitTestCase
         $entries = navigationSearchIndex($this->modules('sales'), []);
 
         $this->assertNotContains('setting', array_column($entries, 'type'));
+    }
+
+    public function testNavigationSearchIndex_OffersTheReportsOfTheBooksBehindTheirPermissionAndOnlyWhileAccountingIsOn(): void
+    {
+        session()->set('person_id', $this->employeeWithGrants([], null));
+
+        $previous = $this->accountingDb()->table('app_config')->where('key', 'accounting_enabled')->get()->getRow();
+
+        $this->setConfigValue('accounting_enabled', '1');
+
+        try {
+            $modules = $this->modules('reports');
+            $urls    = static fn (array $permissions): array => array_column(array_filter(navigationSearchIndex($modules, $permissions), static fn (array $entry): bool => $entry['type'] === 'report'), 'url');
+
+            $cheques = $urls(['accounting_cheques']);
+
+            $this->assertContains(site_url('accounting_cheques/report/received'), $cheques);
+            $this->assertNotContains(site_url('accounting_statements/income_statement'), $cheques);
+            $this->assertContains(site_url('accounting_statements/income_statement'), $urls(['accounting_reports']));
+            $this->assertContains(site_url('accounting_receivables/aged_ledger'), $urls(['accounting_receivables']));
+
+            $this->setConfigValue('accounting_enabled', '0');
+
+            $this->assertSame([], $urls(['accounting_cheques', 'accounting_reports', 'accounting_receivables']));
+        } finally {
+            $previous === null
+                ? $this->accountingDb()->table('app_config')->where('key', 'accounting_enabled')->delete()
+                : $this->setConfigValue('accounting_enabled', (string) $previous->value);
+        }
     }
 }

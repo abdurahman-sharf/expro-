@@ -3,13 +3,13 @@
 namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AgedLedgerTable;
 use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\DebitNoteList;
-use App\Libraries\Accounting\PaymentStatus;
-use App\Libraries\Accounting\ScopedReportRequest;
-use App\Libraries\Accounting\AgedLedgerTable;
 use App\Libraries\Accounting\PartyReportCsv;
 use App\Libraries\Accounting\PartyReportQuery;
+use App\Libraries\Accounting\PaymentStatus;
+use App\Libraries\Accounting\ScopedReportRequest;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\SupplierBalanceReport;
 use App\Libraries\Accounting\SupplierLedger;
@@ -213,7 +213,7 @@ class AccountingPayables extends AccountingController
             'statement_url' => static fn (int $partyId): string => base_url('accounting_payables/supplier/' . $partyId . '?to=' . $query->day()),
             'table'         => new AgedLedgerTable($query->day(), $query->days, $this->ledger->agedLedger($query->day(), $query->days)),
             'query'         => $query,
-            'csv_url'       => base_url('accounting_payables/aged_ledger/csv') . '?' . http_build_query($query->agingFilters()),
+            'csvUrl'        => base_url('accounting_payables/aged_ledger/csv') . '?' . http_build_query($query->agingFilters()),
             'error'         => $query->refusal === null ? null : $this->messageFor($query->refusal),
             'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'          => fn (string $value): string => $this->formatDate($value),
@@ -274,7 +274,7 @@ class AccountingPayables extends AccountingController
             'statement_url' => static fn (int $partyId): string => base_url('accounting_payables/supplier/' . $partyId),
             'table'         => $this->balances->build($query->period, ! $query->showEmpty),
             'query'         => $query,
-            'csv_url'       => base_url('accounting_payables/balances/csv') . '?' . http_build_query($query->balanceFilters()),
+            'csvUrl'        => base_url('accounting_payables/balances/csv') . '?' . http_build_query($query->balanceFilters()),
             'error'         => $query->refusal === null ? null : $this->messageFor($query->refusal),
             'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'          => fn (string $value): string => $this->formatDate($value),

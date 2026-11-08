@@ -13,7 +13,7 @@
  * @var Closure               $amount
  * @var Closure               $date
  * @var Closure               $status_text
- * @var string|null           $csv_url
+ * @var string|null           $csvUrl
  */
 
 use App\Libraries\Accounting\YearEndBranchPlan;
@@ -137,10 +137,10 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
                         </div>
                     <?php endforeach; ?>
 
-                    <?php if ($csv_url !== null): ?>
+                    <?php if ($csvUrl !== null): ?>
                         <div class="print_hide mb-3 clearfix" id="year_end_files">
-                            <a class="btn btn-outline-secondary btn-sm float-end" id="year_end_csv" href="<?= esc($csv_url, 'attr') ?>"><span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?></a>
-                            <?= view('partial/report_files', ['csvUrl' => $csv_url, 'id' => 'year_end_csv']) ?>
+                            <a class="btn btn-outline-secondary btn-sm float-end" id="year_end_csv" href="<?= esc($csvUrl, 'attr') ?>"><span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?></a>
+                            <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'year_end_csv']) ?>
                             <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()"><span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?></button>
                         </div>
                     <?php endif; ?>

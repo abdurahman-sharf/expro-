@@ -16,6 +16,7 @@ use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\ReportFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\StatementFixtureTrait;
+use Tests\Support\CsvResponseTrait;
 
 /**
  * The screens of the income statement and the balance sheet: who may open them, which branches each
@@ -28,6 +29,7 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
     use AccountingControllerFixtureTrait;
     use ReportFixtureTrait;
     use StatementFixtureTrait;
+    use CsvResponseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -1122,28 +1124,6 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
         $response->assertSee('id="other_statement"');
         $response->assertSee('accounting_statements/balance_sheet');
         $response->assertSee('href="' . base_url('accounting_reports') . '"');
-    }
-
-    /**
-     * @return list<list<string>>
-     */
-    private function csvRows(TestResponse $response): array
-    {
-        $body = $response->response()->getBody();
-
-        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-
-        $handle = fopen('php://temp', 'r+b');
-        fwrite($handle, substr($body, 3));
-        rewind($handle);
-
-        $rows = [];
-
-        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
-            $rows[] = $row === [null] ? [] : $row;
-        }
-
-        return $rows;
     }
 
     /**

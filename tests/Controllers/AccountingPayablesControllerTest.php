@@ -22,6 +22,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\CsvResponseTrait;
 
 /**
  * The screen of supplier balances and aging: who may open it, what it lists, and that what it
@@ -37,6 +38,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use CsvResponseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -1760,28 +1762,6 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $this->expectException(PageNotFoundException::class);
 
         $this->post('/accounting_payables/refund/' . $this->supplierId, ['amount' => '10', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Cash']);
-    }
-
-    /**
-     * @return list<list<string>>
-     */
-    private function csvRows(\CodeIgniter\Test\TestResponse $response): array
-    {
-        $body = $response->response()->getBody();
-
-        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-
-        $handle = fopen('php://temp', 'r+b');
-        fwrite($handle, substr($body, 3));
-        rewind($handle);
-
-        $rows = [];
-
-        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
-            $rows[] = $row === [null] ? [] : $row;
-        }
-
-        return $rows;
     }
 
     public function testGetAgedLedgerCsv_GivesTheRowsAndTheTotalsOfTheScreenForTheSameFilters(): void

@@ -189,7 +189,7 @@ class AccountingStatements extends AccountingController
     }
 
     /**
-     * @param resource                         $handle
+     * @param resource                            $handle
      * @param list<array{string, string, string}> $extra
      */
     private function sectionRows($handle, StatementSection $section, string $heading, string $totalLabel, string $total, array $extra = []): void

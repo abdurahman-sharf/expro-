@@ -28,6 +28,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\ShippingTaxOption;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RoleService;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Models\Price_list;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -5273,6 +5274,40 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         foreach (['abc', '-3', '0', '2.5', ''] as $value) {
             $this->assertStringContainsString(lang('Sales.documents_page_of', [1, 2, SaleDocumentList::PAGE_SIZE + 1]), $this->get('/sales/documents?drafts_page=' . $value)->getBody(), 'Page ' . $value);
         }
+    }
+
+    public function testGetDocuments_CountsAndPagesOnlyTheDocumentsOfAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $supervisor = $this->supervisorForDocuments();
+
+        $this->suspendedRows(SaleDocumentList::PAGE_SIZE + 1, SALE_TYPE_INVOICE);
+        $this->suspendedRows(SaleDocumentList::PAGE_SIZE + 1, SALE_TYPE_QUOTE);
+
+        $fixtureEmployee  = $this->employeeId;
+        $this->employeeId = $supervisor;
+
+        try {
+            $this->suspendedRows(2, SALE_TYPE_INVOICE);
+            $this->suspendedRows(3, SALE_TYPE_QUOTE);
+        } finally {
+            $this->employeeId = $fixtureEmployee;
+        }
+
+        $everything = $this->get('/sales/documents');
+
+        $everything->assertSee('id="drafts_pager"');
+        $everything->assertSee('id="quotes_pager"');
+
+        (new RoleService())->setRecordScope($supervisor, 'own', null);
+        $this->forgetRoleGrants();
+
+        $own = $this->get('/sales/documents');
+
+        $own->assertDontSee('id="drafts_pager"');
+        $own->assertDontSee('id="quotes_pager"');
+        $this->assertSame(5, substr_count($own->getBody(), 'data-sale-id="'));
+        $this->assertStringNotContainsString(lang('Sales.documents_page_of', [1, 2, SaleDocumentList::PAGE_SIZE + 3]), $own->getBody());
+        $this->assertStringNotContainsString(lang('Sales.documents_page_of', [1, 2, SaleDocumentList::PAGE_SIZE + 4]), $own->getBody());
     }
 
     public function testGetDocuments_OffersNoPagerWhileEveryDocumentFitsOnOnePage(): void

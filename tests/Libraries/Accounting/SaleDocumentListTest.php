@@ -368,4 +368,30 @@ class SaleDocumentListTest extends CIUnitTestCase
         $this->assertEqualsCanonicalizing([$draft, $theirDraft], $this->ids($this->list->drafts(null, $previous)));
         $this->assertEqualsCanonicalizing([$quote, $theirQuote], $this->ids($this->list->quotes(null, null, $previous)));
     }
+
+    public function testCountDraftsAndCountQuotes_CountOnlyTheDocumentsAnEmployeeWhoSeesTheirOwnRecordsMade(): void
+    {
+        $this->inBranch(1);
+        $this->inBranch(1, 'quote');
+        $other    = $this->createEmployee();
+        $previous = $this->employeeId;
+
+        $this->employeeId = $other;
+
+        try {
+            $this->inBranch(1);
+            $this->inBranch(1, 'quote');
+            $this->inBranch(1, 'quote');
+        } finally {
+            $this->employeeId = $previous;
+        }
+
+        (new RoleService())->setRecordScope($other, 'own', null);
+
+        $this->assertSame(1, $this->list->countDrafts(null, $other));
+        $this->assertSame(2, $this->list->countQuotes(null, null, $other));
+        $this->assertSame(2, $this->list->countDrafts(null, $previous));
+        $this->assertSame(3, $this->list->countQuotes(null, null, $previous));
+        $this->assertSame(2, $this->list->countDrafts(null));
+    }
 }

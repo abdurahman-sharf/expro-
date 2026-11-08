@@ -3,20 +3,23 @@
 namespace Tests\Filters;
 
 use App\Filters\ReportExport;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\Export\ExportOptions;
 use App\Libraries\Accounting\Export\ReportExporter;
+use App\Libraries\Accounting\Export\ReportPdf;
 use App\Libraries\Accounting\Export\ReportSheet;
 use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\Response;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
-use CodeIgniter\Test\TestResponse;
 use Config\App;
 use Config\Services;
 use DOMDocument;
 use DOMXPath;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingControllerFixtureTrait;
+use Tests\Support\CsvResponseTrait;
 use Tests\Support\ReportFixtureTrait;
 use Tests\Support\WorkbookPartsTrait;
 
@@ -31,6 +34,7 @@ class ReportExportTest extends CIUnitTestCase
     use AccountingControllerFixtureTrait;
     use ReportFixtureTrait;
     use WorkbookPartsTrait;
+    use CsvResponseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -69,7 +73,7 @@ class ReportExportTest extends CIUnitTestCase
         $personId = $this->employeeWithGrants([
             'accounting_reports', 'accounting_treasuries', 'accounting_journals', 'acc_journals_all', 'accounting_chart', 'receipt_vouchers',
             'reports_sales', 'reports_items', 'reports_categories', 'reports_customers', 'reports_employees', 'reports_payments',
-            'reports_receivings', 'reports_suppliers', 'reports_inventory', 'reports_expenses_categories', ...$extra,
+            'reports_receivings', 'reports_suppliers', 'reports_inventory', 'reports_expenses_categories', AccountingGuard::JOURNALS_AUDIT, ...$extra,
         ], $branchIds);
 
         $this->actAs($personId);
@@ -82,28 +86,6 @@ class ReportExportTest extends CIUnitTestCase
         $this->cashSale('2026-10-05', 1, '1111.00');
         $this->cashSale('2026-10-05', $this->second, '2222.00');
         $this->cashSale('2026-10-05', $this->third, '4444.00');
-    }
-
-    /**
-     * @return list<list<string>>
-     */
-    private function csvGrid(TestResponse $response): array
-    {
-        $body = $response->response()->getBody();
-
-        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-
-        $handle = fopen('php://temp', 'r+b');
-        fwrite($handle, substr($body, 3));
-        rewind($handle);
-
-        $rows = [];
-
-        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
-            $rows[] = $row === [null] ? [] : $row;
-        }
-
-        return $rows;
     }
 
     /**
@@ -219,6 +201,7 @@ class ReportExportTest extends CIUnitTestCase
             'supplier balances'        => $family('supplier_balances', '?from=2026-10-01&to=2026-10-31'),
             'stock balance'            => $family('stock_balance'),
             'balances between branches' => ['/accounting_treasuries/inter_branch/csv?as_of=2026-10-31', false],
+            'activity log'             => ['/accounting_journals/audit/csv?date_from=2026-10-01&date_to=2026-10-31', false],
         ];
     }
 
@@ -230,7 +213,7 @@ class ReportExportTest extends CIUnitTestCase
         foreach ([null, [1, $this->second]] as $branches) {
             $this->viewer($branches);
 
-            $csv  = $this->csvGrid($this->get($this->address($csvAddress)));
+            $csv  = $this->csvRows($this->get($this->address($csvAddress)));
             $xlsx = $this->workbookGrid($this->workbookOf(str_replace('/csv', '/xlsx', $this->address($csvAddress))));
 
             $this->assertNotSame([], $csv, 'The report has rows');
@@ -270,6 +253,32 @@ class ReportExportTest extends CIUnitTestCase
         if ($showsBranches) {
             $this->assertStringNotContainsString('4444', $text, 'The third branch is not in the file');
             $this->assertStringNotContainsString('7777', $text, 'The company is not in the file');
+        }
+    }
+
+    #[DataProvider('reports')]
+    public function testAfter_FeedsThePdfOnlyTheRowsOfTheCsvOfALimitedEmployeeWithoutNeedingATextExtractor(string $csvAddress, bool $showsBranches): void
+    {
+        $this->threeBranches();
+        $this->viewer([1, $this->second]);
+
+        $csv   = $this->csvRows($this->get($this->address($csvAddress)));
+        $sheet = new ReportSheet('', $csv);
+        $html  = (new ReportPdf())->html($sheet, new ExportOptions());
+
+        $this->assertNotSame([], $csv);
+
+        foreach ($csv as $row) {
+            foreach ($row as $cell) {
+                if ($cell !== '') {
+                    $this->assertStringContainsString(htmlspecialchars($cell, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $html, 'A cell of the CSV is in the page of the PDF');
+                }
+            }
+        }
+
+        if ($showsBranches) {
+            $this->assertStringNotContainsString('4444', $html, 'The third branch is not in the page');
+            $this->assertStringNotContainsString('7777', $html, 'The company is not in the page');
         }
     }
 

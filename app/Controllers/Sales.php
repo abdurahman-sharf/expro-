@@ -1024,7 +1024,7 @@ class Sales extends Secure_Controller
                 'drafts' => ['page' => $draftPage, 'pages' => SaleDocumentList::pages($draftTotal), 'total' => $draftTotal],
                 'quotes' => ['page' => $quotePage, 'pages' => SaleDocumentList::pages($quoteTotal), 'total' => $quoteTotal],
             ],
-            'page_url'     => fn (string $list, int $target): string => $this->documentsUrl($only, $list === 'drafts' ? $target : $draftPage, $list === 'quotes' ? $target : $quotePage),
+            'pageUrl' => fn (string $list, int $target): string => $this->documentsUrl($only, $list === 'drafts' ? $target : $draftPage, $list === 'quotes' ? $target : $quotePage),
         ]);
     }
 

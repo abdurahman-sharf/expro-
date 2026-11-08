@@ -15,7 +15,6 @@ use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
-use CodeIgniter\Test\TestResponse;
 use Config\Database;
 use DOMDocument;
 use DOMXPath;
@@ -24,6 +23,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\BankFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\CsvResponseTrait;
 use Tests\Support\WorkbookPartsTrait;
 
 /**
@@ -40,6 +40,7 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
     use BankFixtureTrait;
     use DatabaseFingerprintTrait;
     use WorkbookPartsTrait;
+    use CsvResponseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -1027,28 +1028,6 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
         foreach (glob(APPPATH . 'Views/accounting_bank/*.php') as $file) {
             $this->assertDoesNotMatchRegularExpression('/https?:\/\//', (string) file_get_contents($file), basename($file));
         }
-    }
-
-    /**
-     * @return list<list<string>>
-     */
-    private function csvRows(TestResponse $response): array
-    {
-        $body = $response->response()->getBody();
-
-        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-
-        $handle = fopen('php://temp', 'r+b');
-        fwrite($handle, substr($body, 3));
-        rewind($handle);
-
-        $rows = [];
-
-        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
-            $rows[] = $row === [null] ? [] : $row;
-        }
-
-        return $rows;
     }
 
     public function testGetReportCsv_GivesBothSidesTheDifferenceAndTheOpenLinesOfTheScreen(): void

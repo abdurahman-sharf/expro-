@@ -30,6 +30,7 @@ use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\CsvResponseTrait;
 
 /**
  * The screen of customer balances and aging: who may open it, what it lists, and that what it
@@ -44,6 +45,7 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
+    use CsvResponseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -2371,28 +2373,6 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $page->assertDontSee('id="statement_credit_period"');
 
         $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '0');
-    }
-
-    /**
-     * @return list<list<string>>
-     */
-    private function csvRows(\CodeIgniter\Test\TestResponse $response): array
-    {
-        $body = $response->response()->getBody();
-
-        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-
-        $handle = fopen('php://temp', 'r+b');
-        fwrite($handle, substr($body, 3));
-        rewind($handle);
-
-        $rows = [];
-
-        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
-            $rows[] = $row === [null] ? [] : $row;
-        }
-
-        return $rows;
     }
 
     public function testGetAgedLedgerCsv_GivesTheRowsAndTheTotalsOfTheScreenForTheSameFilters(): void

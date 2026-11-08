@@ -67,7 +67,7 @@ $entityLabel = static function (string $entity): string {
             $('#a_preset').val('');
         });
 
-        $('#audit_export').on('click', function(event) {
+        $('#audit_export, #audit_export_xlsx, #audit_export_pdf').on('click', function(event) {
             event.preventDefault();
             const query = $.param({
                 date_from: $('#a_date_from').val(),
@@ -79,7 +79,7 @@ $entityLabel = static function (string $entity): string {
                 employee_id: $('#a_employee').val(),
                 branch_id: $('#a_branch').val() || ''
             });
-            window.location.href = <?= json_encode(base_url('accounting_journals/audit/csv'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + '?' + query;
+            window.location.href = this.getAttribute('href').split('?')[0] + '?' + query;
         });
     });
 </script>
@@ -91,6 +91,7 @@ $entityLabel = static function (string $entity): string {
     <a id="audit_export" class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_journals/audit/csv'), 'attr') ?>">
         <span class="bi bi-download" aria-hidden="true">&nbsp;</span><?= lang('Accounting_journals.audit_export') ?>
     </a>
+    <?= view('partial/report_files', ['csvUrl' => base_url('accounting_journals/audit/csv'), 'id' => 'audit_export']) ?>
 </div>
 
 <?= view('accounting_journals/audit_tabs', ['active' => 'log']) ?>

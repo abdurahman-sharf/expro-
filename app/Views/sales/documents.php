@@ -6,7 +6,7 @@
  * @var list<QuoteStatus> $statuses
  * @var bool              $show_branch
  * @var array             $paging
- * @var Closure           $page_url
+ * @var Closure           $pageUrl
  * @var array             $config
  */
 
@@ -72,7 +72,7 @@ $badges = [
                 </tbody>
             </table>
         </div>
-        <?= view('sales/documents_pager', ['list' => 'drafts', 'paging' => $paging['drafts'], 'page_url' => $page_url]) ?>
+        <?= view('sales/documents_pager', ['list' => 'drafts', 'paging' => $paging['drafts'], 'pageUrl' => $pageUrl]) ?>
     <?php endif; ?>
 
     <h2 class="h5 mt-4"><?= lang('Sales.documents_quotes') ?></h2>
@@ -127,7 +127,7 @@ $badges = [
                 </tbody>
             </table>
         </div>
-        <?= view('sales/documents_pager', ['list' => 'quotes', 'paging' => $paging['quotes'], 'page_url' => $page_url]) ?>
+        <?= view('sales/documents_pager', ['list' => 'quotes', 'paging' => $paging['quotes'], 'pageUrl' => $pageUrl]) ?>
     <?php endif; ?>
 </div>
 

@@ -20,6 +20,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\CsvResponseTrait;
 
 /**
  * The screen of the balances between branches: who may open it and what it shows each employee, the
@@ -34,6 +35,7 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use CsvResponseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -592,28 +594,6 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
     private function jsonOf(TestResponse $response): array
     {
         return json_decode($response->getJSON(), true);
-    }
-
-    /**
-     * @return list<list<string>>
-     */
-    private function csvRows(\CodeIgniter\Test\TestResponse $response): array
-    {
-        $body = $response->response()->getBody();
-
-        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-
-        $handle = fopen('php://temp', 'r+b');
-        fwrite($handle, substr($body, 3));
-        rewind($handle);
-
-        $rows = [];
-
-        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
-            $rows[] = $row === [null] ? [] : $row;
-        }
-
-        return $rows;
     }
 
     public function testGetCsv_GivesThePairsWithWhatEachOwesAndTheBasisOfTheScreen(): void

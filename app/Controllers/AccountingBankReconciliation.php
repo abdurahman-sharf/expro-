@@ -437,7 +437,7 @@ class AccountingBankReconciliation extends AccountingController
     private function reportCsv(object $treasury, ReconciliationFigures $figures): string
     {
         $handle  = fopen('php://temp', 'r+b');
-        $pair    = fn (string $label, int $count, string $total): array => [$label . ' (' . $count . ')', $total];
+        $pair    = static fn (string $label, int $count, string $total): array => [$label . ' (' . $count . ')', $total];
         $journal = fn (object $line): array => [(string) $line->journal_date, $this->displayNumber((string) $line->series, (string) $line->number), (string) $line->description, (string) $line->amount];
 
         $this->csvRow($handle, [lang('Accounting_bank.report_title', [(string) $treasury->name])]);

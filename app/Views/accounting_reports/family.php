@@ -14,8 +14,8 @@
  * @var string|null                $scope_label
  * @var int                        $page
  * @var int                        $pages
- * @var string                     $csv_url
- * @var Closure                    $page_url
+ * @var string                     $csvUrl
+ * @var Closure                    $pageUrl
  * @var Closure                    $amount
  * @var Closure                    $quantity
  * @var Closure                    $date
@@ -75,10 +75,10 @@ $head = static function (array $columns): string {
     <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
-    <a class="btn btn-outline-secondary btn-sm float-end" id="export_csv" href="<?= esc($csv_url, 'attr') ?>">
+    <a class="btn btn-outline-secondary btn-sm float-end" id="export_csv" href="<?= esc($csvUrl, 'attr') ?>">
         <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_family_reports.csv') ?>
     </a>
-    <?= view('partial/report_files', ['csvUrl' => $csv_url, 'id' => 'export_csv']) ?>
+    <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'export_csv']) ?>
 </div>
 
 <form id="report_filters" class="acc-filters print_hide" method="get" action="<?= esc($address, 'attr') ?>" role="search" aria-label="<?= esc(lang('Accounting_reports.filters'), 'attr') ?>">
@@ -204,11 +204,11 @@ $head = static function (array $columns): string {
     <?php if ($pages > 1): ?>
         <nav class="print_hide d-flex gap-2 align-items-center" aria-label="<?= esc(lang('Accounting_family_reports.pages'), 'attr') ?>" id="report_pages">
             <?php if ($page > 1): ?>
-                <a class="btn btn-outline-secondary btn-sm" rel="prev" href="<?= esc($page_url($page - 1), 'attr') ?>"><?= lang('Accounting_family_reports.previous') ?></a>
+                <a class="btn btn-outline-secondary btn-sm" rel="prev" href="<?= esc($pageUrl($page - 1), 'attr') ?>"><?= lang('Accounting_family_reports.previous') ?></a>
             <?php endif; ?>
             <span class="small"><?= esc(lang('Accounting_family_reports.page_of', [$page, $pages])) ?></span>
             <?php if ($page < $pages): ?>
-                <a class="btn btn-outline-secondary btn-sm" rel="next" href="<?= esc($page_url($page + 1), 'attr') ?>"><?= lang('Accounting_family_reports.next') ?></a>
+                <a class="btn btn-outline-secondary btn-sm" rel="next" href="<?= esc($pageUrl($page + 1), 'attr') ?>"><?= lang('Accounting_family_reports.next') ?></a>
             <?php endif; ?>
         </nav>
     <?php endif; ?>

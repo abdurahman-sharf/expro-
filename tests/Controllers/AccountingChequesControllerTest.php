@@ -20,6 +20,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\CsvResponseTrait;
 
 /**
  * The screens of cheques: who may open them, what they list and show, that every change of a
@@ -34,6 +35,7 @@ class AccountingChequesControllerTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use CsvResponseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -848,28 +850,6 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->accountingDb()->table('treasuries')->where('treasury_id', $this->bank)->update(['kind' => 'cash']);
 
         $this->assertStringContainsString('<option value="' . $this->bank . '" selected>', $this->get('/accounting_cheques/form/received/' . $chequeId)->getBody(), 'The cheque keeps the treasury it was entered with');
-    }
-
-    /**
-     * @return list<list<string>>
-     */
-    private function csvRows(\CodeIgniter\Test\TestResponse $response): array
-    {
-        $body = $response->response()->getBody();
-
-        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
-
-        $handle = fopen('php://temp', 'r+b');
-        fwrite($handle, substr($body, 3));
-        rewind($handle);
-
-        $rows = [];
-
-        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
-            $rows[] = $row === [null] ? [] : $row;
-        }
-
-        return $rows;
     }
 
     public function testGetReportCsv_GivesTheChequesWithTheTotalsByStatusAndTheTiesOfTheScreen(): void
