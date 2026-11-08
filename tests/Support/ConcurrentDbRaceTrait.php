@@ -273,6 +273,102 @@ trait ConcurrentDbRaceTrait
     }
 
     /**
+     * Several real sessions make a change at the same moment, each in a process of its own over a connection
+     * of its own. They all wait at one barrier and are let go together. Each says how it ended: done, or the
+     * error of the books that refused it, or the exception that was not the books'.
+     *
+     * @param list<list<string>> $argumentSets The arguments of each session, without the file it answers in.
+     *
+     * @return list<string> What each session said, in the order the sessions were given.
+     */
+    protected function raceSessions(string $method, array $argumentSets): array
+    {
+        $baseEnv  = array_filter($_SERVER, static fn ($value) => is_scalar($value));
+        $goFile   = (string) tempnam(sys_get_temp_dir(), 'race_go_');
+        $sessions = [];
+
+        unlink($goFile);
+
+        foreach ($argumentSets as $index => $arguments) {
+            $ready   = (string) tempnam(sys_get_temp_dir(), 'race_ready_');
+            $outcome = (string) tempnam(sys_get_temp_dir(), 'race_out_');
+
+            unlink($ready);
+
+            $process = proc_open(
+                array_merge([PHP_BINARY, __DIR__ . '/RaceWorker.php', $method], array_map('strval', [...$arguments, $outcome])),
+                [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+                $pipes,
+                ROOTPATH,
+                array_merge($baseEnv, ['RACE_READY_FILE' => $ready, 'RACE_GO_FILE' => $goFile]),
+            );
+
+            fclose($pipes[0]);
+            stream_set_blocking($pipes[1], false);
+            stream_set_blocking($pipes[2], false);
+
+            $sessions[$index] = ['process' => $process, 'pipes' => $pipes, 'ready' => $ready, 'outcome' => $outcome];
+        }
+
+        $answers = [];
+
+        try {
+            $deadline = microtime(true) + 30.0;
+
+            while (array_filter($sessions, static fn (array $session): bool => ! file_exists($session['ready'])) !== []) {
+                if (microtime(true) >= $deadline) {
+                    throw new RuntimeException('A session did not reach the barrier of the race.');
+                }
+
+                usleep(1000);
+            }
+
+            file_put_contents($goFile, '1');
+
+            $deadline = microtime(true) + 90.0;
+
+            while (array_filter($sessions, static fn (array $session): bool => proc_get_status($session['process'])['running']) !== []) {
+                foreach ($sessions as $session) {
+                    stream_get_contents($session['pipes'][1]);
+                    stream_get_contents($session['pipes'][2]);
+                }
+
+                if (microtime(true) >= $deadline) {
+                    throw new RuntimeException('A session of the race did not end.');
+                }
+
+                usleep(5000);
+            }
+
+            foreach ($sessions as $index => $session) {
+                $answers[$index] = is_file($session['outcome']) ? trim((string) file_get_contents($session['outcome'])) : '';
+            }
+        } finally {
+            foreach ($sessions as $session) {
+                if (proc_get_status($session['process'])['running']) {
+                    proc_terminate($session['process']);
+                }
+
+                fclose($session['pipes'][1]);
+                fclose($session['pipes'][2]);
+                proc_close($session['process']);
+
+                foreach ([$session['ready'], $session['outcome']] as $file) {
+                    if (is_file($file)) {
+                        unlink($file);
+                    }
+                }
+            }
+
+            if (is_file($goFile)) {
+                unlink($goFile);
+            }
+        }
+
+        return array_values($answers);
+    }
+
+    /**
      * @param array{process: resource, pipes: array<int, resource>, files: list<string>} $worker
      */
     protected function raceWorkerIsRunning(array $worker): bool

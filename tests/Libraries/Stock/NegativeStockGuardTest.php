@@ -189,6 +189,67 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->accountingDb()->table('inventory')->like('trans_comment', 'POS ', 'after')->delete();
     }
 
+    private function sellTheLastUnitInTwoSessions(): array
+    {
+        $itemId = $this->stocked('1', '5');
+        $sales  = $this->countSales();
+
+        return [$itemId, $sales];
+    }
+
+    private function forgetTheSalesOfTheSessions(): void
+    {
+        $this->accountingDb()->table('inventory')->like('trans_comment', 'POS ', 'after')->delete();
+    }
+
+    public function testAssertSale_LetsTwoSessionsSellTheLastUnitAndTakesTheShelfBelowNothingWhenTheOptionAllows(): void
+    {
+        [$itemId, $sales] = $this->sellTheLastUnitInTwoSessions();
+
+        $this->option(NegativeStockOption::Allow);
+
+        $answers = $this->raceStockWorkers('sellUnits', [(string) $itemId, '1', (string) $this->employeeId], [(string) $itemId, '1', (string) $this->employeeId]);
+
+        $this->assertSame(['done', 'done'], $answers);
+        $this->assertSame('-1.000', $this->onHand($itemId));
+        $this->assertSame($sales + 2, $this->countSales(), 'Both sales were saved');
+        $this->assertBooksTie();
+
+        $this->forgetTheSalesOfTheSessions();
+    }
+
+    public function testAssertSale_SavesOnlyOneOfTwoSessionsSellingTheLastUnitUnderTheOptionOfTheAvailableStockAndLeavesNothingOfTheOther(): void
+    {
+        [$itemId, $sales] = $this->sellTheLastUnitInTwoSessions();
+
+        $this->option(NegativeStockOption::RefuseAvailable);
+
+        $answers = $this->raceStockWorkers('sellUnits', [(string) $itemId, '1', (string) $this->employeeId], [(string) $itemId, '1', (string) $this->employeeId]);
+
+        $this->assertSame(['done', 'refused'], $answers);
+        $this->assertSame('0.000', $this->onHand($itemId));
+        $this->assertSame($sales + 1, $this->countSales(), 'The refused sale left no document behind');
+        $this->assertBooksTie();
+
+        $this->forgetTheSalesOfTheSessions();
+    }
+
+    public function testAssertSale_LeavesNoDocumentOfTheRefusedSaleAndNoStockMovementWhenTheOptionRefuses(): void
+    {
+        [$itemId, $sales] = $this->sellTheLastUnitInTwoSessions();
+
+        $this->option(NegativeStockOption::Refuse);
+
+        $this->assertSame(['done', 'refused'], $this->raceStockWorkers('sellUnits', [(string) $itemId, '1', (string) $this->employeeId], [(string) $itemId, '1', (string) $this->employeeId]));
+
+        $this->assertSame($sales + 1, $this->countSales());
+        $this->assertSame(1, $this->accountingDb()->table('sales_items')->where('item_id', $itemId)->countAllResults(), 'One line of the item was sold');
+        $this->assertSame('0.000', $this->onHand($itemId));
+        $this->assertBooksTie();
+
+        $this->forgetTheSalesOfTheSessions();
+    }
+
     public function testPromised_AddsUpTheUndeliveredInvoicesOfAnItemInALocation(): void
     {
         $itemId = $this->stocked('20', '5');

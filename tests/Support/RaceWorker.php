@@ -12,6 +12,7 @@
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\Backfill\BackfillService;
 use App\Libraries\Accounting\CustomerOpening;
+use App\Libraries\Accounting\InterBranchSettlements;
 use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\OpeningStockResult;
@@ -263,6 +264,7 @@ $result = match ($method) {
         'location_id' => 1,
         'lines'       => [['item_id' => (int) $args[0], 'quantity' => '1', 'tracking' => ['serials' => [(string) $args[1]]]]],
     ], (int) $args[2]), (string) $args[3]),
+    'settleBranches' => $attempt(static fn () => (new InterBranchSettlements())->settle((int) $args[0], (int) $args[1], (string) $args[2], (int) $args[3], (int) $args[4], '', null, (int) $args[5]), (string) $args[6]),
     'sellUnits' => (static function (array $args): bool {
         $status = COMPLETED;
         $items  = [[
