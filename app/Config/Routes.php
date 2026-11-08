@@ -549,6 +549,24 @@ $routes->group('accounting_chart', static function (RouteCollection $routes): vo
     $routes->post('delete/(:num)', 'AccountingChart::postDeleteAccount/$1');
 });
 
+$routes->group('accounting_ai', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingAi::getIndex');
+    $routes->get('proposal/(:num)', 'AccountingAi::getProposal/$1');
+    $routes->get('approve_form/(:num)', 'AccountingAi::getApproveForm/$1');
+    $routes->post('approve/(:num)', 'AccountingAi::postApprove/$1');
+    $routes->get('reject_form/(:num)', 'AccountingAi::getRejectForm/$1');
+    $routes->post('reject/(:num)', 'AccountingAi::postReject/$1');
+    $routes->post('propose', 'AccountingAi::postPropose');
+    $routes->post('scan', 'AccountingAi::postScan');
+    $routes->get('findings', 'AccountingAi::getFindings');
+    $routes->get('findings/csv', 'AccountingAi::getFindingsCsv');
+    $routes->get('decide_form/(:num)', 'AccountingAi::getDecideForm/$1');
+    $routes->post('decide/(:num)', 'AccountingAi::postDecide/$1');
+    $routes->get('settings', 'AccountingAi::getSettings');
+    $routes->post('settings', 'AccountingAi::postSettings');
+    $routes->post('disable', 'AccountingAi::postDisable');
+});
+
 $routes->group('accounting_cost_centers', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingCostCenters::getIndex');
     $routes->get('search', 'AccountingCostCenters::getSearch');

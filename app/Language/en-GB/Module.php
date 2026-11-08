@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'accounting_ai'                => 'AI Agent',
+    'accounting_ai_desc'           => 'Journals the local rules propose for a person to approve, the findings of the scan of the books, and the switch of the agent.',
     'accounting_chart'             => 'Chart of Accounts',
     'accounting_chart_desc'        => 'View the chart of accounts and manage accounts.',
     'accounting_cheques'           => 'Cheques',

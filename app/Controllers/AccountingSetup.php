@@ -38,6 +38,8 @@ class AccountingSetup extends AccountingController
         AccountingGuard::BACKFILL_MANAGE    => 'Accounting_periods.backfill_manage',
         AccountingGuard::ROLES_MANAGE       => 'Roles.roles_manage',
         AccountingGuard::CURRENCIES_MANAGE  => 'Accounting_currencies.currencies_manage',
+        AccountingGuard::AI_USE             => 'Accounting_ai.permission_use',
+        AccountingGuard::AI_APPROVE         => 'Accounting_ai.permission_approve',
     ];
 
     private AccountingSettings $settings;

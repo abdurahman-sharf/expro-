@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'accounting_ai'                => 'وكيل الذكاء الاصطناعي',
+    'accounting_ai_desc'           => 'قيود تقترحها القواعد المحلية ليعتمدها شخص، وملاحظات فحص الدفاتر، ومفتاح الوكيل.',
     'accounting_chart'             => 'دليل الحسابات',
     'accounting_chart_desc'        => 'عرض دليل الحسابات وإدارة الحسابات.',
     'accounting_cheques'           => 'الشيكات',
