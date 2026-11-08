@@ -351,7 +351,7 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                             <td><?= esc(lang((int) $company->active === 1 ? 'Accounting.state_active' : 'Accounting.state_inactive')) ?></td>
                             <td>
                                 <?php if ($can_manage): ?>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm shipping-edit" data-id="<?= (int) $company->shipping_company_id ?>" data-name="<?= esc($company->name, 'attr') ?>" data-account="<?= (int) $company->account_id ?>"><?= lang('Common.edit') ?></button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm shipping-edit" data-id="<?= (int) $company->shipping_company_id ?>" data-name="<?= esc($company->name, 'attr') ?>" data-account="<?= (int) $company->account_id ?>"><?= lang('Accounting_settings.shipping_company_edit') ?></button>
                                     <button type="button" class="btn btn-outline-secondary btn-sm shipping-toggle" data-id="<?= (int) $company->shipping_company_id ?>"><?= lang((int) $company->active === 1 ? 'Accounting_settings.shipping_company_deactivate' : 'Accounting_settings.shipping_company_activate') ?></button>
                                 <?php endif; ?>
                             </td>

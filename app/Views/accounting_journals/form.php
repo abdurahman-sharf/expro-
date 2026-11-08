@@ -184,6 +184,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
 <?= view('accounting_journals/attachments', ['journalId' => $isNew ? 0 : $journalId, 'attachments' => $attachments, 'canAttach' => $canAttach]) ?>
 
 <?= view('accounting_journals/distribution_script', ['centers' => $cost_centers, 'decimals' => $decimals, 'overAllowed' => $settings['allow_over_100'], 'cap' => $cap]) ?>
+<?= view('accounting_journals/line_more_script') ?>
 
 <script type="text/javascript">
     $(document).ready(function() {

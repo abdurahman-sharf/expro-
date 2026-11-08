@@ -107,6 +107,7 @@ return [
     'shipping_company_actions'                 => 'إجراءات',
     'shipping_company_activate'                => 'تفعيل',
     'shipping_company_deactivate'              => 'تعطيل',
+    'shipping_company_edit'                    => 'تعديل',
     'shipping_company_name'                    => 'شركة الشحن',
     'shipping_company_no_account'              => 'بلا حساب',
     'shipping_company_saved'                   => 'حُفظت شركة الشحن.',

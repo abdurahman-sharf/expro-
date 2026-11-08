@@ -94,7 +94,6 @@ return [
     'action_sales_tax_settings_updated'          => '',
     'action_scope_changed'                       => '',
     'action_settings_updated'                    => '',
-    'action_shipping_company_created'            => '',
     'action_stock_permit_cancelled'              => '',
     'action_stock_permit_created'                => '',
     'action_stock_permit_edited'                 => '',

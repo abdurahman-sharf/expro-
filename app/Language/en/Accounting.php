@@ -94,7 +94,6 @@ return [
     'action_sales_tax_settings_updated'          => 'Sales tax settings changed',
     'action_scope_changed'                       => 'Employee branches changed',
     'action_settings_updated'                    => 'Settings changed',
-    'action_shipping_company_created'            => 'Shipping company created',
     'action_stock_permit_cancelled'              => 'Stock permit cancelled',
     'action_stock_permit_created'                => 'Stock permit created',
     'action_stock_permit_edited'                 => 'Stock permit corrected',

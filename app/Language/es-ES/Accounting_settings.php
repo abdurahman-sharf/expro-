@@ -107,6 +107,7 @@ return [
     'shipping_company_actions'                 => '',
     'shipping_company_activate'                => '',
     'shipping_company_deactivate'              => '',
+    'shipping_company_edit'                    => '',
     'shipping_company_name'                    => '',
     'shipping_company_no_account'              => '',
     'shipping_company_saved'                   => '',

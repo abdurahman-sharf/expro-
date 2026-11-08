@@ -5,6 +5,7 @@ namespace Tests\Controllers;
 use App\Controllers\AccountingSetup;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalSettings;
 use App\Libraries\Accounting\PaymentType;
@@ -1038,6 +1039,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('Fast Ship', $page);
         $this->assertStringContainsString('22121', $page);
         $this->assertStringContainsString('data-id="' . $company . '"', $page);
+        $this->assertStringContainsString('>' . lang('Accounting_settings.shipping_company_edit') . '</button>', $page);
         $this->assertStringContainsString('<option value="' . $account . '">22121 - Owed to Fast Ship</option>', $page);
         $this->assertStringNotContainsString('<option value="' . $this->accountId('cash') . '">', substr($page, (int) strpos($page, 'id="shipping_company_account"')));
     }
@@ -1086,6 +1088,22 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertSame('Fast Ship Ltd', (new ShippingCompanies())->find($added['id'])->name);
         $this->assertNull((new ShippingCompanies())->accountOf($added['id']));
         $this->assertSame($manager, (int) $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'shipping_company')->where('action', 'updated')->get()->getRow()->employee_id);
+    }
+
+    public function testPostSaveShippingCompany_RefusesTheAccountOfASupplierAndDoesNotOfferIt(): void
+    {
+        $this->manager();
+        $supplierAccount = (new EntityAccountService())->ensure(EntityAccountService::SUPPLIER, 7, 'Acme Supplies');
+
+        $refused = $this->jsonOf($this->post('/accounting_settings/save_shipping_company', ['name' => 'Fast Ship', 'account_id' => (string) $supplierAccount]));
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_shipping_account_invalid'), $refused['message']);
+        $this->assertSame([], (new ShippingCompanies())->all());
+
+        $page = $this->get('/accounting_settings')->response()->getBody();
+
+        $this->assertStringNotContainsString('<option value="' . $supplierAccount . '">', substr($page, (int) strpos($page, 'id="shipping_company_account"')));
     }
 
     public function testPostSaveShippingCompany_SaysWhyACompanyIsRefusedAndKeepsWhatWasThere(): void

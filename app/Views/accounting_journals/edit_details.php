@@ -107,6 +107,7 @@ $jsonFlags     = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 </form>
 
 <?= view('accounting_journals/distribution_script', ['centers' => $costCenters, 'decimals' => $decimals, 'overAllowed' => $settings['allow_over_100'], 'cap' => $cap]) ?>
+<?= view('accounting_journals/line_more_script') ?>
 
 <script type="text/javascript">
     $(document).ready(function() {

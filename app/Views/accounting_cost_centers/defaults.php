@@ -76,6 +76,9 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         const rows = <?= json_encode($rows, $jsonFlags) ?>;
         const editable = <?= $can_manage ? 'true' : 'false' ?>;
         const remove = <?= json_encode(lang('Accounting_cost_centers.defaults_remove_row'), $jsonFlags) ?>;
+        const centerLabel = <?= json_encode(lang('Accounting_cost_centers.defaults_center'), $jsonFlags) ?>;
+        const percentLabel = <?= json_encode(lang('Accounting_cost_centers.defaults_percent'), $jsonFlags) ?>;
+        const digits = {'٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9', '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4', '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9'};
         const $body = $('#defaults_table tbody');
         let next = 0;
 
@@ -99,11 +102,17 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             return html;
         };
 
+        const normalize = function(value) {
+            return String(value).replace(/[٠-٩۰-۹]/g, function(character) {
+                return digits[character];
+            }).replace(/[٫,،]/g, '.').trim();
+        };
+
         const total = function() {
             let sum = 0;
 
             $body.find('.defaults-percent').each(function() {
-                const value = parseFloat($(this).val().replace(/[٫,،]/g, '.'));
+                const value = parseFloat(normalize($(this).val()));
                 sum += isNaN(value) ? 0 : value;
             });
 
@@ -113,8 +122,8 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         const add = function(id, percent) {
             const disabled = editable ? '' : ' disabled';
 
-            $body.append('<tr><td><select name="rows[' + next + '][cost_center_id]" class="form-select form-select-sm"' + disabled + '>' + options(id) + '</select></td>'
-                + '<td><input type="text" name="rows[' + next + '][percent]" class="form-control form-control-sm defaults-percent text-end" dir="ltr" inputmode="decimal" value="' + percent + '"' + disabled + '></td>'
+            $body.append('<tr><td><select name="rows[' + next + '][cost_center_id]" class="form-select form-select-sm" aria-label="' + centerLabel + '"' + disabled + '>' + options(id) + '</select></td>'
+                + '<td><input type="text" name="rows[' + next + '][percent]" class="form-control form-control-sm defaults-percent text-end" dir="ltr" inputmode="decimal" aria-label="' + percentLabel + '" value="' + percent + '"' + disabled + '></td>'
                 + '<td>' + (editable ? '<button type="button" class="btn btn-outline-danger btn-sm defaults-remove" title="' + remove + '" aria-label="' + remove + '"><span class="bi bi-x-lg" aria-hidden="true"></span></button>' : '') + '</td></tr>');
             next++;
         };
@@ -133,7 +142,14 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
             total();
         });
 
-        $body.on('input', '.defaults-percent', total);
+        $body.on('input', '.defaults-percent', function() {
+            const normalized = normalize($(this).val());
+
+            if (normalized !== $(this).val()) {
+                $(this).val(normalized);
+            }
+            total();
+        });
 
         $('#defaults_form').on('submit', function(event) {
             event.preventDefault();

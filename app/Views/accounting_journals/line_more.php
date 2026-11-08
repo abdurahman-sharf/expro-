@@ -27,7 +27,7 @@ $tax = $analysis?->tax;
         <label class="form-label small mb-0"><?= lang('Accounting_journals.tax_note') ?></label>
         <div class="acc-line-tax">
             <input type="text" name="<?= esc($name . '[tax_code]', 'attr') ?>" class="form-control form-control-sm" maxlength="16" value="<?= esc((string) ($tax['code'] ?? ''), 'attr') ?>" placeholder="<?= esc(lang('Accounting_journals.tax_code'), 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.tax_code'), 'attr') ?>">
-            <input type="text" name="<?= esc($name . '[tax_percent]', 'attr') ?>" class="form-control form-control-sm ltr-input" dir="ltr" inputmode="decimal" value="<?= esc($tax === null ? '' : rtrim(rtrim($tax['percent'], '0'), '.'), 'attr') ?>" placeholder="<?= esc(lang('Accounting_journals.tax_percent'), 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.tax_percent'), 'attr') ?>">
+            <input type="text" name="<?= esc($name . '[tax_percent]', 'attr') ?>" class="form-control form-control-sm ltr-input acc-tax-percent" dir="ltr" inputmode="decimal" value="<?= esc($tax === null ? '' : rtrim(rtrim($tax['percent'], '0'), '.'), 'attr') ?>" placeholder="<?= esc(lang('Accounting_journals.tax_percent'), 'attr') ?>" aria-label="<?= esc(lang('Accounting_journals.tax_percent'), 'attr') ?>">
             <label class="form-check">
                 <input type="hidden" name="<?= esc($name . '[tax_included]', 'attr') ?>" value="0">
                 <input type="checkbox" class="form-check-input" name="<?= esc($name . '[tax_included]', 'attr') ?>" value="1"<?= $tax !== null && $tax['included'] ? ' checked' : '' ?>>

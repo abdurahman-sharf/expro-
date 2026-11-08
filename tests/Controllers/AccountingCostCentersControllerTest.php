@@ -303,6 +303,17 @@ class AccountingCostCentersControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('[{"id":' . $a . ',"percent":"25"},{"id":' . $b . ',"percent":"75"}]', $one);
     }
 
+    public function testGetDefaults_NamesTheCenterAndPercentControlsOfEveryRowAndReadsArabicDigits(): void
+    {
+        $page = $this->get('/accounting_cost_centers/defaults/' . $this->accountId('cash'))->response()->getBody();
+
+        $this->assertStringContainsString('class="form-select form-select-sm" aria-label="\' + centerLabel + \'"', $page);
+        $this->assertStringContainsString('aria-label="\' + percentLabel + \'"', $page);
+        $this->assertStringContainsString('const centerLabel = ' . json_encode(lang('Accounting_cost_centers.defaults_center'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), $page);
+        $this->assertStringContainsString('const percentLabel = ' . json_encode(lang('Accounting_cost_centers.defaults_percent'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), $page);
+        $this->assertStringContainsString("replace(/[٠-٩۰-۹]/g", $page);
+    }
+
     public function testGetDefaults_ShowsTheRowsButNoSaveToAUserWhoMayNotManageCostCenters(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_cost_centers']));

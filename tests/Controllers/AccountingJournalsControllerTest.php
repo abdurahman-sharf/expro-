@@ -1486,6 +1486,18 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_journals.details_locked_note'));
     }
 
+    public function testGetEditDetails_ReadsArabicDigitsInTheRateOfATaxNote(): void
+    {
+        $journalId = $this->automaticJournal();
+        $this->detailsEditor();
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+
+        $response = $this->get('/accounting_journals/edit_details/' . $journalId);
+
+        $this->assertStringContainsString('acc-tax-percent"', $response->getBody());
+        $this->assertStringContainsString("$(document).on('input', '.acc-tax-percent'", $response->getBody());
+    }
+
     public function testGetEditDetails_ShowsTheAccountsAmountsDateAndNumberAsPlainText(): void
     {
         $journalId = $this->automaticJournal();
@@ -2251,6 +2263,17 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString($name(1, 'tax_percent'), $both);
         $this->assertStringContainsString($name(1, 'tax_included'), $both);
         $this->assertStringContainsString(lang('Accounting_journals.tax_note_hint'), $both);
+    }
+
+    public function testGetNew_ReadsArabicDigitsInTheRateOfATaxNote(): void
+    {
+        $this->accountant();
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+
+        $body = $this->get('/accounting_journals/new')->response()->getBody();
+
+        $this->assertStringContainsString('class="form-control form-control-sm ltr-input acc-tax-percent"', $body);
+        $this->assertStringContainsString("$(document).on('input', '.acc-tax-percent'", $body);
     }
 
     public function testGetNew_CarriesTheDefaultDistributionOfTheAccountsThatHaveOneAndOnlyOfCentersThatAreOn(): void

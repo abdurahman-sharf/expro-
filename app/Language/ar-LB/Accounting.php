@@ -94,7 +94,6 @@ return [
     'action_sales_tax_settings_updated'          => 'تغيّرت إعدادات ضريبة المبيعات',
     'action_scope_changed'                       => 'تغيير فروع الموظف',
     'action_settings_updated'                    => 'تغيير الإعدادات',
-    'action_shipping_company_created'            => 'أُنشئت شركة شحن',
     'action_stock_permit_cancelled'              => 'إلغاء إذن مخزن',
     'action_stock_permit_created'                => 'إنشاء إذن مخزن',
     'action_stock_permit_edited'                 => 'تصحيح إذن مخزن',
