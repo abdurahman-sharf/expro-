@@ -14,7 +14,7 @@ import sys
 
 
 def run_tests(tests):
-    result = subprocess.run(['php', 'vendor/bin/phpunit', '--no-coverage', '--stop-on-failure', *tests], capture_output=True, text=True)
+    result = subprocess.run(['php', 'vendor/bin/phpunit', '--no-coverage', '--stop-on-failure', *tests], capture_output=True, text=True, errors='replace')
     return result.returncode, result.stdout + result.stderr
 
 
@@ -39,7 +39,7 @@ def main():
             try:
                 with open(mutation['file'], 'w', encoding='utf-8') as handle:
                     handle.write(mutated)
-                lint = subprocess.run(['php', '-l', mutation['file']], capture_output=True, text=True)
+                lint = subprocess.run(['php', '-l', mutation['file']], capture_output=True, text=True, errors='replace')
                 if lint.returncode != 0:
                     verdict, detail = 'INVALID', 'mutated file does not parse'
                 else:

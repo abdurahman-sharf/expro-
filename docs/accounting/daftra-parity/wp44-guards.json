@@ -292,7 +292,7 @@
     "replace": "if ($number !== null) {",
     "tests": [
       "--filter",
-      "MakesTheHeadingOfTheTableBoldText",
+      "KeepsAHeadingThatLooksLikeNumbers|MakesTheHeadingOfTheTableBold",
       "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
     ]
   },
@@ -491,6 +491,28 @@
     "tests": [
       "--filter",
       "SpansAWholeRow|DrawsARowWithOneFilledCell",
+      "tests/Libraries/Accounting/Export/ReportPdfTest.php"
+    ]
+  },
+  {
+    "name": "G90 a table above what the PDF engine reads in one piece is refused by name",
+    "file": "app/Libraries/Accounting/Export/ReportPdf.php",
+    "find": "if (strlen($html) > self::MAX_HTML_BYTES) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RefusesATableThatTheEngineCannotRead",
+      "tests/Libraries/Accounting/Export/ReportPdfTest.php"
+    ]
+  },
+  {
+    "name": "G91 the refusal names the rows that fit and not the rows of the table",
+    "file": "app/Libraries/Accounting/Export/ReportPdf.php",
+    "find": "max(1, intdiv($sheet->rowCount() * self::MAX_HTML_BYTES, strlen($html)))",
+    "replace": "$sheet->rowCount()",
+    "tests": [
+      "--filter",
+      "RefusesATableThatTheEngineCannotRead",
       "tests/Libraries/Accounting/Export/ReportPdfTest.php"
     ]
   },

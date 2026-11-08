@@ -156,11 +156,21 @@ final class XlsxWriterTest extends CIUnitTestCase
 
     public function testRender_MakesTheHeadingOfTheTableBoldText(): void
     {
-        $xpath = $this->sheetXpath($this->render([['Title'], ['Code', '2026'], ['1', '2']]));
+        $xpath = $this->sheetXpath($this->render([['Title'], ['Code', 'Name', 'Amount'], ['1', 'Cash', '5']]));
 
         $this->assertSame('1', $xpath->query('//m:c[@r="A2"]')->item(0)->getAttribute('s'));
-        $this->assertSame('inlineStr', $xpath->query('//m:c[@r="B2"]')->item(0)->getAttribute('t'), 'A number in the heading stays text');
+        $this->assertSame('1', $xpath->query('//m:c[@r="C2"]')->item(0)->getAttribute('s'));
         $this->assertSame('', $xpath->query('//m:c[@r="A1"]')->item(0)->getAttribute('s'));
+        $this->assertSame('', $xpath->query('//m:c[@r="B3"]')->item(0)->getAttribute('s'));
+    }
+
+    public function testRender_KeepsAHeadingThatLooksLikeNumbersAsBoldText(): void
+    {
+        $xpath = $this->sheetXpath($this->render([['2025', '2026', '2027'], ['1', '2', '3']]));
+
+        $this->assertSame('inlineStr', $xpath->query('//m:c[@r="B1"]')->item(0)->getAttribute('t'));
+        $this->assertSame('1', $xpath->query('//m:c[@r="B1"]')->item(0)->getAttribute('s'));
+        $this->assertSame('', $xpath->query('//m:c[@r="B2"]')->item(0)->getAttribute('t'), 'The row below is numbers');
     }
 
     public function testRender_SkipsEmptyCellsButKeepsTheRowNumbersAndTheColumnOfEachCell(): void

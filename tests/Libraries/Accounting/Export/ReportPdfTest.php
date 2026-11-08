@@ -2,6 +2,8 @@
 
 namespace Tests\Libraries\Accounting\Export;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\Export\ExportOptions;
 use App\Libraries\Accounting\Export\ReportPdf;
 use App\Libraries\Accounting\Export\ReportSheet;
@@ -140,6 +142,36 @@ final class ReportPdfTest extends CIUnitTestCase
 
         $this->assertStringNotContainsString('<thead>', $html);
         $this->assertStringContainsString('one', $html);
+    }
+
+    public function testRender_RefusesATableThatTheEngineCannotReadInOnePieceNamingTheRowsThatFit(): void
+    {
+        $rows = [['Date', 'Journal', 'Source', 'Account', 'Description', 'Debit', 'Credit', 'Balance']];
+
+        for ($index = 0; $index < 2500; $index++) {
+            $rows[] = ['2026-10-05', 'A-' . $index, 'Sale', '1101 Cash', 'Report test of a long description', '1111.0000', '0.0000', '5.5000'];
+        }
+
+        try {
+            (new ReportPdf())->render(new ReportSheet('Ledger', $rows), new ExportOptions());
+
+            $this->fail('A table above what the engine reads in one piece is refused');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::ReportFileTooLarge, $refusal->error);
+            $this->assertGreaterThan(500, $refusal->context['max']);
+            $this->assertLessThan(2500, $refusal->context['max']);
+        }
+    }
+
+    public function testRender_GivesAPdfOfATableOfSeveralHundredRows(): void
+    {
+        $rows = [['Date', 'Journal', 'Source', 'Account', 'Description', 'Debit', 'Credit', 'Balance']];
+
+        for ($index = 0; $index < 600; $index++) {
+            $rows[] = ['2026-10-05', 'A-' . $index, 'Sale', '1101 Cash', 'Report test of a long description', '1111.0000', '0.0000', '5.5000'];
+        }
+
+        $this->assertStringStartsWith('%PDF-', (new ReportPdf())->render(new ReportSheet('Ledger', $rows), new ExportOptions()));
     }
 
     public function testRender_GivesAPdfThatEmbedsTheArabicFont(): void

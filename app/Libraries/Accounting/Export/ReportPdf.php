@@ -2,6 +2,8 @@
 
 namespace App\Libraries\Accounting\Export;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Pdf_lib;
 use Mpdf\MpdfException;
 
@@ -11,15 +13,23 @@ use Mpdf\MpdfException;
  */
 final class ReportPdf
 {
-    private const MIN_WEIGHT = 4;
-    private const MAX_WEIGHT = 40;
+    public const MAX_HTML_BYTES = 900_000;
+    private const MIN_WEIGHT    = 4;
+    private const MAX_WEIGHT    = 40;
 
     /**
+     * @throws AccountingException When the table is more than the engine reads in one piece.
      * @throws MpdfException
      */
     public function render(ReportSheet $sheet, ExportOptions $options): string
     {
-        return (new Pdf_lib())->render($this->html($sheet, $options), [
+        $html = $this->html($sheet, $options);
+
+        if (strlen($html) > self::MAX_HTML_BYTES) {
+            throw new AccountingException(AccountingError::ReportFileTooLarge, 'The table is too large for the engine of the PDF files.', ['max' => max(1, intdiv($sheet->rowCount() * self::MAX_HTML_BYTES, strlen($html)))]);
+        }
+
+        return (new Pdf_lib())->render($html, [
             'format' => $options->landscape($sheet->columnCount()) ? 'A4-L' : 'A4',
             'title'  => $sheet->title,
             'footer' => '<div style="text-align: center; font-size: 8pt; color: #56657f;">{PAGENO} / {nbpg}</div>',
