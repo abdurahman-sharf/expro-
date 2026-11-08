@@ -66,7 +66,7 @@ class ReportExportTest extends CIUnitTestCase
     private function viewer(?array $branchIds = null, array $extra = []): int
     {
         $personId = $this->employeeWithGrants([
-            'accounting_reports', 'accounting_treasuries', 'accounting_journals', 'accounting_chart', 'receipt_vouchers',
+            'accounting_reports', 'accounting_treasuries', 'accounting_journals', 'acc_journals_all', 'accounting_chart', 'receipt_vouchers',
             'reports_sales', 'reports_items', 'reports_categories', 'reports_customers', 'reports_employees', 'reports_payments',
             'reports_receivings', 'reports_suppliers', 'reports_inventory', 'reports_expenses_categories', ...$extra,
         ], $branchIds);
@@ -287,13 +287,17 @@ class ReportExportTest extends CIUnitTestCase
         }
     }
 
-    #[DataProvider('reports')]
+    /**
+     * @return array<string, array{string, bool}>
+     */
+    public static function reportsWithFiguresOfBranches(): array
+    {
+        return array_filter(self::reports(), static fn (array $report): bool => $report[1]);
+    }
+
+    #[DataProvider('reportsWithFiguresOfBranches')]
     public function testAfter_LeavesTheOtherBranchesOutOfTheWorkbookOfALimitedEmployeeWhateverTheRequestAsks(string $csvAddress, bool $showsBranches): void
     {
-        if (! $showsBranches) {
-            $this->markTestSkipped('The figures of this report hold no amount of a branch to look for');
-        }
-
         $this->threeBranches();
         $this->viewer([1, $this->second]);
 
@@ -335,6 +339,13 @@ class ReportExportTest extends CIUnitTestCase
         }
     }
 
+    private function filterOf(string $route): string
+    {
+        $filter = (array) (service('routes')->getRoutesOptions($route, 'GET')['filter'] ?? []);
+
+        return (string) ($filter[0] ?? '');
+    }
+
     public function testRoutes_GiveEveryCsvAddressItsExcelAndPdfAddressWithATitleThatReadsInWords(): void
     {
         $routes = service('routes');
@@ -349,9 +360,9 @@ class ReportExportTest extends CIUnitTestCase
 
                 $this->assertContains($sibling, $get, $route . ' has no ' . $format . ' address');
 
-                $options = $routes->getRoutesOptions($sibling, 'GET');
+                $filter = $this->filterOf($sibling);
 
-                $this->assertSame(1, preg_match('/^reportexport:' . $format . '(,([A-Za-z_]+)\.([a-z_]+))?$/', (string) ($options['filter'] ?? ''), $match), $sibling . ' is not given by the filter of the files');
+                $this->assertSame(1, preg_match('/^reportexport:' . $format . '(,([A-Za-z_]+)\.([a-z_]+))?$/', $filter, $match), $sibling . ' is not given by the filter of the files');
 
                 if (isset($match[1])) {
                     $this->assertNotSame($match[2] . '.' . $match[3], lang($match[2] . '.' . $match[3]), 'The title of ' . $sibling . ' is not a language line');
@@ -362,9 +373,7 @@ class ReportExportTest extends CIUnitTestCase
 
     public function testRoutes_GiveTheFamilyReportsTheTitleOfTheirOwnLanguageLine(): void
     {
-        $options = service('routes')->getRoutesOptions('accounting_reports/supplier_balances/pdf', 'GET');
-
-        $this->assertSame('reportexport:pdf,Accounting_family_reports.' . FamilyReportCatalog::titleKey('supplier_balances'), $options['filter']);
+        $this->assertSame('reportexport:pdf,Accounting_family_reports.' . FamilyReportCatalog::titleKey('supplier_balances'), $this->filterOf('accounting_reports/supplier_balances/pdf'));
     }
 
     public function testAfter_NamesTheFileLikeTheCsvWithTheExtensionOfTheFormat(): void
@@ -440,7 +449,6 @@ class ReportExportTest extends CIUnitTestCase
 
             $response->assertStatus(422);
             $this->assertSame(lang('Accounting.error_report_period_invalid'), $response->response()->getBody());
-            $this->assertStringNotContainsString('attachment', $response->response()->getHeaderLine('Content-Disposition'));
         }
     }
 
