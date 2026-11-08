@@ -174,6 +174,24 @@ trait PurchaseCycleScreenTestTrait
         $byDate->assertDontSee('id="document_' . $cancelled . '"');
     }
 
+    public function testGetIndex_OffersInTheStatusFilterOnlyTheStatusesTheFamilyCanHave(): void
+    {
+        $this->actAsWith([$this->permission(PurchaseDocuments::VIEW_ALL)]);
+
+        $page    = $this->get('/' . $this->module());
+        $isOrder = $this->kind() === PurchaseDocumentKind::Order;
+
+        foreach (['open', 'sent', 'approved', 'cancelled'] as $status) {
+            $page->assertSee('<option value="' . $status . '"');
+        }
+
+        $page->{$isOrder ? 'assertDontSee' : 'assertSee'}('<option value="converted"');
+
+        foreach (['partly_received', 'received'] as $status) {
+            $page->{$isOrder ? 'assertSee' : 'assertDontSee'}('<option value="' . $status . '"');
+        }
+    }
+
     public function testGetIndex_ReadsAFilterThatCameAsAListAsNoFilter(): void
     {
         $documentId = $this->document();
@@ -542,11 +560,14 @@ trait PurchaseCycleScreenTestTrait
         $this->assertTrue($this->postJson('/' . $this->module() . '/status/' . $documentId, ['status' => 'approved'])['success']);
         $this->assertSame(PurchaseDocumentStatus::Approved, $this->documentsOf($this->kind())->statusOf($documentId));
 
+        $current = lang(PurchaseDocumentStatus::Approved->languageKey());
+
         foreach (['cancelled', 'converted', 'received', 'partly_received', 'nonsense', ''] as $status) {
             $refused = $this->postJson('/' . $this->module() . '/status/' . $documentId, ['status' => $status]);
+            $named   = PurchaseDocumentStatus::tryFrom($status);
 
             $this->assertFalse($refused['success'], $status);
-            $this->assertSame(lang('Accounting.error_purchase_document_status_not_allowed', ['', $status]), $refused['message'], $status);
+            $this->assertSame(lang('Accounting.error_purchase_document_status_not_allowed', [$current, $named === null ? $status : lang($named->languageKey())]), $refused['message'], $status);
         }
 
         $this->assertSame('approved', $this->accountingDb()->table($this->kind()->table())->where($this->kind()->idColumn(), $documentId)->get()->getRow()->status);

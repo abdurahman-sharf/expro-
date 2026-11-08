@@ -146,11 +146,35 @@ final class PurchaseCycleChecksTest extends CIUnitTestCase
 
         $this->assertSame(CheckStatus::Review, $result->status);
         $this->assertSame(2, $result->data['waiting_while_off']);
-        $this->assertStringContainsString('2 open document(s)', implode("\n", $result->findings));
+        $this->assertStringContainsString('2 document(s) of the purchase cycle still wait', implode("\n", $result->findings));
 
         $this->setConfigValue('enable_purchase_cycle', '1');
 
         $this->assertSame(CheckStatus::Pass, $this->outcome()->status);
+    }
+
+    public function testRun_LeavesTheFinishedDocumentsOfASwitchedOffCycleAloneAndCountsTheOrderReceivedInPart(): void
+    {
+        $quotation = $this->documentsOf(PurchaseDocumentKind::QuotationRequest)->convert($this->makeDocument(PurchaseDocumentKind::QuotationRequest), $this->clerk);
+
+        $this->documentsOf(PurchaseDocumentKind::SupplierQuotation)->convert($quotation, $this->clerk);
+
+        $full   = $this->makeDocument(PurchaseDocumentKind::Order, ['lines' => [['item_id' => $this->goods, 'quantity' => '2', 'unit_price' => '4.00']]]);
+        $partly = $this->makeDocument(PurchaseDocumentKind::Order);
+
+        $this->documentsOf(PurchaseDocumentKind::Order)->cancel($this->makeDocument(PurchaseDocumentKind::Order), 'no', $this->clerk);
+
+        foreach ([[$full, '2', 'REF-F1'], [$partly, '3', 'REF-F2']] as [$orderId, $units, $reference]) {
+            $this->assertGreaterThan(0, $this->purchases->save_value([$this->purchaseLine($this->goods, 0, $units, '4.00')], $this->supplierId, $this->clerk, 'test', $reference, lang('Sales.due'), NEW_ENTRY, null, null, null, null, $orderId));
+            $this->receivingIds[] = (int) $this->accountingDb()->table('receivings')->selectMax('receiving_id', 'last')->get()->getRow()->last;
+        }
+
+        $this->setConfigValue('enable_purchase_cycle', '0');
+
+        $result = $this->outcome();
+
+        $this->assertSame(CheckStatus::Review, $result->status);
+        $this->assertSame(2, $result->data['waiting_while_off'], 'the order made by the conversions and the order received in part wait; the quotation request and the quotation that were converted, the order received in full and the cancelled one are finished');
     }
 
     public function testRun_PutsAnOrderReceivedBeyondItsLinesUpForReview(): void

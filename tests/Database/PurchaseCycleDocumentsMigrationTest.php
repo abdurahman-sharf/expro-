@@ -345,4 +345,26 @@ class PurchaseCycleDocumentsMigrationTest extends CIUnitTestCase
             $migration->up();
         }
     }
+
+    public function testLegacyReceiving_IsUpdatedWithItsSupplierAsItAlwaysWasOnADatabaseThatDoesNotHaveTheTablesYet(): void
+    {
+        $db        = $this->accountingDb();
+        $employee  = $this->createEmployee();
+        $supplier  = $this->supplier();
+        $migration = new PurchaseCycleDocuments();
+
+        $db->table('receivings')->insert(['employee_id' => $employee, 'comment' => 'migration-test', 'receiving_type' => 'receive', 'branch_id' => 1, 'supplier_id' => $supplier]);
+
+        $receivingId = (int) $db->insertID();
+
+        try {
+            $migration->down();
+
+            $this->assertTrue(model(Receiving::class)->update($receivingId, ['supplier_id' => $supplier, 'comment' => 'changed']), 'the code does not look for an order in a table the migration has not made');
+            $this->assertSame('changed', $db->table('receivings')->where('receiving_id', $receivingId)->get()->getRow()->comment);
+        } finally {
+            $migration->up();
+            $db->table('receivings')->where('receiving_id', $receivingId)->delete();
+        }
+    }
 }

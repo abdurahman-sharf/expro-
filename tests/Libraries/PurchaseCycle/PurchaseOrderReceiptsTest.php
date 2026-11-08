@@ -305,6 +305,50 @@ class PurchaseOrderReceiptsTest extends CIUnitTestCase
         $this->assertSame(['4.000'], $this->received($orderId), 'what was received stays recorded');
     }
 
+    public function testRecordReceiving_CorrectsAReceivingOfAnOrderThatWasCancelledSinceAndHoldsItToWhatTheOrderHolds(): void
+    {
+        $orderId     = $this->order([['quantity' => '10']]);
+        $receivingId = $this->take($orderId, [['quantity' => '4']]);
+
+        $this->orders->cancel($orderId, 'the rest is not coming', $this->clerk);
+        $this->receipts->recordReceiving($receivingId, $orderId, [['item_id' => $this->goods, 'quantity' => '3', 'receiving_quantity' => '1']], $this->supplierId, $this->clerk, 1, PurchaseOrderReceipts::RECEIPT_CHANGED);
+
+        $this->assertSame(['3.000'], $this->received($orderId));
+        $this->assertSame(PurchaseDocumentStatus::Cancelled, $this->orders->statusOf($orderId));
+        $this->assertRefused(AccountingError::PurchaseOrderQuantityExceeded, fn () => $this->receipts->recordReceiving($receivingId, $orderId, [['item_id' => $this->goods, 'quantity' => '11', 'receiving_quantity' => '1']], $this->supplierId, $this->clerk, 1, PurchaseOrderReceipts::RECEIPT_CHANGED));
+        $this->assertSame(['3.000'], $this->received($orderId));
+        $this->assertContains('receipt_changed', $this->auditActions(PurchaseDocumentKind::Order, $orderId));
+    }
+
+    public function testRecordReceiving_CorrectsAReceivingWhenTheOthersAlreadyReceivedTheWholeOrderByAnExcessAndStillRefusesANewOne(): void
+    {
+        $this->setConfigValue('purchase_order_allow_excess', '1');
+
+        $orderId = $this->order([['quantity' => '10']]);
+        $small   = $this->take($orderId, [['quantity' => '4']]);
+
+        $this->take($orderId, [['quantity' => '11']]);
+
+        $this->assertSame(PurchaseDocumentStatus::Received, $this->orders->statusOf($orderId));
+        $this->assertRefused(AccountingError::PurchaseOrderNotReceivable, fn () => $this->take($orderId, [['quantity' => '1']]));
+
+        $this->receipts->recordReceiving($small, $orderId, [['item_id' => $this->goods, 'quantity' => '3', 'receiving_quantity' => '1']], $this->supplierId, $this->clerk, 1, PurchaseOrderReceipts::RECEIPT_CHANGED);
+
+        $this->assertSame(['14.000'], $this->received($orderId), 'the 11 of the other receiving and the 3 the correction left');
+    }
+
+    public function testAssertSupplierKept_RefusesAnotherSupplierForAReceivingMadeFromAnOrderAndLeavesTheOthersAlone(): void
+    {
+        $orderId     = $this->order([['quantity' => '10']]);
+        $receivingId = $this->take($orderId, [['quantity' => '2']]);
+        $other       = $this->anotherSupplier();
+
+        $this->assertNull($this->receipts->assertSupplierKept($receivingId, $this->supplierId));
+        $this->assertRefused(AccountingError::PurchaseOrderSupplierMismatch, fn () => $this->receipts->assertSupplierKept($receivingId, $other));
+        $this->assertRefused(AccountingError::PurchaseOrderSupplierMismatch, fn () => $this->receipts->assertSupplierKept($receivingId, null));
+        $this->assertNull($this->receipts->assertSupplierKept($this->receivingOfStock(), $other), 'a receiving that was not made from an order keeps no supplier');
+    }
+
     public function testRecordReceiving_RefusesAnOrderThatDoesNotExist(): void
     {
         $this->assertRefused(AccountingError::PurchaseDocumentNotFound, fn () => $this->take(999999, [['quantity' => '1']]));

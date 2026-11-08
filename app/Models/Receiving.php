@@ -204,6 +204,16 @@ class Receiving extends Model
             unset($receivingData['payments'], $receivingData['invoice_date'], $receivingData['payment_terms_days'], $receivingData['due_date'], $receivingData['changed_by']);
         }
 
+        if (is_array($receivingData) && array_key_exists('supplier_id', $receivingData)) {
+            try {
+                (new PurchaseOrderReceipts($this->db))->assertSupplierKept((int) $receivingId, $receivingData['supplier_id'] === null || $receivingData['supplier_id'] === '' ? null : (int) $receivingData['supplier_id']);
+            } catch (AccountingException $refusal) {
+                $this->accountingFailure = $refusal;
+
+                return false;
+            }
+        }
+
         if ($accountingOn && is_array($receivingData)) {
             $changes = [];
 
@@ -586,7 +596,7 @@ class Receiving extends Model
             $this->get_receiving_items($receivingId)->getResultArray(),
         );
 
-        $receipts->recordReceiving($receivingId, $orderId, $items, (int) $this->supplierOf($receivingId), $employeeId, $branchId, 'receipt_changed');
+        $receipts->recordReceiving($receivingId, $orderId, $items, (int) $this->supplierOf($receivingId), $employeeId, $branchId, PurchaseOrderReceipts::RECEIPT_CHANGED);
     }
 
     /**

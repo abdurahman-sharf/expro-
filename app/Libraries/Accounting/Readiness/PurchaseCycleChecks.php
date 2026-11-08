@@ -4,14 +4,16 @@ namespace App\Libraries\Accounting\Readiness;
 
 use App\Libraries\PurchaseCycle\PurchaseCycleSettings;
 use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
+use App\Libraries\PurchaseCycle\PurchaseDocuments;
 use App\Libraries\PurchaseCycle\PurchaseDocumentStatus;
 
 /**
  * Whether any document of the purchase cycle is in a state the code cannot leave. The stored statuses are four (open, sent, approved
  * and cancelled) and the code moves a document out of the first three by a label, a conversion, a receiving or a cancellation; a
  * document whose stored status is none of the four cannot be moved by anything, which an old database server that
- * ignores the CHECK of the table lets in. Open documents that nobody can change while the cycle is switched off, and orders received
- * beyond what they held, are listed for review. It reads and changes nothing.
+ * ignores the CHECK of the table lets in. Documents that still wait to be finished (open, sent, approved, or an order received in
+ * part) and that nobody can change while the cycle is switched off, and orders received beyond what they held, are listed for
+ * review. A document that was converted, received in full or cancelled is finished. It reads and changes nothing.
  */
 final class PurchaseCycleChecks extends CheckGroup
 {
@@ -45,7 +47,7 @@ final class PurchaseCycleChecks extends CheckGroup
                 $stuck[] = sprintf('%s #%d has the status "%s", which nothing in the code moves it out of.', $kind->value, $row->document_id, $row->status);
             }
 
-            $waiting += (int) $this->db->table($kind->table())->whereIn('status', [PurchaseDocumentStatus::Open->value, PurchaseDocumentStatus::Sent->value, PurchaseDocumentStatus::Approved->value])->countAllResults();
+            $waiting += (new PurchaseDocuments($kind, $this->db))->waitingCount();
         }
 
         $over   = $this->receivedBeyondTheOrder();
@@ -59,7 +61,7 @@ final class PurchaseCycleChecks extends CheckGroup
         $review = [];
 
         if (! $enabled && $waiting > 0) {
-            $review[] = $waiting . ' open document(s) of the purchase cycle cannot be changed, converted or cancelled while the cycle is switched off: switch it on in the purchase cycle settings to finish them.';
+            $review[] = $waiting . ' document(s) of the purchase cycle still wait to be finished and cannot be changed, converted, received or cancelled while the cycle is switched off: switch it on in the purchase cycle settings to finish them.';
         }
 
         foreach ($over as $line) {

@@ -26,10 +26,10 @@ enum DocumentType: string
     case SalesDebitNote  = 'sales_debit_note';
     case SalesOrder      = 'sales_order';
 
-    case PurchaseRequest     = 'purchase_request';
-    case QuotationRequest    = 'quotation_request';
-    case SupplierQuotation   = 'supplier_quotation';
-    case PurchaseOrder       = 'purchase_order';
+    case PurchaseRequest   = 'purchase_request';
+    case QuotationRequest  = 'quotation_request';
+    case SupplierQuotation = 'supplier_quotation';
+    case PurchaseOrder     = 'purchase_order';
 
     case StockPermitAdd      = 'permit_in';
     case StockPermitIssue    = 'permit_out';
@@ -55,9 +55,9 @@ enum DocumentType: string
             self::Revenue        => ['revenues' => 'revenue_id'],
             self::SalesDebitNote => ['sales_debit_notes' => 'debit_note_id'],
             self::StockPermitAdd, self::StockPermitIssue, self::StockPermitTransfer => ['stock_permits' => 'permit_id'],
-            self::Stocktake    => ['stocktakes' => 'stocktake_id'],
-            self::StockRequest => ['stock_requests' => 'request_id'],
-            self::SalesOrder     => ['sales_orders' => 'order_id'],
+            self::Stocktake         => ['stocktakes' => 'stocktake_id'],
+            self::StockRequest      => ['stock_requests' => 'request_id'],
+            self::SalesOrder        => ['sales_orders' => 'order_id'],
             self::PurchaseRequest   => ['purchase_requests' => 'request_id'],
             self::QuotationRequest  => ['quotation_requests' => 'rfq_id'],
             self::SupplierQuotation => ['supplier_quotations' => 'quotation_id'],

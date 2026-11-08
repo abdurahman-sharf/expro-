@@ -27,6 +27,9 @@ final class PurchaseOrderReceipts
 {
     use RunsInTransaction;
 
+    public const RECEIVED        = 'received';
+    public const RECEIPT_CHANGED = 'receipt_changed';
+
     private BaseConnection $db;
     private BranchGuard $branches;
     private PurchaseCycleSettings $settings;
@@ -101,15 +104,16 @@ final class PurchaseOrderReceipts
     /**
      * Takes from the lines of the order what a receiving of goods holds. It runs inside the transaction that saves the
      * receiving, under the lock of the order, and a refusal sends the whole receiving back. A new receiving is refused
-     * while the purchase cycle is switched off; the correction of one that was made is not.
+     * while the purchase cycle is switched off, and for an order that is cancelled or received in full; the correction of one that
+     * was made is not, whatever became of the order since, and is held only to what the order holds.
      *
      * @param list<array<string, mixed>> $items The lines of the receiving as the register saves them: item_id, quantity and receiving_quantity.
      *
      * @throws AccountingException|BranchException
      */
-    public function recordReceiving(int $receivingId, int $orderId, array $items, int $supplierId, ?int $employeeId, int $branchId, string $action = 'received'): void
+    public function recordReceiving(int $receivingId, int $orderId, array $items, int $supplierId, ?int $employeeId, int $branchId, string $action = self::RECEIVED): void
     {
-        if ($action === 'received' && ! $this->settings->isEnabled()) {
+        if ($action === self::RECEIVED && ! $this->settings->isEnabled()) {
             throw new AccountingException(AccountingError::PurchaseDocumentModuleOff, 'The purchase cycle is switched off.');
         }
 
@@ -130,10 +134,12 @@ final class PurchaseOrderReceipts
                 throw new AccountingException(AccountingError::PurchaseOrderSupplierMismatch, 'The receiving is from another supplier than the order.', ['name' => $this->numberOf($orderId)]);
             }
 
-            $status = $this->statusOf((string) $order->status, $orderId, $receivingId);
+            if ($action === self::RECEIVED) {
+                $status = $this->statusOf((string) $order->status, $orderId, $receivingId);
 
-            if (! $status->canConvert(PurchaseDocumentKind::Order)) {
-                throw new AccountingException(AccountingError::PurchaseOrderNotReceivable, 'An order that is ' . $status->name . ' is not received.', ['name' => lang($status->languageKey())]);
+                if (! $status->canConvert(PurchaseDocumentKind::Order)) {
+                    throw new AccountingException(AccountingError::PurchaseOrderNotReceivable, 'An order that is ' . $status->name . ' is not received.', ['name' => lang($status->languageKey())]);
+                }
             }
 
             $taken = $this->allocate($orderId, $receivingId, $items);
@@ -147,6 +153,27 @@ final class PurchaseOrderReceipts
 
             $this->audit->write(PurchaseDocumentKind::Order->value, $orderId, $action, $employeeId, $employeeId === null ? JournalOrigin::System : JournalOrigin::User, ['receiving_id' => $receivingId, 'lines' => count($taken)], $branchId);
         });
+    }
+
+    /**
+     * A receiving made from an order stays with the supplier of the order: changing its supplier is refused. A receiving that was
+     * not made from an order, or whose supplier is the order's, is left alone.
+     *
+     * @throws AccountingException
+     */
+    public function assertSupplierKept(int $receivingId, ?int $supplierId): void
+    {
+        $orderId = $this->orderOfReceiving($receivingId);
+
+        if ($orderId === null) {
+            return;
+        }
+
+        $order = $this->db->table('purchase_orders')->select('supplier_id')->where('order_id', $orderId)->get()->getRow();
+
+        if ($order !== null && (int) $order->supplier_id !== (int) $supplierId) {
+            throw new AccountingException(AccountingError::PurchaseOrderSupplierMismatch, 'The receiving is from another supplier than the order.', ['name' => $this->numberOf($orderId)]);
+        }
     }
 
     /**

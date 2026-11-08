@@ -1676,6 +1676,51 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertSame(PurchaseDocumentStatus::Cancelled, $this->orderStatus($orderId));
     }
 
+    public function testUpdateLines_CorrectsTheUnitsOfAReceivingWhoseOrderWasCancelledSinceAndStillHoldsThemToTheOrder(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId     = $this->orderOf('10');
+        $receivingId = $this->receiveFromOrder($orderId, '4');
+        $line        = $this->orderLineEdit($receivingId);
+
+        $this->documentsOf(PurchaseDocumentKind::Order)->cancel($orderId, 'the rest is not coming', $this->clerk);
+
+        $this->assertTrue($this->purchases->updateLines($receivingId, [ReceivingLineEdit::changing($this->goods, $line, ['quantity' => '3'])], $this->clerk), 'the supplier invoiced 3 and the correction is not held up by the order that was cancelled');
+        $this->assertSame('3.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
+        $this->assertSame('3.000', $this->onHand($this->goods));
+
+        $this->assertFalse($this->purchases->updateLines($receivingId, [ReceivingLineEdit::changing($this->goods, $line, ['quantity' => '11'])], $this->clerk));
+        $this->assertSame(AccountingError::PurchaseOrderQuantityExceeded, $this->purchases->accountingFailure()->error);
+        $this->assertSame('3.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
+        $this->assertSame(PurchaseDocumentStatus::Cancelled, $this->orderStatus($orderId));
+        $this->assertStockTies();
+    }
+
+    public function testUpdate_RefusesAnotherSupplierForAReceivingMadeFromAnOrderWhateverAccountingSaysAndAcceptsTheSameOne(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId     = $this->orderOf('10');
+        $receivingId = $this->receiveFromOrder($orderId, '4');
+        $other       = $this->anotherSupplier();
+
+        foreach (['1', '0'] as $accounting) {
+            $this->setConfigValue('accounting_enabled', $accounting);
+
+            $this->assertFalse($this->purchases->update($receivingId, ['supplier_id' => $other]), 'accounting ' . $accounting);
+            $this->assertSame(AccountingError::PurchaseOrderSupplierMismatch, $this->purchases->accountingFailure()->error);
+            $this->assertFalse($this->purchases->update($receivingId, ['supplier_id' => null]), 'accounting ' . $accounting);
+            $this->assertSame($this->supplierId, (int) $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->get()->getRow()->supplier_id);
+            $this->assertTrue($this->purchases->update($receivingId, ['supplier_id' => $this->supplierId, 'comment' => 'kept ' . $accounting]), 'accounting ' . $accounting);
+        }
+
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->assertSame('4.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
+    }
+
     private function orderLineEdit(int $receivingId): int
     {
         return (int) $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow()->line;

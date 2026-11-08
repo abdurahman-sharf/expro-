@@ -150,11 +150,12 @@ final class PurchaseDocuments
     }
 
     /**
-     * Moves a document between the three labels that are set by hand, where the family allows it.
+     * Moves a document between the three labels that are set by hand, where the family allows it. A status that is not one of the
+     * three, or is not a status at all, is refused as a move the document cannot make, from the status it has now.
      *
      * @throws AccountingException
      */
-    public function changeStatus(int $documentId, PurchaseDocumentStatus $to, ?int $employeeId): PurchaseDocumentStatus
+    public function changeStatus(int $documentId, PurchaseDocumentStatus|string $to, ?int $employeeId): PurchaseDocumentStatus
     {
         $this->guard->require($this->kind->permission(self::EDIT), $employeeId);
         $this->assertOn();
@@ -166,19 +167,20 @@ final class PurchaseDocuments
         return $this->transactional(function () use ($documentId, $to, $employeeId): PurchaseDocumentStatus {
             $document = $this->lock($documentId, $employeeId);
             $from     = $this->derive((string) $document->status, $documentId);
+            $target   = $to instanceof PurchaseDocumentStatus ? $to : PurchaseDocumentStatus::tryFrom($to);
 
-            if ($from === $to) {
+            if ($target === $from) {
                 return $from;
             }
 
-            if (! in_array($to, $from->manualNext(), true)) {
-                throw new AccountingException(AccountingError::PurchaseDocumentStatusNotAllowed, 'A document cannot move from ' . $from->name . ' to ' . $to->name . '.', ['from' => lang($from->languageKey()), 'to' => lang($to->languageKey())]);
+            if (! in_array($target, $from->manualNext(), true)) {
+                throw new AccountingException(AccountingError::PurchaseDocumentStatusNotAllowed, 'A document cannot move from ' . $from->name . ' to ' . ($target?->name ?? $to) . '.', ['from' => lang($from->languageKey()), 'to' => $target === null ? $to : lang($target->languageKey())]);
             }
 
-            $this->db->table($this->kind->table())->where($this->kind->idColumn(), $documentId)->update(['status' => $to->value, 'updated_by' => $employeeId, 'updated_at' => date('Y-m-d H:i:s')]);
-            $this->record($documentId, 'status_changed', $employeeId, (int) $document->branch_id, ['from' => $from->name, 'to' => $to->name]);
+            $this->db->table($this->kind->table())->where($this->kind->idColumn(), $documentId)->update(['status' => $target->value, 'updated_by' => $employeeId, 'updated_at' => date('Y-m-d H:i:s')]);
+            $this->record($documentId, 'status_changed', $employeeId, (int) $document->branch_id, ['from' => $from->name, 'to' => $target->name]);
 
-            return $to;
+            return $target;
         });
     }
 
@@ -260,6 +262,16 @@ final class PurchaseDocuments
                 $this->db->table($this->kind->linesTable())->where($this->kind->idColumn(), $documentId)->orderBy('line_no', 'ASC')->get()->getResult(),
             );
 
+            $itemOfLine = [];
+
+            foreach ($lines as $index => $line) {
+                $itemOfLine[$index + 1] = $line['item_id'];
+            }
+
+            PurchaseLines::assertItemsExist($itemOfLine, $this->db);
+
+            $this->location($document->location_id, $employeeId);
+
             $newId = $target->createFromSource($documentId, [
                 'branch_id'     => (int) $document->branch_id,
                 'location_id'   => (int) $document->location_id,
@@ -302,6 +314,14 @@ final class PurchaseDocuments
         }
 
         $this->supplier((int) $order->supplier_id);
+
+        $itemOfLine = [];
+
+        foreach ($this->remainingLines($orderId) as $line) {
+            $itemOfLine[(int) $line->line_no] = (int) $line->item_id;
+        }
+
+        PurchaseLines::assertItemsExist($itemOfLine, $this->db);
 
         return $order;
     }
@@ -463,6 +483,19 @@ final class PurchaseDocuments
     public function allowsManualStatus(): bool
     {
         return $this->settings->allowsManualStatus($this->kind);
+    }
+
+    /**
+     * How many documents of the family still wait for somebody, whoever made them: the ones that stand open, sent or approved, and
+     * an order received in part. A document that was converted, received in full or cancelled does not.
+     */
+    public function waitingCount(): int
+    {
+        $waiting = [PurchaseDocumentStatus::Open, PurchaseDocumentStatus::Sent, PurchaseDocumentStatus::Approved, PurchaseDocumentStatus::PartlyReceived];
+
+        return $this->db->table($this->kind->table() . ' o')
+            ->where('(' . $this->derivedSql() . ') IN (' . implode(', ', array_map(fn (PurchaseDocumentStatus $status): string => $this->db->escape($status->value), $waiting)) . ')', null, false)
+            ->countAllResults();
     }
 
     /**

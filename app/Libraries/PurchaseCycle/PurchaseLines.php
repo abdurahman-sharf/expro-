@@ -37,7 +37,7 @@ final class PurchaseLines
         }
 
         $lines = [];
-        $ids   = [];
+        $items = [];
 
         foreach (array_values($raw) as $index => $line) {
             $number = $index + 1;
@@ -55,19 +55,31 @@ final class PurchaseLines
                 throw new AccountingException(AccountingError::PurchaseDocumentLineInvalid, "Line {$number} is not valid.", ['line' => $number]);
             }
 
-            $ids[]   = $itemId;
-            $lines[] = ['item_id' => $itemId, 'description' => $text, 'quantity' => $quantity, 'unit_price' => $price];
+            $items[$number] = $itemId;
+            $lines[]        = ['item_id' => $itemId, 'description' => $text, 'quantity' => $quantity, 'unit_price' => $price];
         }
 
-        $found = array_map('intval', array_column($db->table('items')->select('item_id')->whereIn('item_id', array_values(array_unique($ids)))->where('deleted', 0)->get()->getResultArray(), 'item_id'));
-
-        foreach ($lines as $index => $line) {
-            if (! in_array($line['item_id'], $found, true)) {
-                throw new AccountingException(AccountingError::PurchaseDocumentLineInvalid, 'The item of line ' . ($index + 1) . ' does not exist.', ['line' => $index + 1]);
-            }
-        }
+        self::assertItemsExist($items, $db);
 
         return $lines;
+    }
+
+    /**
+     * Refuses a line whose item does not exist or was deleted, naming the line.
+     *
+     * @param array<int, int> $itemOfLine The item of each line, by the number of the line.
+     *
+     * @throws AccountingException
+     */
+    public static function assertItemsExist(array $itemOfLine, BaseConnection $db): void
+    {
+        $found = array_map('intval', array_column($db->table('items')->select('item_id')->whereIn('item_id', array_values(array_unique($itemOfLine)))->where('deleted', 0)->get()->getResultArray(), 'item_id'));
+
+        foreach ($itemOfLine as $number => $itemId) {
+            if (! in_array($itemId, $found, true)) {
+                throw new AccountingException(AccountingError::PurchaseDocumentLineInvalid, "The item of line {$number} does not exist.", ['line' => $number]);
+            }
+        }
     }
 
     /**

@@ -2,8 +2,6 @@
 
 namespace App\Controllers;
 
-use App\Libraries\Accounting\AccountingError;
-use App\Libraries\Accounting\AccountingException;
 use App\Libraries\PurchaseCycle\PurchaseCycleSettings;
 use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
 use App\Libraries\PurchaseCycle\PurchaseDocuments;
@@ -183,13 +181,7 @@ abstract class PurchaseCycleScreen extends DocumentScreen
     public function postStatus(int $documentId): ResponseInterface
     {
         return $this->attempt(function () use ($documentId): array {
-            $to = PurchaseDocumentStatus::tryFrom($this->postText('status'));
-
-            if ($to === null || ! $to->isLabel()) {
-                throw new AccountingException(AccountingError::PurchaseDocumentStatusNotAllowed, 'The status is not one that is set by hand.', ['from' => '', 'to' => $this->postText('status')]);
-            }
-
-            $this->documents->changeStatus($documentId, $to, $this->employeeId());
+            $this->documents->changeStatus($documentId, $this->postText('status'), $this->employeeId());
 
             return ['success' => true, 'message' => lang('Purchase_cycle.status_changed'), 'id' => $documentId];
         });

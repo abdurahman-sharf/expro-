@@ -262,6 +262,117 @@ final class Purchase_ordersControllerTest extends CIUnitTestCase
         $this->assertNull(session()->get('recv_order_source'));
     }
 
+    private function grantReceivingsOn(int $locationId, string $name, int $personId): void
+    {
+        $this->accountingDb()->table('permissions')->insert(['permission_id' => 'receivings_' . $name, 'module_id' => 'receivings', 'location_id' => $locationId]);
+        $this->accountingDb()->table('grants')->insert(['permission_id' => 'receivings_' . $name, 'person_id' => $personId, 'menu_group' => 'home']);
+    }
+
+    public function testPostConvert_RefusesAnEmployeeWhoHoldsNoReceivingGrantOnTheStockLocationOfTheOrderAndAcceptsOneWhoDoes(): void
+    {
+        $name    = 'depot' . uniqid();
+        $depot   = $this->anotherLocation($name);
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order, ['location_id' => $depot]);
+        $before  = $this->bookCounts();
+        $person  = $this->receiver();
+
+        $refused = $this->postJson('/purchase_orders/convert/' . $orderId);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Receivings.location_not_allowed'), $refused['message']);
+        $this->assertNull(session()->get('recv_order_source'));
+        $this->assertSame([], session()->get('recv_cart') ?? []);
+
+        $this->grantReceivingsOn($depot, $name, $person);
+
+        $accepted = $this->postJson('/purchase_orders/convert/' . $orderId);
+
+        $this->assertTrue($accepted['success'], $accepted['message']);
+        $this->assertSame([$depot], array_map(static fn (array $line): int => (int) $line['item_location'], array_values(session()->get('recv_cart'))));
+        $this->assertSame($before, $this->bookCounts());
+    }
+
+    public function testPostConvert_RefusesAnOrderWhoseStockLocationWasDeletedSinceEvenToWhoHeldTheGrantOnIt(): void
+    {
+        $name    = 'depot' . uniqid();
+        $depot   = $this->anotherLocation($name);
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order, ['location_id' => $depot]);
+        $person  = $this->receiver();
+
+        $this->grantReceivingsOn($depot, $name, $person);
+        $this->accountingDb()->table('stock_locations')->where('location_id', $depot)->update(['deleted' => 1]);
+
+        $refused = $this->postJson('/purchase_orders/convert/' . $orderId);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Receivings.location_not_allowed'), $refused['message']);
+        $this->assertNull(session()->get('recv_order_source'));
+    }
+
+    public function testPostConvert_KeepsTheLinesOfOneItemApartAtTheirOwnPricesAndTheReceivingPostsWhatTheOrderSays(): void
+    {
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order, ['lines' => [
+            ['item_id' => $this->goods, 'quantity' => '3', 'unit_price' => '4.00'],
+            ['item_id' => $this->goods, 'quantity' => '2', 'unit_price' => '5.00'],
+        ]]);
+
+        $this->receiver();
+        $this->assertTrue($this->postJson('/purchase_orders/convert/' . $orderId)['success']);
+
+        $cart = array_values(session()->get('recv_cart') ?? []);
+
+        $this->assertSame([['3', '4.00'], ['2', '5.00']], array_map(static fn (array $line): array => [(string) (float) $line['quantity'], number_format((float) $line['price'], 2, '.', '')], $cart));
+
+        $this->withSession();
+        $this->post('/receivings/complete', $this->completeForm())->assertStatus(200);
+
+        $link = $this->accountingDb()->table('purchase_order_receivings')->where('order_id', $orderId)->get()->getRow();
+
+        $this->assertNotNull($link);
+        $this->receivingIds[] = (int) $link->receiving_id;
+
+        $rows = $this->accountingDb()->table('receivings_items')->where('receiving_id', $link->receiving_id)->orderBy('line', 'ASC')->get()->getResult();
+
+        $this->assertSame(['4.00', '5.00'], array_map(static fn (object $row): string => number_format((float) $row->item_unit_price, 2, '.', ''), $rows), 'each line is saved at the price the order gave it');
+        $this->assertSame(['3.000', '2.000'], $this->receivedUnits($orderId));
+        $this->assertSame('5.000', $this->onHand($this->goods));
+        $this->assertStockTies();
+    }
+
+    public function testPostConvert_TakesTheItemOfTheLineByItsIdAndNotAnItemWhoseBarcodeReadsLikeIt(): void
+    {
+        $clash  = $this->item('1.00');
+        $target = $this->item('4.00');
+
+        $this->accountingDb()->table('items')->where('item_id', $clash)->update(['item_number' => (string) $target]);
+
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order, ['lines' => [['item_id' => $target, 'quantity' => '2', 'unit_price' => '4.00']]]);
+
+        $this->receiver();
+        $this->assertTrue($this->postJson('/purchase_orders/convert/' . $orderId)['success']);
+
+        $this->assertSame([$target], array_map(static fn (array $line): int => (int) $line['item_id'], array_values(session()->get('recv_cart'))));
+    }
+
+    public function testPostConvert_RefusesAnOrderWhoseItemWasDeletedNamingTheLineAndFillsNothing(): void
+    {
+        $gone    = $this->item('2.00');
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order, ['lines' => [
+            ['item_id' => $this->goods, 'quantity' => '2', 'unit_price' => '4.00'],
+            ['item_id' => $gone, 'quantity' => '5', 'unit_price' => '2.00'],
+        ]]);
+
+        $this->accountingDb()->table('items')->where('item_id', $gone)->update(['deleted' => 1]);
+        $this->receiver();
+
+        $refused = $this->postJson('/purchase_orders/convert/' . $orderId);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_purchase_document_line_invalid', ['2']), $refused['message']);
+        $this->assertNull(session()->get('recv_order_source'));
+        $this->assertSame([], session()->get('recv_cart') ?? []);
+    }
+
     public function testPostConvert_TreatsAnOrderOfAnotherBranchAsOneThatDoesNotExist(): void
     {
         $other   = $this->createBranch();

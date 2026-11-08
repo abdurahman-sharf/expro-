@@ -265,11 +265,13 @@ class Receiving_lib
 
     /**
      * @param string|null $taxPercent The tax rate of the line, or null for the rate the item carries.
+     * @param bool        $orderLine  A line of a purchase order: the item is the one with this id and never one whose barcode reads like it, and the line
+     *                                stands by itself at its own price even when the register holds a line of the same item.
      */
-    public function add_item(string $itemId, int|float $quantity = 1, ?int $itemLocation = null, float $discount = 0, int $discountType = 0, ?float $price = null, ?string $description = null, ?string $serialNumber = null, ?float $receivingQuantity = null, ?int $receivingId = null, bool $includeDeleted = false, ?string $taxPercent = null): bool
+    public function add_item(string $itemId, int|float $quantity = 1, ?int $itemLocation = null, float $discount = 0, int $discountType = 0, ?float $price = null, ?string $description = null, ?string $serialNumber = null, ?float $receivingQuantity = null, ?int $receivingId = null, bool $includeDeleted = false, ?string $taxPercent = null, bool $orderLine = false): bool
     {
         $config   = config(OSPOS::class)->settings;
-        $itemInfo = $this->item->get_info_by_id_or_number($itemId, $includeDeleted);
+        $itemInfo = $orderLine ? $this->undeletedItem((int) $itemId) : $this->item->get_info_by_id_or_number($itemId, $includeDeleted);
 
         if (empty($itemInfo)) {
             return false;
@@ -287,7 +289,7 @@ class Receiving_lib
                 $maxKey = $item['line'];
             }
 
-            if ($item['item_id'] == $itemId && $item['item_location'] == $itemLocation) {
+            if (! $orderLine && $item['item_id'] == $itemId && $item['item_location'] == $itemLocation) {
                 $itemAlreadyInSale = true;
                 $updateKey         = $item['line'];
             }
@@ -507,8 +509,8 @@ class Receiving_lib
 
     /**
      * Fills the register with a new receiving from the supplier of a purchase order, with the units each line of the order has left
-     * to receive at the price the order gave it, and remembers the order. Nothing is saved and nothing is posted: the units are taken
-     * from the order when the receiving is.
+     * to receive at the price the order gave it, each line of the order as a line of its own, and remembers the order. Nothing is saved
+     * and nothing is posted: the units are taken from the order when the receiving is.
      *
      * @param list<object> $lines The lines of the order with something left, as the service of the orders returns them.
      */
@@ -517,12 +519,19 @@ class Receiving_lib
         $this->clear_all();
 
         foreach ($lines as $line) {
-            $this->add_item((string) $line->item_id, (float) $line->remaining, $locationId, 0, 0, (float) $line->unit_price, (string) $line->description, null, 1.0);
+            $this->add_item((string) $line->item_id, (float) $line->remaining, $locationId, 0, 0, (float) $line->unit_price, (string) $line->description, null, 1.0, orderLine: true);
         }
 
         $this->set_supplier($supplierId);
         $this->set_mode('receive');
         $this->setOrderSource($orderId);
+    }
+
+    private function undeletedItem(int $itemId): object|string
+    {
+        $itemInfo = $this->item->get_info($itemId);
+
+        return (int) $itemInfo->item_id === $itemId && (int) $itemInfo->deleted === 0 ? $itemInfo : '';
     }
 
     public function clear_all(): void

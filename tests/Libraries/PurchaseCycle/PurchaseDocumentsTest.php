@@ -793,6 +793,20 @@ class PurchaseDocumentsTest extends CIUnitTestCase
         $this->assertSame([$najd], $ids($service->search([], $this->clerk, 1, 1)));
     }
 
+    public function testSearch_FindsADocumentByTheFirstOrTheLastNameOfItsSupplierAndNotOnlyByTheCompany(): void
+    {
+        $service  = $this->documentsOf(PurchaseDocumentKind::Order);
+        $ofGulf   = $this->makeDocument(PurchaseDocumentKind::Order);
+        $ofZainab = $this->makeDocument(PurchaseDocumentKind::Order, ['supplier_id' => $this->insertSupplier('Najd Trading', 'Zainab', 'Haddad')]);
+
+        $ids = static fn (array $result): array => array_map(static fn (object $row): int => (int) $row->document_id, $result['rows']);
+
+        $this->assertSame([$ofGulf], $ids($service->search(['search' => 'Nasser'], $this->clerk)), 'the last name of the person of the supplier whose company is called otherwise');
+        $this->assertSame([$ofZainab], $ids($service->search(['search' => 'Zainab'], $this->clerk)));
+        $this->assertSame([$ofZainab], $ids($service->search(['search' => 'Zainab Haddad'], $this->clerk)));
+        $this->assertSame([], $ids($service->search(['search' => 'Nobody'], $this->clerk)));
+    }
+
     public function testSearch_FindsADocumentByItsNumber(): void
     {
         (new DocumentNumbering($this->accountingDb()))->configure(DocumentType::PurchaseRequest, ['enabled' => true, 'prefix' => 'PR-', 'padding' => 5], null);
@@ -1150,5 +1164,111 @@ class PurchaseDocumentsTest extends CIUnitTestCase
         $this->assertSame('cancelled', $service->search([], $this->clerk)['rows'][0]->derived_status);
         $this->assertSame([$request], array_map(static fn (object $row): int => (int) $row->document_id, $service->search(['status' => 'cancelled'], $this->clerk)['rows']));
         $this->assertSame([], $service->search(['status' => 'converted'], $this->clerk)['rows']);
+    }
+
+    public function testChangeStatus_AcceptsTheNameOfALabelAsTextAndRefusesAnyOtherTextNamingWhereTheDocumentStands(): void
+    {
+        $this->turnOnManualStatuses();
+
+        $documentId = $this->makeDocument(PurchaseDocumentKind::Order);
+        $service    = $this->documentsOf(PurchaseDocumentKind::Order);
+
+        $this->assertSame(PurchaseDocumentStatus::Sent, $service->changeStatus($documentId, 'sent', $this->clerk));
+
+        foreach (['received' => lang('Purchase_cycle.status_received'), 'cancelled' => lang('Purchase_cycle.status_cancelled'), 'nonsense' => 'nonsense', '' => ''] as $text => $named) {
+            $refusal = $this->refusal(fn () => $service->changeStatus($documentId, (string) $text, $this->clerk));
+
+            $this->assertInstanceOf(AccountingException::class, $refusal);
+            $this->assertSame(AccountingError::PurchaseDocumentStatusNotAllowed, $refusal->error);
+            $this->assertSame(['from' => lang('Purchase_cycle.status_sent'), 'to' => $named], $refusal->context);
+        }
+
+        $this->assertSame('sent', $this->row(PurchaseDocumentKind::Order, $documentId)->status);
+    }
+
+    #[DataProvider('stepProvider')]
+    public function testConvert_RefusesALineWhoseItemWasDeletedSinceAndMakesNothing(PurchaseDocumentKind $kind): void
+    {
+        $gone     = $this->item('3.00');
+        $sourceId = $this->makeDocument($kind, ['lines' => [
+            ['item_id' => $this->goods, 'quantity' => '1', 'unit_price' => '4.00'],
+            ['item_id' => $gone, 'quantity' => '2', 'unit_price' => '3.00'],
+        ]]);
+
+        $this->accountingDb()->table('items')->where('item_id', $gone)->update(['deleted' => 1]);
+
+        $refusal = $this->refusal(fn () => $this->documentsOf($kind)->convert($sourceId, $this->clerk));
+
+        $this->assertInstanceOf(AccountingException::class, $refusal);
+        $this->assertSame(AccountingError::PurchaseDocumentLineInvalid, $refusal->error);
+        $this->assertSame(2, $refusal->context['line']);
+        $this->assertSame(0, $this->countRows($kind->next()->table()));
+        $this->assertSame(PurchaseDocumentStatus::Open, $this->documentsOf($kind)->statusOf($sourceId));
+    }
+
+    #[DataProvider('stepProvider')]
+    public function testConvert_RefusesADocumentWhoseStockLocationWasDeletedSinceAndMakesNothing(PurchaseDocumentKind $kind): void
+    {
+        $depot    = $this->anotherLocation();
+        $sourceId = $this->makeDocument($kind, ['location_id' => $depot]);
+
+        $this->accountingDb()->table('stock_locations')->where('location_id', $depot)->update(['deleted' => 1]);
+
+        $this->assertRefused(AccountingError::PurchaseDocumentLocationInvalid, fn () => $this->documentsOf($kind)->convert($sourceId, $this->clerk));
+        $this->assertSame(0, $this->countRows($kind->next()->table()));
+    }
+
+    public function testAssertReceivable_RefusesAnOrderWhoseLineWithUnitsLeftHoldsAnItemThatWasDeletedAndNamesTheLine(): void
+    {
+        $other   = $this->item('2.00');
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order, ['lines' => [
+            ['item_id' => $this->goods, 'quantity' => '2', 'unit_price' => '4.00'],
+            ['item_id' => $other, 'quantity' => '5', 'unit_price' => '2.00'],
+        ]]);
+        $service = $this->documentsOf(PurchaseDocumentKind::Order);
+
+        $this->allowEmployeeEverywhere();
+        $this->assertGreaterThan(0, $this->purchases->save_value([$this->purchaseLine($this->goods, 0, '2', '4.00')], $this->supplierId, $this->clerk, 'x', 'REF-D', lang('Sales.due'), NEW_ENTRY, null, null, null, null, $orderId));
+        $this->receivingIds = array_map(static fn (array $row): int => (int) $row['receiving_id'], $this->accountingDb()->table('receivings')->select('receiving_id')->get()->getResultArray());
+
+        $this->accountingDb()->table('items')->where('item_id', $this->goods)->update(['deleted' => 1]);
+
+        $this->assertSame($orderId, (int) $service->assertReceivable($orderId, $this->clerk)->document_id, 'the item of a line that was received in full is not asked about');
+
+        $this->accountingDb()->table('items')->where('item_id', $other)->update(['deleted' => 1]);
+
+        $refusal = $this->refusal(fn () => $service->assertReceivable($orderId, $this->clerk));
+
+        $this->assertInstanceOf(AccountingException::class, $refusal);
+        $this->assertSame(AccountingError::PurchaseDocumentLineInvalid, $refusal->error);
+        $this->assertSame(2, $refusal->context['line']);
+    }
+
+    public function testWaitingCount_CountsTheDocumentsThatStillWaitAndNotTheOnesConvertedReceivedInFullOrCancelled(): void
+    {
+        $this->turnOnManualStatuses();
+        $this->allowEmployeeEverywhere();
+
+        $requests = $this->documentsOf(PurchaseDocumentKind::Request);
+        $orders   = $this->documentsOf(PurchaseDocumentKind::Order);
+
+        $this->makeDocument(PurchaseDocumentKind::Request);
+        $requests->changeStatus($this->makeDocument(PurchaseDocumentKind::Request), PurchaseDocumentStatus::Sent, $this->clerk);
+        $requests->convert($this->makeDocument(PurchaseDocumentKind::Request), $this->clerk);
+        $requests->cancel($this->makeDocument(PurchaseDocumentKind::Request), 'no', $this->clerk);
+
+        $this->assertSame(2, $requests->waitingCount(), 'an open and a sent request wait; a converted and a cancelled one do not');
+        $this->assertSame(1, $this->documentsOf(PurchaseDocumentKind::QuotationRequest)->waitingCount(), 'the request that the conversion made waits');
+
+        $this->makeDocument(PurchaseDocumentKind::Order);
+        $partly = $this->makeDocument(PurchaseDocumentKind::Order);
+        $full   = $this->makeDocument(PurchaseDocumentKind::Order, ['lines' => [['item_id' => $this->goods, 'quantity' => '2', 'unit_price' => '4.00']]]);
+        $orders->cancel($this->makeDocument(PurchaseDocumentKind::Order), 'no', $this->clerk);
+
+        $this->assertGreaterThan(0, $this->purchases->save_value([$this->purchaseLine($this->goods, 0, '3', '4.00')], $this->supplierId, $this->clerk, 'x', 'REF-W1', lang('Sales.due'), NEW_ENTRY, null, null, null, null, $partly));
+        $this->assertGreaterThan(0, $this->purchases->save_value([$this->purchaseLine($this->goods, 0, '2', '4.00')], $this->supplierId, $this->clerk, 'x', 'REF-W2', lang('Sales.due'), NEW_ENTRY, null, null, null, null, $full));
+        $this->receivingIds = array_map(static fn (array $row): int => (int) $row['receiving_id'], $this->accountingDb()->table('receivings')->select('receiving_id')->get()->getResultArray());
+
+        $this->assertSame(2, $orders->waitingCount(), 'an open order and one received in part wait; one received in full and a cancelled one do not');
     }
 }

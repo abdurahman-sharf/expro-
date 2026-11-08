@@ -313,4 +313,19 @@ class Receiving_libTest extends CIUnitTestCase
         $this->assertSame('', $this->receivingLib->get_comment());
         $this->assertSame([], $this->receivingLib->get_cart());
     }
+
+    public function testAddItem_RefusesAnOrderLineWhoseItemWasDeletedOrDoesNotExistAndNeverLooksItUpByBarcode(): void
+    {
+        $items = model(Item::class);
+
+        $items->expects($this->never())->method('get_info_by_id_or_number');
+        $items->method('get_info')->willReturnMap([
+            [7, (object) ['item_id' => 7, 'deleted' => 1]],
+            [8, (object) ['item_id' => null, 'deleted' => 0]],
+        ]);
+
+        $this->assertFalse($this->receivingLib->add_item('7', 1, 1, orderLine: true));
+        $this->assertFalse($this->receivingLib->add_item('8', 1, 1, orderLine: true));
+        $this->assertSame([], $this->receivingLib->get_cart());
+    }
 }
