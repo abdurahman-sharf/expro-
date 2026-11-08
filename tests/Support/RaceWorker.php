@@ -23,6 +23,8 @@ use App\Libraries\Stock\StockRequest;
 use App\Libraries\Stock\Stocktake;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
+use App\Libraries\PurchaseCycle\PurchaseDocuments;
 use App\Libraries\Recurring\RecurringGenerator;
 use App\Models\Customer;
 use App\Models\Giftcard;
@@ -322,6 +324,32 @@ $result = match ($method) {
         }
 
         exit(0);
+    })($args),
+    'orderReceive' => (static function (array $args): bool {
+        $lines = [[
+            'item_id'            => (int) $args[2],
+            'line'               => 0,
+            'description'        => 'Race',
+            'serialnumber'       => '',
+            'quantity'           => (string) $args[1],
+            'receiving_quantity' => 1,
+            'discount'           => 0,
+            'discount_type'      => 0,
+            'price'              => '4.00',
+            'item_location'      => 1,
+            'tax_percent'        => 0,
+        ]];
+
+        return model(Receiving::class)->save_value($lines, (int) $args[3], (int) $args[4], 'race', 'REF', 'Due', NEW_ENTRY, null, null, null, null, (int) $args[0]) > 0;
+    })($args),
+    'convertDocument' => (static function (array $args): bool {
+        try {
+            (new PurchaseDocuments(PurchaseDocumentKind::from((string) $args[0])))->convert((int) $args[1], (int) $args[2]);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
     })($args),
     'editPurchaseLines' => model(Receiving::class)->updateLines((int) $args[0], [ReceivingLineEdit::changing((int) $args[1], 0, ['quantity' => (string) $args[2]])], (int) $args[3]),
     'deletePurchase'    => model(Receiving::class)->delete_value((int) $args[0], (int) $args[1]),

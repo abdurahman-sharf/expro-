@@ -92,7 +92,7 @@ final class PurchaseDocuments
      * Writes the document that a conversion makes from the one before it, in the transaction of the conversion.
      *
      * @param array{branch_id: int, location_id: int, supplier_id: int|null, document_date: string, due_date: string|null, note: string} $header
-     * @param list<array{item_id: int, description: string, quantity: string, unit_price: string}>                                         $lines
+     * @param list<array{item_id: int, description: string, quantity: string, unit_price: string}>                                       $lines
      *
      * @throws AccountingException
      */
@@ -487,7 +487,7 @@ final class PurchaseDocuments
 
     /**
      * @param array{branch_id: int, location_id: int, supplier_id: int|null, document_date: string, due_date: string|null, note: string} $header
-     * @param list<array{item_id: int, description: string, quantity: string, unit_price: string}>                                         $lines
+     * @param list<array{item_id: int, description: string, quantity: string, unit_price: string}>                                       $lines
      */
     private function store(array $header, array $lines, ?int $sourceId, ?int $employeeId): int
     {
