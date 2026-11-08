@@ -225,7 +225,7 @@ final class EInvoiceService
     }
 
     /**
-     * The sales of a branch that have a document, newest first, and the ones that have none.
+     * The documents issued in the branches the reader may see, newest first.
      *
      * @param list<int>|null $branchIds The branches the reader may see, null for every branch.
      *
@@ -233,6 +233,10 @@ final class EInvoiceService
      */
     public function issuedIn(?array $branchIds, int $limit = 100): array
     {
+        if ($branchIds === []) {
+            return [];
+        }
+
         $builder = $this->db->table('einvoice_documents')
             ->select('document_id, branch_id, source_type, source_id, doc_kind, subtype, document_number, icv, issue_date, tax_inclusive, signed')
             ->where('company_id', CompanyContext::id())
@@ -273,9 +277,16 @@ final class EInvoiceService
         $companyId = CompanyContext::id();
         $table     = $this->db->prefixTable('einvoice_counters');
 
-        $this->db->query("INSERT IGNORE INTO {$table} (company_id) VALUES (?)", [$companyId]);
+        $sql = "SELECT last_icv, last_hash FROM {$table} WHERE company_id = ? FOR UPDATE";
+        $row = LockedRead::row($this->db, $sql, [$companyId]);
 
-        $row = LockedRead::row($this->db, "SELECT last_icv, last_hash FROM {$table} WHERE company_id = ? FOR UPDATE", [$companyId]);
+        if ($row === null) {
+            if ($this->db->query("INSERT IGNORE INTO {$table} (company_id) VALUES (?)", [$companyId]) === false) {
+                throw new AccountingException(AccountingError::WriteFailed, 'The counter of the documents could not be created.');
+            }
+
+            $row = LockedRead::row($this->db, $sql, [$companyId]);
+        }
 
         if ($row === null) {
             throw new AccountingException(AccountingError::WriteFailed, 'The counter of the documents could not be locked.');

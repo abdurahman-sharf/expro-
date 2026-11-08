@@ -7,7 +7,7 @@ const NAVIGATION_GROUPS = [
     'group_inventory'  => ['items', 'item_kits', 'attributes', 'price_lists', 'stock_documents', 'stock_units'],
     'group_customers'  => ['customers', 'giftcards', 'messages'],
     'group_finance'    => ['expenses', 'expenses_categories', 'recurring_expenses', 'receipt_vouchers', 'revenue_categories', 'cashups', 'taxes'],
-    'group_accounting' => ['accounting_chart', 'accounting_journals', 'accounting_receivables', 'accounting_debit_notes', 'accounting_payables', 'accounting_cheques', 'accounting_reports', 'accounting_cost_centers', 'accounting_currencies', 'accounting_periods', 'accounting_routing', 'accounting_settings'],
+    'group_accounting' => ['accounting_chart', 'accounting_journals', 'accounting_receivables', 'accounting_debit_notes', 'accounting_payables', 'accounting_cheques', 'accounting_reports', 'accounting_cost_centers', 'accounting_currencies', 'accounting_periods', 'accounting_routing', 'accounting_einvoicing', 'accounting_settings'],
     'group_analysis'   => ['reports'],
     'group_admin'      => ['employees', 'roles', 'branches', 'custom_fields', 'config'],
 ];
@@ -50,6 +50,7 @@ const NAVIGATION_ICONS = [
     'accounting_currencies'   => 'bi-currency-exchange',
     'accounting_periods'      => 'bi-calendar-range',
     'accounting_routing'      => 'bi-signpost-split',
+    'accounting_einvoicing'   => 'bi-qr-code',
     'accounting_settings'     => 'bi-toggles',
     'reports'                 => 'bi-bar-chart-line',
     'employees'               => 'bi-person-badge',
