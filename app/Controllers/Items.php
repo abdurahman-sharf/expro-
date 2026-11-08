@@ -1624,6 +1624,9 @@ class Items extends Secure_Controller
                             log_message('error', 'CSV import: ' . $failure->getMessage());
                         }
 
+                        $master       = array_intersect_key($itemData, array_flip(ItemFields::FIELDS));
+                        $masterBefore = $isUpdate && $master !== [] ? $this->item->get_info($itemId) : null;
+
                         if (!$isFailedRow) {
                             $allowedStockLocations = $this->itemLocations();
                             $isFailedRow           = $this->validateCSVData($row, $itemData, $allowedStockLocations, $attributeDefinitionNames, $attributeData);
@@ -1657,6 +1660,10 @@ class Items extends Secure_Controller
                                 $failCodes[] = $failedRow;
                                 log_message('error', "CSV Item import failed on line $failedRow while saving item.");
                                 continue;
+                            }
+
+                            if ($master !== []) {
+                                (new ItemFields())->audit((int) $itemData['item_id'], $masterBefore, $master, (int) $employeeId);
                             }
 
                             if ($isUpdate) {

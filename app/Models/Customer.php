@@ -149,17 +149,17 @@ class Customer extends Person
     /**
      * Gets stats about a particular customer
      */
-    public function get_stats(int $customer_id, ?array $branchIds = null): ?stdClass
+    public function get_stats(int $customerId, ?array $branchIds = null): ?stdClass
     {
-        $db_prefix = $this->db->getPrefix();
-        $totals_decimals = totals_decimals();
-        $quantity_decimals = quantity_decimals();
+        $dbPrefix = $this->db->getPrefix();
+        $totalsDecimals = totals_decimals();
+        $quantityDecimals = quantity_decimals();
 
         // Temp Table
         $builder = $this->db->table('sales');
-        $builder->select('sales.sale_id AS sale_id, AVG(`' . $db_prefix . 'sales_items`.`discount`) AS avg_discount, SUM(`' . $db_prefix . 'sales_items`.`quantity_purchased`) AS quantity');
+        $builder->select('sales.sale_id AS sale_id, AVG(`' . $dbPrefix . 'sales_items`.`discount`) AS avg_discount, SUM(`' . $dbPrefix . 'sales_items`.`quantity_purchased`) AS quantity');
         $builder->join('sales_items', 'sales_items.sale_id = sales.sale_id');
-        $builder->where('sales.customer_id', $customer_id);
+        $builder->where('sales.customer_id', $customerId);
         $this->limitSalesToBranches($builder, $branchIds);
         $builder->groupBy('sale_id');
         $selectQuery = $builder->getCompiledSelect();
@@ -175,12 +175,12 @@ class Customer extends Person
             'MIN(sales_payments.payment_amount - sales_payments.cash_refund) AS min',
             'MAX(sales_payments.payment_amount - sales_payments.cash_refund) AS max',
             'AVG(sales_payments.payment_amount - sales_payments.cash_refund) AS average',
-            "ROUND(AVG(sales_items_temp.avg_discount), $totals_decimals) AS avg_discount",
-            "ROUND(SUM(sales_items_temp.quantity), $quantity_decimals) AS quantity"
+            "ROUND(AVG(sales_items_temp.avg_discount), $totalsDecimals) AS avg_discount",
+            "ROUND(SUM(sales_items_temp.quantity), $quantityDecimals) AS quantity"
         ]);
         $builder->join('sales_payments AS sales_payments', 'sales.sale_id = sales_payments.sale_id');
         $builder->join('sales_items_temp AS sales_items_temp', 'sales.sale_id = sales_items_temp.sale_id');
-        $builder->where('sales.customer_id', $customer_id);
+        $builder->where('sales.customer_id', $customerId);
         $builder->where('sales.sale_status', COMPLETED);
         $this->limitSalesToBranches($builder, $branchIds);
         $builder->groupBy('sales.customer_id');
@@ -478,19 +478,19 @@ class Customer extends Person
      *
      * @param array<string, mixed> $filters
      */
-    public function search(string $search, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'last_name', ?string $order = 'asc', ?bool $count_only = false, array $filters = [])
+    public function search(string $search, ?int $rows = 0, ?int $limitFrom = 0, ?string $sort = 'last_name', ?string $order = 'asc', ?bool $countOnly = false, array $filters = [])
     {
         // Set default values
         if ($rows == null) $rows = 0;
-        if ($limit_from == null) $limit_from = 0;
+        if ($limitFrom == null) $limitFrom = 0;
         if ($sort == null) $sort = 'last_name';
         if ($order == null) $order = 'asc';
-        if ($count_only == null) $count_only = false;
+        if ($countOnly == null) $countOnly = false;
 
         $builder = $this->db->table('customers AS customers');
 
         // get_found_rows case
-        if ($count_only) {
+        if ($countOnly) {
             $builder->select('COUNT(customers.person_id) as count');
         } else {
             $visible = $filters['visible_employee_ids'] ?? null;
@@ -517,7 +517,7 @@ class Customer extends Person
         $this->applyDirectoryFilters($builder, $filters);
 
         // get_found_rows case
-        if ($count_only) {
+        if ($countOnly) {
             return $builder->get()->getRow()->count;
         }
 
@@ -528,7 +528,7 @@ class Customer extends Person
         }, $order);
 
         if ($rows > 0) {
-            $builder->limit($rows, $limit_from);
+            $builder->limit($rows, $limitFrom);
         }
 
         return $builder->get();

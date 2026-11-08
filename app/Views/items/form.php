@@ -204,7 +204,7 @@ $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_in
             <div class="field">
                 <?= form_label(lang('Items.brand'), 'brand_id', ['class' => 'form-label']) ?>
                 <div class="field-control">
-                    <?= form_dropdown('brand_id', $brandOptions, (string) $masterItem['brand_id'], ['class' => 'form-select', 'id' => 'brand_id']) ?>
+                    <?= form_dropdown('brand_id', array_map('esc', $brandOptions), (string) $masterItem['brand_id'], ['class' => 'form-select', 'id' => 'brand_id']) ?>
                     <p class="form-text mb-0"><?= anchor('item_brands', lang('Items.brands_manage'), ['target' => '_blank', 'rel' => 'noopener']) ?></p>
                 </div>
             </div>

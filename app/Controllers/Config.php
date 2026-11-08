@@ -749,15 +749,15 @@ class Config extends Secure_Controller
         $primaryId  = (string) $this->request->getPost('location_primary');
 
         try {
-            $not_to_delete = [];
+            $keptIds = [];
+
             foreach ($this->request->getPost() as $key => $value) {
                 if (str_contains($key, 'stock_location')) {
-                    // Save or update
-                    foreach ($value as $location_id => $location_name) {
-                        $location_data = ['location_name' => $location_name];
-                        if ($this->stock_location->save_value($location_data, $location_id)) {
-                            $location_id = $this->stock_location->get_location_id($location_name);
-                            $not_to_delete[] = $location_id;
+                    foreach ($value as $postedId => $locationName) {
+                        $locationData = ['location_name' => $locationName];
+
+                        if ($this->stock_location->save_value($locationData, $postedId)) {
+                            $keptIds[] = $this->stock_location->get_location_id($locationName);
                             $this->_clear_session_state();
                         }
                     }
@@ -780,11 +780,8 @@ class Config extends Secure_Controller
                 }
             }
 
-            // All locations not available in post will be deleted now
-            $deleted_locations = $this->stock_location->get_all()->getResultArray();
-
-            foreach ($deleted_locations as $location => $location_data) {
-                if (!in_array($location_data['location_id'], $not_to_delete) && ! $this->stock_location->delete($location_data['location_id'])) {
+            foreach ($this->stock_location->get_all()->getResultArray() as $location) {
+                if (! in_array($location['location_id'], $keptIds) && ! $this->stock_location->delete($location['location_id'])) {
                     throw $this->stock_location->removalRefusal() ?? new AccountingException(AccountingError::WriteFailed, 'The stock location could not be removed.');
                 }
             }

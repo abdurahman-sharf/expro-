@@ -8,6 +8,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use RuntimeException;
 use Tests\Support\AccountingFixtureTrait;
+use Throwable;
 
 /**
  * @internal
@@ -111,7 +112,7 @@ final class StockLocationStatusMigrationTest extends CIUnitTestCase
     {
         $second = $this->insertStockLocation('Second');
 
-        $this->expectException(\Throwable::class);
+        $this->expectException(Throwable::class);
 
         $this->accountingDb()->table('stock_locations')->where('location_id', $second)->update(['is_primary' => 1]);
     }

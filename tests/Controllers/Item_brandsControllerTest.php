@@ -85,6 +85,7 @@ final class Item_brandsControllerTest extends CIUnitTestCase
 
         $page->assertStatus(200);
         $page->assertSee(lang('Lookups.item_brand_new'));
+        $this->assertStringContainsString('<h2 id="lookup_title" class="h5 float-start mb-0">' . lang('Lookups.item_brand_title') . '</h2>', $page->getBody());
     }
 
     public function testPostSave_AddsABrandAndWritesItToTheAuditLog(): void

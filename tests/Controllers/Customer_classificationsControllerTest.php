@@ -75,6 +75,7 @@ final class Customer_classificationsControllerTest extends CIUnitTestCase
 
         $page->assertStatus(200);
         $page->assertSee(lang('Lookups.customer_classification_new'));
+        $this->assertStringContainsString('<h2 id="lookup_title" class="h5 float-start mb-0">' . lang('Lookups.customer_classification_title') . '</h2>', $page->getBody());
         $this->assertStringContainsString('customer_classifications', $page->getBody());
     }
 

@@ -8,6 +8,7 @@ use App\Libraries\Organization\BranchException;
 use App\Models\Item;
 use App\Models\Item_quantity;
 use CodeIgniter\Database\Config;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -827,6 +828,53 @@ class ItemTest extends CIUnitTestCase
         $this->assertNotContains($token . ' cat', array_column($model->get_search_suggestions($token . ' cat', $hide), 'label'));
         $this->assertContains($token . ' cat', array_column($model->get_search_suggestions($token . ' cat', $show), 'label'));
         $this->cleanStatusFixtures();
+    }
+
+    /**
+     * @return list<string> What was asked of the items table while the action ran.
+     */
+    private function itemQueriesOf(callable $action): array
+    {
+        $table   = 'FROM `' . $this->accountingDb()->prefixTable('items') . '`';
+        $queries = [];
+        $listener = static function ($query) use (&$queries, $table): void {
+            if (str_contains((string) $query->getQuery(), $table)) {
+                $queries[] = (string) $query->getQuery();
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $queries;
+    }
+
+    public function testGetSearchSuggestions_AsksForActiveItemsInEveryQueryOfAnOpenSearchWhenAskedToHideInactive(): void
+    {
+        $model = model(Item::class);
+        $hide  = ['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true];
+        $show  = ['search_custom' => false, 'is_deleted' => false];
+
+        foreach (['get_search_suggestions', 'get_stock_search_suggestions', 'get_kit_search_suggestions'] as $method) {
+            $hidden = $this->itemQueriesOf(fn () => $model->{$method}('anything', $hide));
+            $shown  = $this->itemQueriesOf(fn () => $model->{$method}('anything', $show));
+
+            $this->assertCount(4, $hidden, $method . ': by name, number, category and description');
+            $this->assertCount(4, $shown, $method);
+
+            foreach ($hidden as $sql) {
+                $this->assertMatchesRegularExpression('/`status` = 0/', $sql, $method . ': ' . $sql);
+            }
+
+            foreach ($shown as $sql) {
+                $this->assertDoesNotMatchRegularExpression('/`status`/', $sql, $method . ': ' . $sql);
+            }
+        }
     }
 
     public function testGetTopSellers_LeavesOutInactiveAndSuspendedItems(): void

@@ -3299,6 +3299,7 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $this->assertSame([$inactive], $ids(['status_inactive']));
         $this->assertSame([$suspended], $ids(['status_suspended']));
+        $this->assertEqualsCanonicalizing([$inactive, $suspended], $ids(['status_inactive', 'status_suspended']), 'both choices list everything that is hidden');
         $this->assertEqualsCanonicalizing([$emptied, $suspended], $ids(['out_of_stock']));
         $this->assertSame([$active], $ids(['available']));
         $this->assertEqualsCanonicalizing($mine, $ids([]));
@@ -3331,6 +3332,35 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertTrue($result['success']);
         $this->assertSame([$brand, 2, 'S-9', 'VAT', '15.000', null, '5.000'], [(int) $row['brand_id'], (int) $row['status'], $row['supplier_code'], $row['purchase_tax_1_name'], $row['purchase_tax_1_percent'], $row['purchase_tax_2_name'], $row['purchase_tax_2_percent']]);
         $this->masterItemIds[] = (int) $row['item_id'];
+        $this->cleanMasterItems();
+    }
+
+    public function testPostImportCsvFile_WritesTheBrandTheStatusAndTheSupplierCodeOfEachRowToTheAuditLog(): void
+    {
+        $acme = $this->brand('Acme');
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $columns = $this->importColumnsOfTheEmployee();
+        $name    = 'Csv audited item ' . uniqid();
+        $base    = ['Item Name' => $name, 'Category' => 'Csv', 'Cost Price' => '5', 'Unit Price' => '9', 'Reorder Level' => '0'];
+
+        $this->assertTrue($this->importOneRow($columns, $base + ['Brand' => 'Acme', 'Status' => 'inactive', 'Supplier Code' => 'S-1'])['success']);
+
+        $itemId = (int) $this->accountingDb()->table('items')->where('name', $name)->get()->getRow()->item_id;
+        $this->masterItemIds[] = $itemId;
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item', 'entity_id' => $itemId, 'action' => 'item_master_data_changed'])->get()->getResultArray();
+
+        $this->assertCount(1, $audit, 'a new item is written once');
+        $this->assertEquals(['brand_id' => ['from' => null, 'to' => $acme], 'status' => ['from' => 0, 'to' => 1], 'supplier_code' => ['from' => null, 'to' => 'S-1']], json_decode($audit[0]['details'], true)['changes']);
+
+        $this->assertTrue($this->importOneRow($columns, ['Id' => (string) $itemId, ...$base, 'Status' => 'suspended', 'Supplier Code' => 'S-1'])['success']);
+
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item', 'entity_id' => $itemId, 'action' => 'item_master_data_changed'])->orderBy('audit_id', 'ASC')->get()->getResultArray();
+
+        $this->assertCount(2, $audit, 'an item that is changed is written again');
+        $this->assertEquals(['status' => ['from' => 1, 'to' => 2]], json_decode($audit[1]['details'], true)['changes'], 'and only what changed');
+
+        $this->assertTrue($this->importOneRow($columns, ['Id' => (string) $itemId, ...$base])['success']);
+        $this->assertCount(2, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item', 'entity_id' => $itemId, 'action' => 'item_master_data_changed'])->get()->getResultArray(), 'a row with the cells empty changes none of them and writes nothing');
         $this->cleanMasterItems();
     }
 
@@ -3400,6 +3430,19 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $this->assertTrue(csvImportHasRequiredItemHeaders([array_fill_keys($legacy, '')], ['Warehouse'], []));
         $this->assertFalse(csvImportHasRequiredItemHeaders([array_fill_keys(array_diff($legacy, ['Item Name']), '')], ['Warehouse'], []), 'A required column is still required');
+    }
+
+    public function testGetView_EscapesTheNameOfABrandInTheList(): void
+    {
+        $hostile = '</select><img src=x onerror=alert(1)>';
+        $this->brand($hostile);
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $form = $this->get('/items/view/-1')->getBody();
+
+        $this->assertStringNotContainsString('<img src=x', $form);
+        $this->assertStringContainsString(esc($hostile), $form);
+        $this->cleanMasterItems();
     }
 
     public function testGetSuggest_LeavesOutAnInactiveAndASuspendedItemFromThePickerOfTheKitForm(): void

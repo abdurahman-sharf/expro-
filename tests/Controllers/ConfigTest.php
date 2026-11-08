@@ -779,7 +779,7 @@ class ConfigTest extends CIUnitTestCase
         $result = json_decode($this->post('/config/saveLocations', $this->locationsForm(['location_status' => [1 => '0']]))->getJSON(), true);
 
         $this->assertFalse($result['success']);
-        $this->assertStringContainsString('stock', strtolower($result['message']));
+        $this->assertSame(lang('Accounting.error_stock_location_is_primary', [$this->locationRow(1)['location_name']]), $result['message']);
         $this->assertSame('1', (string) $this->locationRow(1)['status']);
 
         $this->restoreLocations();
@@ -800,6 +800,7 @@ class ConfigTest extends CIUnitTestCase
         $result = json_decode($this->post('/config/saveLocations', $form)->getJSON(), true);
 
         $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_stock_location_holds_stock', [$this->locationRow($loaded)['location_name'], 1]), $result['message']);
         $this->assertSame('1', (string) $this->locationRow($loaded)['status']);
         $this->assertNotSame($form['stock_location'][$other], $this->locationRow($other)['location_name'], 'The refusal undoes the rename of the same save');
         $this->assertSame('1', (string) $this->locationRow(1)['is_primary']);
@@ -831,6 +832,7 @@ class ConfigTest extends CIUnitTestCase
         $result = json_decode($this->post('/config/saveLocations', $form)->getJSON(), true);
 
         $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_stock_location_is_primary', [$this->locationRow(1)['location_name']]), $result['message']);
         $this->assertSame('0', (string) $this->locationRow(1)['deleted']);
         $this->assertSame('0', (string) $this->locationRow($spare)['deleted']);
 

@@ -472,11 +472,13 @@ class Item extends Model
 
         $idBuilder->where('items.deleted', $filters['is_deleted']);
 
-        if (! empty($filters['status_inactive'])) {
-            $idBuilder->where('items.status', ItemStatus::Inactive->value);
-        }
-        if (! empty($filters['status_suspended'])) {
-            $idBuilder->where('items.status', ItemStatus::Suspended->value);
+        $hidden = array_filter([
+            ! empty($filters['status_inactive']) ? ItemStatus::Inactive->value : null,
+            ! empty($filters['status_suspended']) ? ItemStatus::Suspended->value : null,
+        ], static fn (?int $status): bool => $status !== null);
+
+        if ($hidden !== []) {
+            $idBuilder->whereIn('items.status', $hidden);
         }
         if (! empty($filters['out_of_stock']) && $filters['stock_location_id'] > -1) {
             $idBuilder->where('items.stock_type', HAS_STOCK);

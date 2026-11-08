@@ -6,6 +6,7 @@ use App\Database\Migrations\CustomerMasterData;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\Support\AccountingFixtureTrait;
 use Throwable;
@@ -167,7 +168,7 @@ final class CustomerMasterDataMigrationTest extends CIUnitTestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('enteredProvider')]
+    #[DataProvider('enteredProvider')]
     public function testDown_RefusesOnceAValueIsStored(string $table, string $column, mixed $value): void
     {
         $db = $this->accountingDb();

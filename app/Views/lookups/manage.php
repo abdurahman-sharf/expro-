@@ -30,6 +30,7 @@
 </script>
 
 <div id="title_bar" class="print_hide btn-toolbar">
+    <h2 id="lookup_title" class="h5 float-start mb-0"><?= esc(lang('Lookups.' . $kind . '_title')) ?></h2>
     <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= esc(base_url($resource . '/view'), 'attr') ?>" title="<?= esc(lang('Lookups.' . $kind . '_new'), 'attr') ?>">
         <span class="bi bi-plus-lg" aria-hidden="true">&nbsp;</span><?= lang('Lookups.' . $kind . '_new') ?>
     </button>

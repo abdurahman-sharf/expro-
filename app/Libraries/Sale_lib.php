@@ -704,8 +704,9 @@ class Sale_lib
 
     /**
      * Fills the register with a new invoice for the customer of a sales order, with the quantity each line
-     * of the order has left to invoice at the price the order gave it, and remembers the order. Nothing is
-     * saved: the quantity is taken from the order when the invoice is.
+     * of the order has left to invoice at the price the order gave it, and remembers the order. An item the
+     * order names stays on it when it was made inactive or suspended since, as the lines of a quote and of
+     * a suspended sale do. Nothing is saved: the quantity is taken from the order when the invoice is.
      */
     public function prepareInvoiceFromOrder(int $orderId, int $customerId, array $lines): void
     {
@@ -715,7 +716,7 @@ class Sale_lib
             $itemId   = (string) $line->item_id;
             $discount = (string) $line->discount;
 
-            $this->add_item($itemId, (int) $line->item_location, (string) $line->remaining, $discount, (int) $line->discount_type, PRICE_MODE_STANDARD, null, null, (string) $line->unit_price, (string) $line->description);
+            $this->add_item($itemId, (int) $line->item_location, (string) $line->remaining, $discount, (int) $line->discount_type, PRICE_MODE_STANDARD, null, null, (string) $line->unit_price, (string) $line->description, include_deleted: true);
         }
 
         $this->set_customer($customerId);
