@@ -32,7 +32,7 @@ final class StampKeys
         }
 
         $keyPem = is_file($keyFile) && is_readable($keyFile) ? file_get_contents($keyFile) : false;
-        $key    = $keyPem === false ? false : openssl_pkey_get_private($keyPem);
+        $key    = $keyPem === false ? false : self::quietly(static fn (): mixed => openssl_pkey_get_private($keyPem));
 
         if ($key === false) {
             throw new EInvoiceException(EInvoiceError::KeyUnreadable, 'The private key cannot be read.');
@@ -45,7 +45,7 @@ final class StampKeys
         }
 
         $certificatePem = is_file($certificateFile) && is_readable($certificateFile) ? file_get_contents($certificateFile) : false;
-        $certificate    = $certificatePem === false ? false : openssl_x509_read($certificatePem);
+        $certificate    = $certificatePem === false ? false : self::quietly(static fn (): mixed => openssl_x509_read($certificatePem));
 
         if ($certificate === false || ! openssl_x509_export($certificate, $normalized)) {
             throw new EInvoiceException(EInvoiceError::CertificateUnreadable, 'The certificate cannot be read.');
@@ -66,6 +66,20 @@ final class StampKeys
             issuerName: self::issuerName((array) ($parsed['issuer'] ?? [])),
             serialNumber: (string) ($parsed['serialNumber'] ?? ''),
         );
+    }
+
+    /**
+     * OpenSSL warns about a file that is not what it was asked to read; the refusal says so in its own words.
+     */
+    private static function quietly(callable $read): mixed
+    {
+        set_error_handler(static fn (): bool => true);
+
+        try {
+            return $read();
+        } finally {
+            restore_error_handler();
+        }
     }
 
     private static function der(string $pem): string

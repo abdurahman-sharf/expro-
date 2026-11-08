@@ -122,13 +122,19 @@ class UblInvoiceXmlTest extends CIUnitTestCase
         $copy  = $this->amended($base, ['lines' => [$named, ...array_slice($base->lines, 1)]]);
         $built = $this->xml->build($copy, 'QR-TEXT');
 
-        $this->assertStringContainsString('<cbc:Name>Tea &amp; &lt;coffee&gt; &quot;set&quot; شاي</cbc:Name>', $built);
+        $this->assertStringContainsString('<cbc:Name>Tea &amp; &lt;coffee&gt; "set" شاي</cbc:Name>', $built);
         $this->assertNotFalse((new DOMDocument())->loadXML($built));
     }
 
-    public function testBuild_StripsACharacterXmlDoesNotAllow(): void
+    public function testEscape_StripsACharacterXmlDoesNotAllow(): void
     {
         $this->assertSame('ab', UblInvoiceXml::escape("a\x00\x0bb"));
+    }
+
+    public function testEscape_EscapesQuotesInAnAttributeAndLeavesThemInText(): void
+    {
+        $this->assertSame('say &quot;hi&quot;', UblInvoiceXml::escape('say "hi"', true));
+        $this->assertSame('say "hi"', UblInvoiceXml::escape('say "hi"'));
     }
 
     public function testBuild_RefusesADocumentThatHasNoCounterAndNoChain(): void

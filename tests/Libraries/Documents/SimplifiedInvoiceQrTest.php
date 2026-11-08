@@ -196,4 +196,95 @@ class SimplifiedInvoiceQrTest extends CIUnitTestCase
 
         $this->assertSame($this->qr->tlv('opes', '300000000000003', '2026-10-22T09:47:29Z', '1725.00', '225.00'), base64_decode($text, true));
     }
+
+    private const OFFICIAL_SAMPLE = 'ARdBaG1lZCBNb2hhbWVkIEFMIEFobWFkeQIPMzAxMTIxOTcxNTAwMDAzAxQyMDIyLTAzLTEzVDE0OjQwOjQwWgQHMTEwOC45MAUFMTQ0LjkGLFFuVkVleFc0bld2NENhRTM5YS82NkpwL09YTy9ldkhROHBEbEc3d2VxLzQ9B2BNRVVDSVFENXp4eVhPQjdOdldmNjJyVkVaQVlVNzFqcHk5SEVFblowcTlPOTZ3ckw2UUlnUUp6Q0dIYnc2WUJITFlWZE8xd25VaEJnS204ak1UeXZjazlNK3JQOXhZWT0IWDBWMBAGByqGSM49AgEGBSuBBAAKA0IABGGDDKDmhWAITDv7LXqLX2cmr6+qddUkpcLCvWs5rC2O29W/hS4ajAK4Qdnahym6MaijX75Cg3j4aao7ouYXJ9EJSDBGAiEA7mHT6yg85jtQGWp3M7tPT7Jk2+zsvVHGs3bU5Z7YE68CIQD60ebQamYjYvdebnFjNfx4X4dop7LsEBFCNSsLY0IFaQ==';
+
+    /**
+     * @return array<int, string>
+     */
+    private function fieldsOf(string $text): array
+    {
+        $bytes  = (string) base64_decode($text, true);
+        $fields = [];
+        $offset = 0;
+
+        while ($offset < strlen($bytes)) {
+            $length                  = ord($bytes[$offset + 1]);
+            $fields[ord($bytes[$offset])] = substr($bytes, $offset + 2, $length);
+            $offset                 += 2 + $length;
+        }
+
+        return $fields;
+    }
+
+    public function testEncodePhaseTwo_ReproducesTheSampleCodeOfTheTechnicalGuidelinesFromItsOwnFields(): void
+    {
+        $fields = $this->fieldsOf(self::OFFICIAL_SAMPLE);
+
+        $this->assertSame([1, 2, 3, 4, 5, 6, 7, 8, 9], array_keys($fields));
+        $this->assertSame(self::OFFICIAL_SAMPLE, $this->qr->encodePhaseTwo($fields[1], $fields[2], $fields[3], $fields[4], $fields[5], $fields[6], $fields[7], $fields[8], $fields[9]));
+    }
+
+    public function testEncodePhaseTwo_BeginsWithTheFiveFieldsOfThePhaseOneCode(): void
+    {
+        $fields = $this->fieldsOf(self::OFFICIAL_SAMPLE);
+        $phase  = $this->qr->encodePhaseTwo($fields[1], $fields[2], $fields[3], $fields[4], $fields[5], $fields[6], $fields[7], $fields[8], $fields[9]);
+
+        $this->assertStringStartsWith(bin2hex($this->qr->tlv($fields[1], $fields[2], $fields[3], $fields[4], $fields[5])), bin2hex((string) base64_decode($phase, true)));
+    }
+
+    public function testEncodePhaseTwo_WritesTheKeyAndTheSignatureOfTheCertificateAsTheirBytes(): void
+    {
+        $fields = $this->fieldsOf(self::OFFICIAL_SAMPLE);
+
+        $this->assertSame(88, strlen($fields[8]));
+        $this->assertSame("\x30\x56", substr($fields[8], 0, 2));
+        $this->assertSame(72, strlen($fields[9]));
+        $this->assertSame("\x30\x46", substr($fields[9], 0, 2));
+    }
+
+    public function testEncodePhaseTwo_WritesTheHashAsItsThirtyTwoBytesWhenTheSecurityStandardIsFollowedToTheLetter(): void
+    {
+        $fields = $this->fieldsOf(self::OFFICIAL_SAMPLE);
+        $phase  = $this->fieldsOf($this->qr->encodePhaseTwo($fields[1], $fields[2], $fields[3], $fields[4], $fields[5], $fields[6], $fields[7], $fields[8], $fields[9], true));
+
+        $this->assertSame(32, strlen($phase[6]));
+        $this->assertSame(base64_decode($fields[6], true), $phase[6]);
+    }
+
+    public function testEncodePhaseTwo_LeavesTheSignatureOfTheCertificateOutForAnInvoiceThatIsNotSimplified(): void
+    {
+        $fields = $this->fieldsOf(self::OFFICIAL_SAMPLE);
+        $phase  = $this->fieldsOf($this->qr->encodePhaseTwo($fields[1], $fields[2], $fields[3], $fields[4], $fields[5], $fields[6], $fields[7], $fields[8]));
+
+        $this->assertSame([1, 2, 3, 4, 5, 6, 7, 8], array_keys($phase));
+    }
+
+    public function testEncodePhaseTwo_RejectsACodeLongerThanSevenHundredCharacters(): void
+    {
+        $fields = $this->fieldsOf(self::OFFICIAL_SAMPLE);
+
+        $refusal = $this->refusal(fn () => $this->qr->encodePhaseTwo(str_repeat('a', 200), $fields[2], $fields[3], $fields[4], $fields[5], $fields[6], str_repeat('s', 200), str_repeat('k', 200), str_repeat('c', 200)));
+
+        $this->assertSame(DocumentError::QrValueTooLong, $refusal->error);
+    }
+
+    public function testEncodePhaseTwo_RejectsAFieldOfMoreThanTwoHundredFiftyFiveBytes(): void
+    {
+        $fields = $this->fieldsOf(self::OFFICIAL_SAMPLE);
+
+        $refusal = $this->refusal(fn () => $this->qr->encodePhaseTwo($fields[1], $fields[2], $fields[3], $fields[4], $fields[5], $fields[6], str_repeat('s', 256), $fields[8]));
+
+        $this->assertSame(DocumentError::QrValueTooLong, $refusal->error);
+        $this->assertSame(7, $refusal->context['tag']);
+    }
+
+    public function testEncodePhaseTwo_StillRefusesAnEmptyVatNumberOfTheSeller(): void
+    {
+        $fields = $this->fieldsOf(self::OFFICIAL_SAMPLE);
+
+        $refusal = $this->refusal(fn () => $this->qr->encodePhaseTwo($fields[1], '', $fields[3], $fields[4], $fields[5], $fields[6], $fields[7], $fields[8]));
+
+        $this->assertSame(DocumentError::QrVatNumberMissing, $refusal->error);
+    }
 }

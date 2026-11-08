@@ -1,0 +1,104 @@
+<?php
+
+namespace Tests\Support;
+
+use App\Libraries\EInvoicing\EInvoiceSettings;
+
+/**
+ * What a test of the electronic invoice needs besides sales: the settings of the shop (the company, its tax
+ * number, its identification and national address), the layer switched on, and the removal of everything the
+ * layer wrote when the test is over. A class that uses it also uses AccountingFixtureTrait,
+ * SaleAccountingFixtureTrait and EInvoiceFixtureTrait.
+ */
+trait EInvoiceSaleFixtureTrait
+{
+    /** @var array<string, ?string> */
+    private array $savedConfig = [];
+
+    protected const SELLER_VAT = '399999999900003';
+
+    /**
+     * @param array<string, string> $override
+     */
+    protected function configureEInvoicing(array $override = []): void
+    {
+        $values = [
+            'company'                                => 'Maximum Speed Tech Supply LTD',
+            'tax_id'                                 => self::SELLER_VAT,
+            EInvoiceSettings::ENABLED                => '1',
+            'einvoice_seller_identification_type'    => 'CRN',
+            'einvoice_seller_identification_number'  => '1010010000',
+            'einvoice_seller_street'                 => 'Prince Sultan',
+            'einvoice_seller_building_number'        => '1234',
+            'einvoice_seller_district'               => 'Al-Murabba',
+            'einvoice_seller_city'                   => 'Riyadh',
+            'einvoice_seller_postal_code'            => '12345',
+            'einvoice_exempt_category'               => '',
+            'einvoice_exempt_reason_code'            => '',
+            'einvoice_key_path'                      => '',
+            'einvoice_certificate_path'              => '',
+            ...$override,
+        ];
+
+        foreach ($values as $key => $value) {
+            $row = $this->accountingDb()->table('app_config')->where('key', $key)->get()->getRow();
+
+            if (! array_key_exists($key, $this->savedConfig)) {
+                $this->savedConfig[$key] = $row === null ? null : (string) $row->value;
+            }
+
+            $this->setConfigValue($key, $value);
+        }
+    }
+
+    protected function restoreEInvoicingConfig(): void
+    {
+        foreach ($this->savedConfig as $key => $value) {
+            if ($value === null) {
+                $this->accountingDb()->table('app_config')->where('key', $key)->delete();
+            } else {
+                $this->setConfigValue($key, $value);
+            }
+        }
+
+        $this->savedConfig = [];
+    }
+
+    protected function clearEInvoices(): void
+    {
+        $db = $this->accountingDb();
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        foreach (['einvoice_transport_log', 'einvoice_documents', 'customer_einvoice_parties'] as $table) {
+            $db->table($table)->truncate();
+        }
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        $db->table('einvoice_counters')->update(['last_icv' => 0, 'last_hash' => '']);
+        $db->table('accounting_audit_log')->whereIn('entity_type', ['einvoice_document', 'einvoice_settings', 'customer_einvoice_party'])->delete();
+    }
+
+    protected function nameItem(int $itemId, string $name): void
+    {
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['name' => $name]);
+    }
+
+    protected function makeBusinessCustomer(?int $customerId = null, string $vat = '311111111111113', string $company = 'Buyer Co'): int
+    {
+        $customerId ??= $this->customerId;
+
+        $this->accountingDb()->table('customers')->where('person_id', $customerId)->update(['tax_id' => $vat, 'company_name' => $company]);
+        $this->accountingDb()->table('customer_einvoice_parties')->replace([
+            'person_id'     => $customerId,
+            'street'        => 'King Fahd Rd',
+            'building_number' => '4321',
+            'district'      => 'Olaya',
+            'city'          => 'Riyadh',
+            'postal_code'   => '11564',
+            'country_code'  => 'SA',
+        ]);
+
+        return $customerId;
+    }
+}

@@ -225,16 +225,16 @@ final class UblInvoiceXml
         }
 
         foreach ($attributes as $attribute => $value) {
-            $attributeText .= ' ' . $attribute . '="' . self::escape($value) . '"';
+            $attributeText .= ' ' . $attribute . '="' . self::escape($value, true) . '"';
         }
 
         return '<' . $name . $attributeText . '>' . ($text === null ? $children : self::escape($text)) . '</' . $name . '>';
     }
 
-    public static function escape(string $text): string
+    public static function escape(string $text, bool $attribute = false): string
     {
         $clean = preg_replace('/[^\x{9}\x{A}\x{D}\x{20}-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]/u', '', $text) ?? '';
 
-        return htmlspecialchars($clean, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        return htmlspecialchars($clean, ENT_XML1 | ($attribute ? ENT_QUOTES : ENT_NOQUOTES), 'UTF-8');
     }
 }
