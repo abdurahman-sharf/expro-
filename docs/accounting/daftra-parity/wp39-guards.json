@@ -1830,10 +1830,10 @@
     ]
   },
   {
-    "name": "G169 postConvert (order): a stock location that was deleted is not received into",
-    "file": "app/Controllers/Purchase_orders.php",
-    "find": "->is_allowed_location((int) $order->location_id, 'receivings', true)",
-    "replace": "->is_allowed_location((int) $order->location_id, 'receivings', true) || true",
+    "name": "G169 postConvert (order): a stock location that was deleted is not received into (the screen test sees the deleted-location clause of the grant check)",
+    "file": "app/Models/Stock_location.php",
+    "find": "        $builder->where('stock_locations.location_id', $location_id);\n        $builder->where('deleted', 0);\n",
+    "replace": "        $builder->where('stock_locations.location_id', $location_id);\n",
     "tests": [
       "--filter",
       "testPostConvert_RefusesAnOrderWhoseStockLocationWasDeleted",
