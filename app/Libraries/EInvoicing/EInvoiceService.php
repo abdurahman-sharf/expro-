@@ -18,7 +18,6 @@ use App\Libraries\Organization\CompanyContext;
 use Closure;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
-use Throwable;
 
 /**
  * Issues the documents of the layer and reads them back. Issuing is one transaction under the lock of the
@@ -46,7 +45,9 @@ final class EInvoiceService
     private AuditLog $audit;
     private EInvoiceTransport $transport;
 
-    /** @var Closure(): int */
+    /**
+     * @var Closure(): int
+     */
     private Closure $clock;
 
     /**
@@ -387,8 +388,8 @@ final class EInvoiceService
     private function uuid(): string
     {
         $bytes    = random_bytes(16);
-        $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
-        $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
+        $bytes[6] = chr((ord($bytes[6]) & 0x0F) | 0x40);
+        $bytes[8] = chr((ord($bytes[8]) & 0x3F) | 0x80);
         $hex      = bin2hex($bytes);
 
         return substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-' . substr($hex, 12, 4) . '-' . substr($hex, 16, 4) . '-' . substr($hex, 20, 12);

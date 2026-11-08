@@ -14,6 +14,17 @@ final class EInvoiceRules
     public const NOTE_MAX   = 1000;
 
     /**
+     * The five instances in which a credit note or a debit note is issued (KSA-10, Article 40 and Article 54 of the VAT regulations), as the data dictionary words them.
+     */
+    public const NOTE_REASONS = [
+        'Cancellation or suspension of the supplies after its occurrence either wholly or partially',
+        'In case of essential change or amendment in the supply, which leads to the change of the VAT due',
+        'Amendment of the supply value which is pre-agreed upon between the supplier and consumer',
+        'In case of goods or services refund.',
+        'In case of change in Seller\'s or Buyer\'s information',
+    ];
+
+    /**
      * BR-KSA-40 and BR-KSA-44: fifteen digits, the first and the last of them a three.
      */
     public static function vatNumber(string $value): bool

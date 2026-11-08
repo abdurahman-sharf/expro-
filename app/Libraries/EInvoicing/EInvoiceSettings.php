@@ -8,6 +8,8 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
 use App\Models\Appconfig;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -23,8 +25,7 @@ use Config\Database;
 final class EInvoiceSettings
 {
     public const ENABLED = 'einvoice_enabled';
-
-    public const FIELDS = [
+    public const FIELDS  = [
         'seller_identification_type'   => 'einvoice_seller_identification_type',
         'seller_identification_number' => 'einvoice_seller_identification_number',
         'seller_street'                => 'einvoice_seller_street',
@@ -41,7 +42,6 @@ final class EInvoiceSettings
         'exempt_reason_code'           => 'einvoice_exempt_reason_code',
         'exempt_reason_text'           => 'einvoice_exempt_reason_text',
     ];
-
     public const EXEMPTION_CODES = [
         'E' => ['VATEX-SA-29', 'VATEX-SA-29-7', 'VATEX-SA-30'],
         'Z' => ['VATEX-SA-32', 'VATEX-SA-33', 'VATEX-SA-34-1', 'VATEX-SA-34-2', 'VATEX-SA-34-3', 'VATEX-SA-34-4', 'VATEX-SA-34-5', 'VATEX-SA-35', 'VATEX-SA-36', 'VATEX-SA-EDU', 'VATEX-SA-HEA', 'VATEX-SA-MLTRY'],
@@ -52,13 +52,15 @@ final class EInvoiceSettings
     private Appconfig $config;
     private AuditLog $audit;
     private AccountingGuard $guard;
+    private ?BranchGuard $branches;
 
-    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null)
+    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
-        $this->db     = $db ?? Database::connect();
-        $this->config = model(Appconfig::class);
-        $this->audit  = new AuditLog($this->db);
-        $this->guard  = $guard ?? new AccountingGuard();
+        $this->db       = $db ?? Database::connect();
+        $this->config   = model(Appconfig::class);
+        $this->audit    = new AuditLog($this->db);
+        $this->guard    = $guard ?? new AccountingGuard();
+        $this->branches = $branches;
     }
 
     public function isEnabled(): bool
@@ -100,11 +102,14 @@ final class EInvoiceSettings
      *
      * @return array<string, string> What changed, by key.
      *
-     * @throws AccountingException|EInvoiceException
+     * @throws AccountingException|BranchException|EInvoiceException
      */
     public function update(array $input, ?int $employeeId = null): array
     {
         $this->guard->require(AccountingGuard::EINVOICING_MANAGE, $employeeId);
+
+        $this->branches ??= new BranchGuard($this->db);
+        $this->branches->requireCompanyScope($employeeId);
 
         $before  = $this->all() + [self::ENABLED => $this->stored() ? '1' : '0'];
         $merged  = $this->all();

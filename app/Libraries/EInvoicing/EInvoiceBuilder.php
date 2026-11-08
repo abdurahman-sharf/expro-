@@ -384,7 +384,7 @@ final class EInvoiceBuilder
 
     private function quantity(string $quantity): string
     {
-        $fixed = bcadd($quantity, '0', 6);
+        $fixed              = bcadd($quantity, '0', 6);
         [$whole, $fraction] = explode('.', $fixed) + [1 => ''];
 
         return $whole . '.' . str_pad(rtrim($fraction, '0'), 2, '0');

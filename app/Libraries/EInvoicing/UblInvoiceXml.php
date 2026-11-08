@@ -199,7 +199,7 @@ final class UblInvoiceXml
 
     private function trimmed(string $value, int $minimum, int $maximum): string
     {
-        $fixed = bcadd($value, '0', $maximum);
+        $fixed              = bcadd($value, '0', $maximum);
         [$whole, $fraction] = explode('.', $fixed) + [1 => ''];
 
         return $whole . '.' . str_pad(rtrim($fraction, '0'), $minimum, '0');

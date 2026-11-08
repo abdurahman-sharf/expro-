@@ -11,9 +11,9 @@ namespace App\Libraries\EInvoicing;
 final readonly class EInvoiceDocument
 {
     /**
-     * @param list<EInvoiceLine>       $lines
+     * @param list<EInvoiceLine>        $lines
      * @param list<EInvoiceTaxSubtotal> $taxSubtotals
-     * @param list<string>             $paymentMeansCodes
+     * @param list<string>              $paymentMeansCodes
      */
     public function __construct(
         public EInvoiceKind $kind,

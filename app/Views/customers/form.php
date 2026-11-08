@@ -25,9 +25,11 @@
  * @var array<string, string> $billingOptions
  * @var array<int, string> $employeeOptions
  * @var array<string, mixed> $masterData
+ * @var array{types: list<array{code: string, label: string}>, party: array<string, string>, vat_invalid: bool}|null $eInvoice
  */
 
 $masterData        ??= null;
+$eInvoice          ??= null;
 $priceListOptions  ??= null;
 $creditLimitShown  ??= false;
 $creditPeriodShown ??= false;
@@ -308,6 +310,39 @@ $creditPeriodShown ??= false;
                                     <p class="form-text mb-0"><?= lang('Customers.billing_method_help') ?></p>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($eInvoice !== null): ?>
+                    <div class="form-section" id="customer_einvoice_section">
+                        <h3 class="form-section-title"><?= lang('Accounting_einvoicing.customer_section_title') ?></h3>
+                        <?= form_hidden('einvoice_party', '1') ?>
+                        <p class="form-text"><?= lang('Accounting_einvoicing.customer_section_help') ?></p>
+                        <?php if ($eInvoice['vat_invalid']): ?>
+                            <p class="text-warning" id="einvoice_vat_warning"><span class="bi bi-exclamation-triangle-fill" aria-hidden="true"></span> <?= lang('Accounting_einvoicing.customer_vat_warning') ?></p>
+                        <?php endif; ?>
+                        <div class="form-grid">
+                            <div class="field">
+                                <?= form_label(lang('Accounting_einvoicing.customer_identification_type'), 'einvoice_identification_type', ['class' => 'form-label']) ?>
+                                <div class="field-control">
+                                    <select name="einvoice_identification_type" id="einvoice_identification_type" class="form-select form-select-sm">
+                                        <option value=""><?= esc(lang('Accounting_einvoicing.customer_choose_type')) ?></option>
+                                        <?php foreach ($eInvoice['types'] as $type): ?>
+                                            <option value="<?= esc($type['code'], 'attr') ?>"<?= $eInvoice['party']['identification_type'] === $type['code'] ? ' selected' : '' ?>><?= esc($type['code']) ?> - <?= esc($type['label']) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <?php foreach (['identification_number' => 60, 'street' => 255, 'additional_street' => 127, 'building_number' => 10, 'additional_number' => 10, 'district' => 127, 'city' => 127, 'province' => 127, 'postal_code' => 10, 'country_code' => 2] as $einvoiceField => $einvoiceLength): ?>
+                                <div class="field">
+                                    <?= form_label(lang('Accounting_einvoicing.customer_' . ($einvoiceField === 'country_code' ? 'country' : $einvoiceField)), 'einvoice_' . $einvoiceField, ['class' => 'form-label']) ?>
+                                    <div class="field-control">
+                                        <?= form_input(['name' => 'einvoice_' . $einvoiceField, 'id' => 'einvoice_' . $einvoiceField, 'class' => 'form-control form-control-sm', 'maxlength' => (string) $einvoiceLength, 'value' => $eInvoice['party'][$einvoiceField]] + (in_array($einvoiceField, ['identification_number', 'building_number', 'additional_number', 'postal_code', 'country_code'], true) ? ['dir' => 'ltr'] : [])) ?>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
                         </div>
                     </div>
                 <?php endif; ?>

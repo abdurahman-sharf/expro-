@@ -48,7 +48,7 @@ final class DerReader
         $next   = $offset + 2;
 
         if ($length >= 0x80) {
-            $count = $length & 0x7f;
+            $count = $length & 0x7F;
 
             if ($count < 1 || $count > 4 || $next + $count > strlen($der)) {
                 throw new EInvoiceException(EInvoiceError::CertificateUnreadable, 'The length of a certificate part is not valid.');

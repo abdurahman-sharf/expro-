@@ -11,6 +11,8 @@ return [
     'accounting_currencies_desc'   => 'View and manage currencies and their rates.',
     'accounting_debit_notes'       => 'Sales Debit Notes',
     'accounting_debit_notes_desc'  => 'Raise what a customer owes without an invoice, and take a debit note back.',
+    'accounting_einvoicing'        => 'Electronic Invoicing',
+    'accounting_einvoicing_desc'   => 'Candidate document layer of electronic invoicing: settings, readiness, issued documents and their files.',
     'accounting_journals'          => 'Journal Entries',
     'accounting_journals_desc'     => 'Create, post and reverse journal entries.',
     'accounting_payables'          => 'Supplier Balances',

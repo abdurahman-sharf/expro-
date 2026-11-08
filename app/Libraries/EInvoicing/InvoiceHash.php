@@ -19,8 +19,7 @@ use DOMXPath;
  */
 final class InvoiceHash
 {
-    public const FIRST = 'NWZlY2ViNjZmZmM4NmYzOGQ5NTI3ODZjNmQ2OTZjNzljMmRiYzIzOWRkNGU5MWI0NjcyOWQ3M2EyN2ZiNTdlOQ==';
-
+    public const FIRST    = 'NWZlY2ViNjZmZmM4NmYzOGQ5NTI3ODZjNmQ2OTZjNzljMmRiYzIzOWRkNGU5MWI0NjcyOWQ3M2EyN2ZiNTdlOQ==';
     private const REMOVED = [
         "/*[local-name()='Invoice']//*[local-name()='UBLExtensions']",
         "/*[local-name()='Invoice']//*[local-name()='Signature']",
