@@ -434,6 +434,7 @@ return [
     'error_refund_not_found'                     => '',
     'error_refund_party_missing'                 => '',
     'error_report_account_missing'               => '',
+    'error_report_file_too_large'                => '',
     'error_report_period_invalid'                => '',
     'error_report_too_large'                     => '',
     'error_report_too_many_periods'              => '',

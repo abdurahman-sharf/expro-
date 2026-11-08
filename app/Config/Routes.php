@@ -6,6 +6,12 @@ use CodeIgniter\Router\RouteCollection;
 /** @var RouteCollection $routes */
 $routes->setDefaultController('Login');
 
+$reportFiles = static function (RouteCollection $routes, string $handler, string $titleKey, string $prefix = ''): void {
+    foreach (['xlsx', 'pdf'] as $format) {
+        $routes->get($prefix . $format, $handler, ['filter' => "reportexport:{$format},{$titleKey}"]);
+    }
+};
+
 $routes->get('/', 'Login::index');
 $routes->get('login', 'Login::index');
 $routes->post('login', 'Login::index');
@@ -282,59 +288,76 @@ $routes->group('price_lists', static function (RouteCollection $routes): void {
     $routes->post('delete', 'Price_lists::postDelete');
 });
 
-$routes->group('accounting_reports', static function (RouteCollection $routes): void {
+$routes->group('accounting_reports', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingReports::getIndex');
     $routes->get('trial_balance', 'AccountingReports::getIndex');
     $routes->get('csv', 'AccountingReports::getCsv');
+    $reportFiles($routes, 'AccountingReports::getCsv', 'Accounting_reports.trial_balance');
     $routes->get('ledger', 'AccountingReports::getLedger');
     $routes->get('ledger/csv', 'AccountingReports::getLedgerCsv');
+    $reportFiles($routes, 'AccountingReports::getLedgerCsv', 'Accounting_reports.ledger', 'ledger/');
     $routes->get('inventory_valuation', 'AccountingInventoryReports::getIndex');
     $routes->get('inventory_valuation/csv', 'AccountingInventoryReports::getCsv');
+    $reportFiles($routes, 'AccountingInventoryReports::getCsv', 'Accounting_inventory_reports.title', 'inventory_valuation/');
     $routes->get('tax', 'AccountingTaxReports::getIndex');
     $routes->get('tax/csv', 'AccountingTaxReports::getCsv');
+    $reportFiles($routes, 'AccountingTaxReports::getCsv', 'Accounting_tax_reports.title', 'tax/');
     $routes->get('revenue', 'AccountingSalesReports::getRevenue');
     $routes->get('revenue/csv', 'AccountingSalesReports::getRevenueCsv');
+    $reportFiles($routes, 'AccountingSalesReports::getRevenueCsv', 'Accounting_operational_reports.revenue_title', 'revenue/');
     $routes->get('clients_sales', 'AccountingSalesReports::getClients');
     $routes->get('clients_sales/csv', 'AccountingSalesReports::getClientsCsv');
+    $reportFiles($routes, 'AccountingSalesReports::getClientsCsv', 'Accounting_operational_reports.clients_title', 'clients_sales/');
     $routes->get('item_sales', 'AccountingItemReports::getIndex');
     $routes->get('item_sales/csv', 'AccountingItemReports::getCsv');
+    $reportFiles($routes, 'AccountingItemReports::getCsv', 'Accounting_operational_reports.items_title', 'item_sales/');
     $routes->get('profit', 'AccountingProfitReports::getIndex');
     $routes->get('profit/csv', 'AccountingProfitReports::getCsv');
+    $reportFiles($routes, 'AccountingProfitReports::getCsv', 'Accounting_operational_reports.profit_title', 'profit/');
     $routes->get('item_profit', 'AccountingProfitReports::getItems');
     $routes->get('item_profit/csv', 'AccountingProfitReports::getItemsCsv');
+    $reportFiles($routes, 'AccountingProfitReports::getItemsCsv', 'Accounting_operational_reports.item_profit_title', 'item_profit/');
     $routes->get('payments', 'AccountingPaymentReports::getIndex');
     $routes->get('payments/csv', 'AccountingPaymentReports::getCsv');
+    $reportFiles($routes, 'AccountingPaymentReports::getCsv', 'Accounting_operational_reports.payments_title', 'payments/');
     $routes->get('advance_payments', 'AccountingPaymentReports::getAdvances');
     $routes->get('advance_payments/csv', 'AccountingPaymentReports::getAdvancesCsv');
+    $reportFiles($routes, 'AccountingPaymentReports::getAdvancesCsv', 'Accounting_operational_reports.advances_title', 'advance_payments/');
     $routes->get('net_position', 'AccountingNetPosition::getIndex');
     $routes->get('net_position/csv', 'AccountingNetPosition::getCsv');
+    $reportFiles($routes, 'AccountingNetPosition::getCsv', 'Accounting_operational_reports.net_title', 'net_position/');
     $routes->get('invoice_returns', 'AccountingNetPosition::getCross');
     $routes->get('invoice_returns/csv', 'AccountingNetPosition::getCrossCsv');
+    $reportFiles($routes, 'AccountingNetPosition::getCrossCsv', 'Accounting_operational_reports.cross_title', 'invoice_returns/');
 
     foreach (FamilyReportCatalog::keys() as $familyKey) {
         $routes->get($familyKey, 'AccountingFamilyReports::getShow/' . $familyKey);
         $routes->get($familyKey . '/csv', 'AccountingFamilyReports::getCsv/' . $familyKey);
+        $reportFiles($routes, 'AccountingFamilyReports::getCsv/' . $familyKey, 'Accounting_family_reports.' . FamilyReportCatalog::titleKey($familyKey), $familyKey . '/');
     }
 });
 
-$routes->group('accounting_statements', static function (RouteCollection $routes): void {
+$routes->group('accounting_statements', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingStatements::getIncomeStatement');
     $routes->get('income_statement', 'AccountingStatements::getIncomeStatement');
     $routes->get('balance_sheet', 'AccountingStatements::getBalanceSheet');
     $routes->get('profit_loss', 'AccountingProfitLoss::getIndex');
     $routes->get('profit_loss/csv', 'AccountingProfitLoss::getCsv');
+    $reportFiles($routes, 'AccountingProfitLoss::getCsv', 'Accounting_profit_loss.title', 'profit_loss/');
     $routes->get('cash_flow', 'AccountingCashFlow::getIndex');
     $routes->get('cash_flow/csv', 'AccountingCashFlow::getCsv');
+    $reportFiles($routes, 'AccountingCashFlow::getCsv', 'Accounting_cash_flow.title', 'cash_flow/');
     $routes->get('cash_flow/settings', 'AccountingCashFlow::getSettings');
     $routes->post('cash_flow/settings/save', 'AccountingCashFlow::postSettingsSave');
 });
 
-$routes->group('accounting_treasuries', static function (RouteCollection $routes): void {
+$routes->group('accounting_treasuries', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingTreasuries::getIndex');
     $routes->get('search', 'AccountingTreasuries::getSearch');
     $routes->get('row/(:num)', 'AccountingTreasuries::getRow/$1');
     $routes->get('statement/(:num)', 'AccountingTreasuries::getStatement/$1');
     $routes->get('statement/(:num)/csv', 'AccountingTreasuries::getStatementCsv/$1');
+    $reportFiles($routes, 'AccountingTreasuries::getStatementCsv/$1', 'Accounting_treasuries.statement', 'statement/(:num)/');
     $routes->get('banks', 'AccountingTreasuries::getBanks');
     $routes->get('view', 'AccountingTreasuries::getView');
     $routes->get('view/(:segment)', 'AccountingTreasuries::getView/$1');
@@ -478,7 +501,7 @@ $routes->group('accounting_currencies', static function (RouteCollection $routes
     $routes->post('rate_delete/(:num)', 'AccountingCurrencies::postRateDelete/$1');
 });
 
-$routes->group('accounting_journals', static function (RouteCollection $routes): void {
+$routes->group('accounting_journals', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingJournals::getIndex');
     $routes->get('search', 'AccountingJournals::getSearch');
     $routes->get('row/(:num)', 'AccountingJournals::getRow/$1');
@@ -491,6 +514,7 @@ $routes->group('accounting_journals', static function (RouteCollection $routes):
     $routes->get('audit', 'AccountingJournals::getAudit');
     $routes->get('audit/search', 'AccountingJournals::getAuditSearch');
     $routes->get('audit/csv', 'AccountingJournals::getAuditCsv');
+    $reportFiles($routes, 'AccountingJournals::getAuditCsv', 'Accounting_journals.audit', 'audit/');
     $routes->get('failures', 'AccountingJournals::getFailures');
     $routes->get('failures/search', 'AccountingJournals::getFailuresSearch');
     $routes->post('save_draft', 'AccountingJournals::postSaveDraft');
