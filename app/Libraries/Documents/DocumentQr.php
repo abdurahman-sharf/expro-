@@ -48,10 +48,6 @@ final class DocumentQr
 
         $sellerName = trim((string) ($config['company'] ?? ''));
 
-        if ($sellerName === '') {
-            return new QrResult(null, DocumentError::QrSellerMissing);
-        }
-
         try {
             return new QrResult($this->builder->encode(
                 $sellerName,

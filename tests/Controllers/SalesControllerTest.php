@@ -8631,9 +8631,11 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $fields = new CustomFields();
         $weight = $fields->create('sale', ['name' => 'Weight', 'type' => 'number'], null);
         $po     = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'required' => '1'], null);
+        $old    = $fields->create('sale', ['name' => 'Old field', 'type' => 'text'], null);
+        $fields->setActive($old, false, null);
         $this->loginAs($this->createCashierEmployee());
 
-        $result = $this->jsonOf($this->post('/sales/setCustomFields', ['custom' => [$weight => 'heavy', $po => '', 999 => 'ghost']]));
+        $result = $this->jsonOf($this->post('/sales/setCustomFields', ['custom' => [$weight => 'heavy', $po => '', $old => 'typed before it was put out of use', 999 => 'ghost']]));
 
         $this->assertTrue($result['success']);
         $this->assertStringContainsString('Weight', (string) $result['problem']);
@@ -8672,15 +8674,16 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
     {
         $fields  = new CustomFields();
         $note    = $fields->create('sale', ['name' => 'Delivery note', 'type' => 'text'], null);
+        $po      = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'required' => '1'], null);
         $cashier = $this->createCashierEmployee();
 
         $this->loginAs($cashier);
         $this->seedCartLine(1, '100.00', $this->createTestItem(HAS_NO_STOCK));
-        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice', 'sales_custom_fields' => [$note => 'DN-12']]));
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice', 'sales_custom_fields' => [$note => 'DN-12', $po => '']]));
 
         $this->post('/sales/suspend');
 
-        $this->assertSame([$note => 'DN-12'], $fields->valuesOf('sale', $this->newestSaleId()));
+        $this->assertSame([$note => 'DN-12'], $fields->valuesOf('sale', $this->newestSaleId()), 'The value typed is kept although the required field is still empty.');
     }
 
     public function testRenderPdfHtml_PrintsALegacyInvoiceWithoutAnyOfTheNewBlocks(): void

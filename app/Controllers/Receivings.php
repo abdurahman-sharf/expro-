@@ -885,7 +885,7 @@ class Receivings extends Secure_Controller
         $info = $this->receiving->get_info($receivingId)->getRowArray();
         $type = ReceivingType::tryFrom((string) ($info['receiving_type'] ?? ''));
 
-        if ($info === [] || $info === null || $type === null || $type === ReceivingType::Requisition) {
+        if ($type === null || $type === ReceivingType::Requisition) {
             throw PageNotFoundException::forPageNotFound();
         }
 
@@ -903,7 +903,7 @@ class Receivings extends Secure_Controller
         $data['purchase_type']       = $type->value;
         $data['item_printed_fields'] = (new CustomFields())->printableFor('item', array_map(static fn (array $line): int => (int) $line['item_id'], array_values($data['cart'])));
         $data['paid']                = $paid;
-        $data['receiving_num'] = $receivingId;
+        $data['receiving_num']       = $receivingId;
 
         return $data;
     }

@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\InvoiceDiscount;
+use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Documents\CustomFields;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -3653,14 +3654,26 @@ class ReceivingsControllerTest extends CIUnitTestCase
     {
         $receiving = $this->purchaseOf('500.00', $this->supplierId);
         $this->payPurchase($receiving, '200.00');
-        $this->payPurchase($receiving, '100.00', null, 'draft');
+        $this->payPurchase($receiving, '150.00', null, 'draft');
         $this->loginAs($this->buyer());
 
         $body = $this->get('/receivings/print/' . $receiving)->getBody();
 
         $this->assertStringContainsString(documentIsolate(to_currency('200.00')), $body);
         $this->assertStringContainsString(documentIsolate(to_currency('300.00')), $body);
-        $this->assertStringNotContainsString(documentIsolate(to_currency('400.00')), $body);
+        $this->assertStringNotContainsString(documentIsolate(to_currency('350.00')), $body);
+        $this->assertStringNotContainsString(documentIsolate(to_currency('150.00')), $body);
+    }
+
+    public function testGetPrint_ShowsNoPurchaseInvoiceForAStockRequisition(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receiving)->update(['receiving_type' => ReceivingType::Requisition->value]);
+        $this->loginAs($this->buyer());
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/receivings/print/' . $receiving);
     }
 
     public function testGetPrint_PrintsTheExtraFieldsOfTheProductsOnThePurchaseInvoice(): void

@@ -80,16 +80,6 @@
     "all": false
   },
   {
-    "name": "DQ03 no code while the name of the shop is not entered",
-    "file": "app/Libraries/Documents/DocumentQr.php",
-    "find": "if ($sellerName === '') {",
-    "replace": "if (false) {",
-    "tests": [
-      "tests/Libraries/Documents/DocumentQrTest.php"
-    ],
-    "all": false
-  },
-  {
     "name": "DQ04 a credit note shows the amounts it takes back",
     "file": "app/Libraries/Documents/DocumentQr.php",
     "find": "return Money::round(SaleAmounts::absolute($amount), self::DECIMALS);",
@@ -980,18 +970,6 @@
     "file": "app/Controllers/Receivings.php",
     "find": "|| $type === ReceivingType::Requisition",
     "replace": "",
-    "tests": [
-      "--filter",
-      "testGetPrint_|testGetPdf_|testGetPaymentReceipt",
-      "tests/Controllers/ReceivingsControllerTest.php"
-    ],
-    "all": false
-  },
-  {
-    "name": "RC03 a receiving that does not exist is not a purchase invoice",
-    "file": "app/Controllers/Receivings.php",
-    "find": "if ($info === [] || $info === null || $type === null",
-    "replace": "if ($type === null",
     "tests": [
       "--filter",
       "testGetPrint_|testGetPdf_|testGetPaymentReceipt",

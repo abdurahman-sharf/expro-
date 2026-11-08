@@ -123,6 +123,14 @@ class DocumentQrTest extends CIUnitTestCase
         $this->assertSame(DocumentError::QrSellerMissing, $result->refusal);
     }
 
+    public function testForDocument_AsksForTheTaxNumberFirstWhenTheNameIsAlsoMissing(): void
+    {
+        $result = (new DocumentQr())->forDocument('invoice', $this->sale(), []);
+
+        $this->assertNull($result->payload);
+        $this->assertSame(DocumentError::QrVatNumberMissing, $result->refusal);
+    }
+
     public function testForDocument_ShowsACreditNoteAsTheAmountsItTakesBack(): void
     {
         $sale = $this->sale(['total' => '-253.0000', 'taxes' => [['sale_tax_amount' => '-33.0000']]]);
