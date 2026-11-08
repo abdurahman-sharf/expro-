@@ -317,6 +317,10 @@ function familyReportCatalog(array $permissionIds, ?bool $accountingOn = null): 
  */
 function booksReportCatalog(array $permissionIds, ?bool $accountingOn = null): array
 {
+    if (array_intersect(['accounting_reports', 'accounting_receivables', 'accounting_payables', 'accounting_cheques', 'accounting_treasuries'], $permissionIds) === []) {
+        return [];
+    }
+
     $accountingOn ??= (new AccountingSettings())->isEnabled();
 
     if (! $accountingOn) {

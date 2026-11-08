@@ -1,0 +1,926 @@
+[
+  {
+    "name": "G01 a refusal or an error of the report is never turned into a file",
+    "file": "app/Filters/ReportExport.php",
+    "find": "$response->getStatusCode() !== ResponseInterface::HTTP_OK || ",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "PassesTheRefusal|LeavesAnErrorResponse",
+      "tests/Filters/ReportExportTest.php"
+    ]
+  },
+  {
+    "name": "G02 only what the controller wrote as CSV is turned into a file",
+    "file": "app/Filters/ReportExport.php",
+    "find": " || ! str_starts_with($response->getHeaderLine('Content-Type'), 'text/csv')",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "LeavesAWorkbookOutOfAFileThatIsNotACsv",
+      "tests/Filters/ReportExportTest.php"
+    ]
+  },
+  {
+    "name": "G03 a format that is not one of the three gives the CSV back",
+    "file": "app/Filters/ReportExport.php",
+    "find": "$format === null || ",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "GivesTheCsvBackWhenTheFormat",
+      "tests/Filters/ReportExportTest.php"
+    ]
+  },
+  {
+    "name": "G04 the file keeps the name of the CSV with the extension of its format",
+    "file": "app/Filters/ReportExport.php",
+    "find": "'.' . $format->value . '\"'",
+    "replace": "'.csv\"'",
+    "tests": [
+      "--filter",
+      "NamesTheFileLikeTheCsv|GivesAWorkbookOfExactly",
+      "tests/Filters/ReportExportTest.php"
+    ]
+  },
+  {
+    "name": "G05 a refusal carries no file name",
+    "file": "app/Filters/ReportExport.php",
+    "find": "->removeHeader('Content-Disposition')\n",
+    "replace": "\n",
+    "tests": [
+      "--filter",
+      "RefusesAWorkbookOfMoreRows",
+      "tests/Filters/ReportExportTest.php"
+    ]
+  },
+  {
+    "name": "G06 a file above the limit is refused with 422 and not given",
+    "file": "app/Filters/ReportExport.php",
+    "find": "int $status = ResponseInterface::HTTP_UNPROCESSABLE_ENTITY): ResponseInterface",
+    "replace": "int $status = ResponseInterface::HTTP_OK): ResponseInterface",
+    "tests": [
+      "--filter",
+      "RefusesAWorkbookOfMoreRows|RefusesAPdfOfMoreRows|PassesTheRefusal",
+      "tests/Filters/ReportExportTest.php"
+    ]
+  },
+  {
+    "name": "G07 a binary file is given without a charset",
+    "file": "app/Filters/ReportExport.php",
+    "find": "->setContentType($format->contentType(), '')",
+    "replace": "->setContentType($format->contentType())",
+    "tests": [
+      "--filter",
+      "GivesEveryReportAsAWorkbookWithTheRowsAndTheNumbersOfItsCsv",
+      "tests/Filters/ReportExportTest.php"
+    ]
+  },
+  {
+    "name": "G08 the options of the page come from the query asked",
+    "file": "app/Filters/ReportExport.php",
+    "find": "ExportOptions::fromQuery(is_array($query) ? $query : [])",
+    "replace": "ExportOptions::fromQuery([])",
+    "tests": [
+      "--filter",
+      "AppliesTheOrientationAndTheSizeOfTheTypeAsked",
+      "tests/Filters/ReportExportTest.php"
+    ]
+  },
+  {
+    "name": "G09 the title of the file is the language line of the route",
+    "file": "app/Filters/ReportExport.php",
+    "find": "isset($arguments[1]) ? lang($arguments[1]) : ''",
+    "replace": "''",
+    "tests": [
+      "--filter",
+      "GivesThePdfTheTitleTheDateAndTheAmounts",
+      "tests/Filters/ReportExportTest.php"
+    ]
+  },
+  {
+    "name": "G10 a file of exactly the limit of rows is given",
+    "file": "app/Libraries/Accounting/Export/ReportExporter.php",
+    "find": "if ($sheet->rowCount() > $limit) {",
+    "replace": "if ($sheet->rowCount() >= $limit) {",
+    "tests": [
+      "--filter",
+      "AcceptsAFileOfExactly",
+      "tests/Libraries/Accounting/Export/ReportExporterTest.php"
+    ]
+  },
+  {
+    "name": "G11 a PDF has its own smaller limit",
+    "file": "app/Libraries/Accounting/Export/ReportExporter.php",
+    "find": "$format === ExportFormat::Pdf ? $this->maxPdfRows : $this->maxRows",
+    "replace": "$this->maxRows",
+    "tests": [
+      "--filter",
+      "RefusesAPdfOneRowOverItsOwnSmallerLimit",
+      "tests/Libraries/Accounting/Export/ReportExporterTest.php"
+    ]
+  },
+  {
+    "name": "G12 the CSV is held to no limit of this layer",
+    "file": "app/Libraries/Accounting/Export/ReportExporter.php",
+    "find": "if ($format === ExportFormat::Csv) {\n            return $csv;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "HoldsTheCsvToNoLimit",
+      "tests/Libraries/Accounting/Export/ReportExporterTest.php"
+    ]
+  },
+  {
+    "name": "G13 a byte order mark is not a cell",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "str_starts_with($csv, \"\\xEF\\xBB\\xBF\") ? substr($csv, 3) : $csv",
+    "replace": "$csv",
+    "tests": [
+      "--filter",
+      "DropsTheByteOrderMark",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G14 the blank rows at the end of a file are dropped",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "while ($rows !== [] && end($rows) === []) {\n            array_pop($rows);\n        }",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "DropsTheBlankRowsAtTheEnd",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G15 the title is the first row only when it is one cell and none is given",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "if ($title === '' && isset($rows[0]) && count($rows[0]) === 1) {",
+    "replace": "if ($title === '' && isset($rows[0])) {",
+    "tests": [
+      "--filter",
+      "LeavesTheTitleEmptyWhenTheFirstRow",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G16 the heading is the first row that fills every column",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "if (count($row) === $width) {",
+    "replace": "if (count($row) >= 1) {",
+    "tests": [
+      "--filter",
+      "FindsTheFirstRowThatFillsEveryColumn",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G17 a code with a leading zero stays text",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "(0|[1-9]\\d*)",
+    "replace": "(\\d+)",
+    "tests": [
+      "--filter",
+      "RejectsAnythingThatIsNotAPlainDecimal",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G18 a long identifier stays text",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "if ($fraction === '' && strlen($integer) > self::MAX_INTEGER_DIGITS) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RejectsAnythingThatIsNotAPlainDecimal",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G19 a number of more than fifteen digits stays text",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "if (strlen($integer) + strlen($fraction) > self::MAX_NUMBER_DIGITS) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RejectsAnythingThatIsNotAPlainDecimal",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G20 minus zero is zero",
+    "file": "app/Libraries/Accounting/Export/ReportSheet.php",
+    "find": "trim($integer . $fraction, '0') !== ''",
+    "replace": "true",
+    "tests": [
+      "--filter",
+      "AcceptsAPlainDecimal",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
+    ]
+  },
+  {
+    "name": "G21 the heading is text even when it looks like a number",
+    "file": "app/Libraries/Accounting/Export/XlsxWriter.php",
+    "find": "if ($number !== null && ! $bold) {",
+    "replace": "if ($number !== null) {",
+    "tests": [
+      "--filter",
+      "MakesTheHeadingOfTheTableBoldText",
+      "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
+    ]
+  },
+  {
+    "name": "G22 a number is written with the style of its decimals",
+    "file": "app/Libraries/Accounting/Export/XlsxWriter.php",
+    "find": "(self::FIRST_NUMBER_STYLE + min(self::MAX_DECIMALS, $number['decimals']))",
+    "replace": "self::FIRST_NUMBER_STYLE",
+    "tests": [
+      "--filter",
+      "GivesEachNumberTheStyleOfItsDecimals",
+      "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
+    ]
+  },
+  {
+    "name": "G23 characters that break the file are dropped",
+    "file": "app/Libraries/Accounting/Export/XlsxWriter.php",
+    "find": "'/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x{FFFE}\\x{FFFF}]/u'",
+    "replace": "'/[\\x{FFFE}\\x{FFFF}]/u'",
+    "tests": [
+      "--filter",
+      "EscapesMarkupAndDropsCharacters",
+      "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
+    ]
+  },
+  {
+    "name": "G24 an invalid byte does not lose the cell",
+    "file": "app/Libraries/Accounting/Export/XlsxWriter.php",
+    "find": "mb_scrub($text)",
+    "replace": "$text",
+    "tests": [
+      "--filter",
+      "ReplacesInvalidUtf8",
+      "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
+    ]
+  },
+  {
+    "name": "G25 a text is cut at the limit of a cell",
+    "file": "app/Libraries/Accounting/Export/XlsxWriter.php",
+    "find": "mb_substr($text, 0, self::MAX_CELL_LENGTH)",
+    "replace": "$text",
+    "tests": [
+      "--filter",
+      "CutsATextAtTheLimitOfACell",
+      "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
+    ]
+  },
+  {
+    "name": "G26 markup in a cell is escaped",
+    "file": "app/Libraries/Accounting/Export/XlsxWriter.php",
+    "find": "htmlspecialchars($clean, ENT_XML1 | ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')",
+    "replace": "$clean",
+    "tests": [
+      "--filter",
+      "EscapesMarkupAndDropsCharacters",
+      "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
+    ]
+  },
+  {
+    "name": "G27 the sheet is right to left only when asked",
+    "file": "app/Libraries/Accounting/Export/XlsxWriter.php",
+    "find": "($rightToLeft ? ' rightToLeft=\"1\"' : '')",
+    "replace": "''",
+    "tests": [
+      "--filter",
+      "MarksTheSheetRightToLeftOnlyWhenAsked",
+      "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
+    ]
+  },
+  {
+    "name": "G28 a sheet name loses what a name may not hold",
+    "file": "app/Libraries/Accounting/Export/XlsxWriter.php",
+    "find": "'/[\\[\\]:*?\\/\\\\\\\\]+/u'",
+    "replace": "'/[]+/u'",
+    "tests": [
+      "--filter",
+      "NamesTheSheetAfterTheTitle|CutsALongTitle",
+      "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
+    ]
+  },
+  {
+    "name": "G29 a sheet name is cut at thirty-one characters",
+    "file": "app/Libraries/Accounting/Export/XlsxWriter.php",
+    "find": "mb_substr($name, 0, self::MAX_SHEET_NAME)",
+    "replace": "$name",
+    "tests": [
+      "--filter",
+      "CutsALongTitle",
+      "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
+    ]
+  },
+  {
+    "name": "G30 a text is written as text and never as a formula",
+    "file": "app/Libraries/Accounting/Export/XlsxWriter.php",
+    "find": "t=\"inlineStr\"",
+    "replace": "t=\"str\"",
+    "tests": [
+      "--filter",
+      "NeverWritesAFormula|WritesDecimalsAsNumbers",
+      "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
+    ]
+  },
+  {
+    "name": "G31 an empty cell is not written",
+    "file": "app/Libraries/Accounting/Export/XlsxWriter.php",
+    "find": "if ($cell === '') {\n                    continue;\n                }",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "SkipsEmptyCells",
+      "tests/Libraries/Accounting/Export/XlsxWriterTest.php"
+    ]
+  },
+  {
+    "name": "G32 a font size under the minimum is the default",
+    "file": "app/Libraries/Accounting/Export/ExportOptions.php",
+    "find": "(int) $size >= self::MIN_FONT_SIZE && ",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "RejectsAFontSizeOutside",
+      "tests/Libraries/Accounting/Export/ExportOptionsTest.php"
+    ]
+  },
+  {
+    "name": "G33 a font size over the maximum is the default",
+    "file": "app/Libraries/Accounting/Export/ExportOptions.php",
+    "find": " && (int) $size <= self::MAX_FONT_SIZE",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "RejectsAFontSizeOutside",
+      "tests/Libraries/Accounting/Export/ExportOptionsTest.php"
+    ]
+  },
+  {
+    "name": "G34 an orientation that is not one of the two is the default",
+    "file": "app/Libraries/Accounting/Export/ExportOptions.php",
+    "find": "in_array($orientation, [self::ORIENTATION_PORTRAIT, self::ORIENTATION_LANDSCAPE], true) ? $orientation : null",
+    "replace": "is_string($orientation) ? $orientation : null",
+    "tests": [
+      "--filter",
+      "RejectsAnOrientationThatIsNotOneOfTheTwo",
+      "tests/Libraries/Accounting/Export/ExportOptionsTest.php"
+    ]
+  },
+  {
+    "name": "G35 the address of a file changes the segment before the query only",
+    "file": "app/Libraries/Accounting/Export/ExportFormat.php",
+    "find": "'~/csv(?=\\?|$)~'",
+    "replace": "'~csv~'",
+    "tests": [
+      "--filter",
+      "LeavesAWordThatOnlyStartsWithCsvAlone",
+      "tests/Libraries/Accounting/Export/ExportFormatTest.php"
+    ]
+  },
+  {
+    "name": "G36 a heading of the PDF is escaped",
+    "file": "app/Views/documents/report.php",
+    "find": "<?= esc($cell) ?></th>",
+    "replace": "<?= $cell ?></th>",
+    "tests": [
+      "--filter",
+      "EscapesTheCells",
+      "tests/Libraries/Accounting/Export/ReportPdfTest.php"
+    ]
+  },
+  {
+    "name": "G37 a note spans the whole row",
+    "file": "app/Views/documents/report.php",
+    "find": "colspan=\"<?= $columns ?>\"",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "SpansAWholeRow",
+      "tests/Libraries/Accounting/Export/ReportPdfTest.php"
+    ]
+  },
+  {
+    "name": "G38 the company is named in the header",
+    "file": "app/Views/documents/report.php",
+    "find": "<?= esc($company) ?>",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "NamesTheCompany",
+      "tests/Libraries/Accounting/Export/ReportPdfTest.php"
+    ]
+  },
+  {
+    "name": "G39 a PDF turns landscape by the width of the table or when asked",
+    "file": "app/Libraries/Accounting/Export/ReportPdf.php",
+    "find": "$options->landscape($sheet->columnCount()) ? 'A4-L' : 'A4'",
+    "replace": "'A4'",
+    "tests": [
+      "--filter",
+      "TurnsTheSheetToLandscape",
+      "tests/Libraries/Accounting/Export/ReportPdfTest.php"
+    ]
+  },
+  {
+    "name": "G40 a note row is drawn spanning only when it is one cell",
+    "file": "app/Libraries/Accounting/Export/ReportPdf.php",
+    "find": "count($filled) === 1 && count($row) === 1",
+    "replace": "count($filled) === 1",
+    "tests": [
+      "--filter",
+      "SpansAWholeRow",
+      "tests/Libraries/Accounting/Export/ReportPdfTest.php"
+    ]
+  },
+  {
+    "name": "G41 the files of the reports go through the filter of the files",
+    "file": "app/Config/Routes.php",
+    "find": "['filter' => \"reportexport:{$format}\" . ($titleKey === '' ? '' : \",{$titleKey}\")]",
+    "replace": "[]",
+    "tests": [
+      "--filter",
+      "GiveEveryCsvAddressItsExcelAndPdfAddress|GivesEveryReportAsAWorkbook",
+      "tests/Filters/ReportExportTest.php"
+    ]
+  },
+  {
+    "name": "G42 the reports of the books are offered only while accounting is on",
+    "file": "app/Helpers/report_helper.php",
+    "find": "    $accountingOn ??= (new AccountingSettings())->isEnabled();\n\n    if (! $accountingOn) {\n        return [];\n    }\n\n    $subjects = [\n        ['bi-journal-richtext'",
+    "replace": "    $subjects = [\n        ['bi-journal-richtext'",
+    "tests": [
+      "--filter",
+      "OffersNothingWithoutAModuleOrWhileAccountingIsOff|OffersNothingWhileAccountingIsOff",
+      "tests/helpers/report_helperTest.php"
+    ]
+  },
+  {
+    "name": "G43 a report of the books needs the module that opens it",
+    "file": "app/Helpers/report_helper.php",
+    "find": "if (in_array($module, $permissionIds, true) && array_diff($also, $permissionIds) === []) {",
+    "replace": "if (array_diff($also, $permissionIds) === []) {",
+    "tests": [
+      "--filter",
+      "BooksReportCatalog_Offers",
+      "tests/helpers/report_helperTest.php"
+    ]
+  },
+  {
+    "name": "G44 the bank reconciliation needs the permission to reconcile",
+    "file": "app/Helpers/report_helper.php",
+    "find": "&& array_diff($also, $permissionIds) === []",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "OffersTheBankReconciliationOnlyToWho",
+      "tests/helpers/report_helperTest.php"
+    ]
+  },
+  {
+    "name": "G45 the aged ledgers and balances of the company are not offered to a limited employee",
+    "file": "app/Helpers/report_helper.php",
+    "find": "['reports_expenses_categories', 'accounting_receivables', 'accounting_payables']",
+    "replace": "['reports_expenses_categories']",
+    "tests": [
+      "--filter",
+      "LeavesOutTheReportsOfTheWholeCompany",
+      "tests/helpers/report_helperTest.php"
+    ]
+  },
+  {
+    "name": "G46 the reports index and the quick search list the reports of the books",
+    "file": "app/Helpers/report_helper.php",
+    "find": "        ...booksReportCatalog($openable, $accountingOn),\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "KeepsEveryReportForAnEmployeeOfEveryBranch|OffersTheReportsOfTheBooksBehind",
+      "tests/helpers/report_helperTest.php"
+    ]
+  },
+  {
+    "name": "G47 the income statement file adds up the branches of the employee",
+    "file": "app/Controllers/AccountingStatements.php",
+    "find": "$scope = $this->requestedScope();\n\n        try {\n            $report = $this->incomeStatement->build($scope, ReportPeriod::of($this->query('from'), $this->asOf()), $this->level(), StatementDisplay::fromRequest($this->query('display')));\n        } catch (AccountingException $refusal) {\n            return $this->refused",
+    "replace": "$scope = ReportScope::resolve($this->requestedBranches(), null);\n\n        try {\n            $report = $this->incomeStatement->build($scope, ReportPeriod::of($this->query('from'), $this->asOf()), $this->level(), StatementDisplay::fromRequest($this->query('display')));\n        } catch (AccountingException $refusal) {\n            return $this->refused",
+    "tests": [
+      "--filter",
+      "GetIncomeStatementCsv_AddsUpOnlyTheBranches",
+      "tests/Controllers/AccountingStatementsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G48 the balance sheet file adds up the branches of the employee",
+    "file": "app/Controllers/AccountingStatements.php",
+    "find": "$scope = $this->requestedScope();\n\n        try {\n            $report = $this->balanceSheet->build($scope, $this->asOf(), $this->level(), StatementDisplay::fromRequest($this->query('display')), $this->flag('entities'));",
+    "replace": "$scope = ReportScope::resolve($this->requestedBranches(), null);\n\n        try {\n            $report = $this->balanceSheet->build($scope, $this->asOf(), $this->level(), StatementDisplay::fromRequest($this->query('display')), $this->flag('entities'));",
+    "tests": [
+      "--filter",
+      "GetBalanceSheetCsv_AddsUpOnlyTheBranches",
+      "tests/Controllers/AccountingStatementsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G49 the income statement file refuses a period that ends before it starts",
+    "file": "app/Controllers/AccountingStatements.php",
+    "find": "return $this->refused($this->messageFor($refusal));\n        }\n\n        return $this->download('income_statement_'",
+    "replace": "throw $refusal;\n        }\n\n        return $this->download('income_statement_'",
+    "tests": [
+      "--filter",
+      "GetIncomeStatementCsv_Refuses",
+      "tests/Controllers/AccountingStatementsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G50 a formula in a name is neutralised in the statement file",
+    "file": "app/Controllers/AccountingStatements.php",
+    "find": "$this->csvRow($handle, [$line->code, $line->name, $line->amount]);",
+    "replace": "fputcsv($handle, [$line->code, $line->name, $line->amount], ',', '\"', '');",
+    "tests": [
+      "--filter",
+      "GetIncomeStatementCsv_ShowsAnAccountNamed",
+      "tests/Controllers/AccountingStatementsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G51 a statement link carries the branches only when named as a list",
+    "file": "app/Controllers/AccountingStatements.php",
+    "find": "return is_array($this->request->getGet('branches')) ? ($scope->isEmpty() ? [0] : $scope->ids) : null;",
+    "replace": "return $this->request->getGet('branches') === null ? null : ($scope->isEmpty() ? [0] : $scope->ids);",
+    "tests": [
+      "--filter",
+      "ReadsBranchesNamedAsOneValueAsNamingNone",
+      "tests/Controllers/AccountingStatementsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G52 the income statement screen links its three files with the filters",
+    "file": "app/Controllers/AccountingStatements.php",
+    "find": "'csvUrl'     => $this->csvUrl('income_statement', $scope, ['from', 'to', 'level', 'display']),",
+    "replace": "'csvUrl'     => base_url('accounting_statements/income_statement/csv'),",
+    "tests": [
+      "--filter",
+      "GetIncomeStatement_LinksTheThreeFiles",
+      "tests/Controllers/AccountingStatementsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G53 the aged ledger file of customers is the company figures only",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "public function getAgedLedgerCsv(): ResponseInterface\n    {\n        $this->requireCompanyScope();\n",
+    "replace": "public function getAgedLedgerCsv(): ResponseInterface\n    {\n",
+    "tests": [
+      "--filter",
+      "GetAgedLedgerCsv_Redirects",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G54 the balances file of customers is the company figures only",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "public function getBalancesCsv(): ResponseInterface\n    {\n        $this->requireCompanyScope();\n",
+    "replace": "public function getBalancesCsv(): ResponseInterface\n    {\n",
+    "tests": [
+      "--filter",
+      "GetBalancesCsv_Redirects",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G55 the aged ledger file of customers refuses a day that is not one",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "$query = PartyReportQuery::forAging($this->request->getGet(), date('Y-m-d'));\n\n        if ($query->refusal !== null) {\n            return $this->refusedFile",
+    "replace": "$query = PartyReportQuery::forAging($this->request->getGet(), date('Y-m-d'));\n\n        if (false) {\n            return $this->refusedFile",
+    "tests": [
+      "--filter",
+      "GetAgedLedgerCsv_RefusesADay",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G56 the aged ledger file of suppliers is the company figures only",
+    "file": "app/Controllers/AccountingPayables.php",
+    "find": "public function getAgedLedgerCsv(): ResponseInterface\n    {\n        $this->requireCompanyScope();\n",
+    "replace": "public function getAgedLedgerCsv(): ResponseInterface\n    {\n",
+    "tests": [
+      "--filter",
+      "GetAgedLedgerCsv_Redirects",
+      "tests/Controllers/AccountingPayablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G57 the balances file of suppliers is the company figures only",
+    "file": "app/Controllers/AccountingPayables.php",
+    "find": "public function getBalancesCsv(): ResponseInterface\n    {\n        $this->requireCompanyScope();\n",
+    "replace": "public function getBalancesCsv(): ResponseInterface\n    {\n",
+    "tests": [
+      "--filter",
+      "GetBalancesCsv_Redirects",
+      "tests/Controllers/AccountingPayablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G58 the party report file keeps the empty customers only when asked",
+    "file": "app/Libraries/Accounting/PartyReportQuery.php",
+    "find": "'empty' => $this->showEmpty ? '1' : ''",
+    "replace": "'empty' => ''",
+    "tests": [
+      "--filter",
+      "LinksTheThreeFilesWithTheFilters",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G59 the balances file shows the other column only when some journal needs it",
+    "file": "app/Libraries/Accounting/PartyReportCsv.php",
+    "find": "...($other ? [lang($group . '.col_other')] : []),",
+    "replace": "lang($group . '.col_other'),",
+    "tests": [
+      "--filter",
+      "AddsTheColumnForWhatNoOtherColumn",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G60 the cheque report file holds the cheques of the branches of the employee",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "$report = $this->list->report($kind, $this->branchIds(), $this->filters());\n\n        return $this->response\n            ->setContentType('text/csv', 'UTF-8')",
+    "replace": "$report = $this->list->report($kind, null, $this->filters());\n\n        return $this->response\n            ->setContentType('text/csv', 'UTF-8')",
+    "tests": [
+      "--filter",
+      "GetReportCsv_ShowsOnlyTheChequesAndTheTies",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G61 the cheque report file keeps the filters of the screen",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "$report = $this->list->report($kind, $this->branchIds(), $this->filters());\n\n        return $this->response\n            ->setContentType('text/csv', 'UTF-8')",
+    "replace": "$report = $this->list->report($kind, $this->branchIds(), []);\n\n        return $this->response\n            ->setContentType('text/csv', 'UTF-8')",
+    "tests": [
+      "--filter",
+      "GetReportCsv_KeepsTheStatus",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G62 the cheque report file reads the paid direction for paid",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "return ChequeDirection::tryFrom($value) ?? ChequeDirection::Received;",
+    "replace": "return ChequeDirection::Received;",
+    "tests": [
+      "--filter",
+      "GetReportCsv_ReadsThePaidCheques",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G63 the cheque report file lists the ties",
+    "file": "app/Controllers/AccountingCheques.php",
+    "find": "foreach ($report['ties'] as $tie) {\n            $this->csvRow",
+    "replace": "foreach ([] as $tie) {\n            $this->csvRow",
+    "tests": [
+      "--filter",
+      "GetReportCsv_GivesTheChequesWithTheTotals",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G64 the bank statement file needs the permission to reconcile",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "public function getReportCsv(int $treasuryId): ResponseInterface\n    {\n        $treasury = $this->visible($treasuryId);",
+    "replace": "public function getReportCsv(int $treasuryId): ResponseInterface\n    {\n        $treasury = $this->bank->bankAccount($treasuryId, null);",
+    "tests": [
+      "--filter",
+      "GetReportCsv_IsNotFoundWithoutThePermissionToReconcile",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "G65 the bank statement file refuses a balance that is not a number",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "return $this->response->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)->setBody($this->messageFor($exception));\n        }\n\n        return $this->response\n            ->setContentType('text/csv', 'UTF-8')\n            ->setHeader('Content-Disposition', 'attachment; filename=\"bank_reconciliation_'",
+    "replace": "throw $exception;\n        }\n\n        return $this->response\n            ->setContentType('text/csv', 'UTF-8')\n            ->setHeader('Content-Disposition', 'attachment; filename=\"bank_reconciliation_'",
+    "tests": [
+      "--filter",
+      "GetReportCsv_RefusesABalance",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "G66 the bank statement file gives the lines still open",
+    "file": "app/Controllers/AccountingBankReconciliation.php",
+    "find": "foreach ([['outstanding_books', $figures->bookLines], ['carried', $figures->carriedLines]] as [$heading, $lines]) {",
+    "replace": "foreach ([] as [$heading, $lines]) {",
+    "tests": [
+      "--filter",
+      "GetReportCsv_GivesBothSides",
+      "tests/Controllers/AccountingBankReconciliationControllerTest.php"
+    ]
+  },
+  {
+    "name": "G67 the balances between branches file adds up the branches of the employee",
+    "file": "app/Controllers/AccountingInterBranch.php",
+    "find": "$this->balances->report($scope->isCompany() ? null : $scope->ids, $asOf), $scope, $asOf)",
+    "replace": "$this->balances->report(null, $asOf), $scope, $asOf)",
+    "tests": [
+      "--filter",
+      "GetCsv_ShowsOnlyThePairsOfTheBranches",
+      "tests/Controllers/AccountingInterBranchControllerTest.php"
+    ]
+  },
+  {
+    "name": "G68 the balances between branches file refuses a day that is not one",
+    "file": "app/Controllers/AccountingInterBranch.php",
+    "find": "return $this->response->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)->setBody($this->messageFor($refusal));\n        }\n\n        return $this->response\n            ->setContentType('text/csv', 'UTF-8')\n            ->setHeader('Content-Disposition', 'attachment; filename=\"inter_branch_balances_'",
+    "replace": "throw $refusal;\n        }\n\n        return $this->response\n            ->setContentType('text/csv', 'UTF-8')\n            ->setHeader('Content-Disposition', 'attachment; filename=\"inter_branch_balances_'",
+    "tests": [
+      "--filter",
+      "GetCsv_RefusesADay",
+      "tests/Controllers/AccountingInterBranchControllerTest.php"
+    ]
+  },
+  {
+    "name": "G69 the company difference is for the reader of every branch only",
+    "file": "app/Controllers/AccountingInterBranch.php",
+    "find": "if ($report->difference !== null && bccomp($report->difference, '0', 4) !== 0) {\n            $this->csvNote",
+    "replace": "if (bccomp($this->balances->report(null, $asOf)->difference ?? '0', '0', 4) !== 0) {\n            $this->csvNote",
+    "tests": [
+      "--filter",
+      "GetCsv_GivesTheDifferenceAcrossTheCompany",
+      "tests/Controllers/AccountingInterBranchControllerTest.php"
+    ]
+  },
+  {
+    "name": "G70 the closing preview file needs the permission to close",
+    "file": "app/Controllers/AccountingYearEnd.php",
+    "find": "public function getCsv(): ResponseInterface\n    {\n        if (! $this->can(AccountingGuard::YEAR_END_CLOSE)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n\n",
+    "replace": "public function getCsv(): ResponseInterface\n    {\n",
+    "tests": [
+      "--filter",
+      "GetCsv_IsNotFoundWithoutThePermissionToClose",
+      "tests/Controllers/AccountingYearEndControllerTest.php"
+    ]
+  },
+  {
+    "name": "G71 the closing preview file is for the scopes the employee may run",
+    "file": "app/Controllers/AccountingYearEnd.php",
+    "find": "$options = $this->scopeOptions();\n        $scope   = $this->scopeParameter($options);\n        $yearId  = $this->yearParameter($this->closing->years($this->employeeId()));\n\n        if ($yearId === null || $options === []) {",
+    "replace": "$options = ['company' => '', (string) $this->request->getGet('scope') => ''];\n        $scope   = (string) $this->request->getGet('scope');\n        $yearId  = $this->yearParameter($this->closing->years($this->employeeId()));\n\n        if ($yearId === null || $options === []) {",
+    "tests": [
+      "--filter",
+      "GetCsv_IsNotFoundWithoutThePermissionToClose",
+      "tests/Controllers/AccountingYearEndControllerTest.php"
+    ]
+  },
+  {
+    "name": "G72 the closing preview file does not hold the fingerprint of the approval",
+    "file": "app/Controllers/AccountingYearEnd.php",
+    "find": "$this->csvRow($handle, [lang('Accounting_periods.year_end_period'",
+    "replace": "$this->csvRow($handle, [$preview->fingerprint]);\n        $this->csvRow($handle, [lang('Accounting_periods.year_end_period'",
+    "tests": [
+      "--filter",
+      "GetCsv_DoesNotGiveTheFingerprint",
+      "tests/Controllers/AccountingYearEndControllerTest.php"
+    ]
+  },
+  {
+    "name": "G73 the closing preview file says what stops the closing",
+    "file": "app/Controllers/AccountingYearEnd.php",
+    "find": "foreach ($preview->blockers as $blocker) {\n            $this->csvNote",
+    "replace": "foreach ([] as $blocker) {\n            $this->csvNote",
+    "tests": [
+      "--filter",
+      "GetCsv_SaysWhatStopsTheClosing",
+      "tests/Controllers/AccountingYearEndControllerTest.php"
+    ]
+  },
+  {
+    "name": "G74 a page of the lists is a fixed number of documents",
+    "file": "app/Libraries/Accounting/SaleDocumentList.php",
+    "find": " LIMIT \" . self::PAGE_SIZE . \" OFFSET {$offset}\"",
+    "replace": " LIMIT \" . self::PAGE_SIZE . \" OFFSET 0\"",
+    "tests": [
+      "--filter",
+      "ListsAPageOfTheNewestFirst",
+      "tests/Libraries/Accounting/SaleDocumentListTest.php"
+    ]
+  },
+  {
+    "name": "G75 a page below the first is the first",
+    "file": "app/Libraries/Accounting/SaleDocumentList.php",
+    "find": "(max(1, $page) - 1) * self::PAGE_SIZE",
+    "replace": "($page - 1) * self::PAGE_SIZE",
+    "tests": [
+      "--filter",
+      "TreatsAPageBelowOne",
+      "tests/Libraries/Accounting/SaleDocumentListTest.php"
+    ]
+  },
+  {
+    "name": "G76 the count of documents follows the branches of the reader",
+    "file": "app/Libraries/Accounting/SaleDocumentList.php",
+    "find": "\" AND {$condition}\" . $this->scope($branchIds, $viewerId),",
+    "replace": "\" AND {$condition}\",",
+    "tests": [
+      "--filter",
+      "CountDrafts_CountsEveryDraft|CountQuotes_CountsOnly",
+      "tests/Libraries/Accounting/SaleDocumentListTest.php"
+    ]
+  },
+  {
+    "name": "G77 nobody who works in no branch counts or reads a document",
+    "file": "app/Libraries/Accounting/SaleDocumentList.php",
+    "find": "if ($branchIds === []) {\n            return 0;\n        }",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "CountDrafts_CountsEveryDraft|CountQuotes_CountsOnly",
+      "tests/Libraries/Accounting/SaleDocumentListTest.php"
+    ]
+  },
+  {
+    "name": "G78 the pages are counted up and are at least one",
+    "file": "app/Libraries/Accounting/SaleDocumentList.php",
+    "find": "return max(1, intdiv($total + self::PAGE_SIZE - 1, self::PAGE_SIZE));",
+    "replace": "return max(1, intdiv($total, self::PAGE_SIZE));",
+    "tests": [
+      "--filter",
+      "Pages_RoundsUp",
+      "tests/Libraries/Accounting/SaleDocumentListTest.php"
+    ]
+  },
+  {
+    "name": "G79 the count of quotes follows the status asked",
+    "file": "app/Libraries/Accounting/SaleDocumentList.php",
+    "find": "return $this->count($this->quoteCondition($only), $branchIds, $viewerId);",
+    "replace": "return $this->count($this->quoteCondition(null), $branchIds, $viewerId);",
+    "tests": [
+      "--filter",
+      "CountQuotesCountsOnly",
+      "tests/Libraries/Accounting/SaleDocumentListTest.php"
+    ]
+  },
+  {
+    "name": "G80 a page past the last is read as the last",
+    "file": "app/Controllers/Sales.php",
+    "find": "$draftPage  = min(SaleDocumentList::pages($draftTotal), $this->pageParameter('drafts_page'));",
+    "replace": "$draftPage  = $this->pageParameter('drafts_page');",
+    "tests": [
+      "--filter",
+      "GetDocuments_ReadsAPageBeyondTheLast",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G81 a page that is not a number is the first",
+    "file": "app/Controllers/Sales.php",
+    "find": "return is_string($value) && ctype_digit($value) && strlen($value) <= 6 ? max(1, (int) $value) : 1;",
+    "replace": "return is_string($value) ? max(1, (int) $value) : 1;",
+    "tests": [
+      "--filter",
+      "GetDocuments_ReadsAPageBeyondTheLast",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G82 the links of the pages keep the filter and the other list",
+    "file": "app/Controllers/Sales.php",
+    "find": "foreach (['drafts_page' => $draftsPage, 'quotes_page' => $quotesPage] as $name => $number) {\n            if ($number > 1) {",
+    "replace": "foreach (['drafts_page' => $draftsPage] as $name => $number) {\n            if ($number > 1) {",
+    "tests": [
+      "--filter",
+      "GetDocuments_ShowsTheOlderDocumentsOnTheSecondPage",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G83 a list that fits on one page has no pager",
+    "file": "app/Views/sales/documents_pager.php",
+    "find": "<?php if ($paging['pages'] > 1): ?>",
+    "replace": "<?php if (true): ?>",
+    "tests": [
+      "--filter",
+      "OffersNoPagerWhileEveryDocumentFits",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G84 the first page has no link to a page before it",
+    "file": "app/Views/sales/documents_pager.php",
+    "find": "<?php if ($paging['page'] > 1): ?>",
+    "replace": "<?php if (true): ?>",
+    "tests": [
+      "--filter",
+      "OffersThePagesOfAList",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  }
+]

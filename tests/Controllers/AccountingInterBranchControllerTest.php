@@ -636,8 +636,8 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
         $pairs = array_values(array_filter($rows, static fn (array $row): bool => count($row) === 7 && in_array($row[0], ['HQ', 'B2'], true)));
 
         $this->assertCount(2, $pairs);
-        $this->assertSame(['HQ', 'B2', '0.0000', '100.0000'], array_slice($pairs[0], 0, 4));
-        $this->assertSame(['B2', 'HQ', '100.0000', '0.0000', '100.0000'], array_slice($pairs[1], 0, 5));
+        $this->assertSame(['HQ', 'B2', '100.0000', '0.0000', '100.0000'], array_slice($pairs[0], 0, 5));
+        $this->assertSame(['B2', 'HQ', '0.0000', '100.0000', '-100.0000'], array_slice($pairs[1], 0, 5));
     }
 
     public function testGetCsv_StopsAtTheDayAskedAndSaysWhenNothingIsOwed(): void

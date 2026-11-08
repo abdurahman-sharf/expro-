@@ -26,6 +26,7 @@ $alignEnd   = $rtl ? 'al-l' : 'al-r';
     <table class="doc-head">
         <tr>
             <td class="<?= $alignStart ?>">
+                <?php if ($company !== ''): ?><div class="doc-company-name"><?= esc($company) ?></div><?php endif; ?>
                 <div class="doc-title doc-title-small"><?= esc($title) ?></div>
                 <?php foreach ($intro as $line): ?><div class="doc-grid-meta"><?= documentCell($line) ?></div><?php endforeach; ?>
             </td>

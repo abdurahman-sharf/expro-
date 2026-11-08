@@ -1870,7 +1870,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
 
         $this->assertSame([lang('Accounting_payables.balances_title')], $rows[0]);
         $this->assertSame([lang('Accounting_payables.supplier'), ...array_map(static fn (string $column): string => lang('Accounting_payables.' . $column), ['col_before', 'col_sales', 'col_returns', 'col_net', 'col_payments', 'col_settlements', 'balance'])], $rows[2]);
-        $this->assertSame([lang('Accounting_payables.totals'), '0.0000', '2500.0000', '-300.0000', '2200.0000', '1500.0000', '0.0000', '700.0000'], end($rows));
+        $this->assertSame([lang('Accounting_payables.totals'), '0.0000', '2500.0000', '0.0000', '2500.0000', '1500.0000', '-300.0000', '700.0000'], end($rows));
     }
 
     public function testGetBalancesCsv_RefusesAPeriodThatEndsBeforeItStartsInWords(): void

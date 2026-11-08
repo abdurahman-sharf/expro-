@@ -32,6 +32,7 @@ final class ReportPdf
         $header  = $sheet->headerIndex();
 
         return view('documents/report', [
+            'company' => (string) (documentConfig()['company'] ?? ''),
             'title'   => $sheet->title,
             'date'    => to_datetime(time()),
             'size'    => $options->fontSize,

@@ -8,6 +8,7 @@ use App\Libraries\Accounting\Export\ReportSheet;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use Config\OSPOS;
 
 /**
  * @internal
@@ -75,6 +76,56 @@ final class ReportPdfTest extends CIUnitTestCase
         preg_match('#<tr[^>]*>(?:(?!</tr>).)*Totals(?:(?!</tr>).)*</tr>#s', $html, $row);
 
         $this->assertSame(3, substr_count($row[0], '<td'), 'A row of two filled cells is drawn in three cells');
+    }
+
+    public function testHtml_NamesTheCompanyAboveTheTitleAndEscapesIt(): void
+    {
+        $settings = config(OSPOS::class)->settings;
+
+        config(OSPOS::class)->settings['company'] = 'Acme <Trading> Co';
+
+        try {
+            $html = (new ReportPdf())->html($this->sheet(), new ExportOptions());
+        } finally {
+            config(OSPOS::class)->settings = $settings;
+        }
+
+        $this->assertStringContainsString('<div class="doc-company-name">Acme &lt;Trading&gt; Co</div>', $html);
+        $this->assertLessThan(strpos($html, 'doc-title doc-title-small'), strpos($html, 'doc-company-name"'));
+    }
+
+    public function testHtml_LeavesOutTheCompanyLineWhenTheCompanyHasNoName(): void
+    {
+        $settings = config(OSPOS::class)->settings;
+
+        config(OSPOS::class)->settings['company'] = '';
+
+        try {
+            $html = (new ReportPdf())->html($this->sheet(), new ExportOptions());
+        } finally {
+            config(OSPOS::class)->settings = $settings;
+        }
+
+        $this->assertStringNotContainsString('<div class="doc-company-name">', $html);
+    }
+
+    public function testHtml_EscapesTheHeadingOfTheTable(): void
+    {
+        $html = (new ReportPdf())->html(new ReportSheet('T', [['Code <i>', 'Name & Co'], ['1', 'x']]), new ExportOptions());
+
+        $this->assertStringContainsString('Code &lt;i&gt;', $html);
+        $this->assertStringContainsString('Name &amp; Co', $html);
+        $this->assertStringNotContainsString('<i>', $html);
+    }
+
+    public function testHtml_DrawsARowWithOneFilledCellAmongSeveralInACellOfItsOwnAndNotAcrossTheRow(): void
+    {
+        $html = (new ReportPdf())->html(new ReportSheet('T', [['Code', 'Name', 'Amount'], ['Only first', '', '']]), new ExportOptions());
+
+        preg_match('#<tr[^>]*>(?:(?!</tr>).)*Only first(?:(?!</tr>).)*</tr>#s', $html, $row);
+
+        $this->assertSame(3, substr_count($row[0], '<td'));
+        $this->assertStringNotContainsString('colspan', $row[0]);
     }
 
     public function testHtml_AppliesTheSizeOfTheTypeAsked(): void

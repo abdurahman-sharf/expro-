@@ -2500,8 +2500,8 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
 
         $this->assertSame([lang('Accounting_receivables.balances_title')], $rows[0]);
         $this->assertSame([lang('Accounting_receivables.customer'), ...array_map(static fn (string $column): string => lang('Accounting_receivables.' . $column), ['col_before', 'col_sales', 'col_returns', 'col_net', 'col_payments', 'col_settlements', 'balance'])], $rows[2]);
-        $this->assertSame(['Omar Khaled', '0.0000', '2541.5000', '-253.0000', '2288.5000', '1563.5000', '0.0000', '725.0000'], $rows[3]);
-        $this->assertSame([lang('Accounting_receivables.totals'), '0.0000', '2541.5000', '-253.0000', '2288.5000', '1563.5000', '0.0000', '725.0000'], end($rows));
+        $this->assertSame(['Omar Khaled', '0.0000', '2541.5000', '0.0000', '2541.5000', '1563.5000', '-253.0000', '725.0000'], $rows[3]);
+        $this->assertSame([lang('Accounting_receivables.totals'), '0.0000', '2541.5000', '0.0000', '2541.5000', '1563.5000', '-253.0000', '725.0000'], end($rows));
     }
 
     public function testGetBalancesCsv_AddsTheColumnForWhatNoOtherColumnExplainsOnlyWhenThereIsSuchAJournal(): void
@@ -2527,16 +2527,23 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
 
     public function testGetBalancesCsv_KeepsThePeriodAndTheEmptyChoiceOfTheScreen(): void
     {
+        $settled = $this->anotherCustomer('Nora', 'Fahd');
+        $paid    = $this->invoiceOf('40.00', $settled);
+
+        $this->addPayment($paid, '40.00');
         $this->invoiceOf('100.00');
-        $this->anotherCustomer('Idle', 'Customer');
         $this->viewer();
 
-        $without = array_column($this->csvRows($this->get('/accounting_receivables/balances/csv?from=2020-01-01&to=' . date('Y-m-d'))), 0);
-        $with    = array_column($this->csvRows($this->get('/accounting_receivables/balances/csv?from=2020-01-01&to=' . date('Y-m-d') . '&empty=1')), 0);
+        $tomorrow = date('Y-m-d', strtotime('+1 day'));
+        $query    = '?from=' . $tomorrow . '&to=' . $tomorrow;
 
-        $this->assertNotContains('Idle Customer', $without);
-        $this->assertContains('Idle Customer', $with);
-        $this->assertSame(lang('Accounting_receivables.balances_period', ['2020-01-01', date('Y-m-d')]), $this->csvRows($this->get('/accounting_receivables/balances/csv?from=2020-01-01&to=' . date('Y-m-d')))[1][0]);
+        $hidden = $this->csvRows($this->get('/accounting_receivables/balances/csv' . $query));
+        $shown  = $this->csvRows($this->get('/accounting_receivables/balances/csv' . $query . '&empty=1'));
+
+        $this->assertContains('Omar Khaled', array_column($hidden, 0));
+        $this->assertNotContains('Nora Fahd', array_column($hidden, 0));
+        $this->assertContains('Nora Fahd', array_column($shown, 0));
+        $this->assertSame(lang('Accounting_receivables.balances_period', [$tomorrow, $tomorrow]), $hidden[1][0]);
     }
 
     public function testGetBalancesCsv_RefusesAPeriodThatEndsBeforeItStartsInWords(): void

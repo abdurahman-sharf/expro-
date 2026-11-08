@@ -246,7 +246,7 @@ foreach ($table?->columns ?? [] as $column) {
 
         <?php if ($table->ties !== []): ?>
             <div class="table-responsive mb-3">
-                <table class="table table-sm" id="report_ties">
+                <table class="table table-sm acc-lines" id="report_ties">
                     <thead>
                         <tr>
                             <th scope="col"><?= lang('Accounting_operational_reports.tie') ?></th>
