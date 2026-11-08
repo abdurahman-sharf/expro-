@@ -585,7 +585,9 @@ final class Stocktake
             ->get()
             ->getResultArray();
 
-        return array_map('intval', array_column($rows, 'item_id'));
+        $tracking = new StockTracking($this->db);
+
+        return array_values(array_filter(array_map('intval', array_column($rows, 'item_id')), static fn (int $itemId): bool => ! $tracking->handles($itemId)));
     }
 
     /**
@@ -869,6 +871,8 @@ final class Stocktake
                 throw new AccountingException(AccountingError::StocktakeLinesInvalid, "The item {$itemId} is not an item that keeps stock.", ['line' => $itemId]);
             }
         }
+
+        (new StockTracking($this->db))->requireUntracked($ids);
 
         return $ids;
     }

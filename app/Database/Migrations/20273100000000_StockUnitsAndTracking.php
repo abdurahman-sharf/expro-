@@ -232,7 +232,7 @@ class StockUnitsAndTracking extends Migration
                 `source_type` VARCHAR(32) NOT NULL,
                 `source_id` INT UNSIGNED NOT NULL,
                 `line_no` SMALLINT UNSIGNED NOT NULL,
-                `movement` VARCHAR(10) NOT NULL,
+                `movement` VARCHAR(16) NOT NULL,
                 `item_id` INT(10) NOT NULL,
                 `location_id` INT(11) NOT NULL,
                 `serial_id` BIGINT UNSIGNED NULL DEFAULT NULL,

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Stock\StockTracking;
 use CodeIgniter\Database\RawSql;
 use CodeIgniter\Model;
 use stdClass;
@@ -45,6 +46,10 @@ class Item_quantity extends Model
      */
     public function save_value(array $location_detail, int $item_id, int $location_id): bool
     {
+        if (isset($location_detail['quantity']) && bccomp((string) $location_detail['quantity'], (string) $this->get_item_quantity($item_id, $location_id)->quantity, 3) !== 0) {
+            StockTracking::assertShelfMayChange($item_id, $this->db);
+        }
+
         if (!$this->exists($item_id, $location_id)) {
             $builder = $this->db->table('item_quantities');
             return $builder->insert($location_detail);
@@ -109,6 +114,8 @@ class Item_quantity extends Model
      */
     public function changeQuantity(int $itemId, int $locationId, float $quantityChange): bool
     {
+        StockTracking::assertShelfMayChange($itemId, $this->db);
+
         $builder = $this->db->table('item_quantities');
         $builder->set([
             'item_id'     => $itemId,
@@ -125,6 +132,8 @@ class Item_quantity extends Model
      */
     public function reset_quantity(int $item_id): bool
     {
+        StockTracking::assertShelfMayChange($item_id, $this->db);
+
         $builder = $this->db->table('item_quantities');
         $builder->where('item_id', $item_id);
 
@@ -136,6 +145,10 @@ class Item_quantity extends Model
      */
     public function reset_quantity_list(array $item_ids): bool
     {
+        foreach ($item_ids as $itemId) {
+            StockTracking::assertShelfMayChange((int) $itemId, $this->db);
+        }
+
         $builder = $this->db->table('item_quantities');
         $builder->whereIn('item_id', $item_ids);
 

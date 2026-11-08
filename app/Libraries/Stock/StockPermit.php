@@ -86,6 +86,7 @@ final class StockPermit
     private AuditLog $audit;
     private DocumentNumbering $numbering;
     private UnitLines $units;
+    private StockTracking $tracking;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
@@ -106,6 +107,7 @@ final class StockPermit
         $this->audit         = new AuditLog($this->db);
         $this->numbering     = new DocumentNumbering($this->db);
         $this->units         = new UnitLines($this->db);
+        $this->tracking      = new StockTracking($this->db, $this->guard);
     }
 
     /**
@@ -574,7 +576,7 @@ final class StockPermit
                 }
             }
 
-            $list[] = ['item_id' => $itemId, 'quantity' => bcadd($quantity, '0', 3), 'unit_cost' => $type === StockPermitType::Add ? bcadd($cost, '0', 6) : '0.000000', 'unit' => $unit->columns('unit_cost_entered')];
+            $list[] = ['item_id' => $itemId, 'quantity' => bcadd($quantity, '0', 3), 'unit_cost' => $type === StockPermitType::Add ? bcadd($cost, '0', 6) : '0.000000', 'unit' => $unit->columns('unit_cost_entered'), 'tracking' => TrackingEntry::ofLine(is_array($line) ? $line : [])];
         }
 
         return $list;
@@ -741,9 +743,50 @@ final class StockPermit
             $this->keepIssuedCosts($permitId, $data['lines'], $plan);
         }
 
-        $this->shelves->move($deltas, self::COMMENT . $permitId, $employeeId);
+        $this->applyTracking($permitId, $data, $employeeId);
+        $this->shelves->move($deltas, self::COMMENT . $permitId, $employeeId, $this->trackedItems($data['lines']));
 
         return $follows;
+    }
+
+    /**
+     * Brings in, takes out or moves the serial numbers and the batches of the tracked lines of a permit,
+     * which changes the shelves of those items itself.
+     *
+     * @param array{type: StockPermitType, date: string, location_id: int, to_location_id: ?int, lines: list<array<string, mixed>>} $data
+     *
+     * @throws AccountingException
+     */
+    private function applyTracking(int $permitId, array $data, int $employeeId): void
+    {
+        foreach (array_values($data['lines']) as $index => $line) {
+            $itemId = (int) $line['item_id'];
+            $entry  = $line['tracking'] ?? TrackingEntry::none();
+
+            if (! $this->tracking->handles($itemId)) {
+                if (! $entry->isEmpty()) {
+                    throw new AccountingException(AccountingError::TrackedEntryNotAllowed, 'The item is not tracked.', ['line' => $index + 1, 'name' => (string) $this->db->table('items')->select('name')->where('item_id', $itemId)->get()->getRow()->name]);
+                }
+
+                continue;
+            }
+
+            match ($data['type']) {
+                StockPermitType::Add      => $this->tracking->receive('stock_permit', $permitId, $index + 1, $itemId, $data['location_id'], $line['quantity'], $entry),
+                StockPermitType::Issue    => $this->tracking->issue('stock_permit', $permitId, $index + 1, $itemId, $data['location_id'], $line['quantity'], $entry, $data['date'], StockTracking::ISSUE, $employeeId),
+                StockPermitType::Transfer => $this->tracking->transfer('stock_permit', $permitId, $index + 1, $itemId, $data['location_id'], (int) $data['to_location_id'], $line['quantity'], $entry, $employeeId),
+            };
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $lines
+     *
+     * @return list<int>
+     */
+    private function trackedItems(array $lines): array
+    {
+        return array_values(array_filter(array_unique(array_map(static fn (array $line): int => (int) $line['item_id'], $lines)), fn (int $itemId): bool => $this->tracking->handles($itemId)));
     }
 
     /**
@@ -855,7 +898,9 @@ final class StockPermit
             $this->ledger->reverseSource($source, $permitId, JournalEntryType::General, $reversal === null ? $fallback : (string) $reversal->journal_date, $reversal === null ? null : (int) $reversal->journal_id);
         }
 
-        $this->shelves->move($this->deltas($document, -1), self::COMMENT . $permitId . ' reversed', $employeeId);
+        $reversed = $this->tracking->reverseSource('stock_permit', $permitId);
+
+        $this->shelves->move($this->deltas($document, -1), self::COMMENT . $permitId . ' reversed', $employeeId, $reversed);
     }
 
     private function isPosted(int $journalId): bool

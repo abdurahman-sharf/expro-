@@ -92,8 +92,9 @@ final class StockShelves
 
     /**
      * @param list<array{itemId: int, locationId: int, delta: string}> $deltas
+     * @param list<int>                                                $tracked Items whose shelves their serial numbers or batches already changed.
      */
-    public function move(array $deltas, string $comment, int $employeeId): void
+    public function move(array $deltas, string $comment, int $employeeId, array $tracked = []): void
     {
         $inventory    = model(Inventory::class);
         $itemQuantity = model(Item_quantity::class);
@@ -101,7 +102,10 @@ final class StockShelves
         foreach (self::net($deltas) as $delta) {
             $units = (float) $delta['delta'];
 
-            $itemQuantity->changeQuantity($delta['itemId'], $delta['locationId'], $units);
+            if (! in_array($delta['itemId'], $tracked, true)) {
+                $itemQuantity->changeQuantity($delta['itemId'], $delta['locationId'], $units);
+            }
+
             $inventory->insert([
                 'trans_date'      => date('Y-m-d H:i:s'),
                 'trans_items'     => $delta['itemId'],

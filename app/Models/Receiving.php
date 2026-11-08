@@ -33,6 +33,8 @@ use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\RecordScope;
+use App\Libraries\Stock\StockTracking;
+use App\Libraries\Stock\TrackingEntry;
 use App\Libraries\Stock\UnitLines;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -1042,6 +1044,18 @@ class Receiving extends Model
 
         $config       = config(OSPOS::class)->settings;
         $type         = ReceivingType::ofQuantities(array_map(static fn (array $line): string => self::unitsOf($line), $items));
+        $tracking     = new StockTracking($this->db);
+
+        if ($type !== ReceivingType::Receive) {
+            try {
+                $tracking->requireUntracked(array_map(static fn (array $line): int => (int) $line['item_id'], $items));
+            } catch (AccountingException $refusal) {
+                $this->accountingFailure = $refusal;
+
+                return ACCOUNTING_FAILED;
+            }
+        }
+
         $branchIds    = $this->branchIdsOfItems($items);
         $between      = $this->transferBetweenBranches($items);
         $branchId     = $between['from'] ?? $branchIds[0] ?? (new BranchGuard($this->db))->companyDefaultBranchId();
@@ -1156,7 +1170,12 @@ class Receiving extends Model
             foreach ($items as $line => $itemData) {
                 $itemsReceived = (float) self::unitsOf($itemData);
 
-                $itemQuantity->changeQuantity((int) $itemData['item_id'], (int) $itemData['item_location'], $itemsReceived);
+                if ($tracking->handles((int) $itemData['item_id'])) {
+                    $tracking->receive('receiving', (int) $receivingId, (int) $itemData['line'], (int) $itemData['item_id'], (int) $itemData['item_location'], sprintf('%.3F', $itemsReceived), TrackingEntry::ofLine($itemData));
+                } else {
+                    $this->assertNoTrackingEntry($itemData);
+                    $itemQuantity->changeQuantity((int) $itemData['item_id'], (int) $itemData['item_location'], $itemsReceived);
+                }
 
                 $invData = [
                     'trans_date'      => date('Y-m-d H:i:s'),
@@ -1188,6 +1207,20 @@ class Receiving extends Model
         $this->db->transComplete();
 
         return $this->db->transStatus() ? $receivingId : -1;
+    }
+
+    /**
+     * @param array<string, mixed> $line
+     *
+     * @throws AccountingException
+     */
+    private function assertNoTrackingEntry(array $line): void
+    {
+        $entry = $line['tracking'] ?? null;
+
+        if ($entry instanceof TrackingEntry ? ! $entry->isEmpty() : (is_array($entry) && array_filter($entry) !== [])) {
+            throw new AccountingException(AccountingError::TrackedEntryNotAllowed, 'The item is not tracked.', ['line' => (int) ($line['line'] ?? 0), 'name' => (string) ($line['name'] ?? $line['item_id'])]);
+        }
     }
 
     /**
@@ -1719,6 +1752,17 @@ class Receiving extends Model
         if ($update_inventory) {
             $inventory     = model('Inventory');
             $item_quantity = model(Item_quantity::class);
+            $tracking      = new StockTracking($this->db);
+            $reversed      = [];
+
+            try {
+                $reversed = $tracking->reverseSource('receiving', (int) $receiving_id);
+            } catch (AccountingException $refusal) {
+                $this->db->transRollback();
+                $this->accountingFailure = $refusal;
+
+                return false;
+            }
 
             foreach ($items as $item) {
                 $units = $item['quantity_purchased'] * (-$item['receiving_quantity']);
@@ -1736,7 +1780,9 @@ class Receiving extends Model
                 $inventory->insert($inv_data, false);
 
                 // Update quantities
-                $item_quantity->changeQuantity($item['item_id'], $item['item_location'], $units);
+                if (! in_array((int) $item['item_id'], $reversed, true)) {
+                    $item_quantity->changeQuantity($item['item_id'], $item['item_location'], $units);
+                }
             }
         }
 

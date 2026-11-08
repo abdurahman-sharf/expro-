@@ -7,6 +7,7 @@ use App\Libraries\Stock\ItemStockProfile;
 use App\Libraries\Stock\StockOptions;
 use App\Libraries\Stock\StockPermissions;
 use App\Libraries\Stock\StockUnitPermissions;
+use App\Libraries\Stock\TrackingType;
 use App\Libraries\Stock\UnitLines;
 use App\Libraries\Stock\UnitTemplates;
 
@@ -23,6 +24,13 @@ trait StockUnitsFixtureTrait
     protected function startStockUnits(): void
     {
         $this->unitManagerId = $this->employeeWithGrants([...StockUnitPermissions::ALL, StockUnitPermissions::MODULE, AccountingGuard::SETTINGS_MANAGE, ...StockPermissions::ALL, StockPermissions::MODULE, 'items_stock']);
+    }
+
+    protected function readyStockUnits(): void
+    {
+        if (! isset($this->unitManagerId)) {
+            $this->startStockUnits();
+        }
     }
 
     protected function stopStockUnits(): void
@@ -83,7 +91,7 @@ trait StockUnitsFixtureTrait
      */
     protected function cartonItem(string $cost = '5.00'): array
     {
-        $this->startStockUnits();
+        $this->readyStockUnits();
 
         $templateId = $this->template();
         $itemId     = $this->createTestItem();
@@ -106,5 +114,22 @@ trait StockUnitsFixtureTrait
         $unit = (new UnitLines())->convert((int) $line['item_id'], $unitId, $enteredQuantity, $enteredPrice, (int) $line['line']);
 
         return [...$line, 'quantity' => $unit->baseQuantity, 'price' => $unit->basePrice, 'unit_id' => $unitId, 'unit_factor' => $unit->factor, 'unit_quantity' => $enteredQuantity, 'unit_price' => $enteredPrice];
+    }
+
+    /**
+     * An item that keeps stock at the cost given and is tracked by serial number or by batch, with no
+     * stock yet: it comes in through a purchase or an add permit.
+     */
+    protected function trackedItem(TrackingType $type, string $cost = '5.00'): int
+    {
+        $this->readyStockUnits();
+        $this->switchOn('tracking');
+
+        $itemId = $this->createTestItem();
+
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['cost_price' => $cost]);
+        (new ItemStockProfile())->setTracking($itemId, $type, $this->unitManagerId);
+
+        return $itemId;
     }
 }
