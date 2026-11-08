@@ -37,7 +37,7 @@ abstract class PurchaseCycleScreen extends DocumentScreen
         $filters = $this->filters();
         $offset  = max(0, (int) $this->request->getGet('offset'));
         $enabled = $this->documents->isEnabled();
-        $result  = $enabled ? $this->documents->search($filters, $this->employeeId(), self::PAGE_SIZE, $offset) : ['total' => 0, 'rows' => []];
+        $result  = $this->documents->search($filters, $this->employeeId(), self::PAGE_SIZE, $offset);
 
         return view('purchase_cycle/manage', [
             'kind'        => $this->kind,
@@ -66,7 +66,7 @@ abstract class PurchaseCycleScreen extends DocumentScreen
         if ($documentId !== NEW_ENTRY) {
             $document = $this->documents->find($documentId, $this->employeeId());
 
-            if ($document === null || ! $document->status_object->isEditable() || ! $this->can($this->kind->permission(PurchaseDocuments::EDIT)) || $this->documents->receivings($documentId) !== []) {
+            if ($document === null || ! $document->status_object->isEditable() || ! $this->can($this->kind->permission(PurchaseDocuments::EDIT))) {
                 throw PageNotFoundException::forPageNotFound();
             }
 
@@ -107,11 +107,11 @@ abstract class PurchaseCycleScreen extends DocumentScreen
             'madeFrom'   => $this->documents->madeFrom($documentId),
             'madeOf'     => $this->documents->madeOf($document),
             'receivings' => $receiving,
-            'canEdit'    => $this->can($this->kind->permission(PurchaseDocuments::EDIT)) && $status->isEditable() && $receiving === [],
+            'canEdit'    => $this->can($this->kind->permission(PurchaseDocuments::EDIT)) && $status->isEditable(),
             'canStatus'  => $manual && $this->can($this->kind->permission(PurchaseDocuments::EDIT)) && $status->manualNext() !== [],
             'canCancel'  => $this->can($this->kind->permission(PurchaseDocuments::DELETE)) && $status->canCancel(),
             'canConvert' => $this->can($this->kind->permission(PurchaseDocuments::CONVERT)) && $status->canConvert($this->kind),
-            'next'       => $manual ? $status->manualNext() : [],
+            'next'       => $status->manualNext(),
             'nextKind'   => $next,
         ]);
     }

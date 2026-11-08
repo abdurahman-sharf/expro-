@@ -288,7 +288,9 @@ class PurchaseCycleDocumentsMigrationTest extends CIUnitTestCase
         $db->table('purchase_order_receivings')->insert(['receiving_id' => $receivingId, 'order_id' => $orderId]);
         $db->table('purchase_order_receiving_lines')->insert(['receiving_id' => $receivingId, 'order_line_id' => $lineId, 'quantity' => '1']);
 
-        $this->assertRefused(fn () => $db->table('purchase_order_receiving_lines')->insert(['receiving_id' => $receivingId, 'order_line_id' => $lineId, 'quantity' => '0']), 'a quantity of zero');
+        $otherLine = $this->line('purchase_orders', $orderId, ['line_no' => 2]);
+
+        $this->assertRefused(fn () => $db->table('purchase_order_receiving_lines')->insert(['receiving_id' => $receivingId, 'order_line_id' => $otherLine, 'quantity' => '0']), 'a quantity of zero');
         $this->assertRefused(fn () => $db->table('purchase_order_receiving_lines')->insert(['receiving_id' => $receivingId, 'order_line_id' => 999999, 'quantity' => '1']), 'a line that does not exist');
         $this->assertRefused(fn () => $db->table('purchase_order_receivings')->insert(['receiving_id' => 999999, 'order_id' => $orderId]), 'a receiving that does not exist');
         $this->assertRefused(fn () => $db->table('purchase_order_lines')->where('line_id', $lineId)->delete(), 'a line something was received from');

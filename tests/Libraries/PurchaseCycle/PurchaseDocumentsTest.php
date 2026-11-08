@@ -1122,7 +1122,7 @@ class PurchaseDocumentsTest extends CIUnitTestCase
         $this->assertRefused(AccountingError::PurchaseDocumentModuleOff, fn () => $this->documentsOf($kind)->convert($sourceId, $this->clerk));
     }
 
-    public function testUpdate_RefusesAnOrderAReceivingWasMadeFromEvenWhenItIsOpenAndLeavesItAsItWas(): void
+    public function testUpdate_RefusesAnOrderAReceivingWasMadeFromAndLeavesItAsItWas(): void
     {
         $this->allowEmployeeEverywhere();
 
@@ -1136,5 +1136,19 @@ class PurchaseDocumentsTest extends CIUnitTestCase
         $this->assertSame('cycle document', $this->row(PurchaseDocumentKind::Order, $orderId)->note);
         $this->assertSame('2.000', $service->lines($orderId)[0]->received);
         $this->assertSame(PurchaseDocumentStatus::PartlyReceived, $service->statusOf($orderId));
+    }
+
+    public function testStatusOf_KeepsACancelledDocumentCancelledEvenWhenADocumentMadeFromItStillStands(): void
+    {
+        $request = $this->makeDocument(PurchaseDocumentKind::Request);
+        $service = $this->documentsOf(PurchaseDocumentKind::Request);
+
+        $service->convert($request, $this->clerk);
+        $this->accountingDb()->table('purchase_requests')->where('request_id', $request)->update(['status' => 'cancelled']);
+
+        $this->assertSame(PurchaseDocumentStatus::Cancelled, $service->statusOf($request), 'a cancelled document is never read as converted');
+        $this->assertSame('cancelled', $service->search([], $this->clerk)['rows'][0]->derived_status);
+        $this->assertSame([$request], array_map(static fn (object $row): int => (int) $row->document_id, $service->search(['status' => 'cancelled'], $this->clerk)['rows']));
+        $this->assertSame([], $service->search(['status' => 'converted'], $this->clerk)['rows']);
     }
 }

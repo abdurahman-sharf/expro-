@@ -105,8 +105,8 @@ final class PurchaseDocuments
     }
 
     /**
-     * Changes a document that was not converted and, for an order, never received from. A document that
-     * was cancelled, converted or received is the record of what was agreed and is not changed.
+     * Changes a document that is still open, sent or approved. A document that was cancelled, converted or received
+     * from is the record of what was agreed and is not changed.
      *
      * @param array{supplier_id?: int|string, location_id?: int|string, document_date?: string, due_date?: string, note?: string, lines?: mixed} $input
      *
@@ -124,7 +124,7 @@ final class PurchaseDocuments
             $document = $this->lock($documentId, $employeeId);
             $status   = $this->derive((string) $document->status, $documentId);
 
-            if (! $status->isEditable() || ($this->kind === PurchaseDocumentKind::Order && $this->receipts->everReceived($documentId))) {
+            if (! $status->isEditable()) {
                 throw new AccountingException(AccountingError::PurchaseDocumentLocked, 'A document that was converted, received or cancelled is not changed.', ['name' => lang($status->languageKey())]);
             }
 

@@ -135,6 +135,25 @@ final class Purchase_ordersControllerTest extends CIUnitTestCase
         $this->assertSame('7', (string) (float) $cart[0]['quantity'], 'what is left of the order and no more');
     }
 
+    public function testPostConvert_FillsTheRegisterWithOnlyTheLinesThatHaveUnitsLeft(): void
+    {
+        $other   = $this->item('2.00');
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order, ['lines' => [
+            ['item_id' => $this->goods, 'quantity' => '2', 'unit_price' => '4.00'],
+            ['item_id' => $other, 'quantity' => '5', 'unit_price' => '2.50'],
+        ]]);
+
+        $this->receiveByModel($orderId, '2');
+        $this->receiver();
+
+        $this->assertTrue($this->postJson('/purchase_orders/convert/' . $orderId)['success']);
+
+        $cart = array_values(session()->get('recv_cart') ?? []);
+
+        $this->assertCount(1, $cart, 'the line that was received in full is not asked for again');
+        $this->assertSame([$other, '5', '2.50'], [(int) $cart[0]['item_id'], (string) (float) $cart[0]['quantity'], number_format((float) $cart[0]['price'], 2, '.', '')]);
+    }
+
     private function receiveByModel(int $orderId, string $units): int
     {
         $receivingId = $this->purchases->save_value([$this->purchaseLine($this->goods, 0, $units, '4.00')], $this->supplierId, $this->clerk, 'test', 'REF-' . uniqid(), lang('Sales.due'), NEW_ENTRY, null, null, null, null, $orderId);

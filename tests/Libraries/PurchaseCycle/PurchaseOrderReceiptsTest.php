@@ -386,21 +386,6 @@ class PurchaseOrderReceiptsTest extends CIUnitTestCase
         $this->assertSame(PurchaseDocumentStatus::Cancelled, $this->receipts->statusOf('cancelled', $orderId));
     }
 
-    public function testEverReceived_IsTrueOnlyWhileAReceivingStands(): void
-    {
-        $orderId = $this->order();
-
-        $this->assertFalse($this->receipts->everReceived($orderId));
-
-        $receivingId = $this->take($orderId, [['quantity' => '1']]);
-
-        $this->assertTrue($this->receipts->everReceived($orderId));
-
-        $this->receipts->releaseReceiving($receivingId, $this->clerk);
-
-        $this->assertFalse($this->receipts->everReceived($orderId));
-    }
-
     public function testReceivedQuantities_CanLeaveOutOneReceiving(): void
     {
         $orderId = $this->order([['quantity' => '10']]);

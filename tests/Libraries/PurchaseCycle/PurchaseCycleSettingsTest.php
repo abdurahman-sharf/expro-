@@ -106,8 +106,11 @@ class PurchaseCycleSettingsTest extends CIUnitTestCase
         $settings = $this->settings();
 
         $this->assertTrue($settings->isEnabled());
-        $this->assertFalse($settings->allowsManualStatus(PurchaseDocumentKind::Request));
-        $this->assertTrue($settings->allowsManualStatus(PurchaseDocumentKind::QuotationRequest));
+        $this->assertSame(
+            [false, true, false, false],
+            [$settings->allowsManualStatus(PurchaseDocumentKind::Request), $settings->allowsManualStatus(PurchaseDocumentKind::QuotationRequest), $settings->allowsManualStatus(PurchaseDocumentKind::SupplierQuotation), $settings->allowsManualStatus(PurchaseDocumentKind::Order)],
+            'only the switch that was given changes and the switches of the other families stay as they were',
+        );
     }
 
     public function testUpdate_WritesNothingWhenNothingChanges(): void

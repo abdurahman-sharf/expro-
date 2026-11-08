@@ -61,7 +61,6 @@ class PurchaseCycleDocuments extends Migration
             array_push($all, ...$permissions);
         }
 
-        $this->db->table('grants')->whereIn('permission_id', $all)->delete();
         $this->db->table('permissions')->whereIn('permission_id', $all)->delete();
         $this->db->table('modules')->whereIn('module_id', array_keys(self::MODULES))->delete();
 

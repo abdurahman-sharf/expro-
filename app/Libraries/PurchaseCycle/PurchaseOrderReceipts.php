@@ -67,18 +67,13 @@ final class PurchaseOrderReceipts
         return $quantities;
     }
 
-    public function everReceived(int $orderId): bool
-    {
-        return $this->db->table('purchase_order_receiving_lines t')->join('purchase_order_lines l', 'l.line_id = t.order_line_id')->where('l.order_id', $orderId)->countAllResults() > 0;
-    }
-
     /**
      * The order a receiving was made from, or null; a database that does not have the table yet has none, so that
      * the receivings made before the migration are deleted and corrected as they always were.
      */
     public function orderOfReceiving(int $receivingId): ?int
     {
-        if (! $this->db->tableExists('purchase_order_receivings', false)) {
+        if (! $this->db->tableExists($this->db->prefixTable('purchase_order_receivings'), false)) {
             return null;
         }
 
