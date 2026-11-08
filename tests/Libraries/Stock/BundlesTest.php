@@ -204,4 +204,14 @@ final class BundlesTest extends CIUnitTestCase
     {
         $this->assertFalse((new StockOptions())->bundlesEnabled());
     }
+
+    public function testAssertValidRejectsAComponentThatIsTheProductOfAnotherKitEvenWhenThatProductIsOfTheOrdinaryType(): void
+    {
+        $legacyProduct = $this->createTestItem(HAS_NO_STOCK);
+
+        $this->kit('Legacy', $legacyProduct, [$this->createTestItem()], PRICE_OPTION_ALL);
+        $this->switchOn('bundles');
+
+        $this->refusedWith(AccountingError::BundleContainsBundle, fn () => $this->bundles->assertValid($this->pricedProduct(), [$legacyProduct], PRICE_OPTION_KIT));
+    }
 }

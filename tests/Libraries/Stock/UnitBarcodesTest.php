@@ -142,4 +142,12 @@ final class UnitBarcodesTest extends CIUnitTestCase
         $this->assertNull($this->barcodes->resolve('RM-1'));
         $this->assertSame([], $this->barcodes->ofItem($this->itemId));
     }
+
+    public function testAssignRefusesWhileTheUnitsSettingIsOff(): void
+    {
+        $this->setConfigValue(StockOptions::UNITS, '0');
+
+        $this->refusedWith(AccountingError::UnitsOff, fn (): int => $this->barcodes->assign($this->itemId, null, 'OFF-2', $this->unitManagerId));
+        $this->assertSame([], $this->barcodes->ofItem($this->itemId));
+    }
 }

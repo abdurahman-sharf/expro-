@@ -13,6 +13,7 @@ use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockPermitSources;
 use App\Libraries\Stock\Stocktake;
 use App\Libraries\Stock\StockTracking;
+use App\Libraries\Stock\TrackingEntry;
 use App\Libraries\Stock\TrackingType;
 use App\Models\Item_quantity;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -987,7 +988,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertTied($itemId);
     }
 
-    public function testUpdate_ReplacesTheSerialNumbersOfAnAddPermitByTakingTheOldOnesBackAndBringingTheNewOnesIn(): void
+    public function testUpdateReplacesTheSerialNumbersOfAnAddPermitByTakingTheOldOnesBackAndBringingTheNewOnesIn(): void
     {
         $itemId  = $this->trackedItem(TrackingType::Serial, '0.00');
         $permits = new StockPermit();
@@ -1001,7 +1002,7 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->assertBooksTie();
     }
 
-    public function testUpdate_RequiresTheSerialNumbersAgainAndLeavesThePermitAsItWasWhenTheyAreMissing(): void
+    public function testUpdateRequiresTheSerialNumbersAgainAndLeavesThePermitAsItWasWhenTheyAreMissing(): void
     {
         $itemId  = $this->trackedItem(TrackingType::Serial, '0.00');
         $permits = new StockPermit();
@@ -1010,5 +1011,40 @@ final class StockTrackingTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::TrackedEntryRequired, fn () => $permits->update($addId, ['lines' => [['item_id' => $itemId, 'quantity' => '1', 'unit_cost' => '10']]], $this->keeperId));
         $this->assertSame(['in_stock', '1.000'], [$this->serialState($itemId, 'M-1'), $this->onHand($itemId)]);
         $this->assertTied($itemId);
+    }
+
+    public function testSaveRefusesToReturnASerialNumberThatWasNeverSoldEvenWhenTheReturnNamesNoSale(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Serial);
+
+        $this->receiveSerials($itemId, ['NS-1']);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([[...$this->line($itemId, 0, '-1', '10.00', '5.00'), 'serialnumber' => 'NS-1']], [], [], SALE_TYPE_RETURN));
+        $this->assertSame(AccountingError::SerialNotSold, $this->failure($this->sales));
+        $this->assertSame('in_stock', $this->serialState($itemId, 'NS-1'));
+    }
+
+    public function testReceiveRejectsABatchWhoseQuantityIsNegativeOrNothingEvenWhenTheBatchesAddUpToTheLine(): void
+    {
+        $itemId = $this->trackedItem(TrackingType::Batch);
+
+        foreach ([['7', '-2'], ['5', '0']] as [$first, $second]) {
+            $this->assertSame(ACCOUNTING_FAILED, $this->buy([[...$this->purchaseLine($itemId, 0, '5', '5.00'), 'tracking' => ['batches' => [['number' => 'Q-1', 'expiry' => $this->inDays(9), 'quantity' => $first], ['number' => 'Q-2', 'expiry' => $this->inDays(9), 'quantity' => $second]]]]]), "{$first} {$second}");
+            $this->assertSame(AccountingError::BatchInvalid, $this->failure($this->purchases), "{$first} {$second}");
+        }
+
+        $this->assertSame('0.000', $this->onHand($itemId));
+    }
+
+    public function testReceiveRefusesAnItemThatIsNotTrackedWhateverTheMovement(): void
+    {
+        $itemId = $this->item('5.00');
+        $entry  = new TrackingEntry(['X-1']);
+
+        $this->refusedWith(AccountingError::TrackedEntryNotAllowed, fn () => $this->tracking->receive('receiving', 1, 1, $itemId, self::LOCATION_ID, '1', $entry));
+        $this->refusedWith(AccountingError::TrackedEntryNotAllowed, fn () => $this->tracking->issue('sale', 1, 1, $itemId, self::LOCATION_ID, '1', $entry, date('Y-m-d'), StockTracking::SALE));
+        $this->refusedWith(AccountingError::TrackedEntryNotAllowed, fn () => $this->tracking->putBack('sale', 1, 1, $itemId, self::LOCATION_ID, '1', $entry, null));
+        $this->refusedWith(AccountingError::TrackedEntryNotAllowed, fn () => $this->tracking->transfer('stock_permit', 1, 1, $itemId, self::LOCATION_ID, 2, '1', $entry));
+        $this->assertSame('0.000', $this->onHand($itemId));
     }
 }

@@ -667,10 +667,10 @@
   ]
  },
  {
-  "name": "K08 a serial number is sold once",
+  "name": "K08 a serial number is sold once, from where it is on hand",
   "file": "app/Libraries/Stock/StockTracking.php",
   "find": "AND state IN (\\'in_stock\\', \\'returned\\') AND location_id = ?',\n                [$state, $source, $sourceId, $itemId, $serial, $locationId],",
-  "replace": "AND state IN (\\'in_stock\\', \\'returned\\', \\'sold\\') AND location_id = ?',\n                [$state, $source, $sourceId, $itemId, $serial, $locationId],",
+  "replace": "AND (state IN (\\'in_stock\\', \\'returned\\') OR 1 = 1) AND (location_id = ? OR 1 = 1)',\n                [$state, $source, $sourceId, $itemId, $serial, $locationId],",
   "tests": [
    "tests/Libraries/Stock/StockTrackingTest.php"
   ]
@@ -932,6 +932,33 @@
   "file": "app/Libraries/Stock/StockTracking.php",
   "find": "            default              => throw new AccountingException(AccountingError::TrackedEntryNotAllowed, 'The item is not tracked.', ['line' => $line, 'name' => $this->nameOf($itemId)]),\n        };\n\n        $this->shelf($itemId, $locationId, $quantity);\n        $this->assertTied($itemId, $locationId);\n    }\n\n    /**\n     * Takes units out",
   "replace": "            default              => null,\n        };\n\n        $this->shelf($itemId, $locationId, $quantity);\n        $this->assertTied($itemId, $locationId);\n    }\n\n    /**\n     * Takes units out",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K38 a sale or an issue of an item that is not tracked takes no entry",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "            default              => throw new AccountingException(AccountingError::TrackedEntryNotAllowed, 'The item is not tracked.', ['line' => $line, 'name' => $this->nameOf($itemId)]),\n        };\n\n        $this->shelf($itemId, $locationId, bcsub('0', $quantity, 3));",
+  "replace": "            default              => null,\n        };\n\n        $this->shelf($itemId, $locationId, bcsub('0', $quantity, 3));",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K39 a return of an item that is not tracked takes no entry",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "            default              => throw new AccountingException(AccountingError::TrackedEntryNotAllowed, 'The item is not tracked.', ['line' => $line, 'name' => $this->nameOf($itemId)]),\n        };\n\n        $this->shelf($itemId, $locationId, $quantity);\n        $this->assertTied($itemId, $locationId);\n    }\n\n    /**\n     * Moves units",
+  "replace": "            default              => null,\n        };\n\n        $this->shelf($itemId, $locationId, $quantity);\n        $this->assertTied($itemId, $locationId);\n    }\n\n    /**\n     * Moves units",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K40 a transfer of an item that is not tracked takes no entry",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "            default              => throw new AccountingException(AccountingError::TrackedEntryNotAllowed, 'The item is not tracked.', ['line' => $line, 'name' => $this->nameOf($itemId)]),\n        };\n\n        $this->shelf($itemId, $fromLocation, bcsub('0', $quantity, 3));",
+  "replace": "            default              => null,\n        };\n\n        $this->shelf($itemId, $fromLocation, bcsub('0', $quantity, 3));",
   "tests": [
    "tests/Libraries/Stock/StockTrackingTest.php"
   ]
@@ -1243,10 +1270,10 @@
   ]
  },
  {
-  "name": "R03 kits are checked against the rules of a bundle only while the setting is on",
+  "name": "R03 kits that break the rules of a bundle are for review",
   "file": "app/Libraries/Accounting/Readiness/StockTrackingChecks.php",
-  "find": "        if ($options->bundlesEnabled()) {\n            foreach ((new Bundles",
-  "replace": "        if (true) {\n            foreach ((new Bundles",
+  "find": "        if ($findings !== []) {\n            return CheckResult::review(count($findings) . ' kit(s) do not follow the rules of a bundle.'",
+  "replace": "        if (false) {\n            return CheckResult::review(count($findings) . ' kit(s) do not follow the rules of a bundle.'",
   "tests": [
    "tests/Libraries/Accounting/Readiness/StockTrackingChecksTest.php"
   ]

@@ -232,4 +232,27 @@ final class NegativeStockGuardTest extends CIUnitTestCase
 
         $this->assertNull($this->firstQuery($queries, ['item_quantities']));
     }
+
+    public function testAssertSaleNeverRefusesAReturnEvenWhenTheShelfIsAlreadyBelowNothing(): void
+    {
+        $itemId = $this->stocked('2', '5');
+        $saleId = $this->sellPieces($itemId, '5');
+
+        $this->assertSame('-3.000', $this->onHand($itemId));
+
+        $this->option(NegativeStockOption::Refuse);
+
+        $this->assertGreaterThan(0, $this->save([$this->line($itemId, 0, '-2', '10.00', '5.00')], [], [], SALE_TYPE_RETURN, origin: $saleId));
+        $this->assertSame('-1.000', $this->onHand($itemId));
+    }
+
+    public function testPromisedLeavesOutInvoicesWhoseGoodsHaveLeft(): void
+    {
+        $itemId = $this->stocked('20', '5');
+
+        $this->sellPieces($itemId, '3', false, SALE_TYPE_INVOICE);
+        $this->sellPieces($itemId, '4', true, SALE_TYPE_INVOICE);
+
+        $this->assertSame('3.000', (new NegativeStockGuard())->promised($itemId, self::LOCATION_ID));
+    }
 }
