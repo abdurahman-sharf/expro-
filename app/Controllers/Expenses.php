@@ -194,8 +194,6 @@ class Expenses extends Secure_Controller
     }
 
     /**
-     * The payment voucher of an expense as a PDF file.
-     *
      * @noinspection PhpUnused
      */
     public function getVoucherPdf(int $expenseId): ResponseInterface

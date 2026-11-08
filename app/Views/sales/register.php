@@ -622,6 +622,7 @@ $employee        = model(Employee::class);
                         <?php if (! empty($custom_fields)): ?>
                             <div id="custom_fields_block" class="pos-custom-fields">
                                 <?= view('custom_fields/inputs', ['fields' => $custom_fields, 'values' => $custom_values ?? [], 'idPrefix' => 'sale_custom_']) ?>
+                                <div id="custom_fields_problem" class="text-danger small" role="alert" hidden></div>
                             </div>
                         <?php endif; ?>
 
@@ -808,7 +809,9 @@ $employee        = model(Employee::class);
         });
 
         $('#custom_fields_block').on('change keyup', ':input', function() {
-            $.post("<?= esc(site_url("{$controller_name}/setCustomFields")) ?>", $('#custom_fields_block :input').serialize());
+            $.post("<?= esc(site_url("{$controller_name}/setCustomFields")) ?>", $('#custom_fields_block :input').serialize(), function(response) {
+                $('#custom_fields_problem').text(response.problem || '').prop('hidden', !response.problem);
+            }, 'json');
         });
 
         <?php if ($config['invoice_enable']) { ?>

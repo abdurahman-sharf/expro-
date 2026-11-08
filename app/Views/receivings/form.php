@@ -20,6 +20,7 @@
  * @var bool $can_debit_note
  * @var array<int, string> $paymentNumbers
  * @var array<int, string> $paymentDates
+ * @var list<int> $receiptIds
  * @var string $today
  * @var string|null $documentLabel
  * @var string|null $documentNumber
@@ -154,6 +155,11 @@
                     <div class="col-3">
                         <?= form_input(['name' => 'payment_amount_' . $i, 'value' => to_currency_no_money($row->payment_amount), 'id' => 'payment_amount_' . $i, 'class' => 'form-control form-control-sm', 'aria-label' => lang('Receivings.payment_amount'), 'inputmode' => 'decimal', 'dir' => 'ltr']) ?>
                     </div>
+                    <?php if (in_array((int) $row->payment_id, $receiptIds ?? [], true)): ?>
+                        <div class="col-8 offset-3 mt-2">
+                            <a id="payment_receipt_<?= (int) $row->payment_id ?>" href="<?= esc(site_url('receivings/paymentReceipt/' . (int) $row->payment_id), 'attr') ?>" target="_blank" rel="noopener"><?= lang('Documents.supplier_receipt') ?></a>
+                        </div>
+                    <?php endif; ?>
                     <div class="col-5 offset-3 mt-2">
                         <input type="date" name="payment_date_<?= $i ?>" id="payment_date_<?= $i ?>" class="form-control form-control-sm" dir="ltr" max="<?= esc($today, 'attr') ?>" value="<?= esc($paymentDates[(int) $row->payment_id] ?? $today, 'attr') ?>" aria-label="<?= esc(lang('Receivings.payment_date'), 'attr') ?>">
                     </div>

@@ -26,14 +26,14 @@ use App\Libraries\Accounting\SaleDocumentList;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
-use App\Libraries\HeaderCharges;
-use App\Libraries\InvoiceDiscount;
-use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Documents\CustomFields;
 use App\Libraries\Documents\CustomFieldType;
 use App\Libraries\Documents\DocumentException;
 use App\Libraries\Documents\RendersPdf;
 use App\Libraries\Documents\VoucherDocuments;
+use App\Libraries\HeaderCharges;
+use App\Libraries\InvoiceDiscount;
+use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -452,7 +452,7 @@ class Sales extends Secure_Controller
 
         $this->sale_lib->setCustomFields($kept);
 
-        return $this->response->setJSON(['success' => true, 'problem' => $fields->problem('sale', $kept, false)]);
+        return $this->response->setJSON(['success' => true, 'problem' => $fields->problem('sale', $kept, false, (int) $this->sale_lib->get_sale_id())]);
     }
 
     /**
@@ -464,7 +464,7 @@ class Sales extends Secure_Controller
      */
     private function printedFieldsOf(mixed $saleId, array $cart): array
     {
-        if (!is_int($saleId) && !is_numeric($saleId)) {
+        if (! is_int($saleId) && ! is_numeric($saleId)) {
             return [];
         }
 
@@ -478,11 +478,12 @@ class Sales extends Secure_Controller
 
     /**
      * Keeps the extra fields of the invoice that was just saved. The values were checked before the
-     * invoice was saved; a failure here is logged and leaves the invoice as it was saved.
+     * invoice was saved, so a failure here is only a change made in between: it is logged and leaves the
+     * invoice as it was saved.
      */
     private function keepCustomFields(mixed $saleId, bool $requireValues = true): void
     {
-        if (!is_int($saleId) || $saleId <= 0) {
+        if (! is_int($saleId) || $saleId <= 0) {
             return;
         }
 
@@ -1825,10 +1826,11 @@ class Sales extends Secure_Controller
             return $this->reload($data);
         }
 
-        $customProblem = (new CustomFields())->problem('sale', $this->sale_lib->getCustomFields());
+        $customProblem = (new CustomFields())->problem('sale', $this->sale_lib->getCustomFields(), entityId: (int) $saleId);
 
         if ($customProblem !== null) {
             $data['error'] = $customProblem;
+
             return $this->reload($data);
         }
 
@@ -2129,7 +2131,7 @@ class Sales extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
-        if (!in_array($type, [...documentTypes(), ...slipTypes(), 'receipt'], true) || !$this->sale->exists($saleId)) {
+        if (! in_array($type, [...documentTypes(), ...slipTypes(), 'receipt'], true) || ! $this->sale->exists($saleId)) {
             return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
@@ -2176,7 +2178,7 @@ class Sales extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
-        if (!in_array($type, [...documentTypes(), 'receipt'], true) || !$this->sale->exists($saleId)) {
+        if (! in_array($type, [...documentTypes(), 'receipt'], true) || ! $this->sale->exists($saleId)) {
             return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
@@ -2227,15 +2229,15 @@ class Sales extends Secure_Controller
     }
 
     /**
-     * The receipt of a payment of a customer, ready to print. Used in app/Views/sales/form.php
+     * The receipt of a payment of a customer, ready to print. Linked from the payments of app/Views/sales/form.php
      *
      * @noinspection PhpUnused
      */
-    public function getPaymentReceipt(int $paymentId): string|ResponseInterface
+    public function getPaymentReceipt(int $paymentId): ResponseInterface|string
     {
         $personId = (int) $this->session->get('person_id');
 
-        if (!$this->employee->has_grant('reports_sales', $personId)) {
+        if (! $this->employee->has_grant('reports_sales', $personId)) {
             return redirect()->to('no_access/sales/reports_sales');
         }
 
@@ -2256,15 +2258,13 @@ class Sales extends Secure_Controller
     }
 
     /**
-     * The receipt of a payment of a customer as a PDF file.
-     *
      * @noinspection PhpUnused
      */
     public function getPaymentReceiptPdf(int $paymentId): ResponseInterface
     {
         $personId = (int) $this->session->get('person_id');
 
-        if (!$this->employee->has_grant('reports_sales', $personId)) {
+        if (! $this->employee->has_grant('reports_sales', $personId)) {
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
@@ -2283,17 +2283,17 @@ class Sales extends Secure_Controller
      *
      * @noinspection PhpUnused
      */
-    public function getPrint(int $saleId, string $type = 'credit_note'): string|ResponseInterface
+    public function getPrint(int $saleId, string $type = 'credit_note'): ResponseInterface|string
     {
         if ($this->outsideBranchScope($saleId)) {
             throw PageNotFoundException::forPageNotFound();
         }
 
-        if (!$this->employee->has_grant('reports_sales', $this->session->get('person_id'))) {
+        if (! $this->employee->has_grant('reports_sales', $this->session->get('person_id'))) {
             return redirect()->to('no_access/sales/reports_sales');
         }
 
-        if (!in_array($type, [...documentTypes(), ...slipTypes()], true) || !$this->sale->exists($saleId)) {
+        if (! in_array($type, [...documentTypes(), ...slipTypes()], true) || ! $this->sale->exists($saleId)) {
             throw PageNotFoundException::forPageNotFound();
         }
 
@@ -2320,7 +2320,7 @@ class Sales extends Secure_Controller
         }
 
         if (in_array($type, slipTypes(), true)) {
-            return !in_array((int) ($saleData['sale_type'] ?? -1), [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) || (int) ($saleData['sale_status'] ?? -1) !== COMPLETED;
+            return ! in_array((int) ($saleData['sale_type'] ?? -1), [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) || (int) ($saleData['sale_status'] ?? -1) !== COMPLETED;
         }
 
         return false;
@@ -3195,6 +3195,12 @@ class Sales extends Secure_Controller
         $data['paymentNumbers']   = $numbering->numbers(DocumentType::CustomerPayment, 'sales_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
         $data = [...$data, ...$this->returnDocumentNumbersOf($saleId)];
 
+        $vouchers           = new VoucherDocuments();
+        $data['receiptIds'] = array_values(array_filter(
+            array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']),
+            static fn (int $paymentId): bool => $vouchers->customerPayment($paymentId, (int) $personId) !== null,
+        ));
+
         $data['treasury_options']     = [];
         $data['new_treasury_options'] = [];
 
@@ -3585,6 +3591,14 @@ class Sales extends Secure_Controller
 
         if (($invoiceDiscount !== null && !$this->mayGiveInvoiceDiscount()) || !$this->mayGiveHeaderCharges($this->sale_lib->getHeaderCharges(), $this->sale_lib->is_return_mode())) {
             return $this->reload(['error' => lang('Sales.not_authorized')]);
+        }
+
+        $customProblem = (new CustomFields())->problem('sale', $this->sale_lib->getCustomFields(), false, (int) $saleId);
+
+        if ($customProblem !== null) {
+            $data['error'] = $customProblem;
+
+            return $this->reload($data);
         }
 
         $saleIdNum = $this->sale->save_value($saleId, $saleStatus, $cart, $customerId, $employeeId, $comment, $invoiceNumber, $workOrderNumber, $quoteNumber, $saleType, $payments, $dinnerTable, $salesTaxes, $this->sale_lib->is_delivered(), null, $invoiceDiscount, $this->sale_lib->getReturnDocument(), $this->sale_lib->getInvoiceDate(), $this->sale_lib->getPaymentTerms(), $saleType === SALE_TYPE_QUOTE ? QuoteStatus::Draft : null, $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getQuoteSource() : null, headerCharges: $this->sale_lib->getHeaderCharges(), priceListId: $this->sale_lib->effectivePriceListId(), orderSourceId: $saleType === SALE_TYPE_INVOICE ? $this->sale_lib->getOrderSource() : null);

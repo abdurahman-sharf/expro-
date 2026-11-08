@@ -170,18 +170,21 @@ final class CustomFields
     /**
      * What an employee typed for the fields of a product or an invoice, worked into what is stored: a
      * value for every active field that has one. A value that does not fit its field, or no value for a
-     * field that is required, is refused naming the field.
+     * field that is required, is refused naming the field. An option of a list that was taken off the
+     * list after the product or the invoice kept it still stands for them as long as it is left as it is.
      *
      * @param array<int|string, mixed> $posted        The raw values by field.
      * @param bool                     $requireValues Whether a required field must have a value, which a sale that is only set aside need not.
+     * @param int|null                 $entityId      The product or the invoice the values are for, when it is already saved.
      *
      * @return array<int, string>
      *
      * @throws DocumentException
      */
-    public function check(string $entity, array $posted, bool $requireValues = true): array
+    public function check(string $entity, array $posted, bool $requireValues = true, ?int $entityId = null): array
     {
         $values = [];
+        $stored = $entityId === null || $entityId <= 0 ? [] : $this->valuesOf($entity, $entityId);
 
         foreach ($this->definitions($entity) as $definition) {
             $raw = $posted[$definition->id] ?? '';
@@ -199,7 +202,13 @@ final class CustomFields
                 continue;
             }
 
-            $values[$definition->id] = $definition->type->normalize($raw, $definition->options) ?? throw new DocumentException(DocumentError::CustomFieldValue, context: ['field' => $definition->name]);
+            $normal = $definition->type->normalize($raw, $definition->options);
+
+            if ($normal === null && $definition->type === CustomFieldType::Select && ($stored[$definition->id] ?? null) === $raw) {
+                $normal = $raw;
+            }
+
+            $values[$definition->id] = $normal ?? throw new DocumentException(DocumentError::CustomFieldValue, context: ['field' => $definition->name]);
         }
 
         return $values;
@@ -210,10 +219,10 @@ final class CustomFields
      *
      * @param array<int|string, mixed> $posted
      */
-    public function problem(string $entity, array $posted, bool $requireValues = true): ?string
+    public function problem(string $entity, array $posted, bool $requireValues = true, ?int $entityId = null): ?string
     {
         try {
-            $this->check($entity, $posted, $requireValues);
+            $this->check($entity, $posted, $requireValues, $entityId);
         } catch (DocumentException $exception) {
             return lang('Documents.error_' . $exception->error->value) . (isset($exception->context['field']) ? ' (' . $exception->context['field'] . ')' : '');
         }
@@ -231,7 +240,7 @@ final class CustomFields
      */
     public function save(string $entity, int $entityId, array $posted, bool $requireValues = true): void
     {
-        $values = $this->check($entity, $posted, $requireValues);
+        $values = $this->check($entity, $posted, $requireValues, $entityId);
 
         $this->db->transStart();
 

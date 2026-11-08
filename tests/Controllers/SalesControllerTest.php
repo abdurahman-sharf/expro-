@@ -1329,6 +1329,20 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
     }
 
+    public function testGetEdit_LinksTheReceiptOfEachPaymentThatWasReceivedAndOfNoneThatWasNot(): void
+    {
+        $this->startSelling();
+        $sale = $this->invoiceOf('100.00', null, [$this->payment('Cash', '40.00'), $this->payment('Due', '60.00')]);
+        $rows = $this->accountingDb()->table('sales_payments')->where('sale_id', $sale)->orderBy('payment_id')->get()->getResult();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $body = $this->get('/sales/edit/' . $sale)->getBody();
+
+        $this->assertStringContainsString('id="payment_receipt_' . (int) $rows[0]->payment_id . '"', $body);
+        $this->assertStringContainsString('href="' . site_url('sales/paymentReceipt/' . (int) $rows[0]->payment_id) . '"', $body);
+        $this->assertStringNotContainsString('id="payment_receipt_' . (int) $rows[1]->payment_id . '"', $body, 'What stays due is not a payment that has a receipt.');
+    }
+
     public function testGetEdit_NamesTheOpeningBalanceAsTheSourceOfTheCreditSpentOnAnInvoice(): void
     {
         $this->startSelling();
@@ -8636,6 +8650,29 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertStringStartsWith('%PDF-', $response->response()->getBody());
     }
 
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function receiptRouteProvider(): array
+    {
+        return ['page' => ['paymentReceipt'], 'pdf' => ['paymentReceiptPdf']];
+    }
+
+    #[DataProvider('receiptRouteProvider')]
+    public function testGetPaymentReceipt_ShowsNoReceiptOfTheDuePartOfAnInvoiceThatNobodyPaid(string $route): void
+    {
+        $this->startSelling();
+        $sale = $this->invoiceOf('100.00', null, [$this->payment('Cash', '40.00'), $this->payment('Due', '60.00')]);
+        $rows = $this->accountingDb()->table('sales_payments')->where('sale_id', $sale)->orderBy('payment_id')->get()->getResult();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/' . $route . '/' . $rows[0]->payment_id)->assertStatus(200);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/' . $route . '/' . $rows[1]->payment_id);
+    }
+
     public function testGetPaymentReceipt_ChangesNoRowOfTheBooksNorOfThePayments(): void
     {
         $payment = $this->paymentOfAnInvoice();
@@ -8725,19 +8762,46 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame($db->table('sales_items')->where('sale_id', $plain)->get()->getRow()->item_unit_price, $db->table('sales_items')->where('sale_id', $with)->get()->getRow()->item_unit_price);
     }
 
+    /**
+     * Completes a sale of one line of 100 paid in cash at the register of the supervisor, with the values
+     * given in the extra fields, and returns the number of the sale it saved.
+     *
+     * @param array<int, string> $values
+     */
+    private function completeAnAccountedSale(int $supervisorId, int $itemId, array $values): int
+    {
+        $this->loginAs($supervisorId);
+        $this->seedCartLine(1, '100.00', $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_payments' => [], 'sales_custom_fields' => $values]));
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '100.00']);
+        $this->withSession(array_merge($this->session, ['sales_payments' => Services::session()->get('sales_payments'), 'sales_custom_fields' => $values]));
+        $this->post('/sales/complete')->assertStatus(200);
+
+        $saleId = $this->newestSaleId();
+        $this->saleIds[] = $saleId;
+
+        return $saleId;
+    }
+
     public function testPostComplete_PostsTheSameJournalWithAndWithoutExtraFieldsWhenAccountingIsOn(): void
     {
         $this->startSelling();
-        $fields = new CustomFields();
-        $po     = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'printable' => '1'], null);
+        $fields       = new CustomFields();
+        $po           = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'printable' => '1'], null);
+        $remark       = $fields->create('sale', ['name' => 'Internal remark', 'type' => 'textarea'], null);
+        $item         = $this->item('0', false);
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->grantStockLocationIn(1, $supervisorId);
 
-        $plain = $this->invoiceOf('115.00');
-        $with  = $this->invoiceOf('115.00');
-        $fields->save('sale', $with, [$po => 'PO-9']);
+        $plain = $this->completeAnAccountedSale($supervisorId, $item, []);
+        $with  = $this->completeAnAccountedSale($supervisorId, $item, [$po => 'PO-9', $remark => 'call before delivery']);
 
+        $this->assertNotSame($plain, $with);
+        $this->assertSame([$po => 'PO-9', $remark => 'call before delivery'], $fields->valuesOf('sale', $with));
+        $this->assertSame([], $fields->valuesOf('sale', $plain));
+        $this->assertNotSame([], $this->journalFigures($plain), 'The sale was posted.');
         $this->assertSame($this->journalFigures($plain), $this->journalFigures($with));
-        $this->assertSame($this->journalFigures($with), $this->journalFigures($with), 'Reading the values changes nothing.');
-        $this->assertSame([$po => 'PO-9'], $fields->valuesOf('sale', $with));
+        $this->assertSame('200.00', $this->balance($this->accountId('cash')), 'Each sale took its 100 in cash and the values changed no amount.');
     }
 
     /**
@@ -8751,7 +8815,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
             ['sale', $saleId],
         )->getResultArray();
 
-        return array_map(static fn (array $row): array => [(string) $row['debit'], (string) $row['credit'], (string) ($row['account_id'] === null ? '' : 'a')], $rows);
+        return array_map(static fn (array $row): array => [(string) $row['account_id'], (string) $row['debit'], (string) $row['credit']], $rows);
     }
 
     public function testPostComplete_RefusesToCompleteWhileARequiredExtraFieldIsEmptyAndSavesNothing(): void
@@ -8838,6 +8902,32 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->post('/sales/suspend');
 
         $this->assertSame([$note => 'DN-12'], $fields->valuesOf('sale', $this->newestSaleId()), 'The value typed is kept although the required field is still empty.');
+    }
+
+    public function testPostSuspend_RefusesToSetASaleAsideWhileAnExtraFieldHoldsAValueThatDoesNotFitItsTypeAndSavesNothing(): void
+    {
+        $fields  = new CustomFields();
+        $weight  = $fields->create('sale', ['name' => 'Weight', 'type' => 'number'], null);
+        $po      = $fields->create('sale', ['name' => 'PO number', 'type' => 'text'], null);
+        $cashier = $this->createCashierEmployee();
+        $before  = Database::connect()->table('sales')->countAllResults();
+
+        $this->loginAs($cashier);
+        $this->seedCartLine(1, '100.00', $this->createTestItem(HAS_NO_STOCK));
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice', 'sales_custom_fields' => [$weight => 'heavy', $po => 'PO-9']]));
+
+        $response = $this->post('/sales/suspend');
+
+        $response->assertSee(lang('Documents.error_custom_field_value'));
+        $response->assertSee('Weight');
+        $this->assertSame($before, Database::connect()->table('sales')->countAllResults(), 'The sale was not set aside with its values dropped.');
+        $this->assertSame(0, Database::connect()->table('custom_field_values')->countAllResults());
+
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice', 'sales_custom_fields' => [$weight => '12.5', $po => 'PO-9']]));
+        $this->post('/sales/suspend');
+
+        $this->assertSame($before + 1, Database::connect()->table('sales')->countAllResults());
+        $this->assertSame([$weight => '12.5', $po => 'PO-9'], $fields->valuesOf('sale', $this->newestSaleId()));
     }
 
     public function testRenderPdfHtml_PrintsALegacyInvoiceWithoutAnyOfTheNewBlocks(): void

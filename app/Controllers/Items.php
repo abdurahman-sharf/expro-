@@ -950,7 +950,7 @@ class Items extends Secure_Controller
             return $validationError;
         }
 
-        $customProblem = $this->customFieldProblem();
+        $customProblem = $this->customFieldProblem($itemId);
 
         if ($customProblem !== null) {
             return $this->response->setJSON(['success' => false, 'message' => $customProblem, 'id' => $itemId]);
@@ -1244,10 +1244,6 @@ class Items extends Secure_Controller
     }
 
     /**
-     * Puts the accounts of the form in the item, in the transaction that saves it. Only an employee who
-     * may change the routing is heard, and the accounts are checked as the routing checks its own.
-     */
-    /**
      * The extra fields the form of an item asks for and what the item holds in them.
      *
      * @return array<string, mixed>
@@ -1263,11 +1259,11 @@ class Items extends Secure_Controller
      * What is wrong with the extra fields typed on the form of an item, in words, or null when they are right
      * or the form has none.
      */
-    private function customFieldProblem(): ?string
+    private function customFieldProblem(int $itemId): ?string
     {
         $posted = $this->request->getPost('custom');
 
-        return is_array($posted) ? (new CustomFields())->problem('item', $posted) : null;
+        return is_array($posted) ? (new CustomFields())->problem('item', $posted, entityId: $itemId) : null;
     }
 
     private function saveItemCustomFields(int $itemId): bool
@@ -1287,6 +1283,10 @@ class Items extends Secure_Controller
         return true;
     }
 
+    /**
+     * Puts the accounts of the form in the item, in the transaction that saves it. Only an employee who
+     * may change the routing is heard, and the accounts are checked as the routing checks its own.
+     */
     private function saveItemAccounts(int $itemId): bool
     {
         $posted = $this->request->getPost('item_accounts');

@@ -3894,6 +3894,20 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Receivings.receipt'));
     }
 
+    public function testGetEdit_LinksTheReceiptOfEachCompletedPaymentToTheSupplierAndOfNoOtherPayment(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $done      = $this->payPurchase($receiving, '200.00');
+        $draft     = $this->payPurchase($receiving, '100.00', null, 'draft');
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/edit/' . $receiving)->getBody();
+
+        $this->assertStringContainsString('id="payment_receipt_' . $done . '"', $body);
+        $this->assertStringContainsString('href="' . site_url('receivings/paymentReceipt/' . $done) . '"', $body);
+        $this->assertStringNotContainsString('id="payment_receipt_' . $draft . '"', $body);
+    }
+
     public function testGetPaymentReceipt_PrintsTheSupplierTheAmountAndTheAmountInWords(): void
     {
         $receiving = $this->purchaseOf('500.00', $this->supplierId);

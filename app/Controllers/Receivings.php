@@ -473,6 +473,11 @@ class Receivings extends Secure_Controller
         $data['paymentNumbers']         = (new DocumentNumbering())->numbers(DocumentType::SupplierPayment, 'receivings_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
         $data['paymentDates']           = [];
         $data['today']                  = date('Y-m-d');
+        $vouchers                       = new VoucherDocuments();
+        $data['receiptIds']             = array_values(array_filter(
+            array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']),
+            static fn (int $paymentId): bool => $vouchers->supplierPayment($paymentId, (int) $currentEmployeeId) !== null,
+        ));
 
         foreach ($data['payments'] as $payment) {
             $data['paymentDates'][(int) $payment->payment_id] = SupplierPaymentDate::of($payment->payment_date, (string) $payment->payment_time);
@@ -816,8 +821,6 @@ class Receivings extends Secure_Controller
     }
 
     /**
-     * The purchase invoice of a receiving as a PDF file.
-     *
      * @noinspection PhpUnused
      */
     public function getPdf(int $receivingId): ResponseInterface
@@ -829,7 +832,7 @@ class Receivings extends Secure_Controller
     }
 
     /**
-     * The receipt of a payment made to a supplier, ready to print. Used in app/Views/receivings/form.php
+     * The receipt of a payment made to a supplier, ready to print. Linked from the payments of app/Views/receivings/form.php
      *
      * @noinspection PhpUnused
      */
@@ -848,8 +851,6 @@ class Receivings extends Secure_Controller
     }
 
     /**
-     * The receipt of a payment made to a supplier as a PDF file.
-     *
      * @noinspection PhpUnused
      */
     public function getPaymentReceiptPdf(int $paymentId): ResponseInterface

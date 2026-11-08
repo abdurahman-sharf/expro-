@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Documents;
 
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Documents\CustomFieldDefinition;
 use App\Libraries\Documents\CustomFields;
 use App\Libraries\Documents\CustomFieldType;
@@ -121,14 +122,21 @@ class CustomFieldsTest extends CIUnitTestCase
         $this->assertSame(0, Database::connect()->table('accounting_audit_log')->where('entity_type', 'custom_field')->countAllResults());
     }
 
-    public function testUpdate_AndSetActive_RequireThePermissionToManageExtraFields(): void
+    public function testUpdate_RequiresThePermissionToManageExtraFields(): void
     {
         $id    = $this->define('item', 'Colour');
         $clerk = $this->employeeWithGrants(['items', 'custom_fields']);
 
         $this->assertSame(DocumentError::PermissionDenied, $this->refusal(fn () => $this->fields->update($id, ['name' => 'Hue'], $clerk))->error);
-        $this->assertSame(DocumentError::PermissionDenied, $this->refusal(fn () => $this->fields->setActive($id, false, $clerk))->error);
         $this->assertSame('Colour', $this->fields->find($id)->name);
+    }
+
+    public function testSetActive_RequiresThePermissionToManageExtraFields(): void
+    {
+        $id    = $this->define('item', 'Colour');
+        $clerk = $this->employeeWithGrants(['items', 'custom_fields']);
+
+        $this->assertSame(DocumentError::PermissionDenied, $this->refusal(fn () => $this->fields->setActive($id, false, $clerk))->error);
         $this->assertTrue($this->fields->find($id)->active);
     }
 
@@ -145,7 +153,7 @@ class CustomFieldsTest extends CIUnitTestCase
 
         $this->assertSame('custom_fields', $db->table('permissions')->where('permission_id', CustomFields::PERMISSION)->get()->getRow()->module_id);
         $this->assertSame(0, $db->table('grants')->whereIn('permission_id', [CustomFields::PERMISSION, 'custom_fields'])->where('person_id', 1)->countAllResults());
-        $this->assertNotContains(CustomFields::PERMISSION, \App\Libraries\Accounting\AccountingGuard::SENSITIVE);
+        $this->assertNotContains(CustomFields::PERMISSION, AccountingGuard::SENSITIVE);
     }
 
     public function testCreate_RejectsAnEntityThatIsNotProductsOrInvoices(): void
@@ -240,6 +248,20 @@ class CustomFieldsTest extends CIUnitTestCase
         $this->assertSame('Hue', $details['after']['name']);
     }
 
+    public function testUpdate_SwitchesRequiredAndPrintableOffWhenTheyAreGivenAsOff(): void
+    {
+        $id = $this->define('sale', 'PO number', 'text', ['required' => '1', 'printable' => '1']);
+
+        $this->fields->update($id, ['required' => '0', 'printable' => '0'], null);
+
+        $this->assertFalse($this->fields->find($id)->required);
+        $this->assertFalse($this->fields->find($id)->printable);
+
+        $this->fields->update($id, ['name' => 'PO reference'], null);
+
+        $this->assertFalse($this->fields->find($id)->required, 'A change of the name leaves the flags as they are.');
+    }
+
     public function testUpdate_AuditsNothingWhenNothingChanged(): void
     {
         $id = $this->define('item', 'Colour');
@@ -325,6 +347,39 @@ class CustomFieldsTest extends CIUnitTestCase
 
         $this->assertSame([$item => 'Red'], $this->fields->valuesOf('item', 7));
         $this->assertSame([$sale => 'PO-1'], $this->fields->valuesOf('sale', 7));
+    }
+
+    public function testSave_KeepsAListOptionTakenOffTheListWhileTheProductLeavesItAsItIs(): void
+    {
+        $colour = $this->define('item', 'Colour', 'select', ['options' => "Red\nBlue"]);
+        $this->fields->save('item', 7, [$colour => 'Red']);
+        $this->fields->update($colour, ['options' => 'Blue'], null);
+
+        $this->fields->save('item', 7, [$colour => 'Red']);
+
+        $this->assertSame([$colour => 'Red'], $this->fields->valuesOf('item', 7));
+        $this->assertNull($this->fields->problem('item', [$colour => 'Red'], true, 7));
+    }
+
+    public function testCheck_RefusesAnOptionThatIsNotOnTheListUnlessTheSameProductAlreadyHoldsIt(): void
+    {
+        $colour = $this->define('item', 'Colour', 'select', ['options' => "Red\nBlue"]);
+        $this->fields->save('item', 7, [$colour => 'Red']);
+        $this->fields->update($colour, ['options' => 'Blue'], null);
+
+        $this->assertSame(DocumentError::CustomFieldValue, $this->refusal(fn () => $this->fields->check('item', [$colour => 'Red']))->error);
+        $this->assertSame(DocumentError::CustomFieldValue, $this->refusal(fn () => $this->fields->check('item', [$colour => 'Red'], true, 8))->error);
+        $this->assertSame(DocumentError::CustomFieldValue, $this->refusal(fn () => $this->fields->check('item', [$colour => 'Green'], true, 7))->error);
+        $this->assertSame([$colour => 'Blue'], $this->fields->check('item', [$colour => 'Blue'], true, 7));
+        $this->assertSame([$colour => 'Red'], $this->fields->check('item', [$colour => 'Red'], true, 7));
+    }
+
+    public function testCheck_KeepsOnlyAListOptionThatLeftTheListAndNeverAValueOfAnotherType(): void
+    {
+        $weight = $this->define('item', 'Weight', 'number');
+        $this->fields->save('item', 7, [$weight => '5']);
+
+        $this->assertSame(DocumentError::CustomFieldValue, $this->refusal(fn () => $this->fields->check('item', [$weight => 'heavy'], true, 7))->error);
     }
 
     public function testSave_StoresNothingWhenOneValueIsWrong(): void

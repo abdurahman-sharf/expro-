@@ -159,6 +159,28 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertTrue($this->saleLib->is_delivered());
     }
 
+    public function testSetCustomFields_HoldsTheValuesTypedAtTheRegisterUntilTheyAreCleared(): void
+    {
+        $this->assertSame([], $this->saleLib->getCustomFields());
+
+        $this->saleLib->setCustomFields([3 => 'PO-7731', 4 => '12.5']);
+
+        $this->assertSame([3 => 'PO-7731', 4 => '12.5'], $this->saleLib->getCustomFields());
+
+        $this->saleLib->clearCustomFields();
+
+        $this->assertSame([], $this->saleLib->getCustomFields());
+    }
+
+    public function testClearAll_ForgetsTheExtraFieldValuesSoTheNextInvoiceDoesNotInheritThem(): void
+    {
+        $this->saleLib->setCustomFields([3 => 'PO-7731']);
+
+        $this->saleLib->clear_all();
+
+        $this->assertSame([], $this->saleLib->getCustomFields());
+    }
+
     public function testSetInvoiceNumber_HoldsANumberWithLettersAndLeadingZerosAsTyped(): void
     {
         $this->assertNull($this->saleLib->get_invoice_number());

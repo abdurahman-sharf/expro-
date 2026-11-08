@@ -204,6 +204,33 @@ class Custom_fieldsControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Documents.error_custom_field_type_locked'), $changed['message']);
     }
 
+    public function testPostSave_SwitchesRequiredAndPrintableOffWhenTheFormSendsThemUnticked(): void
+    {
+        $this->manager();
+        $fields = new CustomFields();
+        $id     = $fields->create('sale', ['name' => 'PO number', 'type' => 'text', 'required' => '1', 'printable' => '1'], null);
+
+        $result = $this->postJson('/custom_fields/save/' . $id, ['name' => 'PO number', 'type' => 'text', 'required' => '0', 'printable' => '0']);
+
+        $this->assertTrue($result['success']);
+        $this->assertFalse($fields->find($id)->required);
+        $this->assertFalse($fields->find($id)->printable);
+        $this->assertSame(1, Database::connect()->table('accounting_audit_log')->where('action', 'custom_field_updated')->countAllResults());
+    }
+
+    public function testGetView_SendsTheTwoFlagsAsOffWhenTheirBoxesAreUnticked(): void
+    {
+        $this->manager();
+        $id = (new CustomFields())->create('sale', ['name' => 'PO number', 'type' => 'text', 'required' => '1'], null);
+
+        $body = $this->get('/custom_fields/view/' . $id)->getBody();
+
+        $this->assertStringContainsString('<input type="hidden" name="required" value="0">', $body);
+        $this->assertStringContainsString('<input type="hidden" name="printable" value="0">', $body);
+        $this->assertMatchesRegularExpression('/name="required" id="required" value="1"[^>]*checked/', $body);
+        $this->assertDoesNotMatchRegularExpression('/name="printable" id="printable" value="1"[^>]*checked/', $body);
+    }
+
     public function testPostSave_IsNotFoundForAFieldThatDoesNotExist(): void
     {
         $this->manager();

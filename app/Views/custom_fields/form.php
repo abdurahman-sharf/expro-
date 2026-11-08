@@ -60,7 +60,9 @@ $isNew = $field === null;
 
         <div class="field">
             <div class="field-control">
+                <input type="hidden" name="required" value="0">
                 <label class="choice"><input type="checkbox" name="required" id="required" value="1" class="form-check-input"<?= ! $isNew && $field->required ? ' checked' : '' ?>> <?= lang('Custom_fields.required') ?></label>
+                <input type="hidden" name="printable" value="0">
                 <label class="choice"><input type="checkbox" name="printable" id="printable" value="1" class="form-check-input"<?= ! $isNew && $field->printable ? ' checked' : '' ?>> <?= lang('Custom_fields.printable') ?></label>
                 <p class="form-text mb-0"><?= lang('Custom_fields.printable_help') ?></p>
             </div>

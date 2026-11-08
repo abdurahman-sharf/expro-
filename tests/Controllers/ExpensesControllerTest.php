@@ -1072,6 +1072,29 @@ class ExpensesControllerTest extends CIUnitTestCase
         $this->get('/expenses/voucher/' . $id);
     }
 
+    public function testGetVoucher_ShowsNoVoucherOfAnExpenseThatIsStillDue(): void
+    {
+        $id = $this->voucherExpense(['payment_type' => 'Due']);
+        $this->actAsWith();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/expenses/voucher/' . $id);
+    }
+
+    public function testGetView_LinksTheVoucherOfAnExpenseThatWasPaidAndNotOfOneThatIsStillDue(): void
+    {
+        $paid = $this->voucherExpense();
+        $due  = $this->voucherExpense(['payment_type' => 'Due']);
+        $this->actAsWith();
+
+        $paidPage = $this->get('/expenses/view/' . $paid)->getBody();
+        $duePage  = $this->get('/expenses/view/' . $due)->getBody();
+
+        $this->assertStringContainsString('id="expense_voucher_link"', $paidPage);
+        $this->assertStringNotContainsString('id="expense_voucher_link"', $duePage);
+    }
+
     public function testGetVoucher_ShowsNoVoucherOfAnUnknownExpense(): void
     {
         $this->actAsWith();

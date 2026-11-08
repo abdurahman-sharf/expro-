@@ -3063,6 +3063,36 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('custom_field_values')->countAllResults());
     }
 
+    public function testPostSave_SavesAnItemThatKeepsAListOptionTakenOffTheListSinceItWasSaved(): void
+    {
+        $fields = new CustomFields();
+        $colour = $fields->create('item', ['name' => 'Colour', 'type' => 'select', 'options' => "Red\nBlue"], null);
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData              = $this->baseItemPostData();
+        $postData['tax_names'] = ['VAT'];
+        $postData['custom']    = [$colour => 'Red'];
+        $saved                 = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+        $itemId                = (int) $saved['id'];
+
+        $this->assertTrue($saved['success']);
+
+        $fields->update($colour, ['options' => 'Blue'], null);
+
+        $postData['unit_price'] = '77.00';
+        $again                  = json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true);
+
+        $this->assertTrue($again['success'], (string) ($again['message'] ?? ''));
+        $this->assertSame([$colour => 'Red'], $fields->valuesOf('item', $itemId));
+        $this->assertSame('77.00', number_format((float) $this->itemRow($itemId)->unit_price, 2, '.', ''));
+
+        $postData['custom'] = [$colour => 'Green'];
+        $refused            = json_decode($this->post('/items/save/' . $itemId, $postData)->getJSON(), true);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame([$colour => 'Red'], $fields->valuesOf('item', $itemId));
+    }
+
     public function testPostSave_RefusesAnItemWhileARequiredExtraFieldIsEmpty(): void
     {
         $fields = new CustomFields();

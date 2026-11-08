@@ -26,6 +26,7 @@
  * @var array<int, string> $treasury_options
  * @var array<int, string> $new_treasury_options
  * @var array<int, string> $paymentNumbers
+ * @var list<int> $receiptIds
  * @var string|null $creditNoteNumber
  * @var string|null $refundInvoiceNumber
  * @var array{date: string, terms: int|null, due: string}|null $invoice_timing
@@ -166,6 +167,14 @@ use App\Libraries\Accounting\CreditSource;
                     </div>
                 </div>
             </div>
+
+            <?php if (in_array((int) $row->payment_id, $receiptIds ?? [], true)): ?>
+                <div class="row mb-3">
+                    <div class="col-8 offset-3">
+                        <a id="payment_receipt_<?= (int) $row->payment_id ?>" href="<?= esc(site_url('sales/paymentReceipt/' . (int) $row->payment_id), 'attr') ?>" target="_blank" rel="noopener"><?= lang('Documents.customer_receipt') ?></a>
+                    </div>
+                </div>
+            <?php endif; ?>
 
             <div class="row mb-3">
                 <?= form_label(lang('Sales.refund'), "refund_types_$i", ['class' => 'col-form-label col-3']) ?>
