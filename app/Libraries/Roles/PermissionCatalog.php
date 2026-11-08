@@ -22,7 +22,7 @@ final class PermissionCatalog
     }
 
     /**
-     * @return list<array{module_id: string, label: string, description: string, selectable: bool, permissions: list<array{permission_id: string, label: string, sensitive: bool}>}>
+     * @return list<array{module_id: string, label: string, description: string, selectable: bool, permissions: list<array{permission_id: string, label: string, sensitive: bool, role_locked: bool}>}>
      */
     public function modules(): array
     {
@@ -45,6 +45,7 @@ final class PermissionCatalog
                 'permission_id' => (string) $permission->permission_id,
                 'label'         => $this->subLabel((string) $permission->module_id, (string) $permission->permission_id),
                 'sensitive'     => in_array($permission->permission_id, AccountingGuard::SENSITIVE, true),
+                'role_locked'   => in_array($permission->permission_id, RoleGrants::REFUSED, true),
             ];
         }
 

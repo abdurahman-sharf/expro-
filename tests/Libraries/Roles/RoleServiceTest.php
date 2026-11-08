@@ -126,6 +126,48 @@ final class RoleServiceTest extends CIUnitTestCase
         return $cases;
     }
 
+    #[DataProvider('refusedPermissions')]
+    public function testCreate_RejectsAPermissionThatMovesMoneyOrChangesTheSettingsWithANamedError(string $permissionId): void
+    {
+        $refusal = $this->refusal(fn () => $this->roles->create(['name' => 'Refused ' . uniqid(), 'permissions' => ['sales', $permissionId]], null));
+
+        $this->assertSame(RoleError::RefusedPermission, $refusal->error);
+        $this->assertSame($permissionId, $refusal->context['permission']);
+        $this->assertSame(0, $this->roleDb()->table('roles')->like('name', 'Refused ', 'after')->countAllResults(), 'A refused role is not left behind');
+    }
+
+    #[DataProvider('refusedPermissions')]
+    public function testUpdate_RejectsAPermissionThatMovesMoneyOrChangesTheSettingsAndKeepsWhatTheRoleHad(string $permissionId): void
+    {
+        $roleId = $this->createRole(['sales']);
+
+        $refusal = $this->refusal(fn () => $this->roles->update($roleId, ['name' => 'Renamed ' . uniqid(), 'permissions' => ['sales', $permissionId]], null));
+
+        $this->assertSame(RoleError::RefusedPermission, $refusal->error);
+        $this->assertSame(['sales'], $this->roles->permissionsOf($roleId));
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function refusedPermissions(): iterable
+    {
+        $cases = [];
+
+        foreach (RoleGrants::REFUSED as $permissionId) {
+            $cases[$permissionId] = [$permissionId];
+        }
+
+        return $cases;
+    }
+
+    public function testCreate_AcceptsTheAccountingPermissionsThatOnlyReadOrPrepare(): void
+    {
+        $roleId = $this->createRole(RoleGrants::ALLOWED_ACCOUNTING);
+
+        $this->assertEqualsCanonicalizing(RoleGrants::ALLOWED_ACCOUNTING, $this->roles->permissionsOf($roleId));
+    }
+
     public function testCreate_RejectsThePermissionToManageRolesSoARoleCannotHandItOut(): void
     {
         $refusal = $this->refusal(fn () => $this->roles->create(['name' => 'Self ' . uniqid(), 'permissions' => [AccountingGuard::ROLES_MANAGE]], null));

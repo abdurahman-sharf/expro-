@@ -113,6 +113,36 @@ final class RoleGrantsTest extends CIUnitTestCase
         $this->assertNotContains('sales', $forbidden);
     }
 
+    public function testForbidden_CoversEveryAccountingPermissionThatMovesMoneyOrChangesTheSettings(): void
+    {
+        $forbidden = RoleGrants::forbidden();
+
+        foreach (RoleGrants::REFUSED as $permissionId) {
+            $this->assertContains($permissionId, $forbidden, $permissionId);
+            $this->assertStringStartsWith('acc_', $permissionId);
+        }
+
+        foreach ([AccountingGuard::CHEQUES_MANAGE, AccountingGuard::DEBIT_NOTES_MANAGE, AccountingGuard::JOURNALS_POST, AccountingGuard::JOURNALS_REVERSE] as $permissionId) {
+            $this->assertContains($permissionId, $forbidden, $permissionId);
+        }
+
+        foreach (RoleGrants::ALLOWED_ACCOUNTING as $permissionId) {
+            $this->assertNotContains($permissionId, $forbidden, $permissionId);
+        }
+    }
+
+    public function testForbidden_ClassifiesEveryAccountingPermissionOfTheCatalogSoANewOneIsNeverHandedToARoleUnnoticed(): void
+    {
+        $known = [...AccountingGuard::SENSITIVE, ...RoleGrants::REFUSED, ...RoleGrants::ALLOWED_ACCOUNTING];
+        $ids   = array_filter(array_column($this->roleDb()->table('permissions')->select('permission_id')->get()->getResultArray(), 'permission_id'), static fn (string $id): bool => str_starts_with($id, 'acc_'));
+
+        $this->assertNotSame([], $ids);
+
+        foreach ($ids as $permissionId) {
+            $this->assertContains($permissionId, $known, $permissionId . ' is neither sensitive, refused to roles nor allowed to them');
+        }
+    }
+
     public function testIdsFor_ReadsOncePerEmployeeUntilSomethingIsFlushed(): void
     {
         $role     = $this->createRole(['sales']);

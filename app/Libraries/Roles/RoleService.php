@@ -507,6 +507,10 @@ final class RoleService
                 throw new RoleException(RoleError::SensitivePermission, "The permission {$permissionId} is sensitive and only goes to an employee.", ['permission' => $permissionId]);
             }
 
+            if (in_array($permissionId, RoleGrants::REFUSED, true)) {
+                throw new RoleException(RoleError::RefusedPermission, "The permission {$permissionId} posts to the books, moves money or changes the settings and only goes to an employee.", ['permission' => $permissionId]);
+            }
+
             if (in_array($permissionId, [BranchGuard::ALL_BRANCHES, BranchGuard::SCOPE_MANAGE], true)) {
                 throw new RoleException(RoleError::BranchPermission, "The permission {$permissionId} sets the branches of an employee and stays with the employee.", ['permission' => $permissionId]);
             }

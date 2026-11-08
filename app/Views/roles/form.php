@@ -2,7 +2,7 @@
 /**
  * @var object|null $role
  * @var list<string> $held
- * @var list<array{module_id: string, label: string, description: string, selectable: bool, permissions: list<array{permission_id: string, label: string, sensitive: bool}>}> $modules
+ * @var list<array{module_id: string, label: string, description: string, selectable: bool, permissions: list<array{permission_id: string, label: string, sensitive: bool, role_locked: bool}>}> $modules
  * @var bool $is_admin
  * @var list<string> $my_grants
  */
@@ -83,17 +83,20 @@ $mayGive = static fn (string $permissionId): bool => $is_admin || in_array($perm
                                         <?php
                                         $permissionId = $permission['permission_id'];
                                         $isHeld       = in_array($permissionId, $held, true);
-                                        $locked       = $permission['sensitive'] || ! $mayGive($permissionId);
+                                        $refused      = $permission['sensitive'] || $permission['role_locked'];
+                                        $locked       = $refused || ! $mayGive($permissionId);
                                         ?>
                                         <li class="form-check">
-                                            <?php if ($locked && $isHeld && ! $permission['sensitive']): ?>
+                                            <?php if ($locked && $isHeld && ! $refused): ?>
                                                 <input type="hidden" name="permissions[]" value="<?= esc($permissionId, 'attr') ?>">
                                             <?php endif; ?>
-                                            <input type="checkbox" class="form-check-input<?= $permission['sensitive'] ? ' sensitive-permission' : '' ?>" id="perm_<?= esc($permissionId, 'attr') ?>"<?= $locked ? ' disabled data-locked="1"' : ' name="permissions[]"' ?><?= $permission['sensitive'] ? ' title="' . esc(lang('Roles.sensitive_locked'), 'attr') . '"' : '' ?> value="<?= esc($permissionId, 'attr') ?>"<?= $isHeld && ! $permission['sensitive'] ? ' checked' : '' ?>>
+                                            <input type="checkbox" class="form-check-input<?= $permission['sensitive'] ? ' sensitive-permission' : '' ?>" id="perm_<?= esc($permissionId, 'attr') ?>"<?= $locked ? ' disabled data-locked="1"' : ' name="permissions[]"' ?><?= $refused ? ' title="' . esc(lang($permission['sensitive'] ? 'Roles.sensitive_locked' : 'Roles.refused_locked'), 'attr') . '"' : '' ?> value="<?= esc($permissionId, 'attr') ?>"<?= $isHeld && ! $refused ? ' checked' : '' ?>>
                                             <label class="form-check-label" for="perm_<?= esc($permissionId, 'attr') ?>">
                                                 <?= esc($permission['label']) ?>
                                                 <?php if ($permission['sensitive']): ?>
                                                     <span class="badge text-bg-warning"><?= lang('Roles.sensitive_permission') ?></span>
+                                                <?php elseif ($permission['role_locked']): ?>
+                                                    <span class="badge text-bg-warning"><?= lang('Roles.refused_permission') ?></span>
                                                 <?php endif; ?>
                                             </label>
                                         </li>
