@@ -2703,6 +2703,44 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertSame(1, (int) $this->accountingDb()->table('accounting_journal_line_distributions d')->select('COUNT(DISTINCT d.line_id) AS n', false)->get()->getRow()->n);
     }
 
+    public function testPostDraft_KeepsTheTagsAndTheTaxNoteOfADraftSavedWhileTheirSettingsWereOn(): void
+    {
+        $this->setConfigValue(JournalSettings::LINE_TAGS, '1');
+        $this->setConfigValue(JournalSettings::LINE_TAX, '1');
+
+        $input                             = $this->journalInput();
+        $input['lines'][0]['tags']         = 'rent, office';
+        $input['lines'][1]['tax_code']     = 'VAT15';
+        $input['lines'][1]['tax_percent']  = '15';
+        $draftId                           = $this->service->saveDraft($input);
+
+        $this->setConfigValue(JournalSettings::LINE_TAGS, '0');
+        $this->setConfigValue(JournalSettings::LINE_TAX, '0');
+
+        $this->service->postDraft($draftId);
+
+        $lines = $this->service->find($draftId)->lines;
+
+        $this->assertSame('posted', $this->journal($draftId)->status);
+        $this->assertSame(['rent', 'office'], $lines[0]->analysis->tags);
+        $this->assertSame('VAT15', $lines[1]->analysis->tax['code']);
+    }
+
+    public function testPostDraft_StillRefusesTagsThatAreTooLongWhileTheirSettingIsOff(): void
+    {
+        $this->setConfigValue(JournalSettings::LINE_TAGS, '1');
+
+        $input                     = $this->journalInput();
+        $input['lines'][0]['tags'] = 'rent';
+        $draftId                   = $this->service->saveDraft($input);
+
+        $this->accountingDb()->table('accounting_journal_line_meta')->update(['tags' => json_encode([str_repeat('x', 31)])]);
+        $this->setConfigValue(JournalSettings::LINE_TAGS, '0');
+
+        $this->assertFailsWith(AccountingError::LineTagInvalid, fn () => $this->service->postDraft($draftId));
+        $this->assertSame('draft', $this->journal($draftId)->status);
+    }
+
     public function testSaveDraft_ReplacesTheDistributionWhenTheDraftIsSavedAgain(): void
     {
         [$a, $b] = $this->twoCenters();

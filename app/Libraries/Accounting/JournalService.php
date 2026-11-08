@@ -1355,7 +1355,7 @@ final class JournalService
             'tax_code'       => $stored->tax['code'] ?? '',
             'tax_percent'    => $stored->tax['percent'] ?? '',
             'tax_included'   => ($stored->tax['included'] ?? false) ? '1' : '0',
-        ], $lineNumber, bccomp($line->debit, '0', 4) > 0 ? $line->debit : $line->credit, true);
+        ], $lineNumber, bccomp($line->debit, '0', 4) > 0 ? $line->debit : $line->credit, true, true);
 
         return [
             'line_no'        => $lineNumber,

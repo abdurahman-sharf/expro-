@@ -36,10 +36,12 @@ final class JournalLineAnalysis
      * @param array<string, mixed> $line     The input of the line: cost_center_id, distribution rows, tags, tax_code, tax_percent and tax_included.
      * @param numeric-string       $amount   The debit or the credit of the line.
      * @param bool                 $complete Whether a distribution must be whole, as it must be to post.
+     * @param bool                 $stored   Whether the line is read back from a draft, whose tags and tax note were entered
+     *                                       while their settings were on and are kept when the settings have been turned off since.
      *
      * @throws AccountingException
      */
-    public function clean(array $line, int $lineNumber, string $amount, bool $complete): LineAnalysis
+    public function clean(array $line, int $lineNumber, string $amount, bool $complete, bool $stored = false): LineAnalysis
     {
         $rows = array_values(array_filter(
             is_array($line['distribution'] ?? null) ? $line['distribution'] : [],
@@ -54,7 +56,7 @@ final class JournalLineAnalysis
 
         $charge = $rows === [] ? new LineAnalysis($single) : LineAnalysis::charged($this->costCenters->distribute($rows, $amount, $lineNumber, $complete));
 
-        return new LineAnalysis($charge->costCenterId, $charge->distribution, $this->tagsOf($line['tags'] ?? null, $lineNumber), $this->taxOf($line, $lineNumber, $amount));
+        return new LineAnalysis($charge->costCenterId, $charge->distribution, $this->tagsOf($line['tags'] ?? null, $lineNumber, $stored), $this->taxOf($line, $lineNumber, $amount, $stored));
     }
 
     /**
@@ -231,7 +233,7 @@ final class JournalLineAnalysis
      *
      * @throws AccountingException
      */
-    private function tagsOf(mixed $raw, int $lineNumber): array
+    private function tagsOf(mixed $raw, int $lineNumber, bool $stored): array
     {
         $parts = is_array($raw) ? $raw : (is_string($raw) ? preg_split('/[,\x{060C}\x{061B};\n]+/u', $raw) : []);
         $tags  = [];
@@ -258,7 +260,7 @@ final class JournalLineAnalysis
             return [];
         }
 
-        if (! $this->settings->lineTags()) {
+        if (! $stored && ! $this->settings->lineTags()) {
             throw new AccountingException(AccountingError::LineTagsOff, 'Tags on journal lines are not turned on.', ['line' => $lineNumber]);
         }
 
@@ -277,7 +279,7 @@ final class JournalLineAnalysis
      *
      * @throws AccountingException
      */
-    private function taxOf(array $line, int $lineNumber, string $amount): ?array
+    private function taxOf(array $line, int $lineNumber, string $amount, bool $stored): ?array
     {
         $code     = isset($line['tax_code']) && is_scalar($line['tax_code']) ? trim((string) $line['tax_code']) : '';
         $percent  = isset($line['tax_percent']) && is_scalar($line['tax_percent']) ? trim((string) $line['tax_percent']) : '';
@@ -287,7 +289,7 @@ final class JournalLineAnalysis
             return null;
         }
 
-        if (! $this->settings->lineTax()) {
+        if (! $stored && ! $this->settings->lineTax()) {
             throw new AccountingException(AccountingError::LineTaxOff, 'The tax note on journal lines is not turned on.', ['line' => $lineNumber]);
         }
 
