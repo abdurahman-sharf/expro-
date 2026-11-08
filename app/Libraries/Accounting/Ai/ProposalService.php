@@ -362,11 +362,10 @@ final class ProposalService
     {
         $this->guard->require(AccountingGuard::AI_USE, $employeeId);
 
+        $allowed = $this->branches->allowedBranchIds($employeeId);
         $builder = $this->db->table('accounting_ai_proposals p')
             ->select("p.proposal_id, p.kind, p.status, p.title, p.template_args, p.proposer, p.proposal_date, p.branch_id, p.created_at, p.decided_at, p.journal_id, br.code AS branch_code, (p.expires_at IS NOT NULL AND p.expires_at < NOW()) AS is_expired", false)
             ->join('branches br', 'br.branch_id = p.branch_id', 'left');
-
-        $allowed = $this->branches->allowedBranchIds($employeeId);
 
         if ($allowed !== null) {
             $allowed === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('p.branch_id', $allowed);
@@ -409,8 +408,8 @@ final class ProposalService
     {
         $this->guard->require(AccountingGuard::AI_USE, $employeeId);
 
-        $builder = $this->db->table('accounting_ai_proposals')->select('status, COUNT(*) AS total')->groupBy('status');
         $allowed = $this->branches->allowedBranchIds($employeeId);
+        $builder = $this->db->table('accounting_ai_proposals')->select('status, COUNT(*) AS total')->groupBy('status');
 
         if ($allowed !== null) {
             $allowed === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('branch_id', $allowed);

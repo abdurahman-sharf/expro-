@@ -192,6 +192,7 @@ final class FindingService
      */
     private function filtered(array $filters, ?int $employeeId, bool $named = true): BaseBuilder
     {
+        $allowed = $this->branches->allowedBranchIds($employeeId);
         $builder = $this->db->table('accounting_ai_findings f');
 
         if ($named) {
@@ -199,8 +200,6 @@ final class FindingService
                 ->join('branches br', 'br.branch_id = f.branch_id', 'left')
                 ->join('people p', 'p.person_id = f.decided_by', 'left');
         }
-
-        $allowed = $this->branches->allowedBranchIds($employeeId);
 
         if ($allowed !== null) {
             $allowed === [] ? $builder->groupStart()->where('f.branch_id IS NULL', null, false)->groupEnd() : $builder->groupStart()->whereIn('f.branch_id', $allowed)->orWhere('f.branch_id IS NULL', null, false)->groupEnd();
