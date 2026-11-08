@@ -16,9 +16,9 @@ use App\Libraries\Accounting\JournalStatus;
  */
 final class BalanceJumpRule implements AnomalyRule
 {
-    public const CODE    = 'AI-BALANCE-JUMP';
-    private const SCALE  = 4;
-    private const SHOWN  = 10;
+    public const CODE   = 'AI-BALANCE-JUMP';
+    private const SCALE = 4;
+    private const SHOWN = 10;
 
     public function code(): string
     {

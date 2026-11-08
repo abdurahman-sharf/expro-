@@ -2,15 +2,15 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Ai\AiSettings;
 use App\Libraries\Accounting\Ai\AnomalyScanner;
+use App\Libraries\Accounting\Ai\EvidenceRows;
 use App\Libraries\Accounting\Ai\FindingService;
 use App\Libraries\Accounting\Ai\ProposalRunner;
 use App\Libraries\Accounting\Ai\ProposalService;
 use App\Libraries\Accounting\Ai\ProposalStatus;
-use App\Libraries\Accounting\AccountingException;
-use App\Libraries\Accounting\AccountingGuard;
-use App\Libraries\Accounting\Ai\EvidenceRows;
 use App\Libraries\Accounting\ExportsCsv;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -67,15 +67,15 @@ class AccountingAi extends AccountingController
         $standing = $proposal->status === ProposalStatus::Proposed->value && (int) $proposal->is_expired === 0;
 
         return view('accounting_ai/proposal', [
-            'proposal'         => $proposal,
-            'enabled'          => $enabled,
-            'canApprove'       => $standing && $this->can(AccountingGuard::AI_APPROVE) && $this->can(AccountingGuard::JOURNALS_POST) && $enabled,
-            'canReject'        => $standing && $this->can(AccountingGuard::AI_APPROVE),
-            'canViewJournals'  => $this->employee->has_module_grant('accounting_journals', $this->employeeId()),
-            'notice'           => session()->getFlashdata('accounting_notice'),
-            'date'             => fn (?string $value): string => $this->formatDate($value),
-            'dateTime'         => fn (?string $value): string => $this->formatDateTime($value),
-            'amount'           => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'proposal'        => $proposal,
+            'enabled'         => $enabled,
+            'canApprove'      => $standing && $this->can(AccountingGuard::AI_APPROVE) && $this->can(AccountingGuard::JOURNALS_POST) && $enabled,
+            'canReject'       => $standing && $this->can(AccountingGuard::AI_APPROVE),
+            'canViewJournals' => $this->employee->has_module_grant('accounting_journals', $this->employeeId()),
+            'notice'          => session()->getFlashdata('accounting_notice'),
+            'date'            => fn (?string $value): string => $this->formatDate($value),
+            'dateTime'        => fn (?string $value): string => $this->formatDateTime($value),
+            'amount'          => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
         ]);
     }
 
@@ -170,7 +170,7 @@ class AccountingAi extends AccountingController
 
     public function getFindingsCsv(): ResponseInterface
     {
-        $handle = fopen('php://temp', 'r+');
+        $handle = fopen('php://temp', 'r+b');
 
         $this->csvRow($handle, [
             lang('Accounting_ai.finding_id'),

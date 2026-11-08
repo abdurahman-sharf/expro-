@@ -67,13 +67,13 @@ class AiAgentLayer extends Migration
 
         foreach (['accounting_ai_proposals_status_check', 'accounting_ai_proposals_approved_check'] as $constraint) {
             if ($this->hasCheck('accounting_ai_proposals', $constraint)) {
-                $this->db->query("ALTER TABLE `{$proposals}` DROP CONSTRAINT `{$constraint}`");
+                $this->db->query("ALTER TABLE `{$proposals}` DROP CONSTRAINT `" . $this->db->prefixTable($constraint) . '`');
             }
         }
 
         foreach (['accounting_ai_proposals_dedupe', 'accounting_ai_proposals_journal_once'] as $index) {
             if ($this->hasIndex('accounting_ai_proposals', $index)) {
-                $this->db->query("ALTER TABLE `{$proposals}` DROP KEY `{$index}`");
+                $this->db->query("ALTER TABLE `{$proposals}` DROP KEY `" . $this->db->prefixTable($index) . '`');
             }
         }
 

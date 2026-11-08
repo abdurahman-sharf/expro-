@@ -111,7 +111,7 @@ trait AiFixtureTrait
         return $this->accountId('cash');
     }
 
-    protected function customerAccount(int $customerId): int
+    protected function customerLedgerAccount(int $customerId): int
     {
         return (int) (new EntityAccountService())->accountFor(EntityAccountService::CUSTOMER, $customerId);
     }

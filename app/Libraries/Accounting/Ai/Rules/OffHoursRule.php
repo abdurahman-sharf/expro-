@@ -18,7 +18,7 @@ use DateTimeImmutable;
  */
 final class OffHoursRule implements AnomalyRule
 {
-    public const CODE = 'AI-OFFHOURS';
+    public const CODE  = 'AI-OFFHOURS';
     private const YEAR = 365;
 
     public function code(): string

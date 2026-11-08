@@ -29,7 +29,9 @@ final class AnomalyScanner
     private AiSettings $settings;
     private AuditLog $audit;
 
-    /** @var list<AnomalyRule> */
+    /**
+     * @var list<AnomalyRule>
+     */
     private array $rules;
 
     /**
@@ -69,8 +71,8 @@ final class AnomalyScanner
         $this->settings->assertEnabled();
         $this->guard->require(AccountingGuard::AI_USE, $employeeId);
 
-        $today = $today ?? new DateTimeImmutable('today');
-        $since = $since ?? $today->modify('-' . $this->settings->int('lookback_days') . ' days')->format('Y-m-d');
+        $today ??= new DateTimeImmutable('today');
+        $since ??= $today->modify('-' . $this->settings->int('lookback_days') . ' days')->format('Y-m-d');
 
         $context = new AnomalyContext($this->db, $this->settings, $today, $since, $this->branches->allowedBranchIds($employeeId));
         $created = [];

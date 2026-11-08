@@ -16,7 +16,7 @@ use App\Libraries\Accounting\JournalStatus;
  */
 final class ReversalChainRule implements AnomalyRule
 {
-    public const CODE = 'AI-REVERSAL-CHAIN';
+    public const CODE   = 'AI-REVERSAL-CHAIN';
     private const SHOWN = 20;
 
     public function code(): string

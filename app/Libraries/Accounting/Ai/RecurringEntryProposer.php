@@ -179,8 +179,8 @@ final class RecurringEntryProposer implements Proposer
             return null;
         }
 
-        $number  = $template->series === 'auto' ? 'A-' . $template->number : (string) $template->number;
-        $amount  = (string) $template->debit;
+        $number = $template->series === 'auto' ? 'A-' . $template->number : (string) $template->number;
+        $amount = (string) $template->debit;
 
         $args = [
             'text'    => $label,

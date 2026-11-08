@@ -1,15 +1,15 @@
 <?php
 /**
- * @var list<object>                                                    $rows
- * @var int                                                             $total
- * @var int                                                             $offset
- * @var int                                                             $page_size
- * @var array{status: string, kind: string, from: string, to: string}   $filters
- * @var list<string>                                                    $kinds
- * @var array<string, int>                                              $counts
- * @var bool                                                            $enabled
- * @var bool                                                            $scopeNotice
- * @var string|null                                                     $notice
+ * @var list<object>                                                  $rows
+ * @var int                                                           $total
+ * @var int                                                           $offset
+ * @var int                                                           $page_size
+ * @var array{status: string, kind: string, from: string, to: string} $filters
+ * @var list<string>                                                  $kinds
+ * @var array<string, int>                                            $counts
+ * @var bool                                                          $enabled
+ * @var bool                                                          $scopeNotice
+ * @var string|null                                                   $notice
  */
 
 use App\Libraries\Accounting\Ai\ProposalStatus;
@@ -74,7 +74,8 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
             <select class="form-select form-select-sm" id="f_kind" name="kind">
                 <option value=""><?= lang('Accounting_ai.all') ?></option>
                 <?php foreach ($kinds as $kind): ?>
-                    <?php $kindKey = 'Accounting_ai.kind_' . $kind; $kindText = lang($kindKey); ?>
+                    <?php $kindKey = 'Accounting_ai.kind_' . $kind;
+                    $kindText      = lang($kindKey); ?>
                     <option value="<?= esc($kind, 'attr') ?>"<?= $filters['kind'] === $kind ? ' selected' : '' ?>><?= esc($kindText === $kindKey ? $kind : $kindText) ?></option>
                 <?php endforeach; ?>
             </select>
@@ -109,14 +110,14 @@ $query = static fn (array $extra): string => http_build_query(array_filter([...$
                 <?php endif; ?>
                 <?php foreach ($rows as $row): ?>
                     <?php
-                    $expired   = $row->status === 'proposed' && (int) $row->is_expired === 1;
-                    $kindKey   = 'Accounting_ai.kind_' . $row->kind;
-                    $kindText  = lang($kindKey);
-                    $badge     = match ($row->status) {
-                        'approved'   => 'text-bg-success',
-                        'proposed'   => $expired ? 'text-bg-secondary' : 'text-bg-warning',
-                        'rejected'   => 'text-bg-danger',
-                        default      => 'text-bg-secondary',
+                    $expired  = $row->status === 'proposed' && (int) $row->is_expired === 1;
+                    $kindKey  = 'Accounting_ai.kind_' . $row->kind;
+                    $kindText = lang($kindKey);
+                    $badge    = match ($row->status) {
+                        'approved' => 'text-bg-success',
+                        'proposed' => $expired ? 'text-bg-secondary' : 'text-bg-warning',
+                        'rejected' => 'text-bg-danger',
+                        default    => 'text-bg-secondary',
                     };
                     ?>
                     <tr id="ai_proposal_<?= (int) $row->proposal_id ?>">

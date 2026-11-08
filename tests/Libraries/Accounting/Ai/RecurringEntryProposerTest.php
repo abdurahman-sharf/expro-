@@ -204,7 +204,7 @@ final class RecurringEntryProposerTest extends CIUnitTestCase
     {
         $customer = $this->insertCustomer();
         (new EntityAccountService())->fill();
-        $account = $this->customerAccount($customer);
+        $account = $this->customerLedgerAccount($customer);
 
         $this->rent(['2026-08-05', '2026-09-05']);
         $this->manualJournal('2026-10-05', $this->rentExpense(), $account, '2000.00', 'Office rent');

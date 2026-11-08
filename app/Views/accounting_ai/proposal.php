@@ -1,16 +1,15 @@
 <?php
 /**
- * @var object  $proposal
- * @var bool    $enabled
- * @var bool    $canApprove
- * @var bool    $canReject
- * @var bool    $canViewJournals
+ * @var object      $proposal
+ * @var bool        $enabled
+ * @var bool        $canApprove
+ * @var bool        $canReject
+ * @var bool        $canViewJournals
  * @var string|null $notice
- * @var Closure $date
- * @var Closure $dateTime
- * @var Closure $amount
+ * @var Closure     $date
+ * @var Closure     $dateTime
+ * @var Closure     $amount
  */
-
 $expired = $proposal->status === 'proposed' && (int) $proposal->is_expired === 1;
 $status  = $expired ? 'expired' : (string) $proposal->status;
 $badge   = match ($status) {
@@ -19,9 +18,9 @@ $badge   = match ($status) {
     'rejected' => 'text-bg-danger',
     default    => 'text-bg-secondary',
 };
-$kindKey  = 'Accounting_ai.kind_' . $proposal->kind;
-$kindText = lang($kindKey);
-$totalDebit = '0';
+$kindKey     = 'Accounting_ai.kind_' . $proposal->kind;
+$kindText    = lang($kindKey);
+$totalDebit  = '0';
 $totalCredit = '0';
 
 foreach ($proposal->lines as $line) {

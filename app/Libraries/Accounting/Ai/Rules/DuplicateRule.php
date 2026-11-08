@@ -19,7 +19,7 @@ use DateTimeImmutable;
  */
 final class DuplicateRule implements AnomalyRule
 {
-    public const CODE = 'AI-DUPLICATE';
+    public const CODE   = 'AI-DUPLICATE';
     private const CHUNK = 500;
 
     public function code(): string
@@ -107,7 +107,7 @@ final class DuplicateRule implements AnomalyRule
 
         foreach (array_chunk($journalIds, self::CHUNK) as $chunk) {
             foreach ($context->db->table('accounting_journal_lines')->select('journal_id, account_id, debit, credit')->whereIn('journal_id', $chunk)->orderBy('journal_id', 'ASC')->orderBy('account_id', 'ASC')->orderBy('line_no', 'ASC')->get()->getResult() as $line) {
-                $debit                                = bccomp((string) $line->debit, '0', 4) > 0;
+                $debit                            = bccomp((string) $line->debit, '0', 4) > 0;
                 $lines[(int) $line->journal_id][] = $line->account_id . ':' . ($debit ? 'D' : 'C') . ':' . bcadd($debit ? (string) $line->debit : (string) $line->credit, '0', 4);
             }
         }

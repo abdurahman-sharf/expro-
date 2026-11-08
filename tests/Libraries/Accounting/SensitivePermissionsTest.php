@@ -66,6 +66,8 @@ class SensitivePermissionsTest extends CIUnitTestCase
             AccountingGuard::YEAR_END_CLOSE,
             AccountingGuard::BACKFILL_MANAGE,
             AccountingGuard::ROLES_MANAGE,
+            AccountingGuard::AI_USE,
+            AccountingGuard::AI_APPROVE,
         ];
 
         foreach ($sensitive as $permissionId) {
@@ -100,6 +102,8 @@ class SensitivePermissionsTest extends CIUnitTestCase
                 AccountingGuard::BACKFILL_MANAGE,
                 AccountingGuard::ROLES_MANAGE,
                 AccountingGuard::CURRENCIES_MANAGE,
+                AccountingGuard::AI_USE,
+                AccountingGuard::AI_APPROVE,
             ],
             AccountingGuard::SENSITIVE,
         );
@@ -216,6 +220,26 @@ class SensitivePermissionsTest extends CIUnitTestCase
         $this->assertTrue(SensitivePermissions::isSensitive(AccountingGuard::ROLES_MANAGE));
         $this->assertSame(1, $this->accountingDb()->table('permissions')->where(['permission_id' => AccountingGuard::ROLES_MANAGE, 'module_id' => 'roles'])->countAllResults(), 'The migration registers it');
         $this->assertSame(0, $this->accountingDb()->table('grants')->where('permission_id', AccountingGuard::ROLES_MANAGE)->countAllResults(), 'The migration grants it to nobody');
+    }
+
+    public function testIsSensitive_NamesThePermissionsOfTheAgentLayerSoOnlyAnAdministratorHandsThemOut(): void
+    {
+        $this->assertSame('accounting_ai', AccountingGuard::AI_USE);
+        $this->assertSame('acc_ai_approve', AccountingGuard::AI_APPROVE);
+
+        foreach ([AccountingGuard::AI_USE, AccountingGuard::AI_APPROVE] as $permissionId) {
+            $this->assertTrue(SensitivePermissions::isSensitive($permissionId), $permissionId);
+            $this->assertSame(1, $this->accountingDb()->table('permissions')->where(['permission_id' => $permissionId, 'module_id' => 'accounting_ai'])->countAllResults(), 'The migration registers ' . $permissionId);
+            $this->assertSame(0, $this->accountingDb()->table('grants')->where('permission_id', $permissionId)->countAllResults(), 'The migration grants it to nobody');
+        }
+    }
+
+    public function testHeldBy_ListsThePermissionsOfTheAgentLayerAmongWhatAnEmployeeHolds(): void
+    {
+        $approver = $this->employeeWithGrants([AccountingGuard::AI_USE, AccountingGuard::AI_APPROVE, AccountingGuard::JOURNALS_POST]);
+
+        $this->assertSame([AccountingGuard::AI_USE, AccountingGuard::AI_APPROVE], $this->service->heldBy($approver));
+        $this->assertSame([AccountingGuard::AI_USE, AccountingGuard::AI_APPROVE], $this->holdersById()[$approver]['permissions']);
     }
 
     public function testHeldBy_DoesNotCountWhatARoleGivesBecauseARoleNeverHoldsASensitivePermission(): void

@@ -30,7 +30,9 @@ final class ProposalRunner
     private ProposalService $proposals;
     private AuditLog $audit;
 
-    /** @var list<Proposer> */
+    /**
+     * @var list<Proposer>
+     */
     private array $proposers;
 
     /**
@@ -63,7 +65,7 @@ final class ProposalRunner
         $this->settings->assertEnabled();
         $this->guard->require(AccountingGuard::AI_USE, $employeeId);
 
-        $today     = $today ?? new DateTimeImmutable('today');
+        $today ??= new DateTimeImmutable('today');
         $expired   = $this->proposals->expireDue();
         $branchIds = $this->branches->allowedBranchIds($employeeId);
         $created   = [];
@@ -90,7 +92,7 @@ final class ProposalRunner
                     }
 
                     $refused[] = ['proposer' => $proposer->name(), 'key' => $draft->dedupeKey, 'reason' => AccountingMessage::of($failure)];
-                } catch (PostingException|BranchException $failure) {
+                } catch (BranchException|PostingException $failure) {
                     $refused[] = ['proposer' => $proposer->name(), 'key' => $draft->dedupeKey, 'reason' => AccountingMessage::of($failure)];
                 }
             }

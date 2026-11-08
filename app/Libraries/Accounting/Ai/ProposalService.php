@@ -338,14 +338,14 @@ final class ProposalService
             throw new AccountingException(AccountingError::AiProposalNotFound, "Proposal {$proposalId} does not exist.");
         }
 
-        $payload = json_decode((string) $row->payload, true);
-        $payload = is_array($payload) ? $payload : [];
+        $payload  = json_decode((string) $row->payload, true);
+        $payload  = is_array($payload) ? $payload : [];
         $evidence = json_decode((string) $row->evidence, true);
 
-        $row->payload_data  = $payload;
-        $row->evidence_rows = is_array($evidence) ? $evidence : [];
-        $row->lines         = $this->describedLines($payload['lines'] ?? []);
-        $row->title_text    = ProposalText::fill('title', (string) $row->kind, ProposalText::argsOf($row->template_args), (string) $row->title);
+        $row->payload_data   = $payload;
+        $row->evidence_rows  = is_array($evidence) ? $evidence : [];
+        $row->lines          = $this->describedLines($payload['lines'] ?? []);
+        $row->title_text     = ProposalText::fill('title', (string) $row->kind, ProposalText::argsOf($row->template_args), (string) $row->title);
         $row->rationale_text = ProposalText::fill('rationale', (string) $row->kind, ProposalText::argsOf($row->template_args), (string) $row->rationale);
 
         return $row;
@@ -364,7 +364,7 @@ final class ProposalService
 
         $allowed = $this->branches->allowedBranchIds($employeeId);
         $builder = $this->db->table('accounting_ai_proposals p')
-            ->select("p.proposal_id, p.kind, p.status, p.title, p.template_args, p.proposer, p.proposal_date, p.branch_id, p.created_at, p.decided_at, p.journal_id, br.code AS branch_code, (p.expires_at IS NOT NULL AND p.expires_at < NOW()) AS is_expired", false)
+            ->select('p.proposal_id, p.kind, p.status, p.title, p.template_args, p.proposer, p.proposal_date, p.branch_id, p.created_at, p.decided_at, p.journal_id, br.code AS branch_code, (p.expires_at IS NOT NULL AND p.expires_at < NOW()) AS is_expired', false)
             ->join('branches br', 'br.branch_id = p.branch_id', 'left');
 
         if ($allowed !== null) {

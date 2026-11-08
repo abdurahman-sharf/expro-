@@ -1,11 +1,11 @@
 <?php
 /**
- * @var bool                                   $enabled
- * @var bool                                   $canManage
- * @var bool                                   $canSwitch
- * @var array<string, string>                  $thresholds
- * @var array<string, array<string, mixed>>    $defaults
- * @var string|null                            $notice
+ * @var bool                                $enabled
+ * @var bool                                $canManage
+ * @var bool                                $canSwitch
+ * @var array<string, string>               $thresholds
+ * @var array<string, array<string, mixed>> $defaults
+ * @var string|null                         $notice
  */
 ?>
 

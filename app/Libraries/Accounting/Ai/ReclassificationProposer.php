@@ -2,8 +2,6 @@
 
 namespace App\Libraries\Accounting\Ai;
 
-use App\Libraries\Accounting\EntityAccountService;
-use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PostingException;
@@ -21,12 +19,12 @@ use DateTimeImmutable;
  */
 final class ReclassificationProposer implements Proposer
 {
-    public const KIND       = 'reclassify';
-    public const NAME       = 'rules:reclassify';
-    private const SUBJECTS  = 200;
+    public const KIND             = 'reclassify';
+    public const NAME             = 'rules:reclassify';
+    private const SUBJECTS        = 200;
     private const SUBJECT_SOURCES = ['manual'];
     private const HISTORY_SOURCES = ['manual', ProposalService::SOURCE];
-    private const TABLE_TOP = 5;
+    private const TABLE_TOP       = 5;
 
     private BaseConnection $db;
     private AiSettings $settings;
@@ -183,7 +181,7 @@ final class ReclassificationProposer implements Proposer
     }
 
     /**
-     * @param array{type: string, code: string, name: string}                                                                           $other
+     * @param array{type: string, code: string, name: string}                                                              $other
      * @param list<array{account_id: int, code: string, name: string, uses: int, last_journal_id: int, last_date: string}> $table
      */
     private function draftOf(object $subject, string $text, array $other, array $table, DateTimeImmutable $today): ?ProposalDraft
@@ -195,7 +193,7 @@ final class ReclassificationProposer implements Proposer
         $total = array_sum(array_column($table, 'uses'));
         $top   = $table[0];
 
-        if ($top['uses'] < $this->settings->int('reclass_min_count') || $top['uses'] * 100 < $this->settings->int('reclass_min_share') * $total) {
+        if ($top['uses'] < $this->settings->int('reclass_min_count') || $this->settings->int('reclass_min_share') * $total > $top['uses'] * 100) {
             return null;
         }
 

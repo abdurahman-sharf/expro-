@@ -87,6 +87,26 @@ final class AiSettingsTest extends CIUnitTestCase
         $this->assertFalse($this->settings->isEnabled());
     }
 
+    public function testIsEnabled_IsOffWhileAccountingIsOffEvenWhenTheSwitchIsOn(): void
+    {
+        $this->setConfigValue(AiSettings::ENABLED_KEY, '1');
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertTrue($this->settings->isSwitchedOn());
+        $this->assertFalse($this->settings->isEnabled());
+        $this->assertSame(AccountingError::AiDisabled, $this->refused(fn () => $this->settings->assertEnabled())->error);
+    }
+
+    public function testSetEnabled_SwitchesOffTheAgentThatIsOnWhileAccountingIsOff(): void
+    {
+        $this->setConfigValue(AiSettings::ENABLED_KEY, '1');
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->settings->setEnabled(false, $this->employeeWithGrants([AccountingGuard::AI_USE]));
+
+        $this->assertFalse($this->settings->isSwitchedOn());
+    }
+
     public function testAssertEnabled_NamesTheErrorWhenTheSwitchIsOff(): void
     {
         $this->assertSame(AccountingError::AiDisabled, $this->refused(fn () => $this->settings->assertEnabled())->error);

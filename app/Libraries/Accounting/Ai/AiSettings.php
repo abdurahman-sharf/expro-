@@ -27,7 +27,7 @@ final class AiSettings
     /**
      * Each threshold: its default, whether it is a whole number or an amount, and the bounds a whole number keeps.
      *
-     * @var array<string, array{default: string, type: 'int'|'amount'|'days', min?: int, max?: int}>
+     * @var array<string, array{default: string, type: 'amount'|'days'|'int', min?: int, max?: int}>
      */
     public const THRESHOLDS = [
         'proposal_expiry_days' => ['default' => '14', 'type' => 'int', 'min' => 1, 'max' => 365],

@@ -2,9 +2,9 @@
 
 namespace App\Commands;
 
-use App\Libraries\Accounting\Ai\ProposalRunner;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\Ai\ProposalRunner;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
 use DateTimeImmutable;
