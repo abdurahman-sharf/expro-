@@ -1509,7 +1509,7 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $receivingId);
         $this->assertSame($journals + 1, $this->countRows('accounting_journals'));
         $this->assertSame('4.000', $this->onHand($this->goods));
-        $this->assertSame('-16.00', $this->owed());
+        $this->assertSame('16.00', $this->owed());
         $this->assertSame($orderId, (new PurchaseOrderReceipts($this->accountingDb()))->orderOfReceiving($receivingId));
         $this->assertSame(PurchaseDocumentStatus::PartlyReceived, $this->orderStatus($orderId));
         $this->assertSame(['4.000'], array_map(static fn (object $line): string => $line->received, $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)));
@@ -1590,11 +1590,13 @@ class ReceivingTest extends CIUnitTestCase
 
         $this->documentsOf(PurchaseDocumentKind::Order)->cancel($cancelled, 'no', $this->clerk);
 
+        $before = $this->countRows('receivings');
+
         $this->assertSame(ACCOUNTING_FAILED, $this->receiveFromOrder($cancelled, '1'));
         $this->assertSame(AccountingError::PurchaseOrderNotReceivable, $this->purchases->accountingFailure()->error);
         $this->assertSame(ACCOUNTING_FAILED, $this->receiveFromOrder($another, '1'));
         $this->assertSame(AccountingError::PurchaseOrderSupplierMismatch, $this->purchases->accountingFailure()->error);
-        $this->assertSame(0, $this->countRows('receivings'));
+        $this->assertSame($before, $this->countRows('receivings'));
     }
 
     public function testSaveValue_ReceivesAgainstAPurchaseOrderWithAccountingOffAndPostsNothing(): void

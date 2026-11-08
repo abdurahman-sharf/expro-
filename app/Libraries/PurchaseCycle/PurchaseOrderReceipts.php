@@ -100,7 +100,8 @@ final class PurchaseOrderReceipts
 
     /**
      * Takes from the lines of the order what a receiving of goods holds. It runs inside the transaction that saves the
-     * receiving, under the lock of the order, and a refusal sends the whole receiving back.
+     * receiving, under the lock of the order, and a refusal sends the whole receiving back. A new receiving is refused
+     * while the purchase cycle is switched off; the correction of one that was made is not.
      *
      * @param list<array<string, mixed>> $items The lines of the receiving as the register saves them: item_id, quantity and receiving_quantity.
      *
@@ -108,6 +109,10 @@ final class PurchaseOrderReceipts
      */
     public function recordReceiving(int $receivingId, int $orderId, array $items, int $supplierId, ?int $employeeId, int $branchId, string $action = 'received'): void
     {
+        if ($action === 'received' && ! $this->settings->isEnabled()) {
+            throw new AccountingException(AccountingError::PurchaseDocumentModuleOff, 'The purchase cycle is switched off.');
+        }
+
         $this->transactional(function () use ($receivingId, $orderId, $items, $supplierId, $employeeId, $branchId, $action): void {
             $order = LockedRead::row($this->db, 'SELECT order_id, branch_id, supplier_id, status FROM ' . $this->db->prefixTable('purchase_orders') . ' WHERE order_id = ? FOR UPDATE', [$orderId]);
 

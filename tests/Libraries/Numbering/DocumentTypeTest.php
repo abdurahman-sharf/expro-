@@ -87,15 +87,16 @@ class DocumentTypeTest extends CIUnitTestCase
         $this->assertLessThanOrEqual(24, strlen($type->value), 'the column of the document type holds 24 characters');
     }
 
-    public function testDefaultPadding_IsZeroForEveryKindButTheSalesDebitNoteTheSalesOrderAndTheStockDocuments(): void
+    public function testDefaultPadding_IsZeroForEveryKindButTheSalesDebitNoteTheSalesOrderThePurchaseCycleAndTheStockDocuments(): void
     {
         $stock = [DocumentType::StockPermitAdd, DocumentType::StockPermitIssue, DocumentType::StockPermitTransfer, DocumentType::Stocktake, DocumentType::StockRequest];
+        $cycle = [DocumentType::PurchaseRequest, DocumentType::QuotationRequest, DocumentType::SupplierQuotation, DocumentType::PurchaseOrder];
 
         foreach (DocumentType::cases() as $type) {
             $this->assertSame(match (true) {
-                $type === DocumentType::SalesDebitNote, $type === DocumentType::SalesOrder => 5,
-                in_array($type, $stock, true)                                              => 6,
-                default                                                                    => 0,
+                $type === DocumentType::SalesDebitNote, $type === DocumentType::SalesOrder, in_array($type, $cycle, true) => 5,
+                in_array($type, $stock, true)                                                                           => 6,
+                default                                                                                                 => 0,
             }, $type->defaultPadding(), $type->value);
         }
     }

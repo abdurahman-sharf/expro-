@@ -15,6 +15,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
@@ -30,6 +31,7 @@ class PurchaseDocumentsTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use PurchaseAccountingFixtureTrait;
@@ -960,5 +962,168 @@ class PurchaseDocumentsTest extends CIUnitTestCase
 
         $this->assertSame($before, $this->bookCounts());
         $this->assertStockTies();
+    }
+
+    #[DataProvider('stepProvider')]
+    public function testConvert_LetsOneOfTwoConversionsAtTheSameMomentMakeTheNextDocument(PurchaseDocumentKind $kind): void
+    {
+        $sourceId = $this->makeDocument($kind);
+
+        [$first, $second] = $this->raceTwoProcesses('convertDocument', [$kind->value, $sourceId, $this->clerk], [$kind->value, $sourceId, $this->clerk]);
+
+        $this->assertSame(1, (int) $first + (int) $second, 'of two conversions of one document, one makes the next document and the other is refused');
+        $this->assertSame(1, $this->countRows($kind->next()->table()));
+    }
+
+    public function testCreateFromSource_StoresTheDocumentWithTheLinkToItsSourceAndRequiresThePermissionAndTheCycleToBeOn(): void
+    {
+        $request = $this->makeDocument(PurchaseDocumentKind::Request);
+        $service = $this->documentsOf(PurchaseDocumentKind::QuotationRequest);
+        $header  = ['branch_id' => 1, 'location_id' => self::LOCATION_ID, 'supplier_id' => null, 'document_date' => '2026-10-25', 'due_date' => null, 'note' => ''];
+        $lines   = [['item_id' => $this->goods, 'description' => '', 'quantity' => '1.000', 'unit_price' => '2.00']];
+        $nobody  = $this->employeeWithGrants([]);
+
+        $rfq = $service->createFromSource($request, $header, $lines, $this->clerk);
+
+        $this->assertSame($request, (int) $this->row(PurchaseDocumentKind::QuotationRequest, $rfq)->source_request_id);
+        $this->assertSame(['created'], $this->auditActions(PurchaseDocumentKind::QuotationRequest, $rfq));
+        $this->assertRefused(AccountingError::PermissionDenied, fn () => $service->createFromSource($request, $header, $lines, $nobody));
+
+        $this->setConfigValue('enable_purchase_cycle', '0');
+
+        $this->assertRefused(AccountingError::PurchaseDocumentModuleOff, fn () => $service->createFromSource($request, $header, $lines, $this->clerk));
+        $this->assertSame(1, $this->countRows('quotation_requests'));
+    }
+
+    public function testAssertReceivable_ReturnsAnOrderThatIsOpenOrReceivedInPartAndRefusesTheOthers(): void
+    {
+        $service = $this->documentsOf(PurchaseDocumentKind::Order);
+        $open    = $this->makeDocument(PurchaseDocumentKind::Order);
+        $partly  = $this->makeDocument(PurchaseDocumentKind::Order);
+        $full    = $this->makeDocument(PurchaseDocumentKind::Order, ['lines' => [['item_id' => $this->goods, 'quantity' => '2', 'unit_price' => '4.00']]]);
+        $stopped = $this->makeDocument(PurchaseDocumentKind::Order);
+
+        $this->allowEmployeeEverywhere();
+        $this->assertGreaterThan(0, $this->purchases->save_value([$this->purchaseLine($this->goods, 0, '3', '4.00')], $this->supplierId, $this->clerk, 'x', 'REF-A', lang('Sales.due'), NEW_ENTRY, null, null, null, null, $partly));
+        $this->assertGreaterThan(0, $this->purchases->save_value([$this->purchaseLine($this->goods, 0, '2', '4.00')], $this->supplierId, $this->clerk, 'x', 'REF-B', lang('Sales.due'), NEW_ENTRY, null, null, null, null, $full));
+        $this->receivingIds = array_map(static fn (array $row): int => (int) $row['receiving_id'], $this->accountingDb()->table('receivings')->select('receiving_id')->get()->getResultArray());
+        $service->cancel($stopped, 'no', $this->clerk);
+
+        $this->assertSame($open, (int) $service->assertReceivable($open, $this->clerk)->document_id);
+        $this->assertSame($partly, (int) $service->assertReceivable($partly, $this->clerk)->document_id);
+        $this->assertRefused(AccountingError::PurchaseOrderNotReceivable, fn () => $service->assertReceivable($full, $this->clerk));
+        $this->assertRefused(AccountingError::PurchaseOrderNotReceivable, fn () => $service->assertReceivable($stopped, $this->clerk));
+        $this->assertRefused(AccountingError::PurchaseDocumentNotFound, fn () => $service->assertReceivable(999999, $this->clerk));
+    }
+
+    public function testAssertReceivable_RequiresTheConvertPermissionTheCycleAndAnOrderOfAKindThatIsReceived(): void
+    {
+        $order   = $this->makeDocument(PurchaseDocumentKind::Order);
+        $request = $this->makeDocument(PurchaseDocumentKind::Request);
+        $service = $this->documentsOf(PurchaseDocumentKind::Order);
+        $viewer  = $this->employeeWithGrants([PurchaseDocumentKind::Order->permission(PurchaseDocuments::VIEW_ALL)]);
+
+        $this->assertRefused(AccountingError::PermissionDenied, fn () => $service->assertReceivable($order, $viewer));
+        $this->assertRefused(AccountingError::PurchaseDocumentNotConvertible, fn () => $this->documentsOf(PurchaseDocumentKind::Request)->assertReceivable($request, $this->clerk));
+
+        $this->setConfigValue('enable_purchase_cycle', '0');
+
+        $this->assertRefused(AccountingError::PurchaseDocumentModuleOff, fn () => $service->assertReceivable($order, $this->clerk));
+    }
+
+    public function testAssertReceivable_RefusesAnOrderOfAnotherBranchAsOneThatDoesNotExistAndAnOrderWhoseSupplierWasDeleted(): void
+    {
+        $branchB   = $this->createBranch('B2', 'Second branch');
+        $locationB = $this->locationOfBranch($branchB);
+        $there     = $this->makeDocument(PurchaseDocumentKind::Order, ['location_id' => $locationB]);
+        $here      = $this->makeDocument(PurchaseDocumentKind::Order);
+        $mainOnly  = $this->employeeWithGrants($this->cycleGrants(), [1]);
+        $service   = $this->documentsOf(PurchaseDocumentKind::Order);
+
+        $this->assertRefused(AccountingError::PurchaseDocumentNotFound, fn () => $service->assertReceivable($there, $mainOnly));
+
+        $this->accountingDb()->table('suppliers')->where('person_id', $this->supplierId)->update(['deleted' => 1]);
+
+        $this->assertRefused(AccountingError::PurchaseDocumentSupplierInvalid, fn () => $service->assertReceivable($here, $this->clerk));
+    }
+
+    public function testRemainingLines_ListsOnlyTheLinesWithUnitsLeft(): void
+    {
+        $other   = $this->item('2.00');
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order, ['lines' => [
+            ['item_id' => $this->goods, 'quantity' => '2', 'unit_price' => '4.00'],
+            ['item_id' => $other, 'quantity' => '5', 'unit_price' => '2.00'],
+        ]]);
+
+        $this->allowEmployeeEverywhere();
+        $this->assertGreaterThan(0, $this->purchases->save_value([$this->purchaseLine($this->goods, 0, '2', '4.00')], $this->supplierId, $this->clerk, 'x', 'REF-C', lang('Sales.due'), NEW_ENTRY, null, null, null, null, $orderId));
+        $this->receivingIds = array_map(static fn (array $row): int => (int) $row['receiving_id'], $this->accountingDb()->table('receivings')->select('receiving_id')->get()->getResultArray());
+
+        $left = $this->documentsOf(PurchaseDocumentKind::Order)->remainingLines($orderId);
+
+        $this->assertCount(1, $left);
+        $this->assertSame([$other, '5.000'], [(int) $left[0]->item_id, $left[0]->remaining]);
+    }
+
+    #[DataProvider('kindProvider')]
+    public function testUpdate_RefusesWhileTheCycleIsOffAndLeavesTheDocumentAsItWas(PurchaseDocumentKind $kind): void
+    {
+        $documentId = $this->makeDocument($kind);
+
+        $this->setConfigValue('enable_purchase_cycle', '0');
+
+        $this->assertRefused(AccountingError::PurchaseDocumentModuleOff, fn () => $this->documentsOf($kind)->update($documentId, $this->documentInput(['note' => 'x']), $this->clerk));
+        $this->assertSame('cycle document', $this->row($kind, $documentId)->note);
+    }
+
+    #[DataProvider('kindProvider')]
+    public function testChangeStatus_RefusesWhileTheCycleIsOffWhateverTheSwitchesSay(PurchaseDocumentKind $kind): void
+    {
+        $this->turnOnManualStatuses();
+
+        $documentId = $this->makeDocument($kind);
+
+        $this->setConfigValue('enable_purchase_cycle', '0');
+
+        $this->assertRefused(AccountingError::PurchaseDocumentModuleOff, fn () => $this->documentsOf($kind)->changeStatus($documentId, PurchaseDocumentStatus::Sent, $this->clerk));
+        $this->assertSame('open', $this->row($kind, $documentId)->status);
+    }
+
+    #[DataProvider('kindProvider')]
+    public function testCancel_RefusesWhileTheCycleIsOffAndLeavesTheDocumentOpen(PurchaseDocumentKind $kind): void
+    {
+        $documentId = $this->makeDocument($kind);
+
+        $this->setConfigValue('enable_purchase_cycle', '0');
+
+        $this->assertRefused(AccountingError::PurchaseDocumentModuleOff, fn () => $this->documentsOf($kind)->cancel($documentId, 'no', $this->clerk));
+        $this->assertSame('open', $this->row($kind, $documentId)->status);
+    }
+
+    #[DataProvider('stepProvider')]
+    public function testConvert_RefusesWhileTheCycleIsOffAndMakesNothing(PurchaseDocumentKind $kind): void
+    {
+        $sourceId = $this->makeDocument($kind);
+
+        $this->setConfigValue('enable_purchase_cycle', '0');
+
+        $this->assertRefused(AccountingError::PurchaseDocumentModuleOff, fn () => $this->documentsOf($kind)->convert($sourceId, $this->clerk));
+        $this->assertSame(0, $this->countRows($kind->next()->table()));
+    }
+
+    public function testUpdate_RefusesAnOrderAReceivingWasMadeFromEvenWhenItIsOpenAndLeavesItAsItWas(): void
+    {
+        $this->allowEmployeeEverywhere();
+
+        $orderId = $this->makeDocument(PurchaseDocumentKind::Order);
+        $service = $this->documentsOf(PurchaseDocumentKind::Order);
+
+        $this->assertGreaterThan(0, $this->purchases->save_value([$this->purchaseLine($this->goods, 0, '2', '4.00')], $this->supplierId, $this->clerk, 'x', 'REF-U', lang('Sales.due'), NEW_ENTRY, null, null, null, null, $orderId));
+        $this->receivingIds = array_map(static fn (array $row): int => (int) $row['receiving_id'], $this->accountingDb()->table('receivings')->select('receiving_id')->get()->getResultArray());
+
+        $this->assertRefused(AccountingError::PurchaseDocumentLocked, fn () => $service->update($orderId, $this->documentInput(['note' => 'changed']), $this->clerk));
+        $this->assertSame('cycle document', $this->row(PurchaseDocumentKind::Order, $orderId)->note);
+        $this->assertSame('2.000', $service->lines($orderId)[0]->received);
+        $this->assertSame(PurchaseDocumentStatus::PartlyReceived, $service->statusOf($orderId));
     }
 }

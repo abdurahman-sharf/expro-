@@ -450,4 +450,31 @@ class PurchaseOrderReceiptsTest extends CIUnitTestCase
         $this->assertSame($before + 1, $this->countRows('receivings'));
         $this->assertSame(1, $this->countRows('purchase_order_receiving_lines'));
     }
+
+    public function testRecordReceiving_LetsOneOfTwoReceivingsTakeTheUnitsOfTheOrderWhenTheyAreTakenAtTheSameMomentWithoutTheLockOfTheSupplierBetweenThem(): void
+    {
+        $orderId = $this->order([['quantity' => '10']]);
+        $first   = $this->receivingOfStock();
+        $second  = $this->receivingOfStock();
+
+        [$one, $two] = $this->raceTwoProcesses('orderRecord', [$first, $orderId, '7', $this->goods, $this->supplierId, $this->clerk], [$second, $orderId, '7', $this->goods, $this->supplierId, $this->clerk]);
+
+        $this->assertSame(1, (int) $one + (int) $two, 'the lock of the order lets only one of two takings of 7 from an order of 10 through');
+        $this->assertSame(['7.000'], $this->received($orderId));
+        $this->assertSame(1, $this->countRows('purchase_order_receivings'));
+    }
+
+    public function testRecordReceiving_RefusesANewReceivingWhileThePurchaseCycleIsOffButStillCorrectsOneThatWasMade(): void
+    {
+        $orderId     = $this->order([['quantity' => '10']]);
+        $receivingId = $this->take($orderId, [['quantity' => '4']]);
+
+        $this->setConfigValue('enable_purchase_cycle', '0');
+
+        $this->assertRefused(AccountingError::PurchaseDocumentModuleOff, fn () => $this->take($orderId, [['quantity' => '1']]));
+
+        $this->receipts->recordReceiving($receivingId, $orderId, [['item_id' => $this->goods, 'quantity' => '5', 'receiving_quantity' => '1']], $this->supplierId, $this->clerk, 1, 'receipt_changed');
+
+        $this->assertSame(['5.000'], $this->received($orderId));
+    }
 }

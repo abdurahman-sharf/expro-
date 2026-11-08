@@ -3656,6 +3656,8 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $this->post('/receivings/complete', $this->completeForm())->assertSee('RECV ');
 
+        $this->receivingIds[] = (int) $this->accountingDb()->table('purchase_order_receivings')->where('order_id', $orderId)->get()->getRow()->receiving_id;
+
         $this->assertSame(PurchaseDocumentStatus::PartlyReceived, $this->documentsOf(PurchaseDocumentKind::Order)->statusOf($orderId));
         $this->assertSame('4.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
         $this->assertNull(session()->get('recv_order_source'));

@@ -25,6 +25,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
 use App\Libraries\PurchaseCycle\PurchaseDocuments;
+use App\Libraries\PurchaseCycle\PurchaseOrderReceipts;
 use App\Libraries\Recurring\RecurringGenerator;
 use App\Models\Customer;
 use App\Models\Giftcard;
@@ -341,6 +342,15 @@ $result = match ($method) {
         ]];
 
         return model(Receiving::class)->save_value($lines, (int) $args[3], (int) $args[4], 'race', 'REF', 'Due', NEW_ENTRY, null, null, null, null, (int) $args[0]) > 0;
+    })($args),
+    'orderRecord' => (static function (array $args): bool {
+        try {
+            (new PurchaseOrderReceipts())->recordReceiving((int) $args[0], (int) $args[1], [['item_id' => (int) $args[3], 'quantity' => (string) $args[2], 'receiving_quantity' => 1]], (int) $args[4], (int) $args[5], 1);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
     })($args),
     'convertDocument' => (static function (array $args): bool {
         try {

@@ -150,4 +150,21 @@ class NavigationHelperTest extends CIUnitTestCase
 
         $this->assertNotContains('setting', array_column($entries, 'type'));
     }
+
+    public function testNavigationGroups_PutsTheFourDocumentsOfThePurchaseCycleInThePurchasesGroupBeforeTheReceivingsInTheOrderOfTheChain(): void
+    {
+        $groups = navigationGroups($this->modules('purchase_orders', 'receivings', 'supplier_quotations', 'quotation_requests', 'purchase_requests', 'suppliers'), 'purchase_orders');
+
+        $this->assertSame([['purchase_requests', 'quotation_requests', 'supplier_quotations', 'purchase_orders', 'receivings', 'suppliers']], $this->itemIds($groups));
+    }
+
+    public function testNavigationGroups_ShowsOnlyTheDocumentsOfThePurchaseCycleTheEmployeeMayOpenWithAnIconAndTheirOwnAddress(): void
+    {
+        $groups = navigationGroups($this->modules('quotation_requests'), 'home');
+
+        $this->assertCount(1, $groups);
+        $this->assertSame(['quotation_requests'], array_column($groups[0]['items'], 'id'));
+        $this->assertSame(base_url('quotation_requests'), $groups[0]['items'][0]['url']);
+        $this->assertNotSame(NAVIGATION_FALLBACK_ICON, $groups[0]['items'][0]['icon']);
+    }
 }
