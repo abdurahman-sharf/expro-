@@ -1671,9 +1671,12 @@ class ReceivingTest extends CIUnitTestCase
 
         $this->documentsOf(PurchaseDocumentKind::Order)->cancel($orderId, 'the rest is not coming', $this->clerk);
 
+        $audit = $this->auditActions(PurchaseDocumentKind::Order, $orderId);
+
         $this->assertTrue($this->purchases->updateLines($receivingId, [ReceivingLineEdit::changing($this->goods, $line, ['price' => '5.00'])], $this->clerk));
         $this->assertSame('4.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
         $this->assertSame(PurchaseDocumentStatus::Cancelled, $this->orderStatus($orderId));
+        $this->assertSame($audit, $this->auditActions(PurchaseDocumentKind::Order, $orderId), 'a correction of a price takes nothing from the order and leaves no entry on it');
     }
 
     public function testUpdateLines_CorrectsTheUnitsOfAReceivingWhoseOrderWasCancelledSinceAndStillHoldsThemToTheOrder(): void
