@@ -4,6 +4,7 @@ namespace App\Libraries\Accounting;
 
 use App\Libraries\Organization\BranchGuard;
 use App\Models\Appconfig;
+use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -178,13 +179,13 @@ final class ShippingCompanies
     }
 
     /**
-     * @return array<int, string> The accounts a company may be given, by id: leaf liability accounts that are on.
+     * @return array<int, string> The accounts a company may be given, by id: free leaf liability accounts that are on.
      */
     public function accountChoices(): array
     {
         $found = [];
 
-        foreach ($this->db->table('accounting_accounts')->select('account_id, code, name')->where('is_group', 0)->where('active', 1)->where('account_type', AccountType::Liability->value)->orderBy('code', 'ASC')->get()->getResult() as $row) {
+        foreach ($this->eligibleAccounts()->select('account_id, code, name')->orderBy('code', 'ASC')->get()->getResult() as $row) {
             $found[(int) $row->account_id] = $row->code . ' - ' . $row->name;
         }
 
@@ -251,8 +252,10 @@ final class ShippingCompanies
     }
 
     /**
-     * The account of what is owed to the company, or none: a leaf liability account that is on and that
-     * no other company uses.
+     * The account of what is owed to the company, or none: a leaf liability account that is on, that the
+     * chart does not reserve, that belongs to no customer or supplier and that no routing row names, and
+     * that no other company uses. A charge posted to any other account would move a balance that
+     * something else has to tie to.
      *
      * @throws AccountingException
      */
@@ -263,10 +266,9 @@ final class ShippingCompanies
         }
 
         $accountId = (int) $accountId;
-        $account   = $this->db->table('accounting_accounts')->select('account_id, is_group, active, account_type')->where('account_id', $accountId)->get()->getRow();
 
-        if ($account === null || (int) $account->is_group === 1 || (int) $account->active === 0 || $account->account_type !== AccountType::Liability->value) {
-            throw new AccountingException(AccountingError::ShippingAccountInvalid, "Account {$accountId} is not a leaf liability account that is on.", ['account_id' => $accountId]);
+        if ($this->eligibleAccounts()->where('account_id', $accountId)->countAllResults() === 0) {
+            throw new AccountingException(AccountingError::ShippingAccountInvalid, "Account {$accountId} is not a free leaf liability account that is on.", ['account_id' => $accountId]);
         }
 
         $used = $this->db->table('shipping_companies')->where('account_id', $accountId);
@@ -280,5 +282,18 @@ final class ShippingCompanies
         }
 
         return $accountId;
+    }
+
+    private function eligibleAccounts(): BaseBuilder
+    {
+        $routed = '(SELECT account_id FROM ' . $this->db->prefixTable('accounting_routing') . ' WHERE account_id IS NOT NULL)';
+
+        return $this->db->table('accounting_accounts')
+            ->where('account_type', AccountType::Liability->value)
+            ->where('is_group', 0)
+            ->where('active', 1)
+            ->where('entity_type IS NULL', null, false)
+            ->where('system_key IS NULL', null, false)
+            ->where("account_id NOT IN {$routed}", null, false);
     }
 }

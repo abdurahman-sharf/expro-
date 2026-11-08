@@ -5,6 +5,8 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -155,6 +157,32 @@ final class ShippingCompaniesTest extends CIUnitTestCase
         $this->assertCount(1, $this->companies->all());
     }
 
+    public function testCreate_RejectsTheAccountOfASupplierAReservedAccountAndARoutedOne(): void
+    {
+        $supplierAccount = (new EntityAccountService())->ensure(EntityAccountService::SUPPLIER, 7, 'Acme Supplies');
+        $reserved        = $this->accountId('tax_output');
+        $routed          = $this->payable('22123', 'Owed through a routing row');
+        $free            = $this->payable('22124', 'Owed to Fast Ship');
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::NotesPayable->value)->update(['account_id' => $routed]);
+
+        foreach ([$supplierAccount, $reserved, $routed] as $account) {
+            $this->assertFailsWith(AccountingError::ShippingAccountInvalid, fn () => $this->companies->create(['name' => 'Another' . $account, 'account_id' => $account]));
+        }
+
+        $this->assertSame([], $this->companies->all());
+        $this->assertSame($free, $this->companies->accountOf($this->companies->create(['name' => 'Fast Ship', 'account_id' => $free])));
+    }
+
+    public function testUpdate_RejectsGivingACompanyTheAccountOfASupplier(): void
+    {
+        $supplierAccount = (new EntityAccountService())->ensure(EntityAccountService::SUPPLIER, 7, 'Acme Supplies');
+        $id              = $this->companies->create(['name' => 'Fast Ship']);
+
+        $this->assertFailsWith(AccountingError::ShippingAccountInvalid, fn () => $this->companies->update($id, ['account_id' => $supplierAccount]));
+        $this->assertNull($this->companies->accountOf($id));
+    }
+
     public function testCreate_RequiresThePermissionAndTheWholeCompany(): void
     {
         $this->assertFailsWith(AccountingError::PermissionDenied, fn () => $this->companies->create(['name' => 'Fast Ship'], $this->employeeWithGrants([])));
@@ -259,6 +287,21 @@ final class ShippingCompaniesTest extends CIUnitTestCase
         $this->assertArrayNotHasKey($this->accountId('cash'), $choices);
         $this->assertArrayNotHasKey($this->accountIdByCode('2212'), $choices);
         $this->assertSame('22121 - Owed to Fast Ship', $choices[$owed]);
+    }
+
+    public function testAccountChoices_LeavesOutSupplierAccountsReservedAccountsAndRoutedOnes(): void
+    {
+        $supplierAccount = (new EntityAccountService())->ensure(EntityAccountService::SUPPLIER, 7, 'Acme Supplies');
+        $routed          = $this->payable('22123', 'Owed through a routing row');
+        $free            = $this->payable('22124', 'Owed to Fast Ship');
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::NotesPayable->value)->update(['account_id' => $routed]);
+
+        $choices = $this->companies->accountChoices();
+
+        $this->assertSame([$free], array_keys($choices));
+        $this->assertArrayNotHasKey($supplierAccount, $choices);
+        $this->assertArrayNotHasKey($this->accountId('tax_output'), $choices);
     }
 
     public function testAccountOf_IsNothingForACompanyWithoutAnAccountAndForAMissingOne(): void
