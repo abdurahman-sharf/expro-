@@ -317,6 +317,26 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('stock_permits'));
     }
 
+    public function testCreate_RejectsAnInactiveLocationAsSourceOrAsDestinationAndAcceptsItWhenActive(): void
+    {
+        $this->switchOnTransferPermit();
+
+        $second = $this->openLocation();
+        $itemId = $this->stocked('10', '50');
+        $db     = $this->accountingDb();
+
+        $db->table('stock_locations')->where('location_id', $second)->update(['status' => 0]);
+
+        $this->refusedWith(AccountingError::StockLocationNotActive, fn () => $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '1']], ['to_location_id' => $second]), $this->keeperId));
+        $this->refusedWith(AccountingError::StockLocationNotActive, fn () => $this->permits->create($this->input(StockPermitType::Add, [['item_id' => $itemId, 'quantity' => '1', 'unit_cost' => '1']], ['location_id' => $second]), $this->keeperId));
+        $this->assertSame(0, $this->countRows('stock_permits'));
+        $this->assertSame('10.000', $this->onHand($itemId));
+
+        $db->table('stock_locations')->where('location_id', $second)->update(['status' => 1]);
+
+        $this->assertGreaterThan(0, $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '1']], ['to_location_id' => $second]), $this->keeperId));
+    }
+
     public function testCreate_AcceptsATransferOnlyWhileItsSettingIsOn(): void
     {
         $second = $this->openLocation();

@@ -325,6 +325,19 @@ class Stock_locationTest extends CIUnitTestCase
         $this->assertArrayHasKey($depot, array_column($model->get_all()->getResultArray(), null, 'location_id'), 'The settings still list it');
     }
 
+    public function testGetAllowedLocations_OffersAnInactiveLocationToWhoAsksForItForTheReportsOfWhatWasDone(): void
+    {
+        $personId = $this->salesEmployee();
+        $depot    = $this->createLocation('closed depot', 1, $personId);
+        $this->accountingDb()->table('stock_locations')->where('location_id', $depot)->update(['status' => 0]);
+
+        $model = new Stock_location();
+
+        $this->assertArrayHasKey($depot, $model->get_allowed_locations('sales', false, true));
+        $this->assertArrayNotHasKey($depot, $model->get_allowed_locations('sales'));
+        $this->assertArrayNotHasKey($depot, $model->get_allowed_locations('sales', true));
+    }
+
     public function testGetDefaultLocationId_SkipsAnInactiveLocationThatComesFirst(): void
     {
         $branch   = $this->createBranch('B2');

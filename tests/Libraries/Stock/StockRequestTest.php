@@ -149,6 +149,23 @@ class StockRequestTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('stock_requests'));
     }
 
+    public function testCreate_RejectsAnInactiveLocationOnEitherSideAndAcceptsItWhenActive(): void
+    {
+        $itemId = $this->stocked('10', '50');
+        $db     = $this->accountingDb();
+        $lines  = [['item_id' => $itemId, 'quantity' => '1']];
+
+        $db->table('stock_locations')->where('location_id', $this->second)->update(['status' => 0]);
+
+        $this->refusedWith(AccountingError::StockLocationNotActive, fn () => $this->ask($lines));
+        $this->refusedWith(AccountingError::StockLocationNotActive, fn () => $this->requests->create(['from_location_id' => $this->second, 'to_location_id' => self::LOCATION_ID, 'lines' => $lines], $this->keeperId));
+        $this->assertSame(0, $this->countRows('stock_requests'));
+
+        $db->table('stock_locations')->where('location_id', $this->second)->update(['status' => 1]);
+
+        $this->assertGreaterThan(0, $this->ask($lines));
+    }
+
     public function testCreate_RequiresThePermissionAndTheBranchOfTheLocationThatAsks(): void
     {
         $other  = $this->createBranch();

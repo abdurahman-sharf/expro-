@@ -68,10 +68,13 @@ class Stock_location extends Model
     }
 
     /**
+     * The locations of the lists for new documents leave out an inactive one; the filters of the reports
+     * of what was done ask for it too, because an inactive location keeps its history.
+     *
      * @param string $module_id
      * @return ResultInterface
      */
-    public function get_undeleted_all(string $module_id = 'items', bool $byBranch = false): ResultInterface
+    public function get_undeleted_all(string $module_id = 'items', bool $byBranch = false, bool $withInactive = false): ResultInterface
     {
         $branchIds = $this->employeeBranchIds($byBranch);
         $roleHeld  = $this->heldThroughRoles();
@@ -80,7 +83,11 @@ class Stock_location extends Model
         $this->limitToHeld($builder, $roleHeld);
         $builder->like('permissions.permission_id', $module_id, 'after');
         $builder->where('deleted', 0);
-        $builder->where('stock_locations.status', 1);
+
+        if (! $withInactive) {
+            $builder->where('stock_locations.status', 1);
+        }
+
         $this->limitToBranches($builder, $branchIds);
 
         return $builder->get();
@@ -109,9 +116,9 @@ class Stock_location extends Model
      * @param string $module_id
      * @return array
      */
-    public function get_allowed_locations(string $module_id = 'items', bool $byBranch = false): array
+    public function get_allowed_locations(string $module_id = 'items', bool $byBranch = false, bool $withInactive = false): array
     {
-        $stock = $this->get_undeleted_all($module_id, $byBranch)->getResultArray();
+        $stock = $this->get_undeleted_all($module_id, $byBranch, $withInactive)->getResultArray();
         $stock_locations = [];
 
         foreach ($stock as $location_data) {
@@ -358,16 +365,16 @@ class Stock_location extends Model
 
     /**
      * Deletes one item
-     * @param int|null $location_id
+     * @param int|null $locationId
      * @param bool $purge
      * @return bool
      */
-    public function delete($location_id = null, bool $purge = false): bool
+    public function delete($locationId = null, bool $purge = false): bool
     {
         $this->removalRefusal = null;
 
         try {
-            (new StockLocationLifecycle($this->db))->checkRemoval((int) $location_id);
+            (new StockLocationLifecycle($this->db))->checkRemoval((int) $locationId);
         } catch (AccountingException $refusal) {
             $this->removalRefusal = $refusal;
 
@@ -377,16 +384,16 @@ class Stock_location extends Model
         $this->db->transStart();
 
         $builder = $this->db->table('stock_locations');
-        $builder->where('location_id', $location_id);
+        $builder->where('location_id', $locationId);
         $builder->update(['deleted' => 1]);
 
         $builder = $this->db->table('permissions');
-        $builder->delete(['location_id' => $location_id]);
+        $builder->delete(['location_id' => $locationId]);
 
         $this->db->transComplete();
 
         if ($this->db->transStatus()) {
-            (new EntityAccountService())->syncDeleted(EntityAccountService::STOCK_LOCATION, (int) $location_id);
+            (new EntityAccountService())->syncDeleted(EntityAccountService::STOCK_LOCATION, (int) $locationId);
         }
 
         return $this->db->transStatus();

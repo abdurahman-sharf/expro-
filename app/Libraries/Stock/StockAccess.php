@@ -35,13 +35,28 @@ final class StockAccess
      */
     public function location(int $locationId): object
     {
-        $location = $locationId > 0 ? $this->db->table('stock_locations')->select('location_id, location_name, branch_id')->where(['location_id' => $locationId, 'deleted' => 0])->get()->getRow() : null;
+        $location = $locationId > 0 ? $this->db->table('stock_locations')->select('location_id, location_name, branch_id, status')->where(['location_id' => $locationId, 'deleted' => 0])->get()->getRow() : null;
 
         if ($location === null) {
             throw new AccountingException(AccountingError::StockPermitLocationInvalid, 'The stock location does not exist.', ['location_id' => $locationId]);
         }
 
         return $location;
+    }
+
+    /**
+     * A document that is new names only an active location: an inactive one holds no stock and no value
+     * and is left out of every list, so nothing may put stock back into it.
+     *
+     * @throws AccountingException
+     */
+    public function assertActive(int $locationId): void
+    {
+        $location = $this->location($locationId);
+
+        if ((int) $location->status !== 1) {
+            throw new AccountingException(AccountingError::StockLocationNotActive, 'No stock document is made for an inactive stock location.', ['name' => (string) $location->location_name]);
+        }
     }
 
     /**

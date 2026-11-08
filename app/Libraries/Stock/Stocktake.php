@@ -113,6 +113,9 @@ final class Stocktake
         $this->guard->require(StockPermissions::STOCKTAKE_MANAGE, $employeeId);
 
         $location = $this->access->assertMayChange((int) ($input['location_id'] ?? 0), $employeeId);
+
+        $this->access->assertActive((int) $location->location_id);
+
         $date     = $this->day((string) ($input['date'] ?? date('Y-m-d')));
         $note     = $this->note((string) ($input['note'] ?? ''));
         $itemIds  = ! empty($input['all_items']) ? $this->itemsOf((int) $location->location_id) : $this->checkedItems($input['item_ids'] ?? []);
