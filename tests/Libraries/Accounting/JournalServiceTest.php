@@ -2922,6 +2922,25 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertSame('reversed', $this->journal($original)->status);
     }
 
+    public function testPostNew_PostsALineOfTwoCentsSplitOverFourCentersWithoutANegativeShare(): void
+    {
+        $centers = new CostCenterService();
+        $rows    = [];
+
+        foreach (['A', 'B', 'C', 'D'] as $code) {
+            $rows[] = ['cost_center_id' => $centers->create(['code' => $code, 'name' => 'Center ' . $code]), 'percent' => '25'];
+        }
+
+        $input = $this->journalInput('0.02');
+
+        $input['lines'][0]['distribution'] = $rows;
+
+        $journalId = $this->service->postNew($input);
+
+        $this->assertSame(['0.0000', '0.0000', '0.0100', '0.0100'], array_column($this->distributionRows($journalId), 'amount'));
+        $this->assertSame('posted', $this->journal($journalId)->status);
+    }
+
     public function testReverse_TakesBackTheSingleCenterOfAManualLineThatHasBeenSwitchedOffSince(): void
     {
         [$a]   = $this->twoCenters();

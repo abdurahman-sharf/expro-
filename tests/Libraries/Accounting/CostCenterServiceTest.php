@@ -345,6 +345,43 @@ class CostCenterServiceTest extends CIUnitTestCase
         $this->assertSame(['0.0000', '0.0100'], array_column($shares, 'amount'));
     }
 
+    public function testDistribute_NeverGivesAShareBelowNothingWhenEveryShareRoundsUp(): void
+    {
+        $centers = [];
+
+        foreach (range(1, 20) as $number) {
+            $centers[] = $this->service->create(['code' => 'N' . $number, 'name' => 'Center ' . $number]);
+        }
+
+        $four = array_map(static fn (int $center): array => ['cost_center_id' => $center, 'percent' => '25'], array_slice($centers, 0, 4));
+
+        $this->assertSame(['0.0000', '0.0000', '0.0100', '0.0100'], array_column($this->service->distribute($four, '0.02'), 'amount'));
+
+        $twenty = array_map(static fn (int $center): array => ['cost_center_id' => $center, 'percent' => '5'], $centers);
+        $shares = $this->service->distribute($twenty, '0.10');
+
+        $this->assertSame('0.1000', array_reduce($shares, static fn (string $sum, array $share): string => bcadd($sum, $share['amount'], 4), '0'));
+        $this->assertSame(0, count(array_filter($shares, static fn (array $share): bool => bccomp($share['amount'], '0', 4) < 0)));
+        $this->assertSame(10, count(array_filter($shares, static fn (array $share): bool => $share['amount'] === '0.0100')));
+    }
+
+    public function testDistribute_SumsToTheLineWithNoNegativeShareForEverySmallAmountOverSevenCenters(): void
+    {
+        $rows = [];
+
+        foreach (range(1, 7) as $number) {
+            $rows[] = ['cost_center_id' => $this->service->create(['code' => 'S' . $number, 'name' => 'Center ' . $number]), 'percent' => $number === 7 ? '14.2858' : '14.2857'];
+        }
+
+        foreach (range(1, 40) as $cents) {
+            $amount = bcdiv((string) $cents, '100', 2);
+            $shares = $this->service->distribute($rows, $amount);
+
+            $this->assertSame(bcadd($amount, '0', 4), array_reduce($shares, static fn (string $sum, array $share): string => bcadd($sum, $share['amount'], 4), '0'), "A line of {$amount}");
+            $this->assertSame([], array_filter($shares, static fn (array $share): bool => bccomp($share['amount'], '0', 4) < 0), "A line of {$amount}");
+        }
+    }
+
     public function testDistribute_RoundsEveryShareToTheDecimalsOfTheBaseCurrency(): void
     {
         [$a, $b, $c] = $this->threeCenters();

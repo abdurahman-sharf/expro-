@@ -245,9 +245,12 @@ final class CostCenterService
      * A share is the amount times its percent, rounded to the decimals of the base currency; what the
      * rounding leaves over, so that the shares add up to the amount of the line exactly (or to its
      * share of the total percent when that is over 100), falls on the largest share, the first one
-     * when two are equal. A complete distribution adds up to 100 percent; one over 100 is accepted
-     * only while the setting allows it, up to the cap. An incomplete one, which a draft may keep, may
-     * add up to less. A row may give an amount instead of a percent, and then the percent follows from it.
+     * when two are equal. When the rounding went up so far that the largest share cannot take it off
+     * without going below nothing, what it cannot take falls on the next largest share, and so on, so
+     * that no share is ever negative. A complete distribution adds up to 100 percent; one over 100 is
+     * accepted only while the setting allows it, up to the cap. An incomplete one, which a draft may
+     * keep, may add up to less. A row may give an amount instead of a percent, and then the percent
+     * follows from it.
      *
      * @param list<mixed>    $rows       Each row names a cost center and gives a percent or an amount.
      * @param numeric-string $lineAmount The debit or the credit of the line.
@@ -321,17 +324,29 @@ final class CostCenterService
         $decimals = (new Currencies($this->db))->baseDecimals();
         $amounts  = [];
         $sum      = '0';
-        $largest  = null;
 
         foreach ($percents as $centerId => $percent) {
             $amounts[$centerId] = Money::round(bcdiv(bcmul($lineAmount, $percent, self::WORK_SCALE), '100', self::WORK_SCALE), $decimals);
             $sum                = bcadd($sum, $amounts[$centerId], 4);
-            $largest            = $largest === null || bccomp($percent, $percents[$largest], 4) > 0 ? $centerId : $largest;
         }
 
-        $target            = Money::round(bcdiv(bcmul($lineAmount, $total, self::WORK_SCALE), '100', self::WORK_SCALE), 4);
-        $amounts[$largest] = bcadd($amounts[$largest], bcsub($target, $sum, 4), 4);
-        $shares            = [];
+        $target    = Money::round(bcdiv(bcmul($lineAmount, $total, self::WORK_SCALE), '100', self::WORK_SCALE), 4);
+        $remainder = bcsub($target, $sum, 4);
+        $bySize    = array_keys($percents);
+
+        usort($bySize, static fn (int $first, int $second): int => bccomp($percents[$second], $percents[$first], 4));
+
+        foreach ($bySize as $centerId) {
+            if (bccomp($remainder, '0', 4) === 0) {
+                break;
+            }
+
+            $moved              = bccomp(bcadd($amounts[$centerId], $remainder, 4), '0', 4) >= 0 ? $remainder : bcsub('0', $amounts[$centerId], 4);
+            $amounts[$centerId] = bcadd($amounts[$centerId], $moved, 4);
+            $remainder          = bcsub($remainder, $moved, 4);
+        }
+
+        $shares = [];
 
         foreach ($percents as $centerId => $percent) {
             $shares[] = ['cost_center_id' => $centerId, 'percent' => bcadd($percent, '0', 4), 'amount' => bcadd($amounts[$centerId], '0', 4)];
