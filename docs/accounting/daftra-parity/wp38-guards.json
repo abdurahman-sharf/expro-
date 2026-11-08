@@ -101,7 +101,7 @@
   {
     "name": "G12 rounding: the remainder falls on the largest share",
     "file": "app/Libraries/Accounting/CostCenterService.php",
-    "find": "$amounts[$largest] = bcadd($amounts[$largest], bcsub($target, $sum, 4), 4);",
+    "find": "usort($bySize, static fn (int $first, int $second): int => bccomp($percents[$second], $percents[$first], 4));",
     "replace": "",
     "tests": [
       "tests/Libraries/Accounting/CostCenterServiceTest.php"
@@ -110,8 +110,8 @@
   {
     "name": "G13 rounding: of two equal shares the first takes the remainder",
     "file": "app/Libraries/Accounting/CostCenterService.php",
-    "find": "bccomp($percent, $percents[$largest], 4) > 0 ? $centerId : $largest",
-    "replace": "bccomp($percent, $percents[$largest], 4) >= 0 ? $centerId : $largest",
+    "find": "bccomp($percents[$second], $percents[$first], 4));",
+    "replace": "bccomp($percents[$second], $percents[$first], 4) ?: $second <=> $first);",
     "tests": [
       "tests/Libraries/Accounting/CostCenterServiceTest.php"
     ]
@@ -128,8 +128,8 @@
   {
     "name": "G15 rounding: the shares add up to the amount of the line",
     "file": "app/Libraries/Accounting/CostCenterService.php",
-    "find": "$target            = Money::round(bcdiv(bcmul($lineAmount, $total, self::WORK_SCALE), '100', self::WORK_SCALE), 4);",
-    "replace": "$target            = $sum;",
+    "find": "$target    = Money::round(bcdiv(bcmul($lineAmount, $total, self::WORK_SCALE), '100', self::WORK_SCALE), 4);",
+    "replace": "$target    = $sum;",
     "tests": [
       "tests/Libraries/Accounting/CostCenterServiceTest.php"
     ]
@@ -254,7 +254,7 @@
   {
     "name": "G29 analysis: tags only while the setting is on",
     "file": "app/Libraries/Accounting/JournalLineAnalysis.php",
-    "find": "if (! $this->settings->lineTags()) {",
+    "find": "if (! $stored && ! $this->settings->lineTags()) {",
     "replace": "if (false) {",
     "tests": [
       "tests/Libraries/Accounting/JournalLineAnalysisTest.php"
@@ -299,7 +299,7 @@
   {
     "name": "G34 analysis: a tax note only while the setting is on",
     "file": "app/Libraries/Accounting/JournalLineAnalysis.php",
-    "find": "if (! $this->settings->lineTax()) {",
+    "find": "if (! $stored && ! $this->settings->lineTax()) {",
     "replace": "if (false) {",
     "tests": [
       "tests/Libraries/Accounting/JournalLineAnalysisTest.php"
@@ -509,8 +509,8 @@
     "replace": "&& true) {",
     "tests": [
       "--filter",
-      "testPost_",
-      "tests/Libraries/Accounting/JournalServiceTest.php"
+      "testPost_GivesTheLinesOfAnAutomaticJournal",
+      "tests/Libraries/Accounting/PostingServiceTest.php"
     ]
   },
   {
@@ -520,8 +520,8 @@
     "replace": "if (",
     "tests": [
       "--filter",
-      "testPost_|testReverse_CopiesWhatTheAutomatic",
-      "tests/Libraries/Accounting/JournalServiceTest.php"
+      "testPost_LeavesALineThatHasACenter|testPost_GivesNoDefaultDistributionToAReversal",
+      "tests/Libraries/Accounting/PostingServiceTest.php"
     ]
   },
   {
@@ -741,10 +741,10 @@
     ]
   },
   {
-    "name": "G80 shipping: an account is a leaf liability that is on",
+    "name": "G80 shipping: an account is a liability account",
     "file": "app/Libraries/Accounting/ShippingCompanies.php",
-    "find": "if ($account === null || (int) $account->is_group === 1 || (int) $account->active === 0 || $account->account_type !== AccountType::Liability->value) {",
-    "replace": "if ($account === null) {",
+    "find": "            ->where('account_type', AccountType::Liability->value)\n            ->where('is_group', 0)",
+    "replace": "            ->where('is_group', 0)",
     "tests": [
       "tests/Libraries/Accounting/ShippingCompaniesTest.php"
     ]
@@ -889,6 +889,315 @@
       "--filter",
       "ShippingCompan",
       "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G95 shipping: an account is a leaf",
+    "file": "app/Libraries/Accounting/ShippingCompanies.php",
+    "find": "            ->where('is_group', 0)\n            ->where('active', 1)",
+    "replace": "            ->where('active', 1)",
+    "tests": [
+      "tests/Libraries/Accounting/ShippingCompaniesTest.php"
+    ]
+  },
+  {
+    "name": "G96 shipping: an account is on",
+    "file": "app/Libraries/Accounting/ShippingCompanies.php",
+    "find": "            ->where('is_group', 0)\n            ->where('active', 1)\n",
+    "replace": "            ->where('is_group', 0)\n",
+    "tests": [
+      "tests/Libraries/Accounting/ShippingCompaniesTest.php"
+    ]
+  },
+  {
+    "name": "G97 shipping: no account of a customer or a supplier",
+    "file": "app/Libraries/Accounting/ShippingCompanies.php",
+    "find": "            ->where('entity_type IS NULL', null, false)\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/ShippingCompaniesTest.php"
+    ]
+  },
+  {
+    "name": "G98 shipping: no account the chart reserves",
+    "file": "app/Libraries/Accounting/ShippingCompanies.php",
+    "find": "            ->where('system_key IS NULL', null, false)\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/ShippingCompaniesTest.php"
+    ]
+  },
+  {
+    "name": "G99 shipping: no account a routing row names",
+    "file": "app/Libraries/Accounting/ShippingCompanies.php",
+    "find": "            ->where(\"account_id NOT IN {$routed}\", null, false);",
+    "replace": "            ;",
+    "tests": [
+      "tests/Libraries/Accounting/ShippingCompaniesTest.php"
+    ]
+  },
+  {
+    "name": "G100 posting: a reversal takes back a cost center switched off since",
+    "file": "app/Libraries/Accounting/PostingService.php",
+    "find": "$this->assertCostCentersExist($lines, $draft->reversesJournalId !== null);",
+    "replace": "$this->assertCostCentersExist($lines, false);",
+    "tests": [
+      "--filter",
+      "testPost_TakesBackACostCenterSwitchedOff",
+      "tests/Libraries/Accounting/PostingServiceTest.php"
+    ]
+  },
+  {
+    "name": "G101 posting: only a reversal may use a cost center that is off",
+    "file": "app/Libraries/Accounting/PostingService.php",
+    "find": "if (! $allowInactive) {\n            $builder->where('active', 1);\n        }",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testPost_TakesBackACostCenterSwitchedOff|testPost_RejectsAnUnknownCostCenter",
+      "tests/Libraries/Accounting/PostingServiceTest.php"
+    ]
+  },
+  {
+    "name": "G102 posting: the mandatory cost center never stops an automatic journal",
+    "file": "app/Libraries/Accounting/PostingService.php",
+    "find": "$this->assertCostCentersExist($lines, $draft->reversesJournalId !== null);",
+    "replace": "$this->assertCostCentersExist($lines, $draft->reversesJournalId !== null);\n        if ((new JournalSettings($this->db))->costCenterRequired()) {\n            throw new PostingException(PostingError::CostCenterNotFound, 'The setting must not stop an automatic journal.');\n        }",
+    "tests": [
+      "--filter",
+      "testPost_DoesNotRequireACostCenterOnAnAutomatic",
+      "tests/Libraries/Accounting/PostingServiceTest.php"
+    ]
+  },
+  {
+    "name": "G103 analysis: tags of a draft are kept when the setting went off",
+    "file": "app/Libraries/Accounting/JournalLineAnalysis.php",
+    "find": "if (! $stored && ! $this->settings->lineTags()) {",
+    "replace": "if (! $this->settings->lineTags()) {",
+    "tests": [
+      "--filter",
+      "testPostDraft_KeepsTheTags",
+      "tests/Libraries/Accounting/JournalServiceTest.php"
+    ]
+  },
+  {
+    "name": "G104 analysis: the tax note of a draft is kept when the setting went off",
+    "file": "app/Libraries/Accounting/JournalLineAnalysis.php",
+    "find": "if (! $stored && ! $this->settings->lineTax()) {",
+    "replace": "if (! $this->settings->lineTax()) {",
+    "tests": [
+      "--filter",
+      "testPostDraft_KeepsTheTags",
+      "tests/Libraries/Accounting/JournalServiceTest.php"
+    ]
+  },
+  {
+    "name": "G105 year end: the reversal copies the distribution of the closing",
+    "file": "app/Libraries/Accounting/YearEndClosing.php",
+    "find": "if ($result->created) {\n                $this->analysis->copy((int) $original->journal_id, $result->journalId);\n            }",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testReverse_CopiesTheDistributionTheClosingWasGiven",
+      "tests/Libraries/Accounting/YearEndClosingTest.php"
+    ]
+  },
+  {
+    "name": "G106 year end: the reversal takes back the single center of a closing line",
+    "file": "app/Libraries/Accounting/YearEndClosing.php",
+    "find": "                costCenterId: $line->cost_center_id === null ? null : (int) $line->cost_center_id,\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testReverse_TakesBackTheSingleCenterOfAClosingLine",
+      "tests/Libraries/Accounting/YearEndClosingTest.php"
+    ]
+  },
+  {
+    "name": "G107 rounding: no share goes below nothing",
+    "file": "app/Libraries/Accounting/CostCenterService.php",
+    "find": "$moved              = bccomp(bcadd($amounts[$centerId], $remainder, 4), '0', 4) >= 0 ? $remainder : bcsub('0', $amounts[$centerId], 4);",
+    "replace": "$moved              = $remainder;",
+    "tests": [
+      "--filter",
+      "NeverGivesAShareBelowNothing|NoNegativeShare",
+      "tests/Libraries/Accounting/CostCenterServiceTest.php"
+    ]
+  },
+  {
+    "name": "G108 distribution: twenty rows are accepted",
+    "file": "app/Libraries/Accounting/CostCenterService.php",
+    "find": "if (count($rows) > self::MAX_ROWS) {",
+    "replace": "if (count($rows) >= self::MAX_ROWS) {",
+    "tests": [
+      "--filter",
+      "testDistribute_AcceptsTwentyRowsAndRejectsTwentyOne",
+      "tests/Libraries/Accounting/CostCenterServiceTest.php"
+    ]
+  },
+  {
+    "name": "G109 cost center report: the journals that close a year are left out",
+    "file": "app/Libraries/Accounting/FamilyReports/CostCenterReport.php",
+    "find": "return YearEndEntries::leaveOut($builder, $this->db);",
+    "replace": "return $builder;",
+    "tests": [
+      "--filter",
+      "testBuild_LeavesTheJournalsThatCloseAYearOut",
+      "tests/Libraries/Accounting/FamilyReports/CostCenterReportTest.php"
+    ]
+  },
+  {
+    "name": "G110 cost center report: the account tie leaves the closings out too",
+    "file": "app/Libraries/Accounting/FamilyReports/CostCenterReport.php",
+    "find": "leaveOutYearEnd: true",
+    "replace": "leaveOutYearEnd: false",
+    "tests": [
+      "--filter",
+      "testBuild_LeavesTheJournalsThatCloseAYearOut",
+      "tests/Libraries/Accounting/FamilyReports/CostCenterReportTest.php"
+    ]
+  },
+  {
+    "name": "G111 control accounts: the movement can leave the closings out",
+    "file": "app/Libraries/Accounting/FamilyReports/ControlAccounts.php",
+    "find": "if ($leaveOutYearEnd) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testBuild_LeavesTheJournalsThatCloseAYearOut",
+      "tests/Libraries/Accounting/FamilyReports/CostCenterReportTest.php"
+    ]
+  },
+  {
+    "name": "G112 journal: an expense line needs a cost center",
+    "file": "app/Libraries/Accounting/JournalService.php",
+    "find": "->whereIn('account_type', [AccountType::Revenue->value, AccountType::Expense->value])",
+    "replace": "->whereIn('account_type', [AccountType::Revenue->value])",
+    "tests": [
+      "--filter",
+      "OnAnExpenseLine|OfAnExpenseLine",
+      "tests/Libraries/Accounting/JournalServiceTest.php"
+    ]
+  },
+  {
+    "name": "G113 journal: the center of an income line is cleared freely while the setting is off",
+    "file": "app/Libraries/Accounting/JournalService.php",
+    "find": "$required = $this->settings->costCenterRequired() ? $this->requiredAccounts(array_map(static fn (object $line): int => (int) $line->account_id, $lines)) : [];",
+    "replace": "$required = $this->requiredAccounts(array_map(static fn (object $line): int => (int) $line->account_id, $lines));",
+    "tests": [
+      "--filter",
+      "ClearsTheCenterOfAnIncomeLineWhileTheSettingIsOff",
+      "tests/Libraries/Accounting/JournalServiceTest.php"
+    ]
+  },
+  {
+    "name": "G114 journal: the tags of a line stay when only its center is edited",
+    "file": "app/Libraries/Accounting/JournalService.php",
+    "find": "$tagsAsked ? $clean->tags : $stored->tags,",
+    "replace": "$clean->tags,",
+    "tests": [
+      "--filter",
+      "testUpdateDetails_Keeps",
+      "tests/Libraries/Accounting/JournalServiceTest.php"
+    ]
+  },
+  {
+    "name": "G115 journal: the tax note of a line stays when only its center or tags are edited",
+    "file": "app/Libraries/Accounting/JournalService.php",
+    "find": "$taxAsked ? $clean->tax : $stored->tax,",
+    "replace": "$clean->tax,",
+    "tests": [
+      "--filter",
+      "testUpdateDetails_Keeps",
+      "tests/Libraries/Accounting/JournalServiceTest.php"
+    ]
+  },
+  {
+    "name": "G116 journal: the distribution of a line stays when only its tags or tax note are edited",
+    "file": "app/Libraries/Accounting/JournalService.php",
+    "find": "$chargeAsked ? $clean->distribution : $stored->distribution,",
+    "replace": "$clean->distribution,",
+    "tests": [
+      "--filter",
+      "testUpdateDetails_Keeps",
+      "tests/Libraries/Accounting/JournalServiceTest.php"
+    ]
+  },
+  {
+    "name": "G117 defaults screen: the center control of a row has a name",
+    "file": "app/Views/accounting_cost_centers/defaults.php",
+    "find": " aria-label=\"' + centerLabel + '\"",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "NamesTheCenterAndPercentControls",
+      "tests/Controllers/AccountingCostCentersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G118 defaults screen: the percent control of a row has a name",
+    "file": "app/Views/accounting_cost_centers/defaults.php",
+    "find": " aria-label=\"' + percentLabel + '\"",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "NamesTheCenterAndPercentControls",
+      "tests/Controllers/AccountingCostCentersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G119 defaults screen: the total reads Arabic digits",
+    "file": "app/Views/accounting_cost_centers/defaults.php",
+    "find": "const value = parseFloat(normalize($(this).val()));",
+    "replace": "const value = parseFloat($(this).val().replace(/[٫,،]/g, '.'));",
+    "tests": [
+      "--filter",
+      "NamesTheCenterAndPercentControls",
+      "tests/Controllers/AccountingCostCentersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G120 journal form: the tax rate reads Arabic digits",
+    "file": "app/Views/accounting_journals/form.php",
+    "find": "<?= view('accounting_journals/line_more_script') ?>\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetNew_ReadsArabicDigits",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G121 edit screen: the tax rate reads Arabic digits",
+    "file": "app/Views/accounting_journals/edit_details.php",
+    "find": "<?= view('accounting_journals/line_more_script') ?>\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetEditDetails_ReadsArabicDigits",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G122 journal line: the tax rate input is the one the script reads",
+    "file": "app/Views/accounting_journals/line_more.php",
+    "find": " acc-tax-percent\"",
+    "replace": " \"",
+    "tests": [
+      "--filter",
+      "ReadsArabicDigits",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G123 settings: the edit button of a shipping company says Edit",
+    "file": "app/Views/accounting_settings/manage.php",
+    "find": "lang('Accounting_settings.shipping_company_edit')",
+    "replace": "lang('Common.edit')",
+    "tests": [
+      "--filter",
+      "ShowsTheShippingCompaniesCard",
+      "tests/Controllers/AccountingSetupControllerTest.php"
     ]
   }
 ]

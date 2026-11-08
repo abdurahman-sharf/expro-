@@ -323,18 +323,13 @@ final class CostCenterReportTest extends FamilyReportTestCase
 
         $this->journal('100.00', null, $a);
 
-        $closing = (new PostingService())->postYearEnd(new JournalDraft(
-            date: $this->today(),
-            lines: [new JournalLineDraft($this->accountId('sales_revenue'), debit: '100.00'), new JournalLineDraft($this->accountId('retained_earnings'), credit: '100.00')],
-            sourceType: YearEndEntries::SOURCE_TYPE,
-            sourceId: 900001,
-            currencyCode: 'SAR',
-            entryType: JournalEntryType::YearEnd,
-        ))->journalId;
+        $this->closeRevenue('100.00', 900001);
+
+        $closing = $this->closeRevenue('40.00', 900002);
 
         (new PostingService())->postYearEnd(new JournalDraft(
             date: $this->today(),
-            lines: [new JournalLineDraft($this->accountId('sales_revenue'), credit: '100.00'), new JournalLineDraft($this->accountId('retained_earnings'), debit: '100.00')],
+            lines: [new JournalLineDraft($this->accountId('sales_revenue'), credit: '40.00'), new JournalLineDraft($this->accountId('retained_earnings'), debit: '40.00')],
             sourceType: JournalDraft::SOURCE_REVERSAL,
             sourceId: $closing,
             currencyCode: 'SAR',
@@ -351,6 +346,18 @@ final class CostCenterReportTest extends FamilyReportTestCase
         $this->assertAmount('0.00', $this->grandOf($revenue, 'debit'));
         $this->assertReportTies($whole);
         $this->assertReportTies($revenue);
+    }
+
+    private function closeRevenue(string $amount, int $sourceId): int
+    {
+        return (new PostingService())->postYearEnd(new JournalDraft(
+            date: $this->today(),
+            lines: [new JournalLineDraft($this->accountId('sales_revenue'), debit: $amount), new JournalLineDraft($this->accountId('retained_earnings'), credit: $amount)],
+            sourceType: YearEndEntries::SOURCE_TYPE,
+            sourceId: $sourceId,
+            currencyCode: 'SAR',
+            entryType: JournalEntryType::YearEnd,
+        ))->journalId;
     }
 
     public function testBuild_TakesTheReversalOfADistributedJournalBackToZeroForEveryCenter(): void
