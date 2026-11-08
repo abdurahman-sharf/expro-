@@ -131,6 +131,31 @@ class PurchasePaidAmountsTest extends CIUnitTestCase
         }
     }
 
+    public function testRead_ReadsThePurchaseItselfAndNotTheOldFiguresOfTheAccountWhenTheBooksAreOff(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId, lang('Sales.cash'));
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receiving)->update(['payment_type' => lang('Sales.due')]);
+
+        $this->assertSame(['paid' => '500.0000', 'due' => '0.0000'], $this->read($receiving, '500.00'), 'With the books on, the account says it was paid.');
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        try {
+            $this->assertSame(['paid' => '0.0000', 'due' => '500.0000'], $this->read($receiving, '500.00'), 'With the books off, only the purchase itself is read.');
+        } finally {
+            $this->setConfigValue('accounting_enabled', '1');
+        }
+    }
+
+    public function testRead_IgnoresAPaymentThatIsNotCompletedWhenItReadsThePurchaseItself(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId);
+        $this->payPurchase($receiving, '200.00');
+        $this->payPurchase($receiving, '150.00', null, 'draft');
+
+        $this->assertSame(['paid' => '200.0000', 'due' => '300.0000'], $this->read($receiving, '500.00', true));
+    }
+
     public function testRead_ReadsThePurchaseItselfWhenItHasNoSupplier(): void
     {
         $receiving = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '1', '80.00')], null, lang('Sales.cash'));

@@ -3722,6 +3722,18 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame(to_currency('300.00'), $this->totalsRowOf($dueBody, lang('Sales.amount_due')));
     }
 
+    public function testGetPrint_PrintsAPurchaseInAForeignCurrencyFromItsOwnAmountsAndNotFromTheBooksInTheBaseCurrency(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId, lang('Sales.cash'));
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receiving)->update(['payment_type' => lang('Sales.due'), 'currency_code' => 'USD', 'currency_rate' => '3.7500']);
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/print/' . $receiving)->getBody();
+
+        $this->assertSame(to_currency('0.00'), $this->totalsRowOf($body, lang('Documents.paid')));
+        $this->assertSame(to_currency('500.00'), $this->totalsRowOf($body, lang('Sales.amount_due')));
+    }
+
     public function testGetPrint_ShowsNoPurchaseInvoiceForAStockRequisition(): void
     {
         $receiving = $this->purchaseOf('500.00', $this->supplierId);

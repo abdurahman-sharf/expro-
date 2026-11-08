@@ -8930,6 +8930,65 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame([$weight => '12.5', $po => 'PO-9'], $fields->valuesOf('sale', $this->newestSaleId()));
     }
 
+    public function testPostSetCustomFields_KeepsAListOptionTakenOffTheListForTheSaleThatHoldsIt(): void
+    {
+        $fields = new CustomFields();
+        $colour = $fields->create('sale', ['name' => 'Delivery', 'type' => 'select', 'options' => "Pickup\nCourier"], null);
+        $this->completeAs('sale_invoice', ['sales_custom_fields' => [$colour => 'Courier']]);
+        $saleId = $this->newestSaleId();
+        $fields->update($colour, ['options' => 'Pickup'], null);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->withSession(array_merge($this->session, ['sale_id' => $saleId]));
+        $held = $this->jsonOf($this->post('/sales/setCustomFields', ['custom' => [$colour => 'Courier']]));
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY]));
+        $new = $this->jsonOf($this->post('/sales/setCustomFields', ['custom' => [$colour => 'Courier']]));
+
+        $this->assertNull($held['problem']);
+        $this->assertStringContainsString('Delivery', (string) $new['problem']);
+    }
+
+    public function testPostSuspend_SetsASaleAsideAgainWhileItKeepsAListOptionTakenOffTheListSinceItWasSetAside(): void
+    {
+        $fields  = new CustomFields();
+        $colour  = $fields->create('sale', ['name' => 'Delivery', 'type' => 'select', 'options' => "Pickup\nCourier"], null);
+        $cashier = $this->createCashierEmployee();
+        $item    = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($cashier);
+        $this->seedCartLine(1, '100.00', $item);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice', 'sales_custom_fields' => [$colour => 'Courier']]));
+        $this->post('/sales/suspend');
+        $suspended = $this->newestSaleId();
+        $fields->update($colour, ['options' => 'Pickup'], null);
+
+        $this->seedCartLine(1, '100.00', $item);
+        $this->withSession(array_merge($this->session, ['sale_id' => $suspended, 'sales_mode' => 'sale_invoice', 'sales_custom_fields' => [$colour => 'Courier']]));
+        $response = $this->post('/sales/suspend');
+
+        $response->assertDontSee(lang('Documents.error_custom_field_value'));
+        $this->assertSame([$colour => 'Courier'], $fields->valuesOf('sale', $suspended));
+    }
+
+    public function testPostComplete_CompletesTheSaleThatWasSetAsideWhileItKeepsAListOptionTakenOffTheListSince(): void
+    {
+        $fields  = new CustomFields();
+        $colour  = $fields->create('sale', ['name' => 'Delivery', 'type' => 'select', 'options' => "Pickup\nCourier"], null);
+        $cashier = $this->createCashierEmployee();
+        $item    = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($cashier);
+        $this->seedCartLine(1, '100.00', $item);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'sale_invoice', 'sales_custom_fields' => [$colour => 'Courier']]));
+        $this->post('/sales/suspend');
+        $suspended = $this->newestSaleId();
+        $fields->update($colour, ['options' => 'Pickup'], null);
+
+        $response = $this->completeAs('sale_invoice', ['sale_id' => $suspended, 'sales_custom_fields' => [$colour => 'Courier']]);
+
+        $response->assertDontSee(lang('Documents.error_custom_field_value'));
+        $this->assertSame(COMPLETED, (int) Database::connect()->table('sales')->where('sale_id', $suspended)->get()->getRow()->sale_status);
+        $this->assertSame([$colour => 'Courier'], $fields->valuesOf('sale', $suspended));
+    }
+
     public function testRenderPdfHtml_PrintsALegacyInvoiceWithoutAnyOfTheNewBlocks(): void
     {
         $invoice = $this->postedInvoice();
