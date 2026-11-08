@@ -126,7 +126,6 @@ final class ReclassificationProposer implements Proposer
             ->whereIn('l.account_id', $accountIds)
             ->where('j.status', JournalStatus::Posted->value)
             ->whereIn('j.source_type', self::SUBJECT_SOURCES)
-            ->where('j.reverses_journal_id IS NULL', null, false)
             ->where('j.journal_date >=', $since)
             ->where('j.journal_date <=', $today->format('Y-m-d'));
 
@@ -151,7 +150,6 @@ final class ReclassificationProposer implements Proposer
             ->join('accounting_accounts a', 'a.account_id = l.account_id')
             ->where('j.status', JournalStatus::Posted->value)
             ->whereIn('j.source_type', self::HISTORY_SOURCES)
-            ->where('j.reverses_journal_id IS NULL', null, false)
             ->where('j.journal_id <', (int) $subject->journal_id)
             ->where('a.account_type', $type)
             ->where('a.is_group', 0)

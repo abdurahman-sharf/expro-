@@ -87,7 +87,7 @@ final class ProposalRunner
                         continue;
                     }
 
-                    if ($failure->error === AccountingError::AiDisabled || $failure->error === AccountingError::PermissionDenied) {
+                    if ($failure->error === AccountingError::AiDisabled) {
                         throw $failure;
                     }
 

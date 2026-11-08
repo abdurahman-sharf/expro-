@@ -9,6 +9,7 @@ use App\Libraries\Accounting\Ai\Proposer;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -176,6 +177,33 @@ final class ProposalRunnerTest extends CIUnitTestCase
 
         $this->assertSame(0, $this->countRows('accounting_ai_proposals'));
         $this->assertSame(0, (int) $this->accountingDb()->table('accounting_audit_log')->where('action', 'proposers_run')->countAllResults());
+    }
+
+    public function testRun_StopsAtOnceWhenTheAgentIsSwitchedOffWhileItRuns(): void
+    {
+        $this->history();
+
+        $off      = false;
+        $employee = $this->agentEmployee();
+        $listener = function ($query) use (&$off): void {
+            if (! $off && str_contains((string) $query->getQuery(), 'INSERT INTO `ospos_accounting_ai_proposals`')) {
+                $off = true;
+                $this->setConfigValue('accounting_ai_enabled', '0');
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            (new ProposalRunner())->run($employee, $this->today);
+            $this->fail('The run went on after the switch was turned off.');
+        } catch (AccountingException $failure) {
+            $this->assertSame(AccountingError::AiDisabled, $failure->error);
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        $this->assertSame(1, $this->countRows('accounting_ai_proposals'));
     }
 
     public function testRun_RequiresThePermissionToUseTheAgent(): void

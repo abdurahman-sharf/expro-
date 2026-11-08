@@ -157,6 +157,14 @@ final class ReversalChainRuleTest extends CIUnitTestCase
         $this->assertSame([], $this->rule->detect($this->ruleContext()));
     }
 
+    public function testDetect_LeavesOutTheClosingOfAYear(): void
+    {
+        $this->chain('expense', 5, 3);
+        $this->accountingDb()->table('accounting_journals')->where('source_type', 'expense')->update(['entry_type' => 'year_end']);
+
+        $this->assertSame([], $this->rule->detect($this->ruleContext()));
+    }
+
     public function testDetect_LooksOnlyAtChainsReversedSinceTheStartOfTheScan(): void
     {
         $this->chain('expense', 5, 3, 1, '2026-10-20 10:00:00');

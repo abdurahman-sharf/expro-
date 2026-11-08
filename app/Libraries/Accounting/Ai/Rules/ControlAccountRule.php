@@ -32,8 +32,6 @@ final class ControlAccountRule implements AnomalyRule
             ->whereIn('a.entity_type', [EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION])
             ->whereIn('j.source_type', ['manual', ProposalService::SOURCE])
             ->where('j.status', JournalStatus::Posted->value)
-            ->where('j.reverses_journal_id IS NULL', null, false)
-            ->where('j.posted_at IS NOT NULL', null, false)
             ->where('DATE(j.posted_at) >= ' . $context->db->escape($context->since), null, false);
 
         if ($context->branchIds !== null) {

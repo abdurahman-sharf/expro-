@@ -33,8 +33,6 @@ final class BackdatedRule implements AnomalyRule
             ->join('accounting_closed_periods c', 'c.company_id = j.company_id AND (c.branch_id IS NULL OR c.branch_id = j.branch_id) AND j.journal_date <= c.date_to')
             ->whereIn('j.source_type', ['manual', ProposalService::SOURCE, ExpensePostingBuilder::SOURCE, RevenuePostingBuilder::SOURCE])
             ->where('j.status', JournalStatus::Posted->value)
-            ->where('j.reverses_journal_id IS NULL', null, false)
-            ->where('j.posted_at IS NOT NULL', null, false)
             ->where('j.posted_at <= c.created_at', null, false)
             ->where("j.posted_at >= DATE_SUB(c.created_at, INTERVAL {$window} DAY)", null, false)
             ->where("DATEDIFF(DATE(j.posted_at), j.journal_date) >= {$gap}", null, false)

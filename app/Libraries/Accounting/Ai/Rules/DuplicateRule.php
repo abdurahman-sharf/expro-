@@ -35,7 +35,6 @@ final class DuplicateRule implements AnomalyRule
             ->select('j.journal_id, j.number, j.series, j.branch_id, j.journal_date, j.total_debit, j.source_type')
             ->whereIn('j.source_type', ['manual', ProposalService::SOURCE, ExpensePostingBuilder::SOURCE, RevenuePostingBuilder::SOURCE])
             ->where('j.status', JournalStatus::Posted->value)
-            ->where('j.reverses_journal_id IS NULL', null, false)
             ->where('j.journal_date >=', $from);
 
         if ($context->branchIds !== null) {

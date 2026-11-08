@@ -84,7 +84,6 @@ final class RecurringEntryProposer implements Proposer
             ->where('l.debit >', 0)
             ->where('j.status', JournalStatus::Posted->value)
             ->where('j.entry_type', 'general')
-            ->where('j.reverses_journal_id IS NULL', null, false)
             ->whereIn('j.source_type', self::SOURCES)
             ->where('j.journal_date >=', $first->format('Y-m-d'))
             ->where('j.journal_date <=', $today->format('Y-m-d'));

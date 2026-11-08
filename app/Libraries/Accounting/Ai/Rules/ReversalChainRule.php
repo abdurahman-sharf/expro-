@@ -7,7 +7,6 @@ use App\Libraries\Accounting\Ai\AnomalyRule;
 use App\Libraries\Accounting\Ai\EvidenceRows;
 use App\Libraries\Accounting\Ai\Finding;
 use App\Libraries\Accounting\JournalEntryType;
-use App\Libraries\Accounting\JournalStatus;
 
 /**
  * A document whose journal was reversed again and again: the journals of one sale, purchase or other document
@@ -30,9 +29,7 @@ final class ReversalChainRule implements AnomalyRule
         $builder = $context->db->table('accounting_journals r')
             ->select('o.source_type, o.source_id, MAX(o.branch_id) AS branch_id, COUNT(r.journal_id) AS reversals, MAX(r.journal_date) AS last_date', false)
             ->join('accounting_journals o', 'o.journal_id = r.reverses_journal_id')
-            ->where('r.status', JournalStatus::Posted->value)
             ->where('o.source_id IS NOT NULL', null, false)
-            ->where('o.source_type !=', 'reversal')
             ->where('o.entry_type !=', JournalEntryType::YearEnd->value);
 
         if ($context->branchIds !== null) {

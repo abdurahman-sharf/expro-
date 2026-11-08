@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use CodeIgniter\Database\Exceptions\DatabaseException;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -243,6 +244,29 @@ final class FindingServiceTest extends CIUnitTestCase
 
         $this->assertSame(AccountingError::AiFindingDecided, $this->refused(fn () => $this->service->decide($id, 'confirmed', 'Changed my mind', $this->reader))->error);
         $this->assertSame('dismissed', $this->service->find($id, $this->reader)->status);
+    }
+
+    public function testDecide_RefusesAFindingThatVanishedBetweenTheReadAndTheLock(): void
+    {
+        $id   = $this->finding();
+        $gone = false;
+
+        $listener = function ($query) use ($id, &$gone): void {
+            if (! $gone && str_contains((string) $query->getQuery(), 'decider_name')) {
+                $gone = true;
+                $this->openSecondConnection()->table('accounting_ai_findings')->where('finding_id', $id)->delete();
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $failure = $this->refused(fn () => $this->service->decide($id, 'dismissed', 'Fine', $this->reader));
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        $this->assertSame(AccountingError::AiFindingNotFound, $failure->error);
     }
 
     public function testDecide_RefusesADecisionThatIsNeitherOfTheTwo(): void

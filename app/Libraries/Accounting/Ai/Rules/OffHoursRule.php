@@ -28,12 +28,17 @@ final class OffHoursRule implements AnomalyRule
 
     public function detect(AnomalyContext $context): array
     {
-        $builder = $context->db->table('accounting_journals j')
+        $hours = [
+            'weekend' => $context->settings->weekendDays(),
+            'start'   => $context->settings->int('night_start'),
+            'end'     => $context->settings->int('night_end'),
+        ];
+        $history   = $context->settings->int('offhours_history');
+        $threshold = $context->settings->int('offhours_share');
+        $builder   = $context->db->table('accounting_journals j')
             ->select('j.journal_id, j.number, j.series, j.branch_id, j.journal_date, j.posted_at, j.total_debit')
             ->whereIn('j.source_type', ['manual', ProposalService::SOURCE])
             ->where('j.status', JournalStatus::Posted->value)
-            ->where('j.reverses_journal_id IS NULL', null, false)
-            ->where('j.posted_at IS NOT NULL', null, false)
             ->where('j.posted_at >=', $context->today->modify('-' . self::YEAR . ' days')->format('Y-m-d'));
 
         if ($context->branchIds !== null) {
@@ -51,17 +56,15 @@ final class OffHoursRule implements AnomalyRule
         foreach ($rows as $row) {
             $branch          = (int) $row->branch_id;
             $totals[$branch] = ($totals[$branch] ?? 0) + 1;
-            $off[$branch]    = ($off[$branch] ?? 0) + ($this->isOffHours((string) $row->posted_at, $context) ? 1 : 0);
+            $off[$branch]    = ($off[$branch] ?? 0) + ($this->isOffHours((string) $row->posted_at, $hours) ? 1 : 0);
         }
 
-        $history   = $context->settings->int('offhours_history');
-        $threshold = $context->settings->int('offhours_share');
-        $findings  = [];
+        $findings = [];
 
         foreach ($rows as $row) {
             $branch = (int) $row->branch_id;
 
-            if (substr((string) $row->posted_at, 0, 10) < $context->since || ! $this->isOffHours((string) $row->posted_at, $context)) {
+            if (substr((string) $row->posted_at, 0, 10) < $context->since || ! $this->isOffHours((string) $row->posted_at, $hours)) {
                 continue;
             }
 
@@ -93,7 +96,10 @@ final class OffHoursRule implements AnomalyRule
         return $findings;
     }
 
-    private function isOffHours(string $postedAt, AnomalyContext $context): bool
+    /**
+     * @param array{weekend: list<int>, start: int, end: int} $hours
+     */
+    private function isOffHours(string $postedAt, array $hours): bool
     {
         $moment = DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $postedAt);
 
@@ -101,13 +107,13 @@ final class OffHoursRule implements AnomalyRule
             return false;
         }
 
-        if (in_array((int) $moment->format('w'), $context->settings->weekendDays(), true)) {
+        if (in_array((int) $moment->format('w'), $hours['weekend'], true)) {
             return true;
         }
 
         $hour  = (int) $moment->format('G');
-        $start = $context->settings->int('night_start');
-        $end   = $context->settings->int('night_end');
+        $start = $hours['start'];
+        $end   = $hours['end'];
 
         return $start > $end ? ($hour >= $start || $hour < $end) : ($hour >= $start && $hour < $end);
     }
