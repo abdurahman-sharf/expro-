@@ -86,6 +86,8 @@ trait AccountingFixtureTrait
             'accounting_backfill_items',
             'accounting_backfill_batches',
             'accounting_posting_failures',
+            'accounting_ai_findings',
+            'accounting_ai_proposals',
             'accounting_audit_log',
             'accounting_closed_periods',
             'accounting_opening_drafts',

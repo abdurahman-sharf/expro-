@@ -540,4 +540,18 @@ enum AccountingError: string
     case UnitBarcodeInvalid       = 'unit_barcode_invalid';
     case UnitTemplateUnitsInvalid = 'unit_template_units_invalid';
     case UnitNameRepeated         = 'unit_name_repeated';
+
+    case AiDisabled          = 'ai_disabled';
+    case AiApproverRequired  = 'ai_approver_required';
+    case AiProposalNotFound  = 'ai_proposal_not_found';
+    case AiProposalDecided   = 'ai_proposal_decided';
+    case AiProposalExpired   = 'ai_proposal_expired';
+    case AiProposalStale     = 'ai_proposal_stale';
+    case AiProposalInvalid   = 'ai_proposal_invalid';
+    case AiProposalDuplicate = 'ai_proposal_duplicate';
+    case AiControlAccount    = 'ai_control_account';
+    case AiFindingNotFound   = 'ai_finding_not_found';
+    case AiFindingDecided    = 'ai_finding_decided';
+    case AiDecisionInvalid   = 'ai_decision_invalid';
+    case AiSettingInvalid    = 'ai_setting_invalid';
 }
