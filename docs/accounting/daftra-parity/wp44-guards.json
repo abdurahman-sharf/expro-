@@ -200,7 +200,7 @@
   {
     "name": "G16d a table of two columns has a heading only when a number follows",
     "file": "app/Libraries/Accounting/Export/ReportSheet.php",
-    "find": "(count($row) >= 3 || (! $this->holdsNoNumber($next) && ($index === 0 || count($this->rows[$index - 1]) !== 2)))",
+    "find": "(count($row) >= 3 || (! $this->holdsNoNumber($next) && ($index === 0 || $this->rows[$index - 1] === [])))",
     "replace": "true",
     "tests": [
       "--filter",
@@ -211,19 +211,19 @@
   {
     "name": "G16f a table of two columns does not start in the middle of a run of notes",
     "file": "app/Libraries/Accounting/Export/ReportSheet.php",
-    "find": "($index === 0 || count($this->rows[$index - 1]) !== 2)",
+    "find": "($index === 0 || $this->rows[$index - 1] === [])",
     "replace": "true",
     "tests": [
       "--filter",
-      "FindsNoHeadingInAFileOfNotes",
+      "FindsNoHeadingInAFileOfNotes|SkipsALabelWithATextValue|SkipsTheDateLine",
       "tests/Libraries/Accounting/Export/ReportSheetTest.php"
     ]
   },
   {
     "name": "G16g a table of two columns may start on the first row",
     "file": "app/Libraries/Accounting/Export/ReportSheet.php",
-    "find": "($index === 0 || count($this->rows[$index - 1]) !== 2)",
-    "replace": "(count($this->rows[$index - 1]) !== 2)",
+    "find": "($index === 0 || $this->rows[$index - 1] === [])",
+    "replace": "($this->rows[$index - 1] === [])",
     "tests": [
       "--filter",
       "FindsTheHeadingOfATableOfTwoColumnsAtTheTop",
@@ -1045,14 +1045,14 @@
     ]
   },
   {
-    "name": "G89 a table of two columns has its heading only at the top of the file or below a blank row",
+    "name": "G89 a one-cell name of a group before a label with a text value does not make that label a heading",
     "file": "app/Libraries/Accounting/Export/ReportSheet.php",
-    "find": "($index === 0 || $this->rows[$index - 1] === [])",
-    "replace": "true",
+    "find": "$this->rows[$index - 1] === []",
+    "replace": "count($this->rows[$index - 1]) !== 2",
     "tests": [
-      "tests/Libraries/Accounting/Export/ReportSheetTest.php",
       "--filter",
-      "HeaderIndex"
+      "SkipsALabelWithATextValue|SkipsTheDateLine|OnlyAtTheTopOfTheFileOrBelowABlankRow",
+      "tests/Libraries/Accounting/Export/ReportSheetTest.php"
     ]
   },
   {
@@ -1115,7 +1115,7 @@
     "replace": "",
     "tests": [
       "--filter",
-      "AddRejects",
+      "Add_Rejects",
       "tests/Libraries/Accounting/Export/ZipWriterTest.php"
     ]
   },
