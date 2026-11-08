@@ -1,0 +1,779 @@
+[
+  {
+    "name": "G01 the rounding of the conversion of a foreign sale falls on its largest goods line",
+    "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+    "find": "? $first + $this->largestOf(array_slice($incomeSide, 0, $goodsCount))",
+    "replace": "? $first",
+    "tests": [
+      "--filter",
+      "PutsTheConversionRoundingOn",
+      "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+    ]
+  },
+  {
+    "name": "G02 of two equal goods lines the first takes the rounding",
+    "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+    "find": "if (bccomp($line[1], $lines[$largest][1], SaleAmounts::SCALE) > 0) {",
+    "replace": "if (bccomp($line[1], $lines[$largest][1], SaleAmounts::SCALE) >= 0) {",
+    "tests": [
+      "--filter",
+      "PutsTheConversionRoundingOnTheFirstOfTwoEqual",
+      "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+    ]
+  },
+  {
+    "name": "G03 the position of the goods lines counts the discount line",
+    "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+    "find": "1 + ($discount !== null ? 1 : 0) + ($against !== null ? 1 : 0);",
+    "replace": "1 + ($against !== null ? 1 : 0);",
+    "tests": [
+      "--filter",
+      "BehindTheDiscountLine",
+      "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+    ]
+  },
+  {
+    "name": "G04 the position of the goods lines counts the line of an adjustment",
+    "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+    "find": "1 + ($discount !== null ? 1 : 0) + ($against !== null ? 1 : 0);",
+    "replace": "1 + ($discount !== null ? 1 : 0);",
+    "tests": [
+      "--filter",
+      "BehindTheLineOfANegativeAdjustment",
+      "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+    ]
+  },
+  {
+    "name": "G05 a foreign return puts the rounding on its largest goods line from the first position",
+    "file": "app/Libraries/Accounting/SalePostingBuilder.php",
+    "find": "$first = $sale->isReturn() ? 0 : 1 +",
+    "replace": "$first = 1 +",
+    "tests": [
+      "--filter",
+      "OfAForeignReturn",
+      "tests/Libraries/Accounting/SalePostingBuilderTest.php"
+    ]
+  },
+  {
+    "name": "G06 the transfer permit counts as a transfer in the report of movements",
+    "file": "app/Libraries/Accounting/FamilyReports/StockOperation.php",
+    "find": "StockPermitSources::TRANSFER         => ['in_transfer', 'out_transfer'],",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/StockOperationTest.php"
+    ]
+  },
+  {
+    "name": "G07 the receipt of a transfer permit counts as a transfer in the report of movements",
+    "file": "app/Libraries/Accounting/FamilyReports/StockOperation.php",
+    "find": "StockPermitSources::TRANSFER_RECEIPT => ['in_transfer', 'out_transfer'],",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/StockOperationTest.php"
+    ]
+  },
+  {
+    "name": "G08 every source of the stock documents has a name of its own in the report of movements",
+    "file": "app/Libraries/Accounting/FamilyReports/StockOperation.php",
+    "find": "in_array($sourceType, self::NAMED, true)",
+    "replace": "in_array($sourceType, ['purchase', 'sale', 'stock_adjustment', 'opening_stock', 'stock_transfer', 'stock_transfer_receipt'], true)",
+    "tests": [
+      "--filter",
+      "Label_",
+      "tests/Libraries/Accounting/FamilyReports/StockOperationTest.php"
+    ]
+  },
+  {
+    "name": "G09 the journal filter offers the exchange difference of a customer payment",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalSources.php",
+    "find": "            SalePostingBuilder::SOURCE_PAYMENT_FX,\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/JournalSourcesTest.php"
+    ]
+  },
+  {
+    "name": "G10 the journal filter offers the exchange difference of a supplier payment",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalSources.php",
+    "find": "            ReceivingPostingBuilder::SOURCE_SUPPLIER_FX,\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/JournalSourcesTest.php"
+    ]
+  },
+  {
+    "name": "G11 the journal filter offers the journal of a stocktake",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalSources.php",
+    "find": "            StockPermitSources::STOCKTAKE,\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/JournalSourcesTest.php"
+    ]
+  },
+  {
+    "name": "G12 the journal filter offers the journal of a stock permit",
+    "file": "app/Libraries/Accounting/FamilyReports/JournalSources.php",
+    "find": "            StockPermitSources::PERMIT,\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/JournalSourcesTest.php"
+    ]
+  },
+  {
+    "name": "G13 the English message of a locked document journal names the stocktake",
+    "file": "app/Language/en/Accounting.php",
+    "find": "a stock permit or a stocktake is taken back",
+    "replace": "a stock permit is taken back",
+    "tests": [
+      "--filter",
+      "NamesEverySourceOfADocumentJournal",
+      "tests/Libraries/Accounting/AccountingMessageTest.php"
+    ]
+  },
+  {
+    "name": "G14 the Arabic message of a locked document journal names the stocktake",
+    "file": "app/Language/ar-EG/Accounting.php",
+    "find": "أو إذن المخزن أو الجرد يُسترد",
+    "replace": "أو إذن المخزن يُسترد",
+    "tests": [
+      "--filter",
+      "NamesEverySourceOfADocumentJournal",
+      "tests/Libraries/Accounting/AccountingMessageTest.php"
+    ]
+  },
+  {
+    "name": "G15 a role never holds an accounting permission that posts or moves money, even from a stored row",
+    "file": "app/Libraries/Roles/RoleGrants.php",
+    "find": "...AccountingGuard::SENSITIVE, ...self::REFUSED, ",
+    "replace": "...AccountingGuard::SENSITIVE, ",
+    "tests": [
+      "--filter",
+      "Forbidden_",
+      "tests/Libraries/Roles/RoleGrantsTest.php"
+    ]
+  },
+  {
+    "name": "G16 the permission to manage periods is refused to a role",
+    "file": "app/Libraries/Roles/RoleGrants.php",
+    "find": "        AccountingGuard::PERIODS_MANAGE,\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "Forbidden_",
+      "tests/Libraries/Roles/RoleGrantsTest.php"
+    ]
+  },
+  {
+    "name": "G17 the permission to manage cheques is refused to a role",
+    "file": "app/Libraries/Roles/RoleGrants.php",
+    "find": "        AccountingGuard::CHEQUES_MANAGE,\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "Forbidden_",
+      "tests/Libraries/Roles/RoleGrantsTest.php"
+    ]
+  },
+  {
+    "name": "G18 the permission to prepare a draft stays allowed to a role and is classified",
+    "file": "app/Libraries/Roles/RoleGrants.php",
+    "find": "        AccountingGuard::JOURNALS_DRAFT,\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "Forbidden_",
+      "tests/Libraries/Roles/RoleGrantsTest.php"
+    ]
+  },
+  {
+    "name": "G19 saving a role with a refused accounting permission is rejected with a named error",
+    "file": "app/Libraries/Roles/RoleService.php",
+    "find": "if (in_array($permissionId, RoleGrants::REFUSED, true)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RejectsAPermissionThatMovesMoney",
+      "tests/Libraries/Roles/RoleServiceTest.php"
+    ]
+  },
+  {
+    "name": "G20 the role screen locks the permissions a role may not hold",
+    "file": "app/Libraries/Roles/PermissionCatalog.php",
+    "find": "'role_locked'   => in_array($permission->permission_id, RoleGrants::REFUSED, true),",
+    "replace": "'role_locked'   => false,",
+    "tests": [
+      "--filter",
+      "LocksEveryPermissionThatMovesMoney",
+      "tests/Libraries/Roles/PermissionCatalogTest.php"
+    ]
+  },
+  {
+    "name": "G21 the extra fields move to a sort value no module holds",
+    "file": "app/Database/Migrations/20273300000000_UniqueModuleSortValues.php",
+    "find": "'custom_fields'         => [134, 135],",
+    "replace": "'custom_fields'         => [134, 134],",
+    "tests": [
+      "tests/Database/UniqueModuleSortValuesMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G22 a module whose new sort value another module holds is left where it is",
+    "file": "app/Database/Migrations/20273300000000_UniqueModuleSortValues.php",
+    "find": "if (! $held) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Database/UniqueModuleSortValuesMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G23 an operational check that was refused never ties",
+    "file": "app/Libraries/Accounting/OperationalReports/TieCheck.php",
+    "find": "        if ($this->isRefused()) {\n            return false;\n        }\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Accounting/OperationalReports/TieCheckTest.php"
+    ]
+  },
+  {
+    "name": "G24 a purchases check that was refused never ties",
+    "file": "app/Libraries/Accounting/FamilyReports/TieCheck.php",
+    "find": "return ! $this->isRefused() && bccomp(",
+    "replace": "return bccomp(",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/ForeignAmountsTest.php",
+      "tests/Libraries/Accounting/FamilyReports/PurchasesReportTest.php"
+    ]
+  },
+  {
+    "name": "G25 a sales check over a foreign currency is refused by name",
+    "file": "app/Libraries/Accounting/OperationalReports/ForeignAmounts.php",
+    "find": "if ($codes === []) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Libraries/Accounting/OperationalReports/ForeignAmountsTest.php"
+    ]
+  },
+  {
+    "name": "G26 the base currency never counts as a foreign one in the sales checks",
+    "file": "app/Libraries/Accounting/OperationalReports/ForeignAmounts.php",
+    "find": "array_unique(array_filter(array_map(",
+    "replace": "array_unique((array_map(",
+    "tests": [
+      "tests/Libraries/Accounting/OperationalReports/ForeignAmountsTest.php"
+    ]
+  },
+  {
+    "name": "G27 a purchases check over a foreign currency is refused by name",
+    "file": "app/Libraries/Accounting/FamilyReports/ForeignAmounts.php",
+    "find": "if ($codes === []) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/ForeignAmountsTest.php"
+    ]
+  },
+  {
+    "name": "G28 the base currency never counts as a foreign one in the purchases checks",
+    "file": "app/Libraries/Accounting/FamilyReports/ForeignAmounts.php",
+    "find": "$codes = array_unique(array_filter($codes));",
+    "replace": "$codes = array_unique($codes);",
+    "tests": [
+      "tests/Libraries/Accounting/FamilyReports/ForeignAmountsTest.php"
+    ]
+  },
+  {
+    "name": "G29 the checks of the revenue reports are guarded against a foreign document",
+    "file": "app/Libraries/Accounting/OperationalReports/SalesTies.php",
+    "find": "], $documents);",
+    "replace": "], []);",
+    "tests": [
+      "--filter",
+      "ForeignCurrency",
+      "tests/Libraries/Accounting/OperationalReports/RevenueReportTest.php"
+    ]
+  },
+  {
+    "name": "G30 the sale reader gives each document its currency",
+    "file": "app/Libraries/Accounting/OperationalReports/SaleReader.php",
+    "find": "                    currency: $currencies->stored($sale->currency_code, $sale->currency_rate),\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "ForeignCurrency",
+      "tests/Libraries/Accounting/OperationalReports/RevenueReportTest.php"
+    ]
+  },
+  {
+    "name": "G31 the check of the report of items is guarded against a foreign document",
+    "file": "app/Libraries/Accounting/OperationalReports/ItemSalesReport.php",
+    "find": "ForeignAmounts::guard([$this->tie($documents, $total['total'])], $documents)",
+    "replace": "[$this->tie($documents, $total['total'])]",
+    "tests": [
+      "--filter",
+      "ForeignCurrency",
+      "tests/Libraries/Accounting/OperationalReports/ItemSalesReportTest.php"
+    ]
+  },
+  {
+    "name": "G32 the checks of the net position are guarded against a foreign invoice",
+    "file": "app/Libraries/Accounting/OperationalReports/NetPositionReport.php",
+    "find": "ForeignAmounts::guard($this->ties($invoices), [...$invoices, ...$orphans])",
+    "replace": "$this->ties($invoices)",
+    "tests": [
+      "--filter",
+      "ForeignCurrency",
+      "tests/Libraries/Accounting/OperationalReports/NetPositionReportTest.php"
+    ]
+  },
+  {
+    "name": "G33 the check of the purchases report is guarded against a foreign purchase",
+    "file": "app/Libraries/Accounting/FamilyReports/PurchasesReport.php",
+    "find": "ForeignAmounts::guard($ties, ForeignAmounts::codesOf($all))",
+    "replace": "$ties",
+    "tests": [
+      "--filter",
+      "ForeignCurrency",
+      "tests/Libraries/Accounting/FamilyReports/PurchasesReportTest.php"
+    ]
+  },
+  {
+    "name": "G34 the check of the report of suppliers is guarded against a foreign purchase",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierPurchasesReport.php",
+    "find": "], ForeignAmounts::codesOf($docs)),",
+    "replace": "], []),",
+    "tests": [
+      "--filter",
+      "ForeignCurrency",
+      "tests/Libraries/Accounting/FamilyReports/SupplierPurchasesReportTest.php"
+    ]
+  },
+  {
+    "name": "G35 the checks of the report of products are guarded against a foreign purchase",
+    "file": "app/Libraries/Accounting/FamilyReports/ProductPurchasesReport.php",
+    "find": "], ForeignAmounts::codesOf($all)),",
+    "replace": "], []),",
+    "tests": [
+      "--filter",
+      "ForeignCurrency",
+      "tests/Libraries/Accounting/FamilyReports/ProductPurchasesReportTest.php"
+    ]
+  },
+  {
+    "name": "G36 the check of the report of purchase payments is guarded against a foreign purchase",
+    "file": "app/Libraries/Accounting/FamilyReports/PurchasePaymentsReport.php",
+    "find": "ForeignAmounts::codesOf($docs));",
+    "replace": "[]);",
+    "tests": [
+      "--filter",
+      "ForeignCurrency",
+      "tests/Libraries/Accounting/FamilyReports/PurchasePaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "G37 the check of the report of supplier payments is guarded against a foreign payment",
+    "file": "app/Libraries/Accounting/FamilyReports/SupplierPaymentsReport.php",
+    "find": "array_map(static fn (object $row): ?string => $row->currency_code, $rows));",
+    "replace": "[]);",
+    "tests": [
+      "--filter",
+      "ForeignCurrency",
+      "tests/Libraries/Accounting/FamilyReports/SupplierPaymentsReportTest.php"
+    ]
+  },
+  {
+    "name": "G38 the file of a sales report says why a check was not made",
+    "file": "app/Controllers/AccountingOperationalReport.php",
+    "find": "$tie->isRefused() ? [lang($tie->labelKey), '', '', '', lang((string) $tie->refusal, $tie->refusalArguments)] : ",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "SaysByNameThatTheChecks",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G39 the file of a purchases report says why a check was not made",
+    "file": "app/Controllers/AccountingFamilyReports.php",
+    "find": "$tie->isRefused() ? [$tie->label, '', '', (string) $tie->refusal] : ",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "SaysByNameThatTheCheck",
+      "tests/Controllers/AccountingFamilyReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G40 the screen of a sales report shows a refused check as refused",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "<?php if ($tie->isRefused()): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "SaysByNameThatTheChecks",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G41 the screen of a purchases report shows a refused check as refused",
+    "file": "app/Views/accounting_reports/family.php",
+    "find": "<?php if ($tie->isRefused()): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "SaysByNameThatTheCheck",
+      "tests/Controllers/AccountingFamilyReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G42 a search asks for one entry more than it returns, to know whether there are more",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "->limit(self::LIMIT + 1)",
+    "replace": "->limit(self::LIMIT)",
+    "tests": [
+      "--filter",
+      "AtMostTwentyEntries|DoesNotSayThereAreMore",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G43 a search never says there are more when exactly twenty match",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "'more'    => count($rows) > self::LIMIT,",
+    "replace": "'more'    => count($rows) >= self::LIMIT,",
+    "tests": [
+      "--filter",
+      "DoesNotSayThereAreMore",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G44 a search returns at most twenty entries",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "array_slice($rows, 0, self::LIMIT)",
+    "replace": "$rows",
+    "tests": [
+      "--filter",
+      "AtMostTwentyEntries",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G45 the search box is offered only above the threshold",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "return $this->count($kind, $mode, $branchIds) > $this->threshold();",
+    "replace": "return $this->count($kind, $mode, $branchIds) >= $this->threshold();",
+    "tests": [
+      "--filter",
+      "Searching_",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G46 only accounts that are not groups are offered to an entry",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "$builder->where('a.is_group', 0)->where('a.active', 1);",
+    "replace": "$builder->where('a.active', 1);",
+    "tests": [
+      "--filter",
+      "OffersOnlyAccountsAnEntryCanBePostedTo",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G47 only active accounts are offered to an entry",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "$builder->where('a.is_group', 0)->where('a.active', 1);",
+    "replace": "$builder->where('a.is_group', 0);",
+    "tests": [
+      "--filter",
+      "OffersOnlyAccountsAnEntryCanBePostedTo",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G48 the stock account of a location in another branch is never offered",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "if ($branchIds !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "LeavesOutTheStockAccountOfALocation",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G49 an employee who works in no branch is offered nothing",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "            return ['results' => [], 'more' => false];",
+    "replace": "            $branchIds = null;",
+    "tests": [
+      "--filter",
+      "OffersNothingToAnEmployeeWhoWorksInNoBranch",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G50 a wildcard character of the term is taken literally",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "$escaped = $this->db->escapeLikeString($term);",
+    "replace": "$escaped = $term;",
+    "tests": [
+      "--filter",
+      "TakesAWildcardCharacterLiterally",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G51 a code is matched from its start and a name anywhere",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "[$like('a.code', true), $like('a.name', false)]",
+    "replace": "[$like('a.code', false), $like('a.name', false)]",
+    "tests": [
+      "--filter",
+      "MatchesTheStartOfACode",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G52 a deleted customer is never offered",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "->where('c.deleted', 0),",
+    "replace": ",",
+    "tests": [
+      "--filter",
+      "FindsACustomerByNameOrCompany",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G53 a deleted supplier is never offered",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "->where('s.deleted', 0),",
+    "replace": ",",
+    "tests": [
+      "--filter",
+      "FindsACustomerByNameOrCompany",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G54 above the threshold the screen keeps the accounts it already shows",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "if ($selected !== []) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "Screen_",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G55 the supplier already chosen keeps its name in the search box",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "$entry = $selected === null ? null : $this->find($kind, self::EVERY, $selected, null);",
+    "replace": "$entry = null;",
+    "tests": [
+      "tests/Controllers/Recurring_expensesControllerTest.php",
+      "--filter",
+      "ReplacesTheSelectOfSuppliers"
+    ]
+  },
+  {
+    "name": "G56 the opening screen offers the accounts its list offers and no others",
+    "file": "app/Libraries/Accounting/OpeningBalanceService.php",
+    "find": "$builder->whereNotIn('a.account_id', $blocked);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "OffersTheAccountsTheOpeningScreenLists",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G57 a kind is answered only to someone who holds a screen that uses it",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "if (! $this->mayPick($kind)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RefusesAnAccountSearch|ServesCustomers",
+      "tests/Controllers/AccountingLookupControllerTest.php"
+    ]
+  },
+  {
+    "name": "G58 a kind or a mode the search does not know is rejected",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "! in_array($kind, AccountPicker::KINDS, true) || ",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "RejectsAKindOrAMode",
+      "tests/Controllers/AccountingLookupControllerTest.php"
+    ]
+  },
+  {
+    "name": "G59 the search keeps to the branches of the employee",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "(string) $this->request->getGet('term'), $this->branchIds())",
+    "replace": "(string) $this->request->getGet('term'), null)",
+    "tests": [
+      "--filter",
+      "LeavesOutTheStockAccount",
+      "tests/Controllers/AccountingLookupControllerTest.php"
+    ]
+  },
+  {
+    "name": "G60 a stored threshold below one falls back to the default",
+    "file": "app/Libraries/Accounting/AccountingSettings.php",
+    "find": "(int) $value >= 1 && ",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "PickerThreshold_",
+      "tests/Libraries/Accounting/AccountingSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G61 a threshold above the maximum is refused",
+    "file": "app/Libraries/Accounting/AccountingSettings.php",
+    "find": " || (int) $size > self::MAX_PICKER_SIZE) {",
+    "replace": ") {",
+    "tests": [
+      "--filter",
+      "RejectsAPickerThreshold",
+      "tests/Libraries/Accounting/AccountingSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G62 the screen of the settings saves the threshold",
+    "file": "app/Controllers/AccountingSetup.php",
+    "find": "['shipping_tax_percent', 'picker_threshold', 'journal_description_sales', 'journal_description_purchases']",
+    "replace": "['shipping_tax_percent', 'journal_description_sales', 'journal_description_purchases']",
+    "tests": [
+      "--filter",
+      "PickerThreshold|NumberOfEntriesBeforeASearchBox",
+      "tests/Controllers/AccountingSetupControllerTest.php"
+    ]
+  },
+  {
+    "name": "G63 the supplier list below the threshold holds as many suppliers as the threshold",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "$limit   = (new AccountPicker())->threshold();",
+    "replace": "$limit   = 200;",
+    "tests": [
+      "--filter",
+      "ListsEverySupplierUpToTheThreshold",
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G64 the benchmark notices a row its work left behind",
+    "file": "app/Libraries/Accounting/Benchmark/AccountingBenchmark.php",
+    "find": "if ($left !== []) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "NoticesARowItsWorkLeftBehind",
+      "tests/Commands/AccountingBenchmarkTest.php"
+    ]
+  },
+  {
+    "name": "G65 the benchmark rolls back what it wrote",
+    "file": "app/Libraries/Accounting/Benchmark/AccountingBenchmark.php",
+    "find": "$this->db->transRollback();",
+    "replace": "$this->db->transCommit();",
+    "tests": [
+      "--filter",
+      "TimesTheSaleSave",
+      "tests/Commands/AccountingBenchmarkTest.php"
+    ]
+  },
+  {
+    "name": "G66 the benchmark never runs in production",
+    "file": "app/Commands/AccountingBenchmark.php",
+    "find": "if ($this->environment() === 'production') {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "NeverRunsWhereTheEnvironmentIsProduction",
+      "tests/Commands/AccountingBenchmarkTest.php"
+    ]
+  },
+  {
+    "name": "G67 the benchmark runs only when told the name of the database",
+    "file": "app/Commands/AccountingBenchmark.php",
+    "find": "if (($params['confirm'] ?? CLI::getOption('confirm')) !== $database) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RefusesWithoutTheName|RefusesAnotherName",
+      "tests/Commands/AccountingBenchmarkTest.php"
+    ]
+  },
+  {
+    "name": "G68 the benchmark refuses a number of documents out of range",
+    "file": "app/Commands/AccountingBenchmark.php",
+    "find": " && (int) $given >= 1 && (int) $given <= self::MAX_DOCUMENTS ? (int) $given : null;",
+    "replace": " ? (int) $given : null;",
+    "tests": [
+      "--filter",
+      "RefusesANumberOfDocuments",
+      "tests/Commands/AccountingBenchmarkTest.php"
+    ]
+  },
+  {
+    "name": "G69 the benchmark refuses to run while accounting is off",
+    "file": "app/Commands/AccountingBenchmark.php",
+    "find": "if (! (new AccountingSettings())->isEnabled()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "RefusesWhileTheBooksAreOff",
+      "tests/Commands/AccountingBenchmarkTest.php"
+    ]
+  },
+  {
+    "name": "G70 a sale refused for stock reloads the register with the out of stock message on every completion path",
+    "file": "app/Controllers/Sales.php",
+    "find": "} elseif ($data['sale_id_num'] === INSUFFICIENT_STOCK) {",
+    "replace": "} elseif (false) {",
+    "tests": [
+      "--filter",
+      "ReloadsTheRegisterWithTheOutOfStockMessage",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "G71 a sale refused for stock on the last completion path reloads the register with the message",
+    "file": "app/Controllers/Sales.php",
+    "find": "\n            } elseif ($data['sale_id_num'] === INSUFFICIENT_STOCK) {\n",
+    "replace": "\n            } elseif (false) {\n",
+    "tests": [
+      "--filter",
+      "ReloadsTheRegisterWithTheOutOfStockMessage",
+      "tests/Controllers/SalesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G72 two sessions selling the last unit queue on the row of the shelf",
+    "file": "app/Libraries/Stock/NegativeStockGuard.php",
+    "find": "AND location_id = ? FOR UPDATE', [$itemId, $locationId]);",
+    "replace": "AND location_id = ?', [$itemId, $locationId]);",
+    "tests": [
+      "--filter",
+      "TwoSessions|OnlyOneOfTwoSessions",
+      "tests/Libraries/Stock/NegativeStockGuardTest.php"
+    ]
+  },
+  {
+    "name": "G73 two settlements of one pair of branches queue on the row of the pair",
+    "file": "app/Libraries/Accounting/InterBranchSettlements.php",
+    "find": "AND counterpart_branch_id = ? FOR UPDATE\", [CompanyContext::id(), $first, $second]);",
+    "replace": "AND counterpart_branch_id = ?\", [CompanyContext::id(), $first, $second]);",
+    "tests": [
+      "--filter",
+      "SixRealSessions",
+      "tests/Libraries/Accounting/InterBranchSettlementsTest.php"
+    ]
+  }
+]

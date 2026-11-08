@@ -191,6 +191,11 @@ final class AccountPickerTest extends CIUnitTestCase
 
         $this->assertSame(array_slice($allowed, 0, AccountPicker::LIMIT), $offered);
         $this->assertNotSame($count, $this->postable(), 'The opening screen lists fewer accounts than a journal does');
+
+        foreach (['12043', '215001', '215002'] as $controlCode) {
+            $this->assertNotSame([], $this->picker->search(AccountPicker::ACCOUNT, AccountPicker::EVERY, $controlCode, null)['results'], "The account {$controlCode} exists");
+            $this->assertSame([], $this->picker->search(AccountPicker::ACCOUNT, AccountPicker::OPENING, $controlCode, null)['results'], "The control account {$controlCode} is not offered for an opening balance");
+        }
     }
 
     public function testSearch_FindsACustomerByNameOrCompanyAndASupplierByCompany(): void
@@ -199,6 +204,8 @@ final class AccountPickerTest extends CIUnitTestCase
         $supplier = $this->insertSupplier('Picker Wholesale', 'Nora', 'Hamad');
         $deleted  = $this->insertCustomer('Picker', 'Gone');
         $this->accountingDb()->table('customers')->where('person_id', $deleted)->update(['deleted' => 1]);
+        $gone = $this->insertSupplier('Picker Gone Wholesale', 'Old', 'Supplier');
+        $this->accountingDb()->table('suppliers')->where('person_id', $gone)->update(['deleted' => 1]);
 
         $byName    = $this->picker->search(AccountPicker::CUSTOMER, AccountPicker::EVERY, 'Rahim', null)['results'];
         $byCompany = $this->picker->search(AccountPicker::CUSTOMER, AccountPicker::EVERY, 'Traders', null)['results'];
@@ -210,6 +217,7 @@ final class AccountPickerTest extends CIUnitTestCase
         $this->assertSame([$supplier], array_column($suppliers, 'id'));
         $this->assertSame([], $this->picker->search(AccountPicker::CUSTOMER, AccountPicker::EVERY, 'Gone', null)['results'], 'A deleted customer is not offered');
         $this->assertSame([], $this->picker->search(AccountPicker::SUPPLIER, AccountPicker::EVERY, 'Rahim', null)['results'], 'A customer is not a supplier');
+        $this->assertSame([], $this->picker->search(AccountPicker::SUPPLIER, AccountPicker::EVERY, 'Gone Wholesale', null)['results'], 'A deleted supplier is not offered');
     }
 
     public function testFind_ReturnsTheEntryOfAnIdAndNothingForAnIdOfAnotherKind(): void

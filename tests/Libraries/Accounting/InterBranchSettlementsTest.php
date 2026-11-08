@@ -18,6 +18,7 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -748,6 +749,12 @@ class InterBranchSettlementsTest extends CIUnitTestCase
     {
         $this->send(true, '100.00');
         $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 30');
+
+        $pair = [1, $this->branch];
+
+        sort($pair);
+        // With the row already there, the insert of a session waits for no one and only the locking read of the row makes the sessions queue.
+        $this->accountingDb()->table('interbranch_pair_locks')->ignore(true)->insert(['company_id' => CompanyContext::id(), 'branch_id' => $pair[0], 'counterpart_branch_id' => $pair[1]]);
 
         $date     = '2026-10-31';
         $forward  = ['1', (string) $this->branch, $date, (string) $this->other, (string) $this->main, (string) $this->settler];

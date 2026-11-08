@@ -1,9 +1,9 @@
 <?php
 
 return [
-    'count' => '',
+    'count'  => '',
     'failed' => '',
-    'hint' => '',
-    'more' => '',
-    'none' => '',
+    'hint'   => '',
+    'more'   => '',
+    'none'   => '',
 ];

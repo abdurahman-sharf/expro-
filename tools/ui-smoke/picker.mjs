@@ -58,6 +58,13 @@ try {
         await page.route('http://picker.test/**', (route) => {
             const url = new URL(route.request().url());
             requests.push(Object.fromEntries(url.searchParams));
+
+            if (url.searchParams.get('term') === 'boom') {
+                route.fulfill({ status: 500, contentType: 'text/plain', body: 'no' });
+
+                return;
+            }
+
             route.fulfill({ contentType: 'application/json', body: JSON.stringify(entries(url.searchParams.get('term'))) });
         });
         await page.setContent(html(direction));
@@ -123,6 +130,11 @@ try {
         await page.keyboard.type('none');
         await page.waitForFunction(() => document.querySelector('[role=status]').textContent.includes('No results'));
         check(`${label}a search with no result says so and shows no list`, await list.isHidden());
+
+        await input.fill('');
+        await page.keyboard.type('boom');
+        await page.waitForFunction(() => document.querySelector('[role=status]').textContent.includes('failed'), null, { timeout: 3000 }).catch(() => {});
+        check(`${label}a search the server cannot answer says so in the live region`, (await page.locator('[role=status]').innerText()).includes('failed') && await list.isHidden());
 
         await input.fill('');
         await page.keyboard.type('many');
