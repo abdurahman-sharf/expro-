@@ -184,6 +184,57 @@ class DocumentQrTest extends CIUnitTestCase
         $this->assertNotNull($result->refusal);
     }
 
+    /**
+     * @return array<string, array{0: array<string, mixed>}>
+     */
+    public static function notIssuedProvider(): array
+    {
+        return [
+            'suspended'  => [['sale_status' => SUSPENDED]],
+            'cancelled'  => [['sale_status' => CANCELED]],
+            'quote'      => [['sale_type' => SALE_TYPE_QUOTE]],
+            'work order' => [['sale_type' => SALE_TYPE_WORK_ORDER]],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $facts
+     */
+    #[DataProvider('notIssuedProvider')]
+    public function testForDocument_CarriesNoCodeForASaleThatWasNotIssuedAndSaysNothingAboutIt(array $facts): void
+    {
+        $result = (new DocumentQr())->forDocument('tax_invoice', $this->sale($facts), self::CONFIG);
+
+        $this->assertNull($result->payload);
+        $this->assertNull($result->refusal);
+    }
+
+    public function testForDocument_CarriesTheCodeOfACompletedSaleOfEveryIssuedKind(): void
+    {
+        foreach ([SALE_TYPE_POS, SALE_TYPE_INVOICE, SALE_TYPE_RETURN] as $kind) {
+            $result = (new DocumentQr())->forDocument('invoice', $this->sale(['sale_status' => COMPLETED, 'sale_type' => $kind]), self::CONFIG);
+
+            $this->assertNotNull($result->payload, 'Sale type ' . $kind);
+        }
+    }
+
+    public function testForDocument_RefusesADocumentInAForeignCurrencyBecauseItsAmountsAreNotInTheCurrencyOfTheShop(): void
+    {
+        $result = (new DocumentQr())->forDocument('invoice', $this->sale(['currency_code' => 'USD']), self::CONFIG);
+
+        $this->assertNull($result->payload);
+        $this->assertSame(DocumentError::QrForeignCurrency, $result->refusal);
+        $this->assertNotNull((new DocumentQr())->forDocument('invoice', $this->sale(['currency_code' => null]), self::CONFIG)->payload);
+        $this->assertNotNull((new DocumentQr())->forDocument('invoice', $this->sale(['currency_code' => '']), self::CONFIG)->payload);
+    }
+
+    public function testForDocument_AsksForTheTaxNumberBeforeItMentionsTheCurrency(): void
+    {
+        $result = (new DocumentQr())->forDocument('invoice', $this->sale(['currency_code' => 'USD']), ['company' => 'opes']);
+
+        $this->assertSame(DocumentError::QrVatNumberMissing, $result->refusal);
+    }
+
     public function testForDocument_RefusesWhenTheTimeOfTheSaleIsUnknown(): void
     {
         $result = (new DocumentQr())->forDocument('invoice', $this->sale(['sale_time_raw' => '']), self::CONFIG);

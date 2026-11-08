@@ -21,6 +21,7 @@ use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Barcode_lib;
 use App\Libraries\Documents\CustomFields;
+use App\Libraries\Documents\PurchasePaidAmounts;
 use App\Libraries\Documents\RendersPdf;
 use App\Libraries\Documents\VoucherDocument;
 use App\Libraries\Documents\VoucherDocuments;
@@ -731,7 +732,7 @@ class Receivings extends Secure_Controller
             throw PageNotFoundException::forPageNotFound();
         }
 
-        $data = $this->receivingData($receiving_id);
+        $data = $this->receivingData((int) $receiving_id);
 
         $data['print_after_sale'] = false;
 
@@ -749,25 +750,25 @@ class Receivings extends Secure_Controller
      *
      * @return array<string, mixed>
      */
-    private function receivingData($receiving_id): array
+    private function receivingData(int $receivingId): array
     {
-        $receivingInfo = $this->receiving->get_info($receiving_id)->getRowArray();
-        $this->receiving_lib->copy_entire_receiving($receiving_id);
+        $receivingInfo = $this->receiving->get_info($receivingId)->getRowArray();
+        $this->receiving_lib->copy_entire_receiving($receivingId);
         $data['cart']                 = $this->receiving_lib->get_cart();
         $data['total']                = $this->receiving_lib->get_total();
         $data['tax_total']            = $this->receiving_lib->get_tax_total();
         $data['total_with_tax']       = $this->receiving_lib->get_total_with_tax();
         $data['mode']                 = $this->receiving_lib->get_mode();
-        $timing                       = $this->receiving->getInvoiceTiming((int) $receiving_id);
+        $timing                       = $this->receiving->getInvoiceTiming((int) $receivingId);
         $data['transaction_time']     = to_datetime(strtotime($receivingInfo['receiving_time']));
         $data['invoice_date']         = $timing['invoice_date'] === null ? null : to_date(strtotime($timing['invoice_date']));
         $data['due_date']             = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
         $data['show_stock_locations'] = $this->stock_location->show_locations('receivings');
         $data['payment_type']         = $receivingInfo['payment_type'];
         $data['reference']            = $this->receiving_lib->get_reference();
-        $data['receiving_id']         = 'RECV ' . $receiving_id;
+        $data['receiving_id']         = 'RECV ' . $receivingId;
         $data['barcode']              = $this->barcode_lib->generate_receipt_barcode($data['receiving_id']);
-        $data += $this->documentNumberOf((int) $receiving_id);
+        $data += $this->documentNumberOf((int) $receivingId);
 
         $data['invoiceDiscount']       = $this->receiving_lib->getInvoiceDiscount();
         $data['invoiceDiscountAmount'] = $this->receiving_lib->getInvoiceDiscountAmount();
@@ -892,17 +893,20 @@ class Receivings extends Secure_Controller
         $data = $this->receivingData($receivingId);
         $this->receiving_lib->clear_all();
 
-        $paid = '0';
-
-        foreach ($this->receiving->get_payments($receivingId) as $payment) {
-            if (PaymentStatus::fromStored($payment->payment_status)->posts()) {
-                $paid = bcadd($paid, (string) $payment->payment_amount, 4);
-            }
-        }
+        $settled = $type === ReceivingType::Return
+            ? ['paid' => '0', 'due' => '0']
+            : (new PurchasePaidAmounts())->read(
+                $receivingId,
+                ($info['supplier_id'] ?? null) === null ? null : (int) $info['supplier_id'],
+                $info['payment_type'] ?? null,
+                ($info['currency_code'] ?? null) !== null,
+                bcadd((string) $data['total_with_tax'], '0', 4),
+            );
 
         $data['purchase_type']       = $type->value;
         $data['item_printed_fields'] = (new CustomFields())->printableFor('item', array_map(static fn (array $line): int => (int) $line['item_id'], array_values($data['cart'])));
-        $data['paid']                = $paid;
+        $data['paid']                = $settled['paid'];
+        $data['due']                 = $settled['due'];
         $data['receiving_num']       = $receivingId;
 
         return $data;

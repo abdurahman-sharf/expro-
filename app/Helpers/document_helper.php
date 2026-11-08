@@ -158,7 +158,7 @@ function purchaseDocumentProfile(array $receiving): array
     $total    = documentFigure($isReturn, (string) ($receiving['total_with_tax'] ?? $receiving['total'] ?? 0));
 
     $meta = [
-        [lang('Documents.purchase_number'), $number !== '' ? $number : (string) ($receiving['receiving_id'] ?? '')],
+        [lang($isReturn ? 'Documents.debit_note_number' : 'Documents.purchase_number'), $number !== '' ? $number : (string) ($receiving['receiving_id'] ?? '')],
         [lang('Common.date'), $day],
     ];
 

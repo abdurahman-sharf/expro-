@@ -3665,6 +3665,63 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString(documentIsolate(to_currency('150.00')), $body);
     }
 
+    private function totalsRowOf(string $html, string $label): string
+    {
+        $found = preg_match('~<td class="[^"]*">' . preg_quote($label, '~') . '</td>\s*<td class="[^"]*">(.*?)</td>~s', $html, $matches);
+
+        $this->assertSame(1, $found, 'The totals have no row ' . $label);
+
+        return trim(strip_tags($matches[1]));
+    }
+
+    public function testGetPrint_PrintsAPurchasePaidAtOnceAsPaidInFullWithNothingDue(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId, lang('Sales.cash'));
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/print/' . $receiving)->getBody();
+
+        $this->assertSame(to_currency('500.00'), $this->totalsRowOf($body, lang('Documents.paid')));
+        $this->assertSame(to_currency('0.00'), $this->totalsRowOf($body, lang('Sales.amount_due')));
+        $this->assertSame('0.0000', $this->supplierPosition()->open(), 'The books owe the supplier nothing for it');
+    }
+
+    public function testGetPrint_PrintsTheCreditAppliedToAPurchaseAsSettledAndWhatIsLeftAsDue(): void
+    {
+        $first = $this->purchaseOf('200.00', $this->supplierId, lang('Sales.cash'));
+        $this->debitNoteOf($first, '200.00');
+        $second = $this->purchaseOf('500.00', $this->supplierId);
+        $figures = $this->supplierPosition()->purchase($second);
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/print/' . $second)->getBody();
+
+        $this->assertSame('200.0000', bcadd($figures->applied, '0', 4));
+        $this->assertSame(to_currency('200.00'), $this->totalsRowOf($body, lang('Documents.paid')));
+        $this->assertSame(to_currency('300.00'), $this->totalsRowOf($body, lang('Sales.amount_due')));
+        $this->assertSame(to_currency('300.00'), to_currency(bcadd($figures->open(), '0', 2)));
+    }
+
+    public function testGetPrint_PrintsAPurchaseSavedWithoutTheBooksFromItsPaymentType(): void
+    {
+        $paid = $this->purchaseOf('500.00', $this->supplierId, lang('Sales.cash'));
+        $due  = $this->purchaseOf('300.00', $this->supplierId);
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->loginAs($this->buyer());
+
+        try {
+            $paidBody = $this->get('/receivings/print/' . $paid)->getBody();
+            $dueBody  = $this->get('/receivings/print/' . $due)->getBody();
+        } finally {
+            $this->setConfigValue('accounting_enabled', '1');
+        }
+
+        $this->assertSame(to_currency('500.00'), $this->totalsRowOf($paidBody, lang('Documents.paid')));
+        $this->assertSame(to_currency('0.00'), $this->totalsRowOf($paidBody, lang('Sales.amount_due')));
+        $this->assertSame(to_currency('0.00'), $this->totalsRowOf($dueBody, lang('Documents.paid')));
+        $this->assertSame(to_currency('300.00'), $this->totalsRowOf($dueBody, lang('Sales.amount_due')));
+    }
+
     public function testGetPrint_ShowsNoPurchaseInvoiceForAStockRequisition(): void
     {
         $receiving = $this->purchaseOf('500.00', $this->supplierId);

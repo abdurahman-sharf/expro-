@@ -17,7 +17,7 @@ $discount        = (string) ($receiving['invoiceDiscountAmount'] ?? '0');
 $tax             = (string) ($receiving['tax_total'] ?? '0');
 $grand           = (string) ($receiving['total_with_tax'] ?? $receiving['total'] ?? '0');
 $paid            = (string) ($receiving['paid'] ?? '0');
-$due             = bcsub(documentFigure(false, $grand), $paid, 4);
+$due             = (string) ($receiving['due'] ?? '0');
 $hasDiscount     = bccomp($discount, '0', 4) !== 0;
 $hasTax          = bccomp($tax, '0', 8) !== 0;
 ?>

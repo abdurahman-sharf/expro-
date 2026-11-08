@@ -1925,6 +1925,10 @@ class Sales extends Secure_Controller
                         $data['transaction_date'] = to_date(strtotime($timing['invoice_date']));
                     }
 
+                    $data['sale_time_raw'] = (string) $this->sale->get_info($data['sale_id_num'])->getRowArray()['sale_time'];
+                    $data['invoice_date_raw'] = $timing['invoice_date'];
+                    $data['currency_code'] = $this->sale->getCurrencyCode((int) $data['sale_id_num']);
+
                     $data['due_date'] = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));
 
                     $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
@@ -2125,7 +2129,7 @@ class Sales extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
-        if (!in_array($type, [...documentTypes(), ...slipTypes(), 'receipt'], true)) {
+        if (!in_array($type, [...documentTypes(), ...slipTypes(), 'receipt'], true) || !$this->sale->exists($saleId)) {
             return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
@@ -2148,7 +2152,7 @@ class Sales extends Secure_Controller
 
         return $this->response
             ->setHeader('Content-Type', 'application/pdf')
-            ->setHeader('Content-Disposition', 'inline; filename="' . rawurlencode($this->documentFilename($type, $number)) . '"')
+            ->setHeader('Content-Disposition', 'inline; filename="' . rawurlencode($this->documentFilename($this->documentTitle($type, $saleData), $number)) . '"')
             ->setBody($pdf);
     }
 
@@ -2172,7 +2176,7 @@ class Sales extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
-        if (!in_array($type, [...documentTypes(), 'receipt'], true)) {
+        if (!in_array($type, [...documentTypes(), 'receipt'], true) || !$this->sale->exists($saleId)) {
             return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);
         }
 
@@ -2190,7 +2194,7 @@ class Sales extends Secure_Controller
         if (!empty($saleData['customer_email'])) {
             $to = $saleData['customer_email'];
             $number = $type === 'receipt' ? '' : documentProfile($type, $saleData)['number'];
-            $subject = lang('Sales.' . $type) . ' ' . $number;
+            $subject = $this->documentTitle($type, $saleData) . ' ' . $number;
 
             $text = $this->config['invoice_email_message'];
             $tokens = [
@@ -2200,7 +2204,7 @@ class Sales extends Secure_Controller
             ];
             $text = $this->token_lib->render($text, $tokens);
 
-            $filename = sys_get_temp_dir() . '/' . $this->documentFilename($type, $number);
+            $filename = sys_get_temp_dir() . '/' . $this->documentFilename($this->documentTitle($type, $saleData), $number);
 
             try {
                 if (file_put_contents($filename, $this->renderPdf($type, $saleData)) !== false) {
@@ -2289,7 +2293,7 @@ class Sales extends Secure_Controller
             return redirect()->to('no_access/sales/reports_sales');
         }
 
-        if (!in_array($type, [...documentTypes(), ...slipTypes()], true)) {
+        if (!in_array($type, [...documentTypes(), ...slipTypes()], true) || !$this->sale->exists($saleId)) {
             throw PageNotFoundException::forPageNotFound();
         }
 
@@ -2325,25 +2329,33 @@ class Sales extends Secure_Controller
     private function renderPdf(string $type, array $saleData): string
     {
         $pdfLib = new Pdf_lib();
+        $title  = $this->documentTitle($type, $saleData);
 
         if ($type === 'receipt') {
             $saleData['pdf'] = true;
 
-            return $pdfLib->render(view('sales/receipt_email', $saleData), ['format' => 'A5', 'title' => lang('Sales.receipt')]);
+            return $pdfLib->render(view('sales/receipt_email', $saleData), ['format' => 'A5', 'title' => $title]);
         }
 
         if (in_array($type, slipTypes(), true)) {
-            return $pdfLib->render(view('documents/slip_pdf', ['type' => $type, 'sale' => $saleData]), ['title' => lang('Documents.' . $type)]);
+            return $pdfLib->render(view('documents/slip_pdf', ['type' => $type, 'sale' => $saleData]), ['title' => $title]);
         }
 
-        return $pdfLib->render(view('documents/pdf', ['type' => $type, 'sale' => $saleData]), ['title' => lang('Sales.' . $type)]);
+        return $pdfLib->render(view('documents/pdf', ['type' => $type, 'sale' => $saleData]), ['title' => $title]);
     }
 
-    private function documentFilename(string $type, string $number): string
+    private function documentTitle(string $type, array $saleData): string
     {
-        $name = trim(lang(in_array($type, slipTypes(), true) ? 'Documents.' . $type : 'Sales.' . $type) . ' ' . $number);
+        if ($type === 'receipt') {
+            return lang('Sales.receipt');
+        }
 
-        return preg_replace('~[\\\\/:*?"<>|\x00-\x1f]+~u', '-', $name) . '.pdf';
+        return in_array($type, slipTypes(), true) ? lang('Documents.' . $type) : documentProfile($type, $saleData)['title'];
+    }
+
+    private function documentFilename(string $title, string $number): string
+    {
+        return preg_replace('~[\\\\/:*?"<>|\x00-\x1f]+~u', '-', trim($title . ' ' . $number)) . '.pdf';
     }
 
     /**
@@ -2483,6 +2495,7 @@ class Sales extends Secure_Controller
         $data['transaction_date'] = to_date(strtotime($timing['invoice_date'] ?? $saleInfo['sale_time']));
         $data['sale_time_raw'] = (string) $saleInfo['sale_time'];
         $data['invoice_date_raw'] = $timing['invoice_date'] ?? null;
+        $data['currency_code'] = $this->sale->getCurrencyCode((int) $saleId);
         $data['is_return'] = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS) === SALE_TYPE_RETURN;
         $data['sale_type'] = (int) ($saleInfo['sale_type'] ?? SALE_TYPE_POS);
         $data['due_date'] = $timing['payment_terms_days'] === null || $timing['due_date'] === null ? null : to_date(strtotime($timing['due_date']));

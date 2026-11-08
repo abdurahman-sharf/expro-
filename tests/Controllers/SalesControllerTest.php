@@ -8173,6 +8173,88 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertStringContainsString(rawurlencode(lang('Sales.credit_note') . ' CN-00001') . '.pdf', $response->response()->getHeaderLine('Content-Disposition'));
     }
 
+    public function testGetPdf_NamesAReturnIssuedAsARefundInvoiceByThatNameInItsFileAndItsTitle(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $refund = $this->refundInvoiceOf($invoice['saleId'], '10.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response    = $this->get('/sales/pdf/' . $refund . '/credit_note');
+        $disposition = $response->response()->getHeaderLine('Content-Disposition');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString(rawurlencode(lang('Numbering.type_refund_invoice') . ' RI-00001') . '.pdf', $disposition);
+        $this->assertStringNotContainsString(rawurlencode(lang('Sales.credit_note')), $disposition);
+    }
+
+    public function testRenderPdf_TitlesTheFileAndTheEmailOfAReturnByTheNameItWasIssuedAs(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->switchOn(DocumentType::RefundInvoice, 'RI-', 5);
+        $this->switchOn(DocumentType::CreditNote, 'CN-', 5);
+        $refund = $this->refundInvoiceOf($invoice['saleId'], '10.00');
+        $note   = $this->creditNoteOf($invoice['saleId'], '5.00');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $refundData  = $this->savedSaleData($refund);
+        $noteData    = $this->savedSaleData($note);
+        $invoiceData = $this->savedSaleData($invoice['saleId']);
+        $controller  = new Sales();
+        $controller->initController(service('request'), service('response'), service('logger'));
+        $title = new ReflectionMethod($controller, 'documentTitle');
+
+        $this->assertSame(lang('Numbering.type_refund_invoice'), $title->invoke($controller, 'credit_note', $refundData));
+        $this->assertSame(lang('Sales.credit_note'), $title->invoke($controller, 'credit_note', $noteData));
+        $this->assertSame(lang('Sales.invoice'), $title->invoke($controller, 'invoice', $invoiceData));
+        $this->assertSame(lang('Documents.packing_slip'), $title->invoke($controller, 'packing_slip', $invoiceData));
+        $this->assertSame(lang('Sales.receipt'), $title->invoke($controller, 'receipt', []));
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function documentOfASaleProvider(): array
+    {
+        return ['invoice' => ['invoice'], 'tax invoice' => ['tax_invoice'], 'quote' => ['quote'], 'work order' => ['work_order'], 'credit note' => ['credit_note'], 'packing slip' => ['packing_slip'], 'receipt' => ['receipt']];
+    }
+
+    #[DataProvider('documentOfASaleProvider')]
+    public function testGetPdf_RefusesASaleThatDoesNotExist(string $type): void
+    {
+        $this->startSelling();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/pdf/999999/' . $type)->assertStatus(404);
+    }
+
+    #[DataProvider('documentOfASaleProvider')]
+    public function testGetSendPdf_RefusesASaleThatDoesNotExist(string $type): void
+    {
+        if ($type === 'packing_slip') {
+            $this->markTestSkipped('A slip is never emailed.');
+        }
+
+        $this->startSelling();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/sendPdf/999999/' . $type)->assertStatus(404);
+    }
+
+    #[DataProvider('documentOfASaleProvider')]
+    public function testGetPrint_RefusesASaleThatDoesNotExist(string $type): void
+    {
+        if ($type === 'receipt') {
+            $this->markTestSkipped('A receipt is not one of the documents of a sale to print.');
+        }
+
+        $this->startSelling();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/sales/print/999999/' . $type);
+    }
+
     public function testGetPdf_RefusesTheCreditNoteOfASaleThatIsNotAReturn(): void
     {
         $invoice = $this->postedInvoice();
@@ -8276,6 +8358,78 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->assertStringNotContainsString('class="doc-qr"', $quote);
         $this->assertStringContainsString('class="doc-qr-text"', $invoice);
+    }
+
+    public function testPostComplete_CarriesTheSameCodeOnTheInvoicePrintedRightAfterTheSaleAsOnItsReprint(): void
+    {
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
+
+        try {
+            $first = $this->completeAs('sale_invoice');
+            $saleId = (int) $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow()->sale_id;
+            $this->saleIds[] = $saleId;
+            $this->loginAs($this->createBranchLimitedSupervisor(1));
+            $again = $this->get('/sales/invoice/' . $saleId);
+            $data  = $this->savedSaleData($saleId);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $this->assertStringNotContainsString('doc-qr-notice', $first->getBody());
+        $fields = $this->qrFieldsOf($first->getBody());
+
+        $this->assertSame('opes', $fields[1]);
+        $this->assertSame('300000000000003', $fields[2]);
+        $this->assertSame(number_format((float) $data['total'], 2, '.', ''), $fields[4]);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $fields[3]);
+        $this->assertSame($this->qrFieldsOf($again->getBody()), $fields);
+    }
+
+    /**
+     * @return array<string, array{0: array<string, mixed>}>
+     */
+    public static function saleWithoutCodeProvider(): array
+    {
+        return ['cancelled' => [['sale_status' => CANCELED]], 'quote' => [['sale_type' => SALE_TYPE_QUOTE]]];
+    }
+
+    /**
+     * @param array<string, mixed> $changes
+     */
+    #[DataProvider('saleWithoutCodeProvider')]
+    public function testGetPrint_CarriesNoCodeNorNoticeOnATaxInvoicePrintedForASaleThatWasNotIssued(array $changes): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->accountingDb()->table('sales')->where('sale_id', $invoice['saleId'])->update($changes);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
+
+        try {
+            $page = $this->get('/sales/print/' . $invoice['saleId'] . '/tax_invoice');
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $page->assertStatus(200);
+        $this->assertStringNotContainsString('class="doc-qr-text"', $page->getBody());
+        $this->assertStringNotContainsString('doc-qr-notice', $page->getBody());
+    }
+
+    public function testGetInvoice_SaysWhyTheInvoiceOfAForeignCurrencyCarriesNoCode(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->accountingDb()->table('sales')->where('sale_id', $invoice['saleId'])->update(['currency_code' => 'USD', 'currency_rate' => '3.7500']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
+
+        try {
+            $page = $this->get('/sales/invoice/' . $invoice['saleId']);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $page->assertSee(lang('Documents.error_qr_foreign_currency'));
+        $this->assertStringNotContainsString('class="doc-qr-text"', $page->getBody());
     }
 
     public function testRenderPdfHtml_CarriesTheCodeOfACreditNoteWithTheAmountsItTakesBack(): void
@@ -8856,7 +9010,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
     }
 
     #[DataProvider('slipProvider')]
-    public function testGetPrint_RefusesASlipForAReturnAndAnUnknownSale(string $slip): void
+    public function testGetPrint_RefusesASlipForAReturn(string $slip): void
     {
         $invoice = $this->postedInvoice();
         $note    = $this->creditNoteOf($invoice['saleId'], '10.00');

@@ -20,6 +20,7 @@ enum DocumentError: string
     case CustomFieldTypeLocked = 'custom_field_type_locked';
     case PermissionDenied      = 'permission_denied';
     case QrAmountMalformed     = 'qr_amount_malformed';
+    case QrForeignCurrency     = 'qr_foreign_currency';
     case QrSellerMissing       = 'qr_seller_missing';
     case QrTimestampMalformed  = 'qr_timestamp_malformed';
     case QrValueTooLong        = 'qr_value_too_long';

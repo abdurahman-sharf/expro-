@@ -52,6 +52,18 @@ class DocumentHelperTest extends CIUnitTestCase
         $this->assertFalse($profile['showSignature']);
     }
 
+    public function testPurchaseDocumentProfile_LabelsItsNumberAsThatOfAnInvoiceOrOfADebitNote(): void
+    {
+        $invoice = purchaseDocumentProfile(['purchase_type' => 'receive', 'documentNumber' => 'PUR-00001', 'transaction_time' => '2026-10-20', 'total_with_tax' => '10.00']);
+        $note    = purchaseDocumentProfile(['purchase_type' => 'return', 'documentNumber' => 'DN-00001', 'transaction_time' => '2026-10-20', 'total_with_tax' => '-10.00']);
+
+        $this->assertSame([lang('Documents.purchase_number'), 'PUR-00001'], $invoice['meta'][0]);
+        $this->assertSame([lang('Documents.debit_note_number'), 'DN-00001'], $note['meta'][0]);
+        $this->assertNotSame(lang('Documents.purchase_number'), lang('Documents.debit_note_number'));
+        $this->assertStringNotContainsStringIgnoringCase('order', lang('Documents.purchase_number'));
+        $this->assertStringNotContainsStringIgnoringCase('order', lang('Documents.debit_note_number'));
+    }
+
     public function testDocumentProfile_NumbersQuoteByQuoteNumber(): void
     {
         $profile = documentProfile('quote', ['quote_number' => 'Q-3', 'transaction_date' => '2026-10-20', 'total' => 10]);
