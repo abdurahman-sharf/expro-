@@ -436,6 +436,27 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString($storeName, $this->pageOf($path));
     }
 
+    public function testDateInput_OffersAnInactiveStockLocationBecauseItKeepsItsHistory(): void
+    {
+        $this->openTheBooks();
+        $db        = $this->accountingDb();
+        $storeName = (string) $db->table('stock_locations')->where('location_id', $this->storeB)->get()->getRow()->location_name;
+
+        $db->table('stock_locations')->where('location_id', $this->storeB)->update(['status' => 0]);
+
+        try {
+            foreach ([['/reports/summary_sales', 'sales'], ['/reports/summary_discounts', 'sales'], ['/reports/detailed_sales', 'sales'], ['/reports/detailed_item_sales', 'sales'], ['/reports/detailed_receivings', 'receivings'], ['/reports/inventory_summary', 'items']] as [$path, $module]) {
+                $personId = $this->readerOfTheBranches(null);
+                $this->grantTheStore($personId, $module, 1);
+                $this->grantTheStore($personId, $module, $this->storeB);
+
+                $this->assertStringContainsString($storeName, $this->pageOf($path), $path);
+            }
+        } finally {
+            $db->table('stock_locations')->where('location_id', $this->storeB)->update(['status' => 1]);
+        }
+    }
+
     private function grantTheStore(int $personId, string $module, int $locationId): void
     {
         $db   = $this->accountingDb();

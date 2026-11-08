@@ -3,6 +3,8 @@
 namespace Tests\Controllers;
 
 use App\Controllers\Items;
+use App\Libraries\MasterData\LookupKind;
+use App\Libraries\MasterData\NamedLookup;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\SalesControlSettings;
 use CodeIgniter\Database\Config;
@@ -2977,5 +2979,487 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame($items, $this->accountingDb()->table('items')->countAllResults(), 'the item is not saved without the prices that came with it');
 
         $this->resetItemControls();
+    }
+
+    // ========== master data: brand, status, supplier code, the hidden state and the deletion refusal ==========
+
+    /** @var list<int> */
+    private array $masterItemIds = [];
+
+    /** @var list<int> */
+    private array $masterSaleIds = [];
+
+    private function brand(string $name, bool $active = true): int
+    {
+        return (new NamedLookup(LookupKind::ItemBrand))->save($name, $active, null, 1);
+    }
+
+    /**
+     * @param array<string, string> $extra
+     *
+     * @return array<string, mixed>
+     */
+    private function saveMasterItem(array $extra = [], int $itemId = NEW_ENTRY): array
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $result = json_decode($this->post('/items/save/' . $itemId, ['master_data' => '1', 'tax_names' => ['VAT'], 'tax_percents' => ['0']] + $extra + $this->baseItemPostData())->getJSON(), true);
+
+        if (($result['success'] ?? false) && $itemId === NEW_ENTRY) {
+            $this->masterItemIds[] = (int) $result['id'];
+        }
+
+        return $result;
+    }
+
+    private function masterItemRow(int $itemId): array
+    {
+        return $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRowArray();
+    }
+
+    private function suspendDocumentNaming(int $itemId, int $type = SALE_TYPE_INVOICE, int $status = SUSPENDED): int
+    {
+        $db = $this->accountingDb();
+
+        $db->table('sales')->insert(['sale_status' => $status, 'sale_type' => $type, 'employee_id' => 1, 'comment' => '']);
+        $saleId = (int) $db->insertID();
+        $db->table('sales_items')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 1, 'quantity_purchased' => 1, 'item_cost_price' => 1, 'item_unit_price' => 5, 'item_location' => 1]);
+
+        return $this->masterSaleIds[] = $saleId;
+    }
+
+    private function cleanMasterItems(): void
+    {
+        $db = $this->accountingDb();
+
+        foreach ($this->masterSaleIds as $saleId) {
+            $db->table('sales_items')->where('sale_id', $saleId)->delete();
+            $db->table('sales')->where('sale_id', $saleId)->delete();
+        }
+
+        $db->table('items')->update(['brand_id' => null]);
+
+        foreach ($this->masterItemIds as $itemId) {
+            $db->table('item_quantities')->where('item_id', $itemId)->delete();
+            $db->table('inventory')->where('trans_items', $itemId)->delete();
+            $db->table('items')->where('item_id', $itemId)->delete();
+        }
+
+        $db->query('DELETE FROM ' . $db->prefixTable('item_brands'));
+        $db->table('accounting_audit_log')->whereIn('entity_type', ['item', 'item_brand'])->delete();
+
+        $this->masterSaleIds = [];
+        $this->masterItemIds = [];
+    }
+
+    public function testPostSave_SavesTheBrandTheStatusAndTheSupplierCodeAndAuditsThem(): void
+    {
+        $brand    = $this->brand('Acme');
+        $supplier = $this->insertSupplier();
+
+        $result = $this->saveMasterItem(['brand_id' => (string) $brand, 'status' => '2', 'supplier_code' => ' SUP-77 ', 'supplier_id' => (string) $supplier]);
+
+        $this->assertTrue($result['success']);
+
+        $row = $this->masterItemRow((int) $result['id']);
+
+        $this->assertSame([$brand, 2, 'SUP-77'], [(int) $row['brand_id'], (int) $row['status'], $row['supplier_code']]);
+
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item', 'entity_id' => $result['id'], 'action' => 'item_master_data_changed'])->get()->getRow();
+
+        $this->assertSame(['brand_id', 'status', 'supplier_code'], array_keys(json_decode((string) $audit->details, true)['changes']));
+        $this->cleanMasterItems();
+    }
+
+    public function testPostSave_ChangesTheStatusAndClearsTheBrandAndTheSupplierCodeWhenTheFormEmptiesThem(): void
+    {
+        $brand  = $this->brand('Acme');
+        $result = $this->saveMasterItem(['brand_id' => (string) $brand, 'status' => '1', 'supplier_code' => 'X1']);
+
+        $this->saveMasterItem(['brand_id' => '0', 'status' => '0', 'supplier_code' => ''], (int) $result['id']);
+
+        $row = $this->masterItemRow((int) $result['id']);
+
+        $this->assertSame([null, 0, null], [$row['brand_id'], (int) $row['status'], $row['supplier_code']]);
+        $this->assertSame(2, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item', 'entity_id' => $result['id'], 'action' => 'item_master_data_changed'])->countAllResults());
+        $this->cleanMasterItems();
+    }
+
+    public function testPostSave_WritesNothingToTheAuditLogWhenNothingChanged(): void
+    {
+        $result = $this->saveMasterItem(['status' => '0']);
+        $this->saveMasterItem(['status' => '0', 'name' => 'Renamed ' . uniqid()], (int) $result['id']);
+
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item', 'entity_id' => $result['id']])->countAllResults());
+        $this->cleanMasterItems();
+    }
+
+    public function testPostSave_LeavesTheMasterDataAloneWhenTheFormDoesNotCarryIt(): void
+    {
+        $brand  = $this->brand('Acme');
+        $result = $this->saveMasterItem(['brand_id' => (string) $brand, 'status' => '2', 'supplier_code' => 'KEEP']);
+
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $this->post('/items/save/' . $result['id'], ['tax_names' => ['VAT'], 'tax_percents' => ['0']] + $this->baseItemPostData());
+
+        $row = $this->masterItemRow((int) $result['id']);
+
+        $this->assertSame([$brand, 2, 'KEEP'], [(int) $row['brand_id'], (int) $row['status'], $row['supplier_code']]);
+        $this->cleanMasterItems();
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function invalidMasterItemValueProvider(): array
+    {
+        return [
+            'a brand that does not exist' => ['brand_id', '987654'],
+            'a status of three'           => ['status', '3'],
+            'a status of words'           => ['status', 'frozen'],
+            'a supplier code too long'    => ['supplier_code', 'long'],
+        ];
+    }
+
+    #[DataProvider('invalidMasterItemValueProvider')]
+    public function testPostSave_RejectsAnInvalidMasterValueWithANamedMessageAndSavesNothing(string $field, string $value): void
+    {
+        $value  = $field === 'supplier_code' ? str_repeat('c', 101) : $value;
+        $before = $this->countRows('items');
+
+        $result = $this->saveMasterItem([$field => $value]);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringNotContainsString('Accounting.error_', $result['message']);
+        $this->assertSame($before, $this->countRows('items'));
+    }
+
+    public function testPostSave_AcceptsASupplierCodeOfExactlyOneHundredCharacters(): void
+    {
+        $result = $this->saveMasterItem(['supplier_code' => str_repeat('c', 100)]);
+
+        $this->assertTrue($result['success']);
+        $this->cleanMasterItems();
+    }
+
+    public function testPostSave_RejectsAnInactiveBrandForAnItemButKeepsOneTheItemHolds(): void
+    {
+        $brand  = $this->brand('Retired');
+        $result = $this->saveMasterItem(['brand_id' => (string) $brand]);
+        (new NamedLookup(LookupKind::ItemBrand))->setStatus($brand, false, 1);
+
+        $this->assertFalse($this->saveMasterItem(['brand_id' => (string) $brand])['success']);
+        $this->assertTrue($this->saveMasterItem(['brand_id' => (string) $brand, 'description' => 'edited'], (int) $result['id'])['success']);
+        $this->assertSame($brand, (int) $this->masterItemRow((int) $result['id'])['brand_id']);
+        $this->cleanMasterItems();
+    }
+
+    public function testPostSave_KeepsTheStockTheNameAndTheShelvesOfASuspendedItem(): void
+    {
+        $result = $this->saveMasterItem(['status' => '0']);
+        $itemId = (int) $result['id'];
+        $this->accountingDb()->table('item_quantities')->where('item_id', $itemId)->update(['quantity' => 7]);
+        $before = [$this->masterItemRow($itemId)['deleted'], (string) $this->accountingDb()->table('item_quantities')->where('item_id', $itemId)->get()->getRow()->quantity, $this->countRows('inventory')];
+
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $this->post('/items/save/' . $itemId, ['master_data' => '1', 'status' => '2', 'quantity_1' => '7', 'tax_names' => ['VAT'], 'tax_percents' => ['0']] + $this->baseItemPostData());
+
+        $this->assertSame(2, (int) $this->masterItemRow($itemId)['status']);
+        $this->assertSame($before, [$this->masterItemRow($itemId)['deleted'], (string) $this->accountingDb()->table('item_quantities')->where('item_id', $itemId)->get()->getRow()->quantity, $this->countRows('inventory')]);
+        $this->cleanMasterItems();
+    }
+
+    public function testGetView_OffersTheBrandsTheThreeStatusesAndTheSupplierCodeField(): void
+    {
+        $this->brand('Acme');
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $body = $this->get('/items/view/-1')->getBody();
+
+        foreach (['name="master_data"', 'name="brand_id"', 'name="status"', 'name="supplier_code"', 'value="0"', 'value="1"', 'value="2"'] as $needle) {
+            $this->assertStringContainsString($needle, $body);
+        }
+
+        $this->assertStringContainsString('Acme', $body);
+        $this->assertStringContainsString(lang('Items.status_suspended'), $body);
+        $this->assertStringContainsString(lang('Items.status_inactive'), $body);
+        $this->cleanMasterItems();
+    }
+
+    public function testGetView_OffersAnInactiveBrandTheItemHoldsButNoOtherInactiveOne(): void
+    {
+        $held   = $this->brand('Held and retired');
+        $loose  = $this->brand('Loose and retired');
+        $result = $this->saveMasterItem(['brand_id' => (string) $held]);
+        $lookup = new NamedLookup(LookupKind::ItemBrand);
+        $lookup->setStatus($held, false, 1);
+        $lookup->setStatus($loose, false, 1);
+
+        $body = $this->get('/items/view/' . $result['id'])->getBody();
+
+        $this->assertStringContainsString('Held and retired', $body);
+        $this->assertStringNotContainsString('Loose and retired', $body);
+        $this->cleanMasterItems();
+    }
+
+    public function testPostDelete_RejectsAnItemADraftAQuoteOrASuspendedSaleStillNamesWithANamedMessage(): void
+    {
+        foreach ([[SALE_TYPE_INVOICE, 'a draft invoice'], [SALE_TYPE_QUOTE, 'a quote'], [SALE_TYPE_POS, 'a suspended sale'], [SALE_TYPE_WORK_ORDER, 'a work order']] as [$type, $kind]) {
+            $itemId = (int) $this->saveMasterItem()['id'];
+            $saleId = $this->suspendDocumentNaming($itemId, $type);
+
+            $this->loginAsItemsEmployee($this->createItemsEmployee());
+            $result = json_decode($this->post('/items/delete', ['ids' => [(string) $itemId]])->getJSON(), true);
+
+            $this->assertFalse($result['success'], $kind);
+            $this->assertStringContainsString($this->masterItemRow($itemId)['name'], $result['message']);
+            $this->assertSame('0', (string) $this->masterItemRow($itemId)['deleted'], $kind);
+
+            $this->accountingDb()->table('sales_items')->where('sale_id', $saleId)->delete();
+            $this->accountingDb()->table('sales')->where('sale_id', $saleId)->delete();
+
+            $result = json_decode($this->post('/items/delete', ['ids' => [(string) $itemId]])->getJSON(), true);
+
+            $this->assertTrue($result['success'], "{$kind}: the item goes once the document is gone");
+        }
+
+        $this->cleanMasterItems();
+    }
+
+    public function testPostDelete_RejectsTheWholeListAndDeletesNoneWhenOneItemIsNamedInADraft(): void
+    {
+        $free  = (int) $this->saveMasterItem()['id'];
+        $named = (int) $this->saveMasterItem()['id'];
+        $this->suspendDocumentNaming($named);
+
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $result = json_decode($this->post('/items/delete', ['ids' => [(string) $free, (string) $named]])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(['0', '0'], [(string) $this->masterItemRow($free)['deleted'], (string) $this->masterItemRow($named)['deleted']]);
+        $this->cleanMasterItems();
+    }
+
+    public function testPostDelete_DeletesAnItemOnlyCompletedSalesAndCancelledOnesName(): void
+    {
+        $itemId = (int) $this->saveMasterItem()['id'];
+        $this->suspendDocumentNaming($itemId, SALE_TYPE_INVOICE, COMPLETED);
+        $this->suspendDocumentNaming($itemId, SALE_TYPE_INVOICE, CANCELED);
+
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $result = json_decode($this->post('/items/delete', ['ids' => [(string) $itemId]])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('1', (string) $this->masterItemRow($itemId)['deleted']);
+        $this->cleanMasterItems();
+    }
+
+    public function testPostSave_RejectsToDeleteThroughTheFormAnItemADraftStillNames(): void
+    {
+        $itemId = (int) $this->saveMasterItem()['id'];
+        $this->suspendDocumentNaming($itemId);
+
+        $result = $this->saveMasterItem(['is_deleted' => '1'], $itemId);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('0', (string) $this->masterItemRow($itemId)['deleted']);
+        $this->cleanMasterItems();
+    }
+
+    public function testGetSearch_OffersTheFiveStatusFiltersOfTheList(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $body = $this->get('/items')->getBody();
+
+        foreach (['available', 'low_inventory', 'out_of_stock', 'status_inactive', 'status_suspended'] as $filter) {
+            $this->assertStringContainsString('value="' . $filter . '"', $body);
+        }
+    }
+
+    public function testGetSearch_NarrowsTheListByInactiveSuspendedUnavailableAndAvailable(): void
+    {
+        $active    = (int) $this->saveMasterItem(['status' => '0', 'name' => 'Filter active ' . uniqid()])['id'];
+        $emptied   = (int) $this->saveMasterItem(['status' => '0', 'name' => 'Filter emptied ' . uniqid()])['id'];
+        $inactive  = (int) $this->saveMasterItem(['status' => '1', 'name' => 'Filter inactive ' . uniqid()])['id'];
+        $suspended = (int) $this->saveMasterItem(['status' => '2', 'name' => 'Filter suspended ' . uniqid()])['id'];
+        $db        = $this->accountingDb();
+
+        $db->table('item_quantities')->where('item_id', $active)->where('location_id', 1)->update(['quantity' => 5]);
+        $db->table('item_quantities')->where('item_id', $emptied)->where('location_id', 1)->update(['quantity' => -2]);
+        $db->table('item_quantities')->where('item_id', $inactive)->where('location_id', 1)->update(['quantity' => 5]);
+        $db->table('item_quantities')->where('item_id', $suspended)->where('location_id', 1)->update(['quantity' => 0]);
+
+        $mine = [$active, $emptied, $inactive, $suspended];
+        $ids  = function (array $filters) use ($mine): array {
+            $found = json_decode($this->get('/items/search', ['search' => 'Filter ', 'stock_location' => '1', 'limit' => '50', 'offset' => '0', 'order' => 'asc', 'filters' => $filters])->getJSON(), true);
+
+            return array_values(array_intersect(array_map('intval', array_column($found['rows'], 'items.item_id')), $mine));
+        };
+
+        $this->assertSame([$inactive], $ids(['status_inactive']));
+        $this->assertSame([$suspended], $ids(['status_suspended']));
+        $this->assertEqualsCanonicalizing([$inactive, $suspended], $ids(['status_inactive', 'status_suspended']), 'both choices list everything that is hidden');
+        $this->assertEqualsCanonicalizing([$emptied, $suspended], $ids(['out_of_stock']));
+        $this->assertSame([$active], $ids(['available']));
+        $this->assertEqualsCanonicalizing($mine, $ids([]));
+        $this->cleanMasterItems();
+    }
+
+    public function testGetSearch_ShowsTheBrandAndTheStatusOfEachItem(): void
+    {
+        $brand  = $this->brand('Acme');
+        $itemId = (int) $this->saveMasterItem(['brand_id' => (string) $brand, 'status' => '2', 'name' => 'Shown ' . uniqid()])['id'];
+
+        $found = json_decode($this->get('/items/search', ['search' => $this->masterItemRow($itemId)['name'], 'stock_location' => '1', 'limit' => '5', 'offset' => '0', 'order' => 'asc'])->getJSON(), true);
+
+        $this->assertSame(['Acme', lang('Items.status_suspended')], [$found['rows'][0]['brand_name'], $found['rows'][0]['status_label']]);
+        $this->cleanMasterItems();
+    }
+
+    public function testPostImportCsvFile_ImportsTheOptionalColumnsOfARow(): void
+    {
+        $brand   = $this->brand('Acme');
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $columns = $this->importColumnsOfTheEmployee();
+        $name    = 'Csv master item ' . uniqid();
+
+        $this->assertSame(['Brand', 'Status', 'Supplier Code', 'Purchase Tax 1 Name', 'Purchase Tax 1 Percent', 'Purchase Tax 2 Name', 'Purchase Tax 2 Percent'], array_slice($columns, -7));
+
+        $result = $this->importOneRow($columns, ['Item Name' => $name, 'Category' => 'Csv', 'Cost Price' => '5', 'Unit Price' => '9', 'Reorder Level' => '0', 'Brand' => 'acme', 'Status' => 'suspended', 'Supplier Code' => 'S-9', 'Purchase Tax 1 Name' => 'VAT', 'Purchase Tax 1 Percent' => '15', 'Purchase Tax 2 Percent' => '5']);
+        $row    = $this->accountingDb()->table('items')->where('name', $name)->get()->getRowArray();
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([$brand, 2, 'S-9', 'VAT', '15.000', null, '5.000'], [(int) $row['brand_id'], (int) $row['status'], $row['supplier_code'], $row['purchase_tax_1_name'], $row['purchase_tax_1_percent'], $row['purchase_tax_2_name'], $row['purchase_tax_2_percent']]);
+        $this->masterItemIds[] = (int) $row['item_id'];
+        $this->cleanMasterItems();
+    }
+
+    public function testPostImportCsvFile_WritesTheBrandTheStatusAndTheSupplierCodeOfEachRowToTheAuditLog(): void
+    {
+        $acme = $this->brand('Acme');
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $columns = $this->importColumnsOfTheEmployee();
+        $name    = 'Csv audited item ' . uniqid();
+        $base    = ['Item Name' => $name, 'Category' => 'Csv', 'Cost Price' => '5', 'Unit Price' => '9', 'Reorder Level' => '0'];
+
+        $this->assertTrue($this->importOneRow($columns, $base + ['Brand' => 'Acme', 'Status' => 'inactive', 'Supplier Code' => 'S-1'])['success']);
+
+        $itemId = (int) $this->accountingDb()->table('items')->where('name', $name)->get()->getRow()->item_id;
+        $this->masterItemIds[] = $itemId;
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item', 'entity_id' => $itemId, 'action' => 'item_master_data_changed'])->get()->getResultArray();
+
+        $this->assertCount(1, $audit, 'a new item is written once');
+        $this->assertEquals(['brand_id' => ['from' => null, 'to' => $acme], 'status' => ['from' => 0, 'to' => 1], 'supplier_code' => ['from' => null, 'to' => 'S-1']], json_decode($audit[0]['details'], true)['changes']);
+
+        $this->assertTrue($this->importOneRow($columns, ['Id' => (string) $itemId, ...$base, 'Status' => 'suspended', 'Supplier Code' => 'S-1'])['success']);
+
+        $audit = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item', 'entity_id' => $itemId, 'action' => 'item_master_data_changed'])->orderBy('audit_id', 'ASC')->get()->getResultArray();
+
+        $this->assertCount(2, $audit, 'an item that is changed is written again');
+        $this->assertEquals(['status' => ['from' => 1, 'to' => 2]], json_decode($audit[1]['details'], true)['changes'], 'and only what changed');
+
+        $this->assertTrue($this->importOneRow($columns, ['Id' => (string) $itemId, ...$base])['success']);
+        $this->assertCount(2, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'item', 'entity_id' => $itemId, 'action' => 'item_master_data_changed'])->get()->getResultArray(), 'a row with the cells empty changes none of them and writes nothing');
+        $this->cleanMasterItems();
+    }
+
+    public function testPostImportCsvFile_ImportsAFileWithoutTheOptionalColumnsAsItAlwaysDid(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $columns = array_values(array_diff($this->importColumnsOfTheEmployee(), optional_item_import_columns()));
+        $name    = 'Csv legacy item ' . uniqid();
+
+        $result = $this->importOneRow($columns, ['Item Name' => $name, 'Category' => 'Csv', 'Cost Price' => '5', 'Unit Price' => '9', 'Reorder Level' => '0']);
+        $row    = $this->accountingDb()->table('items')->where('name', $name)->get()->getRowArray();
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([null, 0, null, null], [$row['brand_id'], (int) $row['status'], $row['supplier_code'], $row['purchase_tax_1_percent']]);
+        $this->masterItemIds[] = (int) $row['item_id'];
+        $this->cleanMasterItems();
+    }
+
+    /**
+     * @return array<string, array{0: array<string, string>}>
+     */
+    public static function refusedItemCellsProvider(): array
+    {
+        return [
+            'a brand that does not exist' => [['Brand' => 'Nowhere']],
+            'a status outside the three'  => [['Status' => '7']],
+            'a supplier code too long'    => [['Supplier Code' => 'S']],
+            'a purchase tax over 100'     => [['Purchase Tax 1 Percent' => '101']],
+            'a purchase tax that is not a number' => [['Purchase Tax 2 Percent' => 'abc']],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $cells
+     */
+    #[DataProvider('refusedItemCellsProvider')]
+    public function testPostImportCsvFile_RejectsARowWhoseOptionalValueIsNotAllowedAndSavesNothing(array $cells): void
+    {
+        $this->brand('Acme');
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $columns = $this->importColumnsOfTheEmployee();
+        $name    = 'Csv refused item ' . uniqid();
+
+        if (isset($cells['Supplier Code'])) {
+            $cells['Supplier Code'] = str_repeat('S', 101);
+        }
+
+        $result = $this->importOneRow($columns, ['Item Name' => $name, 'Category' => 'Csv', 'Cost Price' => '5', 'Unit Price' => '9', 'Reorder Level' => '0'] + $cells);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(0, $this->accountingDb()->table('items')->where('name', $name)->countAllResults());
+        $this->cleanMasterItems();
+    }
+
+    public function testGenerateCsvHeader_EndsWithTheOptionalColumnsAfterTheStockLocationsAndTheAttributes(): void
+    {
+        $csv = generate_import_items_csv(['Warehouse'], ['Color']);
+
+        $this->assertStringContainsString('"location_Warehouse","attribute_Color","Brand","Status","Supplier Code","Purchase Tax 1 Name"', $csv);
+        $this->assertStringContainsString('Image,HSN', $csv);
+    }
+
+    public function testCsvImportHasRequiredItemHeaders_AcceptsAFileWithoutTheOptionalColumns(): void
+    {
+        $template = substr(generate_import_items_csv(['Warehouse'], []), 3);
+        $legacy   = array_values(array_diff(str_getcsv($template), optional_item_import_columns()));
+
+        $this->assertTrue(csvImportHasRequiredItemHeaders([array_fill_keys($legacy, '')], ['Warehouse'], []));
+        $this->assertFalse(csvImportHasRequiredItemHeaders([array_fill_keys(array_diff($legacy, ['Item Name']), '')], ['Warehouse'], []), 'A required column is still required');
+    }
+
+    public function testGetView_EscapesTheNameOfABrandInTheList(): void
+    {
+        $hostile = '</select><img src=x onerror=alert(1)>';
+        $this->brand($hostile);
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $form = $this->get('/items/view/-1')->getBody();
+
+        $this->assertDoesNotMatchRegularExpression('/<img\b[^>]*onerror/i', $form);
+        $this->assertStringContainsString('>' . esc($hostile) . '</option>', $form);
+        $this->cleanMasterItems();
+    }
+
+    public function testGetSuggest_LeavesOutAnInactiveAndASuspendedItemFromThePickerOfTheKitForm(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $token = 'Kitpick' . uniqid();
+        $ids   = [];
+
+        foreach ([0, 1, 2] as $status) {
+            $ids[$status] = (int) $this->saveMasterItem(['status' => (string) $status, 'name' => $token . ' ' . $status])['id'];
+        }
+
+        $found = array_map('intval', array_column(json_decode($this->get('/items/suggest', ['term' => $token])->getJSON(), true), 'value'));
+
+        $this->assertContains($ids[0], $found);
+        $this->assertNotContains($ids[1], $found);
+        $this->assertNotContains($ids[2], $found);
+        $this->cleanMasterItems();
     }
 }

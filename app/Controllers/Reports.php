@@ -560,7 +560,7 @@ class Reports extends Secure_Controller
     {
         $this->clearCache();
 
-        $stockLocations                = $data = $this->stock_location->get_allowed_locations('sales', true);
+        $stockLocations                = $data = $this->stock_location->get_allowed_locations('sales', true, true);
         $stockLocations['all']         = lang('Reports.all');
         $data['stock_locations']       = array_reverse($stockLocations, true);
         $data['mode']                  = 'sale';
@@ -678,7 +678,7 @@ class Reports extends Secure_Controller
     {   // TODO: Duplicated Code
         $this->clearCache();
 
-        $stockLocations            = $data = $this->stock_location->get_allowed_locations('sales', true);
+        $stockLocations            = $data = $this->stock_location->get_allowed_locations('sales', true, true);
         $stockLocations['all']     = lang('Reports.all');
         $data['stock_locations']   = array_reverse($stockLocations, true);
         $data['mode']              = 'sale';
@@ -711,7 +711,7 @@ class Reports extends Secure_Controller
     {   // TODO: Duplicated Code
         $this->clearCache();
 
-        $stockLocations            = $data = $this->stock_location->get_allowed_locations('sales', true);
+        $stockLocations            = $data = $this->stock_location->get_allowed_locations('sales', true, true);
         $stockLocations['all']     = lang('Reports.all');
         $data['stock_locations']   = array_reverse($stockLocations, true);
         $data['mode']              = 'sale';
@@ -724,7 +724,7 @@ class Reports extends Secure_Controller
     {
         $this->clearCache();
 
-        $stockLocations                 = $data = $this->stock_location->get_allowed_locations('sales', true);
+        $stockLocations                 = $data = $this->stock_location->get_allowed_locations('sales', true, true);
         $stockLocations['all']          = lang('Reports.all');
         $data['stock_locations']        = array_reverse($stockLocations, true);
         $data['mode']                   = 'sale';
@@ -743,7 +743,7 @@ class Reports extends Secure_Controller
      */
     public function date_input_recv(): string
     {
-        $stockLocations          = $data = $this->stock_location->get_allowed_locations('receivings', true);
+        $stockLocations          = $data = $this->stock_location->get_allowed_locations('receivings', true, true);
         $stockLocations['all']   = lang('Reports.all');
         $data['stock_locations'] = array_reverse($stockLocations, true);
         $data['mode']            = 'receiving';
@@ -2172,7 +2172,7 @@ class Reports extends Secure_Controller
         $data               = [];
         $data['item_count'] = $this->inventory_summary->getItemCountDropdownArray();
 
-        $stockLocations          = $this->stock_location->get_allowed_locations('items', true);
+        $stockLocations          = $this->stock_location->get_allowed_locations('items', true, true);
         $stockLocations['all']   = lang('Reports.all');
         $data['stock_locations'] = array_reverse($stockLocations, true);
 

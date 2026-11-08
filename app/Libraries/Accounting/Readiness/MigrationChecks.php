@@ -45,6 +45,9 @@ final class MigrationChecks extends CheckGroup
         'BankReconciliation'               => [self::HEAVY, 'adds the nullable treasuries.bank_code; creates the bank statement, statement line, match and reconciliation tables, which no existing row refers to'],
         'DocumentCurrencyColumns'          => [self::HEAVY, 'adds nullable currency and rate columns to sales, sales_payments, receivings, receivings_payments, expenses and revenues, treasuries.currency_code, three nullable columns to treasury_transfers and accounting_journal_lines.currency_code; down() refuses once a row carries a currency'],
         'FxDifferenceAccounts'             => [self::DATA, 'opens the accounts of exchange gains and losses in an existing chart and points the two routing rows fx.gain and fx.loss at them'],
+        'CustomerMasterData'               => [self::HEAVY, 'adds neutral or empty columns to customers (classification, manual status, assigned employee, area, country code, type, government flag, billing method) and suppliers.country_code; creates customer_classifications; down() refuses once a value is stored'],
+        'ProductMasterData'                => [self::HEAVY, 'adds neutral or empty columns to items (brand, status, supplier code) on the largest master table; creates item_brands; down() refuses once a value is stored'],
+        'StockLocationStatus'              => [self::DATA, 'adds the status and the primary flag to stock_locations and marks the location with the lowest number primary; a unique key keeps one live primary location'],
     ];
 
     public function run(): array

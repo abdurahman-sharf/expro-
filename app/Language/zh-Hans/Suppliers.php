@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => '你確定要刪除選定的供應商嗎？',
     'confirm_restore'       => '',
     'cost'                  => '',
+    'country_code'          => '',
     'error_adding_updating' => '新增/更新供應商錯誤',
     'goods'                 => '',
     'new'                   => '新增供應商',

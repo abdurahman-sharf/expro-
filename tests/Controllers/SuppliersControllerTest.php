@@ -6,6 +6,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 
 /**
@@ -173,5 +174,97 @@ class SuppliersControllerTest extends CIUnitTestCase
 
         $response->assertSeeElement('#commercial_registry');
         $response->assertSeeInField('commercial_registry', '');
+    }
+
+    // ========== country code and the longest values of the party fields ==========
+
+    /**
+     * @param array<string, string> $form
+     *
+     * @return array<string, mixed>
+     */
+    private function attempt(array $form, int $supplierId = NEW_ENTRY): array
+    {
+        $result = json_decode($this->post('/suppliers/save/' . $supplierId, $form)->getJSON(), true);
+
+        if ($result['success'] && $supplierId === NEW_ENTRY) {
+            $this->supplierIds[] = (int) $result['id'];
+        }
+
+        return $result;
+    }
+
+    public function testPostSave_SavesTheCountryCodeInCapitals(): void
+    {
+        $supplierId = $this->saveSupplier($this->form(['country_code' => ' eg ']));
+
+        $this->assertSame('EG', $this->supplierRow($supplierId)->country_code);
+    }
+
+    public function testPostSave_RejectsACountryCodeThatIsNotTwoLettersAndSavesNothing(): void
+    {
+        $before = $this->countRows('suppliers');
+
+        $result = $this->attempt($this->form(['country_code' => 'EGY']));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('EGY', $result['message']);
+        $this->assertSame($before, $this->countRows('suppliers'));
+    }
+
+    public function testPostSave_ClearsTheCountryWhenTheFormEmptiesItAndKeepsItWhenTheFormDoesNotCarryIt(): void
+    {
+        $supplierId = $this->saveSupplier($this->form(['country_code' => 'SA']));
+
+        $this->saveSupplier($this->form(['company_name' => 'Renamed ' . uniqid()]), $supplierId);
+        $this->assertSame('SA', $this->supplierRow($supplierId)->country_code);
+
+        $this->saveSupplier($this->form(['country_code' => '']), $supplierId);
+        $this->assertNull($this->supplierRow($supplierId)->country_code);
+    }
+
+    public function testGetView_ShowsTheCountryCodeField(): void
+    {
+        $supplierId = $this->saveSupplier($this->form(['country_code' => 'AE']));
+
+        $body = $this->get('/suppliers/view/' . $supplierId)->getBody();
+
+        $this->assertStringContainsString('name="country_code"', $body);
+        $this->assertStringContainsString('value="AE"', $body);
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: int}>
+     */
+    public static function limitedFieldProvider(): array
+    {
+        return ['the business name' => ['company_name', 100], 'the city' => ['city', 100], 'the state' => ['state', 100], 'the postal code' => ['zip', 20]];
+    }
+
+    #[DataProvider('limitedFieldProvider')]
+    public function testPostSave_AcceptsTheLongestValueAndRejectsOneCharacterMore(string $field, int $max): void
+    {
+        $accepted = $this->attempt($this->form([$field => str_repeat('a', $max)]));
+        $refused  = $this->attempt($this->form([$field => str_repeat('a', $max + 1)]));
+
+        $this->assertTrue($accepted['success']);
+        $this->assertFalse($refused['success']);
+        $this->assertStringContainsString((string) $max, $refused['message']);
+
+        $this->supplierIds[] = (int) $accepted['id'];
+    }
+
+    public function testPostSave_KeepsAValueThatWasLongerBeforeTheLimitWhileItIsNotChanged(): void
+    {
+        $supplierId = $this->saveSupplier($this->form(['city' => 'short']));
+        $long       = str_repeat('c', 150);
+        $this->accountingDb()->table('people')->where('person_id', $supplierId)->update(['city' => $long]);
+
+        $kept    = $this->attempt($this->form(['city' => $long, 'company_name' => 'Kept ' . uniqid()]), $supplierId);
+        $changed = $this->attempt($this->form(['city' => $long . 'x']), $supplierId);
+
+        $this->assertTrue($kept['success']);
+        $this->assertFalse($changed['success']);
+        $this->assertSame($long, $this->accountingDb()->table('people')->where('person_id', $supplierId)->get()->getRow()->city);
     }
 }

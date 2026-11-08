@@ -1,0 +1,2126 @@
+[
+ {
+  "name": "G01 changing the status or the primary flag needs the settings permission",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if ($employeeId !== null && ! $this->employee->has_grant(self::PERMISSION, $employeeId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsAnEmployeeWithoutThePermission",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G02 the primary location is never made inactive or removed",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if ((int) $location->is_primary === 1) {\n            throw new AccountingException(AccountingError::StockLocationIsPrimary",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::StockLocationIsPrimary",
+  "tests": [
+   "--filter",
+   "RejectsThePrimaryLocation|CheckRemoval_RejectsThePrimary",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G03 the only active location is never made inactive or removed",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if ($active <= 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsTheOnlyActiveLocation|CheckRemoval_RejectsThePrimary",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G04 the last-active rule holds for an active location only",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if ((int) $location->status === 1) {\n            $active",
+  "replace": "if (true) {\n            $active",
+  "tests": [
+   "--filter",
+   "AcceptsAnInactiveLocationWhenThePrimaryIsTheOnlyActiveOne",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G05 a location that holds stock on its shelves is never made inactive",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if (isset($blockers['shelves'])) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsALocationThatHoldsStock|CheckRemoval_RejectsThePrimary",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G06 shelves count the rows that hold a quantity, not the rows of zero",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "WHERE location_id = ? AND quantity <> 0 LOCK IN SHARE MODE",
+  "replace": "WHERE location_id = ? LOCK IN SHARE MODE",
+  "tests": [
+   "--filter",
+   "AcceptsALocationWhoseShelvesHoldOnlyZeros",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G07 a location whose books hold a value is never made inactive",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if (isset($blockers['books'])) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "BooksHoldAValue|SubAccountHoldsABalance|HoldAQuantityWithNoValue",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G08 the movements of a location count by value or by quantity",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if (bccomp((string) $row->quantity, '0', 6) !== 0 || bccomp((string) $row->value, '0', 6) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "BooksHoldAValue|HoldAQuantityWithNoValue",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G09 a quantity in the movements counts even when it has no value",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if (bccomp((string) $row->quantity, '0', 6) !== 0 || ",
+  "replace": "if (false || ",
+  "tests": [
+   "--filter",
+   "HoldAQuantityWithNoValue",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G10 the balance of the sub-account of a location counts as stock",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "return $reconciled !== [] && bccomp((string) $reconciled[0]['account_balance'], '0', 6) !== 0;",
+  "replace": "return false;",
+  "tests": [
+   "--filter",
+   "SubAccountHoldsABalance",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G11 a location named in an open document is never made inactive",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if ($blockers !== []) {\n            throw new AccountingException(AccountingError::StockLocationOpenDocuments",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::StockLocationOpenDocuments",
+  "tests": [
+   "--filter",
+   "RejectsALocationNamedIn|RejectsALocationWithAStocktake",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G12 only suspended sales are open documents of a sale",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "sprintf($query, SUSPENDED, COMPLETED, QuoteStatus::Converted->value)",
+  "replace": "sprintf($query, COMPLETED, COMPLETED, QuoteStatus::Converted->value)",
+  "tests": [
+   "--filter",
+   "NamedInASuspendedSale|WhoseOnlySaleIsCompleted",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G13 a stock request names its source and its destination",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "(q.from_location_id = ? OR q.to_location_id = ?)",
+  "replace": "(q.from_location_id = ?)",
+  "tests": [
+   "--filter",
+   "OpenStockRequestAsSourceOrDestination",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G14 an open sales order is open or approved, not cancelled",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "o.status IN ('open', 'approved')",
+  "replace": "o.status IN ('open', 'approved', 'cancelled')",
+  "tests": [
+   "--filter",
+   "OpenSalesOrder",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G15 an active or paused schedule is open, not an ended one",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "r.status IN ('active', 'paused')",
+  "replace": "r.status IN ('active', 'paused', 'ended')",
+  "tests": [
+   "--filter",
+   "ActiveRecurringSchedule",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G16 a stocktake is open only while it counts",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "t.status = 'counting'",
+  "replace": "t.status <> 'x'",
+  "tests": [
+   "--filter",
+   "StocktakeThatIsStillCounting",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G17 an inactive location is left alone the second time",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if ((int) $location->status === 0) {\n                return;\n            }\n\n            $this->assertRetirable",
+  "replace": "if (false) {\n                return;\n            }\n\n            $this->assertRetirable",
+  "tests": [
+   "--filter",
+   "LeavesAnInactiveLocationAlone",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G18 an active location is left alone when it is activated again",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if ((int) $location->status === 1) {\n                return;\n            }\n\n            $this->db->table('stock_locations')->where('location_id', $locationId)->update(['status' => 1]);",
+  "replace": "if (false) {\n                return;\n            }\n\n            $this->db->table('stock_locations')->where('location_id', $locationId)->update(['status' => 1]);",
+  "tests": [
+   "--filter",
+   "LeavesAnActiveLocationAlone",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G19 deactivation writes the inactive status",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "->update(['status' => 0]);",
+  "replace": "->update(['status' => 1]);",
+  "tests": [
+   "--filter",
+   "MakesAnEmptyLocationInactive",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G20 deactivation is audited",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "'stock_location_deactivated'",
+  "replace": "'stock_location_deactivatedx'",
+  "tests": [
+   "--filter",
+   "MakesAnEmptyLocationInactiveAndWritesIt",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G21 activation is audited",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "'stock_location_activated'",
+  "replace": "'stock_location_activatedx'",
+  "tests": [
+   "--filter",
+   "MakesAnInactiveLocationActiveAgainAndAuditsIt",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G22 an inactive location is never made primary",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if ((int) $location->status === 0) {\n                throw new AccountingException(AccountingError::StockLocationInactive",
+  "replace": "if (false) {\n                throw new AccountingException(AccountingError::StockLocationInactive",
+  "tests": [
+   "--filter",
+   "RejectsAnInactiveLocation",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G23 the primary flag is left alone when the location already has it",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if ((int) $location->is_primary === 1) {\n                return;\n            }",
+  "replace": "if (false) {\n                return;\n            }",
+  "tests": [
+   "--filter",
+   "WritesNothingForTheLocationThatIsAlreadyPrimary",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G24 moving the primary flag clears the flag of the former primary location",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "$this->db->table('stock_locations')->where('is_primary', 1)->where('deleted', 0)->update(['is_primary' => 0]);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "MakePrimary_MovesTheFlag|FormerPrimary",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G25 the move of the primary flag is audited",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "'stock_location_primary_changed'",
+  "replace": "'stock_location_primary_changedx'",
+  "tests": [
+   "--filter",
+   "MovesTheFlagToTheLocationAndAuditsTheChange",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G26 the locations are locked while their status or flag changes",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "ORDER BY l.location_id FOR UPDATE'",
+  "replace": "ORDER BY l.location_id'",
+  "tests": [
+   "--filter",
+   "WaitsForTheLock",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G27 the first location of a company becomes primary",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if ($this->primaryId() !== null) {\n            return;\n        }",
+  "replace": "if (false) {\n            return;\n        }",
+  "tests": [
+   "--filter",
+   "EnsurePrimary_LeavesAnExistingPrimary",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G28 an unknown location is refused",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "throw new AccountingException(AccountingError::StockLocationNotFound, 'The stock location does not exist.', ['id' => $locationId]);",
+  "replace": "return (object) ['location_id' => $locationId, 'location_name' => '', 'status' => 1, 'is_primary' => 0, 'branch_id' => 1];",
+  "tests": [
+   "--filter",
+   "RejectsALocationThatDoesNotExist",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G29 an inactive location is not offered to an employee",
+  "file": "app/Models/Stock_location.php",
+  "find": "if (! $withInactive) {\n            $builder->where('stock_locations.status', 1);\n        }",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "HidesAnInactiveLocation",
+   "tests/Models/Stock_locationTest.php"
+  ]
+ },
+ {
+  "name": "G30 an inactive location is not an allowed location",
+  "file": "app/Models/Stock_location.php",
+  "find": "$builder->where('stock_locations.status', 1);\n        $this->limitToBranches($builder, $branchIds);\n\n        return ($builder->get()->getNumRows() == 1);",
+  "replace": "$this->limitToBranches($builder, $branchIds);\n\n        return ($builder->get()->getNumRows() == 1);",
+  "tests": [
+   "--filter",
+   "HidesAnInactiveLocation",
+   "tests/Models/Stock_locationTest.php"
+  ]
+ },
+ {
+  "name": "G31 an inactive location is not the default location",
+  "file": "app/Models/Stock_location.php",
+  "find": "$builder->where('stock_locations.status', 1);\n        $this->limitToBranches($builder, $branchIds);\n        $builder->limit(1);",
+  "replace": "$this->limitToBranches($builder, $branchIds);\n        $builder->limit(1);",
+  "tests": [
+   "--filter",
+   "HidesAnInactiveLocation|SkipsAnInactiveLocationThatComesFirst",
+   "tests/Models/Stock_locationTest.php"
+  ]
+ },
+ {
+  "name": "G32 a location is removed only when the lifecycle allows it",
+  "file": "app/Models/Stock_location.php",
+  "find": "(new StockLocationLifecycle($this->db))->checkRemoval((int) $locationId);",
+  "replace": "$locationId = $locationId;",
+  "tests": [
+   "--filter",
+   "Delete_Rejects",
+   "tests/Models/Stock_locationTest.php"
+  ]
+ },
+ {
+  "name": "G33 the first location a company saves becomes its primary location",
+  "file": "app/Models/Stock_location.php",
+  "find": "(new StockLocationLifecycle($this->db))->ensurePrimary((int) $location_id);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "MakesTheFirstLocationOfACompany",
+   "tests/Models/Stock_locationTest.php"
+  ]
+ },
+ {
+  "name": "G34 a removal refusal is forgotten when the next removal succeeds",
+  "file": "app/Models/Stock_location.php",
+  "find": "        $this->removalRefusal = null;\n\n        try {",
+  "replace": "        try {",
+  "tests": [
+   "--filter",
+   "ForgetsAnEarlierRefusal",
+   "tests/Models/Stock_locationTest.php"
+  ]
+ },
+ {
+  "name": "G35 the settings form activates a location it posts as active",
+  "file": "app/Controllers/Config.php",
+  "find": "$lifecycle->activate((int) $locationId, $employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "KeepsALocationActiveWhenItsStatusIsPostedAsActive",
+   "tests/Controllers/ConfigTest.php"
+  ]
+ },
+ {
+  "name": "G36 the settings form moves the primary flag",
+  "file": "app/Controllers/Config.php",
+  "find": "$lifecycle->makePrimary((int) $primaryId, $employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "MakesALocationInactiveAndMovesThePrimaryFlag|LetsTheFormerPrimary",
+   "tests/Controllers/ConfigTest.php"
+  ]
+ },
+ {
+  "name": "G37 the settings form makes a location inactive",
+  "file": "app/Controllers/Config.php",
+  "find": "$lifecycle->deactivate((int) $locationId, $employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "MakesALocationInactiveAndMovesThePrimaryFlag|RejectsMakingThePrimary",
+   "tests/Controllers/ConfigTest.php"
+  ]
+ },
+ {
+  "name": "G38 the settings form refuses to remove a location the lifecycle refuses",
+  "file": "app/Controllers/Config.php",
+  "find": "! $this->stock_location->delete($location['location_id'])",
+  "replace": "$this->stock_location->delete($location['location_id']) === null",
+  "tests": [
+   "--filter",
+   "RejectsToRemove",
+   "tests/Controllers/ConfigTest.php"
+  ]
+ },
+ {
+  "name": "G39 a refusal of the settings form undoes the other changes of the same save",
+  "file": "app/Controllers/Config.php",
+  "find": "$this->db->transRollback();\n\n            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal)]);",
+  "replace": "$this->db->transComplete();\n\n            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal)]);",
+  "tests": [
+   "--filter",
+   "KeepsEveryOtherChangeOfTheSave",
+   "tests/Controllers/ConfigTest.php"
+  ]
+ },
+ {
+  "name": "G40 a classification that does not exist or is inactive is refused",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if (! ctype_digit($typed) || ! (new NamedLookup(LookupKind::CustomerClassification, $this->db))->mayBeGiven((int) $typed, $held === null ? null : (int) $held)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsAClassification",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G41 a status outside the five is refused",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if (CustomerStatus::tryFrom($typed) === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsAStatusOutsideTheFive",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G42 a customer type outside the two is refused",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if (CustomerType::tryFrom($typed) === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsATypeOutside",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G43 an area is at most one hundred characters",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if (mb_strlen($typed) > self::AREA_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsAnAreaOfMoreThan",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G44 an area of exactly one hundred characters is accepted",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if (mb_strlen($typed) > self::AREA_MAX) {",
+  "replace": "if (mb_strlen($typed) >= self::AREA_MAX) {",
+  "tests": [
+   "--filter",
+   "RejectsAnAreaOfMoreThan",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G45 a country code is two letters",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if (preg_match('/^[A-Z]{2}$/', $code) !== 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsACountryCode",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G46 a country code is kept in capitals",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "$code = strtoupper($typed);",
+  "replace": "$code = $typed;",
+  "tests": [
+   "--filter",
+   "NormalisesACountryCode|ReturnsTheColumnsOfEveryFieldThatWasGiven",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G47 a billing method outside print and e-mail is refused",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if ($method === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsABillingMethodOutside",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G48 billing by e-mail needs the e-mail address",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if ($method === BillingMethod::Email && trim($email) === '') {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RequiresAnEmailAddress",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G49 an employee that does not exist or is outside the branches is refused",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if (! ctype_digit($typed) || ((int) $typed !== (int) $held && ! array_key_exists((int) $typed, $this->assignableEmployees($viewerId)))) {",
+  "replace": "if (! ctype_digit($typed)) {",
+  "tests": [
+   "--filter",
+   "AcceptsAnEmployeeOfTheSameBranch|AcceptsAnyEmployeeForAViewer",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G50 the employee a customer already has stays even outside the branches",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "(int) $typed !== (int) $held && ",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "KeepsTheEmployeeTheCustomerAlreadyHas",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G51 an employee limited to branches assigns from those branches only",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if ($allowed !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "AssignableEmployees_ListsTheEmployeesOfTheViewersBranches|RejectsAnEmployeeOfAnotherBranch",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G52 an employee with no branch assigns nobody",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if ($allowed === []) {\n            return [];\n        }",
+  "replace": "if (false) {\n            return [];\n        }",
+  "tests": [
+   "--filter",
+   "ListsNothingForAViewerWithoutAnyBranch",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G53 an employee that was deleted is not offered",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "->where('e.deleted', 0);",
+  "replace": ";",
+  "tests": [
+   "--filter",
+   "LeavesOutEmployeesWhoWereDeleted",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G54 only a change of the customer data is written to the audit log",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if ($changes !== []) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "WritesNothingWhenNothingChanged",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G55 the audit log writes the fields that differ",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "if ((string) $was !== (string) $after[$field]) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "Audit_",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G56 the business name, city, state and postal code have the observed limits",
+  "file": "app/Libraries/MasterData/PartyLengths.php",
+  "find": "if (mb_strlen($value) > $max && ",
+  "replace": "if (false && ",
+  "tests": [
+   "--filter",
+   "AcceptsTheLongestValue",
+   "tests/Libraries/MasterData/PartyLengthsTest.php"
+  ]
+ },
+ {
+  "name": "G57 a value longer than the limit that was saved before stays until it is changed",
+  "file": "app/Libraries/MasterData/PartyLengths.php",
+  "find": "&& $value !== (string) ($current->{$field} ?? '')",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "AcceptsALongValueThatIsTheOneAlreadyStored",
+   "tests/Libraries/MasterData/PartyLengthsTest.php"
+  ]
+ },
+ {
+  "name": "G58 a name is one to one hundred characters",
+  "file": "app/Libraries/MasterData/NamedLookup.php",
+  "find": "if ($name === '' || mb_strlen($name) > self::NAME_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsAnEmptyNameAndANameOver",
+   "tests/Libraries/MasterData/NamedLookupTest.php"
+  ]
+ },
+ {
+  "name": "G59 the longest name has exactly one hundred characters",
+  "file": "app/Libraries/MasterData/NamedLookup.php",
+  "find": "public const NAME_MAX = 100;",
+  "replace": "public const NAME_MAX = 101;",
+  "tests": [
+   "--filter",
+   "RejectsAnEmptyNameAndANameOver",
+   "tests/Libraries/MasterData/NamedLookupTest.php"
+  ]
+ },
+ {
+  "name": "G60 a name another entry has is refused",
+  "file": "app/Libraries/MasterData/NamedLookup.php",
+  "find": "if ($this->db->table($table)->where('name', $name)->where($column . ' !=', $id ?? 0)->countAllResults() > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsANameAnotherEntryHas",
+   "tests/Libraries/MasterData/NamedLookupTest.php"
+  ]
+ },
+ {
+  "name": "G61 an entry may keep its own name",
+  "file": "app/Libraries/MasterData/NamedLookup.php",
+  "find": "->where($column . ' !=', $id ?? 0)",
+  "replace": "->where($column . ' !=', 0)",
+  "tests": [
+   "--filter",
+   "AcceptsTheSameNameOnTheSameEntry",
+   "tests/Libraries/MasterData/NamedLookupTest.php"
+  ]
+ },
+ {
+  "name": "G62 an entry that does not exist cannot be saved",
+  "file": "app/Libraries/MasterData/NamedLookup.php",
+  "find": "if ($before === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsAnEntryThatDoesNotExist",
+   "tests/Libraries/MasterData/NamedLookupTest.php"
+  ]
+ },
+ {
+  "name": "G63 only a change of an entry is audited",
+  "file": "app/Libraries/MasterData/NamedLookup.php",
+  "find": "} elseif ($before->name !== $name || (int) $before->status !== ($active ? 1 : 0)) {",
+  "replace": "} elseif (true) {",
+  "tests": [
+   "--filter",
+   "AuditsOnlyAChange",
+   "tests/Libraries/MasterData/NamedLookupTest.php"
+  ]
+ },
+ {
+  "name": "G64 a status that is already set is not written or audited again",
+  "file": "app/Libraries/MasterData/NamedLookup.php",
+  "find": "if ((int) $row->status === ($active ? 1 : 0)) {\n                return;\n            }",
+  "replace": "if (false) {\n                return;\n            }",
+  "tests": [
+   "--filter",
+   "DeactivatesAndActivatesAndWritesEachChangeOnce",
+   "tests/Libraries/MasterData/NamedLookupTest.php"
+  ]
+ },
+ {
+  "name": "G65 an entry that a record carries is not deleted",
+  "file": "app/Libraries/MasterData/NamedLookup.php",
+  "find": "if ((int) $row->uses > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsAnEntryARecordCarries",
+   "tests/Libraries/MasterData/NamedLookupTest.php"
+  ]
+ },
+ {
+  "name": "G66 an inactive entry is given to no record but the one that holds it",
+  "file": "app/Libraries/MasterData/NamedLookup.php",
+  "find": "return $row !== null && ((int) $row->status === 1 || $id === $held);",
+  "replace": "return $row !== null;",
+  "tests": [
+   "--filter",
+   "MayBeGiven",
+   "tests/Libraries/MasterData/NamedLookupTest.php"
+  ]
+ },
+ {
+  "name": "G67 the list offers the active entries only",
+  "file": "app/Libraries/MasterData/NamedLookup.php",
+  "find": "if ($activeOnly) {\n            $builder->where('l.status', 1);",
+  "replace": "if (false) {\n            $builder->where('l.status', 1);",
+  "tests": [
+   "--filter",
+   "OffersTheActiveEntriesOnly",
+   "tests/Libraries/MasterData/NamedLookupTest.php"
+  ]
+ },
+ {
+  "name": "G68 a brand that does not exist or is inactive is refused",
+  "file": "app/Libraries/MasterData/ItemFields.php",
+  "find": "if (! ctype_digit($typed) || ! (new NamedLookup(LookupKind::ItemBrand, $this->db))->mayBeGiven((int) $typed, $held)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "RejectsABrandThatDoesNotExist",
+   "tests/Libraries/MasterData/ItemFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G69 a status outside the three is refused",
+  "file": "app/Libraries/MasterData/ItemFields.php",
+  "find": "if ($typed === (string) $status->value || $typed === strtolower($status->name)) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "StatusOf_",
+   "tests/Libraries/MasterData/ItemFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G70 a supplier code is at most one hundred characters",
+  "file": "app/Libraries/MasterData/ItemFields.php",
+  "find": "if (mb_strlen($typed) > self::SUPPLIER_CODE_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "AcceptsASupplierCodeOfOneHundred",
+   "tests/Libraries/MasterData/ItemFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G71 an import row that leaves a cell empty leaves the field alone",
+  "file": "app/Libraries/MasterData/ItemFields.php",
+  "find": "if (! $partial || array_key_exists('status', $posted)) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "ReturnsOnlyTheFieldsThatWereGiven",
+   "tests/Libraries/MasterData/ItemFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G72 only a change of the item data is audited",
+  "file": "app/Libraries/MasterData/ItemFields.php",
+  "find": "if ($changes !== []) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "Audit_",
+   "tests/Libraries/MasterData/ItemFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G73 only a suspended sale is an open document of a sale",
+  "file": "app/Libraries/MasterData/ItemOpenDocuments.php",
+  "find": "WHERE s.sale_status = %1$d AND",
+  "replace": "WHERE s.sale_status <> 99 AND",
+  "tests": [
+   "--filter",
+   "CountsASuspendedSale",
+   "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G74 an open sales order is open or approved",
+  "file": "app/Libraries/MasterData/ItemOpenDocuments.php",
+  "find": "o.status IN ('open', 'approved')",
+  "replace": "o.status IN ('open', 'approved', 'cancelled')",
+  "tests": [
+   "--filter",
+   "CountsAnOpenAndAnApprovedSalesOrder",
+   "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G75 an active or paused schedule names its items",
+  "file": "app/Libraries/MasterData/ItemOpenDocuments.php",
+  "find": "r.status IN ('active', 'paused')",
+  "replace": "r.status IN ('active', 'paused', 'ended')",
+  "tests": [
+   "--filter",
+   "CountsAnActiveAndAPausedSchedule",
+   "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G76 a stock request that is not settled names its items",
+  "file": "app/Libraries/MasterData/ItemOpenDocuments.php",
+  "find": "q.status IN ('requested', 'approved')",
+  "replace": "q.status IN ('requested', 'approved', 'fulfilled', 'cancelled')",
+  "tests": [
+   "--filter",
+   "CountsAnUnsettledStockRequest",
+   "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G77 a stocktake still counting names its items",
+  "file": "app/Libraries/MasterData/ItemOpenDocuments.php",
+  "find": "t.status = 'counting'",
+  "replace": "t.status <> 'x'",
+  "tests": [
+   "--filter",
+   "CountsAnUnsettledStockRequest",
+   "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G78 ids that are not items are left out",
+  "file": "app/Libraries/MasterData/ItemOpenDocuments.php",
+  "find": "static fn (int $id): bool => $id > 0",
+  "replace": "static fn (int $id): bool => true",
+  "tests": [
+   "--filter",
+   "ListsOnlyTheItemsThatAreNamed|AsksNothingOfTheDatabase",
+   "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G79 an inactive or suspended item cannot be added to a new document by code",
+  "file": "app/Models/Item.php",
+  "find": "$builder->where('items.deleted', 0);\n            $builder->where('items.status', ItemStatus::Active->value);",
+  "replace": "$builder->where('items.deleted', 0);",
+  "tests": [
+   "--filter",
+   "GetInfoByIdOrNumber_LeavesOut",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G80 the lists of new documents leave out inactive and suspended items",
+  "file": "app/Models/Item.php",
+  "find": "return;\n        }\n\n        $builder->where('items.status', ItemStatus::Active->value);",
+  "replace": "return;\n        }\n",
+  "tests": [
+   "--filter",
+   "LeavesOutInactiveAndSuspendedItemsOnlyWhenAskedTo|FoundByItsNumberOrItsCategory",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G81 the top sellers leave out inactive and suspended items",
+  "file": "app/Models/Item.php",
+  "find": "$builder->where('items.status', ItemStatus::Active->value);\n        $builder->groupBy('items.item_id');",
+  "replace": "$builder->groupBy('items.item_id');",
+  "tests": [
+   "--filter",
+   "TopSellers_LeavesOut",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G82 an item an open document names is not deleted one by one",
+  "file": "app/Models/Item.php",
+  "find": "if ($this->isMentionedInOpenDocuments([(int) $itemId]) || ",
+  "replace": "if (false || ",
+  "tests": [
+   "--filter",
+   "Delete_RejectsAnItemASuspendedSale",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G83 an item an open document names is not deleted from a list",
+  "file": "app/Models/Item.php",
+  "find": "if ($this->isMentionedInOpenDocuments(array_map('intval', $itemIds)) || ",
+  "replace": "if (false || ",
+  "tests": [
+   "--filter",
+   "DeleteList_RejectsTheWholeList",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G84 the refusal names the item and the number of documents",
+  "file": "app/Models/Item.php",
+  "find": "['name' => $found['name'], 'count' => $found['count']]",
+  "replace": "['name' => '', 'count' => 0]",
+  "tests": [
+   "--filter",
+   "DeleteList_RejectsTheWholeList|Delete_RejectsAnItemASuspendedSale",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G85 the item form saves the brand, the status and the supplier code only when it carries them",
+  "file": "app/Controllers/Items.php",
+  "find": "if ($this->request->getPost(ItemFields::MARKER) === '1') {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "SavesTheBrandTheStatus|LeavesTheMasterDataAloneWhenTheFormDoesNotCarryIt",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G86 the values the form gave are written to the item",
+  "file": "app/Controllers/Items.php",
+  "find": "$itemData += $master;",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "SavesTheBrandTheStatus",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G87 a change of the brand, the status or the supplier code is audited",
+  "file": "app/Controllers/Items.php",
+  "find": "(new ItemFields())->audit($itemId, $masterBefore, $master, (int) $employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "SavesTheBrandTheStatusAndTheSupplierCodeAndAuditsThem|ChangesTheStatusAndClears",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G88 an item an open document names is not deleted through the form",
+  "file": "app/Controllers/Items.php",
+  "find": "($this->item->isMentionedInOpenDocuments([$itemId]) || ",
+  "replace": "(false || ",
+  "tests": [
+   "--filter",
+   "RejectsToDeleteThroughTheForm",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G89 the list filters inactive items",
+  "file": "app/Models/Item.php",
+  "find": "! empty($filters['status_inactive']) ? ItemStatus::Inactive->value : null,",
+  "replace": "null,",
+  "tests": [
+   "--filter",
+   "NarrowsTheListBy",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G90 the list filters suspended items",
+  "file": "app/Models/Item.php",
+  "find": "! empty($filters['status_suspended']) ? ItemStatus::Suspended->value : null,",
+  "replace": "null,",
+  "tests": [
+   "--filter",
+   "NarrowsTheListBy",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G91 the list filters items that are out of stock",
+  "file": "app/Models/Item.php",
+  "find": "$idBuilder->where('item_quantities.quantity <=', 0);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "NarrowsTheListBy",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G92 the list filters items that are available",
+  "file": "app/Models/Item.php",
+  "find": "$idBuilder->where('item_quantities.quantity >', 0);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "NarrowsTheListBy",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G93 the list shows the brand of each item",
+  "file": "app/Models/Item.php",
+  "find": "$builder->select('MAX(item_brands.name) AS brand_name');\n\n        $builder->select('MAX(suppliers.person_id) AS person_id');",
+  "replace": "$builder->select(\"'' AS brand_name\");\n\n        $builder->select('MAX(suppliers.person_id) AS person_id');",
+  "tests": [
+   "--filter",
+   "ShowsTheBrandAndTheStatusOfEachItem",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G94 an import row may add the optional columns",
+  "file": "app/Controllers/Items.php",
+  "find": "$itemData += $this->optionalColumnsOfImportRow($row);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "ImportsTheOptionalColumnsOfARow",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G95 an import row with a brand that does not exist is refused",
+  "file": "app/Controllers/Items.php",
+  "find": "if ($found === false) {\n                throw new AccountingException(AccountingError::ItemBrandInvalid",
+  "replace": "if (false) {\n                throw new AccountingException(AccountingError::ItemBrandInvalid",
+  "tests": [
+   "--filter",
+   "RejectsARowWhoseOptionalValueIsNotAllowed",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G96 an import row with a purchase tax over one hundred is refused",
+  "file": "app/Controllers/Items.php",
+  "find": "|| (float) $parsed > 100",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "RejectsARowWhoseOptionalValueIsNotAllowed",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G97 an import file made before the optional columns still imports",
+  "file": "app/Helpers/importfile_helper.php",
+  "find": "array_diff(str_getcsv($templateHeaderLine), optional_item_import_columns())",
+  "replace": "str_getcsv($templateHeaderLine)",
+  "tests": [
+   "--filter",
+   "WithoutTheOptionalColumns|CsvImportHasRequiredItemHeaders_Accepts",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G98 the kit form picker leaves out inactive and suspended items",
+  "file": "app/Controllers/Items.php",
+  "find": "['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true]",
+  "replace": "['search_custom' => false, 'is_deleted' => false]",
+  "tests": [
+   "--filter",
+   "GetSuggest_LeavesOut",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G99 the register list leaves out inactive and suspended items",
+  "file": "app/Controllers/Sales.php",
+  "find": "'is_deleted' => false, 'hide_inactive' => true",
+  "replace": "'is_deleted' => false",
+  "tests": [
+   "--filter",
+   "GetItemSearch_LeavesOut",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G100 the receiving list leaves out inactive and suspended items",
+  "file": "app/Controllers/Receivings.php",
+  "find": "get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true]",
+  "replace": "get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false]",
+  "tests": [
+   "--filter",
+   "GetItemSearch_LeavesOutAnInactive",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G101 the stock receiving list leaves out inactive and suspended items",
+  "file": "app/Controllers/Receivings.php",
+  "find": "get_stock_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true]",
+  "replace": "get_stock_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false]",
+  "tests": [
+   "--filter",
+   "GetItemSearch_LeavesOutAnInactive",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G102 the order, schedule and document lookups leave out inactive and suspended items",
+  "file": "app/Controllers/DocumentScreen.php",
+  "find": "->where('deleted', 0)->where('status', ItemStatus::Active->value);",
+  "replace": "->where('deleted', 0);",
+  "tests": [
+   "--filter",
+   "GetItems_LeavesOut",
+   "tests/Controllers/Customer_ordersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G103 the permit lookup leaves out inactive and suspended items",
+  "file": "app/Controllers/StockDocumentController.php",
+  "find": "'stock_type' => HAS_STOCK, 'status' => ItemStatus::Active->value]",
+  "replace": "'stock_type' => HAS_STOCK]",
+  "tests": [
+   "--filter",
+   "GetItems_LeavesOut",
+   "tests/Controllers/StockPermitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G104 the customer form saves the master data only when it carries it",
+  "file": "app/Controllers/Customers.php",
+  "find": "if ($this->request->getPost(CustomerFields::MARKER) === '1') {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "SavesTheMasterDataOfANewCustomer|LeavesTheMasterDataAloneWhenTheFormDoesNotCarryIt",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G105 the validated values are written to the customer",
+  "file": "app/Controllers/Customers.php",
+  "find": "$customerData += $master;\n        }\n\n        if ($customerData['account_number']",
+  "replace": "}\n\n        if ($customerData['account_number']",
+  "tests": [
+   "--filter",
+   "SavesTheMasterDataOfANewCustomer",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G106 a change of the master data is audited",
+  "file": "app/Controllers/Customers.php",
+  "find": "(new CustomerFields())->audit((int) ($customerData['person_id'] ?? $customerId), $before, $master, $this->viewerId());",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "SavesTheMasterDataOfANewCustomerAndAuditsIt|ChangesTheMasterDataOfACustomer",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G107 the creation date is set once and kept when the customer is edited",
+  "file": "app/Controllers/Customers.php",
+  "find": "if ($isNew) {\n            $customerData['date']",
+  "replace": "if (true) {\n            $customerData['date']",
+  "tests": [
+   "--filter",
+   "SetsTheCreationDateOnce",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G108 the observed lengths are checked before a customer is saved",
+  "file": "app/Controllers/Customers.php",
+  "find": "PartyLengths::check(",
+  "replace": "(static fn () => null)(",
+  "tests": [
+   "--filter",
+   "LongestValuesOfTheObservedLimits|LongerBeforeTheLimit",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G109 the directory shows the total of the branches the viewer works in",
+  "file": "app/Controllers/Customers.php",
+  "find": "$stats = $this->customer->get_stats($person->person_id, $scope);",
+  "replace": "$stats = $this->customer->get_stats($person->person_id);",
+  "tests": [
+   "--filter",
+   "ShowsTheTotalSpentOfEveryBranch",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G110 the row of one customer shows the total of the branches of the viewer",
+  "file": "app/Controllers/Customers.php",
+  "find": "$stats = $this->customer->get_stats($person->person_id, $this->branchScope());",
+  "replace": "$stats = $this->customer->get_stats($person->person_id);",
+  "tests": [
+   "--filter",
+   "ShowsTheTotalSpentOfEveryBranch",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G111 the form of a customer shows the total of the branches of the viewer",
+  "file": "app/Controllers/Customers.php",
+  "find": "$stats = $this->customer->get_stats($customerId, $this->branchScope());",
+  "replace": "$stats = $this->customer->get_stats($customerId);",
+  "tests": [
+   "--filter",
+   "ShowsTheTotalSpentOfEveryBranch",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G112 an employee outside the branches of the viewer is neither named nor a filter",
+  "file": "app/Controllers/Customers.php",
+  "find": "$filters['visible_employee_ids'] = $scope === null ? null : array_keys((new CustomerFields())->assignableEmployees($this->viewerId()));",
+  "replace": "$filters['visible_employee_ids'] = null;",
+  "tests": [
+   "--filter",
+   "ReturnsNothingWhenAViewerLimitedToABranch",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G113 the directory ignores a filter value the lists do not offer",
+  "file": "app/Controllers/Customers.php",
+  "find": "if (CustomerStatus::tryFrom($get('manual_status')) !== null) {",
+  "replace": "if ($get('manual_status') !== '') {",
+  "tests": [
+   "--filter",
+   "LeavesOutAFilterValueTheListsDoNotOffer",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G114 the directory ignores a day that is not a day",
+  "file": "app/Controllers/Customers.php",
+  "find": "if ($day !== false && $day->format('Y-m-d') === $get($name)) {",
+  "replace": "if ($get($name) !== '') {",
+  "tests": [
+   "--filter",
+   "NarrowsTheDirectoryByTheDayTheCustomerWasCreatedInclusively",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G115 an import row with a value that is not allowed is refused",
+  "file": "app/Controllers/Customers.php",
+  "find": "$master        = $this->masterDataOfImportRow($data, $email);",
+  "replace": "$master        = [];",
+  "tests": [
+   "--filter",
+   "RejectsARowWhoseAppendedValueIsNotAllowed|ImportsTheAppendedColumnsOfARow",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G116 an import row with a classification that does not exist is refused",
+  "file": "app/Controllers/Customers.php",
+  "find": "if ($found === false) {\n                throw new AccountingException(AccountingError::CustomerClassificationInvalid",
+  "replace": "if (false) {\n                throw new AccountingException(AccountingError::CustomerClassificationInvalid",
+  "tests": [
+   "--filter",
+   "RejectsARowWhoseAppendedValueIsNotAllowed",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G117 the directory narrows by classification, status, area, country and type",
+  "file": "app/Models/Customer.php",
+  "find": "foreach (['classification_id', 'manual_status', 'area', 'country_code', 'customer_type'] as $column) {",
+  "replace": "foreach ([] as $column) {",
+  "tests": [
+   "--filter",
+   "Search_NarrowsByEachFilter",
+   "tests/Models/CustomerTest.php"
+  ]
+ },
+ {
+  "name": "G118 the directory narrows by city",
+  "file": "app/Models/Customer.php",
+  "find": "$builder->where('people.city', $filters['city']);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Search_NarrowsByEachFilter",
+   "tests/Models/CustomerTest.php"
+  ]
+ },
+ {
+  "name": "G119 the directory narrows by the day of creation from",
+  "file": "app/Models/Customer.php",
+  "find": "$builder->where('DATE(customers.date) >=', $filters['created_from']);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Search_NarrowsByEachFilter",
+   "tests/Models/CustomerTest.php"
+  ]
+ },
+ {
+  "name": "G120 the directory narrows by the day of creation to",
+  "file": "app/Models/Customer.php",
+  "find": "$builder->where('DATE(customers.date) <=', $filters['created_to']);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Search_NarrowsByEachFilter",
+   "tests/Models/CustomerTest.php"
+  ]
+ },
+ {
+  "name": "G121 an employee filter outside the visible employees shows nothing",
+  "file": "app/Models/Customer.php",
+  "find": "if ($visible !== null && ! in_array((int) $filters['assigned_employee_id'], array_map('intval', $visible), true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "ReturnsNoRowForAnEmployeeFilterOutsideTheVisibleOnes",
+   "tests/Models/CustomerTest.php"
+  ]
+ },
+ {
+  "name": "G122 the name of an employee outside the visible ones is hidden",
+  "file": "app/Models/Customer.php",
+  "find": "($visible === [] ? ' AND 1 = 0' : ' AND customers.assigned_employee_id IN (' . implode(',', array_map('intval', $visible)) . ')')",
+  "replace": "''",
+  "tests": [
+   "--filter",
+   "AnswersWithTheNamesOfTheClassificationAndTheAssignedEmployee",
+   "tests/Models/CustomerTest.php"
+  ]
+ },
+ {
+  "name": "G123 the totals of a customer count the sales of the given branches only",
+  "file": "app/Models/Customer.php",
+  "find": "$branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('sales.branch_id', $branchIds);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "GetStats_CountsTheSalesOfTheBranchesGiven",
+   "tests/Models/CustomerTest.php"
+  ]
+ },
+ {
+  "name": "G124 the directory sorts by the day of creation",
+  "file": "app/Models/Customer.php",
+  "find": "$sort === 'created'                                                                  => 'customers.date',\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "SortsByTheNewColumns",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G125 the observed lengths are checked before a supplier is saved",
+  "file": "app/Controllers/Suppliers.php",
+  "find": "PartyLengths::check(",
+  "replace": "(static fn () => null)(",
+  "tests": [
+   "--filter",
+   "LongestValueAndRejectsOneCharacterMore|LongerBeforeTheLimit",
+   "tests/Controllers/SuppliersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G126 a supplier country code is kept in capitals and two letters",
+  "file": "app/Controllers/Suppliers.php",
+  "find": "CustomerFields::countryCode(trim((string) $this->request->getPost('country_code')))",
+  "replace": "trim((string) $this->request->getPost('country_code'))",
+  "tests": [
+   "--filter",
+   "SavesTheCountryCodeInCapitals|RejectsACountryCodeThatIsNotTwoLetters",
+   "tests/Controllers/SuppliersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G127 the screen of the classifications belongs to the customers module",
+  "file": "app/Controllers/Customer_classifications.php",
+  "find": "parent::__construct('customers', 'customer_classifications', LookupKind::CustomerClassification);",
+  "replace": "parent::__construct('config', 'customer_classifications', LookupKind::CustomerClassification);",
+  "tests": [
+   "--filter",
+   "AcceptsAnEmployeeWhoHoldsTheCustomersModule",
+   "tests/Controllers/Customer_classificationsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G128 the screen of the brands belongs to the items module",
+  "file": "app/Controllers/Item_brands.php",
+  "find": "parent::__construct('items', 'item_brands', LookupKind::ItemBrand);",
+  "replace": "parent::__construct('customers', 'item_brands', LookupKind::ItemBrand);",
+  "tests": [
+   "--filter",
+   "RejectsAnEmployeeWhoDoesNotHoldTheItemsModule",
+   "tests/Controllers/Item_brandsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G129 an entry that does not exist is not found",
+  "file": "app/Controllers/LookupScreen.php",
+  "find": "if ($entry === null) {\n            throw PageNotFoundException::forPageNotFound();",
+  "replace": "if (false) {\n            throw PageNotFoundException::forPageNotFound();",
+  "tests": [
+   "--filter",
+   "RejectsAClassificationThatDoesNotExist",
+   "tests/Controllers/Customer_classificationsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G130 any status but zero is active",
+  "file": "app/Controllers/LookupScreen.php",
+  "find": "(string) $this->request->getPost('status', FILTER_SANITIZE_NUMBER_INT) !== '0'",
+  "replace": "(string) $this->request->getPost('status', FILTER_SANITIZE_NUMBER_INT) === '1'",
+  "tests": [
+   "--filter",
+   "TreatsAnyStatusButZeroAsActive",
+   "tests/Controllers/Customer_classificationsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G131 down() of the stock location migration keeps an inactive location",
+  "file": "app/Database/Migrations/20272700000000_StockLocationStatus.php",
+  "find": "if ($inactive > 0 || $this->primaryWasMoved()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "DownRejects|Down_Rejects",
+   "tests/Database/StockLocationStatusMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G132 the migration keeps a primary location that was already marked",
+  "file": "app/Database/Migrations/20272700000000_StockLocationStatus.php",
+  "find": "if ($hasPrimary) {\n            return;\n        }",
+  "replace": "if (false) {\n            return;\n        }",
+  "tests": [
+   "--filter",
+   "KeepsAPrimaryThatWasMoved",
+   "tests/Database/StockLocationStatusMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G133 the database refuses a second live primary location",
+  "file": "app/Database/Migrations/20272700000000_StockLocationStatus.php",
+  "find": "ADD UNIQUE KEY `{$key}`",
+  "replace": "ADD KEY `{$key}`",
+  "tests": [
+   "--filter",
+   "RejectsASecondLivePrimaryLocationAtTheDatabase",
+   "tests/Database/StockLocationStatusMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G134 the database refuses a status that is neither active nor inactive",
+  "file": "app/Database/Migrations/20272700000000_StockLocationStatus.php",
+  "find": "CHECK (`status` IN (0, 1) AND `is_primary` IN (0, 1))",
+  "replace": "CHECK (1 = 1)",
+  "tests": [
+   "--filter",
+   "Deactivate_RejectsAStatus",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G135 down() of the customer migration keeps the values that were stored",
+  "file": "app/Database/Migrations/20272700000001_CustomerMasterData.php",
+  "find": "if ($names !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Down_Rejects",
+   "tests/Database/CustomerMasterDataMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G136 the database refuses a manual status outside the five",
+  "file": "app/Database/Migrations/20272700000001_CustomerMasterData.php",
+  "find": "'status'  => '`manual_status` IS NULL OR `manual_status` IN (' . self::STATUSES . ')',",
+  "replace": "'status'  => '1 = 1',",
+  "tests": [
+   "--filter",
+   "RejectsAStatusOutsideTheFive",
+   "tests/Database/CustomerMasterDataMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G137 the database refuses a customer type outside the two",
+  "file": "app/Database/Migrations/20272700000001_CustomerMasterData.php",
+  "find": "'type'    => \"`customer_type` IS NULL OR `customer_type` IN ('individual', 'commercial')\",",
+  "replace": "'type'    => '1 = 1',",
+  "tests": [
+   "--filter",
+   "RejectsAStatusOutsideTheFive",
+   "tests/Database/CustomerMasterDataMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G138 the name of a classification is unique",
+  "file": "app/Database/Migrations/20272700000001_CustomerMasterData.php",
+  "find": "UNIQUE KEY `{$table}_name` (`name`),",
+  "replace": "KEY `{$table}_name` (`name`),",
+  "tests": [
+   "--filter",
+   "KeepsTheNameOfAClassificationUnique",
+   "tests/Database/CustomerMasterDataMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G139 down() of the product migration keeps the values that were stored",
+  "file": "app/Database/Migrations/20272700000002_ProductMasterData.php",
+  "find": "if ($names !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "Down_Rejects",
+   "tests/Database/ProductMasterDataMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G140 the database refuses an item status outside the three",
+  "file": "app/Database/Migrations/20272700000002_ProductMasterData.php",
+  "find": "CHECK (`status` IN (0, 1, 2))",
+  "replace": "CHECK (1 = 1)",
+  "tests": [
+   "--filter",
+   "RejectsAStatusOutsideTheThree",
+   "tests/Database/ProductMasterDataMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G141 the shelves are counted with a lock, so stock that committed after the snapshot of the caller is seen",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "AND quantity <> 0 LOCK IN SHARE MODE",
+  "replace": "AND quantity <> 0",
+  "tests": [
+   "--filter",
+   "RejectsALocationThatReceivedStockAfterTheSnapshot",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G142 the open documents are counted with a lock, so a document added after the snapshot of the caller is seen",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "$sql      = strtr($sql, $tables) . ' LOCK IN SHARE MODE';",
+  "replace": "$sql      = strtr($sql, $tables);",
+  "tests": [
+   "--filter",
+   "RejectsALocationNamedInADocumentAddedAfterTheSnapshot",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G143 the removal check reads the locations with a lock, so a primary flag moved after the snapshot is seen",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "$locations = $this->lockedLocations();\n        $location  = null;",
+  "replace": "$locations = $this->db->query('SELECT l.location_id, l.location_name, l.status, l.is_primary, l.branch_id FROM ' . $this->db->prefixTable('stock_locations') . ' l JOIN ' . $this->db->prefixTable('branches') . ' b ON b.branch_id = l.branch_id WHERE l.deleted = 0 AND b.company_id = ? ORDER BY l.location_id', [CompanyContext::id()])->getResult();\n        $location  = null;",
+  "tests": [
+   "--filter",
+   "CheckRemoval_RejectsALocationMadePrimaryAfterTheSnapshot",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G144 the value of the books of a location is read with a lock",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "WHERE company_id = ? AND location_id = ? FOR UPDATE\"",
+  "replace": "WHERE company_id = ? AND location_id = ?\"",
+  "tests": [
+   "--filter",
+   "RejectsALocationWhoseBooksReceivedAMovementAfterTheSnapshot",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G145 a quote that became an invoice is not an open document of a location",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "AND (s.quote_status IS NULL OR s.quote_status <> %3$d) AND si.item_location = ?",
+  "replace": "AND si.item_location = ?",
+  "tests": [
+   "--filter",
+   "WhoseOnlyQuoteBecameAnInvoice",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G146 a quote with no stored state is still an open document of a location",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "AND (s.quote_status IS NULL OR s.quote_status <> %3$d) AND si.item_location = ?",
+  "replace": "AND s.quote_status <> %3$d AND si.item_location = ?",
+  "tests": [
+   "--filter",
+   "InAQuoteInAnyStateButConverted",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G147 an order line that was invoiced in full is not an open document of a location",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "AND l.item_location = ? AND l.quantity > COALESCE((SELECT SUM(t.quantity) FROM {sales_order_invoice_lines} t JOIN {sales} k ON k.sale_id = t.sale_id AND k.sale_status = %2\\$d WHERE t.order_line_id = l.line_id), 0)",
+  "replace": "AND l.item_location = ?",
+  "tests": [
+   "--filter",
+   "WhoseOnlyOrderLineWasInvoicedInFull",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G148 a draft invoice has not taken the quantity of an order line of a location",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "JOIN {sales} k ON k.sale_id = t.sale_id AND k.sale_status = %2\\$d WHERE",
+  "replace": "JOIN {sales} k ON k.sale_id = t.sale_id WHERE",
+  "tests": [
+   "--filter",
+   "WhoseOnlyOrderLineWasInvoicedInFull",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G149 a quote that became an invoice is not an open document of an item",
+  "file": "app/Libraries/MasterData/ItemOpenDocuments.php",
+  "find": "AND (s.quote_status IS NULL OR s.quote_status <> %4$d) AND l.item_id",
+  "replace": "AND l.item_id",
+  "tests": [
+   "--filter",
+   "LeavesOutAQuoteThatBecameAnInvoice",
+   "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G150 a quote with no stored state is still an open document of an item",
+  "file": "app/Libraries/MasterData/ItemOpenDocuments.php",
+  "find": "AND (s.quote_status IS NULL OR s.quote_status <> %4$d) AND l.item_id",
+  "replace": "AND s.quote_status <> %4$d AND l.item_id",
+  "tests": [
+   "--filter",
+   "LeavesOutAQuoteThatBecameAnInvoice",
+   "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G151 an order line that was invoiced in full is not an open document of an item",
+  "file": "app/Libraries/MasterData/ItemOpenDocuments.php",
+  "find": "AND l.item_id IN (%2\\$s) AND l.quantity > COALESCE((SELECT SUM(t.quantity) FROM {sales_order_invoice_lines} t JOIN {sales} k ON k.sale_id = t.sale_id AND k.sale_status = %3\\$d WHERE t.order_line_id = l.line_id), 0) GROUP BY",
+  "replace": "AND l.item_id IN (%2\\$s) GROUP BY",
+  "tests": [
+   "--filter",
+   "WithSomethingLeftToInvoice",
+   "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G152 a draft invoice has not taken the quantity of an order line of an item",
+  "file": "app/Libraries/MasterData/ItemOpenDocuments.php",
+  "find": "JOIN {sales} k ON k.sale_id = t.sale_id AND k.sale_status = %3\\$d WHERE",
+  "replace": "JOIN {sales} k ON k.sale_id = t.sale_id WHERE",
+  "tests": [
+   "--filter",
+   "WithSomethingLeftToInvoice",
+   "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "G153 the holder of the lifecycle treats movements that net to zero as nothing held",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "COALESCE(SUM(quantity), 0) AS quantity, COALESCE(SUM(value), 0) AS value",
+  "replace": "COUNT(*) AS quantity, COUNT(*) AS value",
+  "tests": [
+   "--filter",
+   "AcceptsALocationWhoseMovementsNetToZero",
+   "tests/Libraries/Stock/StockLocationLifecycleTest.php"
+  ]
+ },
+ {
+  "name": "G154 the settings form names the primary refusal for the primary location",
+  "file": "app/Libraries/Stock/StockLocationLifecycle.php",
+  "find": "if ((int) $location->is_primary === 1) {\n            throw new AccountingException(AccountingError::StockLocationIsPrimary",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::StockLocationIsPrimary",
+  "tests": [
+   "--filter",
+   "RejectsMakingThePrimaryLocationInactive|RejectsToRemoveThePrimaryLocation",
+   "tests/Controllers/ConfigTest.php"
+  ]
+ },
+ {
+  "name": "G155 the customer import reads no as no",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "in_array($word, ['', '0', 'n', 'no', 'false'], true) => 0,",
+  "replace": "false => 0,",
+  "tests": [
+   "--filter",
+   "Flag_ReadsAYesOrANo",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G156 the customer import refuses text that is neither yes nor no",
+  "file": "app/Libraries/MasterData/CustomerFields.php",
+  "find": "default                                              => throw new AccountingException(AccountingError::CustomerGovernmentInvalid, 'The government entity flag is yes or no.'),",
+  "replace": "default                                              => 1,",
+  "tests": [
+   "--filter",
+   "Flag_RejectsAnyOtherText",
+   "tests/Libraries/MasterData/CustomerFieldsTest.php"
+  ]
+ },
+ {
+  "name": "G157 the customer import reads the government column through the flag reader",
+  "file": "app/Controllers/Customers.php",
+  "find": "CustomerFields::flag($cell(24))",
+  "replace": "$cell(24) === '' ? 0 : 1",
+  "tests": [
+   "--filter",
+   "ReadsTheGovernmentColumnAsYesOrNo|RejectsARowWhoseAppendedValue",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G158 the employee of another branch is not named on the form of the customer",
+  "file": "app/Controllers/Customers.php",
+  "find": "$employees[$assigned] = lang('Customers.assigned_other_branch');",
+  "replace": "$named = $this->employee->get_info($assigned); $employees[$assigned] = trim($named->first_name . ' ' . $named->last_name);",
+  "tests": [
+   "--filter",
+   "ShowsAnEmployeeOfAnotherBranch",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G159 the classifications of the customer form are escaped",
+  "file": "app/Views/customers/form.php",
+  "find": "array_map('esc', $classificationOptions)",
+  "replace": "$classificationOptions",
+  "tests": [
+   "--filter",
+   "EscapesTheNamesOfTheClassificationAndTheEmployee",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G160 the employees of the customer form are escaped",
+  "file": "app/Views/customers/form.php",
+  "find": "array_map('esc', $employeeOptions)",
+  "replace": "$employeeOptions",
+  "tests": [
+   "--filter",
+   "EscapesTheNamesOfTheClassificationAndTheEmployee",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G161 the classifications of the directory filter are escaped",
+  "file": "app/Views/customers/manage.php",
+  "find": "array_map('esc', ['' => lang('Customers.classification')] + $filterOptions['classifications'])",
+  "replace": "['' => lang('Customers.classification')] + $filterOptions['classifications']",
+  "tests": [
+   "--filter",
+   "EscapesTheNamesOfTheClassificationAndTheEmployee",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G162 the employees of the directory filter are escaped",
+  "file": "app/Views/customers/manage.php",
+  "find": "array_map('esc', ['' => lang('Customers.assigned_employee')] + $filterOptions['employees'])",
+  "replace": "['' => lang('Customers.assigned_employee')] + $filterOptions['employees']",
+  "tests": [
+   "--filter",
+   "EscapesTheNamesOfTheClassificationAndTheEmployee",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G163 the brands of the item form are escaped",
+  "file": "app/Views/items/form.php",
+  "find": "array_map('esc', $brandOptions)",
+  "replace": "$brandOptions",
+  "tests": [
+   "--filter",
+   "EscapesTheNameOfABrand",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G164 the item import writes the changes of a row to the audit log",
+  "file": "app/Controllers/Items.php",
+  "find": "(new ItemFields())->audit((int) $itemData['item_id'], $masterBefore, $master, (int) $employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "WritesTheBrandTheStatusAndTheSupplierCode",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G165 the item import audits against what the item held before the row",
+  "file": "app/Controllers/Items.php",
+  "find": "$masterBefore = $isUpdate && $master !== [] ? $this->item->get_info($itemId) : null;",
+  "replace": "$masterBefore = null;",
+  "tests": [
+   "--filter",
+   "WritesTheBrandTheStatusAndTheSupplierCode",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G166 choosing both hidden statuses lists both",
+  "file": "app/Models/Item.php",
+  "find": "$idBuilder->whereIn('items.status', $hidden);",
+  "replace": "$idBuilder->where('items.status', end($hidden));",
+  "tests": [
+   "--filter",
+   "NarrowsTheListBy",
+   "tests/Controllers/ItemsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G167 converting an order keeps the line of an item made inactive since",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "(string) $line->description, include_deleted: true);",
+  "replace": "(string) $line->description);",
+  "tests": [
+   "--filter",
+   "KeepsTheLineOfAnItemMadeInactiveOrSuspended",
+   "tests/Controllers/Customer_ordersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G168 the lists of what was done may ask for an inactive location",
+  "file": "app/Models/Stock_location.php",
+  "find": "if (! $withInactive) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "OffersAnInactiveLocationToWhoAsksForIt",
+   "tests/Models/Stock_locationTest.php"
+  ]
+ },
+ {
+  "name": "G169 the report filter of summary_discounts_input offers an inactive location",
+  "file": "app/Controllers/Reports.php",
+  "find": "    public function summary_discounts_input(): string\n    {\n        $this->clearCache();\n\n        $stockLocations                = $data = $this->stock_location->get_allowed_locations('sales', true, true);",
+  "replace": "    public function summary_discounts_input(): string\n    {\n        $this->clearCache();\n\n        $stockLocations                = $data = $this->stock_location->get_allowed_locations('sales', true);",
+  "tests": [
+   "--filter",
+   "InactiveStockLocationBecauseItKeepsItsHistory",
+   "tests/Controllers/ReportsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G170 the report filter of date_input offers an inactive location",
+  "file": "app/Controllers/Reports.php",
+  "find": "    public function date_input(): string\n    {   // TODO: Duplicated Code\n        $this->clearCache();\n\n        $stockLocations            = $data = $this->stock_location->get_allowed_locations('sales', true, true);",
+  "replace": "    public function date_input(): string\n    {   // TODO: Duplicated Code\n        $this->clearCache();\n\n        $stockLocations            = $data = $this->stock_location->get_allowed_locations('sales', true);",
+  "tests": [
+   "--filter",
+   "InactiveStockLocationBecauseItKeepsItsHistory",
+   "tests/Controllers/ReportsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G171 the report filter of date_input_sales offers an inactive location",
+  "file": "app/Controllers/Reports.php",
+  "find": "    public function date_input_sales(): string\n    {   // TODO: Duplicated Code\n        $this->clearCache();\n\n        $stockLocations            = $data = $this->stock_location->get_allowed_locations('sales', true, true);",
+  "replace": "    public function date_input_sales(): string\n    {   // TODO: Duplicated Code\n        $this->clearCache();\n\n        $stockLocations            = $data = $this->stock_location->get_allowed_locations('sales', true);",
+  "tests": [
+   "--filter",
+   "InactiveStockLocationBecauseItKeepsItsHistory",
+   "tests/Controllers/ReportsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G172 the report filter of dateInputItemSales offers an inactive location",
+  "file": "app/Controllers/Reports.php",
+  "find": "    public function dateInputItemSales(): string\n    {\n        $this->clearCache();\n\n        $stockLocations                 = $data = $this->stock_location->get_allowed_locations('sales', true, true);",
+  "replace": "    public function dateInputItemSales(): string\n    {\n        $this->clearCache();\n\n        $stockLocations                 = $data = $this->stock_location->get_allowed_locations('sales', true);",
+  "tests": [
+   "--filter",
+   "InactiveStockLocationBecauseItKeepsItsHistory",
+   "tests/Controllers/ReportsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G173 the report filter of date_input_recv offers an inactive location",
+  "file": "app/Controllers/Reports.php",
+  "find": "    public function date_input_recv(): string\n    {\n        $stockLocations          = $data = $this->stock_location->get_allowed_locations('receivings', true, true);",
+  "replace": "    public function date_input_recv(): string\n    {\n        $stockLocations          = $data = $this->stock_location->get_allowed_locations('receivings', true);",
+  "tests": [
+   "--filter",
+   "InactiveStockLocationBecauseItKeepsItsHistory",
+   "tests/Controllers/ReportsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G174 the report filter of inventory_summary_input offers an inactive location",
+  "file": "app/Controllers/Reports.php",
+  "find": "    public function inventory_summary_input(): string\n    {\n        $this->clearCache();\n\n        $data               = [];\n        $data['item_count'] = $this->inventory_summary->getItemCountDropdownArray();\n\n        $stockLocations          = $this->stock_location->get_allowed_locations('items', true, true);",
+  "replace": "    public function inventory_summary_input(): string\n    {\n        $this->clearCache();\n\n        $data               = [];\n        $data['item_count'] = $this->inventory_summary->getItemCountDropdownArray();\n\n        $stockLocations          = $this->stock_location->get_allowed_locations('items', true);",
+  "tests": [
+   "--filter",
+   "InactiveStockLocationBecauseItKeepsItsHistory",
+   "tests/Controllers/ReportsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G175 a new stock document is refused for an inactive location",
+  "file": "app/Libraries/Stock/StockAccess.php",
+  "find": "if ((int) $location->status !== 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "AssertActive_Rejects",
+   "tests/Libraries/Stock/StockAccessTest.php"
+  ]
+ },
+ {
+  "name": "G176 a new permit is refused for an inactive source or destination",
+  "file": "app/Libraries/Stock/StockPermit.php",
+  "find": "foreach (array_filter([$data['location_id'], $data['to_location_id']]) as $locationId) {",
+  "replace": "foreach (array_filter([$data['to_location_id']]) as $locationId) {",
+  "tests": [
+   "--filter",
+   "RejectsAnInactiveLocationAsSource",
+   "tests/Libraries/Stock/StockPermitTest.php"
+  ]
+ },
+ {
+  "name": "G177 a new transfer is refused for an inactive destination",
+  "file": "app/Libraries/Stock/StockPermit.php",
+  "find": "foreach (array_filter([$data['location_id'], $data['to_location_id']]) as $locationId) {",
+  "replace": "foreach (array_filter([$data['location_id']]) as $locationId) {",
+  "tests": [
+   "--filter",
+   "RejectsAnInactiveLocationAsSource",
+   "tests/Libraries/Stock/StockPermitTest.php"
+  ]
+ },
+ {
+  "name": "G178 a new stocktake is refused for an inactive location",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "$this->access->assertActive((int) $location->location_id);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "RejectsAnInactiveLocation",
+   "tests/Libraries/Stock/StocktakeTest.php"
+  ]
+ },
+ {
+  "name": "G179 a new stock request is refused for an inactive location that gives",
+  "file": "app/Libraries/Stock/StockRequest.php",
+  "find": "$this->access->assertActive((int) $from->location_id);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "RejectsAnInactiveLocationOnEitherSide",
+   "tests/Libraries/Stock/StockRequestTest.php"
+  ]
+ },
+ {
+  "name": "G180 a new stock request is refused for an inactive location that asks",
+  "file": "app/Libraries/Stock/StockRequest.php",
+  "find": "$this->access->assertActive((int) $to->location_id);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "RejectsAnInactiveLocationOnEitherSide",
+   "tests/Libraries/Stock/StockRequestTest.php"
+  ]
+ },
+ {
+  "name": "G181 the screen of a lookup shows its title",
+  "file": "app/Views/lookups/manage.php",
+  "find": "<h2 id=\"lookup_title\" class=\"h5 float-start mb-0\"><?= esc(lang('Lookups.' . $kind . '_title')) ?></h2>",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "ShowsTheTableAndTheButtonToAdd",
+   "tests/Controllers/Customer_classificationsControllerTest.php",
+   "tests/Controllers/Item_brandsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G182 the get_search_suggestions asks for active items only in its query number 1 when asked to hide inactive items",
+  "file": "app/Models/Item.php",
+  "find": "        $this->hideInactive($builder, $filters);\n        $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later\n        $builder->like('name', $search);    // TODO: this and the next 11 lines are duplicated directly below.  We should extract a method here.",
+  "replace": "        $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later\n        $builder->like('name', $search);    // TODO: this and the next 11 lines are duplicated directly below.  We should extract a method here.",
+  "tests": [
+   "--filter",
+   "AsksForActiveItemsInEveryQueryOfAnOpenSearch",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G183 the get_search_suggestions asks for active items only in its query number 2 when asked to hide inactive items",
+  "file": "app/Models/Item.php",
+  "find": "        $this->hideInactive($builder, $filters);\n        $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later\n        $builder->like('item_number', $search);",
+  "replace": "        $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later\n        $builder->like('item_number', $search);",
+  "tests": [
+   "--filter",
+   "AsksForActiveItemsInEveryQueryOfAnOpenSearch",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G184 the get_search_suggestions asks for active items only in its query number 3 when asked to hide inactive items",
+  "file": "app/Models/Item.php",
+  "find": "            $builder->where('deleted', $filters['is_deleted']);\n            $this->hideInactive($builder, $filters);\n            $builder->distinct();    // TODO: duplicate code.  Refactor method.",
+  "replace": "            $builder->where('deleted', $filters['is_deleted']);\n            $builder->distinct();    // TODO: duplicate code.  Refactor method.",
+  "tests": [
+   "--filter",
+   "AsksForActiveItemsInEveryQueryOfAnOpenSearch",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G185 the get_search_suggestions asks for active items only in its query number 4 when asked to hide inactive items",
+  "file": "app/Models/Item.php",
+  "find": "            $builder->where('deleted', $filters['is_deleted']);\n            $this->hideInactive($builder, $filters);\n            $builder->like('description', $search);    // TODO: duplicate code, refactor method.",
+  "replace": "            $builder->where('deleted', $filters['is_deleted']);\n            $builder->like('description', $search);    // TODO: duplicate code, refactor method.",
+  "tests": [
+   "--filter",
+   "AsksForActiveItemsInEveryQueryOfAnOpenSearch",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G186 the get_stock_search_suggestions asks for active items only in its query number 1 when asked to hide inactive items",
+  "file": "app/Models/Item.php",
+  "find": "        $this->hideInactive($builder, $filters);\n        $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later\n        $builder->where('stock_type', '0'); // Stocked items only\n        $builder->like('name', $search);",
+  "replace": "        $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later\n        $builder->where('stock_type', '0'); // Stocked items only\n        $builder->like('name', $search);",
+  "tests": [
+   "--filter",
+   "AsksForActiveItemsInEveryQueryOfAnOpenSearch",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G187 the get_stock_search_suggestions asks for active items only in its query number 2 when asked to hide inactive items",
+  "file": "app/Models/Item.php",
+  "find": "        $this->hideInactive($builder, $filters);\n        $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later\n        $builder->where('stock_type', '0'); // Stocked items only\n        $builder->like('item_number', $search);",
+  "replace": "        $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later\n        $builder->where('stock_type', '0'); // Stocked items only\n        $builder->like('item_number', $search);",
+  "tests": [
+   "--filter",
+   "AsksForActiveItemsInEveryQueryOfAnOpenSearch",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G188 the get_stock_search_suggestions asks for active items only in its query number 3 when asked to hide inactive items",
+  "file": "app/Models/Item.php",
+  "find": "            $builder->select('category');\n            $builder->where('deleted', $filters['is_deleted']);\n            $this->hideInactive($builder, $filters);\n            $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later",
+  "replace": "            $builder->select('category');\n            $builder->where('deleted', $filters['is_deleted']);\n            $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later",
+  "tests": [
+   "--filter",
+   "AsksForActiveItemsInEveryQueryOfAnOpenSearch",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G189 the get_stock_search_suggestions asks for active items only in its query number 4 when asked to hide inactive items",
+  "file": "app/Models/Item.php",
+  "find": "            $builder->select($this->get_search_suggestion_format('item_id, name, pack_name, description'));\n            $builder->where('deleted', $filters['is_deleted']);\n            $this->hideInactive($builder, $filters);\n            $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later",
+  "replace": "            $builder->select($this->get_search_suggestion_format('item_id, name, pack_name, description'));\n            $builder->where('deleted', $filters['is_deleted']);\n            $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later",
+  "tests": [
+   "--filter",
+   "AsksForActiveItemsInEveryQueryOfAnOpenSearch",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G190 the get_kit_search_suggestions asks for active items only in its query number 1 when asked to hide inactive items",
+  "file": "app/Models/Item.php",
+  "find": "        $builder->where('deleted', $filters['is_deleted']);\n        $this->hideInactive($builder, $filters);\n        $builder->where('item_type', ITEM_KIT);",
+  "replace": "        $builder->where('deleted', $filters['is_deleted']);\n        $builder->where('item_type', ITEM_KIT);",
+  "tests": [
+   "--filter",
+   "AsksForActiveItemsInEveryQueryOfAnOpenSearch",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G191 the get_kit_search_suggestions asks for active items only in its query number 2 when asked to hide inactive items",
+  "file": "app/Models/Item.php",
+  "find": "        $builder->where('deleted', $filters['is_deleted']);\n        $this->hideInactive($builder, $filters);\n        $builder->like('item_number', $search);",
+  "replace": "        $builder->where('deleted', $filters['is_deleted']);\n        $builder->like('item_number', $search);",
+  "tests": [
+   "--filter",
+   "AsksForActiveItemsInEveryQueryOfAnOpenSearch",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G192 the get_kit_search_suggestions asks for active items only in its query number 3 when asked to hide inactive items",
+  "file": "app/Models/Item.php",
+  "find": "            $builder->select('category');\n            $builder->where('deleted', $filters['is_deleted']);\n            $this->hideInactive($builder, $filters);\n            $builder->where('item_type', ITEM_KIT);",
+  "replace": "            $builder->select('category');\n            $builder->where('deleted', $filters['is_deleted']);\n            $builder->where('item_type', ITEM_KIT);",
+  "tests": [
+   "--filter",
+   "AsksForActiveItemsInEveryQueryOfAnOpenSearch",
+   "tests/Models/ItemTest.php"
+  ]
+ },
+ {
+  "name": "G193 the get_kit_search_suggestions asks for active items only in its query number 4 when asked to hide inactive items",
+  "file": "app/Models/Item.php",
+  "find": "            $builder->select('item_id, name, description');\n            $builder->where('deleted', $filters['is_deleted']);\n            $this->hideInactive($builder, $filters);\n            $builder->where('item_type', ITEM_KIT);",
+  "replace": "            $builder->select('item_id, name, description');\n            $builder->where('deleted', $filters['is_deleted']);\n            $builder->where('item_type', ITEM_KIT);",
+  "tests": [
+   "--filter",
+   "AsksForActiveItemsInEveryQueryOfAnOpenSearch",
+   "tests/Models/ItemTest.php"
+  ]
+ }
+]

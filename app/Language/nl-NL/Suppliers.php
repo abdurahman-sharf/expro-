@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Weet u zeker dat u de geselecteerde leverancier(s) wilt verwijderen?',
     'confirm_restore'       => 'Weet u zeker dat u de geselecteerde leverancier(s) wilt herstellen?',
     'cost'                  => 'Kosten leverancier',
+    'country_code'          => '',
     'error_adding_updating' => 'Leverancier bijwerken of toevoegen mislukt.',
     'goods'                 => 'Goederen leverancier',
     'new'                   => 'Nieuwe leverancier',

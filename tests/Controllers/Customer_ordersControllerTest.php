@@ -526,6 +526,29 @@ final class Customer_ordersControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('sales_order_invoice_lines'));
     }
 
+    public function testPostConvert_KeepsTheLineOfAnItemMadeInactiveOrSuspendedSinceTheOrderWasTaken(): void
+    {
+        $orderId = $this->approved();
+        $db      = $this->accountingDb();
+
+        $this->actAsWith([SalesOrders::CONVERT, SalesOrders::VIEW_ALL]);
+
+        try {
+            foreach ([1, 2] as $status) {
+                $db->table('items')->where('item_id', $this->service)->update(['status' => $status]);
+
+                $result = $this->postJson('/customer_orders/convert/' . $orderId);
+                $cart   = array_values(session()->get('sales_cart') ?? []);
+
+                $this->assertTrue($result['success'], $result['message']);
+                $this->assertCount(1, $cart, "status {$status}");
+                $this->assertSame([$this->service, '10'], [(int) $cart[0]['item_id'], (string) (float) $cart[0]['quantity']], "status {$status}");
+            }
+        } finally {
+            $db->table('items')->where('item_id', $this->service)->update(['status' => 0]);
+        }
+    }
+
     public function testPostConvert_LinksTheInvoiceTheRegisterSavesToTheOrderAndTakesItsQuantityFromIt(): void
     {
         $orderId = $this->approved();
@@ -673,5 +696,25 @@ final class Customer_ordersControllerTest extends CIUnitTestCase
 
         $page->assertRedirect();
         $this->assertStringContainsString('no_access/customer_orders', $page->getRedirectUrl());
+    }
+
+    public function testGetItems_LeavesOutAnInactiveAndASuspendedItem(): void
+    {
+        $this->actAsWith([SalesOrders::ADD]);
+
+        $db = $this->accountingDb();
+        $db->table('items')->where('item_id', $this->service)->update(['name' => 'Orderlist ' . $this->service, 'status' => 0]);
+        $found = static fn (array $items): array => array_map('intval', array_column($items, 'value'));
+        $term  = rawurlencode('Orderlist ' . $this->service);
+
+        $this->assertContains($this->service, $found(json_decode($this->get('/customer_orders/items?term=' . $term)->getJSON(), true)));
+
+        foreach ([1, 2] as $status) {
+            $db->table('items')->where('item_id', $this->service)->update(['status' => $status]);
+
+            $this->assertNotContains($this->service, $found(json_decode($this->get('/customer_orders/items?term=' . $term)->getJSON(), true)), "status {$status}");
+        }
+
+        $db->table('items')->where('item_id', $this->service)->update(['status' => 0]);
     }
 }

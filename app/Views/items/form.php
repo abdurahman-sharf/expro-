@@ -26,6 +26,9 @@
  * @var bool $maxDiscountEnabled
  * @var list<array{id: int, name: string, active: bool, price: string}> $priceListRows
  * @var list<array{key: string, selected: ?int, used: bool, options: list<object>}> $itemAccountRows
+ * @var array<int, string> $brandOptions
+ * @var array<int, string> $statusOptions
+ * @var array{brand_id: int, status: int, supplier_code: string}|null $masterItem
  */
 
 use App\Models\Item;
@@ -34,6 +37,7 @@ $minimumPriceEnabled ??= false;
 $maxDiscountEnabled  ??= false;
 $priceListRows       ??= [];
 $itemAccountRows     ??= [];
+$masterItem          ??= null;
 
 $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_info->cost_price);
 ?>
@@ -186,6 +190,33 @@ $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_in
                 <?= form_dropdown('supplier_id', $suppliers, $selected_supplier, ['class' => 'form-select', 'id' => 'supplier']) ?>
             </div>
         </div>
+
+        <?php if ($masterItem !== null): ?>
+            <?= form_hidden('master_data', '1') ?>
+
+            <div class="field" id="supplier_code_row">
+                <?= form_label(lang('Items.supplier_code'), 'supplier_code', ['class' => 'form-label']) ?>
+                <div class="field-control">
+                    <?= form_input(['name' => 'supplier_code', 'id' => 'supplier_code', 'class' => 'form-control form-control-sm', 'maxlength' => '100', 'dir' => 'ltr', 'value' => $masterItem['supplier_code']]) ?>
+                </div>
+            </div>
+
+            <div class="field">
+                <?= form_label(lang('Items.brand'), 'brand_id', ['class' => 'form-label']) ?>
+                <div class="field-control">
+                    <?= form_dropdown('brand_id', array_map('esc', $brandOptions), (string) $masterItem['brand_id'], ['class' => 'form-select', 'id' => 'brand_id']) ?>
+                    <p class="form-text mb-0"><?= anchor('item_brands', lang('Items.brands_manage'), ['target' => '_blank', 'rel' => 'noopener']) ?></p>
+                </div>
+            </div>
+
+            <div class="field">
+                <?= form_label(lang('Items.status'), 'status', ['class' => 'form-label']) ?>
+                <div class="field-control">
+                    <?= form_dropdown('status', array_map('esc', $statusOptions), (string) $masterItem['status'], ['class' => 'form-select', 'id' => 'status']) ?>
+                    <p class="form-text mb-0"><?= lang('Items.status_help') ?></p>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <div class="field">
             <?= form_label(lang('Items.cost_price'), 'cost_price', ['class' => 'form-label text-danger required']) ?>
@@ -573,6 +604,12 @@ $margin = Item::marginPercent((string) $item_info->unit_price, (string) $item_in
 <script type="text/javascript">
     // Validation and submit handling
     $(document).ready(function() {
+        const showSupplierCode = function() {
+            $('#supplier_code_row').toggle($('#supplier').val() !== '');
+        };
+
+        $('#supplier').on('change', showSupplierCode);
+        showSupplierCode();
         $('#new').click(function() {
             let stay_open = true;
             $('#item_form').submit();

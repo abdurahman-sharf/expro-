@@ -1,6 +1,9 @@
 <?php
 
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\MasterData\CustomerStatus;
+use App\Libraries\MasterData\CustomerType;
+use App\Libraries\MasterData\ItemStatus;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Models\Attribute;
@@ -261,7 +264,15 @@ function customer_headers(): array
         ['first_name'       => lang('Common.first_name')],
         ['email'            => lang('Common.email')],
         ['phone_number'     => lang('Common.phone_number')],
-        ['total'            => lang('Common.total_spent'), 'sortable' => false]
+        ['total'            => lang('Common.total_spent'), 'sortable' => false],
+        ['classification_name'   => lang('Customers.classification')],
+        ['manual_status'         => lang('Customers.manual_status')],
+        ['assigned_employee_name' => lang('Customers.assigned_employee')],
+        ['area'                  => lang('Customers.area')],
+        ['city'                  => lang('Common.city')],
+        ['country_code'          => lang('Customers.country_code')],
+        ['customer_type'         => lang('Customers.type')],
+        ['created'               => lang('Customers.created')]
     ];
 }
 
@@ -296,6 +307,14 @@ function get_customer_data_row(object $person, object $stats): array
         'email'            => empty($person->email) ? '' : mailto(esc($person->email), esc($person->email)),
         'phone_number'     => $person->phone_number,
         'total'            => to_currency($stats->total),
+        'classification_name'    => (string) ($person->classification_name ?? ''),
+        'manual_status'          => empty($person->manual_status) ? '' : (CustomerStatus::tryFrom((string) $person->manual_status)?->label() ?? ''),
+        'assigned_employee_name' => (string) ($person->assigned_employee_name ?? ''),
+        'area'                   => (string) ($person->area ?? ''),
+        'city'                   => (string) ($person->city ?? ''),
+        'country_code'           => (string) ($person->country_code ?? ''),
+        'customer_type'          => empty($person->customer_type) ? '' : (CustomerType::tryFrom((string) $person->customer_type)?->label() ?? ''),
+        'created'                => empty($person->date) ? '' : to_datetime(strtotime((string) $person->date)),
         'messages'         => empty($person->phone_number)
             ? ''
             : anchor(
@@ -397,6 +416,8 @@ function item_headers(): array
         ['name'          => lang('Items.name')],
         ['category'      => lang('Items.category')],
         ['company_name'  => lang('Suppliers.company_name')],
+        ['brand_name'    => lang('Items.brand'), 'sortable' => false],
+        ['status_label'  => lang('Items.status'), 'sortable' => false],
         ['cost_price'    => lang('Items.cost_price')],
         ['unit_price'    => lang('Items.unit_price')],
         ['quantity'      => lang('Items.quantity')]
@@ -495,6 +516,8 @@ function getItemDataRow(object $item, array $definitionNames, array $taxPercents
         'name'          => $item->name,
         'category'      => $item->category,
         'company_name'  => $item->company_name,    // TODO: This isn't in the items table. Should this be here?
+        'brand_name'    => (string) ($item->brand_name ?? ''),
+        'status_label'  => ItemStatus::tryFrom((int) ($item->status ?? 0))?->label() ?? '',
         'cost_price'    => to_currency($item->cost_price),
         'unit_price'    => to_currency($item->unit_price),
         'quantity'      => to_quantity_decimals($item->quantity),

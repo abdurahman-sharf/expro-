@@ -46,6 +46,7 @@
             const new_block = block.insertAfter($(this).parent());
             const new_block_id = 'stock_location[]';
             $(new_block).find('label').html("<?= lang('Config.stock_location') ?> " + ++location_count).attr('for', new_block_id).attr('class', 'col-form-label col-3 col-md-2 text-danger required');
+            $(new_block).find('.location-state').remove();
             $(new_block).find('input').attr('id', new_block_id).removeAttr('disabled').attr('name', new_block_id).attr('class', 'form-control form-control-sm required').val('');
             hide_show_remove();
         };

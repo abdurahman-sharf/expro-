@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\MasterData\ItemStatus;
 use App\Libraries\Stock\StockDocumentSettings;
 use App\Libraries\Stock\StockPermissions;
 use App\Libraries\Stock\StockShelves;
@@ -92,7 +93,7 @@ abstract class StockDocumentController extends AccountingController
     {
         $builder = Database::connect()->table('items')
             ->select('item_id, name, item_number')
-            ->where(['deleted' => 0, 'stock_type' => HAS_STOCK]);
+            ->where(['deleted' => 0, 'stock_type' => HAS_STOCK, 'status' => ItemStatus::Active->value]);
 
         $term   = trim($this->queryText('term'));
         $itemId = (int) $this->request->getGet('item_id');

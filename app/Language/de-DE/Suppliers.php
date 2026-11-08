@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Wollen Sie die gewählten Lieferanten löschen?',
     'confirm_restore'       => 'Sind Sie sicher, dass Sie die ausgewählten Lieferanten wiederherstellen möchten?',
     'cost'                  => 'Kosten',
+    'country_code'          => '',
     'error_adding_updating' => 'Fehler beim Hinzufügen/Ändern.',
     'goods'                 => 'Artikel',
     'new'                   => 'Neuer Lieferant',

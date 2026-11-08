@@ -859,6 +859,22 @@ class StocktakeTest extends CIUnitTestCase
         return $count === null ? null : bcadd((string) $count, '0', 3);
     }
 
+    public function testCreate_RejectsAnInactiveLocationAndAcceptsItWhenActive(): void
+    {
+        $second = $this->openLocation();
+        $itemId = $this->stocked('10', '50');
+        $db     = $this->accountingDb();
+
+        $db->table('stock_locations')->where('location_id', $second)->update(['status' => 0]);
+
+        $this->refusedWith(AccountingError::StockLocationNotActive, fn () => $this->start([$itemId], ['location_id' => $second]));
+        $this->assertSame(0, $this->countRows('stocktakes'));
+
+        $db->table('stock_locations')->where('location_id', $second)->update(['status' => 1]);
+
+        $this->assertGreaterThan(0, $this->start([$itemId], ['location_id' => $second]));
+    }
+
     public function testCreate_RejectsAnItemThatIsOnAnotherStocktakeOfTheLocationStillBeingCounted(): void
     {
         $itemId = $this->stocked('10', '50');

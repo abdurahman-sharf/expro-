@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Êtes-vous certain vouloir supprimer ce(s) fournisseur(s) ?',
     'confirm_restore'       => 'Êtes-vous certain de vouloir restaurer le(s) fournisseur(s) sélectionné(s) ?',
     'cost'                  => 'Fournisseur de coût',
+    'country_code'          => '',
     'error_adding_updating' => 'Erreur lors de l\'ajout/modification du fournisseur.',
     'goods'                 => 'Fournisseur de biens',
     'new'                   => 'Nouveau fournisseur',

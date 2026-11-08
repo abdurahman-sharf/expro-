@@ -2,6 +2,10 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\MasterData\CustomerFields;
+use App\Libraries\MasterData\PartyLengths;
 use App\Models\Supplier;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Services;
@@ -110,10 +114,10 @@ class Suppliers extends Persons
     /**
      * Inserts/updates a supplier
      *
-     * @param int $supplier_id
+     * @param int $supplierId
      * @return ResponseInterface
      */
-    public function postSave(int $supplier_id = NEW_ENTRY): ResponseInterface
+    public function postSave(int $supplierId = NEW_ENTRY): ResponseInterface
     {
         $first_name = $this->request->getPost('first_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);    // TODO: Duplicate code
         $last_name = $this->request->getPost('last_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
@@ -123,7 +127,7 @@ class Suppliers extends Persons
         $first_name = $this->nameize($first_name);
         $last_name = $this->nameize($last_name);
 
-        $person_data = [
+        $personData = [
             'first_name'   => $first_name,
             'last_name'    => $last_name,
             'gender'       => $this->request->getPost('gender'),
@@ -138,7 +142,7 @@ class Suppliers extends Persons
             'comments'     => $this->request->getPost('comments', FILTER_SANITIZE_FULL_SPECIAL_CHARS)
         ];
 
-        $supplier_data = [
+        $supplierData = [
             'company_name'   => $this->request->getPost('company_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'agency_name'    => $this->request->getPost('agency_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'category'       => $this->request->getPost('category', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
@@ -146,30 +150,46 @@ class Suppliers extends Persons
             'tax_id'         => $this->request->getPost('tax_id', FILTER_SANITIZE_NUMBER_INT)
         ];
 
-        if ($this->request->getPost('commercial_registry') !== null) {
-            $supplier_data['commercial_registry'] = mb_substr(trim((string) $this->request->getPost('commercial_registry', FILTER_SANITIZE_FULL_SPECIAL_CHARS)), 0, 64);
+        $current = $supplierId == NEW_ENTRY || ! $this->supplier->exists((int) $supplierId) ? null : $this->supplier->get_info((int) $supplierId);
+
+        try {
+            PartyLengths::check(
+                ['company_name' => (string) $this->request->getPost('company_name'), 'city' => (string) $this->request->getPost('city'), 'state' => (string) $this->request->getPost('state'), 'zip' => (string) $this->request->getPost('zip')],
+                $current,
+                ['company_name' => lang('Suppliers.company_name'), 'city' => lang('Common.city'), 'state' => lang('Common.state'), 'zip' => lang('Common.zip')],
+            );
+
+            if ($this->request->getPost('country_code') !== null) {
+                $supplierData['country_code'] = CustomerFields::countryCode(trim((string) $this->request->getPost('country_code')));
+            }
+        } catch (AccountingException $failure) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($failure), 'id' => NEW_ENTRY]);
         }
 
-        if ($this->supplier->save_supplier($person_data, $supplier_data, $supplier_id)) {
+        if ($this->request->getPost('commercial_registry') !== null) {
+            $supplierData['commercial_registry'] = mb_substr(trim((string) $this->request->getPost('commercial_registry', FILTER_SANITIZE_FULL_SPECIAL_CHARS)), 0, 64);
+        }
+
+        if ($this->supplier->save_supplier($personData, $supplierData, $supplierId)) {
             // New supplier
-            if ($supplier_id == NEW_ENTRY) {
+            if ($supplierId == NEW_ENTRY) {
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Suppliers.successful_adding') . ' ' . $supplier_data['company_name'],
-                    'id'      => $supplier_data['person_id']
+                    'message' => lang('Suppliers.successful_adding') . ' ' . $supplierData['company_name'],
+                    'id'      => $supplierData['person_id']
                 ]);
             } else { // Existing supplier
 
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Suppliers.successful_updating') . ' ' . $supplier_data['company_name'],
-                    'id'      => $supplier_id
+                    'message' => lang('Suppliers.successful_updating') . ' ' . $supplierData['company_name'],
+                    'id'      => $supplierId
                 ]);
             }
         } else { // Failure
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Suppliers.error_adding_updating') . ' ' .     $supplier_data['company_name'],
+                'message' => lang('Suppliers.error_adding_updating') . ' ' .     $supplierData['company_name'],
                 'id'      => NEW_ENTRY
             ]);
         }

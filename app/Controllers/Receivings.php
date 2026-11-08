@@ -85,7 +85,7 @@ class Receivings extends Secure_Controller
     public function getItemSearch(): ResponseInterface
     {
         $search      = $this->request->getGet('term');
-        $suggestions = $this->item->get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false], true);
+        $suggestions = $this->item->get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true], true);
         $suggestions = array_merge($suggestions, $this->item_kit->get_search_suggestions($search));
 
         return $this->response->setJSON($suggestions);
@@ -99,7 +99,7 @@ class Receivings extends Secure_Controller
     public function getStockItemSearch(): ResponseInterface
     {
         $search      = $this->request->getGet('term');
-        $suggestions = $this->item->get_stock_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false], true);
+        $suggestions = $this->item->get_stock_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false, 'hide_inactive' => true], true);
         $suggestions = array_merge($suggestions, $this->item_kit->get_search_suggestions($search));
 
         return $this->response->setJSON($suggestions);

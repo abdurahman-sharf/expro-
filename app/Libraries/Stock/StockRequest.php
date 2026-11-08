@@ -78,6 +78,8 @@ final class StockRequest
             throw new AccountingException(AccountingError::StockRequestLocationsInvalid, 'A request goes from one stock location to another.', ['location_id' => (int) $to->location_id]);
         }
 
+        $this->access->assertActive((int) $from->location_id);
+        $this->access->assertActive((int) $to->location_id);
         $this->branches->requireBranch((int) $to->branch_id, $employeeId);
 
         $date  = $this->day((string) ($input['date'] ?? date('Y-m-d')));

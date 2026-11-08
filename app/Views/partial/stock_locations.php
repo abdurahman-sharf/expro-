@@ -26,6 +26,22 @@ foreach ($stock_locations as $location => $location_data) {
             echo form_input($form_data);
             ?>
         </div>
+        <div class="col-12 col-md-4 location-state d-flex align-items-center gap-3">
+            <?= form_dropdown(
+                "location_status[$location_id]",
+                ['1' => lang('Config.location_active'), '0' => lang('Config.location_inactive')],
+                (string) (int) ($location_data['status'] ?? 1),
+                ['class' => 'form-select form-select-sm location-status', 'aria-label' => lang('Config.location_status')] + ($location_data['deleted'] ? ['disabled' => 'disabled'] : [])
+            ) ?>
+            <label class="form-check-label text-nowrap">
+                <?= form_radio([
+                    'name'    => 'location_primary',
+                    'value'   => $location_id,
+                    'checked' => (int) ($location_data['is_primary'] ?? 0) === 1,
+                    'class'   => 'form-check-input location-primary',
+                ] + ($location_data['deleted'] || (int) ($location_data['status'] ?? 1) === 0 ? ['disabled' => 'disabled'] : [])) ?> <?= lang('Config.location_primary') ?>
+            </label>
+        </div>
         <button type="button" class="btn btn-outline-secondary repeat-action add_stock_location" aria-label="<?= lang('Common.add') ?>"><span class="bi bi-plus-lg" aria-hidden="true"></span></button>
         <button type="button" class="btn btn-outline-secondary repeat-action remove_stock_location" aria-label="<?= lang('Common.remove') ?>"><span class="bi bi-dash-lg" aria-hidden="true"></span></button>
     </div>

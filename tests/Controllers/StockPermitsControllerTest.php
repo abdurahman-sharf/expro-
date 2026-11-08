@@ -578,4 +578,22 @@ class StockPermitsControllerTest extends CIUnitTestCase
 
         $this->get('/stock_documents/permits/save');
     }
+
+    public function testGetItems_LeavesOutAnInactiveAndASuspendedItemFromThePermitList(): void
+    {
+        $itemId = $this->item('5.00');
+        $db     = $this->accountingDb();
+        $db->table('items')->where('item_id', $itemId)->update(['name' => 'Hiddenable paint', 'item_number' => 'HP-11', 'status' => 0]);
+        $this->actAsKeeper();
+
+        $this->assertSame([$itemId], array_column(json_decode($this->get('/stock_documents/items?term=Hiddenable')->getJSON(), true), 'value'));
+
+        foreach ([1, 2] as $status) {
+            $db->table('items')->where('item_id', $itemId)->update(['status' => $status]);
+
+            $this->assertSame([], json_decode($this->get('/stock_documents/items?term=Hiddenable')->getJSON(), true), "status {$status}");
+        }
+
+        $db->table('items')->where('item_id', $itemId)->update(['status' => 0]);
+    }
 }

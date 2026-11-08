@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Apakah Anda yakin ingin menghapus pemasok yang dipilih?',
     'confirm_restore'       => 'Anda yakin ingin mengembalikan Pemasok terpilih?',
     'cost'                  => 'Biaya Pemasok',
+    'country_code'          => '',
     'error_adding_updating' => 'Kesalahan Menambah / memperbarui data pemasok.',
     'goods'                 => 'Pemasok Barang',
     'new'                   => 'Pemasok Baru',

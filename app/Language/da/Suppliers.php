@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => '',
     'confirm_restore'       => '',
     'cost'                  => '',
+    'country_code'          => '',
     'error_adding_updating' => '',
     'goods'                 => '',
     'new'                   => '',

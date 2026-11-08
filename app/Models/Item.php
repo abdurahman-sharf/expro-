@@ -2,13 +2,17 @@
 
 namespace App\Models;
 
+use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\StockAdjustment;
+use App\Libraries\MasterData\ItemOpenDocuments;
+use App\Libraries\MasterData\ItemStatus;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\RawSql;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -80,7 +84,10 @@ class Item extends Model
         'purchase_tax_2_name',
         'purchase_tax_2_percent',
         'minimum_price',
-        'max_discount_percent'
+        'max_discount_percent',
+        'brand_id',
+        'status',
+        'supplier_code'
     ];
 
     /**
@@ -465,6 +472,23 @@ class Item extends Model
 
         $idBuilder->where('items.deleted', $filters['is_deleted']);
 
+        $hidden = array_filter([
+            ! empty($filters['status_inactive']) ? ItemStatus::Inactive->value : null,
+            ! empty($filters['status_suspended']) ? ItemStatus::Suspended->value : null,
+        ], static fn (?int $status): bool => $status !== null);
+
+        if ($hidden !== []) {
+            $idBuilder->whereIn('items.status', $hidden);
+        }
+        if (! empty($filters['out_of_stock']) && $filters['stock_location_id'] > -1) {
+            $idBuilder->where('items.stock_type', HAS_STOCK);
+            $idBuilder->where('item_quantities.quantity <=', 0);
+        }
+        if (! empty($filters['available']) && $filters['stock_location_id'] > -1) {
+            $idBuilder->where('items.status', ItemStatus::Active->value);
+            $idBuilder->where('items.stock_type', HAS_STOCK);
+            $idBuilder->where('item_quantities.quantity >', 0);
+        }
         if ($filters['empty_upc']) {
             $idBuilder->where('item_number', null);
         }
@@ -536,6 +560,8 @@ class Item extends Model
         $builder->select('MAX(items.pack_name) AS pack_name');
         $builder->select('MAX(items.tax_category_id) AS tax_category_id');
         $builder->select('MAX(items.deleted) AS deleted');
+        $builder->select('MAX(items.status) AS status');
+        $builder->select('MAX(item_brands.name) AS brand_name');
 
         $builder->select('MAX(suppliers.person_id) AS person_id');
         $builder->select('MAX(suppliers.company_name) AS company_name');
@@ -562,6 +588,7 @@ class Item extends Model
         }
 
         $builder->join('suppliers AS suppliers', 'suppliers.person_id = items.supplier_id', 'left');
+        $builder->join('item_brands AS item_brands', 'item_brands.brand_id = items.brand_id', 'left');
         $builder->join('inventory AS inventory', 'inventory.trans_items = items.item_id');
 
         if ($filters['stock_location_id'] > -1) {
@@ -695,6 +722,7 @@ class Item extends Model
         $builder->where('sales.sale_status', COMPLETED);
         $builder->where('sales.sale_time >=', date('Y-m-d H:i:s', strtotime("-$days days")));
         $builder->where('items.deleted', 0);
+        $builder->where('items.status', ItemStatus::Active->value);
         $builder->groupBy('items.item_id');
         $builder->having('quantity_sold >', 0);
         $builder->orderBy('quantity_sold', 'DESC');
@@ -723,6 +751,7 @@ class Item extends Model
 
         if (!$include_deleted) {
             $builder->where('items.deleted', 0);
+            $builder->where('items.status', ItemStatus::Active->value);
         }
 
         // Limit to only 1 so there is a result in case two are returned
@@ -776,7 +805,9 @@ class Item extends Model
         $builder->select("GROUP_CONCAT(DISTINCT CONCAT_WS('_', definition_id, DATE_FORMAT(attribute_date, $format)) ORDER BY definition_id SEPARATOR '|') AS attribute_dtvalues");
         $builder->select('GROUP_CONCAT(DISTINCT CONCAT_WS(\'_\', definition_id, attribute_decimal) ORDER BY definition_id SEPARATOR \'|\') AS attribute_dvalues');
         $builder->select('MAX(quantity) as quantity');
+        $builder->select('MAX(item_brands.name) AS brand_name');
 
+        $builder->join('item_brands', 'item_brands.brand_id = items.brand_id', 'left');
         $builder->join('suppliers', 'suppliers.person_id = items.supplier_id', 'left');
         $builder->join('item_quantities', 'item_quantities.item_id = items.item_id', 'left');
         $builder->join('attribute_links', 'attribute_links.item_id = items.item_id AND sale_id IS NULL AND receiving_id IS NULL', 'left');
@@ -895,7 +926,7 @@ class Item extends Model
     {
         $this->accountingFailure = null;
 
-        if ($this->holdsStockOutsideTheEmployeesBranches([$itemId])) {
+        if ($this->isMentionedInOpenDocuments([(int) $itemId]) || $this->holdsStockOutsideTheEmployeesBranches([$itemId])) {
             return false;
         }
 
@@ -923,6 +954,40 @@ class Item extends Model
         $this->db->transComplete();
 
         return (bool) ($success & $this->db->transStatus());
+    }
+
+    /**
+     * An item that a draft, a quote, a suspended sale, an open order, a schedule, a stock request or a
+     * stocktake still names is not deleted: the document would lose its line. The reason is kept as the
+     * failure of the last change.
+     *
+     * @param list<int> $itemIds
+     */
+    public function isMentionedInOpenDocuments(array $itemIds): bool
+    {
+        $found = (new ItemOpenDocuments($this->db))->first($itemIds);
+
+        if ($found === null) {
+            return false;
+        }
+
+        $this->accountingFailure = new AccountingException(AccountingError::ItemInOpenDocuments, 'The item is named in an open document.', ['name' => $found['name'], 'count' => $found['count']]);
+
+        return true;
+    }
+
+    /**
+     * Leaves out the items that are inactive or suspended, for the lists of new documents.
+     *
+     * @param array<string, mixed> $filters
+     */
+    private function hideInactive(BaseBuilder $builder, array $filters): void
+    {
+        if (empty($filters['hide_inactive'])) {
+            return;
+        }
+
+        $builder->where('items.status', ItemStatus::Active->value);
     }
 
     /**
@@ -1010,7 +1075,7 @@ class Item extends Model
     {
         $this->accountingFailure = null;
 
-        if ($this->holdsStockOutsideTheEmployeesBranches($itemIds)) {
+        if ($this->isMentionedInOpenDocuments(array_map('intval', $itemIds)) || $this->holdsStockOutsideTheEmployeesBranches($itemIds)) {
             return false;
         }
 
@@ -1187,6 +1252,7 @@ class Item extends Model
         $builder = $this->db->table('items');
         $builder->select($this->get_search_suggestion_format('item_id, name, pack_name'));
         $builder->where('deleted', $filters['is_deleted']);
+        $this->hideInactive($builder, $filters);
         $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
         $builder->like('name', $search);    // TODO: this and the next 11 lines are duplicated directly below.  We should extract a method here.
         $builder->orderBy('name', 'asc');
@@ -1198,6 +1264,7 @@ class Item extends Model
         $builder = $this->db->table('items');
         $builder->select($this->get_search_suggestion_format('item_id, item_number, pack_name'));
         $builder->where('deleted', $filters['is_deleted']);
+        $this->hideInactive($builder, $filters);
         $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
         $builder->like('item_number', $search);
         $builder->orderBy('item_number', 'asc');
@@ -1211,6 +1278,7 @@ class Item extends Model
             $builder = $this->db->table('items');
             $builder->select('category');
             $builder->where('deleted', $filters['is_deleted']);
+            $this->hideInactive($builder, $filters);
             $builder->distinct();    // TODO: duplicate code.  Refactor method.
             $builder->like('category', $search);
             $builder->orderBy('category', 'asc');
@@ -1238,6 +1306,7 @@ class Item extends Model
             $builder = $this->db->table('items');
             $builder->select($this->get_search_suggestion_format('item_id, name, pack_name, description'));
             $builder->where('deleted', $filters['is_deleted']);
+            $this->hideInactive($builder, $filters);
             $builder->like('description', $search);    // TODO: duplicate code, refactor method.
             $builder->orderBy('description', 'asc');
 
@@ -1291,6 +1360,7 @@ class Item extends Model
         $builder = $this->db->table('items');
         $builder->select($this->get_search_suggestion_format('item_id, name, pack_name'));
         $builder->where('deleted', $filters['is_deleted']);
+        $this->hideInactive($builder, $filters);
         $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
         $builder->where('stock_type', '0'); // Stocked items only
         $builder->like('name', $search);
@@ -1303,6 +1373,7 @@ class Item extends Model
         $builder = $this->db->table('items');
         $builder->select($this->get_search_suggestion_format('item_id, item_number, pack_name'));
         $builder->where('deleted', $filters['is_deleted']);
+        $this->hideInactive($builder, $filters);
         $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
         $builder->where('stock_type', '0'); // Stocked items only
         $builder->like('item_number', $search);
@@ -1317,6 +1388,7 @@ class Item extends Model
             $builder = $this->db->table('items');
             $builder->select('category');
             $builder->where('deleted', $filters['is_deleted']);
+            $this->hideInactive($builder, $filters);
             $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
             $builder->where('stock_type', '0'); // Stocked items only
             $builder->distinct();
@@ -1345,6 +1417,7 @@ class Item extends Model
             $builder = $this->db->table('items');
             $builder->select($this->get_search_suggestion_format('item_id, name, pack_name, description'));
             $builder->where('deleted', $filters['is_deleted']);
+            $this->hideInactive($builder, $filters);
             $builder->whereIn('item_type', $non_kit); // Standard, exclude kit items since kits will be picked up later
             $builder->where('stock_type', '0'); // Stocked items only
             $builder->like('description', $search);    // TODO: duplicated code, refactor method.
@@ -1398,6 +1471,7 @@ class Item extends Model
         $builder = $this->db->table('items');
         $builder->select('item_id, name');
         $builder->where('deleted', $filters['is_deleted']);
+        $this->hideInactive($builder, $filters);
         $builder->where('item_type', ITEM_KIT);
         $builder->like('name', $search);
         $builder->orderBy('name', 'asc');
@@ -1409,6 +1483,7 @@ class Item extends Model
         $builder = $this->db->table('items');
         $builder->select('item_id, item_number');
         $builder->where('deleted', $filters['is_deleted']);
+        $this->hideInactive($builder, $filters);
         $builder->like('item_number', $search);
         $builder->where('item_type', ITEM_KIT);
         $builder->orderBy('item_number', 'asc');
@@ -1422,6 +1497,7 @@ class Item extends Model
             $builder = $this->db->table('items');
             $builder->select('category');
             $builder->where('deleted', $filters['is_deleted']);
+            $this->hideInactive($builder, $filters);
             $builder->where('item_type', ITEM_KIT);
             $builder->distinct();    // TODO: duplicated code, refactor method.
             $builder->like('category', $search);
@@ -1449,6 +1525,7 @@ class Item extends Model
             $builder = $this->db->table('items');
             $builder->select('item_id, name, description');
             $builder->where('deleted', $filters['is_deleted']);
+            $this->hideInactive($builder, $filters);
             $builder->where('item_type', ITEM_KIT);
             $builder->like('description', $search);
             $builder->orderBy('description', 'asc');

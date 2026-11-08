@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => '¿Está seguro que quiere borrar al/los Proveedor(es) seleccionados?',
     'confirm_restore'       => '¿Esá seguro que quiere restaurar al o los Proveedores seleccionados?',
     'cost'                  => 'Costo del Proveedor',
+    'country_code'          => '',
     'error_adding_updating' => 'Fallo al actualizar o agregar un Proveedor.',
     'goods'                 => 'Proveedor de Materiales',
     'new'                   => 'Nuevo Proveedor',

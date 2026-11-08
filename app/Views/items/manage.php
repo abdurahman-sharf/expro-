@@ -97,6 +97,10 @@ use App\Models\Employee;
         <span class="bi bi-box-arrow-in-down" aria-hidden="true">&nbsp;</span><?= lang('Common.import_csv') ?>
     </button>
 
+    <a class="btn btn-outline-secondary btn-sm float-end" href="<?= esc(site_url('item_brands'), 'attr') ?>">
+        <span class="bi bi-bookmark" aria-hidden="true">&nbsp;</span><?= lang('Items.brands_manage') ?>
+    </a>
+
     <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-new="<?= lang('Common.new') ?>" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "$controller_name/view" ?>" title="<?= lang(ucfirst($controller_name) . '.new') ?>">
         <span class="bi bi-tag" aria-hidden="true">&nbsp;</span><?= lang(ucfirst($controller_name) . '.new') ?>
     </button>

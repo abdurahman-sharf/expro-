@@ -5,6 +5,7 @@ namespace Tests\Controllers;
 use App\Libraries\Accounting\SalesTaxSettings;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Stock\StockLocationLifecycle;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -12,6 +13,7 @@ use CodeIgniter\Test\TestResponse;
 use Config\Database;
 use Config\OSPOS;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
 use Tests\Support\TaxFixtureTrait;
 
 class ConfigTest extends CIUnitTestCase
@@ -20,6 +22,7 @@ class ConfigTest extends CIUnitTestCase
     use FeatureTestTrait;
     use TaxFixtureTrait;
     use EmployeeFixtureTrait;
+    use ItemFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -667,5 +670,241 @@ class ConfigTest extends CIUnitTestCase
 
         $this->assertStringContainsString('value="40"', $input);
         $this->assertStringContainsString('min="1"', $input);
+    }
+
+    // ========== postSaveLocations: status, primary flag and removal ==========
+
+    /** @var list<int> */
+    private array $spareLocations = [];
+
+    /** @var list<int> */
+    private array $spareItems = [];
+
+    private function spareItem(): int
+    {
+        return $this->spareItems[] = $this->createTestItem();
+    }
+
+    private function spareLocation(string $name): int
+    {
+        $db = Database::connect();
+        $db->table('stock_locations')->insert(['location_name' => $name . ' ' . uniqid(), 'deleted' => 0, 'branch_id' => 1]);
+
+        return $this->spareLocations[] = (int) $db->insertID();
+    }
+
+    private function restoreLocations(): void
+    {
+        $db = Database::connect();
+
+        foreach ($this->spareLocations as $locationId) {
+            $db->table('item_quantities')->where('location_id', $locationId)->delete();
+            $db->table('stock_locations')->where('location_id', $locationId)->delete();
+        }
+
+        $this->spareLocations = [];
+
+        foreach ($this->spareItems as $itemId) {
+            $db->table('item_quantities')->where('item_id', $itemId)->delete();
+            $db->table('items')->where('item_id', $itemId)->delete();
+        }
+
+        $this->spareItems = [];
+
+        $db->query('UPDATE ' . $db->prefixTable('stock_locations') . ' SET status = 1, is_primary = 0');
+        $db->query('UPDATE ' . $db->prefixTable('stock_locations') . ' SET is_primary = 1 WHERE location_id = 1');
+        $db->table('accounting_audit_log')->where('entity_type', 'stock_location')->delete();
+    }
+
+    /**
+     * What the stock locations form posts: every live location by its name, so that none is removed.
+     *
+     * @param array<string, mixed> $extra
+     *
+     * @return array<string, mixed>
+     */
+    private function locationsForm(array $extra = []): array
+    {
+        $names = [];
+
+        foreach (Database::connect()->table('stock_locations')->where('deleted', 0)->get()->getResultArray() as $row) {
+            $names[(int) $row['location_id']] = $row['location_name'];
+        }
+
+        return ['stock_location' => $names] + $extra;
+    }
+
+    private function locationRow(int $locationId): array
+    {
+        return Database::connect()->table('stock_locations')->where('location_id', $locationId)->get()->getRowArray();
+    }
+
+    public function testSaveLocations_MakesALocationInactiveAndMovesThePrimaryFlagAndAuditsBoth(): void
+    {
+        $this->resetSession();
+        $quiet = $this->spareLocation('Quiet');
+        $new   = $this->spareLocation('New primary');
+
+        $result = json_decode($this->post('/config/saveLocations', $this->locationsForm(['location_status' => [$quiet => '0'], 'location_primary' => (string) $new]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('0', (string) $this->locationRow($quiet)['status']);
+        $this->assertSame('1', (string) $this->locationRow($new)['is_primary']);
+        $this->assertSame('0', (string) $this->locationRow(1)['is_primary']);
+        $this->assertSame(1, Database::connect()->table('accounting_audit_log')->where(['entity_type' => 'stock_location', 'entity_id' => $quiet, 'action' => 'stock_location_deactivated'])->countAllResults());
+        $this->assertSame(1, Database::connect()->table('accounting_audit_log')->where(['entity_type' => 'stock_location', 'entity_id' => $new, 'action' => 'stock_location_primary_changed'])->countAllResults());
+
+        $this->restoreLocations();
+    }
+
+    public function testSaveLocations_LetsTheFormerPrimaryLocationBeMadeInactiveInTheSameSave(): void
+    {
+        $this->resetSession();
+        $former = $this->spareLocation('Former primary');
+        $new    = $this->spareLocation('New primary');
+        $db     = Database::connect();
+
+        $db->table('stock_locations')->update(['is_primary' => 0]);
+        $db->table('stock_locations')->where('location_id', $former)->update(['is_primary' => 1]);
+
+        $result = json_decode($this->post('/config/saveLocations', $this->locationsForm(['location_status' => [$former => '0'], 'location_primary' => (string) $new]))->getJSON(), true);
+
+        $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+        $this->assertSame('0', (string) $this->locationRow($former)['status']);
+        $this->assertSame('0', (string) $this->locationRow($former)['is_primary']);
+        $this->assertSame('1', (string) $this->locationRow($new)['is_primary']);
+
+        $this->restoreLocations();
+    }
+
+    public function testSaveLocations_RejectsMakingThePrimaryLocationInactive(): void
+    {
+        $this->resetSession();
+        $this->spareLocation('Spare');
+
+        $result = json_decode($this->post('/config/saveLocations', $this->locationsForm(['location_status' => [1 => '0']]))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_stock_location_is_primary', [$this->locationRow(1)['location_name']]), $result['message']);
+        $this->assertSame('1', (string) $this->locationRow(1)['status']);
+
+        $this->restoreLocations();
+    }
+
+    public function testSaveLocations_RejectsMakingALocationThatHoldsStockInactiveAndKeepsEveryOtherChangeOfTheSave(): void
+    {
+        $this->resetSession();
+        $loaded = $this->spareLocation('Loaded');
+        $other  = $this->spareLocation('Other');
+        $db     = Database::connect();
+        $itemId = $this->spareItem();
+
+        $db->table('item_quantities')->replace(['item_id' => $itemId, 'location_id' => $loaded, 'quantity' => 5]);
+        $form = $this->locationsForm(['location_status' => [$loaded => '0'], 'location_primary' => (string) $other]);
+        $form['stock_location'][$other] = 'Renamed ' . uniqid();
+
+        $result = json_decode($this->post('/config/saveLocations', $form)->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_stock_location_holds_stock', [$this->locationRow($loaded)['location_name'], 1]), $result['message']);
+        $this->assertSame('1', (string) $this->locationRow($loaded)['status']);
+        $this->assertNotSame($form['stock_location'][$other], $this->locationRow($other)['location_name'], 'The refusal undoes the rename of the same save');
+        $this->assertSame('1', (string) $this->locationRow(1)['is_primary']);
+
+        $this->restoreLocations();
+    }
+
+    public function testSaveLocations_RejectsMakingAnInactiveLocationPrimary(): void
+    {
+        $this->resetSession();
+        $quiet = $this->spareLocation('Quiet');
+        Database::connect()->table('stock_locations')->where('location_id', $quiet)->update(['status' => 0]);
+
+        $result = json_decode($this->post('/config/saveLocations', $this->locationsForm(['location_primary' => (string) $quiet]))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('1', (string) $this->locationRow(1)['is_primary']);
+
+        $this->restoreLocations();
+    }
+
+    public function testSaveLocations_RejectsToRemoveThePrimaryLocation(): void
+    {
+        $this->resetSession();
+        $spare = $this->spareLocation('Spare');
+        $form  = $this->locationsForm();
+        unset($form['stock_location'][1]);
+
+        $result = json_decode($this->post('/config/saveLocations', $form)->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_stock_location_is_primary', [$this->locationRow(1)['location_name']]), $result['message']);
+        $this->assertSame('0', (string) $this->locationRow(1)['deleted']);
+        $this->assertSame('0', (string) $this->locationRow($spare)['deleted']);
+
+        $this->restoreLocations();
+    }
+
+    public function testSaveLocations_RemovesALocationThatHoldsNothingAndIsNotPrimary(): void
+    {
+        $this->resetSession();
+        $spare = $this->spareLocation('Spare');
+        $form  = $this->locationsForm();
+        unset($form['stock_location'][$spare]);
+
+        $result = json_decode($this->post('/config/saveLocations', $form)->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('1', (string) $this->locationRow($spare)['deleted']);
+
+        $this->restoreLocations();
+    }
+
+    public function testSaveLocations_RejectsToRemoveALocationThatHoldsStock(): void
+    {
+        $this->resetSession();
+        $loaded = $this->spareLocation('Loaded');
+        $db     = Database::connect();
+        $itemId = $this->spareItem();
+
+        $db->table('item_quantities')->replace(['item_id' => $itemId, 'location_id' => $loaded, 'quantity' => 2]);
+        $form = $this->locationsForm();
+        unset($form['stock_location'][$loaded]);
+
+        $result = json_decode($this->post('/config/saveLocations', $form)->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('0', (string) $this->locationRow($loaded)['deleted']);
+
+        $this->restoreLocations();
+    }
+
+    public function testSaveLocations_KeepsALocationActiveWhenItsStatusIsPostedAsActive(): void
+    {
+        $this->resetSession();
+        $spare = $this->spareLocation('Spare');
+        $lifecycle = new StockLocationLifecycle();
+        $lifecycle->deactivate($spare, null);
+
+        $result = json_decode($this->post('/config/saveLocations', $this->locationsForm(['location_status' => [$spare => '1']]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('1', (string) $this->locationRow($spare)['status']);
+
+        $this->restoreLocations();
+    }
+
+    public function testSaveLocations_RejectsAnEmployeeWithoutTheSettingsPermissionAndChangesNothing(): void
+    {
+        $stranger = $this->createEmployee(grants: [['permission_id' => 'items', 'menu_group' => 'home']]);
+        $spare    = $this->spareLocation('Spare');
+        $this->withSession(['person_id' => $stranger, 'menu_group' => 'home']);
+
+        $response = $this->post('/config/saveLocations', $this->locationsForm(['location_status' => [$spare => '0']]));
+
+        $this->assertTrue($response->isRedirect());
+        $this->assertSame('1', (string) $this->locationRow($spare)['status']);
+
+        $this->restoreLocations();
     }
 }

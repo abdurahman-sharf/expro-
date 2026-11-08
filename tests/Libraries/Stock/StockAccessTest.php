@@ -80,6 +80,30 @@ class StockAccessTest extends CIUnitTestCase
         }
     }
 
+    public function testAssertActive_RejectsAnInactiveLocationAndNamesItAndAcceptsOnceItIsActiveAgain(): void
+    {
+        $quiet = $this->openLocation('Quiet warehouse');
+        $db    = $this->accountingDb();
+
+        $this->access->assertActive($quiet);
+
+        $db->table('stock_locations')->where('location_id', $quiet)->update(['status' => 0]);
+
+        try {
+            $this->access->assertActive($quiet);
+            $this->fail('An inactive location takes no new stock document.');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::StockLocationNotActive, $exception->error);
+            $this->assertSame('Quiet warehouse', $exception->context['name']);
+        }
+
+        $this->assertSame($quiet, (int) $this->access->assertMayChange($quiet, $this->keeperId)->location_id, 'a standing document may still be changed at it');
+
+        $db->table('stock_locations')->where('location_id', $quiet)->update(['status' => 1]);
+
+        $this->access->assertActive($quiet);
+    }
+
     public function testAssertMayChange_AllowsWhoWorksInTheBranchAndHoldsTheItemsPermissionOfTheLocation(): void
     {
         $location = $this->access->assertMayChange(self::LOCATION_ID, $this->keeperId);

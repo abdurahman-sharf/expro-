@@ -7,12 +7,24 @@
  */
 function generate_import_items_csv(array $stock_locations, array $attributes): string
 {
-    $csv_headers = pack('CCC', 0xef, 0xbb, 0xbf);    // Encode the Byte-Order Mark (BOM) so that UTF-8 File headers display properly in Microsoft Excel
-    $csv_headers .= 'Id,Barcode,"Item Name",Category,"Supplier ID","Cost Price","Unit Price","Tax 1 Name","Tax 1 Percent","Tax 2 Name","Tax 2 Percent","Reorder Level",Description,"Allow Alt Description","Item has Serial Number",Image,HSN';
-    $csv_headers .= generate_stock_location_headers($stock_locations);
-    $csv_headers .= generate_attribute_headers($attributes);
+    $csvHeaders = pack('CCC', 0xef, 0xbb, 0xbf);    // Encode the Byte-Order Mark (BOM) so that UTF-8 File headers display properly in Microsoft Excel
+    $csvHeaders .= 'Id,Barcode,"Item Name",Category,"Supplier ID","Cost Price","Unit Price","Tax 1 Name","Tax 1 Percent","Tax 2 Name","Tax 2 Percent","Reorder Level",Description,"Allow Alt Description","Item has Serial Number",Image,HSN';
+    $csvHeaders .= generate_stock_location_headers($stock_locations);
+    $csvHeaders .= generate_attribute_headers($attributes);
+    $csvHeaders .= ',' . implode(',', array_map(static fn (string $column): string => '"' . $column . '"', optional_item_import_columns()));
 
-    return $csv_headers;
+    return $csvHeaders;
+}
+
+/**
+ * The columns the template ends with that an import file may leave out: a file made before they were added
+ * imports as it always did.
+ *
+ * @return list<string>
+ */
+function optional_item_import_columns(): array
+{
+    return ['Brand', 'Status', 'Supplier Code', 'Purchase Tax 1 Name', 'Purchase Tax 1 Percent', 'Purchase Tax 2 Name', 'Purchase Tax 2 Percent'];
 }
 
 /**
@@ -120,10 +132,10 @@ function csvImportHasRequiredItemHeaders(array $csv_rows, array $stock_locations
         return false;
     }
 
-    $template_header_line = substr(generate_import_items_csv($stock_locations, $attribute_names), 3);
-    $required_headers = str_getcsv($template_header_line);
+    $templateHeaderLine = substr(generate_import_items_csv($stock_locations, $attribute_names), 3);
+    $requiredHeaders = array_diff(str_getcsv($templateHeaderLine), optional_item_import_columns());
 
-    $present_headers = array_keys(reset($csv_rows));
+    $presentHeaders = array_keys(reset($csv_rows));
 
-    return empty(array_diff($required_headers, $present_headers));
+    return empty(array_diff($requiredHeaders, $presentHeaders));
 }

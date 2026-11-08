@@ -121,6 +121,10 @@ final class StockPermit
         $data            = $this->checked($input, $employeeId);
         $ownsTransaction = $this->db->transDepth === 0;
 
+        foreach (array_filter([$data['location_id'], $data['to_location_id']]) as $locationId) {
+            $this->access->assertActive((int) $locationId);
+        }
+
         try {
             return $this->transactional(function () use ($data, $employeeId): int {
                 $this->shelves->lockItems(array_column($data['lines'], 'item_id'));

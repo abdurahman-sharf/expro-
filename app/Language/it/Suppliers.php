@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Sei sicuro di voler eliminare il/i Fornitore/i selezionati?',
     'confirm_restore'       => 'Sei sicuro di voler ripristinare i Fornitori selezionati?',
     'cost'                  => 'Finanziatore',
+    'country_code'          => '',
     'error_adding_updating' => 'Fallito aggiornamento o aggiunta Fornitore.',
     'goods'                 => 'Fornitore',
     'new'                   => 'Nuovo Fornitore',

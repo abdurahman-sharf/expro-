@@ -11,6 +11,7 @@ return [
     'confirm_delete'        => 'Tem certeza de que deseja excluir os fornecedores selecionados?',
     'confirm_restore'       => 'Tem certeza de que deseja restaurar o (s) fornecedor (es) selecionado (s)?',
     'cost'                  => 'Fornecedor de custos',
+    'country_code'          => '',
     'error_adding_updating' => 'Erro ao adicionar/atualizar fornecedor.',
     'goods'                 => 'Fornecedor de bens',
     'new'                   => 'Novo Fornecedor',
