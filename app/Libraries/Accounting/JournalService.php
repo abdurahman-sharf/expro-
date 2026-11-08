@@ -6,6 +6,7 @@ use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
+use App\Libraries\Assets\AssetSources;
 use App\Libraries\Stock\StockPermitSources;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
@@ -36,6 +37,7 @@ final class JournalService
         SalesDebitNotes::SOURCE,
         RevenuePostingBuilder::SOURCE,
         ...ChequeSources::ALL,
+        ...AssetSources::ALL,
     ];
     public const CREDIT_SOURCES = [
         SupplierAdvances::SOURCE,

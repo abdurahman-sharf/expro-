@@ -25,6 +25,7 @@ return [
     'type_customer_payment'   => '',
     'type_debit_note'         => '',
     'type_expense'            => '',
+    'type_fixed_asset'        => '',
     'type_paid_cheque'        => '',
     'type_permit_in'          => '',
     'type_permit_out'         => '',

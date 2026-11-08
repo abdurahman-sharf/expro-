@@ -120,6 +120,8 @@ final class DefaultChart
             ['112003', 'مجمع إهلاك - وسائل النقل', AccountType::Asset, '112', true, null, true],
             ['112004', 'مجمع إهلاك - مباني', AccountType::Asset, '112', true, null, true],
             ['112005', 'مجمع إهلاك - أراضي', AccountType::Asset, '112', true, null, true],
+            ['111006', 'أصول ثابتة', AccountType::Asset, '111', false, 'fixed_assets', false],
+            ['112006', 'مجمع إهلاك - عام', AccountType::Asset, '112', false, 'accumulated_depreciation', true],
 
             ['12', 'الأصول المتداولة', AccountType::Asset, '1', true, null, false],
             ['1201', 'الخزينة', AccountType::Asset, '12', true, 'treasuries', false],
@@ -162,7 +164,7 @@ final class DefaultChart
             ['412', 'مردودات المبيعات', AccountType::Revenue, '41', false, 'sales_returns', true],
             ['42', 'إيرادات أخرى', AccountType::Revenue, '4', true, null, false],
             ['4201', 'إيرادات أخرى', AccountType::Revenue, '42', false, 'revenues_default', false],
-            ['4202', 'أرباح وخسائر رأسمالية', AccountType::Revenue, '42', false, null, false],
+            ['4202', 'أرباح وخسائر رأسمالية', AccountType::Revenue, '42', false, 'asset_gain', false],
             ['4203', 'خصم مكتسب', AccountType::Revenue, '42', false, 'purchase_discount', false],
             ['4204', 'تسويات المبيعات', AccountType::Revenue, '42', false, 'sales_adjustment', false],
             ['4208', 'إيرادات الشحن', AccountType::Revenue, '42', false, 'sales_shipping', false],
@@ -180,6 +182,7 @@ final class DefaultChart
             ['5205', 'مياه', AccountType::Expense, '52', false, null, false],
             ['5206', 'مصاريف حكومية', AccountType::Expense, '52', false, null, false],
             ['53', 'مصروفات الإهلاك', AccountType::Expense, '5', true, null, false],
+            ['5301', 'مصروف الإهلاك', AccountType::Expense, '53', false, 'depreciation_expense', false],
             ['54', 'مصروفات أخرى', AccountType::Expense, '5', true, null, false],
             ['541', 'مصروفات أخرى', AccountType::Expense, '54', false, 'expenses_default', false],
             ['542', 'الديون المعدومة', AccountType::Expense, '54', false, null, false],
@@ -188,6 +191,7 @@ final class DefaultChart
             ['545', 'إيجار', AccountType::Expense, '54', false, null, false],
             ['546', 'رسوم الإيداع', AccountType::Expense, '54', false, 'cheque_deposit_fees', false],
             ['5410', 'خسائر فروق العملة', AccountType::Expense, '54', false, 'fx_loss', false],
+            ['5420', 'خسائر بيع وشطب الأصول', AccountType::Expense, '54', false, 'asset_loss', false],
         ];
     }
 }

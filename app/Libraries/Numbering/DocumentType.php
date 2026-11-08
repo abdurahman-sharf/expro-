@@ -37,6 +37,8 @@ enum DocumentType: string
     case Stocktake           = 'stocktake';
     case StockRequest        = 'stock_request';
 
+    case FixedAsset = 'fixed_asset';
+
     /**
      * The tables a document of this kind may be stored in, with the column of its id.
      *
@@ -62,6 +64,7 @@ enum DocumentType: string
             self::QuotationRequest  => ['quotation_requests' => 'rfq_id'],
             self::SupplierQuotation => ['supplier_quotations' => 'quotation_id'],
             self::PurchaseOrder     => ['purchase_orders' => 'order_id'],
+            self::FixedAsset        => ['assets' => 'asset_id'],
         };
     }
 
@@ -75,6 +78,7 @@ enum DocumentType: string
             self::SalesInvoice => 'invoice_number',
             self::SalesQuote   => 'quote_number',
             self::Customer     => 'account_number',
+            self::FixedAsset   => 'code',
             default            => null,
         };
     }

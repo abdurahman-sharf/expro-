@@ -21,6 +21,7 @@ use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\YearEndEntries;
+use App\Libraries\Assets\AssetSources;
 
 /**
  * The sources a journal can have in these books, for the filter of the reports of journals. The
@@ -61,6 +62,7 @@ final class JournalSources
             InterBranchSettlements::SOURCE,
             InterBranchSettlements::SOURCE_SECOND,
             ...ChequeSources::ALL,
+            ...AssetSources::ALL,
             OpeningBalanceService::SOURCE_TYPE,
             YearEndEntries::SOURCE_TYPE,
             JournalDraft::SOURCE_REVERSAL,
