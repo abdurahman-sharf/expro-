@@ -6,6 +6,8 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
+use App\Libraries\Accounting\LockedRead;
+use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\RunsInTransaction;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Organization\CompanyContext;
@@ -27,8 +29,8 @@ final class StockLocationLifecycle
 
     public const PERMISSION      = 'config';
     private const OPEN_DOCUMENTS = [
-        'suspended_sales'     => 'SELECT COUNT(DISTINCT s.sale_id) AS n FROM {sales} s JOIN {sales_items} si ON si.sale_id = s.sale_id WHERE s.sale_status = %d AND si.item_location = ?',
-        'sales_orders'        => "SELECT COUNT(DISTINCT o.order_id) AS n FROM {sales_orders} o JOIN {sales_order_lines} l ON l.order_id = o.order_id WHERE o.status IN ('open', 'approved') AND l.item_location = ?",
+        'suspended_sales'     => 'SELECT COUNT(DISTINCT s.sale_id) AS n FROM {sales} s JOIN {sales_items} si ON si.sale_id = s.sale_id WHERE s.sale_status = %1$d AND (s.quote_status IS NULL OR s.quote_status <> %3$d) AND si.item_location = ?',
+        'sales_orders'        => "SELECT COUNT(DISTINCT o.order_id) AS n FROM {sales_orders} o JOIN {sales_order_lines} l ON l.order_id = o.order_id WHERE o.status IN ('open', 'approved') AND l.item_location = ? AND l.quantity > COALESCE((SELECT SUM(t.quantity) FROM {sales_order_invoice_lines} t JOIN {sales} k ON k.sale_id = t.sale_id AND k.sale_status = %2\$d WHERE t.order_line_id = l.line_id), 0)",
         'recurring_schedules' => "SELECT COUNT(DISTINCT r.schedule_id) AS n FROM {recurring_schedules} r JOIN {recurring_schedule_lines} l ON l.schedule_id = r.schedule_id WHERE r.status IN ('active', 'paused') AND l.item_location = ?",
         'stock_requests'      => "SELECT COUNT(*) AS n FROM {stock_requests} q WHERE q.status IN ('requested', 'approved') AND (q.from_location_id = ? OR q.to_location_id = ?)",
         'stocktakes'          => "SELECT COUNT(*) AS n FROM {stocktakes} t WHERE t.status = 'counting' AND t.location_id = ?",
@@ -59,7 +61,9 @@ final class StockLocationLifecycle
 
     /**
      * What stands in the way of making a location inactive or removing it, by the reason, or an empty
-     * list when nothing does.
+     * list when nothing does. Every count is read with a lock, which reads what was committed last and
+     * not the snapshot the caller's transaction may have taken before it waited for the locations, and
+     * keeps a document from being added to the location until the caller's transaction ends.
      *
      * @return array<string, int>
      */
@@ -67,7 +71,7 @@ final class StockLocationLifecycle
     {
         $blockers = [];
 
-        $shelves = (int) $this->db->table('item_quantities')->where('location_id', $locationId)->where('quantity <>', 0)->countAllResults();
+        $shelves = (int) LockedRead::row($this->db, 'SELECT COUNT(*) AS n FROM ' . $this->db->prefixTable('item_quantities') . ' WHERE location_id = ? AND quantity <> 0 LOCK IN SHARE MODE', [$locationId])->n;
 
         if ($shelves > 0) {
             $blockers['shelves'] = $shelves;
@@ -190,12 +194,8 @@ final class StockLocationLifecycle
      */
     public function checkRemoval(int $locationId): void
     {
-        $locations = $this->db->query(
-            'SELECT l.location_id, l.location_name, l.status, l.is_primary, l.branch_id FROM ' . $this->db->prefixTable('stock_locations') . ' l JOIN ' . $this->db->prefixTable('branches') . ' b ON b.branch_id = l.branch_id WHERE l.deleted = 0 AND b.company_id = ? ORDER BY l.location_id',
-            [CompanyContext::id()],
-        )->getResult();
-
-        $location = null;
+        $locations = $this->lockedLocations();
+        $location  = null;
 
         foreach ($locations as $candidate) {
             if ((int) $candidate->location_id === $locationId) {
@@ -292,7 +292,7 @@ final class StockLocationLifecycle
     private function holdsValue(int $locationId): bool
     {
         $entries = $this->db->prefixTable('accounting_stock_entries');
-        $row     = $this->db->query("SELECT COALESCE(SUM(quantity), 0) AS quantity, COALESCE(SUM(value), 0) AS value FROM {$entries} WHERE company_id = ? AND location_id = ? FOR UPDATE", [CompanyContext::id(), $locationId])->getRow();
+        $row     = LockedRead::row($this->db, "SELECT COALESCE(SUM(quantity), 0) AS quantity, COALESCE(SUM(value), 0) AS value FROM {$entries} WHERE company_id = ? AND location_id = ? FOR UPDATE", [CompanyContext::id(), $locationId]);
 
         if (bccomp((string) $row->quantity, '0', 6) !== 0 || bccomp((string) $row->value, '0', 6) !== 0) {
             return true;
@@ -306,7 +306,7 @@ final class StockLocationLifecycle
     private function countOpen(string $query, int $locationId): int
     {
         $tables = [];
-        $sql    = sprintf($query, SUSPENDED);
+        $sql    = sprintf($query, SUSPENDED, COMPLETED, QuoteStatus::Converted->value);
 
         preg_match_all('/\{([a-z_]+)\}/', $sql, $found);
 
@@ -318,9 +318,9 @@ final class StockLocationLifecycle
             $tables['{' . $table . '}'] = $this->db->prefixTable($table);
         }
 
-        $sql      = strtr($sql, $tables);
+        $sql      = strtr($sql, $tables) . ' LOCK IN SHARE MODE';
         $bindings = array_fill(0, substr_count($sql, '?'), $locationId);
 
-        return (int) $this->db->query($sql, $bindings)->getRow()->n;
+        return (int) LockedRead::row($this->db, $sql, $bindings)->n;
     }
 }

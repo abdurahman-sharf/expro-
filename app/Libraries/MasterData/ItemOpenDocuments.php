@@ -2,20 +2,23 @@
 
 namespace App\Libraries\MasterData;
 
+use App\Libraries\Accounting\QuoteStatus;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
 /**
  * The documents that are not final and still name an item: a draft, a quote or a suspended sale, an open
- * or approved sales order, an active or paused schedule, a stock request that is not settled and a
- * stocktake that is still counting. An item they name is not deleted, because the document would lose its
- * line. A completed sale, a posted permit or a cancelled document is final and does not count.
+ * or approved sales order that still has a quantity of the item to invoice, an active or paused schedule,
+ * a stock request that is not settled and a stocktake that is still counting. An item they name is not
+ * deleted, because the document would lose its line. A completed sale, a posted permit, a cancelled
+ * document, a quote that became an invoice and an order line that was invoiced in full are final and do
+ * not count.
  */
 final class ItemOpenDocuments
 {
     private const SOURCES = [
-        'SELECT l.item_id, COUNT(DISTINCT s.sale_id) AS n FROM {sales} s JOIN {sales_items} l ON l.sale_id = s.sale_id WHERE s.sale_status = %d AND l.item_id IN (%s) GROUP BY l.item_id',
-        "SELECT l.item_id, COUNT(DISTINCT o.order_id) AS n FROM {sales_orders} o JOIN {sales_order_lines} l ON l.order_id = o.order_id WHERE o.status IN ('open', 'approved') AND l.item_id IN (%2\$s) GROUP BY l.item_id",
+        'SELECT l.item_id, COUNT(DISTINCT s.sale_id) AS n FROM {sales} s JOIN {sales_items} l ON l.sale_id = s.sale_id WHERE s.sale_status = %1$d AND (s.quote_status IS NULL OR s.quote_status <> %4$d) AND l.item_id IN (%2$s) GROUP BY l.item_id',
+        "SELECT l.item_id, COUNT(DISTINCT o.order_id) AS n FROM {sales_orders} o JOIN {sales_order_lines} l ON l.order_id = o.order_id WHERE o.status IN ('open', 'approved') AND l.item_id IN (%2\$s) AND l.quantity > COALESCE((SELECT SUM(t.quantity) FROM {sales_order_invoice_lines} t JOIN {sales} k ON k.sale_id = t.sale_id AND k.sale_status = %3\$d WHERE t.order_line_id = l.line_id), 0) GROUP BY l.item_id",
         "SELECT l.item_id, COUNT(DISTINCT r.schedule_id) AS n FROM {recurring_schedules} r JOIN {recurring_schedule_lines} l ON l.schedule_id = r.schedule_id WHERE r.status IN ('active', 'paused') AND l.item_id IN (%2\$s) GROUP BY l.item_id",
         "SELECT l.item_id, COUNT(DISTINCT q.request_id) AS n FROM {stock_requests} q JOIN {stock_request_lines} l ON l.request_id = q.request_id WHERE q.status IN ('requested', 'approved') AND l.item_id IN (%2\$s) GROUP BY l.item_id",
         "SELECT l.item_id, COUNT(DISTINCT t.stocktake_id) AS n FROM {stocktakes} t JOIN {stocktake_lines} l ON l.stocktake_id = t.stocktake_id WHERE t.status = 'counting' AND l.item_id IN (%2\$s) GROUP BY l.item_id",
@@ -47,7 +50,7 @@ final class ItemOpenDocuments
         $counts = [];
 
         foreach (self::SOURCES as $source) {
-            $sql    = sprintf($source, SUSPENDED, $list);
+            $sql    = sprintf($source, SUSPENDED, $list, COMPLETED, QuoteStatus::Converted->value);
             $tables = [];
 
             preg_match_all('/\{([a-z_]+)\}/', $sql, $found);

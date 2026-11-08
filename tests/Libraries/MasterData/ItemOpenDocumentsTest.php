@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\MasterData;
 
+use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\MasterData\ItemOpenDocuments;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -37,7 +38,7 @@ final class ItemOpenDocumentsTest extends CIUnitTestCase
     {
         $db = $this->accountingDb();
 
-        foreach (['stock_request_lines', 'stock_requests', 'stocktake_lines', 'stocktakes', 'recurring_schedule_lines', 'recurring_schedules', 'sales_order_lines', 'sales_orders', 'sales_items', 'sales'] as $table) {
+        foreach (['stock_request_lines', 'stock_requests', 'stocktake_lines', 'stocktakes', 'recurring_schedule_lines', 'recurring_schedules', 'sales_order_invoice_lines', 'sales_order_invoices', 'sales_order_lines', 'sales_orders', 'sales_items', 'sales'] as $table) {
             $db->query('DELETE FROM ' . $db->prefixTable($table));
         }
 
@@ -62,12 +63,15 @@ final class ItemOpenDocumentsTest extends CIUnitTestCase
         return new ItemOpenDocuments();
     }
 
-    private function saleNaming(int $itemId, int $status, int $type = SALE_TYPE_INVOICE): void
+    private function saleNaming(int $itemId, int $status, int $type = SALE_TYPE_INVOICE): int
     {
         $db = $this->accountingDb();
 
         $db->table('sales')->insert(['sale_status' => $status, 'sale_type' => $type, 'employee_id' => 1, 'comment' => '']);
-        $db->table('sales_items')->insert(['sale_id' => (int) $db->insertID(), 'item_id' => $itemId, 'line' => 1, 'quantity_purchased' => 1, 'item_cost_price' => 1, 'item_unit_price' => 5, 'item_location' => 1]);
+        $saleId = (int) $db->insertID();
+        $db->table('sales_items')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 1, 'quantity_purchased' => 1, 'item_cost_price' => 1, 'item_unit_price' => 5, 'item_location' => 1]);
+
+        return $saleId;
     }
 
     public function testCounts_CountsASuspendedSaleOfAnyTypeAndNotACompletedOrACancelledOne(): void
@@ -82,6 +86,54 @@ final class ItemOpenDocumentsTest extends CIUnitTestCase
         $this->saleNaming($itemId, CANCELED);
 
         $this->assertSame([$itemId => 4], $this->documents()->counts([$itemId]));
+    }
+
+    public function testCounts_LeavesOutAQuoteThatBecameAnInvoiceAndKeepsEveryOtherQuote(): void
+    {
+        $itemId = $this->item();
+        $db     = $this->accountingDb();
+
+        foreach ([null, QuoteStatus::Draft->value, QuoteStatus::Open->value, QuoteStatus::Approved->value, QuoteStatus::Ordered->value, QuoteStatus::Converted->value] as $state) {
+            $saleId = $this->saleNaming($itemId, SUSPENDED, SALE_TYPE_QUOTE);
+            $db->table('sales')->where('sale_id', $saleId)->update(['quote_status' => $state]);
+        }
+
+        $this->assertSame([$itemId => 5], $this->documents()->counts([$itemId]));
+    }
+
+    public function testCounts_CountsAnOrderLineWithSomethingLeftToInvoiceAndNotOneInvoicedInFull(): void
+    {
+        $invoiced   = $this->item();
+        $remaining  = $this->item();
+        $customerId = $this->insertCustomer();
+        $db         = $this->accountingDb();
+
+        $db->table('sales_orders')->insert(['customer_id' => $customerId, 'order_date' => '2026-10-01', 'status' => 'approved']);
+        $orderId = (int) $db->insertID();
+        $db->table('sales_order_lines')->insert(['order_id' => $orderId, 'line_no' => 1, 'item_id' => $invoiced, 'quantity' => 2, 'unit_price' => 5, 'item_location' => 1]);
+        $firstLine = (int) $db->insertID();
+        $db->table('sales_order_lines')->insert(['order_id' => $orderId, 'line_no' => 2, 'item_id' => $remaining, 'quantity' => 2, 'unit_price' => 5, 'item_location' => 1]);
+        $secondLine = (int) $db->insertID();
+
+        $db->table('sales')->insert(['sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_INVOICE, 'employee_id' => 1, 'comment' => '']);
+        $draftId = (int) $db->insertID();
+        $db->table('sales_order_invoices')->insert(['sale_id' => $draftId, 'order_id' => $orderId]);
+        $db->table('sales_order_invoice_lines')->insert(['sale_id' => $draftId, 'order_line_id' => $firstLine, 'quantity' => 2]);
+
+        $this->assertSame([$invoiced => 1, $remaining => 1], $this->documents()->counts([$invoiced, $remaining]), 'a draft invoice has not taken the quantity yet');
+
+        $db->table('sales')->where('sale_id', $draftId)->update(['sale_status' => COMPLETED]);
+        $db->table('sales_order_invoice_lines')->update(['quantity' => 1]);
+
+        $this->assertSame([$invoiced => 1, $remaining => 1], $this->documents()->counts([$invoiced, $remaining]), 'half of the first line is still to invoice');
+
+        $db->table('sales_order_invoice_lines')->update(['quantity' => 2]);
+
+        $this->assertSame([$remaining => 1], $this->documents()->counts([$invoiced, $remaining]), 'the first line is done and the second is not');
+
+        $db->table('sales_order_invoice_lines')->insert(['sale_id' => $draftId, 'order_line_id' => $secondLine, 'quantity' => 2]);
+
+        $this->assertSame([], $this->documents()->counts([$invoiced, $remaining]), 'an order invoiced in full names nothing');
     }
 
     public function testCounts_CountsAnOpenAndAnApprovedSalesOrderButNotACancelledOne(): void

@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Stock\StockLocationLifecycle;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -67,6 +68,8 @@ final class StockLocationLifecycleTest extends CIUnitTestCase
         $db->query('DELETE FROM ' . $db->prefixTable('stocktakes'));
         $db->query('DELETE FROM ' . $db->prefixTable('recurring_schedule_lines'));
         $db->query('DELETE FROM ' . $db->prefixTable('recurring_schedules'));
+        $db->query('DELETE FROM ' . $db->prefixTable('sales_order_invoice_lines'));
+        $db->query('DELETE FROM ' . $db->prefixTable('sales_order_invoices'));
         $db->query('DELETE FROM ' . $db->prefixTable('sales_order_lines'));
         $db->query('DELETE FROM ' . $db->prefixTable('sales_orders'));
         $db->query('DELETE FROM ' . $db->prefixTable('sales_items'));
@@ -143,6 +146,32 @@ final class StockLocationLifecycleTest extends CIUnitTestCase
         $db->table('sales_items')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 1, 'quantity_purchased' => 1, 'item_cost_price' => 1, 'item_unit_price' => 5, 'item_location' => $locationId]);
 
         return $saleId;
+    }
+
+    /**
+     * @return array{int, int} The approved order and its line, which asks for the quantity given of an item at the location.
+     */
+    private function approvedOrderAt(int $locationId, string $quantity): array
+    {
+        $db         = $this->accountingDb();
+        $customerId = $this->insertCustomer();
+        $itemId     = $this->itemIds[] = $this->createTestItem();
+
+        $db->table('sales_orders')->insert(['customer_id' => $customerId, 'order_date' => '2026-10-01', 'status' => 'approved']);
+        $orderId = (int) $db->insertID();
+        $db->table('sales_order_lines')->insert(['order_id' => $orderId, 'line_no' => 1, 'item_id' => $itemId, 'quantity' => $quantity, 'unit_price' => 5, 'item_location' => $locationId]);
+
+        return [$orderId, (int) $db->insertID()];
+    }
+
+    private function invoiceTaking(int $orderId, int $lineId, string $quantity, int $saleStatus): void
+    {
+        $db = $this->accountingDb();
+
+        $db->table('sales')->insert(['sale_status' => $saleStatus, 'sale_type' => SALE_TYPE_INVOICE, 'employee_id' => 1, 'comment' => '']);
+        $saleId = (int) $db->insertID();
+        $db->table('sales_order_invoices')->insert(['sale_id' => $saleId, 'order_id' => $orderId]);
+        $db->table('sales_order_invoice_lines')->insert(['sale_id' => $saleId, 'order_line_id' => $lineId, 'quantity' => $quantity]);
     }
 
     public function testDeactivate_MakesAnEmptyLocationInactiveAndWritesItToTheAuditLog(): void
@@ -239,6 +268,122 @@ final class StockLocationLifecycleTest extends CIUnitTestCase
         $this->assertSame(AccountingError::StockLocationOpenDocuments, $this->refusalOf(fn () => $this->lifecycle()->deactivate($spare, null)));
 
         $db->table('sales_orders')->where('order_id', $orderId)->update(['status' => 'cancelled']);
+
+        $this->lifecycle()->deactivate($spare, null);
+
+        $this->assertSame(0, $this->statusOf($spare));
+    }
+
+    public function testDeactivate_AcceptsALocationWhoseOnlyQuoteBecameAnInvoice(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+        $saleId  = $this->suspendSaleAt($spare);
+        $db      = $this->accountingDb();
+
+        $db->table('sales')->where('sale_id', $saleId)->update(['sale_type' => SALE_TYPE_QUOTE, 'quote_status' => QuoteStatus::Open->value]);
+
+        $this->assertSame(AccountingError::StockLocationOpenDocuments, $this->refusalOf(fn () => $this->lifecycle()->deactivate($spare, null)));
+
+        $db->table('sales')->where('sale_id', $saleId)->update(['quote_status' => QuoteStatus::Converted->value]);
+
+        $this->lifecycle()->deactivate($spare, null);
+
+        $this->assertSame(0, $this->statusOf($spare));
+    }
+
+    public function testDeactivate_RejectsALocationNamedInAQuoteInAnyStateButConvertedAndInOneWithNoState(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+        $saleId  = $this->suspendSaleAt($spare);
+        $db      = $this->accountingDb();
+
+        foreach ([null, QuoteStatus::Draft->value, QuoteStatus::Open->value, QuoteStatus::Approved->value, QuoteStatus::Ordered->value] as $state) {
+            $db->table('sales')->where('sale_id', $saleId)->update(['sale_type' => SALE_TYPE_QUOTE, 'quote_status' => $state]);
+
+            $this->assertSame(AccountingError::StockLocationOpenDocuments, $this->refusalOf(fn () => $this->lifecycle()->deactivate($spare, null)), 'state ' . var_export($state, true));
+        }
+
+        $this->assertSame(1, $this->statusOf($spare));
+    }
+
+    public function testDeactivate_AcceptsALocationWhoseOnlyOrderLineWasInvoicedInFull(): void
+    {
+        [$spare]          = $this->twoSpareLocations();
+        [$orderId, $line] = $this->approvedOrderAt($spare, '2');
+
+        $this->invoiceTaking($orderId, $line, '2', SUSPENDED);
+
+        $this->assertSame(AccountingError::StockLocationOpenDocuments, $this->refusalOf(fn () => $this->lifecycle()->deactivate($spare, null)), 'a draft invoice has not taken the quantity yet');
+
+        $this->accountingDb()->query('DELETE FROM ' . $this->accountingDb()->prefixTable('sales_order_invoice_lines'));
+        $this->invoiceTaking($orderId, $line, '1', COMPLETED);
+
+        $this->assertSame(AccountingError::StockLocationOpenDocuments, $this->refusalOf(fn () => $this->lifecycle()->deactivate($spare, null)), 'half of the line is still to invoice');
+
+        $this->accountingDb()->table('sales_order_invoice_lines')->update(['quantity' => '2']);
+
+        $this->lifecycle()->deactivate($spare, null);
+
+        $this->assertSame(0, $this->statusOf($spare));
+    }
+
+    public function testDeactivate_RejectsALocationThatReceivedStockAfterTheSnapshotOfTheCaller(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+        $other   = $this->openSecondConnection();
+        $this->startWithSnapshot($other);
+        $this->putOnShelf($this->itemIds[] = $this->createTestItem(), '3', $spare);
+
+        try {
+            $this->assertSame(AccountingError::StockLocationHoldsStock, $this->refusalOf(fn () => (new StockLocationLifecycle($other))->deactivate($spare, null)));
+        } finally {
+            $other->transRollback();
+            $other->close();
+        }
+
+        $this->assertSame(1, $this->statusOf($spare));
+    }
+
+    public function testDeactivate_RejectsALocationNamedInADocumentAddedAfterTheSnapshotOfTheCaller(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+        $other   = $this->openSecondConnection();
+        $this->startWithSnapshot($other);
+        $this->suspendSaleAt($spare);
+
+        try {
+            $this->assertSame(AccountingError::StockLocationOpenDocuments, $this->refusalOf(fn () => (new StockLocationLifecycle($other))->deactivate($spare, null)));
+        } finally {
+            $other->transRollback();
+            $other->close();
+        }
+
+        $this->assertSame(1, $this->statusOf($spare));
+    }
+
+    public function testCheckRemoval_RejectsALocationMadePrimaryAfterTheSnapshotOfTheCaller(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+        $other   = $this->openSecondConnection();
+        $this->startWithSnapshot($other);
+        $this->lifecycle()->makePrimary($spare, null);
+
+        try {
+            $this->assertSame(AccountingError::StockLocationIsPrimary, $this->refusalOf(fn () => (new StockLocationLifecycle($other))->checkRemoval($spare)));
+        } finally {
+            $other->transRollback();
+            $other->close();
+        }
+    }
+
+    public function testDeactivate_AcceptsALocationWhoseMovementsNetToZero(): void
+    {
+        [$spare] = $this->twoSpareLocations();
+        $itemId  = $this->itemIds[] = $this->createTestItem();
+        $db      = $this->accountingDb();
+
+        $db->table('accounting_stock_entries')->insert(['source_type' => 'receiving', 'source_id' => 3, 'line_no' => 1, 'entry_date' => '2026-10-01', 'item_id' => $itemId, 'location_id' => $spare, 'quantity' => 10, 'value' => 100]);
+        $db->table('accounting_stock_entries')->insert(['source_type' => 'sale', 'source_id' => 4, 'line_no' => 1, 'entry_date' => '2026-10-02', 'item_id' => $itemId, 'location_id' => $spare, 'quantity' => -10, 'value' => -100]);
 
         $this->lifecycle()->deactivate($spare, null);
 
