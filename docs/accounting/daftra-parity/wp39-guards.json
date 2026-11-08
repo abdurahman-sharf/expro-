@@ -1,0 +1,1832 @@
+[
+  {
+    "name": "G01 create: the permission to add is required",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function create(array $input, ?int $employeeId, ?string $today = null): int\n    {\n        $this->guard->require($this->kind->permission(self::ADD), $employeeId);\n",
+    "replace": "    public function create(array $input, ?int $employeeId, ?string $today = null): int\n    {\n",
+    "tests": [
+      "--filter",
+      "testCreate_RequiresTheAddPermission",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G02 create: the cycle must be on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function create(array $input, ?int $employeeId, ?string $today = null): int\n    {\n        $this->guard->require($this->kind->permission(self::ADD), $employeeId);\n        $this->assertOn();\n",
+    "replace": "    public function create(array $input, ?int $employeeId, ?string $today = null): int\n    {\n        $this->guard->require($this->kind->permission(self::ADD), $employeeId);\n",
+    "tests": [
+      "--filter",
+      "testCreate_RefusesWhileThePurchaseCycleIsOff",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G03 createFromSource: the permission to add is required",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function createFromSource(int $sourceId, array $header, array $lines, ?int $employeeId): int\n    {\n        $this->guard->require($this->kind->permission(self::ADD), $employeeId);\n",
+    "replace": "    public function createFromSource(int $sourceId, array $header, array $lines, ?int $employeeId): int\n    {\n",
+    "tests": [
+      "--filter",
+      "testCreateFromSource_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G04 createFromSource: the cycle must be on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function createFromSource(int $sourceId, array $header, array $lines, ?int $employeeId): int\n    {\n        $this->guard->require($this->kind->permission(self::ADD), $employeeId);\n        $this->assertOn();\n",
+    "replace": "    public function createFromSource(int $sourceId, array $header, array $lines, ?int $employeeId): int\n    {\n        $this->guard->require($this->kind->permission(self::ADD), $employeeId);\n",
+    "tests": [
+      "--filter",
+      "testCreateFromSource_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G05 update: the permission to edit is required",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function update(int $documentId, array $input, ?int $employeeId, ?string $today = null): void\n    {\n        $this->guard->require($this->kind->permission(self::EDIT), $employeeId);\n",
+    "replace": "    public function update(int $documentId, array $input, ?int $employeeId, ?string $today = null): void\n    {\n",
+    "tests": [
+      "--filter",
+      "testUpdate_RequiresTheEditPermission",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G06 update: the cycle must be on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function update(int $documentId, array $input, ?int $employeeId, ?string $today = null): void\n    {\n        $this->guard->require($this->kind->permission(self::EDIT), $employeeId);\n        $this->assertOn();\n",
+    "replace": "    public function update(int $documentId, array $input, ?int $employeeId, ?string $today = null): void\n    {\n        $this->guard->require($this->kind->permission(self::EDIT), $employeeId);\n",
+    "tests": [
+      "--filter",
+      "testUpdate_RefusesWhileTheCycleIsOff",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G07 changeStatus: the permission to edit is required",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function changeStatus(int $documentId, PurchaseDocumentStatus $to, ?int $employeeId): PurchaseDocumentStatus\n    {\n        $this->guard->require($this->kind->permission(self::EDIT), $employeeId);\n",
+    "replace": "    public function changeStatus(int $documentId, PurchaseDocumentStatus $to, ?int $employeeId): PurchaseDocumentStatus\n    {\n",
+    "tests": [
+      "--filter",
+      "testChangeStatus_RequiresTheEditPermission",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G08 changeStatus: the cycle must be on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function changeStatus(int $documentId, PurchaseDocumentStatus $to, ?int $employeeId): PurchaseDocumentStatus\n    {\n        $this->guard->require($this->kind->permission(self::EDIT), $employeeId);\n        $this->assertOn();\n",
+    "replace": "    public function changeStatus(int $documentId, PurchaseDocumentStatus $to, ?int $employeeId): PurchaseDocumentStatus\n    {\n        $this->guard->require($this->kind->permission(self::EDIT), $employeeId);\n",
+    "tests": [
+      "--filter",
+      "testChangeStatus_RefusesWhileTheCycleIsOff",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G09 changeStatus: the switch of the family must be on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if (! $this->settings->allowsManualStatus($this->kind)) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testChangeStatus_RefusesWhileTheSwitchOfTheFamilyIsOff|testChangeStatus_IsOnlyForTheFamily",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G10 changeStatus: only the moves of the table are allowed",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            if (! in_array($to, $from->manualNext(), true)) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testChangeStatus_RefusesAStatusThatTheDocumentsAndTheReceivingsSet|testChangeStatus_RefusesToLeaveCancelledOrConverted|testChangeStatus_MovesBetweenTheThreeLabels",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G11 cancel: the permission to delete is required",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function cancel(int $documentId, string $reason, ?int $employeeId): void\n    {\n        $this->guard->require($this->kind->permission(self::DELETE), $employeeId);\n",
+    "replace": "    public function cancel(int $documentId, string $reason, ?int $employeeId): void\n    {\n",
+    "tests": [
+      "--filter",
+      "testCancel_RequiresTheDeletePermission",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G12 cancel: the cycle must be on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function cancel(int $documentId, string $reason, ?int $employeeId): void\n    {\n        $this->guard->require($this->kind->permission(self::DELETE), $employeeId);\n        $this->assertOn();\n",
+    "replace": "    public function cancel(int $documentId, string $reason, ?int $employeeId): void\n    {\n        $this->guard->require($this->kind->permission(self::DELETE), $employeeId);\n",
+    "tests": [
+      "--filter",
+      "testCancel_RefusesWhileTheCycleIsOff",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G13 cancel: a reason is required",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
+    "replace": "        if (mb_strlen($reason) > self::REASON_MAX) {",
+    "tests": [
+      "--filter",
+      "testCancel_RequiresAReason",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G14 cancel: the reason is at most 255 characters",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
+    "replace": "        if ($reason === '') {",
+    "tests": [
+      "--filter",
+      "testCancel_RequiresAReason",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G15 cancel: what cannot be cancelled is refused",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            if (! $from->canCancel()) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testCancel_RefusesADocumentThatIsCancelledOrWhoseNextDocumentStands",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G16 convert: the permission to convert is required",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function convert(int $documentId, ?int $employeeId, ?string $today = null): int\n    {\n        $this->guard->require($this->kind->permission(self::CONVERT), $employeeId);\n",
+    "replace": "    public function convert(int $documentId, ?int $employeeId, ?string $today = null): int\n    {\n",
+    "tests": [
+      "--filter",
+      "testConvert_RequiresTheConvertPermission",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G17 convert: the cycle must be on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function convert(int $documentId, ?int $employeeId, ?string $today = null): int\n    {\n        $this->guard->require($this->kind->permission(self::CONVERT), $employeeId);\n        $this->assertOn();\n",
+    "replace": "    public function convert(int $documentId, ?int $employeeId, ?string $today = null): int\n    {\n        $this->guard->require($this->kind->permission(self::CONVERT), $employeeId);\n",
+    "tests": [
+      "--filter",
+      "testConvert_SaysTheCycleIsOffBeforeItSaysAnything",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G18 convert: an order is received and not converted",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if ($next === null) {\n            throw new AccountingException(AccountingError::PurchaseDocumentNotConvertible, 'A purchase order is received, not converted.'",
+    "replace": "        if (false) {\n            throw new AccountingException(AccountingError::PurchaseDocumentNotConvertible, 'A purchase order is received, not converted.'",
+    "tests": [
+      "--filter",
+      "testConvert_RefusesAPurchaseOrder",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G19 convert: a document that cannot be converted is refused",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            if (! $status->canConvert($this->kind)) {\n                throw new AccountingException(AccountingError::PurchaseDocumentNotConvertible, 'A document that is '",
+    "replace": "            if (false) {\n                throw new AccountingException(AccountingError::PurchaseDocumentNotConvertible, 'A document that is '",
+    "tests": [
+      "--filter",
+      "testConvert_RefusesACancelledDocument|testConvert_RefusesASecondConversion",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G20 convert: the next document that needs a supplier needs one on this document",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            if ($next->needsSupplier()) {\n                if ($supplierId === null) {",
+    "replace": "            if ($next->needsSupplier()) {\n                if (false) {",
+    "tests": [
+      "--filter",
+      "testConvert_RefusesAQuotationRequestWithoutASupplier",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G21 convert: the supplier must still exist",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "                $this->supplier($supplierId);\n            }\n\n            $lines = array_map(",
+    "replace": "            }\n\n            $lines = array_map(",
+    "tests": [
+      "--filter",
+      "testConvert_RefusesAQuotationWhoseSupplierWasDeleted",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G22 convert: the next document takes the supplier of this one",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "'supplier_id'   => $next->hasSupplier() ? $supplierId : null,",
+    "replace": "'supplier_id'   => null,",
+    "tests": [
+      "--filter",
+      "testConvert_MakesTheNextDocumentWithTheLinesCopiedForward",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G23 convert: the lines of this document are copied forward",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "$this->db->table($this->kind->linesTable())->where($this->kind->idColumn(), $documentId)->orderBy('line_no', 'ASC')->get()->getResult(),\n            );",
+    "replace": "$this->db->table($this->kind->linesTable())->where($this->kind->idColumn(), $documentId)->orderBy('line_no', 'ASC')->limit(1)->get()->getResult(),\n            );",
+    "tests": [
+      "--filter",
+      "testConvert_MakesTheNextDocumentWithTheLinesCopiedForward",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G24 convert: the source is written in the audit log",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            $this->record($documentId, 'converted', $employeeId, (int) $document->branch_id, ['to' => $next->value, 'document_id' => $newId]);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testConvert_MakesTheNextDocumentWithTheLinesCopiedForward",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G25 convert: the next document starts open on the date of the conversion",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "'document_date' => $today ?? date('Y-m-d'),\n                'due_date'      => null,",
+    "replace": "'document_date' => '2000-01-01',\n                'due_date'      => null,",
+    "tests": [
+      "--filter",
+      "testConvert_MakesTheNextDocumentWithTheLinesCopiedForward",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G26 assertReceivable: the permission to convert is required",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function assertReceivable(int $orderId, ?int $employeeId): object\n    {\n        $this->guard->require($this->kind->permission(self::CONVERT), $employeeId);\n",
+    "replace": "    public function assertReceivable(int $orderId, ?int $employeeId): object\n    {\n",
+    "tests": [
+      "--filter",
+      "testAssertReceivable_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G27 assertReceivable: the cycle must be on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "    public function assertReceivable(int $orderId, ?int $employeeId): object\n    {\n        $this->guard->require($this->kind->permission(self::CONVERT), $employeeId);\n        $this->assertOn();\n",
+    "replace": "    public function assertReceivable(int $orderId, ?int $employeeId): object\n    {\n        $this->guard->require($this->kind->permission(self::CONVERT), $employeeId);\n",
+    "tests": [
+      "--filter",
+      "testAssertReceivable_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G28 assertReceivable: only an order is received",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if ($this->kind !== PurchaseDocumentKind::Order) {\n            throw new AccountingException(AccountingError::PurchaseDocumentNotConvertible, 'Only a purchase order is received.'",
+    "replace": "        if (false) {\n            throw new AccountingException(AccountingError::PurchaseDocumentNotConvertible, 'Only a purchase order is received.'",
+    "tests": [
+      "--filter",
+      "testAssertReceivable_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G29 assertReceivable: an order that is not received is refused",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if (! $order->status_object->canConvert($this->kind)) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testAssertReceivable_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G30 assertReceivable: the supplier must still exist",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        $this->supplier((int) $order->supplier_id);\n\n        return $order;",
+    "replace": "        return $order;",
+    "tests": [
+      "--filter",
+      "testAssertReceivable_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G31 update: a converted, received or cancelled document is not changed",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            if (! $status->isEditable()) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testUpdate_RefusesADocumentThatWasCancelledOrConverted|testUpdate_RefusesAnOrderAReceivingWasMadeFrom",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G33 update: the lines are written again",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            $this->db->table($this->kind->linesTable())->where($this->kind->idColumn(), $documentId)->delete();\n            $this->insertLines($documentId, $lines);",
+    "replace": "            $this->db->table($this->kind->linesTable())->where($this->kind->idColumn(), $documentId)->delete();",
+    "tests": [
+      "--filter",
+      "testUpdate_ChangesAnOpenDocument",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G34 update: the change is written in the audit log",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            $this->record($documentId, 'updated', $employeeId, $header['branch_id'], ['lines' => count($lines)]);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testUpdate_ChangesAnOpenDocument",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G35 changeStatus: the change is written in the audit log",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            $this->record($documentId, 'status_changed', $employeeId, (int) $document->branch_id, ['from' => $from->name, 'to' => $to->name]);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testChangeStatus_MovesBetweenTheThreeLabels",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G36 changeStatus: the same status writes nothing",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            if ($from === $to) {\n                return $from;\n            }\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testChangeStatus_WritesNothingWhenTheStatusIsTheSame",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G37 cancel: the cancellation is written in the audit log",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            $this->record($documentId, 'cancelled', $employeeId, (int) $document->branch_id, ['from' => $from->name, 'reason' => $reason]);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testCancel_KeepsTheDocument",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G38 cancel: the reason is kept",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "                'cancel_reason' => $reason,\n",
+    "replace": "                'cancel_reason' => '',\n",
+    "tests": [
+      "--filter",
+      "testCancel_KeepsTheDocument",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G39 store: the document is numbered inside the transaction that saves it",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        $this->numbering->assign($this->kind->documentType(), $this->kind->table(), $documentId, $header['branch_id']);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testCreate_Numbers",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G40 store: the creation is written in the audit log",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        $this->record($documentId, 'created', $employeeId, $header['branch_id'], ['lines' => count($lines), 'source_id' => $sourceId]);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testCreate_StoresTheDocumentOpen",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G41 store: the employee who made the document is kept",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            'created_by'    => $employeeId,\n        ];",
+    "replace": "            'created_by'    => null,\n        ];",
+    "tests": [
+      "--filter",
+      "testFind_ShowsTheEmployeeWithoutTheViewAllPermission",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G42 store: the link to the source is kept",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            $row[(string) $this->kind->sourceColumn()] = $sourceId;",
+    "replace": "            unset($sourceId);",
+    "tests": [
+      "--filter",
+      "testConvert_MakesTheNextDocumentWithTheLinesCopiedForward",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G44 lock: a document of a branch the employee does not work in is not found",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "|| ! $this->branches->canAccess((int) $document->branch_id, $employeeId) ||",
+    "replace": "||",
+    "tests": [
+      "--filter",
+      "testUpdate_TreatsADocumentOfAnotherBranch",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G45 lock: the document of another employee is not found for who may not see every document",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "|| (! $this->mayViewAll($employeeId) && (int) $document->created_by !== $employeeId)) {",
+    "replace": ") {",
+    "tests": [
+      "--filter",
+      "testFind_ShowsTheEmployeeWithoutTheViewAllPermission",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G46 limitTo: the branches of the viewer cut the list",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            $reach['branches'] === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('o.branch_id', $reach['branches']);",
+    "replace": "            $reach['branches'] === [] ? $builder->where('1 = 1', null, false) : $builder->whereIn('o.branch_id', array_merge($reach['branches'], [1]));",
+    "tests": [
+      "--filter",
+      "testSearch_ShowsTheEmployeeOnlyTheDocumentsOfTheBranches",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G47 limitTo: an employee who may not see every document sees their own",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if (! $reach['all']) {\n            $builder->where('o.created_by', $viewerId);\n        }",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testFind_ShowsTheEmployeeWithoutTheViewAllPermission",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G48 mayViewAll: the permission of the family is needed",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "return $viewerId === null || (model(Employee::class)->has_grant($this->kind->permission(self::VIEW_ALL), $viewerId) && ! $this->scope->ownOnly($viewerId));",
+    "replace": "return true;",
+    "tests": [
+      "--filter",
+      "testMayViewAll_|testFind_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G49 mayViewAll: a role that narrows the employee to their own records is respected",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "has_grant($this->kind->permission(self::VIEW_ALL), $viewerId) && ! $this->scope->ownOnly($viewerId));",
+    "replace": "has_grant($this->kind->permission(self::VIEW_ALL), $viewerId));",
+    "tests": [
+      "--filter",
+      "testFind_ShowsAnEmployeeWhoseRoleNarrows",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G51 derive: a cancelled document stays cancelled",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if ($stored === PurchaseDocumentStatus::Cancelled->value) {\n            return PurchaseDocumentStatus::Cancelled;\n        }\n\n        if ($this->kind === PurchaseDocumentKind::Order) {",
+    "replace": "        if ($this->kind === PurchaseDocumentKind::Order) {",
+    "tests": [
+      "--filter",
+      "testStatusOf_KeepsACancelledDocumentCancelled",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G52 derive: a document is converted while the next one stands and not when it was cancelled",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "->where('status !=', PurchaseDocumentStatus::Cancelled->value)->countAllResults() > 0) {\n            return PurchaseDocumentStatus::Converted;",
+    "replace": "->countAllResults() > 0) {\n            return PurchaseDocumentStatus::Converted;",
+    "tests": [
+      "--filter",
+      "testConvert_RefusesASecondConversionWhileTheFirstStandsAndAllowsOneOnceItIsCancelled",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G53 search: the converted status is read from the documents that stand",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "x.status <> 'cancelled') THEN 'converted'",
+    "replace": "x.status <> 'xx') THEN 'converted'",
+    "tests": [
+      "--filter",
+      "testSearch_ReadsTheStatus",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G54 search: a cancelled document is listed as cancelled",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "CASE WHEN o.status = 'cancelled' THEN 'cancelled' WHEN EXISTS (SELECT 1 FROM {$made} x",
+    "replace": "CASE WHEN o.status = 'xx' THEN 'cancelled' WHEN EXISTS (SELECT 1 FROM {$made} x",
+    "tests": [
+      "--filter",
+      "testStatusOf_KeepsACancelledDocumentCancelled",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G55 search: the received status of an order is read from the receivings",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "THEN 'received' WHEN EXISTS (SELECT 1 FROM {$lines} l WHERE l.{$id} = o.{$id} AND {$received} > 0) THEN 'partly_received'",
+    "replace": "THEN 'open' WHEN EXISTS (SELECT 1 FROM {$lines} l WHERE l.{$id} = o.{$id} AND {$received} > 0) THEN 'partly_received'",
+    "tests": [
+      "tests/Controllers/Purchase_ordersControllerTest.php",
+      "--filter",
+      "testGetIndex_FiltersByThePartlyReceivedAndTheReceivedStatus"
+    ]
+  },
+  {
+    "name": "G56 search: the partly received status of an order is read from the receivings",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "WHEN EXISTS (SELECT 1 FROM {$lines} l WHERE l.{$id} = o.{$id} AND {$received} > 0) THEN 'partly_received'",
+    "replace": "WHEN EXISTS (SELECT 1 FROM {$lines} l WHERE l.{$id} = o.{$id} AND {$received} > 99999) THEN 'partly_received'",
+    "tests": [
+      "tests/Controllers/Purchase_ordersControllerTest.php",
+      "--filter",
+      "testGetIndex_FiltersByThePartlyReceivedAndTheReceivedStatus"
+    ]
+  },
+  {
+    "name": "G57 header: a due date before the date of the document is refused",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if ($due !== null && $due < $date) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testCreate_RejectsWhatIsNotAValidDocument",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G58 header: a supplier is required where the document needs one",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "            if ($this->kind->needsSupplier()) {\n                throw new AccountingException(AccountingError::PurchaseDocumentSupplierNeeded, 'The document needs a supplier.');",
+    "replace": "            if (false) {\n                throw new AccountingException(AccountingError::PurchaseDocumentSupplierNeeded, 'The document needs a supplier.');",
+    "tests": [
+      "--filter",
+      "testCreate_RequiresASupplierOnlyWhereTheDocumentNeedsOne",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G59 header: the supplier must exist and not be deleted",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if ($this->db->table('suppliers')->where(['person_id' => $supplierId, 'deleted' => 0])->countAllResults() === 0) {",
+    "replace": "        if ($this->db->table('suppliers')->where(['person_id' => $supplierId])->countAllResults() === 0) {",
+    "tests": [
+      "--filter",
+      "testCreate_RejectsASupplierThatWasDeleted",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G61 header: the employee must work in the branch of the location",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        $this->branches->requireBranch((int) $row->branch_id, $employeeId);\n\n        return [(int) $row->location_id, (int) $row->branch_id];",
+    "replace": "        return [(int) $row->location_id, (int) $row->branch_id];",
+    "tests": [
+      "--filter",
+      "testCreate_RefusesALocationOfABranch",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G62 header: a date has to be a real day",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if ($parsed === false || $parsed->format('Y-m-d') !== $text) {",
+    "replace": "        if ($parsed === false) {",
+    "tests": [
+      "--filter",
+      "testCreate_RejectsWhatIsNotAValidDocument",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G63 header: the note is at most 500 characters",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if (mb_strlen($text) > self::NOTE_MAX) {",
+    "replace": "        if (mb_strlen($text) > 99999) {",
+    "tests": [
+      "--filter",
+      "testCreate_RejectsWhatIsNotAValidDocument",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G64 assertOn: the cycle must be switched on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocuments.php",
+    "find": "        if (! $this->settings->isEnabled()) {\n            throw new AccountingException(AccountingError::PurchaseDocumentModuleOff",
+    "replace": "        if (false) {\n            throw new AccountingException(AccountingError::PurchaseDocumentModuleOff",
+    "tests": [
+      "--filter",
+      "testCreate_RefusesWhileThePurchaseCycleIsOff",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentsTest.php"
+    ]
+  },
+  {
+    "name": "G65 lines: an empty list of lines is refused",
+    "file": "app/Libraries/PurchaseCycle/PurchaseLines.php",
+    "find": "        if (! is_array($raw) || $raw === []) {",
+    "replace": "        if (! is_array($raw)) {",
+    "tests": [
+      "tests/Libraries/PurchaseCycle/PurchaseLinesTest.php"
+    ]
+  },
+  {
+    "name": "G66 lines: at most 200 lines",
+    "file": "app/Libraries/PurchaseCycle/PurchaseLines.php",
+    "find": "        if (count($raw) > self::MAX_LINES) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "tests/Libraries/PurchaseCycle/PurchaseLinesTest.php"
+    ]
+  },
+  {
+    "name": "G67 lines: the item must exist and not be deleted",
+    "file": "app/Libraries/PurchaseCycle/PurchaseLines.php",
+    "find": "->where('deleted', 0)->get()->getResultArray(), 'item_id'));",
+    "replace": "->get()->getResultArray(), 'item_id'));",
+    "tests": [
+      "tests/Libraries/PurchaseCycle/PurchaseLinesTest.php"
+    ]
+  },
+  {
+    "name": "G68 lines: a quantity above zero",
+    "file": "app/Libraries/PurchaseCycle/PurchaseLines.php",
+    "find": "|| bccomp($quantity, '0', 3) <= 0 ||",
+    "replace": "||",
+    "tests": [
+      "tests/Libraries/PurchaseCycle/PurchaseLinesTest.php"
+    ]
+  },
+  {
+    "name": "G69 lines: a note of at most 255 characters",
+    "file": "app/Libraries/PurchaseCycle/PurchaseLines.php",
+    "find": "|| mb_strlen($text) > self::DESCRIPTION_MAX) {",
+    "replace": ") {",
+    "tests": [
+      "tests/Libraries/PurchaseCycle/PurchaseLinesTest.php"
+    ]
+  },
+  {
+    "name": "G70 lines: a quantity has at most three decimals",
+    "file": "app/Libraries/PurchaseCycle/PurchaseLines.php",
+    "find": "private const QUANTITY       = '/^\\d{1,12}(\\.\\d{1,3})?$/';",
+    "replace": "private const QUANTITY       = '/^\\d{1,12}(\\.\\d{1,5})?$/';",
+    "tests": [
+      "tests/Libraries/PurchaseCycle/PurchaseLinesTest.php"
+    ]
+  },
+  {
+    "name": "G71 lines: a price is not negative and has at most two decimals",
+    "file": "app/Libraries/PurchaseCycle/PurchaseLines.php",
+    "find": "private const MONEY          = '/^\\d{1,13}(\\.\\d{1,2})?$/';",
+    "replace": "private const MONEY          = '/^-?\\d{1,13}(\\.\\d{1,5})?$/';",
+    "tests": [
+      "tests/Libraries/PurchaseCycle/PurchaseLinesTest.php"
+    ]
+  },
+  {
+    "name": "G73 recordReceiving: a new receiving needs the cycle to be on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "        if ($action === 'received' && ! $this->settings->isEnabled()) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_RefusesANewReceivingWhileThePurchaseCycleIsOff",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G74 recordReceiving: the order must exist",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "            if ($order === null) {\n                throw new AccountingException(AccountingError::PurchaseDocumentNotFound, 'There is no such purchase order.'",
+    "replace": "            if (false) {\n                throw new AccountingException(AccountingError::PurchaseDocumentNotFound, 'There is no such purchase order.'",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_RefusesAnOrderThatDoesNotExist",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G75 recordReceiving: the employee must work in the branch of the order",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "            $this->branches->requireBranch((int) $order->branch_id, $employeeId);\n\n            if ((int) $order->branch_id !== $branchId) {",
+    "replace": "            if ((int) $order->branch_id !== $branchId) {",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_RefusesAnEmployeeWhoDoesNotWork",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G76 recordReceiving: the goods are received in the branch of the order",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "            if ((int) $order->branch_id !== $branchId) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_RefusesAnotherBranch",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G77 recordReceiving: the receiving is from the supplier of the order",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "            if ((int) $order->supplier_id !== $supplierId) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_RefusesAnotherSupplier",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G78 recordReceiving: a cancelled order and one received in full are not received",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "            if (! $status->canConvert(PurchaseDocumentKind::Order)) {",
+    "replace": "            if (false) {",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_RefusesACancelledOrder",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G79 recordReceiving: the units taken are kept per line",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "            foreach ($taken as $lineId => $quantity) {\n                $this->db->table('purchase_order_receiving_lines')->insert(",
+    "replace": "            foreach ([] as $lineId => $quantity) {\n                $this->db->table('purchase_order_receiving_lines')->insert(",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_TakesTheUnits",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G80 recordReceiving: the units taken before by the same receiving are taken again and not added",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "            $this->db->table('purchase_order_receiving_lines')->where('receiving_id', $receivingId)->delete();\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_TakesTheSameReceivingAgain",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G81 recordReceiving: the taking is written in the audit log of the order",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "            $this->audit->write(PurchaseDocumentKind::Order->value, $orderId, $action, $employeeId, $employeeId === null ? JournalOrigin::System : JournalOrigin::User, ['receiving_id' => $receivingId, 'lines' => count($taken)], $branchId);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_WritesAnAuditEntry",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G82 recordReceiving: the order is locked while units are taken from it",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "FROM ' . $this->db->prefixTable('purchase_orders') . ' WHERE order_id = ? FOR UPDATE', [$orderId]);\n\n            if ($order === null) {\n                throw new AccountingException(AccountingError::PurchaseDocumentNotFound, 'There is no such purchase order.'",
+    "replace": "FROM ' . $this->db->prefixTable('purchase_orders') . ' WHERE order_id = ?', [$orderId]);\n\n            if ($order === null) {\n                throw new AccountingException(AccountingError::PurchaseDocumentNotFound, 'There is no such purchase order.'",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_LetsOneOfTwoReceivingsTakeTheUnitsOfTheOrderWhenTheyAreTakenAtTheSameMoment",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G83 allocate: more than the order holds is refused unless the settings allow it",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "                if (! $allowExcess) {",
+    "replace": "                if (false) {",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_RefusesMoreThanTheOrderHoldsAndStoresNothing",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G84 allocate: the excess lands on the last line of the item when the settings allow it",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "                if ($lines !== []) {\n                    $last         = (int) end($lines)->line_id;",
+    "replace": "                if (false) {\n                    $last         = (int) end($lines)->line_id;",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_LetsTheExcessLand",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G85 allocate: the units already received count",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "$left = bcsub($line->quantity, $received[(int) $line->line_id] ?? '0', 3);",
+    "replace": "$left = bcsub($line->quantity, '0', 3);",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_RefusesMoreThanWhatIsLeft",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G86 allocate: the receiving that is taken again is left out of what was received",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "$received = $this->receivedQuantities($orderId, $receivingId);\n        $byItem   = [];",
+    "replace": "$received = $this->receivedQuantities($orderId);\n        $byItem   = [];",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_TakesTheSameReceivingAgain",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G87 allocate: the units of a pack count and not the packs",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "bcmul(sprintf('%.3F', (float) $item['quantity']), sprintf('%.3F', (float) ($item['receiving_quantity'] ?? 1) ?: 1.0), 3);",
+    "replace": "sprintf('%.3F', (float) $item['quantity']);",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_CountsTheUnitsOfAPack",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G88 allocate: the lines of an item are filled in the order they are in",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "->where('order_id', $orderId)->orderBy('line_no', 'ASC')->get()->getResult() as $line) {\n            $byItem",
+    "replace": "->where('order_id', $orderId)->orderBy('line_no', 'DESC')->get()->getResult() as $line) {\n            $byItem",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_FillsTheLinesOfAnItemInTheOrder",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G90 statusOf: an order is received when every line is received in full",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "            $full    = $full && bccomp($took, (string) $line->quantity, 3) >= 0;",
+    "replace": "            $full    = $full && bccomp($took, (string) $line->quantity, 3) > 0;",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_AcceptsExactly|testRecordReceiving_TakesTheUnits",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G91 statusOf: an order is received in part when something was taken",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "            $touched = $touched || bccomp($took, '0', 3) > 0;",
+    "replace": "            $touched = false;",
+    "tests": [
+      "--filter",
+      "testRecordReceiving_TakesTheUnits",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G92 statusOf: a cancelled order stays cancelled",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "        if ($stored === PurchaseDocumentStatus::Cancelled->value) {\n            return PurchaseDocumentStatus::Cancelled;\n        }\n\n        $received",
+    "replace": "        $received",
+    "tests": [
+      "--filter",
+      "testStatusOf_|testRecordReceiving_ReceivesAnOrderThatWasReceivedInPart",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G93 receivedQuantities: one receiving can be left out",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "        if ($exceptReceivingId !== null) {\n            $builder->where('t.receiving_id !=', $exceptReceivingId);\n        }",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testReceivedQuantities_CanLeaveOutOneReceiving",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G94 releaseReceiving: the units go back when the receiving goes",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "        $this->db->table('purchase_order_receiving_lines')->where('receiving_id', $receivingId)->delete();\n        $this->db->table('purchase_order_receivings')->where('receiving_id', $receivingId)->delete();\n        $this->audit->write(",
+    "replace": "        $this->audit->write(",
+    "tests": [
+      "--filter",
+      "testReleaseReceiving_GivesTheUnitsBack",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G95 releaseReceiving: the release is written in the audit log",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "        $this->audit->write(PurchaseDocumentKind::Order->value, $orderId, 'receipt_released'",
+    "replace": "        $this->audit->write(PurchaseDocumentKind::Order->value, $orderId, 'receipt_released_x'",
+    "tests": [
+      "--filter",
+      "testReleaseReceiving_GivesTheUnitsBack",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  },
+  {
+    "name": "G98 save_value: only goods coming in are received against an order",
+    "file": "app/Models/Receiving.php",
+    "find": "                if ($type !== ReceivingType::Receive) {\n                    throw new AccountingException(AccountingError::PurchaseOrderReceivingKind",
+    "replace": "                if (false) {\n                    throw new AccountingException(AccountingError::PurchaseOrderReceivingKind",
+    "tests": [
+      "--filter",
+      "testSaveValue_RefusesAReturnAgainstAPurchaseOrder",
+      "tests/Models/ReceivingTest.php"
+    ]
+  },
+  {
+    "name": "G99 save_value: the units of a receiving are taken from its order",
+    "file": "app/Models/Receiving.php",
+    "find": "                (new PurchaseOrderReceipts($this->db))->recordReceiving((int) $receivingId, $purchaseOrderId, $items, $supplierId, $employeeId, $branchId);",
+    "replace": "                unset($purchaseOrderId);",
+    "tests": [
+      "--filter",
+      "testSaveValue_ReceivesAgainstAPurchaseOrderPosts",
+      "tests/Models/ReceivingTest.php"
+    ]
+  },
+  {
+    "name": "G100 save_value: a refusal of the branch comes back as a refusal and not as an error",
+    "file": "app/Models/Receiving.php",
+    "find": "        } catch (AccountingException|PostingException|BranchException $failure) {\n            $this->db->transRollback();\n            $this->accountingFailure = $failure;\n\n            if ($accountingOn && $failure instanceof PostingException) {\n                (new ReceivingPosting($this->db))->recordFailure($receivingId > 0",
+    "replace": "        } catch (AccountingException|PostingException $failure) {\n            $this->db->transRollback();\n            $this->accountingFailure = $failure;\n\n            if ($accountingOn && $failure instanceof PostingException) {\n                (new ReceivingPosting($this->db))->recordFailure($receivingId > 0",
+    "tests": [
+      "--filter",
+      "testSaveValue_RefusesAnEmployeeWhoDoesNotWorkInTheBranchOfThePurchaseOrder",
+      "tests/Models/ReceivingTest.php"
+    ]
+  },
+  {
+    "name": "G101 updateLines: a correction of units takes the units from the order again",
+    "file": "app/Models/Receiving.php",
+    "find": "            $this->takeOrderUnitsAgain($receivingId, $employeeId, $branchId, $changed, $removed, $stored);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testUpdateLines_TakesTheUnitsOfAReceivingFromAnOrderAgain",
+      "tests/Models/ReceivingTest.php"
+    ]
+  },
+  {
+    "name": "G102 updateLines: a correction of a price takes nothing from the order",
+    "file": "app/Models/Receiving.php",
+    "find": "        if ($moved === [] && $removed === []) {\n            return;\n        }\n\n        $items = array_map(",
+    "replace": "        $items = array_map(",
+    "tests": [
+      "--filter",
+      "testUpdateLines_LeavesTheOrderAlone",
+      "tests/Models/ReceivingTest.php"
+    ]
+  },
+  {
+    "name": "G103 updateLines: a correction of units is told from one of a price by the quantity",
+    "file": "app/Models/Receiving.php",
+    "find": "bccomp((string) $fields['quantity_purchased'], bcadd((string) $stored[$key]['quantity_purchased'], '0', 3), 3) !== 0,",
+    "replace": "false,",
+    "tests": [
+      "--filter",
+      "testUpdateLines_TakesTheUnitsOfAReceivingFromAnOrderAgain",
+      "tests/Models/ReceivingTest.php"
+    ]
+  },
+  {
+    "name": "G104 delete_value: the units of a receiving go back to the order and the release is audited",
+    "file": "app/Models/Receiving.php",
+    "find": "            (new PurchaseOrderReceipts($this->db))->releaseReceiving($receiving_id, $employee_id);",
+    "replace": "            unset($receiving_id);",
+    "tests": [
+      "--filter",
+      "testDeleteValue_GivesTheUnitsOfAReceivingBack",
+      "tests/Models/ReceivingTest.php"
+    ]
+  },
+  {
+    "name": "G105 register: the order is forgotten when the register is cleared",
+    "file": "app/Libraries/Receiving_lib.php",
+    "find": "    public function clear_all(): void\n    {\n        $this->clearOrderSource();\n",
+    "replace": "    public function clear_all(): void\n    {\n",
+    "tests": [
+      "--filter",
+      "testClearAll_ForgetsThePurchaseOrder",
+      "tests/Libraries/Receiving_libTest.php"
+    ]
+  },
+  {
+    "name": "G106 register: the register is filled in from the order with its supplier",
+    "file": "app/Libraries/Receiving_lib.php",
+    "find": "        $this->set_supplier($supplierId);\n        $this->set_mode('receive');\n        $this->setOrderSource($orderId);",
+    "replace": "        $this->set_mode('receive');\n        $this->setOrderSource($orderId);",
+    "tests": [
+      "--filter",
+      "testPrepareReceivingFromOrder_",
+      "tests/Libraries/Receiving_libTest.php"
+    ]
+  },
+  {
+    "name": "G107 register: the register remembers the order",
+    "file": "app/Libraries/Receiving_lib.php",
+    "find": "        $this->set_supplier($supplierId);\n        $this->set_mode('receive');\n        $this->setOrderSource($orderId);",
+    "replace": "        $this->set_supplier($supplierId);\n        $this->set_mode('receive');",
+    "tests": [
+      "--filter",
+      "testPrepareReceivingFromOrder_",
+      "tests/Libraries/Receiving_libTest.php"
+    ]
+  },
+  {
+    "name": "G108 register: the register starts from an empty cart",
+    "file": "app/Libraries/Receiving_lib.php",
+    "find": "    public function prepareReceivingFromOrder(int $orderId, int $supplierId, int $locationId, array $lines): void\n    {\n        $this->clear_all();\n",
+    "replace": "    public function prepareReceivingFromOrder(int $orderId, int $supplierId, int $locationId, array $lines): void\n    {\n",
+    "tests": [
+      "--filter",
+      "testPrepareReceivingFromOrder_",
+      "tests/Libraries/Receiving_libTest.php"
+    ]
+  },
+  {
+    "name": "G109 register: the units left are the quantity of the line at the price of the order",
+    "file": "app/Libraries/Receiving_lib.php",
+    "find": "$this->add_item((string) $line->item_id, (float) $line->remaining, $locationId, 0, 0, (float) $line->unit_price, (string) $line->description, null, 1.0);",
+    "replace": "$this->add_item((string) $line->item_id, (float) $line->quantity, $locationId, 0, 0, (float) $line->unit_price, (string) $line->description, null, 1.0);",
+    "tests": [
+      "--filter",
+      "testPostConvert_FillsTheRegisterWithTheUnitsThatAreLeft",
+      "tests/Controllers/Purchase_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G110 receivings: the order is forgotten when the mode is not receive",
+    "file": "app/Controllers/Receivings.php",
+    "find": "        if ($this->receiving_lib->get_mode() !== 'receive') {\n            $this->receiving_lib->clearOrderSource();\n        }",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testPostChangeMode_ForgetsThePurchaseOrder",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G111 receivings: the order of the register is given to the saving of the receiving",
+    "file": "app/Controllers/Receivings.php",
+    "find": "$this->receiving_lib->getPaymentTerms(), $this->receiving_lib->getOrderSource());",
+    "replace": "$this->receiving_lib->getPaymentTerms());",
+    "tests": [
+      "--filter",
+      "testPostComplete_TakesTheUnitsFromThePurchaseOrder",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G112 receivings: the register shows the order it was filled in from",
+    "file": "app/Controllers/Receivings.php",
+    "find": "        return $orderId === null ? null : (new DocumentNumbering())->label(DocumentType::PurchaseOrder, 'purchase_orders', $orderId);",
+    "replace": "        return null;",
+    "tests": [
+      "--filter",
+      "testGetIndex_ShowsThePurchaseOrderTheRegisterWasFilledFrom",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G113 screen: the form is not offered while the cycle is off",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "        if (! $this->documents->isEnabled()) {\n            return redirect()->to(site_url($this->kind->module()));\n        }",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetForm_IsNotFoundToWhoMayNotAdd",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G114 screen: a document is edited only when it can be and the employee may",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "if ($document === null || ! $document->status_object->isEditable() || ! $this->can($this->kind->permission(PurchaseDocuments::EDIT))) {",
+    "replace": "if ($document === null) {",
+    "tests": [
+      "--filter",
+      "testGetForm_IsNotFoundForAnOrderAReceivingWasMadeFrom|testGetForm_IsNotFoundToWhoMayNotEdit|testGetForm_OpensAnOpenDocumentForEditing",
+      "tests/Controllers/Purchase_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G115 screen: a new document is offered to who may add",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "        } elseif (! $this->can($this->kind->permission(PurchaseDocuments::ADD))) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
+    "replace": "        }",
+    "tests": [
+      "--filter",
+      "testGetForm_IsNotFoundToWhoMayNotAdd",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G116 screen: the page is not shown while the cycle is off",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "        $document = $this->documents->isEnabled() ? $this->documents->find($documentId, $this->employeeId()) : null;",
+    "replace": "        $document = $this->documents->find($documentId, $this->employeeId());",
+    "tests": [
+      "--filter",
+      "testGetShow_IsNotFoundWhileTheCycleIsOff",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G118 screen: the edit action needs the permission to edit",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "'canEdit'    => $this->can($this->kind->permission(PurchaseDocuments::EDIT)) && $status->isEditable(),",
+    "replace": "'canEdit'    => $status->isEditable(),",
+    "tests": [
+      "--filter",
+      "testGetShow_OffersOnlyWhatTheEmployeeMayDo",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G184 screen: the edit action is not offered for a document that cannot be edited",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "'canEdit'    => $this->can($this->kind->permission(PurchaseDocuments::EDIT)) && $status->isEditable(),",
+    "replace": "'canEdit'    => $this->can($this->kind->permission(PurchaseDocuments::EDIT)),",
+    "tests": [
+      "--filter",
+      "testGetShow_ShowsTheCancelledDocumentWithItsReasonAndNoActions",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G120 screen: the status actions need the switch the permission and a label to move to",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "'canStatus'  => $manual && $this->can($this->kind->permission(PurchaseDocuments::EDIT)) && $status->manualNext() !== [],",
+    "replace": "'canStatus'  => $this->can($this->kind->permission(PurchaseDocuments::EDIT)) && $status->manualNext() !== [],",
+    "tests": [
+      "--filter",
+      "testGetShow_OffersTheStatusActionsOnlyWhereTheSwitchOfTheFamilyIsOn",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G121 screen: the status actions need the permission to edit",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "'canStatus'  => $manual && $this->can($this->kind->permission(PurchaseDocuments::EDIT)) && $status->manualNext() !== [],",
+    "replace": "'canStatus'  => $manual && $status->manualNext() !== [],",
+    "tests": [
+      "--filter",
+      "testGetShow_OffersOnlyWhatTheEmployeeMayDo",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G122 screen: the cancel action needs the permission to delete",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "'canCancel'  => $this->can($this->kind->permission(PurchaseDocuments::DELETE)) && $status->canCancel(),",
+    "replace": "'canCancel'  => $status->canCancel(),",
+    "tests": [
+      "--filter",
+      "testGetShow_OffersOnlyWhatTheEmployeeMayDo",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G123 screen: the cancel action is not offered for a document that cannot be cancelled",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "'canCancel'  => $this->can($this->kind->permission(PurchaseDocuments::DELETE)) && $status->canCancel(),",
+    "replace": "'canCancel'  => $this->can($this->kind->permission(PurchaseDocuments::DELETE)),",
+    "tests": [
+      "--filter",
+      "testGetShow_ShowsTheCancelledDocumentWithItsReasonAndNoActions",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G124 screen: the conversion needs the permission to convert",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "'canConvert' => $this->can($this->kind->permission(PurchaseDocuments::CONVERT)) && $status->canConvert($this->kind),",
+    "replace": "'canConvert' => $status->canConvert($this->kind),",
+    "tests": [
+      "--filter",
+      "testGetShow_OffersOnlyWhatTheEmployeeMayDo",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G125 screen: the conversion is not offered for a document that cannot be converted",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "'canConvert' => $this->can($this->kind->permission(PurchaseDocuments::CONVERT)) && $status->canConvert($this->kind),",
+    "replace": "'canConvert' => $this->can($this->kind->permission(PurchaseDocuments::CONVERT)),",
+    "tests": [
+      "--filter",
+      "testGetShow_ShowsTheCancelledDocumentWithItsReasonAndNoActions",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G126 screen: the suppliers are answered to who may write a document that has a supplier",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "        if (! $this->kind->hasSupplier() || ! ($this->can($this->kind->permission(PurchaseDocuments::ADD)) || $this->can($this->kind->permission(PurchaseDocuments::EDIT)))) {\n            return $this->forbidden();",
+    "replace": "        if (false) {\n            return $this->forbidden();",
+    "tests": [
+      "--filter",
+      "testGetSuppliers_",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G127 screen: the suppliers need the permission to write",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "        if (! $this->kind->hasSupplier() || ! ($this->can($this->kind->permission(PurchaseDocuments::ADD)) || $this->can($this->kind->permission(PurchaseDocuments::EDIT)))) {",
+    "replace": "        if (! $this->kind->hasSupplier()) {",
+    "tests": [
+      "--filter",
+      "testGetSuppliers_",
+      "tests/Controllers/Quotation_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G128 screen: the items are answered to who may write a document",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "        if (! ($this->can($this->kind->permission(PurchaseDocuments::ADD)) || $this->can($this->kind->permission(PurchaseDocuments::EDIT)))) {\n            return $this->forbidden();\n        }\n\n        $builder = Database::connect()->table('items')",
+    "replace": "        $builder = Database::connect()->table('items')",
+    "tests": [
+      "--filter",
+      "testGetItems_",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G129 screen: the status that is posted must be one that is set by hand",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "            if ($to === null || ! $to->isLabel()) {",
+    "replace": "            if ($to === null) {",
+    "tests": [
+      "--filter",
+      "testPostStatus_MovesTheLabel",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G131 screen: the switches that are not checked are turned off",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "$manual[$kind->value] = $this->request->getPost('manual_' . $kind->value) === '1';",
+    "replace": "$manual[$kind->value] = true;",
+    "tests": [
+      "--filter",
+      "testPostSettings_RequiresTheConfigPermissionAndSavesEverySwitch",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G132 screen: the lookups of a purchase request offer the cost of an item",
+    "file": "app/Controllers/PurchaseCycleScreen.php",
+    "find": "->select('item_id, name, item_number, cost_price')",
+    "replace": "->select('item_id, name, item_number, unit_price AS cost_price')",
+    "tests": [
+      "--filter",
+      "testGetItems_",
+      "tests/Controllers/Purchase_requestsControllerTest.php"
+    ]
+  },
+  {
+    "name": "G134 screen: an order is received in the register and not converted",
+    "file": "app/Controllers/Purchase_orders.php",
+    "find": "        try {\n            $order = $this->documents->assertReceivable($documentId, $this->employeeId());\n        } catch (AccountingException|BranchException $refusal) {\n            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($refusal), 'id' => $documentId]);\n        }",
+    "replace": "        $order = $this->documents->find($documentId, $this->employeeId());",
+    "tests": [
+      "--filter",
+      "testPostConvert_RefusesAnOrderThatIsCancelledOrReceivedInFull",
+      "tests/Controllers/Purchase_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G135 order screen: the register is used by who may",
+    "file": "app/Controllers/Purchase_orders.php",
+    "find": "        if (! $this->employee->has_module_grant('receivings', $this->employeeId())) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testPostConvert_RequiresTheConvertPermissionAndTheUseOfTheReceivingRegister",
+      "tests/Controllers/Purchase_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G136 order screen: the register is filled in with what is left of the order",
+    "file": "app/Controllers/Purchase_orders.php",
+    "find": "$this->documents->remainingLines($documentId));",
+    "replace": "$this->documents->lines($documentId));",
+    "tests": [
+      "--filter",
+      "testPostConvert_FillsTheRegisterWithOnlyTheLinesThatHaveUnitsLeft",
+      "tests/Controllers/Purchase_ordersControllerTest.php"
+    ]
+  },
+  {
+    "name": "G137 settings: the config permission is required to change a switch",
+    "file": "app/Libraries/PurchaseCycle/PurchaseCycleSettings.php",
+    "find": "        $this->guard->require(self::PERMISSION, $employeeId);\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testUpdate_RequiresTheConfigPermission",
+      "tests/Libraries/PurchaseCycle/PurchaseCycleSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G138 settings: a change that changes nothing writes nothing",
+    "file": "app/Libraries/PurchaseCycle/PurchaseCycleSettings.php",
+    "find": "        if ($before === $after) {\n            return;\n        }\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testUpdate_WritesNothingWhenNothingChanges",
+      "tests/Libraries/PurchaseCycle/PurchaseCycleSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G139 settings: the change is written in the audit log with what it was and what it became",
+    "file": "app/Libraries/PurchaseCycle/PurchaseCycleSettings.php",
+    "find": "        $this->audit->write('purchase_cycle_settings'",
+    "replace": "        $this->audit->write('purchase_cycle_settings_x'",
+    "tests": [
+      "--filter",
+      "testUpdate_StoresEachSwitchUnderItsOwnKey",
+      "tests/Libraries/PurchaseCycle/PurchaseCycleSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G141 settings: the switches of the families are kept apart",
+    "file": "app/Libraries/PurchaseCycle/PurchaseCycleSettings.php",
+    "find": "            if (isset($input['manual']) && array_key_exists($kind->value, $input['manual'])) {\n                $after['manual'][$kind->value] = (bool) $input['manual'][$kind->value];\n            }",
+    "replace": "            if (isset($input['manual']) && array_key_exists($kind->value, $input['manual'])) {\n                $after['manual'][$kind->value] = (bool) $input['manual'][$kind->value];\n                $after['manual']['purchase_order'] = (bool) $input['manual'][$kind->value];\n            }",
+    "tests": [
+      "--filter",
+      "testUpdate_ChangesOnlyTheSwitchesGiven",
+      "tests/Libraries/PurchaseCycle/PurchaseCycleSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G142 settings: every switch is off until somebody turns it on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseCycleSettings.php",
+    "find": "return $this->config->get_value(self::ENABLED, '0') === '1';",
+    "replace": "return $this->config->get_value(self::ENABLED, '1') === '1';",
+    "tests": [
+      "--filter",
+      "testIsEnabled_IsOff",
+      "tests/Libraries/PurchaseCycle/PurchaseCycleSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G143 settings: the excess switch is off until somebody turns it on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseCycleSettings.php",
+    "find": "return $this->config->get_value(self::EXCESS, '0') === '1';",
+    "replace": "return $this->config->get_value(self::EXCESS, '1') === '1';",
+    "tests": [
+      "--filter",
+      "testIsEnabled_IsOff",
+      "tests/Libraries/PurchaseCycle/PurchaseCycleSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G144 settings: a manual status switch is off until somebody turns it on",
+    "file": "app/Libraries/PurchaseCycle/PurchaseCycleSettings.php",
+    "find": "return $this->config->get_value($kind->manualStatusSetting(), '0') === '1';",
+    "replace": "return $this->config->get_value($kind->manualStatusSetting(), '1') === '1';",
+    "tests": [
+      "--filter",
+      "testIsEnabled_IsOff",
+      "tests/Libraries/PurchaseCycle/PurchaseCycleSettingsTest.php"
+    ]
+  },
+  {
+    "name": "G145 kind: the toggle of the purchase request is the observed key",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentKind.php",
+    "find": "self::Request           => 'enable_purchase_request_manual_status',",
+    "replace": "self::Request           => 'enable_purchase_requests_manual_status',",
+    "tests": [
+      "--filter",
+      "testManualStatusSetting_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentKindTest.php"
+    ]
+  },
+  {
+    "name": "G146 kind: the toggle of the quotation request is the observed key",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentKind.php",
+    "find": "self::QuotationRequest  => 'enable_quotation_request_manual_status',",
+    "replace": "self::QuotationRequest  => 'enable_quotation_requests_manual_status',",
+    "tests": [
+      "--filter",
+      "testManualStatusSetting_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentKindTest.php"
+    ]
+  },
+  {
+    "name": "G147 kind: the toggle of the supplier quotation is the observed key",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentKind.php",
+    "find": "self::SupplierQuotation => 'enable_purchase_quotation_manual_status',",
+    "replace": "self::SupplierQuotation => 'enable_supplier_quotation_manual_status',",
+    "tests": [
+      "--filter",
+      "testManualStatusSetting_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentKindTest.php"
+    ]
+  },
+  {
+    "name": "G148 kind: the toggle of the purchase order is the observed key",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentKind.php",
+    "find": "self::Order             => 'enable_purchase_order_manual_status',",
+    "replace": "self::Order             => 'enable_purchase_orders_manual_status',",
+    "tests": [
+      "--filter",
+      "testManualStatusSetting_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentKindTest.php"
+    ]
+  },
+  {
+    "name": "G149 kind: the chain goes from the request to the order",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentKind.php",
+    "find": "self::Request           => self::QuotationRequest,\n            self::QuotationRequest  => self::SupplierQuotation,\n            self::SupplierQuotation => self::Order,\n            self::Order             => null,",
+    "replace": "self::Request           => self::SupplierQuotation,\n            self::QuotationRequest  => self::SupplierQuotation,\n            self::SupplierQuotation => self::Order,\n            self::Order             => null,",
+    "tests": [
+      "--filter",
+      "testNext_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentKindTest.php"
+    ]
+  },
+  {
+    "name": "G150 kind: a purchase request has no supplier",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentKind.php",
+    "find": "        return $this !== self::Request;\n    }\n\n    public function needsSupplier",
+    "replace": "        return true;\n    }\n\n    public function needsSupplier",
+    "tests": [
+      "--filter",
+      "testNeedsSupplier_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentKindTest.php"
+    ]
+  },
+  {
+    "name": "G151 kind: a quotation and an order need a supplier",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentKind.php",
+    "find": "        return $this === self::SupplierQuotation || $this === self::Order;",
+    "replace": "        return $this === self::Order;",
+    "tests": [
+      "--filter",
+      "testNeedsSupplier_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentKindTest.php"
+    ]
+  },
+  {
+    "name": "G152 kind: the permissions of a family carry the letters of the family",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentKind.php",
+    "find": "            self::SupplierQuotation => 'sq_',",
+    "replace": "            self::SupplierQuotation => 'pq_',",
+    "tests": [
+      "--filter",
+      "testPermission_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentKindTest.php"
+    ]
+  },
+  {
+    "name": "G153 kind: each document is numbered with a type of its own",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentKind.php",
+    "find": "            self::SupplierQuotation => DocumentType::SupplierQuotation,",
+    "replace": "            self::SupplierQuotation => DocumentType::PurchaseOrder,",
+    "tests": [
+      "--filter",
+      "testDocumentType_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentKindTest.php"
+    ]
+  },
+  {
+    "name": "G154 status: the three labels move to each other and nothing else moves",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentStatus.php",
+    "find": "return $this->isLabel() ? array_values(array_filter([self::Open, self::Sent, self::Approved], fn (self $label): bool => $label !== $this)) : [];",
+    "replace": "return array_values(array_filter([self::Open, self::Sent, self::Approved], fn (self $label): bool => $label !== $this));",
+    "tests": [
+      "--filter",
+      "testManualNext_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentStatusTest.php"
+    ]
+  },
+  {
+    "name": "G155 status: an order received in part is received again and no other document is",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentStatus.php",
+    "find": "return $this->isLabel() || ($kind === PurchaseDocumentKind::Order && $this === self::PartlyReceived);",
+    "replace": "return $this->isLabel() || $this === self::PartlyReceived;",
+    "tests": [
+      "--filter",
+      "testCanConvert_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentStatusTest.php"
+    ]
+  },
+  {
+    "name": "G156 status: an order received in part may be cancelled",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentStatus.php",
+    "find": "return $this->isLabel() || $this === self::PartlyReceived;\n    }\n}",
+    "replace": "return $this->isLabel();\n    }\n}",
+    "tests": [
+      "--filter",
+      "testCanCancel_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentStatusTest.php"
+    ]
+  },
+  {
+    "name": "G157 status: only the three labels are editable",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentStatus.php",
+    "find": "    public function isEditable(): bool\n    {\n        return $this->isLabel();",
+    "replace": "    public function isEditable(): bool\n    {\n        return true;",
+    "tests": [
+      "--filter",
+      "testIsEditable_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentStatusTest.php"
+    ]
+  },
+  {
+    "name": "G158 status: four statuses are stored",
+    "file": "app/Libraries/PurchaseCycle/PurchaseDocumentStatus.php",
+    "find": "return in_array($this, [self::Open, self::Sent, self::Approved, self::Cancelled], true);",
+    "replace": "return in_array($this, [self::Open, self::Sent, self::Approved, self::Cancelled, self::Converted], true);",
+    "tests": [
+      "--filter",
+      "testIsStored_",
+      "tests/Libraries/PurchaseCycle/PurchaseDocumentStatusTest.php"
+    ]
+  },
+  {
+    "name": "G159 numbering: the purchase cycle documents are numbered with five digits",
+    "file": "app/Libraries/Numbering/DocumentType.php",
+    "find": "self::SalesDebitNote, self::SalesOrder, self::PurchaseRequest, self::QuotationRequest, self::SupplierQuotation, self::PurchaseOrder => 5,",
+    "replace": "self::SalesDebitNote, self::SalesOrder => 5,",
+    "tests": [
+      "--filter",
+      "testDefaultPadding_",
+      "tests/Libraries/Numbering/DocumentTypeTest.php"
+    ]
+  },
+  {
+    "name": "G160 numbering: a purchase order is stored in its own table",
+    "file": "app/Libraries/Numbering/DocumentType.php",
+    "find": "self::PurchaseOrder     => ['purchase_orders' => 'order_id'],",
+    "replace": "self::PurchaseOrder     => ['purchase_order_lines' => 'order_id'],",
+    "tests": [
+      "--filter",
+      "testSources_KeepsEachDocumentOfThePurchaseCycle",
+      "tests/Libraries/Numbering/DocumentTypeTest.php"
+    ]
+  },
+  {
+    "name": "G161 numbering: the fallback of a purchase cycle document shows its id in five digits",
+    "file": "app/Libraries/Numbering/DocumentType.php",
+    "find": "self::SalesDebitNote, self::SalesOrder, self::PurchaseRequest, self::QuotationRequest, self::SupplierQuotation, self::PurchaseOrder => str_pad((string) $id, $this->defaultPadding(), '0', STR_PAD_LEFT),",
+    "replace": "self::SalesDebitNote, self::SalesOrder => str_pad((string) $id, $this->defaultPadding(), '0', STR_PAD_LEFT),",
+    "tests": [
+      "--filter",
+      "testDefaultPadding_|testFallback_",
+      "tests/Libraries/Numbering/DocumentTypeTest.php"
+    ]
+  },
+  {
+    "name": "G162 readiness: a status the code cannot leave fails the check",
+    "file": "app/Libraries/Accounting/Readiness/PurchaseCycleChecks.php",
+    "find": "            foreach ($this->db->table($kind->table())->select($kind->idColumn() . ' AS document_id, status')->whereNotIn('status', $closed)->limit(self::LISTED)->get()->getResult() as $row) {",
+    "replace": "            foreach ([] as $row) {",
+    "tests": [
+      "--filter",
+      "testRun_FailsFor",
+      "tests/Libraries/Accounting/Readiness/PurchaseCycleChecksTest.php"
+    ]
+  },
+  {
+    "name": "G163 readiness: open documents of a switched off cycle are for review",
+    "file": "app/Libraries/Accounting/Readiness/PurchaseCycleChecks.php",
+    "find": "        if (! $enabled && $waiting > 0) {",
+    "replace": "        if (false) {",
+    "tests": [
+      "--filter",
+      "testRun_PutsTheOpenDocuments",
+      "tests/Libraries/Accounting/Readiness/PurchaseCycleChecksTest.php"
+    ]
+  },
+  {
+    "name": "G164 readiness: an order received beyond its lines is for review",
+    "file": "app/Libraries/Accounting/Readiness/PurchaseCycleChecks.php",
+    "find": "            ->having('SUM(t.quantity) > l.quantity', null, false)",
+    "replace": "            ->having('SUM(t.quantity) > l.quantity + 99999', null, false)",
+    "tests": [
+      "--filter",
+      "testRun_PutsAnOrderReceivedBeyond",
+      "tests/Libraries/Accounting/Readiness/PurchaseCycleChecksTest.php"
+    ]
+  },
+  {
+    "name": "G165 readiness: a receiving of another supplier than its order is for review",
+    "file": "app/Libraries/Accounting/Readiness/PurchaseCycleChecks.php",
+    "find": "            ->where('r.supplier_id IS NULL OR r.supplier_id <> o.supplier_id', null, false)",
+    "replace": "            ->where('1 = 0', null, false)",
+    "tests": [
+      "--filter",
+      "testRun_PutsAReceivingOfAnotherSupplier",
+      "tests/Libraries/Accounting/Readiness/PurchaseCycleChecksTest.php"
+    ]
+  },
+  {
+    "name": "G166 readiness: the check only counts the open documents of the three labels",
+    "file": "app/Libraries/Accounting/Readiness/PurchaseCycleChecks.php",
+    "find": "->whereIn('status', [PurchaseDocumentStatus::Open->value, PurchaseDocumentStatus::Sent->value, PurchaseDocumentStatus::Approved->value])->countAllResults();",
+    "replace": "->countAllResults();",
+    "tests": [
+      "--filter",
+      "testRun_PutsTheOpenDocuments",
+      "tests/Libraries/Accounting/Readiness/PurchaseCycleChecksTest.php"
+    ]
+  },
+  {
+    "name": "G167 migration: the status of a document is one of four",
+    "file": "app/Database/Migrations/20272900000000_PurchaseCycleDocuments.php",
+    "find": "CHECK (`status` IN ('open', 'sent', 'approved', 'cancelled'))",
+    "replace": "CHECK (`status` IN ('open', 'sent', 'approved', 'cancelled', 'converted', 'received'))",
+    "tests": [
+      "--filter",
+      "testStatus_IsRefused",
+      "tests/Database/PurchaseCycleDocumentsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G168 migration: a line has a quantity above zero and a price that is not negative",
+    "file": "app/Database/Migrations/20272900000000_PurchaseCycleDocuments.php",
+    "find": "CHECK (`quantity` > 0 AND `unit_price` >= 0)",
+    "replace": "CHECK (`quantity` > -1 AND `unit_price` >= -1)",
+    "tests": [
+      "--filter",
+      "testLines_Refuse",
+      "tests/Database/PurchaseCycleDocumentsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G169 migration: a line number appears once in a document",
+    "file": "app/Database/Migrations/20272900000000_PurchaseCycleDocuments.php",
+    "find": "UNIQUE KEY `{$lines}_line` (`{$id}`, `line_no`),",
+    "replace": "KEY `{$lines}_line` (`{$id}`, `line_no`),",
+    "tests": [
+      "--filter",
+      "testLines_Refuse",
+      "tests/Database/PurchaseCycleDocumentsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G170 migration: a document that another was made from is not deleted",
+    "file": "app/Database/Migrations/20272900000000_PurchaseCycleDocuments.php",
+    "find": "REFERENCES `{$parent}` (`{$fromId}`) ON DELETE RESTRICT,",
+    "replace": "REFERENCES `{$parent}` (`{$fromId}`) ON DELETE CASCADE,",
+    "tests": [
+      "--filter",
+      "testSourceColumns_",
+      "tests/Database/PurchaseCycleDocumentsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G171 migration: the units of a receiving go when the receiving is deleted",
+    "file": "app/Database/Migrations/20272900000000_PurchaseCycleDocuments.php",
+    "find": "CONSTRAINT `{$links}_fk_receiving` FOREIGN KEY (`receiving_id`) REFERENCES `{$receiving}` (`receiving_id`) ON DELETE CASCADE,",
+    "replace": "CONSTRAINT `{$links}_fk_receiving` FOREIGN KEY (`receiving_id`) REFERENCES `{$receiving}` (`receiving_id`) ON DELETE RESTRICT,",
+    "tests": [
+      "--filter",
+      "testReceivingLinks_",
+      "tests/Database/PurchaseCycleDocumentsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G172 migration: a line of an order that was received is not deleted",
+    "file": "app/Database/Migrations/20272900000000_PurchaseCycleDocuments.php",
+    "find": "CONSTRAINT `{$taken}_fk_line` FOREIGN KEY (`order_line_id`) REFERENCES `{$lines}` (`line_id`) ON DELETE RESTRICT,",
+    "replace": "CONSTRAINT `{$taken}_fk_line` FOREIGN KEY (`order_line_id`) REFERENCES `{$lines}` (`line_id`) ON DELETE CASCADE,",
+    "tests": [
+      "--filter",
+      "testReceivingLinks_",
+      "tests/Database/PurchaseCycleDocumentsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G173 migration: the units taken are above zero",
+    "file": "app/Database/Migrations/20272900000000_PurchaseCycleDocuments.php",
+    "find": "CONSTRAINT `{$taken}_quantity` CHECK (`quantity` > 0)",
+    "replace": "CONSTRAINT `{$taken}_quantity` CHECK (`quantity` > -1)",
+    "tests": [
+      "--filter",
+      "testReceivingLinks_",
+      "tests/Database/PurchaseCycleDocumentsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G174 migration: a request has no supplier column and a quotation and an order need one",
+    "file": "app/Database/Migrations/20272900000000_PurchaseCycleDocuments.php",
+    "find": "'required' => '`supplier_id` INT(10) NOT NULL,',",
+    "replace": "'required' => '`supplier_id` INT(10) NULL,',",
+    "tests": [
+      "--filter",
+      "testSupplierColumn_",
+      "tests/Database/PurchaseCycleDocumentsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G176 migration: nothing is granted to anybody",
+    "file": "app/Database/Migrations/20272900000000_PurchaseCycleDocuments.php",
+    "find": "$this->db->table('permissions')->ignore(true)->insertBatch(array_map(static fn (string $permission): array => ['permission_id' => $permission, 'module_id' => $moduleId], $permissions));\n        }\n    }",
+    "replace": "$this->db->table('permissions')->ignore(true)->insertBatch(array_map(static fn (string $permission): array => ['permission_id' => $permission, 'module_id' => $moduleId], $permissions));\n            $this->db->table('grants')->ignore(true)->insert(['permission_id' => $moduleId, 'person_id' => 1, 'menu_group' => 'home']);\n        }\n    }",
+    "tests": [
+      "--filter",
+      "testUp_CreatesTheTables",
+      "tests/Database/PurchaseCycleDocumentsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G178 migration: the four modules are registered with a sort that shows them",
+    "file": "app/Database/Migrations/20272900000000_PurchaseCycleDocuments.php",
+    "find": "'module_id'     => $moduleId,\n                'name_lang_key' => 'module_' . $moduleId,\n                'desc_lang_key' => 'module_' . $moduleId . '_desc',\n                'sort'          => $sort,",
+    "replace": "'module_id'     => $moduleId,\n                'name_lang_key' => 'module_' . $moduleId,\n                'desc_lang_key' => 'module_' . $moduleId . '_desc',\n                'sort'          => 0,",
+    "tests": [
+      "--filter",
+      "testUp_CreatesTheTables",
+      "tests/Database/PurchaseCycleDocumentsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G180 navigation: the four documents are in the purchases group in the order of the chain",
+    "file": "app/Helpers/navigation_helper.php",
+    "find": "'group_purchases'  => ['purchase_requests', 'quotation_requests', 'supplier_quotations', 'purchase_orders', 'receivings', 'suppliers'],",
+    "replace": "'group_purchases'  => ['receivings', 'suppliers'],",
+    "tests": [
+      "tests/helpers/NavigationHelperTest.php"
+    ]
+  },
+  {
+    "name": "G181 navigation: the documents have an icon",
+    "file": "app/Helpers/navigation_helper.php",
+    "find": "    'purchase_requests'       => 'bi-card-checklist',\n    'quotation_requests'      => 'bi-envelope-paper',\n    'supplier_quotations'     => 'bi-file-earmark-text',\n    'purchase_orders'         => 'bi-bag-check',\n",
+    "replace": "",
+    "tests": [
+      "tests/helpers/NavigationHelperTest.php"
+    ]
+  },
+  {
+    "name": "G182 orderOfReceiving: a database without the table has no link to an order",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "        if (! $this->db->tableExists($this->db->prefixTable('purchase_order_receivings'), false)) {\n            return null;\n        }\n\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testLegacyReceiving_",
+      "tests/Database/PurchaseCycleDocumentsMigrationTest.php"
+    ]
+  },
+  {
+    "name": "G183 orderOfReceiving: the table is looked for with its prefix",
+    "file": "app/Libraries/PurchaseCycle/PurchaseOrderReceipts.php",
+    "find": "tableExists($this->db->prefixTable('purchase_order_receivings'), false)",
+    "replace": "tableExists('purchase_order_receivings', false)",
+    "tests": [
+      "--filter",
+      "testOrderOfReceiving_",
+      "tests/Libraries/PurchaseCycle/PurchaseOrderReceiptsTest.php"
+    ]
+  }
+]

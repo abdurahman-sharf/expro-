@@ -101,6 +101,15 @@ class PurchaseCycleSettingsTest extends CIUnitTestCase
         $employee = $this->employeeWithGrants(['config']);
 
         $this->settings()->update(['enabled' => true, 'manual' => ['purchase_request' => true, 'quotation_request' => true]], $employee);
+
+        $first = $this->settings();
+
+        $this->assertSame(
+            [true, true, false, false],
+            [$first->allowsManualStatus(PurchaseDocumentKind::Request), $first->allowsManualStatus(PurchaseDocumentKind::QuotationRequest), $first->allowsManualStatus(PurchaseDocumentKind::SupplierQuotation), $first->allowsManualStatus(PurchaseDocumentKind::Order)],
+            'the families that were given are on and the others stay off',
+        );
+
         $this->settings()->update(['manual' => ['purchase_request' => false]], $employee);
 
         $settings = $this->settings();
