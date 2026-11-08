@@ -22,32 +22,34 @@
 
 ## 2. الأدلة
 
-شُغّلت على قاعدة `ospos_test_wp40` وحدها، بعملية phpunit واحدة في كل مرة، **وكلها نجحت** (آخر تشغيل على رأس الفرع):
+شُغّلت على قاعدة `ospos_test_wp40` وحدها، بعملية phpunit واحدة في كل مرة، **وكلها نجحت** على رأس الفرع بعد جولة الإصلاح (الملفات التي لمستُها شُغّلت بعد آخر تعديل لها؛ والباقية شُغّلت على الفرع قبل تعديلاتي الأخيرة التي لم تلمسها):
 
 | الملف أو المجلد | الاختبارات | التأكيدات |
 |---|---|---|
-| `tests/Libraries/Documents` (ثمانية ملفات) | 215 | 1,119 |
+| `tests/Libraries/Documents` (تسعة ملفات) | 243 | 1,251 |
 | ┗ `SimplifiedInvoiceQrTest` (متجه محسوب بيد، متجها الفاتورة والإشعار الدائن المرصودتان، حدّ 255 بايت من الجانبين) | 22 | 33 |
-| ┗ `DocumentQrTest` | 30 | 86 |
-| ┗ `AmountInWordsTest` (الحدود بالعربية والإنجليزية) | 60 | 588 |
+| ┗ `DocumentQrTest` (بما فيه بيع لم يصدر وعملة أجنبية) | 37 | 102 |
+| ┗ `AmountInWordsTest` (الحدود بالعربية والإنجليزية وجزء العملة الصغير) | 61 | 593 |
 | ┗ `DocumentTermsTest` و`DocumentTermsSettingsTest` | 6 و8 | 14 و21 |
-| ┗ `VoucherDocumentsTest` | 20 | 167 |
-| ┗ `CustomFieldTypeTest` و`CustomFieldsTest` | 38 و31 | 49 و161 |
+| ┗ `VoucherDocumentsTest` | 22 | 183 |
+| ┗ `PurchasePaidAmountsTest` (ملف جديد) | 12 | 68 |
+| ┗ `CustomFieldTypeTest` و`CustomFieldsTest` | 38 و37 | 49 و188 |
 | `tests/Database/CustomFieldsTablesMigrationTest.php` | 7 | 24 |
 | `tests/Libraries/Pdf_libTest.php` (أربع دوال مضافة) | 10 | 18 |
-| `tests/helpers/DocumentHelperTest.php` | 29 | 79 |
+| `tests/helpers/DocumentHelperTest.php` | 30 | 84 |
 | `tests/helpers/NavigationHelperTest.php` | 16 | 22 |
-| `tests/Libraries/Sale_libTest.php` و`Sale_libPaymentTest.php` | 88 و12 | 238 و21 |
+| `tests/Libraries/Sale_libTest.php` و`Sale_libPaymentTest.php` | 90 و12 | 242 و21 |
+| `tests/Models/SaleTest.php` | 111 | 740 |
 | `tests/Libraries/Accounting/Readiness` (مجلد) و`tests/Commands/AccountingReadinessTest.php` | 243 و25 | 884 و131 |
 | `SensitivePermissionsTest` و`tests/Libraries/Roles/PermissionCatalogTest.php` | 14 و6 | 83 و82 |
-| `tests/LanguageFilesTest.php` | 3074 | 8,876 |
-| `Custom_fieldsControllerTest` و`ConfigTest` و`ExportsControllerTest` | 14 و44 و6 | 77 و184 و21 |
-| `Receipt_vouchersControllerTest` و`AccountingJournalsControllerTest` و`ExpensesControllerTest` | 31 و149 و67 | 243 و788 و480 |
-| `EmployeesControllerTest` و`ItemsControllerTest` | 64 و144 | 387 و941 |
-| `ReceivingsControllerTest` و`SalesControllerTest` | 240 و542 | 1,967 و3,868 |
-| **المجموع** | **5,040** | **20,533** |
+| `tests/LanguageFilesTest.php` | 3074 | 8,882 |
+| `Custom_fieldsControllerTest` و`ConfigTest` و`ExportsControllerTest` | 16 و44 و6 | 89 و184 و21 |
+| `Receipt_vouchersControllerTest` و`AccountingJournalsControllerTest` و`ExpensesControllerTest` | 31 و150 و69 | 243 و793 و494 |
+| `EmployeesControllerTest` و`ItemsControllerTest` | 64 و145 | 387 و949 |
+| `ReceivingsControllerTest` و`SalesControllerTest` | 246 و575 | 2,032 و4,069 |
+| **المجموع** | **5,227** | **21,725** |
 
-- **274 دالة اختبار مضافة** (عدّ دوال `test*` المضافة في الفرق بين الرأس الذي بدأ منه الفرع `689ad96` ورأس الفرع؛ وتتوسع بمزوّدات البيانات إلى أعداد الجدول أعلاه)، ملفٌّ واحد لكل صنف تحت الاختبار: ثمانية ملفات جديدة في `tests/Libraries/Documents` وملف لمتحكم الحقول وآخر للترحيل، والباقي دوال أُضيفت إلى الملفات القانونية (`SalesControllerTest`, `ReceivingsControllerTest`, `ExpensesControllerTest`, `Receipt_vouchersControllerTest`, `AccountingJournalsControllerTest`, `ItemsControllerTest`, `ConfigTest`, `LanguageFilesTest`, `DocumentHelperTest`, `Pdf_libTest`). تسمية الدوال `test{الدالة}_{السلوك}` بفعل.
+- **330 دالة اختبار مضافة** (عدّ دوال `test*` المضافة في الفرق بين الرأس الذي بدأ منه الفرع `689ad96` ورأس الفرع؛ وتتوسع بمزوّدات البيانات إلى أعداد الجدول أعلاه)، ملفٌّ واحد لكل صنف تحت الاختبار: تسعة ملفات جديدة في `tests/Libraries/Documents` وملف لمتحكم الحقول وآخر للترحيل، والباقي دوال أُضيفت إلى الملفات القانونية (`SalesControllerTest`, `ReceivingsControllerTest`, `ExpensesControllerTest`, `Receipt_vouchersControllerTest`, `AccountingJournalsControllerTest`, `ItemsControllerTest`, `ConfigTest`, `LanguageFilesTest`, `DocumentHelperTest`, `Pdf_libTest`). تسمية الدوال `test{الدالة}_{السلوك}` بفعل.
 - **ما طُلب إثباته وأين يثبته الاختبار:**
   - **متجه QR:** `SimplifiedInvoiceQrTest::testEncode_ProducesTheBase64OfThePublishedExample` (المثال المتداول بأربعة أرقام وخمسة وسوم؛ **مصدره معرفتي لا رصد** فلا أدّعي أنه شهادة) وبايتا الفاتورة والإشعار الدائن المرصودتين في دفترة (OBS-A).
   - **QR على الفاتورة والإشعار الدائن فقط ومع الرقم الضريبي فقط:** `DocumentQrTest` (كل نوع مستند) و`SalesControllerTest` (الصفحة نفسها) و`ReceivingsControllerTest::testGetPrint_CarriesNoCodeAndNoSalesWordsOnAPurchaseInvoiceEvenWithATaxNumber`.
@@ -59,11 +61,11 @@
   - **المطبوع لا يغيّر رقمًا:** `testGetPrint_AndPdfChangeNoRowOf...` و`DatabaseFingerprintTrait` في كل عائلة.
   - **PdfLib:** أربع دوال: جدول طويل يتوزع على صفحات ولا يقطع صفًّا، والهوامش بالمليمتر، وعنوان المستند في معلومات الملف، ولا عنوان بعيد يُجلب.
 - **المحاسبة مفعّلة ومطفأة:** مستندات البيع تُطبع من `_load_sale_data` نفسها في الحالتين (اختبارات `completeAs` بلا `startSelling` مطفأة المحاسبة، ومنها مقارنة البيع بحقول وبلا حقول، واختبارات `postedInvoice` مفعّلتها). القيد وسند القبض وحدتان محاسبيتان فيُرفضان (404) والمحاسبة مطفأة (`testGetPrint_RedirectsAnEmployeeWithoutTheModuleAndIsNotFoundWhileAccountingIsOff`). **لم أكتب اختبار سند الصرف والمحاسبة مطفأة** (قراءة السند من جداول المصروف لا تتوقف على التفعيل بقراءة الشيفرة، لا باختبار).
-- **التنسيق:** `php-cs-fixer` نظيف على كل ملف جديد غير قديم تحت `app` (المكتبات والمتحكم الجديد والترحيل والعروض الجديدة وملفات اللغة الجديدة). لم أشغّله على ملفات قديمة (`Sales.php` و`Config.php` و`Items.php` و`Receivings.php` وغيرها) لأنه يعيد كتابة مئات أسطرها، ولا على ملفات الاختبار لأنه يعيد تسمية دوالها.
+- **التنسيق:** `php-cs-fixer` نظيف على كل ملف جديد غير قديم تحت `app` (المكتبات والمتحكم الجديد والترحيل والعروض الجديدة وملفات اللغة الجديدة). لم أشغّله على ملفات قديمة كاملة (`Sales.php` و`Config.php` و`Items.php` و`Receivings.php` وغيرها) لأنه يعيد كتابة مئات أسطرها، ولا على ملفات الاختبار لأنه يعيد تسمية دوالها. **فحصتُ بدل ذلك أسطري المضافة بمقارنة ما يغيّره المنسّق بما أضفته على `689ad96`**: لا تداخل في `Receivings.php` و`Items.php` و`Config.php` و`Expenses.php` و`AccountingJournals.php` و`Receipt_vouchers.php` و`Sale.php` و`document_helper.php` و`navigation_helper.php` و`Routes.php`؛ وفي `Sales.php` يتداخل مع كتل قديمة يعيد المنسّق هيكلتها (سلاسل `else`/`elseif` في `postComplete` ومحاذاة تعيينات `$data`) فتركتُ الأسطر بنمط محيطها، وفي `Sale_lib.php` ترتيب `use` قديم من WP34 لا من أسطري.
 
 ## 3. الحراس
 
-كل حارس عُطِّل وحده في نسخة الملف (`tools/dev/guard_mutations.py` وقائمة `wp40-guards.json`) ثم استُعيد الملف؛ كشفه = فشل اختبار من الملف أو المرشِّح المسمّى. **النتيجة النهائية على رأس الفرع: 102 حارسًا، 102 كُشف، 0 لم يُكشف، 0 غير صالح** (`MYSQL_DB_NAME=ospos_test_wp40 python3 tools/dev/guard_mutations.py docs/accounting/daftra-parity/wp40-guards.json`). بادئات الأسماء: QR (الباني) وDQ (طبقة المستند) وAW (التفقيط) وTM (الشروط) وVD (السندات والإيصالات) وCF (الحقول) وCC (شاشة الحقول) وSC (مبيعات) وIC (أصناف) وRC (استلام) وEX وRV وJN (المصروف وسند القبض والقيد) وDH (مساعد المستندات). حراس المتحكمات تُشغَّل باختبارات مرشَّحة بـ`--filter` على الملف القانوني نفسه.
+كل حارس عُطِّل وحده في نسخة الملف (`tools/dev/guard_mutations.py` وقائمة `wp40-guards.json`) ثم استُعيد الملف؛ كشفه = فشل اختبار من الملف أو المرشِّح المسمّى. **النتيجة النهائية على رأس الفرع: 150 حارسًا، 150 كُشف، 0 لم يُكشف، 0 غير صالح** (`MYSQL_DB_NAME=ospos_test_wp40 python3 tools/dev/guard_mutations.py docs/accounting/daftra-parity/wp40-guards.json`). بادئات الأسماء: QR (الباني) وDQ (طبقة المستند) وAW (التفقيط) وTM (الشروط) وVD (السندات والإيصالات) وCF (الحقول) وCC (شاشة الحقول) وSC (مبيعات) وIC (أصناف) وRC (استلام) وEX وRV وJN (المصروف وسند القبض والقيد) وDH (مساعد المستندات) وPP وPV (مدفوع فاتورة الشراء ومتبقيها) وSV (نموذج البيع) وSL (سجل البيع) وSM (نموذج `Sale`). حراس المتحكمات تُشغَّل باختبارات مرشَّحة بـ`--filter` على الملف القانوني نفسه.
 
 | # | الحارس | الملف الذي يحرسه | الاختبار الذي يكشفه | النتيجة |
 |---|---|---|---|---|
@@ -160,7 +162,7 @@
 | IC03 | نموذج بلا حقول إضافية يترك المحفوظ منها | `Items.php` | `ItemsControllerTest` | كُشف |
 | RC01 | طباعة فاتورة شراء تفحص فرع الموظف | `Receivings.php` | `ReceivingsControllerTest` | كُشف |
 | RC02 | إذن المخزون ليس فاتورة شراء | `Receivings.php` | `ReceivingsControllerTest` | كُشف |
-| RC04 | الدفعات المكتملة وحدها تُحسب مدفوعة على فاتورة الشراء | `Receivings.php` | `ReceivingsControllerTest` | كُشف |
+| RC04 | الدفعات المكتملة وحدها تُحسب مدفوعة حين يُقرأ الشراء نفسه | `PurchasePaidAmounts.php` | `PurchasePaidAmountsTest` | كُشف |
 | EX01 | سند غير موجود صفحة غير موجودة (مصروف) | `Expenses.php` | `ExpensesControllerTest` | كُشف |
 | RV01 | سند غير موجود صفحة غير موجودة (سند قبض) | `Receipt_vouchers.php` | `Receipt_vouchersControllerTest` | كُشف |
 | JN01 | القيد يُجلب كما تجلبه الشاشة | `AccountingJournals.php` | `AccountingJournalsControllerTest` | كُشف |
@@ -169,6 +171,59 @@
 | DH03 | الرمز لعائلة الفاتورة | `document_helper.php` | `DocumentHelperTest` | كُشف |
 | DH04 | الإشعار المدين للمورّد يعرض ما يستردّه بمبالغ موجبة | `document_helper.php` | `ReceivingsControllerTest` | كُشف |
 | DH05 | مرتجع صدر فاتورة مرتجعة يحمل هذا الاسم | `document_helper.php` | `DocumentHelperTest` | كُشف |
+
+**حراس جولة الإصلاح (48 حارسًا أُضيف)**: كل ما أضافته الإصلاحات من رفض أو فحص أو قراءة أو رابط، عُطِّل وحده فكُشف؛ وأُعيدت كتابة نصوص ثلاثة عشر حارسًا قديمًا لأن الشيفرة التي تحرسها تغيّرت (لم يبقَ حارس بنص غير موجود).
+
+| # | الحارس | الملف الذي يحرسه | الاختبار الذي يكشفه | النتيجة |
+|---|---|---|---|---|
+| DQ10 | مستند بيع لم يصدر (معلّق أو ملغى أو عرض سعر أو أمر عمل) لا يحمل رمزًا | `DocumentQr.php` | `DocumentQrTest` | كُشف |
+| DQ11 | مستند بعملة أجنبية لا يحمل رمزًا وتُذكر العلة | `DocumentQr.php` | `DocumentQrTest` | كُشف |
+| DQ12 | بيع معلّق أو ملغى ليس صادرًا | `DocumentQr.php` | `DocumentQrTest` | كُشف |
+| DQ13 | عرض السعر وأمر العمل ليسا صادرَين | `DocumentQr.php` | `DocumentQrTest` | كُشف |
+| AW13 | جزء العملة الصغير يُقاس بوحدة العملة نفسها حين تُحفظ منازل أقل | `AmountInWords.php` | `AmountInWordsTest` | كُشف |
+| VD13 | مصروف مستحق (Due) لا سند صرف له | `VoucherDocuments.php` | `VoucherDocumentsTest` | كُشف |
+| VD14 | الجزء المستحق (Due) من بيع لا إيصال له | `VoucherDocuments.php` | `VoucherDocumentsTest` | كُشف |
+| VD15 | دفعة نوعها Due هي ما بقي غير مدفوع | `VoucherDocuments.php` | `VoucherDocumentsTest` و`ExpensesControllerTest` | كُشف |
+| PP01 | شراء تحمله الدفاتر يُقرأ مدفوعه ومستحقه من حساب مورّده | `PurchasePaidAmounts.php` | `PurchasePaidAmountsTest` | كُشف |
+| PP02 | شراء بعملة أجنبية لا يُقرأ من دفاتر بالعملة الأساسية | `PurchasePaidAmounts.php` | `PurchasePaidAmountsTest` | كُشف |
+| PP03 | لا يُقرأ الشراء من الدفاتر إلا وهي مفعّلة | `PurchasePaidAmounts.php` | `PurchasePaidAmountsTest` | كُشف |
+| PP04 | شراء دُفع عند حفظه مدفوع في فاتورته | `PurchasePaidAmounts.php` | `PurchasePaidAmountsTest` | كُشف |
+| PP05 | المستحق لا ينزل تحت الصفر | `PurchasePaidAmounts.php` | `PurchasePaidAmountsTest` | كُشف |
+| PP06 | يُقرأ حساب المورّد لهذا الشراء بعينه | `PurchasePaidAmounts.php` | `PurchasePaidAmountsTest` | كُشف |
+| RC05 | فاتورة الشراء تُقرأ لها أرقام المدفوع والمستحق | `Receivings.php` | `ReceivingsControllerTest` | كُشف |
+| RC06 | نوع دفع الشراء يُعطى لرقم مدفوعه | `Receivings.php` | `ReceivingsControllerTest` | كُشف |
+| RC07 | الشراء بعملة أجنبية يُميَّز | `Receivings.php` | `ReceivingsControllerTest` | كُشف |
+| RC08 | لا يُربط في نموذج الاستلام إلا إيصال دفعة له إيصال | `Receivings.php` | `ReceivingsControllerTest` | كُشف |
+| RC09 | نموذج الاستلام يربط الإيصال للدفعات التي لها إيصال وحدها | `form.php` | `ReceivingsControllerTest` | كُشف |
+| PV01 | فاتورة الشراء تطبع المستحق من حساب المورّد | `purchase_invoice.php` | `ReceivingsControllerTest` | كُشف |
+| SC17 | مستند لبيع لا وجود له غير موجود (طباعة) | `Sales.php` | `SalesControllerTest` | كُشف |
+| SC18 | مستند لبيع لا وجود له غير موجود (PDF) | `Sales.php` | `SalesControllerTest` | كُشف |
+| SC19 | مستند لبيع لا وجود له غير موجود (بريد) | `Sales.php` | `SalesControllerTest` | كُشف |
+| SC20 | مرتجع يُسمّى في ملفه وعنوان PDF بالاسم الذي صدر به | `Sales.php` | `SalesControllerTest` | كُشف |
+| SC22 | لا يُعلَّق بيع وفي حقل إضافي قيمة لا تناسبه | `Sales.php` | `SalesControllerTest` | كُشف |
+| SC23 | البيع الذي يُتمّ يحتفظ بخيار أُخرج من القائمة | `Sales.php` | `SalesControllerTest` | كُشف |
+| SC24 | البيع الذي يُعلَّق يحتفظ بخيار أُخرج من القائمة | `Sales.php` | `SalesControllerTest` | كُشف |
+| SC25 | شاشة البيع تقول مشكلة القيمة قياسًا على البيع الذي تحمله | `Sales.php` | `SalesControllerTest` | كُشف |
+| SC26 | الفاتورة المعروضة بعد البيع تحمل وقت البيع لرمزها | `Sales.php` | `SalesControllerTest` | كُشف |
+| SC27 | الفاتورة المعروضة بعد البيع تعرف عملتها لرمزها | `Sales.php` | `SalesControllerTest` | كُشف |
+| SC28 | مستندات البيع تعرف عملته لرمزها | `Sales.php` | `SalesControllerTest` | كُشف |
+| SC29 | لا يُربط في نموذج البيع إلا إيصال دفعة له إيصال | `Sales.php` | `SalesControllerTest` | كُشف |
+| SV01 | نموذج البيع يربط الإيصال للدفعات التي لها إيصال وحدها | `form.php` | `SalesControllerTest` | كُشف |
+| SL01 | البيع الجديد لا يرث قيم الحقول الإضافية للسابق | `Sale_lib.php` | `Sale_libTest` | كُشف |
+| CF24 | لا يبقى صالحًا من خيار خرج من القائمة إلا ما يحمله السجل نفسه | `CustomFields.php` | `CustomFieldsTest` | كُشف |
+| CF25 | خيار أُخرج من القائمة يبقى صالحًا للسجل الذي يحمله | `CustomFields.php` | `CustomFieldsTest` | كُشف |
+| CF26 | حفظ السجل يفحص قيمه على ما يحمله | `CustomFields.php` | `CustomFieldsTest` | كُشف |
+| CF27 | مشكلة القيمة تُقال قياسًا على السجل الذي يحملها | `CustomFields.php` | `CustomFieldsTest` | كُشف |
+| CF28 | ما يحمله السجل يُقرأ لسجل محفوظ وحده | `CustomFields.php` | `CustomFieldsTest` | كُشف |
+| CF29 | علامة أُعطيت مطفأة تُطفئ الحقل | `CustomFields.php` | `CustomFieldsTest` | كُشف |
+| CF30 | علامة لم تُعطَ تبقى كما كانت | `CustomFields.php` | `CustomFieldsTest` | كُشف |
+| CC04 | نموذج الحقل يُرسل علامة «إلزامي» مطفأة حين لا يُعلَّم مربعها | `form.php` | `Custom_fieldsControllerTest` | كُشف |
+| CC05 | نموذج الحقل يُرسل علامة «يُطبع» مطفأة حين لا يُعلَّم مربعها | `form.php` | `Custom_fieldsControllerTest` | كُشف |
+| IC04 | الصنف يحتفظ بخيار قائمة خرج منها ما دام يحمله | `Items.php` | `ItemsControllerTest` | كُشف |
+| EX02 | نموذج المصروف لا يربط سندًا ما دام المصروف مستحقًا | `form.php` | `ExpensesControllerTest` | كُشف |
+| JN02 | زر طباعة القيد يفتح مستنده المطبوع | `view.php` | `AccountingJournalsControllerTest` | كُشف |
+| DH06 | رقم الإشعار المدين لا يُسمّى رقم أمر | `document_helper.php` | `DocumentHelperTest` | كُشف |
+| SM01 | وقت حفظ البيع يُقرأ من البيع نفسه بلا جدول مؤقت | `Sale.php` | `SaleTest` | كُشف |
 
 **ما كشفه التعطيل فعدّلتُه:** سبعة حراس من 104 لم تكشفهم الجولة الأولى، فعولج كلٌّ منها وأُعيد التشغيل:
 
@@ -179,7 +234,7 @@
 5. **SC13** (تعليق البيع لا يحتاج حقوله الإلزامية): اختبار قيم البيع المعلّق كان بحقل غير إلزامي؛ صار بحقل إلزامي فارغ بجانب حقل مملوء، فتعطيله يُسقط القيم كلها.
 6. **SC15** (من شاشة البيع تُحفظ حقول الفواتير الفعّالة وحدها): لم يكن في الاختبار حقل موقوف؛ أضفتُ حقلًا موقوفًا يُرسَل له قيمة فلا تُحفظ.
 
-قائمة `wp40-guards.json` بعدها **102 حارسًا** (بعد حذف DQ03 وRC03 المكرّرين)، وأُعيد تشغيل القائمة كاملة على رأس الفرع.
+قائمة `wp40-guards.json` بعدها **102 حارسًا** (بعد حذف DQ03 وRC03 المكرّرين)، ثم **150 حارسًا** بعد جولة الإصلاح (القسم 9)، وأُعيد تشغيل القائمة كاملة على رأس الفرع.
 
 ## 4. ما افترضتُه
 
