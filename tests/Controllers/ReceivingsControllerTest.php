@@ -3734,6 +3734,19 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame(to_currency('500.00'), $this->totalsRowOf($body, lang('Sales.amount_due')));
     }
 
+    public function testGetPrint_PrintsNothingDueForAPurchaseThatWasPaidBeyondItsTotal(): void
+    {
+        $receiving = $this->purchaseOf('500.00', $this->supplierId, lang('Sales.cash'));
+        $this->accountingDb()->table('receivings')->where('receiving_id', $receiving)->update(['payment_type' => 'Cash', 'currency_code' => 'USD', 'currency_rate' => '3.7500']);
+        $this->accountingDb()->table('receivings_payments')->insert(['receiving_id' => $receiving, 'payment_type' => 'Cash', 'payment_amount' => '100.00', 'payment_time' => '2026-10-22 11:15:00']);
+        $this->loginAs($this->buyer());
+
+        $body = $this->get('/receivings/print/' . $receiving)->getBody();
+
+        $this->assertSame(to_currency('600.00'), $this->totalsRowOf($body, lang('Documents.paid')));
+        $this->assertSame(to_currency('0.00'), $this->totalsRowOf($body, lang('Sales.amount_due')));
+    }
+
     public function testGetPrint_ShowsNoPurchaseInvoiceForAStockRequisition(): void
     {
         $receiving = $this->purchaseOf('500.00', $this->supplierId);

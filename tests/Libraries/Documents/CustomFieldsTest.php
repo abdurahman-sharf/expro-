@@ -256,10 +256,17 @@ class CustomFieldsTest extends CIUnitTestCase
 
         $this->assertFalse($this->fields->find($id)->required);
         $this->assertFalse($this->fields->find($id)->printable);
+    }
+
+    public function testUpdate_LeavesRequiredAndPrintableAsTheyAreWhenTheyAreNotGiven(): void
+    {
+        $id = $this->define('sale', 'PO number', 'text', ['required' => '1', 'printable' => '1']);
 
         $this->fields->update($id, ['name' => 'PO reference'], null);
 
-        $this->assertFalse($this->fields->find($id)->required, 'A change of the name leaves the flags as they are.');
+        $this->assertTrue($this->fields->find($id)->required, 'A change of the name leaves the flag required as it was.');
+        $this->assertTrue($this->fields->find($id)->printable, 'A change of the name leaves the flag printable as it was.');
+        $this->assertSame('PO reference', $this->fields->find($id)->name);
     }
 
     public function testUpdate_AuditsNothingWhenNothingChanged(): void
