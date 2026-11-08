@@ -8446,6 +8446,24 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertStringNotContainsString('class="doc-qr-text"', $page->getBody());
     }
 
+    public function testPostComplete_SaysWhyTheInvoiceOfAForeignCurrencyCarriesNoCodeRightAfterTheSale(): void
+    {
+        [, $itemId] = $this->foreignRegister('USD', '3.75', 'sale_invoice', '375.00');
+        $this->chooseCurrency('USD');
+        $this->addToTheRegister($itemId);
+        $before = $this->withPrintSettings(['company' => 'opes', 'tax_id' => '300000000000003']);
+
+        try {
+            $page = $this->post('/sales/complete');
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $this->assertSame('USD', $this->accountingDb()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow()->currency_code);
+        $page->assertSee(lang('Documents.error_qr_foreign_currency'));
+        $this->assertStringNotContainsString('class="doc-qr-text"', $page->getBody());
+    }
+
     public function testRenderPdfHtml_CarriesTheCodeOfACreditNoteWithTheAmountsItTakesBack(): void
     {
         $invoice = $this->postedInvoice();

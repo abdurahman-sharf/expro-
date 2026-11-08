@@ -62,8 +62,8 @@
   {
     "name": "DQ01 only an invoice, a tax invoice and a credit note carry a code",
     "file": "app/Libraries/Documents/DocumentQr.php",
-    "find": "if (! self::applies($type)) {",
-    "replace": "if (false) {",
+    "find": "if (! self::applies($type) || ! self::issued($sale)) {",
+    "replace": "if (! self::issued($sale)) {",
     "tests": [
       "tests/Libraries/Documents/DocumentQrTest.php"
     ],
@@ -357,8 +357,8 @@
   {
     "name": "VD02 an expense of no money going out has no voucher",
     "file": "app/Libraries/Documents/VoucherDocuments.php",
-    "find": "(int) $row->deleted === 1 || bccomp((string) $row->amount, '0', 4) <= 0 || ! $this->visible($row->branch_id, $row->employee_id, $viewerId)) {\n            return null;\n        }\n\n        $rows = [\n            [lang('Documents.category'), (string) $row->category_name],\n            [lang('Documents.method'), (string) $row->payment_type],\n            [lang('Documents.treasury'), (string) $row->treasury_name],\n            [lang('Documents.entered_by'), (string) $row->employee_name],\n        ];\n\n        return $this->build(\n            VoucherDocument::PAYMENT_VOUCHER",
-    "replace": "(int) $row->deleted === 1 || ! $this->visible($row->branch_id, $row->employee_id, $viewerId)) {\n            return null;\n        }\n\n        $rows = [\n            [lang('Documents.category'), (string) $row->category_name],\n            [lang('Documents.method'), (string) $row->payment_type],\n            [lang('Documents.treasury'), (string) $row->treasury_name],\n            [lang('Documents.entered_by'), (string) $row->employee_name],\n        ];\n\n        return $this->build(\n            VoucherDocument::PAYMENT_VOUCHER",
+    "find": "bccomp((string) $row->amount, '0', 4) <= 0 || self::isDue($row->payment_type) || ! $this->visible(",
+    "replace": "self::isDue($row->payment_type) || ! $this->visible(",
     "tests": [
       "tests/Libraries/Documents/VoucherDocumentsTest.php"
     ],
@@ -588,7 +588,7 @@
   {
     "name": "CF13 a value must fit the type of its field",
     "file": "app/Libraries/Documents/CustomFields.php",
-    "find": "$values[$definition->id] = $definition->type->normalize($raw, $definition->options) ?? throw new DocumentException(DocumentError::CustomFieldValue, context: ['field' => $definition->name]);",
+    "find": "$values[$definition->id] = $normal ?? throw new DocumentException(DocumentError::CustomFieldValue, context: ['field' => $definition->name]);",
     "replace": "$values[$definition->id] = $raw;",
     "tests": [
       "tests/Libraries/Documents/CustomFieldsTest.php"
@@ -668,7 +668,7 @@
   {
     "name": "CF21 nothing is kept unless every value is right",
     "file": "app/Libraries/Documents/CustomFields.php",
-    "find": "$values = $this->check($entity, $posted, $requireValues);\n\n        $this->db->transStart();",
+    "find": "$values = $this->check($entity, $posted, $requireValues, $entityId);\n\n        $this->db->transStart();",
     "replace": "$values = [];\n\n        $this->db->transStart();",
     "tests": [
       "tests/Libraries/Documents/CustomFieldsTest.php"
@@ -728,8 +728,8 @@
   {
     "name": "SC01 printing a document of a sale checks the branch of the employee",
     "file": "app/Controllers/Sales.php",
-    "find": "public function getPrint(int $saleId, string $type = 'credit_note'): string|ResponseInterface\n    {\n        if ($this->outsideBranchScope($saleId)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n",
-    "replace": "public function getPrint(int $saleId, string $type = 'credit_note'): string|ResponseInterface\n    {\n        if (false) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n",
+    "find": "public function getPrint(int $saleId, string $type = 'credit_note'): ResponseInterface|string\n    {\n        if ($this->outsideBranchScope($saleId)) {",
+    "replace": "public function getPrint(int $saleId, string $type = 'credit_note'): ResponseInterface|string\n    {\n        if (false) {",
     "tests": [
       "--filter",
       "testGetPrint_|testGetPdf_|testGetSendPdf_|testGetPaymentReceipt|testRenderSlip_",
@@ -740,8 +740,8 @@
   {
     "name": "SC02 printing a document of a sale needs reports_sales",
     "file": "app/Controllers/Sales.php",
-    "find": "if (!$this->employee->has_grant('reports_sales', $this->session->get('person_id'))) {\n            return redirect()->to('no_access/sales/reports_sales');\n        }\n\n        if (!in_array($type, [...documentTypes(), ...slipTypes()], true)) {",
-    "replace": "if (false) {\n            return redirect()->to('no_access/sales/reports_sales');\n        }\n\n        if (!in_array($type, [...documentTypes(), ...slipTypes()], true)) {",
+    "find": "if (! $this->employee->has_grant('reports_sales', $this->session->get('person_id'))) {\n            return redirect()->to('no_access/sales/reports_sales');\n        }\n\n        if (! in_array($type, [...documentTypes(), ...slipTypes()], true) || ! $this->sale->exists($saleId)) {",
+    "replace": "if (false) {\n            return redirect()->to('no_access/sales/reports_sales');\n        }\n\n        if (! in_array($type, [...documentTypes(), ...slipTypes()], true) || ! $this->sale->exists($saleId)) {",
     "tests": [
       "--filter",
       "testGetPrint_|testGetPdf_|testGetSendPdf_|testGetPaymentReceipt|testRenderSlip_",
@@ -752,8 +752,8 @@
   {
     "name": "SC03 only a document of a sale can be printed",
     "file": "app/Controllers/Sales.php",
-    "find": "if (!in_array($type, [...documentTypes(), ...slipTypes()], true)) {",
-    "replace": "if (false) {",
+    "find": "if (! in_array($type, [...documentTypes(), ...slipTypes()], true) || ! $this->sale->exists($saleId)) {",
+    "replace": "if (! $this->sale->exists($saleId)) {",
     "tests": [
       "--filter",
       "testGetPrint_|testGetPdf_|testGetSendPdf_|testGetPaymentReceipt|testRenderSlip_",
@@ -776,7 +776,7 @@
   {
     "name": "SC05 a slip is for a completed sale of goods",
     "file": "app/Controllers/Sales.php",
-    "find": "return !in_array((int) ($saleData['sale_type'] ?? -1), [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) || (int) ($saleData['sale_status'] ?? -1) !== COMPLETED;",
+    "find": "return ! in_array((int) ($saleData['sale_type'] ?? -1), [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) || (int) ($saleData['sale_status'] ?? -1) !== COMPLETED;",
     "replace": "return false;",
     "tests": [
       "--filter",
@@ -812,8 +812,8 @@
   {
     "name": "SC08 a slip is never emailed",
     "file": "app/Controllers/Sales.php",
-    "find": "if (!in_array($type, [...documentTypes(), 'receipt'], true)) {\n            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);\n        }\n\n        $saleData = $this->_load_sale_data($saleId);\n\n        if ($this->documentRefused",
-    "replace": "if (!in_array($type, [...documentTypes(), ...slipTypes(), 'receipt'], true)) {\n            return $this->response->setStatusCode(404)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);\n        }\n\n        $saleData = $this->_load_sale_data($saleId);\n\n        if ($this->documentRefused",
+    "find": "if (! in_array($type, [...documentTypes(), 'receipt'], true) || ! $this->sale->exists($saleId)) {",
+    "replace": "if (! in_array($type, [...documentTypes(), ...slipTypes(), 'receipt'], true) || ! $this->sale->exists($saleId)) {",
     "tests": [
       "--filter",
       "testGetPrint_|testGetPdf_|testGetSendPdf_|testGetPaymentReceipt|testRenderSlip_",
@@ -824,7 +824,7 @@
   {
     "name": "SC09 the receipt of a payment needs reports_sales",
     "file": "app/Controllers/Sales.php",
-    "find": "if (!$this->employee->has_grant('reports_sales', $personId)) {\n            return redirect()->to('no_access/sales/reports_sales');\n        }\n\n        $voucher = (new VoucherDocuments())->customerPayment",
+    "find": "if (! $this->employee->has_grant('reports_sales', $personId)) {\n            return redirect()->to('no_access/sales/reports_sales');\n        }\n\n        $voucher = (new VoucherDocuments())->customerPayment",
     "replace": "if (false) {\n            return redirect()->to('no_access/sales/reports_sales');\n        }\n\n        $voucher = (new VoucherDocuments())->customerPayment",
     "tests": [
       "--filter",
@@ -836,7 +836,7 @@
   {
     "name": "SC10 the pdf of the receipt of a payment needs reports_sales",
     "file": "app/Controllers/Sales.php",
-    "find": "if (!$this->employee->has_grant('reports_sales', $personId)) {\n            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);\n        }\n\n        $voucher = (new VoucherDocuments())->customerPayment",
+    "find": "if (! $this->employee->has_grant('reports_sales', $personId)) {\n            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);\n        }\n\n        $voucher = (new VoucherDocuments())->customerPayment",
     "replace": "if (false) {\n            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Sales.not_authorized')]);\n        }\n\n        $voucher = (new VoucherDocuments())->customerPayment",
     "tests": [
       "--filter",
@@ -848,7 +848,7 @@
   {
     "name": "SC11 an invoice with a required extra field left empty is not completed",
     "file": "app/Controllers/Sales.php",
-    "find": "if ($customProblem !== null) {\n            $data['error'] = $customProblem;\n            return $this->reload($data);\n        }",
+    "find": "$customProblem = (new CustomFields())->problem('sale', $this->sale_lib->getCustomFields(), entityId: (int) $saleId);\n\n        if ($customProblem !== null) {\n            $data['error'] = $customProblem;\n\n            return $this->reload($data);\n        }",
     "replace": "",
     "tests": [
       "--filter",
@@ -978,14 +978,12 @@
     "all": false
   },
   {
-    "name": "RC04 only completed payments count as paid on a purchase invoice",
-    "file": "app/Controllers/Receivings.php",
-    "find": "foreach ($this->receiving->get_payments($receivingId) as $payment) {\n            if (PaymentStatus::fromStored($payment->payment_status)->posts()) {",
-    "replace": "foreach ($this->receiving->get_payments($receivingId) as $payment) {\n            if (true) {",
+    "name": "RC04 only completed payments count as paid on a purchase invoice read from the purchase itself",
+    "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
+    "find": "if (PaymentStatus::fromStored($payment->payment_status)->posts()) {",
+    "replace": "if (true) {",
     "tests": [
-      "--filter",
-      "testGetPrint_|testGetPdf_|testGetPaymentReceipt",
-      "tests/Controllers/ReceivingsControllerTest.php"
+      "tests/Libraries/Documents/PurchasePaidAmountsTest.php"
     ],
     "all": false
   },
@@ -1072,6 +1070,525 @@
     "file": "app/Helpers/document_helper.php",
     "find": "if (empty($sale['creditNoteNumber']) && ! empty($sale['refundInvoiceNumber'])) {",
     "replace": "if (false) {",
+    "tests": [
+      "tests/helpers/DocumentHelperTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "DQ10 a document of a sale that was not issued carries no code",
+    "file": "app/Libraries/Documents/DocumentQr.php",
+    "find": "if (! self::applies($type) || ! self::issued($sale)) {",
+    "replace": "if (! self::applies($type)) {",
+    "tests": [
+      "tests/Libraries/Documents/DocumentQrTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "DQ11 a document in a foreign currency carries no code, and says why",
+    "file": "app/Libraries/Documents/DocumentQr.php",
+    "find": "if (trim((string) ($sale['currency_code'] ?? '')) !== '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Documents/DocumentQrTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "DQ12 a sale set aside or cancelled is not issued",
+    "file": "app/Libraries/Documents/DocumentQr.php",
+    "find": "(int) ($sale['sale_status'] ?? COMPLETED) === COMPLETED\n            && ! in_array(",
+    "replace": "true\n            && ! in_array(",
+    "tests": [
+      "tests/Libraries/Documents/DocumentQrTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "DQ13 a quote and a work order are not issued",
+    "file": "app/Libraries/Documents/DocumentQr.php",
+    "find": "\n            && ! in_array((int) ($sale['sale_type'] ?? SALE_TYPE_INVOICE), [SALE_TYPE_QUOTE, SALE_TYPE_WORK_ORDER], true);",
+    "replace": ";",
+    "tests": [
+      "tests/Libraries/Documents/DocumentQrTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AW13 the minor unit is counted in the unit of the currency when fewer decimals are kept",
+    "file": "app/Libraries/Documents/AmountInWords.php",
+    "find": "(int) str_pad($split[1], $currency->decimals, '0')",
+    "replace": "(int) $split[1]",
+    "tests": [
+      "tests/Libraries/Documents/AmountInWordsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "VD13 an expense that is still due has no voucher",
+    "file": "app/Libraries/Documents/VoucherDocuments.php",
+    "find": "|| self::isDue($row->payment_type) || ! $this->visible(",
+    "replace": "|| ! $this->visible(",
+    "tests": [
+      "tests/Libraries/Documents/VoucherDocumentsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "VD14 the due part of a sale has no receipt",
+    "file": "app/Libraries/Documents/VoucherDocuments.php",
+    "find": "|| self::isDue($row->payment_type) || ! PaymentStatus::fromStored($row->payment_status)->posts()) {",
+    "replace": "|| ! PaymentStatus::fromStored($row->payment_status)->posts()) {",
+    "tests": [
+      "tests/Libraries/Documents/VoucherDocumentsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "VD15 a payment of the type Due is what is left unpaid",
+    "file": "app/Libraries/Documents/VoucherDocuments.php",
+    "find": "return PaymentType::fromLabel((string) $paymentType) === PaymentType::Due;",
+    "replace": "return false;",
+    "tests": [
+      "tests/Libraries/Documents/VoucherDocumentsTest.php",
+      "tests/Controllers/ExpensesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PP01 a purchase the books hold is read from the account of its supplier",
+    "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
+    "find": "if ($supplierId !== null && ! $foreign && (new AccountingSettings($this->db))->isEnabled()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Documents/PurchasePaidAmountsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PP02 a purchase in a foreign currency is not read from the books in the base currency",
+    "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
+    "find": "$supplierId !== null && ! $foreign && ",
+    "replace": "$supplierId !== null && ",
+    "tests": [
+      "tests/Libraries/Documents/PurchasePaidAmountsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PP03 a purchase is read from the books only while they are on",
+    "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
+    "find": " && (new AccountingSettings($this->db))->isEnabled()) {",
+    "replace": ") {",
+    "tests": [
+      "tests/Libraries/Documents/PurchasePaidAmountsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PP04 a purchase paid when it was saved is paid",
+    "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
+    "find": "$paid = PaymentType::fromLabel((string) $paymentType)?->usesTreasury() === true ? $total : '0';",
+    "replace": "$paid = '0';",
+    "tests": [
+      "tests/Libraries/Documents/PurchasePaidAmountsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PP05 what is due is never below zero",
+    "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
+    "find": "bccomp($due, '0', SaleAmounts::SCALE) > 0 ? $due : '0.0000'",
+    "replace": "$due",
+    "tests": [
+      "tests/Libraries/Documents/PurchasePaidAmountsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PP06 the account of the supplier is read for this purchase",
+    "file": "app/Libraries/Documents/PurchasePaidAmounts.php",
+    "find": "->position($supplierId)->purchase($receivingId);",
+    "replace": "->position($supplierId)->purchase(0);",
+    "tests": [
+      "tests/Libraries/Documents/PurchasePaidAmountsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RC05 a purchase invoice is read for its paid and due figures",
+    "file": "app/Controllers/Receivings.php",
+    "find": "$settled = $type === ReceivingType::Return\n            ? ['paid' => '0', 'due' => '0']\n            : (new PurchasePaidAmounts())->read(",
+    "replace": "$settled = true\n            ? ['paid' => '0', 'due' => '0']\n            : (new PurchasePaidAmounts())->read(",
+    "tests": [
+      "--filter",
+      "testGetPrint_|testGetPdf_|testGetPaymentReceipt",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RC06 the payment type of the purchase is given to its paid figure",
+    "file": "app/Controllers/Receivings.php",
+    "find": "$info['payment_type'] ?? null,",
+    "replace": "null,",
+    "tests": [
+      "--filter",
+      "testGetPrint_|testGetPdf_|testGetPaymentReceipt",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RC07 a purchase in a foreign currency is told apart",
+    "file": "app/Controllers/Receivings.php",
+    "find": "($info['currency_code'] ?? null) !== null,",
+    "replace": "false,",
+    "tests": [
+      "--filter",
+      "testGetPrint_|testGetPdf_|testGetPaymentReceipt",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RC08 only a payment that has a receipt is linked on the form of the purchase",
+    "file": "app/Controllers/Receivings.php",
+    "find": "static fn (int $paymentId): bool => $vouchers->supplierPayment($paymentId, (int) $currentEmployeeId) !== null,",
+    "replace": "static fn (int $paymentId): bool => true,",
+    "tests": [
+      "--filter",
+      "testGetEdit_|testGetView_|testGetPaymentReceipt|testGetForm",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RC09 the form of the purchase links a receipt only for the payments that have one",
+    "file": "app/Views/receivings/form.php",
+    "find": "<?php if (in_array((int) $row->payment_id, $receiptIds ?? [], true)): ?>",
+    "replace": "<?php if (true): ?>",
+    "tests": [
+      "--filter",
+      "testGetEdit_|testGetView_|testGetPaymentReceipt|testGetForm",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PV01 the purchase invoice prints the due figure of the supplier account",
+    "file": "app/Views/documents/purchase_invoice.php",
+    "find": "$due             = (string) ($receiving['due'] ?? '0');",
+    "replace": "$due             = bcsub(documentFigure(false, $grand), $paid, 4);",
+    "tests": [
+      "--filter",
+      "testGetPrint_|testGetPdf_|testGetPaymentReceipt",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SC17 a document of a sale that does not exist is not found (print)",
+    "file": "app/Controllers/Sales.php",
+    "find": "if (! in_array($type, [...documentTypes(), ...slipTypes()], true) || ! $this->sale->exists($saleId)) {",
+    "replace": "if (! in_array($type, [...documentTypes(), ...slipTypes()], true)) {",
+    "tests": [
+      "--filter",
+      "testGetPrint_|testGetPdf_|testGetSendPdf_|testGetPaymentReceipt|testRenderSlip_|testRenderPdf_",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SC18 a document of a sale that does not exist is not found (pdf)",
+    "file": "app/Controllers/Sales.php",
+    "find": "if (! in_array($type, [...documentTypes(), ...slipTypes(), 'receipt'], true) || ! $this->sale->exists($saleId)) {",
+    "replace": "if (! in_array($type, [...documentTypes(), ...slipTypes(), 'receipt'], true)) {",
+    "tests": [
+      "--filter",
+      "testGetPrint_|testGetPdf_|testGetSendPdf_|testGetPaymentReceipt|testRenderSlip_|testRenderPdf_",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SC19 a document of a sale that does not exist is not found (email)",
+    "file": "app/Controllers/Sales.php",
+    "find": "if (! in_array($type, [...documentTypes(), 'receipt'], true) || ! $this->sale->exists($saleId)) {",
+    "replace": "if (! in_array($type, [...documentTypes(), 'receipt'], true)) {",
+    "tests": [
+      "--filter",
+      "testGetPrint_|testGetPdf_|testGetSendPdf_|testGetPaymentReceipt|testRenderSlip_|testRenderPdf_",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SC20 a return is titled in its file and its pdf by the name it was issued as",
+    "file": "app/Controllers/Sales.php",
+    "find": ": documentProfile($type, $saleData)['title'];",
+    "replace": ": lang('Sales.' . $type);",
+    "tests": [
+      "--filter",
+      "testGetPrint_|testGetPdf_|testGetSendPdf_|testGetPaymentReceipt|testRenderSlip_|testRenderPdf_",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SC22 a sale is not set aside while an extra field holds a value that does not fit",
+    "file": "app/Controllers/Sales.php",
+    "find": "$customProblem = (new CustomFields())->problem('sale', $this->sale_lib->getCustomFields(), false, (int) $saleId);\n\n        if ($customProblem !== null) {\n            $data['error'] = $customProblem;\n\n            return $this->reload($data);\n        }",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testPostSuspend_",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SC23 the sale being completed keeps the option of a list taken off the list",
+    "file": "app/Controllers/Sales.php",
+    "find": "->problem('sale', $this->sale_lib->getCustomFields(), entityId: (int) $saleId);",
+    "replace": "->problem('sale', $this->sale_lib->getCustomFields());",
+    "tests": [
+      "--filter",
+      "testPostComplete_CompletesTheSaleThatWasSetAside",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SC24 the sale being set aside keeps the option of a list taken off the list",
+    "file": "app/Controllers/Sales.php",
+    "find": "->problem('sale', $this->sale_lib->getCustomFields(), false, (int) $saleId);",
+    "replace": "->problem('sale', $this->sale_lib->getCustomFields(), false);",
+    "tests": [
+      "--filter",
+      "testPostSuspend_SetsASaleAsideAgain",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SC25 the register tells the problem of a value against the sale it holds",
+    "file": "app/Controllers/Sales.php",
+    "find": "$fields->problem('sale', $kept, false, (int) $this->sale_lib->get_sale_id())",
+    "replace": "$fields->problem('sale', $kept, false)",
+    "tests": [
+      "--filter",
+      "testPostSetCustomFields_",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SC26 the invoice shown after the sale carries the time of the sale for its code",
+    "file": "app/Controllers/Sales.php",
+    "find": "$data['sale_time_raw'] = (string) $this->sale->get_info($data['sale_id_num'])->getRowArray()['sale_time'];",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testPostComplete_CarriesTheSameCode",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SC27 the invoice shown after the sale knows its currency for its code",
+    "file": "app/Controllers/Sales.php",
+    "find": "$data['currency_code'] = $this->sale->getCurrencyCode((int) $data['sale_id_num']);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testPostComplete_SaysWhy",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SC28 the documents of a sale know its currency for their code",
+    "file": "app/Controllers/Sales.php",
+    "find": "$data['currency_code'] = $this->sale->getCurrencyCode((int) $saleId);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetInvoice_SaysWhy",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SC29 only a payment that has a receipt is linked on the form of the sale",
+    "file": "app/Controllers/Sales.php",
+    "find": "static fn (int $paymentId): bool => $vouchers->customerPayment($paymentId, (int) $personId) !== null,",
+    "replace": "static fn (int $paymentId): bool => true,",
+    "tests": [
+      "--filter",
+      "testGetEdit_LinksTheReceipt",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SV01 the form of the sale links a receipt only for the payments that have one",
+    "file": "app/Views/sales/form.php",
+    "find": "<?php if (in_array((int) $row->payment_id, $receiptIds ?? [], true)): ?>",
+    "replace": "<?php if (true): ?>",
+    "tests": [
+      "--filter",
+      "testGetEdit_LinksTheReceipt",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SL01 a new sale does not inherit the extra field values of the last",
+    "file": "app/Libraries/Sale_lib.php",
+    "find": "        $this->clearCustomFields();\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Sale_libTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "CF24 only an option that the same record already holds stays valid after it leaves the list",
+    "file": "app/Libraries/Documents/CustomFields.php",
+    "find": "if ($normal === null && $definition->type === CustomFieldType::Select && ($stored[$definition->id] ?? null) === $raw) {",
+    "replace": "if ($normal === null && $definition->type === CustomFieldType::Select) {",
+    "tests": [
+      "tests/Libraries/Documents/CustomFieldsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "CF25 an option taken off the list stays valid for the record that holds it",
+    "file": "app/Libraries/Documents/CustomFields.php",
+    "find": "if ($normal === null && $definition->type === CustomFieldType::Select && ($stored[$definition->id] ?? null) === $raw) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Documents/CustomFieldsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "CF26 saving a record checks its values against what it already holds",
+    "file": "app/Libraries/Documents/CustomFields.php",
+    "find": "$values = $this->check($entity, $posted, $requireValues, $entityId);\n\n        $this->db->transStart();",
+    "replace": "$values = $this->check($entity, $posted, $requireValues);\n\n        $this->db->transStart();",
+    "tests": [
+      "tests/Libraries/Documents/CustomFieldsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "CF27 the problem of a value is told against the record that holds it",
+    "file": "app/Libraries/Documents/CustomFields.php",
+    "find": "$this->check($entity, $posted, $requireValues, $entityId);\n        } catch",
+    "replace": "$this->check($entity, $posted, $requireValues);\n        } catch",
+    "tests": [
+      "tests/Libraries/Documents/CustomFieldsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "CF28 what a record already holds is read only for a record that is saved",
+    "file": "app/Libraries/Documents/CustomFields.php",
+    "find": "$stored = $entityId === null || $entityId <= 0 ? [] : $this->valuesOf($entity, $entityId);",
+    "replace": "$stored = [];",
+    "tests": [
+      "tests/Libraries/Documents/CustomFieldsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "CF29 a flag given as off switches the field off",
+    "file": "app/Libraries/Documents/CustomFields.php",
+    "find": "return $value === true || $value === 1 || $value === '1' || $value === 'on' ? 1 : 0;",
+    "replace": "return 1;",
+    "tests": [
+      "tests/Libraries/Documents/CustomFieldsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "CF30 a flag that was not given stays as it was",
+    "file": "app/Libraries/Documents/CustomFields.php",
+    "find": "'required'   => $this->flag($input['required'] ?? $current->required),",
+    "replace": "'required'   => $this->flag($input['required'] ?? false),",
+    "tests": [
+      "tests/Libraries/Documents/CustomFieldsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "CC04 the form of a field sends the required flag as off when its box is not ticked",
+    "file": "app/Views/custom_fields/form.php",
+    "find": "<input type=\"hidden\" name=\"required\" value=\"0\">",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetView_",
+      "tests/Controllers/Custom_fieldsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "CC05 the form of a field sends the printable flag as off when its box is not ticked",
+    "file": "app/Views/custom_fields/form.php",
+    "find": "<input type=\"hidden\" name=\"printable\" value=\"0\">",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetView_",
+      "tests/Controllers/Custom_fieldsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IC04 an item keeps the option of a list that left the list while it holds it",
+    "file": "app/Controllers/Items.php",
+    "find": "(new CustomFields())->problem('item', $posted, entityId: $itemId)",
+    "replace": "(new CustomFields())->problem('item', $posted)",
+    "tests": [
+      "--filter",
+      "testPostSave_SavesAnItemThatKeeps",
+      "tests/Controllers/ItemsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "EX02 the form of an expense links no voucher while the expense is due",
+    "file": "app/Views/expenses/form.php",
+    "find": " && ! VoucherDocuments::isDue($expenses_info->payment_type ?? null)) { ?>",
+    "replace": ") { ?>",
+    "tests": [
+      "--filter",
+      "testGetView_LinksTheVoucher",
+      "tests/Controllers/ExpensesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "JN02 the print button of a journal opens its printed document",
+    "file": "app/Views/accounting_journals/view.php",
+    "find": "id=\"journal_print_link\" href=\"<?= esc(base_url('accounting_journals/print/'",
+    "replace": "id=\"journal_print_link\" href=\"<?= esc(base_url('accounting_journals/pdf/'",
+    "tests": [
+      "--filter",
+      "testGetShow_",
+      "tests/Controllers/AccountingJournalsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "DH06 the number of a debit note is not called the number of an order",
+    "file": "app/Helpers/document_helper.php",
+    "find": "lang($isReturn ? 'Documents.debit_note_number' : 'Documents.purchase_number')",
+    "replace": "lang('Documents.purchase_number')",
     "tests": [
       "tests/helpers/DocumentHelperTest.php"
     ],

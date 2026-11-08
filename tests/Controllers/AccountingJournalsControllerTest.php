@@ -2322,4 +2322,16 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
 
         $this->get('/accounting_journals/view/' . $journal)->assertSee('journal_pdf_link');
     }
+
+    public function testGetShow_OffersThePrintedDocumentOfTheJournalAndNotThePrintOfTheScreen(): void
+    {
+        $this->accountant();
+        $journal = (new JournalService())->postNew($this->journalInput());
+
+        $body = $this->get('/accounting_journals/view/' . $journal)->getBody();
+
+        $this->assertStringContainsString('id="journal_print_link" href="' . base_url('accounting_journals/print/' . $journal) . '"', $body);
+        $this->assertStringContainsString('id="journal_pdf_link" href="' . base_url('accounting_journals/pdf/' . $journal) . '"', $body);
+        $this->assertStringNotContainsString('onclick="window.print()"', $body);
+    }
 }
