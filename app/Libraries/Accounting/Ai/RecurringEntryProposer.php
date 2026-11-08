@@ -96,7 +96,7 @@ final class RecurringEntryProposer implements Proposer
         $groups = [];
 
         foreach ($builder->orderBy('j.journal_id', 'ASC')->orderBy('l.line_no', 'ASC')->limit(self::ROW_CAP)->get()->getResult() as $row) {
-            $text = $row->source_type === ExpensePostingBuilder::SOURCE ? '' : CounterpartText::normalize($row->line_description !== null && trim((string) $row->line_description) !== '' ? $row->line_description : $row->journal_description);
+            $text = $this->textOf($row);
             $key  = (int) $row->branch_id . '|' . (int) $row->account_id . '|' . $text;
             $mon  = substr((string) $row->journal_date, 0, 7);
 
@@ -107,6 +107,26 @@ final class RecurringEntryProposer implements Proposer
         ksort($groups);
 
         return array_values($groups);
+    }
+
+    /**
+     * What names the expense: the text of the line, else the text of the journal for a manual one. An expense
+     * document and a journal the agent made from one have no text, so they are one expense of their account, and
+     * a journal the agent made from a manual one carries its text on every line.
+     */
+    private function textOf(object $row): string
+    {
+        $line = trim((string) $row->line_description);
+
+        if ($row->source_type === ExpensePostingBuilder::SOURCE) {
+            return '';
+        }
+
+        if ($row->source_type === ProposalService::SOURCE) {
+            return CounterpartText::normalize($line);
+        }
+
+        return CounterpartText::normalize($line !== '' ? $line : $row->journal_description);
     }
 
     /**
@@ -151,14 +171,14 @@ final class RecurringEntryProposer implements Proposer
         }
 
         $template = $seen[0];
-        $lines    = $this->templateLines((int) $template->journal_id, $group['account_id']);
+        $account  = $this->db->table('accounting_accounts')->select('code, name')->where('account_id', $group['account_id'])->get()->getRow();
+        $label    = $group['text'] !== '' ? mb_substr((string) ($template->line_description ?: $template->journal_description), 0, 200) : ProposalText::fill('label', self::KIND, ['account' => $account->code . ' ' . $account->name]);
+        $lines    = $this->templateLines((int) $template->journal_id, $group['text'] !== '' ? $label : null);
 
         if ($lines === null) {
             return null;
         }
 
-        $account = $this->db->table('accounting_accounts')->select('code, name')->where('account_id', $group['account_id'])->get()->getRow();
-        $label   = $group['text'] !== '' ? mb_substr((string) ($template->line_description ?: $template->journal_description), 0, 200) : ProposalText::fill('label', self::KIND, ['account' => $account->code . ' ' . $account->name]);
         $number  = $template->series === 'auto' ? 'A-' . $template->number : (string) $template->number;
         $amount  = (string) $template->debit;
 
@@ -201,13 +221,13 @@ final class RecurringEntryProposer implements Proposer
     }
 
     /**
-     * The lines of the journal of the last month, to be repeated, or null when it is not one the agent may
-     * repeat: it has more than one expense line, or a line on the account of a customer, a supplier or a
-     * stock location.
+     * The lines of the journal of the last month, to be repeated, with the text of the expense on the lines that
+     * have none, or null when it is not one the agent may repeat: it has more than one expense line, or a line on
+     * the account of a customer, a supplier or a stock location.
      *
      * @return list<JournalLineDraft>|null
      */
-    private function templateLines(int $journalId, int $accountId): ?array
+    private function templateLines(int $journalId, ?string $label): ?array
     {
         $rows = $this->db->table('accounting_journal_lines l')
             ->select('l.account_id, l.debit, l.credit, l.description, l.cost_center_id, a.account_type, a.entity_type')
@@ -237,7 +257,7 @@ final class RecurringEntryProposer implements Proposer
             accountId: (int) $row->account_id,
             debit: (string) $row->debit,
             credit: (string) $row->credit,
-            description: $row->description,
+            description: $label !== null && trim((string) $row->description) === '' ? $label : $row->description,
             costCenterId: $row->cost_center_id === null ? null : (int) $row->cost_center_id,
         ), $rows);
     }

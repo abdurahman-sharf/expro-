@@ -24,7 +24,8 @@ final class ReclassificationProposer implements Proposer
     public const KIND       = 'reclassify';
     public const NAME       = 'rules:reclassify';
     private const SUBJECTS  = 200;
-    private const SOURCES   = ['manual', ProposalService::SOURCE];
+    private const SUBJECT_SOURCES = ['manual'];
+    private const HISTORY_SOURCES = ['manual', ProposalService::SOURCE];
     private const TABLE_TOP = 5;
 
     private BaseConnection $db;
@@ -126,7 +127,7 @@ final class ReclassificationProposer implements Proposer
             ->join('accounting_journals j', 'j.journal_id = l.journal_id')
             ->whereIn('l.account_id', $accountIds)
             ->where('j.status', JournalStatus::Posted->value)
-            ->whereIn('j.source_type', self::SOURCES)
+            ->whereIn('j.source_type', self::SUBJECT_SOURCES)
             ->where('j.reverses_journal_id IS NULL', null, false)
             ->where('j.journal_date >=', $since)
             ->where('j.journal_date <=', $today->format('Y-m-d'));
@@ -151,7 +152,7 @@ final class ReclassificationProposer implements Proposer
             ->join('accounting_journals j', 'j.journal_id = l.journal_id')
             ->join('accounting_accounts a', 'a.account_id = l.account_id')
             ->where('j.status', JournalStatus::Posted->value)
-            ->whereIn('j.source_type', self::SOURCES)
+            ->whereIn('j.source_type', self::HISTORY_SOURCES)
             ->where('j.reverses_journal_id IS NULL', null, false)
             ->where('j.journal_id <', (int) $subject->journal_id)
             ->where('a.account_type', $type)

@@ -114,7 +114,7 @@ final class AiSettings
 
         $stored = $this->config->get_value(self::PREFIX . $name, $spec['default']);
 
-        return $this->normalized($name, $stored) ?? $spec['default'];
+        return $this->normalized($name, $stored) ?? (string) $this->normalized($name, $spec['default']);
     }
 
     public function int(string $name): int
