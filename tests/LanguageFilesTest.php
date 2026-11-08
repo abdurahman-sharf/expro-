@@ -231,13 +231,9 @@ class LanguageFilesTest extends CIUnitTestCase
         }
     }
 
-    #[DataProvider('translatedLocaleProvider')]
+    #[DataProvider('arabicLocaleProvider')]
     public function testAccountingEInvoicingFile_IsTranslatedIntoArabicAndSaysItIsACandidate(string $locale): void
     {
-        if (! str_starts_with($locale, 'ar')) {
-            $this->markTestSkipped('Only the Arabic files are checked for translation.');
-        }
-
         $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_einvoicing.php";
 
         foreach ($messages as $key => $text) {
