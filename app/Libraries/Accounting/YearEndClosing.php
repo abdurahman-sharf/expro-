@@ -42,6 +42,7 @@ final class YearEndClosing
     private PeriodLocks $locks;
     private PostingService $posting;
     private ClosedOutYears $closedOut;
+    private JournalLineAnalysis $analysis;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
@@ -52,6 +53,7 @@ final class YearEndClosing
         $this->locks     = new PeriodLocks($this->db);
         $this->posting   = new PostingService($this->db);
         $this->closedOut = new ClosedOutYears($this->db);
+        $this->analysis  = new JournalLineAnalysis($this->db);
     }
 
     /**
@@ -181,6 +183,7 @@ final class YearEndClosing
                 debit: $line->credit,
                 credit: $line->debit,
                 description: $line->description,
+                costCenterId: $line->cost_center_id === null ? null : (int) $line->cost_center_id,
             ), $this->db->table('accounting_journal_lines')->where('journal_id', (int) $original->journal_id)->orderBy('line_no', 'ASC')->get()->getResult());
 
             $result = $this->posting->postYearEnd(new JournalDraft(
@@ -198,6 +201,10 @@ final class YearEndClosing
                 branchId: (int) $closing->branch_id,
                 entryType: JournalEntryType::YearEnd,
             ));
+
+            if ($result->created) {
+                $this->analysis->copy((int) $original->journal_id, $result->journalId);
+            }
 
             $this->db->table('accounting_journals')->where('journal_id', (int) $original->journal_id)->update(['status' => JournalStatus::Reversed->value]);
             $this->db->table('accounting_year_end_closings')->where('closing_id', $closingId)->update([

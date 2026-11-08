@@ -304,7 +304,7 @@ final class PostingService
 
         $accounts = $this->assertAccountsPostable($lines, $draft->reversesJournalId !== null || $this->yearEndRelief);
         $lines    = $this->bindParties($lines, $accounts);
-        $this->assertCostCentersExist($lines);
+        $this->assertCostCentersExist($lines, $draft->reversesJournalId !== null || $this->yearEndRelief);
 
         $branchId = $this->resolveBranch($draft);
 
@@ -651,9 +651,12 @@ final class PostingService
     }
 
     /**
+     * A reversal takes back the cost center its journal charged, switched off since or not, as it takes
+     * back an account that has been switched off.
+     *
      * @param list<array<string, mixed>> $lines
      */
-    private function assertCostCentersExist(array $lines): void
+    private function assertCostCentersExist(array $lines, bool $allowInactive): void
     {
         $costCenterIds = array_values(array_unique(array_filter(array_column($lines, 'cost_center_id'))));
 
@@ -661,9 +664,14 @@ final class PostingService
             return;
         }
 
-        $found = [];
+        $found   = [];
+        $builder = (new CostCenter($this->db))->whereIn('cost_center_id', $costCenterIds);
 
-        foreach ((new CostCenter($this->db))->whereIn('cost_center_id', $costCenterIds)->where('active', 1)->findAll() as $costCenter) {
+        if (! $allowInactive) {
+            $builder->where('active', 1);
+        }
+
+        foreach ($builder->findAll() as $costCenter) {
             $found[(int) $costCenter->cost_center_id] = true;
         }
 

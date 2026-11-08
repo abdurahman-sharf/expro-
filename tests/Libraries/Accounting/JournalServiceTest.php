@@ -2903,6 +2903,40 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertSame((string) $a, (string) $this->lines($reversal)[1]->cost_center_id);
     }
 
+    public function testReverseAutomatic_TakesBackTheSingleCenterOfALineThatHasBeenSwitchedOffSince(): void
+    {
+        [$a]     = $this->twoCenters();
+        $centers = new CostCenterService();
+        $this->setConfigValue(JournalSettings::AUTOMATIC_DEFAULT, '1');
+        $centers->setDefaults($this->accountId('sales_revenue'), [['cost_center_id' => $a, 'percent' => '100']]);
+
+        $original = $this->automaticJournal();
+
+        $this->assertSame((string) $a, (string) $this->lines($original)[1]->cost_center_id);
+
+        $centers->deactivate($a);
+
+        $reversal = $this->service->reverseAutomatic($original, '2026-10-22', 'Cancelled', null);
+
+        $this->assertSame((string) $a, (string) $this->lines($reversal)[1]->cost_center_id);
+        $this->assertSame('reversed', $this->journal($original)->status);
+    }
+
+    public function testReverse_TakesBackTheSingleCenterOfAManualLineThatHasBeenSwitchedOffSince(): void
+    {
+        [$a]   = $this->twoCenters();
+        $input = $this->journalInput();
+
+        $input['lines'][1]['cost_center_id'] = $a;
+
+        $journalId = $this->service->postNew($input);
+        (new CostCenterService())->deactivate($a);
+
+        $reversal = $this->service->reverse($journalId, '2026-10-22', 'Mistake');
+
+        $this->assertSame((string) $a, (string) $this->lines($reversal)[1]->cost_center_id);
+    }
+
     public function testUpdateDetails_ChangesTheDistributionOfAPostedAutomaticJournalAndNothingElse(): void
     {
         [$a, $b] = $this->twoCenters();
