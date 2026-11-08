@@ -1981,6 +1981,9 @@ class Sales extends Secure_Controller
                 } elseif ($data['sale_id_num'] === INSUFFICIENT_REWARD_POINTS) {
                     $data['error_message'] = lang('Sales.insufficient_reward_points');
                     return $this->reload($data);
+                } elseif ($data['sale_id_num'] === INSUFFICIENT_STOCK) {
+                    $data['error'] = lang('Sales.item_out_of_stock');
+                    return $this->reload($data);
                 } elseif ($data['sale_id_num'] === ACCOUNTING_FAILED) {
                     $data['error'] = $this->accountingFailureMessage();
                     return $this->reload($data);
@@ -2045,6 +2048,9 @@ class Sales extends Secure_Controller
                 } elseif ($data['sale_id_num'] === INSUFFICIENT_REWARD_POINTS) {
                     $data['error_message'] = lang('Sales.insufficient_reward_points');
                     return $this->reload($data);
+                } elseif ($data['sale_id_num'] === INSUFFICIENT_STOCK) {
+                    $data['error'] = lang('Sales.item_out_of_stock');
+                    return $this->reload($data);
                 } elseif ($data['sale_id_num'] === ACCOUNTING_FAILED) {
                     $data['error'] = $this->accountingFailureMessage();
                     return $this->reload($data);
@@ -2095,6 +2101,9 @@ class Sales extends Secure_Controller
                 } elseif ($data['sale_id_num'] === INSUFFICIENT_REWARD_POINTS) {
                     $data['error_message'] = lang('Sales.insufficient_reward_points');
                     return $this->reload($data);
+                } elseif ($data['sale_id_num'] === INSUFFICIENT_STOCK) {
+                    $data['error'] = lang('Sales.item_out_of_stock');
+                    return $this->reload($data);
                 } elseif ($data['sale_id_num'] === ACCOUNTING_FAILED) {
                     $data['error'] = $this->accountingFailureMessage();
                     return $this->reload($data);
@@ -2140,6 +2149,9 @@ class Sales extends Secure_Controller
                 return $this->reload($data);
             } elseif ($data['sale_id_num'] === INSUFFICIENT_REWARD_POINTS) {
                 $data['error_message'] = lang('Sales.insufficient_reward_points');
+                return $this->reload($data);
+            } elseif ($data['sale_id_num'] === INSUFFICIENT_STOCK) {
+                $data['error'] = lang('Sales.item_out_of_stock');
                 return $this->reload($data);
             } elseif ($data['sale_id_num'] === ACCOUNTING_FAILED) {
                 $data['error'] = $this->accountingFailureMessage();

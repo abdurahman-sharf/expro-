@@ -46,7 +46,7 @@ return [
     'credit_filter'                     => 'Credit Card',
     'credit_from_advance'               => 'Advance payment',
     'credit_from_excess'                => 'Excess of the payment on invoice',
-    'credit_from_note'                  => 'Credit note',
+    'credit_from_note'                  => 'Credit note or refund invoice',
     'credit_note'                       => 'Credit note',
     'credit_note_create'                => 'Create a credit note',
     'credit_note_help_issued'           => 'An issued invoice is not cancelled or edited. It is corrected with a credit note.',

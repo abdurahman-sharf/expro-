@@ -37,6 +37,17 @@ class DefaultChartTest extends CIUnitTestCase
         $this->assertSame($this->expectedRoutingRows(), $this->countRows('accounting_routing'));
     }
 
+    public function testInstall_KeepsTheDirectionOfTheTwoAccountsThatDifferFromTheReferenceChartOnPurpose(): void
+    {
+        $db = $this->accountingDb();
+
+        $inputTax = $db->table('accounting_accounts')->where('code', '215002')->get()->getRow();
+        $cashGap  = $db->table('accounting_accounts')->where('code', '1208')->get()->getRow();
+
+        $this->assertSame([AccountType::Liability->value, NormalBalance::Credit->value], [$inputTax->account_type, $inputTax->normal_balance], 'The tax paid on purchases is a liability here and a debit in the reference chart (G-102)');
+        $this->assertSame([AccountType::Asset->value, NormalBalance::Debit->value], [$cashGap->account_type, $cashGap->normal_balance], 'The surplus and shortage of the till is an asset here and a credit in the reference chart (G-102)');
+    }
+
     public function testInstall_DoesNothingWhenTheChartAlreadyHasAccounts(): void
     {
         $before = $this->countRows('accounting_accounts');
