@@ -6,6 +6,7 @@ use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
+use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -57,24 +58,32 @@ final class OpeningBalanceService
      */
     public function allowedAccounts(): array
     {
+        return $this->allowedAccountsBuilder()->select('a.account_id, a.code, a.name, a.account_type')->orderBy('a.code', 'ASC')->get()->getResult();
+    }
+
+    /**
+     * The query behind the accounts a line may use, on the accounts table under the alias a, so that the picker
+     * that searches them offers exactly what the list does.
+     */
+    public function allowedAccountsBuilder(): BaseBuilder
+    {
         $blocked = $this->controlAccountIds();
 
-        $builder = $this->db->table('accounting_accounts')
-            ->select('account_id, code, name, account_type')
-            ->where('company_id', CompanyContext::id())
-            ->where('is_group', 0)
-            ->where('active', 1)
-            ->whereIn('account_type', [AccountType::Asset->value, AccountType::Liability->value, AccountType::Equity->value])
+        $builder = $this->db->table('accounting_accounts a')
+            ->where('a.company_id', CompanyContext::id())
+            ->where('a.is_group', 0)
+            ->where('a.active', 1)
+            ->whereIn('a.account_type', [AccountType::Asset->value, AccountType::Liability->value, AccountType::Equity->value])
             ->groupStart()
-            ->where('system_key IS NULL', null, false)
-            ->orWhere('system_key !=', RoutingKey::OpeningBalance->defaultSystemKey())
+            ->where('a.system_key IS NULL', null, false)
+            ->orWhere('a.system_key !=', RoutingKey::OpeningBalance->defaultSystemKey())
             ->groupEnd();
 
         if ($blocked !== []) {
-            $builder->whereNotIn('account_id', $blocked);
+            $builder->whereNotIn('a.account_id', $blocked);
         }
 
-        return $builder->orderBy('code', 'ASC')->get()->getResult();
+        return $builder;
     }
 
     /**

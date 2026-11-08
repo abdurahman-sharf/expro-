@@ -376,6 +376,7 @@ enum AccountingError: string
     case DebitNoteNoteTooLong      = 'debit_note_note_too_long';
     case JournalTemplateInvalid    = 'journal_template_invalid';
     case ShippingTaxPercentInvalid = 'shipping_tax_percent_invalid';
+    case PickerThresholdInvalid    = 'picker_threshold_invalid';
 
     case PriceBelowMinimum     = 'price_below_minimum';
     case DiscountAboveCeiling  = 'discount_above_ceiling';

@@ -3,6 +3,7 @@
  * @var list<object> $branches
  * @var int $branch_id
  * @var list<object> $accounts
+ * @var array<string, mixed>|null $picker The search box that replaces the list of accounts when there are many.
  * @var array{start_date: ?string, posted: ?object, draft: list<array{account_id: int, description: string, debit: string, credit: string}>|null} $state
  * @var bool $can_manage
  * @var string $start_date
@@ -26,10 +27,10 @@ foreach ($accounts as $account) {
 $amount = static fn (?string $value): string => $value === null || bccomp($value, '0', 4) === 0 ? '' : rtrim(rtrim($value, '0'), '.');
 $rows   = $draft === null || $draft === [] ? [null, null] : $draft;
 
-$accountInputs = static function (string $name, ?int $selected) use ($labels): string {
+$accountInputs = static function (string $name, ?int $selected) use ($labels, $picker): string {
     $text = $selected !== null && isset($labels[$selected]) ? $labels[$selected] : '';
 
-    return '<input type="text" class="form-control form-control-sm acc-account-text" list="accounts_list" autocomplete="off" value="' . esc($text, 'attr') . '" placeholder="' . esc(lang('Accounting_journals.choose_account'), 'attr') . '" aria-label="' . esc(lang('Accounting_journals.account'), 'attr') . '">'
+    return '<input type="text" class="form-control form-control-sm acc-account-text"' . ($picker === null ? ' list="accounts_list"' : '') . ' autocomplete="off" value="' . esc($text, 'attr') . '" placeholder="' . esc(lang('Accounting_journals.choose_account'), 'attr') . '" aria-label="' . esc(lang('Accounting_journals.account'), 'attr') . '">'
         . '<input type="hidden" name="' . esc($name, 'attr') . '" class="acc-account" value="' . ($selected === null ? '' : $selected) . '">';
 };
 ?>
@@ -107,11 +108,13 @@ $accountInputs = static function (string $name, ?int $selected) use ($labels): s
         </tr>
     </template>
 
-    <datalist id="accounts_list">
-        <?php foreach ($accounts as $account): ?>
-            <option value="<?= esc($label($account), 'attr') ?>" data-id="<?= (int) $account->account_id ?>" data-code="<?= esc($account->code, 'attr') ?>"></option>
-        <?php endforeach; ?>
-    </datalist>
+    <?php if ($picker === null): ?>
+        <datalist id="accounts_list">
+            <?php foreach ($accounts as $account): ?>
+                <option value="<?= esc($label($account), 'attr') ?>" data-id="<?= (int) $account->account_id ?>" data-code="<?= esc($account->code, 'attr') ?>"></option>
+            <?php endforeach; ?>
+        </datalist>
+    <?php endif; ?>
 
     <form id="opening_form" class="acc-journal app-form acc-opening-grid" method="post" novalidate>
         <input type="hidden" name="branch_id" value="<?= $branch_id ?>">
@@ -175,7 +178,7 @@ $accountInputs = static function (string $name, ?int $selected) use ($labels): s
                 'failed' => lang('Accounting_journals.request_failed'),
             ], $jsonFlags) ?>;
             const SCALE = 10000;
-            const picker = accounting_support.accountPicker('accounts_list');
+            const picker = accounting_support.accountPicker('accounts_list', <?= json_encode($picker, $jsonFlags) ?>);
             const $body = $('#lines_body');
             const template = $('#line_template').html();
             let nextIndex = $body.children().length;

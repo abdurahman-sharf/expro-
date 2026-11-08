@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\AccountPicker;
 use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\OpeningStockFinding;
@@ -52,10 +53,20 @@ class AccountingOpening extends AccountingController
             throw PageNotFoundException::forPageNotFound();
         }
 
+        $screen = (new AccountPicker())->screen(
+            AccountPicker::OPENING,
+            array_map(static fn (array $line): int => (int) $line['account_id'], $state['draft'] ?? []),
+            $this->branchIds(),
+            base_url('accounting_lookup/search'),
+            '.acc-account-text',
+            fn (): array => $this->opening->allowedAccounts(),
+        );
+
         return view('accounting_periods/opening', [
             'branches'      => $branches,
             'branch_id'     => $branchId,
-            'accounts'      => $this->opening->allowedAccounts(),
+            'accounts'      => $screen['accounts'],
+            'picker'        => $screen['picker'],
             'state'         => $state,
             'stock'         => array_map(fn (OpeningStockPlan $plan): array => $this->stockRow($plan), $stock),
             'deleted_stock' => array_map(static fn (array $location): string => lang('Accounting_periods.opening_stock_deleted_notice', [$location['name'], (string) $location['items'], to_quantity_decimals($location['units'])]), $gone),

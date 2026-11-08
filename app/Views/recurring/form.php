@@ -14,6 +14,8 @@ use App\Libraries\Recurring\ScheduleInput;
  * @var array<int, string>         $categories
  * @var array<string, string>      $payments
  * @var array<int, string>         $suppliers
+ * @var array<string, mixed>|null  $supplierPicker The search box that replaces the list of suppliers when there are many.
+ * @var string                     $supplierName   The name of the supplier already chosen when the list is a search box.
  * @var array<int, string>         $treasuries
  * @var string                     $today
  */
@@ -220,14 +222,19 @@ $locationId = $isNew ? (int) array_key_first($locations) : (int) ($lines[0]['ite
             <?php endif; ?>
 
             <div class="field">
-                <label class="form-label" for="supplier_id"><?= lang('Recurring.supplier') ?></label>
+                <label class="form-label" for="<?= $supplierPicker === null ? 'supplier_id' : 'supplier_text' ?>"><?= lang('Recurring.supplier') ?></label>
                 <div class="field-control">
-                    <select name="supplier_id" id="supplier_id" class="form-select form-select-sm">
-                        <option value=""><?= lang('Recurring.no_supplier') ?></option>
-                        <?php foreach ($suppliers as $id => $name): ?>
-                            <option value="<?= (int) $id ?>"<?= (int) $value('supplier_id', '0') === (int) $id ? ' selected' : '' ?>><?= esc($name) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <?php if ($supplierPicker === null): ?>
+                        <select name="supplier_id" id="supplier_id" class="form-select form-select-sm">
+                            <option value=""><?= lang('Recurring.no_supplier') ?></option>
+                            <?php foreach ($suppliers as $id => $name): ?>
+                                <option value="<?= (int) $id ?>"<?= (int) $value('supplier_id', '0') === (int) $id ? ' selected' : '' ?>><?= esc($name) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    <?php else: ?>
+                        <input type="text" id="supplier_text" class="form-control form-control-sm" autocomplete="off" value="<?= esc($supplierName, 'attr') ?>" placeholder="<?= esc(lang('Recurring.no_supplier'), 'attr') ?>">
+                        <input type="hidden" name="supplier_id" id="supplier_id" value="<?= (int) $value('supplier_id', '0') > 0 ? (int) $value('supplier_id', '0') : '' ?>">
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -259,6 +266,13 @@ $locationId = $isNew ? (int) array_key_first($locations) : (int) ($lines[0]['ite
 
 <script type="text/javascript">
     $(document).ready(function() {
+        <?php if (! $invoice && $supplierPicker !== null): ?>
+        const supplierPicker = accounting_support.accountPicker('suppliers_list', <?= json_encode($supplierPicker, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
+
+        $('#supplier_text').on('input change blur', function(event) {
+            event.type === 'blur' ? supplierPicker.complete($(this), $('#supplier_id')) : supplierPicker.sync($(this), $('#supplier_id'));
+        });
+        <?php endif; ?>
         <?php if ($invoice): ?>
         const reminderOptions = [
             [0, "<?= esc(lang('Recurring.reminder_when_0'), 'js') ?>"],

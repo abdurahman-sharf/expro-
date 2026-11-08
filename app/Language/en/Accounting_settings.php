@@ -73,6 +73,8 @@ return [
     'locked_note'                              => 'The currency and the start date are fixed once a journal is posted.',
     'next_number'                              => 'Next manual journal number',
     'not_ready'                                => 'Accounting cannot be turned on yet.',
+    'picker_threshold'                         => 'Entries before a search box replaces the list',
+    'picker_threshold_desc'                    => 'Screens that list every account, customer or supplier show a search box instead once there are more entries than this. Smaller shops keep the full list. Default 200.',
     'readiness_base_currency_missing'          => 'Set the base currency.',
     'readiness_cashups_unposted'               => '{0} cash-up(s) are not in the books and will not be posted until the back-posting phase.',
     'readiness_entity_accounts_missing'        => '{0} customer, supplier or stock location account(s) are not opened yet. Run "php spark accounting:fill_accounts".',

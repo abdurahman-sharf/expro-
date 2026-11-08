@@ -455,6 +455,7 @@ return [
     'error_payment_date_in_future'               => 'The date {0} is after today. A payment is dated on or before today.',
     'error_payment_terms_invalid'                => 'The payment terms must be a whole number of days, from 0 to {0}.',
     'error_permission_denied'                    => 'You do not have permission to do this.',
+    'error_picker_threshold_invalid'             => 'The number of entries before a search box is offered is a whole number from 1 to {0}.',
     'error_posted_journal_locked'                => 'A posted manual journal and a reversal are never edited. Reverse the manual journal instead.',
     'error_price_below_minimum'                  => 'Line {0}: {1} would sell at {3} after the discount, below its minimum price {2}. Only an employee who may override prices can sell it.',
     'error_price_invalid'                        => 'A price is a number that is not negative.',

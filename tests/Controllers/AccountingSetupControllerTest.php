@@ -339,6 +339,36 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('name="shipping_tax_percent" id="shipping_tax_percent" value="7.5"', $this->get('/accounting_settings')->getBody());
     }
 
+    public function testPostSave_SavesTheNumberOfEntriesBeforeASearchBoxAndRefusesWhatIsNotAWholeNumber(): void
+    {
+        $this->manager();
+
+        $form = ['base_currency' => 'usd', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1'];
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + ['picker_threshold' => '350']))['success']);
+        $this->assertSame(350, (new AccountingSettings())->pickerThreshold());
+
+        foreach (['0', '-3', 'many', '12.5', '100001'] as $invalid) {
+            $answer = $this->jsonOf($this->post('/accounting_settings/save', $form + ['picker_threshold' => $invalid]));
+
+            $this->assertFalse($answer['success'], $invalid);
+            $this->assertSame(lang('Accounting.error_picker_threshold_invalid', [(string) AccountingSettings::MAX_PICKER_SIZE]), $answer['message'], $invalid);
+            $this->assertSame(350, (new AccountingSettings())->pickerThreshold(), 'a refused number leaves the one that stood');
+        }
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form))['success']);
+        $this->assertSame(350, (new AccountingSettings())->pickerThreshold(), 'a form without the field leaves it alone');
+    }
+
+    public function testGetIndex_ShowsTheNumberOfEntriesBeforeASearchBoxInItsField(): void
+    {
+        $this->manager();
+
+        $this->setConfigValue('accounting_picker_threshold', '60');
+
+        $this->assertStringContainsString('name="picker_threshold" id="picker_threshold" value="60"', $this->get('/accounting_settings')->getBody());
+    }
+
     public function testPostSave_SavesTheDescriptionTemplatesOfSalesAndPurchasesAndRefusesAnUnknownPlaceholder(): void
     {
         $this->manager();

@@ -5,6 +5,7 @@
  * @var int                                                                                                               $branch_id
  * @var array<int, array{date: string, label: string}|null>                                                               $cutoffs
  * @var list<object>                                                                                                      $accounts
+ * @var array<string, mixed>|null                                                                                          $picker   The search box that replaces the list of accounts when there are many.
  * @var list<object>                                                                                                      $cost_centers
  * @var string                                                                                                            $currency
  * @var bool                                                                                                              $can_post
@@ -29,10 +30,10 @@ foreach ($accounts as $account) {
     $accountLabels[(int) $account->account_id] = $accountLabel($account);
 }
 
-$accountInputs = static function (string $name, ?int $selected) use ($accountLabels): string {
+$accountInputs = static function (string $name, ?int $selected) use ($accountLabels, $picker): string {
     $label = $selected !== null && isset($accountLabels[$selected]) ? $accountLabels[$selected] : '';
 
-    return '<input type="text" class="form-control form-control-sm acc-account-text" list="accounts_list" autocomplete="off" value="' . esc($label, 'attr') . '" placeholder="' . esc(lang('Accounting_journals.choose_account'), 'attr') . '" aria-label="' . esc(lang('Accounting_journals.account'), 'attr') . '">'
+    return '<input type="text" class="form-control form-control-sm acc-account-text"' . ($picker === null ? ' list="accounts_list"' : '') . ' autocomplete="off" value="' . esc($label, 'attr') . '" placeholder="' . esc(lang('Accounting_journals.choose_account'), 'attr') . '" aria-label="' . esc(lang('Accounting_journals.account'), 'attr') . '">'
         . '<input type="hidden" name="' . esc($name, 'attr') . '" class="acc-account" value="' . ($selected === null ? '' : $selected) . '">';
 };
 $amount = static fn (?string $value): string => $value === null || bccomp($value, '0', 4) === 0 ? '' : rtrim(rtrim($value, '0'), '.');
@@ -66,11 +67,13 @@ $rows   = $lines === [] ? [null, null] : $lines;
     </tr>
 </template>
 
-<datalist id="accounts_list">
-    <?php foreach ($accounts as $account): ?>
-        <option value="<?= esc($accountLabel($account), 'attr') ?>" data-id="<?= (int) $account->account_id ?>" data-code="<?= esc($account->code, 'attr') ?>"></option>
-    <?php endforeach; ?>
-</datalist>
+<?php if ($picker === null): ?>
+    <datalist id="accounts_list">
+        <?php foreach ($accounts as $account): ?>
+            <option value="<?= esc($accountLabel($account), 'attr') ?>" data-id="<?= (int) $account->account_id ?>" data-code="<?= esc($account->code, 'attr') ?>"></option>
+        <?php endforeach; ?>
+    </datalist>
+<?php endif; ?>
 
 <form id="journal_form" class="acc-journal app-form" action="<?= esc(base_url('accounting_journals'), 'attr') ?>" method="post" novalidate>
     <div class="acc-journal-bar print_hide">
@@ -198,7 +201,7 @@ $rows   = $lines === [] ? [null, null] : $lines;
         const textRequired = <?= $lineDescriptionRequired ? 'true' : 'false' ?>;
         const branchId = <?= (int) $branch_id ?>;
         const SCALE = 10000;
-        const picker = accounting_support.accountPicker('accounts_list');
+        const picker = accounting_support.accountPicker('accounts_list', <?= json_encode($picker, $jsonFlags) ?>);
         const defaults = <?= json_encode($defaults, $jsonFlags) ?>;
 
         const applyCutoff = function() {

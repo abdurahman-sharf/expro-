@@ -862,6 +862,86 @@ class AccountingSettingsTest extends CIUnitTestCase
         $this->assertSame('0', $this->settings->shippingTaxPercent());
     }
 
+    private function forgetPickerThreshold(): void
+    {
+        $this->accountingDb()->table('app_config')->where('key', 'accounting_picker_threshold')->delete();
+    }
+
+    public function testPickerThreshold_IsTwoHundredUntilSetAndFallsBackWhenTheStoredValueIsNotUsable(): void
+    {
+        $this->forgetPickerThreshold();
+
+        $this->assertSame(200, $this->settings->pickerThreshold());
+
+        foreach (['abc', '0', '-5', '100001', '1.5', ''] as $stored) {
+            $this->setConfigValue('accounting_picker_threshold', $stored);
+
+            $this->assertSame(200, $this->settings->pickerThreshold(), "'{$stored}' is not a usable threshold");
+        }
+
+        $this->setConfigValue('accounting_picker_threshold', '50');
+
+        $this->assertSame(50, $this->settings->pickerThreshold());
+    }
+
+    public function testUpdate_SavesThePickerThresholdAndAuditsWhatChanged(): void
+    {
+        $this->forgetPickerThreshold();
+        $employee = $this->manager();
+
+        $this->settings->update(['picker_threshold' => ' 75 '], $employee);
+
+        $this->assertSame(75, $this->settings->pickerThreshold());
+
+        $audit   = $this->accountingDb()->table('accounting_audit_log')->where('action', 'settings_updated')->orderBy('audit_id', 'DESC')->get()->getRow();
+        $details = json_decode($audit->details, true);
+
+        $this->assertSame((string) $employee, (string) $audit->employee_id);
+        $this->assertSame(['picker_threshold' => '200'], $details['before']);
+        $this->assertSame(['picker_threshold' => '75'], $details['after']);
+    }
+
+    public function testUpdate_WritesNothingWhenThePickerThresholdIsUnchanged(): void
+    {
+        $this->forgetPickerThreshold();
+        $before = $this->accountingDb()->table('accounting_audit_log')->where('action', 'settings_updated')->countAllResults();
+
+        $this->settings->update(['picker_threshold' => '200'], $this->manager());
+
+        $this->assertSame($before, $this->accountingDb()->table('accounting_audit_log')->where('action', 'settings_updated')->countAllResults());
+    }
+
+    public function testUpdate_RejectsAPickerThresholdThatIsNotAWholeNumberFromOneToTheMaximum(): void
+    {
+        $this->forgetPickerThreshold();
+
+        foreach (['0', '-1', '100001', 'abc', '1.5', '', '1e3'] as $threshold) {
+            try {
+                $this->settings->update(['picker_threshold' => $threshold], $this->manager());
+                $this->fail("'{$threshold}' should be refused");
+            } catch (AccountingException $exception) {
+                $this->assertSame(AccountingError::PickerThresholdInvalid, $exception->error, $threshold);
+                $this->assertSame(AccountingSettings::MAX_PICKER_SIZE, $exception->context['max']);
+            }
+        }
+
+        $this->assertSame(200, $this->settings->pickerThreshold());
+    }
+
+    public function testUpdate_RefusesThePickerThresholdToSomeoneWithoutThePermissionToManageTheSettings(): void
+    {
+        $this->forgetPickerThreshold();
+
+        try {
+            $this->settings->update(['picker_threshold' => '10'], $this->employeeWithGrants([]));
+            $this->fail('The change should be refused');
+        } catch (AccountingException $exception) {
+            $this->assertSame(AccountingError::PermissionDenied, $exception->error);
+        }
+
+        $this->assertSame(200, $this->settings->pickerThreshold());
+    }
+
     public function testUpdate_RejectsADescriptionTemplateThatIsTooLongHasUnknownPlaceholdersOrMarkup(): void
     {
         $this->forgetChargeSettings();

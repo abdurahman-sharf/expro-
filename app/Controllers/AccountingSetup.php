@@ -79,6 +79,7 @@ class AccountingSetup extends AccountingController
             'sales_shipping'           => $this->settings->salesShippingEnabled(),
             'shipping_tax_percent'     => $this->settings->shippingTaxPercent(),
             'debit_note'               => $this->settings->debitNoteEnabled(),
+            'picker_threshold'         => $this->settings->pickerThreshold(),
             'journal_description_sales'     => $this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::SALES),
             'journal_description_purchases' => $this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::PURCHASES),
             'template_max'             => JournalDescriptionTemplate::MAX,
@@ -137,7 +138,7 @@ class AccountingSetup extends AccountingController
                 }
             }
 
-            foreach (['shipping_tax_percent', 'journal_description_sales', 'journal_description_purchases'] as $text) {
+            foreach (['shipping_tax_percent', 'picker_threshold', 'journal_description_sales', 'journal_description_purchases'] as $text) {
                 if ($this->request->getPost($text) !== null) {
                     $input[$text] = (string) $this->request->getPost($text);
                 }

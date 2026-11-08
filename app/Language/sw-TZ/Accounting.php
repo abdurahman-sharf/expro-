@@ -455,6 +455,7 @@ return [
     'error_payment_date_in_future'               => '',
     'error_payment_terms_invalid'                => '',
     'error_permission_denied'                    => '',
+    'error_picker_threshold_invalid'             => '',
     'error_posted_journal_locked'                => '',
     'error_price_below_minimum'                  => '',
     'error_price_invalid'                        => '',

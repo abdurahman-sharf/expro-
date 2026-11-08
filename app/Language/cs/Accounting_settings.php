@@ -73,6 +73,8 @@ return [
     'locked_note'                              => '',
     'next_number'                              => '',
     'not_ready'                                => '',
+    'picker_threshold'                         => '',
+    'picker_threshold_desc'                    => '',
     'readiness_base_currency_missing'          => '',
     'readiness_cashups_unposted'               => '',
     'readiness_entity_accounts_missing'        => '',

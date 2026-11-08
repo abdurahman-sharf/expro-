@@ -10,7 +10,8 @@
     "purchase-discount": "node check-purchase-discount.mjs",
     "legacy-purchase-discount": "node check-legacy-purchase-discount.mjs",
     "gates": "node gates.mjs",
-    "phone-pass": "node phone-pass.mjs"
+    "phone-pass": "node phone-pass.mjs",
+    "picker": "node picker.mjs"
   },
   "engines": {
     "node": ">=22"

@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\AccountPicker;
 use App\Libraries\Accounting\AccountService;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\AuditPeriods;
@@ -54,7 +55,9 @@ class AccountingJournals extends AccountingController
     {
         $accounts = [];
 
-        foreach ((new AccountService())->all() as $account) {
+        $screen = (new AccountPicker())->screen(AccountPicker::EVERY, [], $this->branchIds(), base_url('accounting_lookup/search'), '#f_account_text', static fn (): array => (new AccountService())->all());
+
+        foreach ($screen['accounts'] as $account) {
             $accounts[] = $account;
         }
 
@@ -63,6 +66,7 @@ class AccountingJournals extends AccountingController
         return view('accounting_journals/manage', [
             'table_headers'  => transform_headers($this->headers($seesBranches), false, true),
             'accounts'       => $accounts,
+            'picker'         => $screen['picker'],
             'branches'       => $seesBranches ? (new BranchService())->all($this->employeeId()) : [],
             'current_branch' => $this->branchContext()->current($this->employeeId()),
             'creators'       => $this->can(AccountingGuard::JOURNALS_ALL) ? (new AuditLog())->employees($this->branchIds()) : [],
@@ -798,6 +802,15 @@ class AccountingJournals extends AccountingController
         $branches = $this->seesBranches() ? $this->branchGuard()->selectableBranches($this->employeeId()) : [];
         $branchId = $journal === null ? $this->branchContext()->formDefault($this->employeeId()) : (int) $journal->branch_id;
 
+        $screen = (new AccountPicker())->screen(
+            AccountPicker::POSTABLE,
+            $journal === null ? [] : array_map(static fn (object $line): int => (int) $line->account_id, $journal->lines),
+            $this->branchIds(),
+            base_url('accounting_lookup/search'),
+            '.acc-account-text',
+            fn (): array => $this->journals->postableAccounts(),
+        );
+
         return view('accounting_journals/form', [
             'journal'                 => $journal,
             'attachments'             => $journal === null ? [] : $this->attachmentRows((int) $journal->journal_id),
@@ -806,7 +819,8 @@ class AccountingJournals extends AccountingController
             'branches'                => $branches,
             'branch_id'               => $branchId,
             'cutoffs'                 => $this->cutoffs($branches === [] ? [$branchId] : array_map(static fn (object $branch): int => (int) $branch->branch_id, $branches)),
-            'accounts'                => $this->journals->postableAccounts(),
+            'accounts'                => $screen['accounts'],
+            'picker'                  => $screen['picker'],
             'cost_centers'            => $costCenters,
             'centerLabels'            => $service->labels(),
             'settings'                => (new JournalSettings())->all(),
