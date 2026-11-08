@@ -87,15 +87,16 @@ class DocumentTypeTest extends CIUnitTestCase
         $this->assertLessThanOrEqual(24, strlen($type->value), 'the column of the document type holds 24 characters');
     }
 
-    public function testDefaultPadding_IsZeroForEveryKindButTheSalesDebitNoteTheSalesOrderAndTheStockDocuments(): void
+    public function testDefaultPadding_IsZeroForEveryKindButTheSalesDebitNoteTheSalesOrderThePurchaseCycleAndTheStockDocuments(): void
     {
         $stock = [DocumentType::StockPermitAdd, DocumentType::StockPermitIssue, DocumentType::StockPermitTransfer, DocumentType::Stocktake, DocumentType::StockRequest];
+        $cycle = [DocumentType::PurchaseRequest, DocumentType::QuotationRequest, DocumentType::SupplierQuotation, DocumentType::PurchaseOrder];
 
         foreach (DocumentType::cases() as $type) {
             $this->assertSame(match (true) {
-                $type === DocumentType::SalesDebitNote, $type === DocumentType::SalesOrder => 5,
-                in_array($type, $stock, true)                                              => 6,
-                default                                                                    => 0,
+                $type === DocumentType::SalesDebitNote, $type === DocumentType::SalesOrder, in_array($type, $cycle, true) => 5,
+                in_array($type, $stock, true)                                                                           => 6,
+                default                                                                                                 => 0,
             }, $type->defaultPadding(), $type->value);
         }
     }
@@ -117,5 +118,30 @@ class DocumentTypeTest extends CIUnitTestCase
         $this->assertSame(['STK-IN 7', 'STK-OUT 7', 'STK-TRF 7', 'STKT 7', 'STK-REQ 7'], $labels);
         $this->assertSame([], DocumentType::StockPermitAdd->bareIdSources());
         $this->assertNull(DocumentType::StockPermitAdd->numberColumn());
+    }
+
+    public function testSources_KeepsEachDocumentOfThePurchaseCycleInATableOfItsOwn(): void
+    {
+        $this->assertSame(['purchase_requests' => 'request_id'], DocumentType::PurchaseRequest->sources());
+        $this->assertSame(['quotation_requests' => 'rfq_id'], DocumentType::QuotationRequest->sources());
+        $this->assertSame(['supplier_quotations' => 'quotation_id'], DocumentType::SupplierQuotation->sources());
+        $this->assertSame(['purchase_orders' => 'order_id'], DocumentType::PurchaseOrder->sources());
+    }
+
+    public function testDefaultPadding_IsFiveDigitsForEachDocumentOfThePurchaseCycle(): void
+    {
+        foreach ([DocumentType::PurchaseRequest, DocumentType::QuotationRequest, DocumentType::SupplierQuotation, DocumentType::PurchaseOrder] as $type) {
+            $this->assertSame(5, $type->defaultPadding(), $type->value);
+            $this->assertSame('00007', $type->fallback(7), $type->value);
+            $this->assertSame($type->sources(), $type->bareIdSources(), $type->value);
+            $this->assertNull($type->numberColumn(), $type->value);
+        }
+    }
+
+    public function testValue_FitsTheColumnOfTheNumberingAndOfTheAuditLog(): void
+    {
+        foreach (DocumentType::cases() as $type) {
+            $this->assertLessThanOrEqual(24, strlen($type->value), $type->value . ' must fit the doc_type column');
+        }
     }
 }

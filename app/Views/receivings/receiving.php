@@ -20,6 +20,7 @@
  * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
  * @var string $invoiceDiscountAmount
  * @var int|null $return_origin
+ * @var string|null $order_source
  * @var array{from: string, to: string}|null $between_branches
  * @var bool $accounting_enabled
  * @var string|null $invoice_date
@@ -44,6 +45,10 @@ $hasCart     = count($cart) > 0;
 
 <?php if (isset($success)): ?>
     <div class="alert alert-success"><?= esc($success) ?></div>
+<?php endif; ?>
+
+<?php if (($order_source ?? null) !== null): ?>
+    <div class="alert alert-info" id="order_source_banner"><?= lang('Purchase_cycle.receiving_from_order', [esc($order_source)]) ?></div>
 <?php endif; ?>
 
 <div class="pos" id="pos">

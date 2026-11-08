@@ -13,16 +13,22 @@ use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
+use App\Libraries\PurchaseCycle\PurchaseDocumentStatus;
+use App\Libraries\PurchaseCycle\PurchaseOrderReceipts;
 use App\Models\Receiving;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\PurchaseCycleFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
@@ -36,10 +42,12 @@ class ReceivingTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use PurchaseCycleFixtureTrait;
     use RoleFixtureTrait;
 
     protected $migrate     = true;
@@ -54,6 +62,7 @@ class ReceivingTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopCycle();
         $this->stopBuying();
 
         $db = Database::connect();
@@ -1464,5 +1473,309 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertFalse($this->purchases->outsideRecordScope($mine, $own));
         $this->assertTrue($this->purchases->outsideRecordScope(999999, $own));
         $this->assertFalse($this->purchases->outsideRecordScope(999999, $this->createEmployee()));
+    }
+
+    private function orderOf(string $quantity = '10', ?int $location = null): int
+    {
+        return $this->documentsOf(PurchaseDocumentKind::Order)->create($this->documentInput(['location_id' => $location ?? self::LOCATION_ID, 'lines' => [['item_id' => $this->goods, 'quantity' => $quantity, 'unit_price' => '4.00']]]), $this->clerk);
+    }
+
+    private function receiveFromOrder(int $orderId, string $units, ?int $by = null): int
+    {
+        $result = $this->purchases->save_value([$this->purchaseLine($this->goods, 0, $units, '4.00')], $this->supplierId, $by ?? $this->clerk, 'order', 'REF-' . uniqid(), lang('Sales.due'), NEW_ENTRY, null, null, null, null, $orderId);
+
+        if ($result > 0) {
+            $this->receivingIds[] = $result;
+        }
+
+        return $result;
+    }
+
+    private function orderStatus(int $orderId): PurchaseDocumentStatus
+    {
+        return $this->documentsOf(PurchaseDocumentKind::Order)->statusOf($orderId);
+    }
+
+    public function testSaveValue_ReceivesAgainstAPurchaseOrderPostsTheReceivingAsAnyPurchaseAndTakesTheUnitsFromTheOrder(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId  = $this->orderOf('10');
+        $journals = $this->countRows('accounting_journals');
+
+        $receivingId = $this->receiveFromOrder($orderId, '4');
+
+        $this->assertGreaterThan(0, $receivingId);
+        $this->assertSame($journals + 1, $this->countRows('accounting_journals'));
+        $this->assertSame('4.000', $this->onHand($this->goods));
+        $this->assertSame('16.00', $this->owed());
+        $this->assertSame($orderId, (new PurchaseOrderReceipts($this->accountingDb()))->orderOfReceiving($receivingId));
+        $this->assertSame(PurchaseDocumentStatus::PartlyReceived, $this->orderStatus($orderId));
+        $this->assertSame(['4.000'], array_map(static fn (object $line): string => $line->received, $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)));
+        $this->assertStockTies();
+        $this->assertSupplierTies();
+    }
+
+    public function testSaveValue_RefusesMoreThanThePurchaseOrderHoldsAndRollsTheWholeReceivingBack(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId = $this->orderOf('10');
+        $before  = $this->bookCounts();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->receiveFromOrder($orderId, '10.001'));
+
+        $failure = $this->purchases->accountingFailure();
+
+        $this->assertInstanceOf(AccountingException::class, $failure);
+        $this->assertSame(AccountingError::PurchaseOrderQuantityExceeded, $failure->error);
+        $this->assertSame($before, $this->bookCounts(), 'no purchase, no journal, no stock, no unit taken');
+        $this->assertSame(0, $this->countRows('purchase_order_receivings'));
+        $this->assertSame(PurchaseDocumentStatus::Open, $this->orderStatus($orderId));
+        $this->assertStockTies();
+    }
+
+    public function testSaveValue_ReceivesMoreThanTheOrderHoldsWhenTheSettingsAllowIt(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+        $this->setConfigValue('purchase_order_allow_excess', '1');
+
+        $orderId = $this->orderOf('10');
+
+        $this->assertGreaterThan(0, $this->receiveFromOrder($orderId, '12'));
+        $this->assertSame(PurchaseDocumentStatus::Received, $this->orderStatus($orderId));
+        $this->assertSame('12.000', $this->onHand($this->goods));
+    }
+
+    public function testSaveValue_RefusesAReturnAgainstAPurchaseOrder(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId = $this->orderOf('10');
+        $before  = $this->bookCounts();
+
+        $result = $this->purchases->save_value([$this->purchaseLine($this->goods, 0, '-1', '4.00')], $this->supplierId, $this->clerk, 'return', 'REF-R', lang('Sales.due'), NEW_ENTRY, null, null, null, null, $orderId);
+
+        $this->assertSame(ACCOUNTING_FAILED, $result);
+        $this->assertSame(AccountingError::PurchaseOrderReceivingKind, $this->purchases->accountingFailure()->error);
+        $this->assertSame($before, $this->bookCounts());
+    }
+
+    public function testSaveValue_RefusesAnEmployeeWhoDoesNotWorkInTheBranchOfThePurchaseOrder(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $branchB  = $this->createBranch('B2', 'Second branch');
+        $orderId  = $this->orderOf('10');
+        $outsider = $this->employeeWithGrants([], [$branchB]);
+        $before   = $this->bookCounts();
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->receiveFromOrder($orderId, '1', $outsider));
+        $this->assertInstanceOf(BranchException::class, $this->purchases->accountingFailure());
+        $this->assertSame($before, $this->bookCounts());
+    }
+
+    public function testSaveValue_RefusesAnOrderThatWasCancelledAndOneOfAnotherSupplier(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $cancelled = $this->orderOf('10');
+        $another   = $this->documentsOf(PurchaseDocumentKind::Order)->create($this->documentInput(['supplier_id' => $this->anotherSupplier()]), $this->clerk);
+
+        $this->documentsOf(PurchaseDocumentKind::Order)->cancel($cancelled, 'no', $this->clerk);
+
+        $before = $this->countRows('receivings');
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->receiveFromOrder($cancelled, '1'));
+        $this->assertSame(AccountingError::PurchaseOrderNotReceivable, $this->purchases->accountingFailure()->error);
+        $this->assertSame(ACCOUNTING_FAILED, $this->receiveFromOrder($another, '1'));
+        $this->assertSame(AccountingError::PurchaseOrderSupplierMismatch, $this->purchases->accountingFailure()->error);
+        $this->assertSame($before, $this->countRows('receivings'));
+    }
+
+    public function testSaveValue_ReceivesAgainstAPurchaseOrderWithAccountingOffAndPostsNothing(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId = $this->orderOf('10');
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $journals = $this->countRows('accounting_journals');
+
+        $this->assertGreaterThan(0, $this->receiveFromOrder($orderId, '10'));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame('10.000', $this->onHand($this->goods));
+        $this->assertSame(PurchaseDocumentStatus::Received, $this->orderStatus($orderId));
+
+        $this->setConfigValue('accounting_enabled', '1');
+    }
+
+    public function testSaveValue_LeavesAReceivingWithoutAPurchaseOrderAsItWasWhetherTheCycleIsOnOrOff(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $first = $this->buy([$this->purchaseLine($this->goods, 0, '3', '4.00')]);
+
+        $this->setConfigValue('enable_purchase_cycle', '0');
+
+        $second = $this->buy([$this->purchaseLine($this->goods, 0, '2', '4.00')]);
+
+        $this->assertGreaterThan(0, $first);
+        $this->assertGreaterThan(0, $second);
+        $this->assertSame(0, $this->countRows('purchase_order_receivings'));
+        $this->assertSame(0, $this->countRows('purchase_order_receiving_lines'));
+        $this->assertSame('5.000', $this->onHand($this->goods));
+        $this->assertStockTies();
+    }
+
+    public function testUpdateLines_TakesTheUnitsOfAReceivingFromAnOrderAgainAndRefusesWhatTheOrderCannotHold(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId     = $this->orderOf('10');
+        $receivingId = $this->receiveFromOrder($orderId, '4');
+        $line        = $this->orderLineEdit($receivingId);
+
+        $this->assertTrue($this->purchases->updateLines($receivingId, [ReceivingLineEdit::changing($this->goods, $line, ['quantity' => '9'])], $this->clerk));
+        $this->assertSame('9.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
+        $this->assertSame('9.000', $this->onHand($this->goods));
+
+        $this->assertFalse($this->purchases->updateLines($receivingId, [ReceivingLineEdit::changing($this->goods, $line, ['quantity' => '11'])], $this->clerk));
+        $this->assertSame(AccountingError::PurchaseOrderQuantityExceeded, $this->purchases->accountingFailure()->error);
+        $this->assertSame('9.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received, 'the refused correction took nothing');
+        $this->assertSame('9.000', $this->onHand($this->goods));
+
+        $this->assertTrue($this->purchases->updateLines($receivingId, [ReceivingLineEdit::changing($this->goods, $line, ['quantity' => '2'])], $this->clerk));
+        $this->assertSame('2.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
+        $this->assertStockTies();
+    }
+
+    public function testUpdateLines_LeavesTheOrderAloneWhenOnlyAPriceChangesEvenAfterTheOrderWasCancelled(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId     = $this->orderOf('10');
+        $receivingId = $this->receiveFromOrder($orderId, '4');
+        $line        = $this->orderLineEdit($receivingId);
+
+        $this->documentsOf(PurchaseDocumentKind::Order)->cancel($orderId, 'the rest is not coming', $this->clerk);
+
+        $audit = $this->auditActions(PurchaseDocumentKind::Order, $orderId);
+
+        $this->assertTrue($this->purchases->updateLines($receivingId, [ReceivingLineEdit::changing($this->goods, $line, ['price' => '5.00'])], $this->clerk));
+        $this->assertSame('4.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
+        $this->assertSame(PurchaseDocumentStatus::Cancelled, $this->orderStatus($orderId));
+        $this->assertSame($audit, $this->auditActions(PurchaseDocumentKind::Order, $orderId), 'a correction of a price takes nothing from the order and leaves no entry on it');
+    }
+
+    public function testUpdateLines_CorrectsTheUnitsOfAReceivingWhoseOrderWasCancelledSinceAndStillHoldsThemToTheOrder(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId     = $this->orderOf('10');
+        $receivingId = $this->receiveFromOrder($orderId, '4');
+        $line        = $this->orderLineEdit($receivingId);
+
+        $this->documentsOf(PurchaseDocumentKind::Order)->cancel($orderId, 'the rest is not coming', $this->clerk);
+
+        $this->assertTrue($this->purchases->updateLines($receivingId, [ReceivingLineEdit::changing($this->goods, $line, ['quantity' => '3'])], $this->clerk), 'the supplier invoiced 3 and the correction is not held up by the order that was cancelled');
+        $this->assertSame('3.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
+        $this->assertSame('3.000', $this->onHand($this->goods));
+
+        $this->assertFalse($this->purchases->updateLines($receivingId, [ReceivingLineEdit::changing($this->goods, $line, ['quantity' => '11'])], $this->clerk));
+        $this->assertSame(AccountingError::PurchaseOrderQuantityExceeded, $this->purchases->accountingFailure()->error);
+        $this->assertSame('3.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
+        $this->assertSame(PurchaseDocumentStatus::Cancelled, $this->orderStatus($orderId));
+        $this->assertStockTies();
+    }
+
+    public function testUpdate_RefusesAnotherSupplierForAReceivingMadeFromAnOrderWhateverAccountingSaysAndAcceptsTheSameOne(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId     = $this->orderOf('10');
+        $receivingId = $this->receiveFromOrder($orderId, '4');
+        $other       = $this->anotherSupplier();
+
+        foreach (['1', '0'] as $accounting) {
+            $this->setConfigValue('accounting_enabled', $accounting);
+
+            $this->assertFalse($this->purchases->update($receivingId, ['supplier_id' => $other]), 'accounting ' . $accounting);
+            $this->assertSame(AccountingError::PurchaseOrderSupplierMismatch, $this->purchases->accountingFailure()->error);
+            $this->assertFalse($this->purchases->update($receivingId, ['supplier_id' => null]), 'accounting ' . $accounting);
+            $this->assertSame($this->supplierId, (int) $this->accountingDb()->table('receivings')->where('receiving_id', $receivingId)->get()->getRow()->supplier_id);
+            $this->assertTrue($this->purchases->update($receivingId, ['supplier_id' => $this->supplierId, 'comment' => 'kept ' . $accounting]), 'accounting ' . $accounting);
+        }
+
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->assertSame('4.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
+    }
+
+    private function orderLineEdit(int $receivingId): int
+    {
+        return (int) $this->accountingDb()->table('receivings_items')->where('receiving_id', $receivingId)->get()->getRow()->line;
+    }
+
+    public function testDeleteValue_GivesTheUnitsOfAReceivingBackToItsPurchaseOrder(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId = $this->orderOf('10');
+        $first   = $this->receiveFromOrder($orderId, '10');
+
+        $this->assertSame(PurchaseDocumentStatus::Received, $this->orderStatus($orderId));
+        $this->assertTrue($this->purchases->delete_value($first, $this->clerk));
+
+        $this->assertSame(PurchaseDocumentStatus::Open, $this->orderStatus($orderId));
+        $this->assertSame(0, $this->countRows('purchase_order_receivings'));
+        $this->assertSame(0, $this->countRows('purchase_order_receiving_lines'));
+        $this->assertSame('0.000', $this->onHand($this->goods));
+        $this->assertContains('receipt_released', $this->auditActions(PurchaseDocumentKind::Order, $orderId));
+        $this->assertGreaterThan(0, $this->receiveFromOrder($orderId, '10'), 'the order can be received again');
+    }
+
+    public function testDeleteList_GivesTheUnitsBackOfEveryReceivingItDeletes(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId = $this->orderOf('10');
+        $first   = $this->receiveFromOrder($orderId, '4');
+        $second  = $this->receiveFromOrder($orderId, '6');
+
+        $this->assertTrue($this->purchases->delete_list([$first, $second], $this->clerk));
+        $this->assertSame(PurchaseDocumentStatus::Open, $this->orderStatus($orderId));
+        $this->assertSame(0, $this->countRows('purchase_order_receiving_lines'));
+    }
+
+    public function testSaveValue_LetsOneOfTwoReceivingsAtTheSameMomentTakeTheUnitsOfTheOrder(): void
+    {
+        $this->startBuying();
+        $this->startCycle();
+
+        $orderId = $this->orderOf('10');
+        $before  = $this->countRows('receivings');
+
+        [$first, $second] = $this->raceTwoProcesses('orderReceive', [$orderId, '7', $this->goods, $this->supplierId, $this->clerk], [$orderId, '7', $this->goods, $this->supplierId, $this->clerk]);
+
+        $this->receivingIds = [...$this->receivingIds, ...array_map(static fn (array $row): int => (int) $row['receiving_id'], $this->accountingDb()->table('receivings')->select('receiving_id')->where('supplier_id', $this->supplierId)->get()->getResultArray())];
+
+        $this->assertSame(1, (int) $first + (int) $second, 'of two receivings of 7 from an order of 10, one is saved and the other is refused');
+        $this->assertSame($before + 1, $this->countRows('receivings'));
+        $this->assertSame('7.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
     }
 }

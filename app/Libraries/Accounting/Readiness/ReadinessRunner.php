@@ -39,6 +39,7 @@ final class ReadinessRunner
             new BackfillChecks($this->db),
             new RoutingChecks($this->db),
             new RecurringChecks($this->db),
+            new PurchaseCycleChecks($this->db),
         ];
     }
 

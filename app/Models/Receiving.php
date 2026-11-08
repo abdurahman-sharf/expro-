@@ -32,6 +32,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\PurchaseCycle\PurchaseOrderReceipts;
 use App\Libraries\Roles\RecordScope;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
@@ -201,6 +202,16 @@ class Receiving extends Model
 
         if (is_array($receivingData)) {
             unset($receivingData['payments'], $receivingData['invoice_date'], $receivingData['payment_terms_days'], $receivingData['due_date'], $receivingData['changed_by']);
+        }
+
+        if (is_array($receivingData) && array_key_exists('supplier_id', $receivingData)) {
+            try {
+                (new PurchaseOrderReceipts($this->db))->assertSupplierKept((int) $receivingId, $receivingData['supplier_id'] === null || $receivingData['supplier_id'] === '' ? null : (int) $receivingData['supplier_id']);
+            } catch (AccountingException $refusal) {
+                $this->accountingFailure = $refusal;
+
+                return false;
+            }
         }
 
         if ($accountingOn && is_array($receivingData)) {
@@ -448,6 +459,7 @@ class Receiving extends Model
 
             $this->rewriteLines($receivingId, $changed, $removed, $stored);
             $this->shareInvoiceDiscountAgain($receivingId, $purchase);
+            $this->takeOrderUnitsAgain($receivingId, $employeeId, $branchId, $changed, $removed, $stored);
 
             $after  = $loader->load($receivingId, false);
             $deltas = $this->stockDeltas($before, $after);
@@ -551,6 +563,40 @@ class Receiving extends Model
         foreach ($removed as $key) {
             $this->db->table('receivings_items')->where(['receiving_id' => $receivingId, 'item_id' => $stored[$key]['item_id'], 'line' => $stored[$key]['line']])->delete();
         }
+    }
+
+    /**
+     * A receiving made from a purchase order takes from its lines what it holds; when the units of its lines are corrected it
+     * takes again, and a correction that would take more than the order has left is refused. A correction of a price or a
+     * note takes nothing and is left alone.
+     *
+     * @param array<string, array<string, mixed>> $changed
+     * @param list<string>                        $removed
+     * @param array<string, array<string, mixed>> $stored
+     *
+     * @throws AccountingException|BranchException
+     */
+    private function takeOrderUnitsAgain(int $receivingId, int $employeeId, int $branchId, array $changed, array $removed, array $stored): void
+    {
+        $receipts = new PurchaseOrderReceipts($this->db);
+        $orderId  = $receipts->orderOfReceiving($receivingId);
+
+        if ($orderId === null) {
+            return;
+        }
+
+        $moved = array_filter($changed, static fn (array $fields, string $key): bool => bccomp((string) $fields['quantity_purchased'], bcadd((string) $stored[$key]['quantity_purchased'], '0', 3), 3) !== 0, ARRAY_FILTER_USE_BOTH);
+
+        if ($moved === [] && $removed === []) {
+            return;
+        }
+
+        $items = array_map(
+            static fn (array $row): array => ['item_id' => (int) $row['item_id'], 'quantity' => $row['quantity_purchased'], 'receiving_quantity' => $row['receiving_quantity']],
+            $this->get_receiving_items($receivingId)->getResultArray(),
+        );
+
+        $receipts->recordReceiving($receivingId, $orderId, $items, (int) $this->supplierOf($receivingId), $employeeId, $branchId, PurchaseOrderReceipts::RECEIPT_CHANGED);
     }
 
     /**
@@ -966,7 +1012,7 @@ class Receiving extends Model
      *
      * @throws ReflectionException
      */
-    public function save_value(array $items, int $supplierId, int $employeeId, string $comment, string $reference, ?string $paymentType, int $receivingId = NEW_ENTRY, ?int $returnOfReceivingId = null, ?InvoiceDiscount $invoiceDiscount = null, ?string $invoiceDate = null, int|string|null $paymentTerms = null): int    // TODO: $receivingId gets overwritten before it's evaluated. It doesn't make sense to pass this here.
+    public function save_value(array $items, int $supplierId, int $employeeId, string $comment, string $reference, ?string $paymentType, int $receivingId = NEW_ENTRY, ?int $returnOfReceivingId = null, ?InvoiceDiscount $invoiceDiscount = null, ?string $invoiceDate = null, int|string|null $paymentTerms = null, ?int $purchaseOrderId = null): int    // TODO: $receivingId gets overwritten before it's evaluated. It doesn't make sense to pass this here.
     {
         $this->accountingFailure = null;
 
@@ -978,7 +1024,7 @@ class Receiving extends Model
         $this->currencyChoice = null;
 
         try {
-            return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplierId > 0 ? $supplierId : null, fn (): int => $this->saveValueLocked($items, $supplierId, $employeeId, $comment, $reference, $paymentType, $receivingId, $returnOfReceivingId, $invoiceDiscount ?? InvoiceDiscount::none(), $invoiceDate, $paymentTerms));
+            return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplierId > 0 ? $supplierId : null, fn (): int => $this->saveValueLocked($items, $supplierId, $employeeId, $comment, $reference, $paymentType, $receivingId, $returnOfReceivingId, $invoiceDiscount ?? InvoiceDiscount::none(), $invoiceDate, $paymentTerms, $purchaseOrderId));
         } catch (AccountingException $busy) {
             if ($busy->error !== AccountingError::SupplierBusy) {
                 throw $busy;
@@ -995,7 +1041,7 @@ class Receiving extends Model
     /**
      * @throws ReflectionException
      */
-    private function saveValueLocked(array $items, int $supplierId, int $employeeId, string $comment, string $reference, ?string $paymentType, int $receivingId, ?int $returnOfReceivingId, InvoiceDiscount $invoiceDiscount, ?string $invoiceDate, int|string|null $paymentTerms): int
+    private function saveValueLocked(array $items, int $supplierId, int $employeeId, string $comment, string $reference, ?string $paymentType, int $receivingId, ?int $returnOfReceivingId, InvoiceDiscount $invoiceDiscount, ?string $invoiceDate, int|string|null $paymentTerms, ?int $purchaseOrderId): int
     {
         $attribute    = model(Attribute::class);
         $inventory    = model('Inventory');
@@ -1105,6 +1151,14 @@ class Receiving extends Model
                 (new ReturnLimit($this->db))->assertPurchaseReturnWithin($receivingId);
             }
 
+            if ($purchaseOrderId !== null) {
+                if ($type !== ReceivingType::Receive) {
+                    throw new AccountingException(AccountingError::PurchaseOrderReceivingKind, 'Only goods coming in from the supplier are received against a purchase order.');
+                }
+
+                (new PurchaseOrderReceipts($this->db))->recordReceiving((int) $receivingId, $purchaseOrderId, $items, $supplierId, $employeeId, $branchId);
+            }
+
             $this->applyInvoiceDiscount((int) $receivingId, $type, $receivingsData['return_of_receiving_id'], $invoiceDiscount);
 
             if ($type === ReceivingType::Receive && ($accountingOn || $config['receiving_calculate_average_price'])) {
@@ -1138,7 +1192,7 @@ class Receiving extends Model
                 $inventory->insert($invData, false);
                 $attribute->copy_attribute_links($itemData['item_id'], 'receiving_id', $receivingId);
             }
-        } catch (AccountingException|PostingException $failure) {
+        } catch (AccountingException|PostingException|BranchException $failure) {
             $this->db->transRollback();
             $this->accountingFailure = $failure;
 
@@ -1699,6 +1753,15 @@ class Receiving extends Model
 
                 return false;
             }
+        }
+
+        try {
+            (new PurchaseOrderReceipts($this->db))->releaseReceiving($receiving_id, $employee_id);
+        } catch (AccountingException $failure) {
+            $this->db->transRollback();
+            $this->accountingFailure = $failure;
+
+            return false;
         }
 
         $this->db->table('receivings_payments')->where('receiving_id', $receiving_id)->delete();

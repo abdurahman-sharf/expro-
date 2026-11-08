@@ -216,6 +216,23 @@ $routes->group('customer_orders', static function (RouteCollection $routes): voi
     $routes->post('settings', 'Customer_orders::postSettings');
 });
 
+foreach (['purchase_requests' => 'Purchase_requests', 'quotation_requests' => 'Quotation_requests', 'supplier_quotations' => 'Supplier_quotations', 'purchase_orders' => 'Purchase_orders'] as $purchaseCyclePath => $purchaseCycleController) {
+    $routes->group($purchaseCyclePath, static function (RouteCollection $routes) use ($purchaseCycleController): void {
+        $routes->get('/', $purchaseCycleController . '::getIndex');
+        $routes->get('add', $purchaseCycleController . '::getForm');
+        $routes->get('edit/(:num)', $purchaseCycleController . '::getForm/$1');
+        $routes->get('view/(:num)', $purchaseCycleController . '::getShow/$1');
+        $routes->get('suppliers', $purchaseCycleController . '::getSuppliers');
+        $routes->get('items', $purchaseCycleController . '::getItems');
+        $routes->post('save', $purchaseCycleController . '::postSave');
+        $routes->post('save/(:num)', $purchaseCycleController . '::postSave/$1');
+        $routes->post('status/(:num)', $purchaseCycleController . '::postStatus/$1');
+        $routes->post('cancel/(:num)', $purchaseCycleController . '::postCancel/$1');
+        $routes->post('convert/(:num)', $purchaseCycleController . '::postConvert/$1');
+        $routes->post('settings', $purchaseCycleController . '::postSettings');
+    });
+}
+
 $routes->group('recurring_invoices', static function (RouteCollection $routes): void {
     $routes->get('/', 'Recurring_invoices::getIndex');
     $routes->get('add', 'Recurring_invoices::getForm');

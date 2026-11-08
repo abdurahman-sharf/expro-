@@ -10,6 +10,8 @@ use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
+use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
+use App\Libraries\PurchaseCycle\PurchaseDocumentStatus;
 use App\Libraries\Recurring\RecurrenceTerms;
 use App\Libraries\Recurring\RecurrenceUnit;
 use App\Libraries\Recurring\RecurringKind;
@@ -415,6 +417,92 @@ class LanguageFilesTest extends CIUnitTestCase
         foreach (['note_profit', 'note_revenue_rule'] as $key) {
             $this->assertNotSame('', $messages[$key], "{$locale} lacks {$key}");
             $this->assertDoesNotMatchRegularExpression('/دفترة|daftra|reference system/iu', $messages[$key], "{$locale} names another system in {$key}");
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testPurchaseCycleFiles_NameTheModulesLabelThePermissionsAndHaveEveryLineOfTheScreens(string $locale): void
+    {
+        $module  = include __DIR__ . "/../app/Language/{$locale}/Module.php";
+        $english = include __DIR__ . '/../app/Language/en/Purchase_cycle.php';
+        $screens = include __DIR__ . "/../app/Language/{$locale}/Purchase_cycle.php";
+
+        foreach (array_keys($english) as $key) {
+            $this->assertNotSame('', $screens[$key] ?? '', "{$locale} lacks Purchase_cycle.{$key}");
+        }
+
+        foreach (PurchaseDocumentKind::cases() as $kind) {
+            $this->assertNotSame('', $module[$kind->module()] ?? '', "{$locale} lacks the module label {$kind->module()}");
+            $this->assertNotSame('', $module[$kind->module() . '_desc'] ?? '', "{$locale} lacks the module description {$kind->module()}");
+
+            $permissions = include __DIR__ . "/../app/Language/{$locale}/" . ucfirst($kind->module()) . '.php';
+
+            foreach (['add', 'edit', 'delete', 'view_all', 'convert'] as $action) {
+                $this->assertNotSame('', $permissions[$action] ?? '', "{$locale} lacks the label of the permission {$kind->permission($action)}, which the employee form looks up as " . ucfirst($kind->module()) . ".{$action}");
+            }
+
+            foreach ([$kind->labelKey(), $kind->dueLabelKey(), 'Purchase_cycle.title_' . $kind->value, 'Purchase_cycle.new_' . $kind->value, 'Purchase_cycle.edit_' . $kind->value, 'Purchase_cycle.setting_manual_' . $kind->value] as $line) {
+                $this->assertNotSame('', $screens[substr($line, strlen('Purchase_cycle.'))] ?? '', "{$locale} lacks {$line}");
+            }
+
+            if ($kind->next() !== null) {
+                $this->assertNotSame('', $screens['convert_to_' . $kind->next()->value] ?? '', "{$locale} lacks the conversion to {$kind->next()->value}");
+            }
+        }
+
+        foreach (PurchaseDocumentStatus::cases() as $status) {
+            $this->assertNotSame('', $screens[substr($status->languageKey(), strlen('Purchase_cycle.'))] ?? '', "{$locale} lacks the status {$status->value}");
+
+            if ($status->isLabel()) {
+                $this->assertNotSame('', $screens['move_to_' . $status->value] ?? '', "{$locale} lacks the move to {$status->value}");
+            }
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testPurchaseCycleFiles_NameEveryAuditActionAndKindOfRecordTheCycleWrites(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting.php";
+
+        foreach (['created', 'updated', 'cancelled', 'status_changed', 'converted', 'received', 'receipt_changed', 'receipt_released', 'settings_updated'] as $action) {
+            $this->assertNotSame('', $messages['action_' . $action] ?? '', "{$locale} lacks the audit action {$action}");
+        }
+
+        foreach ([...array_column(PurchaseDocumentKind::cases(), 'value'), 'purchase_cycle_settings'] as $entity) {
+            $this->assertNotSame('', $messages['entity_' . $entity] ?? '', "{$locale} lacks the audit record kind {$entity}");
+        }
+    }
+
+    #[DataProvider('everyLocaleProvider')]
+    public function testPurchaseCycleFiles_KeepTheKeysOfEnglishInTheirOrderAndLeaveWhatIsNotTranslatedEmpty(string $locale): void
+    {
+        foreach (['Purchase_cycle', 'Purchase_requests', 'Quotation_requests', 'Supplier_quotations', 'Purchase_orders'] as $file) {
+            $english  = include __DIR__ . "/../app/Language/en/{$file}.php";
+            $messages = include __DIR__ . "/../app/Language/{$locale}/{$file}.php";
+
+            $this->assertSame(array_keys($english), array_keys($messages), "{$locale} {$file}: the keys of English, in the same order");
+
+            if (! in_array($locale, ['en', 'en-GB', 'ar-EG', 'ar-LB'], true)) {
+                $this->assertSame([''], array_values(array_unique($messages)), "{$locale} {$file}: a language with no translation yet falls back to English and never holds English text");
+            }
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testPurchaseCycleFiles_KeepThePlaceholdersOfTheMessagesOfEnglishInTheArabicOnes(string $locale): void
+    {
+        $english  = include __DIR__ . '/../app/Language/en/Accounting.php';
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting.php";
+
+        foreach (array_keys($english) as $key) {
+            if (! str_starts_with($key, 'error_purchase_')) {
+                continue;
+            }
+
+            preg_match_all('/\{\d+\}/', $english[$key], $wanted);
+            preg_match_all('/\{\d+\}/', $messages[$key], $given);
+
+            $this->assertEqualsCanonicalizing($wanted[0], $given[0], "{$locale} {$key}: the placeholders are kept");
         }
     }
 }
