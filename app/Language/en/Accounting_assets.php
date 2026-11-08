@@ -19,6 +19,7 @@ return [
     'branch_status_blocked' => 'Stopped',
     'branch_status_nothing_due' => 'Nothing due',
     'branch_status_ready' => 'Ready',
+    'catalog' => 'Fixed assets',
     'categories_empty' => 'No category yet.',
     'categories_intro' => 'A category names the accounts, the method and the life an asset of the category starts from.',
     'categories_title' => 'Categories of assets',

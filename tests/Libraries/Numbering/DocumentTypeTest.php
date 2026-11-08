@@ -144,4 +144,16 @@ class DocumentTypeTest extends CIUnitTestCase
             $this->assertLessThanOrEqual(24, strlen($type->value), $type->value . ' must fit the doc_type column');
         }
     }
+
+    public function testFixedAsset_HasATableOfItsOwnAndKeepsItsNumberInTheCodeColumn(): void
+    {
+        $type = DocumentType::FixedAsset;
+
+        $this->assertSame(['assets' => 'asset_id'], $type->sources());
+        $this->assertSame('code', $type->numberColumn());
+        $this->assertSame([], $type->bareIdSources());
+        $this->assertSame(0, $type->defaultPadding());
+        $this->assertSame('fixed_asset', $type->value);
+        $this->assertFalse($type->hasDuplicateOption());
+    }
 }

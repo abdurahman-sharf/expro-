@@ -121,7 +121,7 @@ class RoutingKeyTest extends CIUnitTestCase
     {
         $optional = array_filter(RoutingKey::cases(), static fn (RoutingKey $key): bool => ! $key->accountRequired());
 
-        $this->assertEqualsCanonicalizing([RoutingKey::ProductSales, RoutingKey::PurchaseReturns, RoutingKey::InterBranchReceivable, RoutingKey::InterBranchPayable], array_values($optional));
+        $this->assertEqualsCanonicalizing([RoutingKey::ProductSales, RoutingKey::PurchaseReturns, RoutingKey::InterBranchReceivable, RoutingKey::InterBranchPayable, RoutingKey::AssetCost, RoutingKey::AssetAccumulated, RoutingKey::AssetExpense, RoutingKey::AssetGain, RoutingKey::AssetLoss, RoutingKey::AssetPayable], array_values($optional));
     }
 
     public function testDefaultSystemKey_PointsEveryRequiredRowAtAnAccount(): void
@@ -224,5 +224,27 @@ class RoutingKeyTest extends CIUnitTestCase
 
         $this->assertSame('branches_receivable', RoutingKey::InterBranchReceivable->defaultSystemKey());
         $this->assertSame('branches_payable', RoutingKey::InterBranchPayable->defaultSystemKey());
+    }
+
+    public function testAssetKeys_AreOfTheTypesOfTheAccountsOfFixedAssetsAndStartOnTheirOwnAccounts(): void
+    {
+        $this->assertSame([AccountType::Asset], RoutingKey::AssetCost->allowedAccountTypes());
+        $this->assertSame([AccountType::Asset], RoutingKey::AssetAccumulated->allowedAccountTypes());
+        $this->assertSame([AccountType::Expense], RoutingKey::AssetExpense->allowedAccountTypes());
+        $this->assertSame([AccountType::Revenue, AccountType::Expense], RoutingKey::AssetGain->allowedAccountTypes());
+        $this->assertSame([AccountType::Revenue, AccountType::Expense], RoutingKey::AssetLoss->allowedAccountTypes());
+        $this->assertSame([AccountType::Liability], RoutingKey::AssetPayable->allowedAccountTypes());
+        $this->assertSame(['fixed_assets', 'accumulated_depreciation', 'depreciation_expense', 'asset_gain', 'asset_loss', 'other_payables'], array_map(static fn (RoutingKey $key): ?string => $key->defaultSystemKey(), [RoutingKey::AssetCost, RoutingKey::AssetAccumulated, RoutingKey::AssetExpense, RoutingKey::AssetGain, RoutingKey::AssetLoss, RoutingKey::AssetPayable]));
+        $this->assertSame(['assets.cost', 'assets.accumulated', 'assets.expense', 'assets.gain', 'assets.loss', 'assets.payable'], array_map(static fn (RoutingKey $key): string => $key->value, [RoutingKey::AssetCost, RoutingKey::AssetAccumulated, RoutingKey::AssetExpense, RoutingKey::AssetGain, RoutingKey::AssetLoss, RoutingKey::AssetPayable]));
+    }
+
+    public function testAssetKeys_AreEditableInOneGroupAndOnlyAutomatic(): void
+    {
+        foreach ([RoutingKey::AssetCost, RoutingKey::AssetAccumulated, RoutingKey::AssetExpense, RoutingKey::AssetGain, RoutingKey::AssetLoss, RoutingKey::AssetPayable] as $key) {
+            $this->assertContains($key, RoutingKey::editable(), $key->value);
+            $this->assertSame('other', $key->group(), $key->value);
+            $this->assertSame([RoutingType::Auto], $key->allowedTypes(), $key->value);
+            $this->assertFalse($key->isEntity(), $key->value);
+        }
     }
 }

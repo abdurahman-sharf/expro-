@@ -317,7 +317,7 @@ function familyReportCatalog(array $permissionIds, ?bool $accountingOn = null): 
  */
 function booksReportCatalog(array $permissionIds, ?bool $accountingOn = null): array
 {
-    if (array_intersect(['accounting_reports', 'accounting_receivables', 'accounting_payables', 'accounting_cheques', 'accounting_treasuries'], $permissionIds) === []) {
+    if (array_intersect(['accounting_reports', 'accounting_receivables', 'accounting_payables', 'accounting_cheques', 'accounting_treasuries', 'accounting_assets'], $permissionIds) === []) {
         return [];
     }
 
@@ -343,6 +343,9 @@ function booksReportCatalog(array $permissionIds, ?bool $accountingOn = null): a
         ['bi-wallet2', 'Accounting_reports.catalog_cheques', [
             ['accounting_cheques', [], 'accounting_cheques/report/received', 'Accounting_cheques.report_received'],
             ['accounting_cheques', [], 'accounting_cheques/report/paid', 'Accounting_cheques.report_paid'],
+        ]],
+        ['bi-building-gear', 'Accounting_assets.catalog', [
+            ['accounting_assets', [], 'accounting_assets', 'Accounting_assets.title'],
         ]],
         ['bi-bank', 'Accounting_reports.catalog_treasuries', [
             ['accounting_treasuries', ['acc_bank_reconcile'], 'accounting_treasuries/bank', 'Accounting_bank.title'],

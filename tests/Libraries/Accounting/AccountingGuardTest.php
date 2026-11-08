@@ -61,4 +61,12 @@ class AccountingGuardTest extends CIUnitTestCase
 
         $this->addToAssertionCount(1);
     }
+
+    public function testSensitive_IncludesTheDepreciationOfAssetsAndNotTheChangeOfTheRegister(): void
+    {
+        $this->assertContains(AccountingGuard::ASSETS_DEPRECIATE, AccountingGuard::SENSITIVE);
+        $this->assertNotContains(AccountingGuard::ASSETS_MANAGE, AccountingGuard::SENSITIVE);
+        $this->assertSame('acc_assets_depreciate', AccountingGuard::ASSETS_DEPRECIATE);
+        $this->assertSame('acc_assets_manage', AccountingGuard::ASSETS_MANAGE);
+    }
 }

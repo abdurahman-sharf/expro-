@@ -389,7 +389,7 @@ final class report_helperTest extends CIUnitTestCase
             'accounting_reports', 'accounting_receivables', 'accounting_payables', 'accounting_cheques', 'accounting_treasuries', 'acc_bank_reconcile',
             'reports_sales', 'reports_items', 'reports_categories', 'reports_customers', 'reports_employees', 'reports_payments', 'reports_taxes',
             'reports_sales_taxes', 'reports_inventory', 'reports_receivings', 'reports_suppliers', 'reports_expenses_categories', 'reports_discounts',
-            'receipt_vouchers', 'accounting_journals', 'accounting_chart', 'accounting_cost_centers',
+            'receipt_vouchers', 'accounting_journals', 'accounting_chart', 'accounting_cost_centers', 'accounting_assets',
         ];
     }
 
@@ -585,5 +585,11 @@ final class report_helperTest extends CIUnitTestCase
         foreach (array_keys($this->exemptReportRoutes()) as $route) {
             $this->assertContains($route, $routes, $route . ' is exempt but is not a route');
         }
+    }
+
+    public function testBooksReportCatalog_OffersTheAssetsReportToTheAssetsModule(): void
+    {
+        $this->assertSame([site_url('accounting_assets')], $this->booksPaths(['accounting_assets']));
+        $this->assertSame([], $this->booksPaths(['accounting_assets'], false));
     }
 }

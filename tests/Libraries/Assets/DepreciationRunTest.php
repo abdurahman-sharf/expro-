@@ -747,4 +747,31 @@ final class DepreciationRunTest extends CIUnitTestCase
         $this->assertSame('1000.0000', $found->lines[0]->amount);
         $this->assertRefused(AccountingError::AssetRunNotFound, fn () => $this->depreciation->find($other, $limited));
     }
+
+    public function testApprove_NeverPostsMoreThanIsLeftWhateverTheScheduleSays(): void
+    {
+        $assetId = $this->enterAsset(['cost' => '12000', 'amount_per_period' => '1000']);
+        $db      = $this->accountingDb();
+
+        $db->table('asset_depreciation_runs')->insert(['company_id' => 1, 'branch_id' => 1, 'period_start' => '2025-12-01', 'period_end' => '2025-12-31', 'run_number' => 1, 'total' => '11500', 'line_count' => 1, 'fingerprint' => str_repeat('a', 64), 'status' => 'active']);
+        $db->table('asset_depreciations')->insert(['company_id' => 1, 'branch_id' => 1, 'asset_id' => $assetId, 'run_id' => (int) $db->insertID(), 'period_start' => '2025-12-01', 'amount' => '11500', 'active_key' => 1]);
+
+        $preview = $this->depreciation->preview(1, '2026-02', $this->assetRunner);
+
+        $this->assertSame('500.0000', $preview->branches[0]->lines[0]->amount, 'only 500 of the 12,000 is left, though the schedule says 1,000');
+
+        $this->depreciation->approve(1, '2026-02', $preview->fingerprint, $this->assetRunner);
+
+        $this->assertSame(DepreciationBranchStatus::NothingDue, $this->depreciation->preview(1, '2026-03', $this->assetRunner)->branches[0]->status);
+        $this->assertSame(AssetStatus::Consumed->value, $this->asset($assetId)->status);
+    }
+
+    public function testApprove_DepreciatesAnAssetByTheDaysOfAnIntervalOfDays(): void
+    {
+        $assetId = $this->enterAsset(['cost' => '3650', 'amount_per_period' => '10', 'period_length' => '1', 'period_interval' => 'day', 'in_service_date' => '2026-01-29', 'purchase_date' => '2026-01-29']);
+
+        $this->runMonth('2026-02');
+
+        $this->assertSame('280.0000', $this->accountingDb()->table('asset_depreciations')->where('asset_id', $assetId)->get()->getRow()->amount, 'one amount a day for the 28 days of February');
+    }
 }

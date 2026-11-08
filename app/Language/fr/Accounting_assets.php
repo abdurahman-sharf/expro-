@@ -19,6 +19,7 @@ return [
     'branch_status_blocked' => '',
     'branch_status_nothing_due' => '',
     'branch_status_ready' => '',
+    'catalog' => '',
     'categories_empty' => '',
     'categories_intro' => '',
     'categories_title' => '',

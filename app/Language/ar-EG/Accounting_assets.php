@@ -19,6 +19,7 @@ return [
     'branch_status_blocked' => 'متوقف',
     'branch_status_nothing_due' => 'لا شيء مستحق',
     'branch_status_ready' => 'جاهز',
+    'catalog' => 'الأصول الثابتة',
     'categories_empty' => 'لا توجد فئات بعد.',
     'categories_intro' => 'تحدد الفئة الحسابات والطريقة والعمر التي يبدأ منها الأصل في الفئة.',
     'categories_title' => 'فئات الأصول',
