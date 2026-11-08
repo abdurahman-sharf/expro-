@@ -12,6 +12,7 @@ use App\Libraries\Accounting\TrialBalance;
 use App\Libraries\Assets\AssetDisposals;
 use App\Libraries\Assets\AssetsFilter;
 use App\Libraries\Assets\AssetsReport;
+use App\Libraries\Assets\AssetsReportResult;
 use App\Libraries\Assets\AssetStatus;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -83,7 +84,7 @@ final class AssetsReportTest extends CIUnitTestCase
     /**
      * @return array<string, object>
      */
-    private function rowsByCode(\App\Libraries\Assets\AssetsReportResult $result): array
+    private function rowsByCode(AssetsReportResult $result): array
     {
         $rows = [];
 
@@ -279,14 +280,18 @@ final class AssetsReportTest extends CIUnitTestCase
         $this->register->setActive($idle, false, $this->assetClerk);
         $gone = $this->enterAsset(['code' => 'A-3', 'name' => 'Gone']);
         (new AssetDisposals())->writeOff($gone, ['date' => '2026-01-20'], $this->assetClerk);
+        $this->enterAsset(['code' => 'A-4', 'name' => 'Spent', 'cost' => '2000', 'amount_per_period' => '1000']);
+        $this->runMonth('2026-02');
+        $this->runMonth('2026-03');
 
         $result = $this->report->build($this->company(), new AssetsFilter(group: 'status', asOf: '2026-03-31'));
 
-        $this->assertSame(['active', 'inactive', 'written_off'], array_map(static fn ($group): string => $group->key, $result->groups));
+        $this->assertSame(['active', 'inactive', 'consumed', 'written_off'], array_map(static fn ($group): string => $group->key, $result->groups), 'in the order of the statuses, not the alphabet');
         $this->assertSame('12000.0000', $result->groups[0]->cost);
         $this->assertSame('12000.0000', $result->groups[1]->cost);
-        $this->assertSame('0.0000', $result->groups[2]->cost, 'what was written off is not on the books');
-        $this->assertSame('24000.0000', $result->cost);
+        $this->assertSame('2000.0000', $result->groups[2]->cost);
+        $this->assertSame('0.0000', $result->groups[3]->cost, 'what was written off is not on the books');
+        $this->assertSame('26000.0000', $result->cost);
     }
 
     public function testBuild_GroupsByTheDayOfGoingIntoServiceAndByTheDayOfPurchase(): void
@@ -319,6 +324,26 @@ final class AssetsReportTest extends CIUnitTestCase
         $this->assertSame('1000.0000', $feb->accumulated);
         $this->assertSame('2000.0000', $mar->accumulated);
         $this->assertSame('1000.0000', $mid->accumulated, 'March is not run until its last day');
+    }
+
+    public function testBuild_SumsTheDepreciationOfTheRangeAskedAndLeavesOutARunThatWasTakenBack(): void
+    {
+        $this->enterAsset(['code' => 'A-1']);
+        $this->runMonth('2026-02');
+        $this->runMonth('2026-03');
+        $this->runMonth('2026-04');
+
+        $range = fn (string $from, string $to): string => $this->rowsByCode($this->report->build($this->company(), new AssetsFilter(asOf: '2026-04-30', depreciationFrom: $from, depreciationTo: $to)))['A-1']->depreciation;
+
+        $this->assertSame('2000.0000', $range('2026-02-01', '2026-03-31'));
+        $this->assertSame('1000.0000', $range('2026-03-01', '2026-03-31'));
+        $this->assertSame('3000.0000', $range('2026-01-01', '2026-04-30'));
+
+        $run = (int) $this->accountingDb()->table('asset_depreciation_runs')->where('period_start', '2026-03-01')->get()->getRow()->run_id;
+
+        $this->depreciation->reverse($run, 'Wrong month', $this->assetRunner);
+
+        $this->assertSame('1000.0000', $range('2026-02-01', '2026-03-31'), 'a run that was taken back is not in the range');
     }
 
     public function testBuild_LimitsTheReportToTheBranchesOfTheScope(): void

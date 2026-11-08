@@ -269,6 +269,14 @@ final class DepreciationScheduleTest extends CIUnitTestCase
         $this->assertSame('0.0000', $this->schedule->forUnits(new AssetTerms(AssetMethod::Units, '10500', '500', '2026-01-01'), '10', '0'));
     }
 
+    public function testForUnits_IsNothingForNegativeUnitsAndWhenMoreWasPostedThanThereIsToDepreciate(): void
+    {
+        $terms = new AssetTerms(AssetMethod::Units, '10500', '500', '2026-01-01', costPerUnit: '2.5');
+
+        $this->assertSame('0.0000', $this->schedule->forUnits($terms, '-5', '0'));
+        $this->assertSame('0.0000', $this->schedule->forUnits($terms, '10', '10001'));
+    }
+
     public function testBase_IsCostLessSalvageAndNeverBelowZero(): void
     {
         $this->assertSame('10000.0000', (new AssetTerms(AssetMethod::Fixed, '10500', '500', '2026-01-01'))->base());

@@ -8,11 +8,13 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Assets\AssetDisposals;
 use App\Libraries\Assets\AssetRegister;
 use App\Libraries\Assets\AssetSources;
 use App\Libraries\Assets\AssetStatus;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -147,6 +149,32 @@ final class AssetRegisterTest extends CIUnitTestCase
         $this->assertCount(3, $this->journalLines((int) $this->journalOf(AssetSources::ACQUISITION, $assetId)->journal_id), 'cost and accumulated depreciation, and a net of 2,000 for the opening balance');
     }
 
+    public function testCreate_BringsInAnOldAssetWithoutDepreciationAtItsCostAgainstTheOpeningBalance(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+
+        $opener  = $this->employeeWithGrants([AccountingGuard::ASSETS_MANAGE, AccountingGuard::OPENING_MANAGE]);
+        $assetId = $this->enterAsset(['funding' => 'opening', 'treasury_id' => '', 'opening_accumulated' => '0'], $opener);
+
+        $lines = $this->journalLines((int) $this->journalOf(AssetSources::ACQUISITION, $assetId)->journal_id);
+
+        $this->assertSame([$this->accountId('fixed_assets'), $this->accountId('opening_balance')], array_map(static fn (object $line): int => (int) $line->account_id, $lines));
+        $this->assertSame('12000.0000', $lines[1]->credit);
+    }
+
+    public function testCreate_BringsInAnOldAssetDepreciatedByAllItIsWorthAgainstItsAccumulatedDepreciationAlone(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+
+        $opener  = $this->employeeWithGrants([AccountingGuard::ASSETS_MANAGE, AccountingGuard::OPENING_MANAGE]);
+        $assetId = $this->enterAsset(['funding' => 'opening', 'treasury_id' => '', 'salvage' => '0', 'opening_accumulated' => '12000'], $opener);
+
+        $lines = $this->journalLines((int) $this->journalOf(AssetSources::ACQUISITION, $assetId)->journal_id);
+
+        $this->assertSame([$this->accountId('fixed_assets'), $this->accountId('accumulated_depreciation')], array_map(static fn (object $line): int => (int) $line->account_id, $lines));
+        $this->assertSame('12000.0000', $lines[1]->credit);
+    }
+
     public function testCreate_EntersAnAssetTheBooksHoldAlreadyWithoutAJournal(): void
     {
         $this->setConfigValue('accounting_start_date', '2026-01-01');
@@ -228,7 +256,10 @@ final class AssetRegisterTest extends CIUnitTestCase
     {
         $this->enterAsset(['code' => 'DESK-1']);
 
-        $this->assertRefused(AccountingError::AssetCodeTaken, fn () => $this->enterAsset(['code' => 'DESK-1', 'name' => 'Second desk']));
+        $refusal = $this->assertRefused(AccountingError::AssetCodeTaken, fn () => $this->enterAsset(['code' => 'DESK-1', 'name' => 'Second desk']));
+
+        $this->assertStringContainsString('DESK-1', $refusal->getMessage());
+        $this->assertStringContainsString('another asset', $refusal->getMessage());
         $this->assertSame(1, $this->countRows('assets'));
     }
 
@@ -755,6 +786,166 @@ final class AssetRegisterTest extends CIUnitTestCase
         $this->assertNotNull($entry);
         $this->assertSame($this->assetClerk, (int) $entry->employee_id);
         $this->assertSame(1, (int) $entry->branch_id);
+    }
+
+    public function testUpdate_RequiresTheOpeningPermissionToChangeAnAssetIntoAnOpeningBalance(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+
+        $assetId = $this->enterAsset();
+
+        $this->assertRefused(AccountingError::PermissionDenied, fn () => $this->register->update($assetId, $this->assetInput(['funding' => 'opening', 'treasury_id' => '', 'opening_accumulated' => '1000']), $this->assetClerk));
+
+        $this->assertSame('treasury', $this->asset($assetId)->funding);
+        $this->assertSame('0.0000', $this->asset($assetId)->opening_accumulated);
+    }
+
+    public function testRecordUsage_RefusesAnAssetThatWasWrittenOff(): void
+    {
+        $assetId = $this->enterAsset(['method' => 'units', 'cost_per_unit' => '2.5', 'amount_per_period' => '']);
+
+        (new AssetDisposals())->writeOff($assetId, ['date' => '2026-01-20'], $this->assetClerk);
+
+        $this->assertRefused(AccountingError::AssetUsageInvalid, fn () => $this->register->recordUsage($assetId, '2026-02', '10', $this->assetClerk));
+        $this->assertSame(0, $this->countRows('asset_usage'));
+    }
+
+    public function testSetActive_HidesAnAssetOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $assetId = $this->enterAsset(['branch_id' => $this->second, 'funding' => 'payable', 'treasury_id' => '']);
+        $limited = $this->employeeWithGrants([AccountingGuard::ASSETS_MANAGE], [1]);
+
+        $this->assertRefused(AccountingError::AssetNotFound, fn () => $this->register->setActive($assetId, false, $limited));
+        $this->assertSame(AssetStatus::Active->value, $this->asset($assetId)->status);
+    }
+
+    public function testRecordUsage_HidesAnAssetOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $assetId = $this->enterAsset(['branch_id' => $this->second, 'funding' => 'payable', 'treasury_id' => '', 'method' => 'units', 'cost_per_unit' => '2.5', 'amount_per_period' => '']);
+        $limited = $this->employeeWithGrants([AccountingGuard::ASSETS_MANAGE], [1]);
+
+        $this->assertRefused(AccountingError::AssetNotFound, fn () => $this->register->recordUsage($assetId, '2026-02', '10', $limited));
+        $this->assertSame(0, $this->countRows('asset_usage'));
+    }
+
+    public function testCreate_RefusesABranchThatIsSwitchedOff(): void
+    {
+        $this->accountingDb()->table('branches')->where('branch_id', $this->second)->update(['active' => 0]);
+
+        try {
+            $this->enterAsset(['branch_id' => $this->second, 'funding' => 'payable', 'treasury_id' => '']);
+            $this->fail('The branch is switched off.');
+        } catch (BranchException $exception) {
+            $this->assertSame(BranchError::Inactive, $exception->error);
+        }
+
+        $this->assertSame(0, $this->countRows('assets'));
+    }
+
+    public function testUpdate_ChangesAnAssetOfABranchThatWasSwitchedOffAfterItWasEntered(): void
+    {
+        $assetId = $this->enterAsset(['branch_id' => $this->second, 'funding' => 'payable', 'treasury_id' => '']);
+
+        $this->accountingDb()->table('branches')->where('branch_id', $this->second)->update(['active' => 0]);
+        $this->register->update($assetId, $this->assetInput(['branch_id' => $this->second, 'funding' => 'payable', 'treasury_id' => '', 'name' => 'Renamed']), $this->assetClerk);
+
+        $this->assertSame('Renamed', $this->asset($assetId)->name);
+    }
+
+    public function testUpdate_WritesAnEntryOfTheAuditLogWithTheTermsThatChanged(): void
+    {
+        $assetId = $this->enterAsset();
+
+        $this->register->update($assetId, $this->assetInput(['cost' => '13000']), $this->assetClerk);
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'asset', 'entity_id' => $assetId, 'action' => 'asset_updated'])->get()->getRow();
+
+        $this->assertNotNull($entry);
+        $this->assertSame($this->assetClerk, (int) $entry->employee_id);
+        $this->assertSame(['terms' => ['cost']], json_decode((string) $entry->details, true));
+    }
+
+    public function testDelete_WritesAnEntryOfTheAuditLog(): void
+    {
+        $assetId = $this->enterAsset();
+
+        $this->register->delete($assetId, $this->assetClerk);
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'asset', 'entity_id' => $assetId, 'action' => 'asset_deleted'])->get()->getRow();
+
+        $this->assertNotNull($entry);
+        $this->assertSame($this->assetClerk, (int) $entry->employee_id);
+    }
+
+    public function testRecordUsage_WritesAnEntryOfTheAuditLog(): void
+    {
+        $assetId = $this->enterAsset(['method' => 'units', 'cost_per_unit' => '2.5', 'amount_per_period' => '']);
+
+        $this->register->recordUsage($assetId, '2026-02', '120', $this->assetClerk);
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'asset', 'entity_id' => $assetId, 'action' => 'asset_usage_recorded'])->get()->getRow();
+
+        $this->assertNotNull($entry);
+        $this->assertSame(['month' => '2026-02', 'units' => '120.00'], json_decode((string) $entry->details, true));
+    }
+
+    public function testCreate_RefusesDepreciationAlreadyHadForAnAssetThatIsNotDepreciated(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+
+        $this->assertRefused(AccountingError::AssetFieldInvalid, fn () => $this->enterAsset(['funding' => 'none', 'treasury_id' => '', 'method' => 'none', 'opening_accumulated' => '1000']));
+        $this->assertSame(0, $this->countRows('assets'));
+    }
+
+    public function testCreate_RefusesAnEndDateBeforeTheServiceDateForAnAssetOfUnits(): void
+    {
+        $this->assertRefused(AccountingError::AssetFieldInvalid, fn () => $this->enterAsset(['method' => 'units', 'cost_per_unit' => '2.5', 'amount_per_period' => '', 'in_service_date' => '2026-03-01', 'end_date' => '2026-02-01']));
+        $this->assertSame(0, $this->countRows('assets'));
+    }
+
+    public function testUpdate_KeepsTheSerialNumberAndTheBarcodeTheAssetHasAlready(): void
+    {
+        $assetId = $this->enterAsset(['units' => [['serial_number' => 'S-1', 'barcode' => 'B-1']]]);
+
+        $this->register->update($assetId, $this->assetInput(['name' => 'Renamed', 'units' => [['serial_number' => 'S-1', 'barcode' => 'B-1']]]), $this->assetClerk);
+
+        $units = $this->accountingDb()->table('asset_units')->where('asset_id', $assetId)->get()->getResult();
+
+        $this->assertCount(1, $units);
+        $this->assertSame('S-1', $units[0]->serial_number);
+        $this->assertSame('B-1', $units[0]->barcode);
+        $this->assertSame('Renamed', $this->asset($assetId)->name);
+    }
+
+    public function testCreate_RefusesACustodyThatIsNotOneOfTheThree(): void
+    {
+        $this->assertRefused(AccountingError::AssetFieldInvalid, fn () => $this->enterAsset(['units' => [['serial_number' => 'S-1', 'used_by' => 'borrowed']]]));
+        $this->assertSame(0, $this->countRows('assets'));
+    }
+
+    public function testCreate_RefusesADateBeforeTheYear1900AndAfterTheYear2200(): void
+    {
+        $this->assertRefused(AccountingError::AssetFieldInvalid, fn () => $this->enterAsset(['purchase_date' => '1899-12-31', 'in_service_date' => '1899-12-31']));
+        $this->assertRefused(AccountingError::AssetFieldInvalid, fn () => $this->enterAsset(['purchase_date' => '2201-01-01', 'in_service_date' => '2201-01-01']));
+        $this->assertSame(0, $this->countRows('assets'));
+    }
+
+    public function testCreate_RefusesACodeLongerThanSixtyFourCharacters(): void
+    {
+        $this->assertRefused(AccountingError::AssetFieldInvalid, fn () => $this->enterAsset(['code' => str_repeat('A', 65)]));
+
+        $this->enterAsset(['code' => str_repeat('B', 64)]);
+
+        $this->assertSame(1, $this->countRows('assets'));
+    }
+
+    public function testCreate_RefusesTotalUnitsThatAreNotANumberAboveZero(): void
+    {
+        foreach (['0', 'abc', '-5', '1.234'] as $total) {
+            $this->assertRefused(AccountingError::AssetFieldInvalid, fn () => $this->enterAsset(['method' => 'units', 'cost_per_unit' => '2.5', 'amount_per_period' => '', 'total_units' => $total]));
+        }
+
+        $this->assertSame(0, $this->countRows('assets'));
     }
 
     /**

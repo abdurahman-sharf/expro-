@@ -749,4 +749,64 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
 
         $this->assertSame(0, $this->countRows('asset_depreciation_runs'));
     }
+
+    public function testGetUsageForm_IsNotFoundWithoutThePermissionToChangeTheRegister(): void
+    {
+        $assetId = $this->enterAsset(['method' => 'units', 'cost_per_unit' => '2.5', 'amount_per_period' => '']);
+        $this->actAsWith(['accounting_assets']);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_assets/usage_form/' . $assetId);
+    }
+
+    public function testGetDisposeForm_IsNotFoundWithoutThePermissionToChangeTheRegister(): void
+    {
+        $assetId = $this->enterAsset();
+        $this->actAsWith(['accounting_assets']);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_assets/dispose_form/write_off/' . $assetId);
+    }
+
+    public function testGetDisposeReverseForm_IsNotFoundWithoutThePermissionToChangeTheRegister(): void
+    {
+        $operationId = (new AssetDisposals())->writeOff($this->enterAsset(), ['date' => '2026-01-20'], $this->assetClerk);
+        $this->actAsWith(['accounting_assets']);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_assets/dispose_reverse_form/' . $operationId);
+    }
+
+    public function testGetDepreciation_RejectsAScopeOutsideTheOptions(): void
+    {
+        $this->enterAsset();
+        $this->runner([1]);
+
+        foreach (['company', (string) $this->second, 'x'] as $scope) {
+            try {
+                $this->get('/accounting_assets/depreciation?scope=' . $scope);
+                $this->fail('The scope ' . $scope . ' is not one the employee is offered.');
+            } catch (PageNotFoundException) {
+                $this->assertTrue(true);
+            }
+        }
+
+        $this->get('/accounting_assets/depreciation?scope=1')->assertOK();
+    }
+
+    public function testGetDisposeForm_IsNotFoundForAKindThatIsNotASaleOrAWriteOffEvenForAnAssetThatMayBeDisposedOf(): void
+    {
+        $assetId = $this->enterAsset();
+        $this->manager();
+
+        $this->get('/accounting_assets/dispose_form/sale/' . $assetId)->assertOK();
+        $this->get('/accounting_assets/dispose_form/write_off/' . $assetId)->assertOK();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_assets/dispose_form/barter/' . $assetId);
+    }
 }

@@ -5,6 +5,7 @@ namespace Tests\Database;
 use App\Database\Migrations\AssetAccounts;
 use App\Database\Migrations\FixedAssets;
 use App\Libraries\Accounting\DefaultChart;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -132,11 +133,15 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
 
         try {
             (new FixedAssets())->down();
-            $this->fail('An asset exists.');
         } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('An asset exists', $exception->getMessage());
             $this->assertTrue($this->hasTable('assets'));
             $this->assertSame(1, $this->countRows('assets'));
+
+            return;
         }
+
+        $this->fail('An asset exists.');
     }
 
     public function testDown_DropsTheTablesTheModuleAndThePermissionsWhenNoAssetExists(): void
@@ -387,5 +392,68 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
                 $this->assertStringNotContainsString('The database took', $exception->getMessage());
             }
         }
+    }
+
+    public function testTables_RefuseADisposalWithNegativeProceeds(): void
+    {
+        $this->startAssets();
+
+        $assetId = $this->enterAsset();
+
+        $this->expectException(DatabaseException::class);
+
+        $this->accountingDb()->table('asset_operations')->insert(['company_id' => 1, 'branch_id' => 1, 'asset_id' => $assetId, 'kind' => 'sale', 'operation_date' => '2026-03-01', 'proceeds' => '-1', 'cost_removed' => '1', 'accumulated_removed' => '0', 'result_amount' => '0', 'previous_status' => 'active', 'status' => 'active', 'active_key' => 1]);
+    }
+
+    public function testTables_RefuseTwoRunsOfOneBranchAndMonthWithTheSameNumber(): void
+    {
+        $this->startAssets();
+
+        $run = ['company_id' => 1, 'branch_id' => 1, 'period_start' => '2026-02-01', 'period_end' => '2026-02-28', 'run_number' => 1, 'total' => '1', 'line_count' => 1, 'fingerprint' => str_repeat('a', 64), 'status' => 'active'];
+
+        $this->accountingDb()->table('asset_depreciation_runs')->insert($run);
+
+        $this->expectException(DatabaseException::class);
+
+        $this->accountingDb()->table('asset_depreciation_runs')->insert($run);
+    }
+
+    public function testTables_RefuseTwoCategoriesOfOneCompanyWithTheSameName(): void
+    {
+        $this->startAssets();
+
+        $this->accountingDb()->table('asset_categories')->insert(['company_id' => 1, 'name' => 'Furniture']);
+
+        $this->expectException(DatabaseException::class);
+
+        $this->accountingDb()->table('asset_categories')->insert(['company_id' => 1, 'name' => 'Furniture']);
+    }
+
+    public function testTables_RefuseALineOfDepreciationWhoseKeyIsNeitherOneNorNothing(): void
+    {
+        $this->startAssets();
+
+        $assetId = $this->enterAsset();
+        $db      = $this->accountingDb();
+
+        $db->table('asset_depreciation_runs')->insert(['company_id' => 1, 'branch_id' => 1, 'period_start' => '2026-02-01', 'period_end' => '2026-02-28', 'run_number' => 1, 'total' => '1', 'line_count' => 1, 'fingerprint' => str_repeat('a', 64), 'status' => 'active']);
+
+        $runId = (int) $db->insertID();
+
+        $this->expectException(DatabaseException::class);
+
+        $db->table('asset_depreciations')->insert(['company_id' => 1, 'branch_id' => 1, 'asset_id' => $assetId, 'run_id' => $runId, 'period_start' => '2026-02-01', 'amount' => '10', 'active_key' => 2]);
+    }
+
+    public function testAssetAccounts_TakenDownKeepsTheAccountsAJournalLineNames(): void
+    {
+        $this->startAssets();
+        $this->enterAsset();
+        $this->clearAssets();
+
+        (new AssetAccounts())->down();
+
+        $this->assertNotNull($this->accountOf('fixed_assets'), 'a journal line names it');
+        $this->assertNull($this->accountOf('depreciation_expense'), 'nothing names it');
     }
 }

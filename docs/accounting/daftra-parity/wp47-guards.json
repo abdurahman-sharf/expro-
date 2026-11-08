@@ -1,0 +1,2507 @@
+[
+ {
+  "name": "GA01 a new asset needs the permission to manage the register",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "    public function create(array $input, ?int $employeeId = null): int\n    {\n        $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);\n",
+  "replace": "    public function create(array $input, ?int $employeeId = null): int\n    {\n",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA02 a change of an asset needs the permission to manage the register",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "    public function update(int $assetId, array $input, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);\n",
+  "replace": "    public function update(int $assetId, array $input, ?int $employeeId = null): void\n    {\n",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA03 taking an asset in and out of service needs the permission to manage the register",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "    public function setActive(int $assetId, bool $active, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);\n",
+  "replace": "    public function setActive(int $assetId, bool $active, ?int $employeeId = null): void\n    {\n",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA04 deleting an asset needs the permission to manage the register",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "    public function delete(int $assetId, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);\n",
+  "replace": "    public function delete(int $assetId, ?int $employeeId = null): void\n    {\n",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA05 entering usage needs the permission to manage the register",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "    public function recordUsage(int $assetId, string $month, string $units, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);\n",
+  "replace": "    public function recordUsage(int $assetId, string $month, string $units, ?int $employeeId = null): void\n    {\n",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA06 an asset brought in as an opening balance needs the opening permission",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if ($row['funding'] === 'opening') {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA07 an asset that was sold or written off is not changed",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if (AssetStatus::from((string) $asset->status)->isDisposed()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA08 the terms of an asset are locked once a depreciation or a disposal stands",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if ($changed !== [] && $this->hasHistory($assetId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA09 changing an asset to an opening one needs the opening permission",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if ($changed !== [] && $row['funding'] === 'opening') {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testUpdate_RequiresTheOpeningPermissionToChangeAnAssetIntoAnOpeningBalance",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA10 a new code of a changed asset is not taken by another",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "$this->assertCodeFree($row['code'], $assetId);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA11 a new asset does not take the code of another",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "$this->assertCodeFree((string) $row['code'], null);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testCreate_RefusesACodeAnotherAssetHas",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA12 a change of the terms is found by comparing each field",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if (! $this->same($asset->{$field} ?? null, $row[$field] ?? null)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA14 an asset is switched on only when it is off and off only when it is in service",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if ($active ? $current !== AssetStatus::Inactive : ! in_array($current, [AssetStatus::Active, AssetStatus::Consumed], true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA15 an asset a depreciation stands on or that was disposed of is not deleted",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if (AssetStatus::from((string) $asset->status)->isDisposed() || $this->hasHistory($assetId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA16 deleting an asset takes the journal that brought it in back",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "$this->journals->sync(AssetSources::ACQUISITION, $assetId, null, $employeeId, 'Asset ' . $asset->code . ' deleted');",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA17 deleting an asset frees its serial numbers",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "\n                $this->db->table('asset_units')->where('asset_id', $assetId)->delete();\n                $this->db->table('assets')->where('asset_id', $assetId)->update(['deleted' => 1]);",
+  "replace": "\n                $this->db->table('assets')->where('asset_id', $assetId)->update(['deleted' => 1]);",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA18 usage is a month and a number of units",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if ($period === null || preg_match('/^\\d{1,13}(\\.\\d{1,2})?$/', trim($units)) !== 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA19 only an asset of the units of production method takes usage",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if ($asset->method !== AssetMethod::Units->value || AssetStatus::from((string) $asset->status)->isDisposed()) {",
+  "replace": "if (AssetStatus::from((string) $asset->status)->isDisposed()) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA20 an asset that was disposed of takes no usage",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if ($asset->method !== AssetMethod::Units->value || AssetStatus::from((string) $asset->status)->isDisposed()) {",
+  "replace": "if ($asset->method !== AssetMethod::Units->value) {",
+  "tests": [
+   "--filter",
+   "testRecordUsage_RefusesAnAssetThatWasWrittenOff",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA21 the usage of a month that is depreciated already stands",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if ($this->db->table('asset_depreciations')->where(['asset_id' => $assetId, 'period_start' => $period->start, 'active_key' => 1])->countAllResults() > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA22 the usage never passes the units the asset has in all",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if (bccomp(bcadd((string) ($other->used ?? '0'), $units, 2), (string) $asset->total_units, 2) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA23 the usage of the month being changed is not counted twice",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "->where('period_start !=', $period->start)",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA24 an asset of a branch outside the scope of the employee is not found",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if ($asset === null || ! $this->branches->canAccess((int) $asset->branch_id, $employeeId)) {\n            throw new AccountingException(AccountingError::AssetNotFound, \"Asset {$assetId} does not exist.\", ['name' => (string) $assetId]);\n        }\n\n        $asset->units",
+  "replace": "if ($asset === null) {\n            throw new AccountingException(AccountingError::AssetNotFound, \"Asset {$assetId} does not exist.\", ['name' => (string) $assetId]);\n        }\n\n        $asset->units",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA25 a locked asset of a branch outside the scope of the employee is not found",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if ($asset === null || ! $this->branches->canAccess((int) $asset->branch_id, $employeeId)) {\n            throw new AccountingException(AccountingError::AssetNotFound, \"Asset {$assetId} does not exist.\", ['name' => (string) $assetId]);\n        }\n\n        return $asset;",
+  "replace": "if ($asset === null) {\n            throw new AccountingException(AccountingError::AssetNotFound, \"Asset {$assetId} does not exist.\", ['name' => (string) $assetId]);\n        }\n\n        return $asset;",
+  "tests": [
+   "--filter",
+   "testSetActive_HidesAnAssetOfABranchTheEmployeeDoesNotWorkIn|testRecordUsage_HidesAnAssetOfABranchTheEmployeeDoesNotWorkIn",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA26 an asset depreciated by all it is to be is consumed",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "return bccomp($this->figures->accumulated($asset), $terms->base(), 4) >= 0 ? AssetStatus::Consumed : AssetStatus::Active;",
+  "replace": "return bccomp($this->figures->accumulated($asset), $terms->base(), 4) > 0 ? AssetStatus::Consumed : AssetStatus::Active;",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA27 an opening asset is brought in on the day the books start",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "$date  = $asset->funding === 'opening' ? (string) $this->settings->startDate() : (string) $asset->purchase_date;",
+  "replace": "$date  = (string) $asset->purchase_date;",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA28 a refusal of the books is recorded after the change rolled back",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "(new PostingFailureLog($this->db))->recordUnbuilt(AssetSources::ACQUISITION, $assetId, 1, JournalEntryType::General, $failure, $employeeId, $branchId);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA29 an asset is not entered in an inactive branch",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if ((int) $branch->active === 0 && ($asset === null || (int) $asset->branch_id !== $branchId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_RefusesABranchThatIsSwitchedOff|testUpdate_ChangesAnAssetOfABranchThatWasSwitchedOffAfterItWasEntered",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA30 an asset is entered in a branch the employee works in",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "$this->branches->requireBranch($branchId, $employeeId);\n\n        if ((int) $branch->active === 0",
+  "replace": "if ((int) $branch->active === 0",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA31 an asset is paid from a treasury of its own branch",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "if ($treasury === null || (int) $treasury->branch_id !== $branchId) {",
+  "replace": "if ($treasury === null) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA32 entering an asset is written in the audit log",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "$this->audit->write(self::ENTITY, $assetId, 'asset_created',",
+  "replace": "false && $this->audit->write(self::ENTITY, $assetId, 'asset_created',",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA33 changing an asset is written in the audit log",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "$this->audit->write(self::ENTITY, $assetId, 'asset_updated',",
+  "replace": "false && $this->audit->write(self::ENTITY, $assetId, 'asset_updated',",
+  "tests": [
+   "--filter",
+   "testUpdate_WritesAnEntryOfTheAuditLogWithTheTermsThatChanged",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA34 deleting an asset is written in the audit log",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "$this->audit->write(self::ENTITY, $assetId, 'asset_deleted',",
+  "replace": "false && $this->audit->write(self::ENTITY, $assetId, 'asset_deleted',",
+  "tests": [
+   "--filter",
+   "testDelete_WritesAnEntryOfTheAuditLog",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GA35 entering usage is written in the audit log",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "$this->audit->write(self::ENTITY, $assetId, 'asset_usage_recorded',",
+  "replace": "false && $this->audit->write(self::ENTITY, $assetId, 'asset_usage_recorded',",
+  "tests": [
+   "--filter",
+   "testRecordUsage_WritesAnEntryOfTheAuditLog",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI01 the salvage is not more than the cost",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (bccomp($salvage, $cost, self::SCALE) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI02 the depreciation an old asset had is not more than what is to be depreciated",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (bccomp($accumulated, $base, self::SCALE) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI03 an asset that is not depreciated has no depreciation already",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($method === AssetMethod::None && bccomp($accumulated, '0', self::SCALE) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_RefusesDepreciationAlreadyHadForAnAssetThatIsNotDepreciated",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI04 the first depreciation is not before the asset was bought",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($first < $inService || (! $opening && $first < $purchase)) {",
+  "replace": "if ($first < $inService) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI05 the first depreciation is not before the asset went into service",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($first < $inService || (! $opening && $first < $purchase)) {",
+  "replace": "if (! $opening && $first < $purchase) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI06 the end date is not before the first depreciation",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($end !== null && $end < $first) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI07 the end date of the units of production method is not before the service date",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($end !== null && $end < $inService) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_RefusesAnEndDateBeforeTheServiceDateForAnAssetOfUnits",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI08 the percentage is at most a hundred",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "|| bccomp($percentage, '100', self::SCALE) > 0) {",
+  "replace": ") {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI09 the percentage is above zero",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "|| bccomp($percentage, '0', self::SCALE) <= 0 ",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI10 the cost and the amounts are above zero",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "(! $allowZero && bccomp($text, '0', $scale) <= 0)",
+  "replace": "false",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI11 an amount is plain digits with a point",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (preg_match($pattern, $text) !== 1 ||",
+  "replace": "if (false ||",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI12 the funding is one of the four",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (! in_array($funding, ['treasury', 'payable', 'opening', 'none'], true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI13 only an asset brought in as an opening balance has depreciation already",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (bccomp($this->amount($input['opening_accumulated'] ?? '0', 'opening_accumulated', true), '0', self::SCALE) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI14 the category of an asset is not switched off",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "->where('category_id', $id)->where('active', 1)->get()->getRow();",
+  "replace": "->where('category_id', $id)->get()->getRow();",
+  "tests": [
+   "--filter",
+   "testSetActive_SwitchesACategoryOffAndOnAndAnAssetCannotTakeAnOffCategory",
+   "tests/Libraries/Assets/AssetRegisterTest.php",
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GI15 the supplier of an asset exists",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($this->db->table('suppliers')->where('person_id', $id)->where('deleted', 0)->countAllResults() === 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI16 the cost centre of an asset is an active one",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($this->db->table('accounting_cost_centers')->where('company_id', CompanyContext::id())->where('cost_center_id', $id)->where('active', 1)->countAllResults() === 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI17 an asset paid from a treasury names an active one",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($id === 0 || $this->db->table('treasuries')->where('company_id', CompanyContext::id())->where('treasury_id', $id)->where('active', 1)->countAllResults() === 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI18 an asset that does not define its units has at most one row",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (($tracked && count($raw) !== (int) $quantity) || (! $tracked && count($raw) > 1)) {",
+  "replace": "if ($tracked && count($raw) !== (int) $quantity) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI19 an asset that defines its units has one row for each unit",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (($tracked && count($raw) !== (int) $quantity) || (! $tracked && count($raw) > 1)) {",
+  "replace": "if (! $tracked && count($raw) > 1) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI20 each unit of a tracked asset has a serial number or a barcode",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($tracked && $serial === '' && $barcode === '') {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI21 a serial number is not used twice in the form",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (isset($seen[$kind][mb_strtolower($value)]) || $this->taken(",
+  "replace": "if ($this->taken(",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI22 a serial number is not used by another asset",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "|| $this->taken($kind === 'serial' ? 'serial_number' : 'barcode', $value, $existing)) {",
+  "replace": ") {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI23 the units of the asset being changed are not taken by another asset",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "$builder->where('u.asset_id !=', (int) $existing->asset_id);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testUpdate_KeepsTheSerialNumberAndTheBarcodeTheAssetHasAlready",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI24 an asset with an employee names an employee that exists",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($employeeId === 0 || $this->db->table('employees')->where('person_id', $employeeId)->where('deleted', 0)->countAllResults() === 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI25 an asset kept in storage names a storage that exists",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($locationId === 0 || $this->db->table('stock_locations')->where('location_id', $locationId)->where('deleted', 0)->countAllResults() === 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI26 the custody of a unit is one of the three",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (! in_array($usedBy, ['not_assigned', 'employee', 'storage'], true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_RefusesACustodyThatIsNotOneOfTheThree",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI27 the quantity is a whole number from one",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (preg_match('/^\\d{1,5}$/', $quantity) !== 1 || (int) $quantity < 1 || (int) $quantity > self::QUANTITY_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI28 the life is a number of months up to the limit",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (preg_match('/^\\d{1,5}$/', $months) !== 1 || (int) $months < 1 || (int) $months > self::LIFE_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI29 a date is a day that exists",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "|| $parsed->format('Y-m-d') !== $text",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI30 a date is between the years 1900 and 2200",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "|| $parsed->format('Y') < '1900' || $parsed->format('Y') > '2200'",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testCreate_RefusesADateBeforeTheYear1900AndAfterTheYear2200",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI31 a text is there when it is needed and not longer than its limit",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (($required && $text === '') || mb_strlen($text) > $max) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI32 a code is not longer than sixty four characters",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (mb_strlen($code) > 64) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_RefusesACodeLongerThanSixtyFourCharacters",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI33 the length of a period is a whole number from one",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if (preg_match('/^\\d{1,3}$/', $length) !== 1 || (int) $length < 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI34 the accumulated depreciation is not kept in the cost account",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($row['accumulated_account_id'] !== null && $row['accumulated_account_id'] === $row['cost_account_id']) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_|testUpdate_",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GI35 the total units are a number above zero",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "if ($units !== '' && (preg_match('/^\\d{1,13}(\\.\\d{1,2})?$/', $units) !== 1 || bccomp($units, '0', 2) <= 0)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testCreate_RefusesTotalUnitsThatAreNotANumberAboveZero",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GR01 an account that is a group is not an account of an asset",
+  "file": "app/Libraries/Assets/AssetAccountRules.php",
+  "find": "|| (int) $account->is_group === 1",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GR02 an account that is switched off is not an account of an asset",
+  "file": "app/Libraries/Assets/AssetAccountRules.php",
+  "find": "|| (int) $account->active === 0",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSave_RefusesAnAccountThatIsSwitchedOff",
+   "tests/Libraries/Assets/AssetCategoriesTest.php",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GR03 an account of a customer, supplier, treasury or stock is not an account of an asset",
+  "file": "app/Libraries/Assets/AssetAccountRules.php",
+  "find": "|| $account->entity_type !== null",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GR04 an account of the wrong type is not an account of an asset",
+  "file": "app/Libraries/Assets/AssetAccountRules.php",
+  "find": "|| $account->account_type !== $type->value",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GR05 an account that does not exist is not an account of an asset",
+  "file": "app/Libraries/Assets/AssetAccountRules.php",
+  "find": "if ($account === null || ",
+  "replace": "if (",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GR06 the expense account is an expense account",
+  "file": "app/Libraries/Assets/AssetAccountRules.php",
+  "find": "$type    = $role === self::EXPENSE ? AccountType::Expense : AccountType::Asset;",
+  "replace": "$type    = AccountType::Asset;",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GC01 saving a category needs the permission to manage the register",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "    public function save(array $input, ?int $employeeId = null, ?int $categoryId = null): int\n    {\n        $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);\n",
+  "replace": "    public function save(array $input, ?int $employeeId = null, ?int $categoryId = null): int\n    {\n",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GC02 switching a category on and off needs the permission to manage the register",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "    public function setActive(int $categoryId, bool $active, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);\n",
+  "replace": "    public function setActive(int $categoryId, bool $active, ?int $employeeId = null): void\n    {\n",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GC03 deleting a category needs the permission to manage the register",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "    public function delete(int $categoryId, ?int $employeeId = null): void\n    {\n        $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);\n",
+  "replace": "    public function delete(int $categoryId, ?int $employeeId = null): void\n    {\n",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GC04 a category has a name of up to one hundred characters",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "if ($name === '' || mb_strlen($name) > self::NAME_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GC05 two categories do not have one name",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "if ($taken->countAllResults() > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GC06 a category that assets use is not deleted",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "if ($this->db->table('assets')->where('category_id', $categoryId)->countAllResults() > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GC07 the method of a category is one of the four",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "if ($method !== '' && AssetMethod::tryFrom($method) === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GC08 the life of a category is from one to twelve hundred months",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "if ($life !== '' && (preg_match('/^\\d{1,4}$/', $life) !== 1 || (int) $life < 1 || (int) $life > self::LIFE_MAX)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GC09 a category that does not exist is not changed",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "if ($row === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GC10 a category changed is not taken by another of the name",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "$taken->where('category_id !=', $categoryId);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GD01 running the depreciation needs the permission to depreciate",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$this->guard->require(AccountingGuard::ASSETS_DEPRECIATE, $employeeId);\n\n        if ($branchId === null) {",
+  "replace": "if ($branchId === null) {",
+  "tests": [
+   "--filter",
+   "testPreview_RequiresThePermissionToDepreciate|testApprove_RequiresThePermissionToDepreciate",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD02 a run of the company needs the whole company in scope",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$this->branches->requireCompanyScope($employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testApprove_RefusesARunOfTheCompanyToAnEmployeeOfOneBranch",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD03 a run of a branch that does not exist is refused",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if ($this->db->table('branches')->where('branch_id', $branchId)->where('company_id', CompanyContext::id())->countAllResults() === 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testPreview_RefusesABranchThatDoesNotExist|testApprove_RefusesABranchOutsideTheScopeOfTheEmployee",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD04 a run of a branch needs the branch in scope",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$this->branches->requireBranch($branchId, $employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testApprove_RefusesABranchOutsideTheScopeOfTheEmployee",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD05 the approval holds the lock of each branch of the run",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$this->locks->holdBranch($lockedBranchId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testApprove_HoldsTheLockOfEachBranchExclusivelyBeforeItReadsTheAssets|testApprove_TakesTheLocksOfTheBranchesInTheOrderOfTheirNumbers|testApprove_WaitsForTheLockOfABranchAnotherRequestHolds",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD06 what stops the run stops the approval",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if ($preview->blockers !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testApprove_RefusesAMonthThatHasNotEnded|testApprove_RefusesAPeriodThatIsClosedByNameAndWritesNothing",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD07 a run with nothing due is refused",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if ($ready === []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testApprove_DepreciatesAnAssetOnceForAMonth|testApprove_RefusesThePreviewOfAnotherState|testApprove_HoldsAnAssetAndAMonthToOneLineThatStandsWhateverTheCodeDoes",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD08 the approval is bound to the fingerprint of the preview",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if (! hash_equals($preview->fingerprint, $fingerprint)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testApprove_RefusesThePreviewOfAnotherState",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD09 a month is depreciated once it has ended",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if (! $period->hasEnded(date('Y-m-d'))) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testApprove_RefusesAMonthThatHasNotEnded",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD10 a month in a closed period is refused by name",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if ($cutoff === null || $period->end > $cutoff['date']) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "testApprove_RefusesAPeriodThatIsClosedByNameAndWritesNothing|testApprove_NamesTheCompanyWhenTheCompanyClosedThePeriod",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD11 a month of an asset that stands is left out",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if (isset($posted[$period->start])) {\n                continue;\n            }",
+  "replace": "if (false) {\n                continue;\n            }",
+  "tests": [
+   "--filter",
+   "testApprove_DepreciatesAnAssetOnceForAMonth|testApprove_HoldsAnAssetAndAMonthToOneLineThatStandsWhateverTheCodeDoes",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD12 an asset that is due nothing has no line",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if (bccomp($amount, '0', self::SCALE) <= 0) {\n                continue;\n            }",
+  "replace": "if (false) {\n                continue;\n            }",
+  "tests": [
+   "--filter",
+   "testApprove_NeverDepreciatesPastCostLessSalvageAndMarksTheAssetConsumed|testApprove_LeavesOutAnAssetOutOfService|testPreview_SaysNothingIsDueForAMonthBeforeTheFirstDepreciation",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD13 a deleted asset is not depreciated",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "deleted = 0 AND status = ?",
+  "replace": "1 = 1 AND status = ?",
+  "tests": [
+   "--filter",
+   "testApprove_LeavesOutAnAssetThatWasDeleted",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD14 an asset out of service or consumed is not depreciated",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "AND status = ? AND method",
+  "replace": "AND ? IS NOT NULL AND method",
+  "tests": [
+   "--filter",
+   "testApprove_LeavesOutAnAssetOutOfService|testApprove_WritesOneBalancedJournalForTheBranchAndTheMonth",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD16 an asset that is not in service yet is not depreciated",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "AND in_service_date <= ? ORDER",
+  "replace": "AND ? IS NOT NULL ORDER",
+  "tests": [
+   "--filter",
+   "testApprove_LeavesOutAnAssetThatIsNotInServiceYetWhateverUsageWasEntered",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD17 a branch is depreciated for its own assets only",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "WHERE company_id = ? AND branch_id = ? AND deleted",
+  "replace": "WHERE company_id = ? AND ? IS NOT NULL AND deleted",
+  "tests": [
+   "--filter",
+   "testApprove_OnlyRunsTheBranchOfTheRunAndLeavesTheOthersAlone|testApprove_WritesOneJournalForEachBranchWhenTheCompanyIsRun",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD18 taking a run back needs the permission to depreciate",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$this->guard->require(AccountingGuard::ASSETS_DEPRECIATE, $employeeId);\n\n        $reason = trim($reason);",
+  "replace": "$reason = trim($reason);",
+  "tests": [
+   "--filter",
+   "testReverse_RequiresAReasonAndThePermission",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD19 taking a run back needs a reason of up to 255 characters",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testReverse_RefusesAReasonLongerThanTwoHundredAndFiftyFiveCharacters",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD20 a run that does not exist is not taken back",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if ($known === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testReverse_RefusesARunThatDoesNotExistOrIsTakenBackAlready",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD21 taking a run back needs its branch in scope",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$this->branches->requireBranch((int) $known->branch_id, $employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testReverse_RefusesARunOfABranchOutsideTheScopeOfTheEmployee",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD22 taking a run back holds the lock of its branch",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$this->locks->holdBranch((int) $known->branch_id);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testReverse_HoldsTheLockOfTheBranchOfTheRunExclusively",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD23 a run is taken back once",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if ($run === null || $run->status !== 'active') {",
+  "replace": "if ($run === null) {",
+  "tests": [
+   "--filter",
+   "testReverse_RefusesARunThatDoesNotExistOrIsTakenBackAlready",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD24 a run whose asset was disposed of since is not taken back",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if ($disposals !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testReverse_RefusesARunWhoseAssetWasDisposedOfSince",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD25 taking a run back frees the months of its assets",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$this->db->table('asset_depreciations')->where('run_id', $runId)->update(['active_key' => null]);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testReverse_LowersTheAccumulatedDepreciationExactlyAndFreesTheMonth",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD26 a run is taken back on the day it has",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "(int) $run->journal_id, (string) $run->period_end, $reason",
+  "replace": "(int) $run->journal_id, date('Y-m-d'), $reason",
+  "tests": [
+   "--filter",
+   "testReverse_RefusesAPeriodThatIsClosedAndKeepsTheRun|testReverse_LowersTheAccumulatedDepreciationExactlyAndFreesTheMonth",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD27 an asset that depreciated by all it is to be is consumed",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$terms->base(), self::SCALE) >= 0) {",
+  "replace": "$terms->base(), self::SCALE) > 0) {",
+  "tests": [
+   "--filter",
+   "testApprove_NeverDepreciatesPastCostLessSalvageAndMarksTheAssetConsumed|testReverse_PutsAConsumedAssetBackInService",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD28 a consumed asset goes back in service when its run is taken back",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "if (bccomp($this->figures->accumulated($asset), $terms->base(), self::SCALE) < 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testReverse_PutsAConsumedAssetBackInService",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD29 the runs of other branches are not listed to an employee of one branch",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$builder->whereIn('r.branch_id', $allowed);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testRuns_ListsTheRunsOfTheBranchesTheEmployeeMaySeeAndFindsOneWithItsLines",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD30 a second run of a month has the next number",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "'run_number'   => (int) $latest->latest + 1,",
+  "replace": "'run_number'   => 1,",
+  "tests": [
+   "--filter",
+   "testApprove_WritesASecondRunForAnAssetEnteredAfterTheFirstOfTheMonth",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD31 a run is written in the audit log",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$this->audit->write(self::ENTITY, $runId, 'asset_depreciation_run',",
+  "replace": "false && $this->audit->write(self::ENTITY, $runId, 'asset_depreciation_run',",
+  "tests": [
+   "--filter",
+   "testApprove_WritesAnEntryOfTheAuditLog",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD32 taking a run back is written in the audit log",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$this->audit->write(self::ENTITY, $runId, 'asset_depreciation_reversed',",
+  "replace": "false && $this->audit->write(self::ENTITY, $runId, 'asset_depreciation_reversed',",
+  "tests": [
+   "--filter",
+   "testReverse_WritesAnEntryOfTheAuditLog",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD33 a refusal of the books is recorded after the run rolled back",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "(new PostingFailureLog($this->db))->recordUnbuilt(AssetSources::DEPRECIATION, null, 1, JournalEntryType::General, $failure, $employeeId, $branchId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testApprove_RecordsTheFailureThePostingRefusesAndWritesNothing",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD34 the fingerprint holds the amount of each line",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "            (int) $line->asset->asset_id,\n            $line->amount,\n",
+  "replace": "            (int) $line->asset->asset_id,\n",
+  "tests": [
+   "--filter",
+   "testApprove_RefusesAPreviewWhoseAmountChangedWhileTheAssetsStayedTheSame",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD35 a month is written YYYY-MM",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "DepreciationPeriod::fromMonth($month) ?? throw new AccountingException(AccountingError::AssetPeriodInvalid,",
+  "replace": "DepreciationPeriod::fromMonth($month) ?? DepreciationPeriod::fromMonth('2000-01') ?? throw new AccountingException(AccountingError::AssetPeriodInvalid,",
+  "tests": [
+   "--filter",
+   "testApprove_RefusesAMonthThatIsNotAMonth",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GD36 the lock of the asset rows is shared while the books are read for the approval",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "($locked ? ' LOCK IN SHARE MODE' : '')",
+  "replace": "''",
+  "tests": [
+   "--filter",
+   "testApprove_ReadsTheAssetsOfTheBranchUnderASharedLockWhereThePreviewTakesNone",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GF01 only the lines that stand count as depreciation",
+  "file": "app/Libraries/Assets/AssetFigures.php",
+  "find": "WHERE asset_id = ? AND active_key = 1\"",
+  "replace": "WHERE asset_id = ?\"",
+  "tests": [
+   "--filter",
+   "testReverse_|testApprove_DepreciatesAnAssetOnceForAMonth",
+   "tests/Libraries/Assets/DepreciationRunTest.php",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GF02 an asset is never depreciated past what is left of its cost less its salvage",
+  "file": "app/Libraries/Assets/AssetFigures.php",
+  "find": "if (bccomp($amount, $left, self::SCALE) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testApprove_NeverPostsMoreThanIsLeftWhateverTheScheduleSays|testApprove_NeverDepreciatesPast",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GF03 the depreciation an old asset arrived with counts against what is left",
+  "file": "app/Libraries/Assets/AssetFigures.php",
+  "find": "$left = bcsub(bcsub($terms->base(), $terms->openingAccumulated, self::SCALE),",
+  "replace": "$left = bcsub($terms->base(),",
+  "tests": [
+   "--filter",
+   "testApprove_CountsTheDepreciationAnOldAssetArrivedWithAgainstWhatIsLeft",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GF04 a month that stands is not a month that was missed",
+  "file": "app/Libraries/Assets/AssetFigures.php",
+  "find": "if (! isset($posted[$month->start])) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "testSell_PutsTheProceeds|testApprove_ShowsTheEarlierMonthsThatWereNotRun|testWriteOff_BooksTheBookValue",
+   "tests/Libraries/Assets/AssetDisposalsTest.php",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GF05 a month of usage that stands is not a month that was missed",
+  "file": "app/Libraries/Assets/AssetFigures.php",
+  "find": "if (! isset($posted[(string) $row->period_start])) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "testApprove_ShowsTheEarlierMonthsOfUsageThatWereNotRunForAnAssetOfUnits",
+   "tests/Libraries/Assets/AssetDisposalsTest.php",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GS01 a day before the first is no time elapsed",
+  "file": "app/Libraries/Assets/DepreciationSchedule.php",
+  "find": "if ($to < $from) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/DepreciationScheduleTest.php"
+  ]
+ },
+ {
+  "name": "GS02 a month that is shorter ends on its last day",
+  "file": "app/Libraries/Assets/DepreciationSchedule.php",
+  "find": "min((int) $start->format('j'), $last)",
+  "replace": "(int) $start->format('j')",
+  "tests": [
+   "tests/Libraries/Assets/DepreciationScheduleTest.php"
+  ]
+ },
+ {
+  "name": "GS03 a month is whole when the day it ends on has come",
+  "file": "app/Libraries/Assets/DepreciationSchedule.php",
+  "find": "while ($months > 0 && self::addInterval($from, AssetInterval::Month, $months) > $to) {",
+  "replace": "while (false) {",
+  "tests": [
+   "tests/Libraries/Assets/DepreciationScheduleTest.php"
+  ]
+ },
+ {
+  "name": "GS04 an asset entered with depreciation keeps only the events after it",
+  "file": "app/Libraries/Assets/DepreciationSchedule.php",
+  "find": "if ($terms->isOpening() && $date <= $terms->openingThrough) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/DepreciationScheduleTest.php",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GS05 no event falls after the end date",
+  "file": "app/Libraries/Assets/DepreciationSchedule.php",
+  "find": "if ($date > $through || ($terms->endDate !== null && $date > $terms->endDate)) {",
+  "replace": "if ($date > $through) {",
+  "tests": [
+   "tests/Libraries/Assets/DepreciationScheduleTest.php"
+  ]
+ },
+ {
+  "name": "GS06 the first event is prorated for the time from service",
+  "file": "app/Libraries/Assets/DepreciationSchedule.php",
+  "find": "if ($index === 0 && ! $terms->isOpening()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/DepreciationScheduleTest.php"
+  ]
+ },
+ {
+  "name": "GS07 an event is cut to what is left to depreciate",
+  "file": "app/Libraries/Assets/DepreciationSchedule.php",
+  "find": "return bcadd(bccomp($rounded, $limit, self::SCALE) > 0 ? $limit : $rounded, '0', self::SCALE);",
+  "replace": "return bcadd($rounded, '0', self::SCALE);",
+  "tests": [
+   "tests/Libraries/Assets/DepreciationScheduleTest.php"
+  ]
+ },
+ {
+  "name": "GS08 units are cut to what is left and need a cost per unit",
+  "file": "app/Libraries/Assets/DepreciationSchedule.php",
+  "find": "if ($terms->costPerUnit === null || bccomp($remaining, '0', self::SCALE) <= 0 || bccomp($units, '0', self::SCALE) <= 0) {",
+  "replace": "if ($terms->costPerUnit === null) {",
+  "tests": [
+   "--filter",
+   "testForUnits_IsNothingForNegativeUnitsAndWhenMoreWasPostedThanThereIsToDepreciate",
+   "tests/Libraries/Assets/DepreciationScheduleTest.php"
+  ]
+ },
+ {
+  "name": "GS09 no units used is no depreciation",
+  "file": "app/Libraries/Assets/DepreciationSchedule.php",
+  "find": "|| bccomp($units, '0', self::SCALE) <= 0) {",
+  "replace": ") {",
+  "tests": [
+   "--filter",
+   "testForUnits_IsNothingForNegativeUnitsAndWhenMoreWasPostedThanThereIsToDepreciate",
+   "tests/Libraries/Assets/DepreciationScheduleTest.php"
+  ]
+ },
+ {
+  "name": "GS10 an event is rounded to the decimals of the books",
+  "file": "app/Libraries/Assets/DepreciationSchedule.php",
+  "find": "$rounded = Money::round($raw, $this->decimals);",
+  "replace": "$rounded = $raw;",
+  "tests": [
+   "tests/Libraries/Assets/DepreciationScheduleTest.php"
+  ]
+ },
+ {
+  "name": "GX01 a sale needs the permission to manage the register",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "    public function sell(int $assetId, array $input, ?int $employeeId = null): int\n    {\n        $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);\n",
+  "replace": "    public function sell(int $assetId, array $input, ?int $employeeId = null): int\n    {\n",
+  "tests": [
+   "--filter",
+   "testSell_RequiresThePermissionToManageTheRegister",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX02 a write-off needs the permission to manage the register",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "    public function writeOff(int $assetId, array $input, ?int $employeeId = null): int\n    {\n        $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);\n",
+  "replace": "    public function writeOff(int $assetId, array $input, ?int $employeeId = null): int\n    {\n",
+  "tests": [
+   "--filter",
+   "testWriteOff_RequiresThePermissionToManageTheRegister",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX03 a revaluation needs the permission to manage the register before it is refused",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "    public function revalue(int $assetId, array $input, ?int $employeeId = null): never\n    {\n        $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);\n",
+  "replace": "    public function revalue(int $assetId, array $input, ?int $employeeId = null): never\n    {\n",
+  "tests": [
+   "--filter",
+   "testRevalue_IsRefusedByName",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX04 a sale of an asset on credit to a customer is refused",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if ((int) ($input['customer_id'] ?? 0) > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testSell_RefusesASaleOnCreditToACustomer",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX05 taking a disposal back needs the permission to manage the register",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "        $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);\n\n        $reason = trim($reason);",
+  "replace": "\n        $reason = trim($reason);",
+  "tests": [
+   "--filter",
+   "testReverse_RequiresAReasonThePermissionAndAnOperationThatStands",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX06 taking a disposal back needs a reason of up to 255 characters",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testReverse_AsksForTheReasonBeforeItLooksForTheDisposal",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX07 a disposal that does not exist is not taken back",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if ($known === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testReverse_RequiresAReasonThePermissionAndAnOperationThatStands",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX08 taking a disposal back needs its branch in scope",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "$this->branches->requireBranch((int) $known->branch_id, $employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testReverse_RefusesADisposalOfABranchOutsideTheScopeOfTheEmployee",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX09 a disposal is taken back once",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if ($operation === null || $operation->status !== 'active') {",
+  "replace": "if ($operation === null) {",
+  "tests": [
+   "--filter",
+   "testReverse_RequiresAReasonThePermissionAndAnOperationThatStands",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX10 taking a disposal back holds the asset",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "LockedRead::row($this->db, \"SELECT asset_id FROM {$assets} WHERE asset_id = ? FOR UPDATE\", [(int) $known->asset_id]);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testReverse_HoldsTheAssetBeforeItTakesTheDisposalBack",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX11 a disposal is taken back on the day it has",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "(int) $operation->journal_id, (string) $operation->operation_date, $reason",
+  "replace": "(int) $operation->journal_id, date('Y-m-d'), $reason",
+  "tests": [
+   "--filter",
+   "testReverse_RefusesAPeriodThatIsClosedAndKeepsTheDisposal|testReverse_TakesTheDisposalBackAndPutsTheAssetBackAsItWas",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX12 taking a disposal back puts the asset back as it was",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "['status' => $operation->previous_status, 'disposed_at' => null]",
+  "replace": "['status' => AssetStatus::Active->value, 'disposed_at' => null]",
+  "tests": [
+   "--filter",
+   "testReverse_PutsAConsumedAssetBackAsConsumed",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX13 taking a disposal back frees the asset for another",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "'active_key'          => null,",
+  "replace": "'active_key'          => 1,",
+  "tests": [
+   "--filter",
+   "testReverse_|testSell_HoldsAnAssetToOneDisposalThatStandsWhateverTheCodeDoes",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX14 the disposals of branches outside the scope are not listed",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "$builder->whereIn('o.branch_id', $allowed);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testOperations_ListsTheDisposalsOfTheBranchesTheEmployeeMaySee",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX15 an asset of a branch outside the scope of the employee is not found",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if ($known === null || ! $this->branches->canAccess((int) $known->branch_id, $employeeId)) {",
+  "replace": "if ($known === null) {",
+  "tests": [
+   "--filter",
+   "testSell_HidesAnAssetOfABranchTheEmployeeDoesNotWorkIn",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX16 an asset that was disposed of is not disposed of again",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if (! $status->canBeDisposed()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testSell_RefusesAnAssetThatWasDisposedOfAlready",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX17 a disposal is not dated before a depreciation that stands",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if ($start > $date) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testSell_RefusesADateBeforeADepreciationThatStands",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX18 an asset due depreciation for earlier months is not disposed of",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if ($missed !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testSell_RefusesAnAssetThatIsDueDepreciationForEarlierMonths",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX19 the proceeds are paid into a treasury of the branch of the asset",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if ($treasury === null || (int) $treasury->branch_id !== $branchId) {",
+  "replace": "if ($treasury === null) {",
+  "tests": [
+   "--filter",
+   "testSell_RefusesATreasuryThatIsMissingSwitchedOffOrOfAnotherBranch",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX20 the proceeds are not paid into a treasury that is switched off",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "->where('treasury_id', $id)->where('active', 1)->get()->getRow();",
+  "replace": "->where('treasury_id', $id)->get()->getRow();",
+  "tests": [
+   "--filter",
+   "testSell_RefusesATreasuryThatIsMissingSwitchedOffOrOfAnotherBranch",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX21 the employee may put money into the treasury of a sale",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "$this->scopes->assertMayPost($draft->lines, $employeeId);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSell_RefusesATreasuryTheEmployeeMayNotPutMoneyInto",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX22 a disposal is not dated after today",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "|| $text > date('Y-m-d') ",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSell_RefusesADateBeforeServiceAfterTodayOrThatIsNotADate",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX23 a disposal is not dated before the asset went into service",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "|| $text < (string) $asset->in_service_date",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSell_RefusesADateBeforeServiceAfterTodayOrThatIsNotADate",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX24 the proceeds are an amount",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if (preg_match(self::AMOUNT, $text) !== 1 || bccomp($text, '0', self::SCALE) <= 0) {",
+  "replace": "if (bccomp($text, '0', self::SCALE) <= 0) {",
+  "tests": [
+   "--filter",
+   "testSell_RefusesProceedsThatAreNotAnAmountAboveZero",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX25 the proceeds are above zero",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "|| bccomp($text, '0', self::SCALE) <= 0) {",
+  "replace": ") {",
+  "tests": [
+   "--filter",
+   "testSell_RefusesProceedsThatAreNotAnAmountAboveZero",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX26 a disposal is written in the audit log",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "$this->audit->write(self::ENTITY, $operationId, $sale ? 'asset_sold' : 'asset_written_off',",
+  "replace": "false && $this->audit->write(self::ENTITY, $operationId, $sale ? 'asset_sold' : 'asset_written_off',",
+  "tests": [
+   "--filter",
+   "testSell_PutsTheProceeds|testSell_MarksTheAsset|testWriteOff_BooksTheBookValueAsALoss",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX27 taking a disposal back is written in the audit log",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "$this->audit->write(self::ENTITY, $operationId, 'asset_disposal_reversed',",
+  "replace": "false && $this->audit->write(self::ENTITY, $operationId, 'asset_disposal_reversed',",
+  "tests": [
+   "--filter",
+   "testReverse_WritesAnEntryOfTheAuditLog",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GX28 a refusal of the books is recorded after the disposal rolled back",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "(new PostingFailureLog($this->db))->recordUnbuilt($sale ? AssetSources::SALE : AssetSources::WRITE_OFF, null, 1, JournalEntryType::General, $failure, $employeeId, (int) $known->branch_id);",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSell_RefusesAPeriodThatIsClosedSavesNothingAndRecordsTheRefusal",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GB01 a gain is posted when the proceeds pass the book value",
+  "file": "app/Libraries/Assets/AssetPostingBuilder.php",
+  "find": "if (bccomp($result, '0', self::SCALE) > 0) {",
+  "replace": "if (bccomp($result, '0', self::SCALE) >= 0) {",
+  "tests": [
+   "--filter",
+   "testSell_AtTheBookValuePostsNeitherGainNorLoss|testSell_PutsTheProceeds",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GB02 a loss is posted when the proceeds are below the book value",
+  "file": "app/Libraries/Assets/AssetPostingBuilder.php",
+  "find": "} elseif (bccomp($result, '0', self::SCALE) < 0) {",
+  "replace": "} elseif (bccomp($result, '0', self::SCALE) <= 0) {",
+  "tests": [
+   "--filter",
+   "testSell_BooksTheLossWhenTheProceedsAreBelowTheBookValue|testSell_AtTheBookValuePostsNeitherGainNorLoss",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GB03 a write-off of an asset worth nothing posts no loss",
+  "file": "app/Libraries/Assets/AssetPostingBuilder.php",
+  "find": "if (bccomp($net, '0', self::SCALE) > 0) {\n            $lines[] = $this->loss($asset, $net);",
+  "replace": "if (bccomp($net, '0', self::SCALE) >= 0) {\n            $lines[] = $this->loss($asset, $net);",
+  "tests": [
+   "--filter",
+   "testWriteOff_OfAnAssetThatIsDepreciatedByAllItIsWorthPostsNoLoss",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GB04 an asset never depreciated takes no accumulated depreciation out",
+  "file": "app/Libraries/Assets/AssetPostingBuilder.php",
+  "find": "        if (bccomp($accumulated, '0', self::SCALE) > 0) {\n            $lines[] = new JournalLineDraft((int) $asset->accumulated_account_id, debit: $accumulated,",
+  "replace": "        if (bccomp($accumulated, '0', self::SCALE) >= 0) {\n            $lines[] = new JournalLineDraft((int) $asset->accumulated_account_id, debit: $accumulated,",
+  "tests": [
+   "--filter",
+   "testWriteOff_OfAnAssetThatWasNeverDepreciated|testSell_",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GB05 an old asset with no depreciation brings none in",
+  "file": "app/Libraries/Assets/AssetPostingBuilder.php",
+  "find": "                if (bccomp($accumulated, '0', self::SCALE) > 0) {\n                    $lines[] = new JournalLineDraft((int) $asset->accumulated_account_id, credit: $accumulated,",
+  "replace": "                if (bccomp($accumulated, '0', self::SCALE) >= 0) {\n                    $lines[] = new JournalLineDraft((int) $asset->accumulated_account_id, credit: $accumulated,",
+  "tests": [
+   "--filter",
+   "testCreate_BringsInAnOldAssetWithoutDepreciationAtItsCostAgainstTheOpeningBalance",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GB06 an old asset depreciated by all it is worth brings no opening balance in",
+  "file": "app/Libraries/Assets/AssetPostingBuilder.php",
+  "find": "                if (bccomp($net, '0', self::SCALE) > 0) {\n                    $lines[] = new JournalLineDraft($this->routing->accountFor(RoutingKey::OpeningBalance)",
+  "replace": "                if (bccomp($net, '0', self::SCALE) >= 0) {\n                    $lines[] = new JournalLineDraft($this->routing->accountFor(RoutingKey::OpeningBalance)",
+  "tests": [
+   "--filter",
+   "testCreate_BringsInAnOldAssetDepreciatedByAllItIsWorthAgainstItsAccumulatedDepreciationAlone",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GB07 an asset the books hold already has no journal",
+  "file": "app/Libraries/Assets/AssetPostingBuilder.php",
+  "find": "            default:\n                return null;\n        }",
+  "replace": "            default:\n                break;\n        }",
+  "tests": [
+   "--filter",
+   "testCreate_EntersAnAssetTheBooksHoldAlreadyWithoutAJournal",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GB08 the expense of a month is charged to the cost centre of the asset",
+  "file": "app/Libraries/Assets/AssetPostingBuilder.php",
+  "find": "debit: $line['amount'], description: $this->describe($asset), costCenterId: $asset->cost_center_id === null ? null : (int) $asset->cost_center_id);",
+  "replace": "debit: $line['amount'], description: $this->describe($asset));",
+  "tests": [
+   "--filter",
+   "testApprove_ChargesTheCostCenterOfTheAssetOnTheExpenseLine",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GB09 the loss of a disposal is charged to the cost centre of the asset",
+  "file": "app/Libraries/Assets/AssetPostingBuilder.php",
+  "find": "debit: $amount, description: $this->describe($asset), costCenterId: $asset->cost_center_id === null ? null : (int) $asset->cost_center_id);",
+  "replace": "debit: $amount, description: $this->describe($asset));",
+  "tests": [
+   "--filter",
+   "testWriteOff_ChargesTheLossToTheCostCenterOfTheAsset",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GB10 a depreciation is posted on the last day of its month",
+  "file": "app/Libraries/Assets/AssetPostingBuilder.php",
+  "find": "            date: $period->end,\n            lines: $drafts,",
+  "replace": "            date: $period->start,\n            lines: $drafts,",
+  "tests": [
+   "--filter",
+   "testApprove_WritesOneBalancedJournalForTheBranchAndTheMonth",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GP01 a scope without branches reports nothing",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "if ($scope->isEmpty()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP02 the report holds the assets of the branches of the scope only",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "$where[] = 'a.branch_id IN (' . implode(', ', array_map('intval', $scope->ids)) . ')';",
+  "replace": "$where[] = '1 = 1';",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP03 the report keeps to the statuses asked for",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "$where[] = 'a.status IN ('",
+  "replace": "$where[] = '1 = 1 OR a.status IN ('",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP04 the purchase date from is included",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "'purchaseFrom' => 'a.purchase_date >= ?'",
+  "replace": "'purchaseFrom' => 'a.purchase_date > ?'",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP05 the purchase date to is included",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "'purchaseTo' => 'a.purchase_date <= ?'",
+  "replace": "'purchaseTo' => 'a.purchase_date < ?'",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP06 the report keeps to the employee the asset is with",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "u.employee_id = ?",
+  "replace": "u.employee_id <> ?",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP07 the report keeps to the accounts of the asset",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "OR a.accumulated_account_id = ?)",
+  "replace": "OR ? IS NULL)",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP08 the report keeps to the category",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "$where[] = 'a.category_id = ?';",
+  "replace": "$where[] = 'a.category_id <> ?';",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP09 the depreciation range begins on the day asked",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "$from   = $filter->depreciationFrom ?? '1900-01-01';",
+  "replace": "$from   = '1900-01-01';",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP10 the depreciation range ends on the day asked",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "$to     = $filter->depreciationTo ?? $asOf;",
+  "replace": "$to     = $asOf;",
+  "tests": [
+   "--filter",
+   "testBuild_SumsTheDepreciationOfTheRangeAskedAndLeavesOutARunThatWasTakenBack",
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP11 only the depreciation that stands counts as accumulated",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "d.active_key = 1 AND LAST_DAY(d.period_start) <= ?",
+  "replace": "1 = 1 AND LAST_DAY(d.period_start) <= ?",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP12 only the depreciation that stands counts in the range",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "d.active_key = 1 AND LAST_DAY(d.period_start) BETWEEN",
+  "replace": "1 = 1 AND LAST_DAY(d.period_start) BETWEEN",
+  "tests": [
+   "--filter",
+   "testBuild_SumsTheDepreciationOfTheRangeAskedAndLeavesOutARunThatWasTakenBack",
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP13 a disposal that was taken back is not shown",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "LEFT JOIN {$ops} o ON o.asset_id = a.asset_id AND o.active_key = 1",
+  "replace": "LEFT JOIN {$ops} o ON o.asset_id = a.asset_id",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP14 a deleted asset is not reported",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "WHERE a.company_id = ? AND a.deleted = 0 AND",
+  "replace": "WHERE a.company_id = ? AND 1 = 1 AND",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP15 a disposal after the day is not yet one",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "$disposed = $asset->operation_date !== null && (string) $asset->operation_date <= $asOf;",
+  "replace": "$disposed = $asset->operation_date !== null;",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP16 an asset bought after the day is not on the books",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "|| (string) $asset->purchase_date <= $asOf;",
+  "replace": "|| true;",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP17 the tie counts only the assets on the books",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "if (! $row->onTheBooks) {\n                continue;\n            }",
+  "replace": "if (false) {\n                continue;\n            }",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP18 the tie counts the journals taken back as well as the ones that stand",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "JournalStatus::Posted->value, JournalStatus::Reversed->value, $asOf]",
+  "replace": "JournalStatus::Posted->value, JournalStatus::Posted->value, $asOf]",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP19 the tie counts the journals up to the day",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "AND j.journal_date <= ? AND",
+  "replace": "AND ? IS NOT NULL AND",
+  "tests": [
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GP20 the groups follow the order of the statuses",
+  "file": "app/Libraries/Assets/AssetsReport.php",
+  "find": "$by === 'status' ? array_search($a, $order, true) <=> array_search($b, $order, true) : strcmp($a, $b)",
+  "replace": "strcmp($a, $b)",
+  "tests": [
+   "--filter",
+   "testBuild_GroupsByStatusInTheOrderOfTheStatuses",
+   "tests/Libraries/Assets/AssetsReportTest.php"
+  ]
+ },
+ {
+  "name": "GK01 a screen that changes the register needs the permission to manage it",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "    private function requireManage(): void\n    {\n        if (! $this->can(AccountingGuard::ASSETS_MANAGE)) {",
+  "replace": "    private function requireManage(): void\n    {\n        if (false) {",
+  "tests": [
+   "--filter",
+   "IsNotFoundWithoutThePermission|RejectsAnEmployeeWithoutThePermission|AreNotChangedByWhoMayOnlyRead|testGetForm_|testGetUsageForm|testGetDisposeReverseForm",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK02 the form of an asset needs the permission to manage the register",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "    public function getForm(int $assetId = NEW_ENTRY): string\n    {\n        $this->requireManage();\n",
+  "replace": "    public function getForm(int $assetId = NEW_ENTRY): string\n    {\n",
+  "tests": [
+   "--filter",
+   "testGetForm_IsNotFoundWithoutThePermissionToChangeTheRegisterOrForAnAssetOfAnotherBranch",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK03 the form of usage needs the permission to manage the register",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "    public function getUsageForm(int $assetId): string\n    {\n        $this->requireManage();\n",
+  "replace": "    public function getUsageForm(int $assetId): string\n    {\n",
+  "tests": [
+   "--filter",
+   "testGetUsageForm_IsNotFoundWithoutThePermissionToChangeTheRegister",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK04 the form of a disposal needs the permission to manage the register",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "    public function getDisposeForm(string $kind, int $assetId): string\n    {\n        $this->requireManage();\n",
+  "replace": "    public function getDisposeForm(string $kind, int $assetId): string\n    {\n",
+  "tests": [
+   "--filter",
+   "testGetDisposeForm_IsNotFoundWithoutThePermissionToChangeTheRegister",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK05 the form that takes a disposal back needs the permission to manage the register",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "    public function getDisposeReverseForm(int $operationId): string\n    {\n        $this->requireManage();\n",
+  "replace": "    public function getDisposeReverseForm(int $operationId): string\n    {\n",
+  "tests": [
+   "--filter",
+   "testGetDisposeReverseForm_IsNotFoundWithoutThePermissionToChangeTheRegister",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK06 the form of a category needs the permission to manage the register",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "    public function getCategoryForm(int $categoryId = NEW_ENTRY): string\n    {\n        $this->requireManage();\n",
+  "replace": "    public function getCategoryForm(int $categoryId = NEW_ENTRY): string\n    {\n",
+  "tests": [
+   "--filter",
+   "testCategories_AreNotChangedByWhoMayOnlyRead",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK07 the form that takes a run back needs the permission to depreciate",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "if (! $this->can(AccountingGuard::ASSETS_DEPRECIATE)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testGetReverseForm_IsNotFoundWithoutThePermissionToDepreciate",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK08 the approval form is shown for a preview that can be approved",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "if (! $preview->canApprove()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testGetApproveForm_IsNotFoundWhenNothingIsDue",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK09 the approval form needs the fingerprint of the preview",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "if (! is_string($shown) || preg_match('/^[0-9a-f]{64}$/', $shown) !== 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testGetApproveForm_IsNotFoundWithoutTheFingerprintOfThePreview",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK10 a disposal form is for a sale or a write-off",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "if (! in_array($kind, ['sale', 'write_off'], true) || ! AssetStatus::from((string) $asset->status)->canBeDisposed()) {",
+  "replace": "if (! AssetStatus::from((string) $asset->status)->canBeDisposed()) {",
+  "tests": [
+   "--filter",
+   "testGetDisposeForm_IsNotFoundForAKindThatIsNotASaleOrAWriteOffEvenForAnAssetThatMayBeDisposedOf",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK11 a disposal form is for an asset that can be disposed of",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "if (! in_array($kind, ['sale', 'write_off'], true) || ! AssetStatus::from((string) $asset->status)->canBeDisposed()) {",
+  "replace": "if (! in_array($kind, ['sale', 'write_off'], true)) {",
+  "tests": [
+   "--filter",
+   "testGetDisposeForm_IsNotFoundForAnAssetThatWasDisposedOfAndForAKindThatIsNotOne",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK12 a disposal that is not a sale or a write-off is not found",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "} elseif ($kind === 'write_off') {\n                $this->disposals->writeOff($assetId, $input, $this->employeeId());\n            } else {\n                throw PageNotFoundException::forPageNotFound();\n            }",
+  "replace": "} else {\n                $this->disposals->writeOff($assetId, $input, $this->employeeId());\n            }",
+  "tests": [
+   "--filter",
+   "testPostDispose_RejectsAnEmployeeWithoutThePermissionAndAKindThatIsNotOne",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK13 only a company with every branch in scope is offered the whole company",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "if ($this->branchGuard()->isUnrestricted($this->employeeId())) {",
+  "replace": "if (true) {",
+  "tests": [
+   "--filter",
+   "testGetDepreciation_OffersTheCompanyOnlyToSomeoneWithEveryBranch",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK14 a scope that is not offered is not found",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "if (! array_key_exists($value, $options)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testGetDepreciation_OffersTheCompanyOnlyToSomeoneWithEveryBranch|testGetDepreciation_RejectsAScopeOutsideTheOptions",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK15 the scope of an approval is the company or a branch",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "if (! is_string($value) || ! ($value === 'company' || (ctype_digit($value) && (int) $value > 0))) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testPostApprove_RejectsAScopeThatIsNotOne",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GK17 the report is of the last month until another is asked for",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "if ($this->request->getGet('depreciation_from') === null && $this->request->getGet('depreciation_to') === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testGetIndex_DefaultsTheDepreciationDatesToTheLastMonth",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GQ01 the command does nothing while accounting is off",
+  "file": "app/Commands/AccountingDepreciate.php",
+  "find": "if (! (new AccountingSettings())->isEnabled()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Commands/AccountingDepreciateTest.php"
+  ]
+ },
+ {
+  "name": "GQ02 the command refuses a month, a branch or a fingerprint it does not know",
+  "file": "app/Commands/AccountingDepreciate.php",
+  "find": "if (DepreciationPeriod::fromMonth($month) === null || ($branch !== null && (! ctype_digit($branch) || (int) $branch < 1)) || ($fingerprint !== null && preg_match('/^[0-9a-f]{64}$/', $fingerprint) !== 1)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Commands/AccountingDepreciateTest.php"
+  ]
+ },
+ {
+  "name": "GQ03 the command refuses a fingerprint of another shape",
+  "file": "app/Commands/AccountingDepreciate.php",
+  "find": "|| ($fingerprint !== null && preg_match('/^[0-9a-f]{64}$/', $fingerprint) !== 1)",
+  "replace": "",
+  "tests": [
+   "tests/Commands/AccountingDepreciateTest.php"
+  ]
+ },
+ {
+  "name": "GQ04 the command refuses a branch that is not a number",
+  "file": "app/Commands/AccountingDepreciate.php",
+  "find": "($branch !== null && (! ctype_digit($branch) || (int) $branch < 1)) ||",
+  "replace": "",
+  "tests": [
+   "tests/Commands/AccountingDepreciateTest.php"
+  ]
+ },
+ {
+  "name": "GQ05 a refusal of the books is an exit code of one",
+  "file": "app/Commands/AccountingDepreciate.php",
+  "find": "return EXIT_ERROR;",
+  "replace": "return EXIT_SUCCESS;",
+  "tests": [
+   "tests/Commands/AccountingDepreciateTest.php"
+  ]
+ },
+ {
+  "name": "GQ06 an option the command refuses is an exit code of seven",
+  "file": "app/Commands/AccountingDepreciate.php",
+  "find": "return EXIT_USER_INPUT;",
+  "replace": "return EXIT_SUCCESS;",
+  "tests": [
+   "tests/Commands/AccountingDepreciateTest.php"
+  ]
+ },
+ {
+  "name": "GQ07 the preview of the command posts nothing",
+  "file": "app/Commands/AccountingDepreciate.php",
+  "find": "if ($fingerprint !== null) {\n                $runs = $run->approve($branchId, $month, $fingerprint, null);",
+  "replace": "if (true) {\n                $runs = $run->approve($branchId, $month, (string) $fingerprint, null);",
+  "tests": [
+   "tests/Commands/AccountingDepreciateTest.php"
+  ]
+ },
+ {
+  "name": "GT01 two live assets of one company do not share a code",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "UNIQUE KEY `{$table}_code`",
+  "replace": "KEY `{$table}_code`",
+  "tests": [
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT02 two units of one company do not share a serial number",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "UNIQUE KEY `{$table}_serial`",
+  "replace": "KEY `{$table}_serial`",
+  "tests": [
+   "tests/Database/FixedAssetsMigrationTest.php",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GT03 two units of one company do not share a barcode",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "UNIQUE KEY `{$table}_barcode`",
+  "replace": "KEY `{$table}_barcode`",
+  "tests": [
+   "tests/Database/FixedAssetsMigrationTest.php",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GT04 a branch has one run number for a month",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "UNIQUE KEY `{$table}_number`",
+  "replace": "KEY `{$table}_number`",
+  "tests": [
+   "--filter",
+   "testTables_RefuseTwoRunsOfOneBranchAndMonthWithTheSameNumber",
+   "tests/Libraries/Assets/DepreciationRunTest.php",
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT05 an asset has one depreciation for a month that stands",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "UNIQUE KEY `{$table}_active` (`asset_id`, `period_start`, `active_key`),",
+  "replace": "KEY `{$table}_active` (`asset_id`, `period_start`, `active_key`),",
+  "tests": [
+   "tests/Libraries/Assets/DepreciationRunTest.php",
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT06 an asset has one disposal that stands",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "UNIQUE KEY `{$table}_active` (`asset_id`, `active_key`),",
+  "replace": "KEY `{$table}_active` (`asset_id`, `active_key`),",
+  "tests": [
+   "tests/Libraries/Assets/AssetDisposalsTest.php",
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT07 an asset has one usage for a month",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "UNIQUE KEY `{$table}_period` (`asset_id`, `period_start`),",
+  "replace": "KEY `{$table}_period` (`asset_id`, `period_start`),",
+  "tests": [
+   "tests/Libraries/Assets/AssetRegisterTest.php",
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT08 two categories of one company do not share a name",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "UNIQUE KEY `{$table}_name` (`company_id`, `name`),",
+  "replace": "KEY `{$table}_name` (`company_id`, `name`),",
+  "tests": [
+   "--filter",
+   "testTables_RefuseTwoCategoriesOfOneCompanyWithTheSameName",
+   "tests/Libraries/Assets/AssetCategoriesTest.php",
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT09 the cost is above zero and the salvage between zero and the cost",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "`cost` > 0 AND `salvage` >= 0 AND `salvage` <= `cost` AND `opening_accumulated` >= 0",
+  "replace": "1 = 1",
+  "tests": [
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT10 the quantity and the period are from one",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "`quantity` >= 1 AND `period_length` >= 1",
+  "replace": "1 = 1",
+  "tests": [
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT11 the method of an asset is one of the four",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "CHECK (`method` IN ('fixed', 'declining', 'units', 'none')),",
+  "replace": "CHECK (1 = 1),",
+  "tests": [
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT12 the status of an asset is one of the five",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "CHECK (`status` IN ('active', 'inactive', 'consumed', 'sold', 'written_off')),",
+  "replace": "CHECK (1 = 1),",
+  "tests": [
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT13 the funding of an asset is one of the four",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "CHECK (`funding` IN ('treasury', 'payable', 'opening', 'none'))",
+  "replace": "CHECK (1 = 1)",
+  "tests": [
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT14 the amount of a line of depreciation is above zero",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "CHECK (`amount` > 0)",
+  "replace": "CHECK (1 = 1)",
+  "tests": [
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT15 the proceeds of a disposal are not negative",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "CHECK (`proceeds` >= 0)",
+  "replace": "CHECK (1 = 1)",
+  "tests": [
+   "--filter",
+   "testTables_RefuseADisposalWithNegativeProceeds",
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT16 a disposal holds its key while it stands and frees it when it is taken back",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "CHECK ((`status` = 'active' AND `active_key` <=> 1) OR (`status` = 'reversed' AND `active_key` IS NULL))",
+  "replace": "CHECK (1 = 1)",
+  "tests": [
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT17 the kind of a disposal is a sale or a write-off",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "CHECK (`kind` IN ('sale', 'write_off')),",
+  "replace": "CHECK (1 = 1),",
+  "tests": [
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT18 the key of a line of depreciation is one or nothing",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "CHECK (`active_key` IS NULL OR `active_key` = 1)",
+  "replace": "CHECK (1 = 1)",
+  "tests": [
+   "--filter",
+   "testTables_RefuseALineOfDepreciationWhoseKeyIsNeitherOneNorNothing",
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT19 the migration is not taken down over assets that exist",
+  "file": "app/Database/Migrations/20273500000000_FixedAssets.php",
+  "find": "throw new RuntimeException(",
+  "replace": "return; throw new RuntimeException(",
+  "tests": [
+   "--filter",
+   "testDown_RefusesOnceAnAssetExists",
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GT20 taking the accounts migration down keeps the accounts a journal line names",
+  "file": "app/Database/Migrations/20273500000001_AssetAccounts.php",
+  "find": "if ($this->db->table('accounting_journal_lines')->where('account_id', $accountId)->countAllResults() > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testAssetAccounts_TakenDownKeepsTheAccountsAJournalLineNames",
+   "tests/Database/FixedAssetsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "GH01 the permission to depreciate is a sensitive one",
+  "file": "app/Libraries/Accounting/AccountingGuard.php",
+  "find": "        self::ASSETS_DEPRECIATE,\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/AccountingGuardTest.php"
+  ]
+ },
+ {
+  "name": "GH02 the journals of assets are taken back by their documents",
+  "file": "app/Libraries/Accounting/JournalService.php",
+  "find": "...AssetSources::ALL,",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GH03 the journals of assets are listed as sources of the journal",
+  "file": "app/Libraries/Accounting/FamilyReports/JournalSources.php",
+  "find": "...AssetSources::ALL,",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/FamilyReports/JournalSourcesTest.php"
+  ]
+ },
+ {
+  "name": "GH04 the accounts of assets are routed to the system accounts that stand for them",
+  "file": "app/Libraries/Accounting/RoutingKey.php",
+  "find": ", self::AssetCost, self::AssetAccumulated, self::AssetExpense, self::AssetGain, self::AssetLoss, self::AssetPayable], true);",
+  "replace": "], true);",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingKeyTest.php"
+  ]
+ },
+ {
+  "name": "GH05 the loss on a disposal is an account of expense or revenue",
+  "file": "app/Libraries/Accounting/RoutingKey.php",
+  "find": "self::AssetGain, self::AssetLoss => [AccountType::Revenue, AccountType::Expense],",
+  "replace": "self::AssetGain, self::AssetLoss => [AccountType::Revenue],",
+  "tests": [
+   "tests/Libraries/Accounting/RoutingKeyTest.php",
+   "tests/Libraries/Accounting/RoutingServiceTest.php"
+  ]
+ },
+ {
+  "name": "GH06 the accumulated depreciation is an account of credit",
+  "file": "app/Libraries/Accounting/DefaultChart.php",
+  "find": "['112006', 'مجمع إهلاك - عام', AccountType::Asset, '112', false, 'accumulated_depreciation', true],",
+  "replace": "['112006', 'مجمع إهلاك - عام', AccountType::Asset, '112', false, 'accumulated_depreciation', false],",
+  "tests": [
+   "tests/Libraries/Accounting/DefaultChartTest.php"
+  ]
+ },
+ {
+  "name": "GH07 a fixed asset has a number of its own",
+  "file": "app/Libraries/Numbering/DocumentType.php",
+  "find": "self::FixedAsset   => 'code',",
+  "replace": "self::FixedAsset   => 'number',",
+  "tests": [
+   "tests/Libraries/Numbering/DocumentTypeTest.php",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ }
+]

@@ -13,6 +13,7 @@ use App\Libraries\Assets\AssetSources;
 use App\Libraries\Assets\AssetStatus;
 use App\Libraries\Assets\DepreciationBranchStatus;
 use App\Libraries\Assets\DepreciationRun;
+use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Exceptions\DatabaseException;
@@ -387,10 +388,19 @@ final class DepreciationRunTest extends CIUnitTestCase
             $this->assertSame(0, $this->countRows('asset_depreciation_runs'));
         }
 
-
         $this->enterAsset(['name' => 'Chair']);
 
         $this->assertCount(1, $this->depreciation->approve(1, '2026-02', $this->depreciation->preview(1, '2026-02', $limited)->fingerprint, $limited), 'the branch of the employee');
+    }
+
+    public function testPreview_RefusesABranchThatDoesNotExist(): void
+    {
+        try {
+            $this->depreciation->preview(9999, '2026-02', $this->assetRunner);
+            $this->fail('There is no branch 9999.');
+        } catch (BranchException $exception) {
+            $this->assertSame(BranchError::NotFound, $exception->error);
+        }
     }
 
     public function testApprove_LeavesOutAnAssetOutOfServiceOneThatIsNotDepreciatedAndOneThatWasDisposedOf(): void
@@ -774,6 +784,126 @@ final class DepreciationRunTest extends CIUnitTestCase
         $this->runMonth('2026-02');
 
         $this->assertSame('280.0000', $this->accountingDb()->table('asset_depreciations')->where('asset_id', $assetId)->get()->getRow()->amount, 'one amount a day for the 28 days of February');
+    }
+
+    public function testApprove_LeavesOutAnAssetThatWasDeleted(): void
+    {
+        $mistake = $this->enterAsset(['name' => 'Mistake']);
+        $live    = $this->enterAsset(['name' => 'Live']);
+
+        $this->register->delete($mistake, $this->assetClerk);
+
+        $preview = $this->depreciation->preview(1, '2026-02', $this->assetRunner);
+
+        $this->assertSame([$live], array_map(static fn (object $line): int => (int) $line->asset->asset_id, $preview->branches[0]->lines));
+    }
+
+    public function testApprove_LeavesOutAnAssetThatIsNotInServiceYetWhateverUsageWasEntered(): void
+    {
+        $press = $this->enterAsset(['name' => 'Press', 'method' => 'units', 'cost_per_unit' => '2', 'amount_per_period' => '', 'in_service_date' => '2026-03-01']);
+
+        $this->register->recordUsage($press, '2026-02', '100', $this->assetClerk);
+
+        $preview = $this->depreciation->preview(1, '2026-02', $this->assetRunner);
+
+        $this->assertSame([], $preview->branches[0]->lines);
+        $this->assertSame(DepreciationBranchStatus::NothingDue, $preview->branches[0]->status);
+    }
+
+    public function testReverse_RefusesAReasonLongerThanTwoHundredAndFiftyFiveCharacters(): void
+    {
+        $this->enterAsset();
+
+        [$runId] = $this->runMonth('2026-02');
+
+        $this->assertRefused(AccountingError::ReasonRequired, fn () => $this->depreciation->reverse(999999, '', $this->assetRunner));
+        $this->assertRefused(AccountingError::ReasonRequired, fn () => $this->depreciation->reverse($runId, str_repeat('x', 256), $this->assetRunner));
+        $this->assertRefused(AccountingError::ReasonRequired, fn () => $this->depreciation->reverse($runId, '   ', $this->assetRunner));
+        $this->assertSame('active', $this->accountingDb()->table('asset_depreciation_runs')->where('run_id', $runId)->get()->getRow()->status);
+
+        $this->depreciation->reverse($runId, str_repeat('x', 255), $this->assetRunner);
+
+        $this->assertSame('reversed', $this->accountingDb()->table('asset_depreciation_runs')->where('run_id', $runId)->get()->getRow()->status);
+    }
+
+    public function testReverse_WritesAnEntryOfTheAuditLog(): void
+    {
+        $this->enterAsset();
+
+        [$runId] = $this->runMonth('2026-02');
+
+        $reversal = $this->depreciation->reverse($runId, 'Wrong month', $this->assetRunner);
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'asset_depreciation_run', 'entity_id' => $runId, 'action' => 'asset_depreciation_reversed'])->get()->getRow();
+
+        $this->assertNotNull($entry);
+        $this->assertSame($this->assetRunner, (int) $entry->employee_id);
+
+        $details = json_decode((string) $entry->details, true);
+
+        $this->assertSame($reversal, $details['reversal_id']);
+        $this->assertSame('Wrong month', $details['reason']);
+    }
+
+    public function testApprove_RefusesAPreviewWhoseAmountChangedWhileTheAssetsStayedTheSame(): void
+    {
+        $press = $this->enterAsset(['name' => 'Press', 'method' => 'units', 'cost_per_unit' => '2', 'amount_per_period' => '']);
+
+        $this->register->recordUsage($press, '2026-02', '100', $this->assetClerk);
+
+        $preview = $this->depreciation->preview(1, '2026-02', $this->assetRunner);
+
+        $this->register->recordUsage($press, '2026-02', '150', $this->assetClerk);
+
+        $this->assertRefused(AccountingError::AssetRunChanged, fn () => $this->depreciation->approve(1, '2026-02', $preview->fingerprint, $this->assetRunner));
+        $this->assertSame(0, $this->countRows('asset_depreciation_runs'));
+    }
+
+    public function testApprove_ReadsTheAssetsOfTheBranchUnderASharedLockWhereThePreviewTakesNone(): void
+    {
+        $this->enterAsset();
+
+        $preview = $this->depreciation->preview(1, '2026-02', $this->assetRunner);
+        $assets  = preg_quote($this->accountingDb()->prefixTable('assets'), '/');
+        $read    = static fn (array $queries): array => array_values(array_filter($queries, static fn (string $query): bool => preg_match('/FROM ' . $assets . ' WHERE company_id = \d+ AND branch_id = \d+ AND deleted = 0/', $query) === 1));
+
+        $previewReads = $read($this->queriesOf(fn () => $this->depreciation->preview(1, '2026-02', $this->assetRunner)));
+        $approveReads = $read($this->queriesOf(fn () => $this->depreciation->approve(1, '2026-02', $preview->fingerprint, $this->assetRunner)));
+
+        $this->assertCount(1, $previewReads);
+        $this->assertStringNotContainsString('LOCK IN SHARE MODE', $previewReads[0]);
+        $this->assertCount(1, $approveReads);
+        $this->assertStringContainsString('LOCK IN SHARE MODE', $approveReads[0]);
+    }
+
+    public function testApprove_CountsTheDepreciationAnOldAssetArrivedWithAgainstWhatIsLeft(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+
+        $opener  = $this->employeeWithGrants([AccountingGuard::ASSETS_MANAGE, AccountingGuard::OPENING_MANAGE]);
+        $assetId = $this->enterAsset(['funding' => 'opening', 'treasury_id' => '', 'purchase_date' => '2024-01-01', 'in_service_date' => '2024-01-01', 'opening_accumulated' => '11000'], $opener);
+        $db      = $this->accountingDb();
+
+        $db->table('asset_depreciation_runs')->insert(['company_id' => 1, 'branch_id' => 1, 'period_start' => '2025-12-01', 'period_end' => '2025-12-31', 'run_number' => 1, 'total' => '800', 'line_count' => 1, 'fingerprint' => str_repeat('a', 64), 'status' => 'active']);
+        $db->table('asset_depreciations')->insert(['company_id' => 1, 'branch_id' => 1, 'asset_id' => $assetId, 'run_id' => (int) $db->insertID(), 'period_start' => '2025-12-01', 'amount' => '800', 'active_key' => 1]);
+
+        $preview = $this->depreciation->preview(1, '2026-01', $this->assetRunner);
+
+        $this->assertSame('200.0000', $preview->branches[0]->lines[0]->amount, '12,000 less the 11,000 it arrived with less the 800 that stands');
+    }
+
+    public function testApprove_ShowsTheEarlierMonthsOfUsageThatWereNotRunForAnAssetOfUnits(): void
+    {
+        $press = $this->enterAsset(['name' => 'Press', 'method' => 'units', 'cost_per_unit' => '2', 'amount_per_period' => '']);
+
+        $this->register->recordUsage($press, '2026-02', '100', $this->assetClerk);
+        $this->register->recordUsage($press, '2026-03', '50', $this->assetClerk);
+
+        $this->assertSame(['2026-02'], $this->depreciation->preview(1, '2026-03', $this->assetRunner)->branches[0]->lines[0]->missedMonths);
+
+        $this->runMonth('2026-02');
+
+        $this->assertSame([], $this->depreciation->preview(1, '2026-03', $this->assetRunner)->branches[0]->lines[0]->missedMonths);
     }
 
     /**

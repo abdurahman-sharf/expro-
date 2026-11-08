@@ -151,6 +151,14 @@ final class AssetCategoriesTest extends CIUnitTestCase
         $this->assertRefused(AccountingError::AssetAccountInvalid, fn () => $this->categories->save(['name' => 'A', 'accumulated_account_id' => $this->accountId('cogs')], $this->assetClerk));
     }
 
+    public function testSave_RefusesAnAccountThatIsSwitchedOff(): void
+    {
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->accountId('fixed_assets'))->update(['active' => 0]);
+
+        $this->assertRefused(AccountingError::AssetAccountInvalid, fn () => $this->categories->save(['name' => 'A', 'cost_account_id' => $this->accountId('fixed_assets')], $this->assetClerk));
+        $this->assertSame([], $this->categories->all());
+    }
+
     public function testSetActive_SwitchesACategoryOffAndOnAndAnAssetCannotTakeAnOffCategory(): void
     {
         $id = $this->categories->save(['name' => 'Furniture'], $this->assetClerk);

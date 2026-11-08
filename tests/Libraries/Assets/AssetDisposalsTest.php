@@ -5,6 +5,7 @@ namespace Tests\Libraries\Assets;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
@@ -13,6 +14,8 @@ use App\Libraries\Assets\AssetDisposals;
 use App\Libraries\Assets\AssetSources;
 use App\Libraries\Assets\AssetStatus;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\Exceptions\DatabaseException;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -334,6 +337,20 @@ final class AssetDisposalsTest extends CIUnitTestCase
         $this->assertSame('9000.0000', $this->accountNet($this->accountId('asset_loss')));
     }
 
+    public function testWriteOff_ChargesTheLossToTheCostCenterOfTheAsset(): void
+    {
+        $center  = (new CostCenterService())->create(['code' => 'CC1', 'name' => 'Workshop']);
+        $assetId = $this->depreciatedAsset(['cost_center_id' => $center]);
+
+        $operationId = $this->disposals->writeOff($assetId, ['date' => '2026-05-10'], $this->assetClerk);
+
+        $lossAccount = $this->accountId('asset_loss');
+
+        foreach ($this->journalLines((int) $this->journalOf(AssetSources::WRITE_OFF, $operationId)->journal_id) as $line) {
+            $this->assertSame((int) $line->account_id === $lossAccount ? $center : null, $line->cost_center_id === null ? null : (int) $line->cost_center_id);
+        }
+    }
+
     public function testWriteOff_OfAnAssetThatIsDepreciatedByAllItIsWorthPostsNoLoss(): void
     {
         $assetId = $this->enterAsset(['cost' => '2000', 'amount_per_period' => '1000']);
@@ -507,8 +524,81 @@ final class AssetDisposalsTest extends CIUnitTestCase
 
         $this->disposals->writeOff($assetId, ['date' => '2026-05-10'], $this->assetClerk);
 
-        $this->expectException(\CodeIgniter\Database\Exceptions\DatabaseException::class);
+        $this->expectException(DatabaseException::class);
 
         $this->accountingDb()->table('asset_operations')->insert(['company_id' => 1, 'branch_id' => 1, 'asset_id' => $assetId, 'kind' => 'write_off', 'operation_date' => '2026-05-11', 'cost_removed' => '1', 'accumulated_removed' => '0', 'result_amount' => '-1', 'previous_status' => 'active', 'status' => 'active', 'active_key' => 1]);
+    }
+
+    public function testWriteOff_RequiresThePermissionToManageTheRegister(): void
+    {
+        $assetId = $this->enterAsset();
+
+        $this->assertRefused(AccountingError::PermissionDenied, fn () => $this->disposals->writeOff($assetId, ['date' => '2026-01-20'], $this->employeeWithGrants([])));
+        $this->assertSame(0, $this->countRows('asset_operations'));
+        $this->assertSame(AssetStatus::Active->value, $this->asset($assetId)->status);
+    }
+
+    public function testReverse_AsksForTheReasonBeforeItLooksForTheDisposal(): void
+    {
+        $assetId     = $this->depreciatedAsset();
+        $operationId = $this->disposals->sell($assetId, ['date' => '2026-05-10', 'proceeds' => '10000', 'treasury_id' => $this->assetTreasury], $this->assetClerk);
+
+        $this->assertRefused(AccountingError::ReasonRequired, fn () => $this->disposals->reverse(999999, '', $this->assetClerk));
+        $this->assertRefused(AccountingError::ReasonRequired, fn () => $this->disposals->reverse($operationId, str_repeat('x', 256), $this->assetClerk));
+        $this->assertSame('active', $this->operation($operationId)->status);
+
+        $this->disposals->reverse($operationId, str_repeat('x', 255), $this->assetClerk);
+
+        $this->assertSame('reversed', $this->operation($operationId)->status);
+    }
+
+    public function testReverse_HoldsTheAssetBeforeItTakesTheDisposalBack(): void
+    {
+        $assetId     = $this->depreciatedAsset();
+        $operationId = $this->disposals->sell($assetId, ['date' => '2026-05-10', 'proceeds' => '10000', 'treasury_id' => $this->assetTreasury], $this->assetClerk);
+        $assets      = preg_quote($this->accountingDb()->prefixTable('assets'), '/');
+
+        $queries = $this->queriesOf(fn () => $this->disposals->reverse($operationId, 'Buyer backed out', $this->assetClerk));
+        $locks   = array_filter($queries, static fn (string $query): bool => preg_match('/SELECT asset_id FROM ' . $assets . ' WHERE asset_id = \S+ FOR UPDATE/', $query) === 1);
+
+        $this->assertCount(1, $locks);
+    }
+
+    public function testReverse_WritesAnEntryOfTheAuditLog(): void
+    {
+        $assetId     = $this->depreciatedAsset();
+        $operationId = $this->disposals->sell($assetId, ['date' => '2026-05-10', 'proceeds' => '10000', 'treasury_id' => $this->assetTreasury], $this->assetClerk);
+        $reversal    = $this->disposals->reverse($operationId, 'Buyer backed out', $this->assetClerk);
+
+        $entry = $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'asset_operation', 'entity_id' => $operationId, 'action' => 'asset_disposal_reversed'])->get()->getRow();
+
+        $this->assertNotNull($entry);
+        $this->assertSame($this->assetClerk, (int) $entry->employee_id);
+
+        $details = json_decode((string) $entry->details, true);
+
+        $this->assertSame($reversal, $details['reversal_id']);
+        $this->assertSame('Buyer backed out', $details['reason']);
+    }
+
+    /**
+     * @return list<string> The queries the action runs, in order.
+     */
+    private function queriesOf(callable $action): array
+    {
+        $queries  = [];
+        $listener = static function ($query) use (&$queries): void {
+            $queries[] = (string) $query->getQuery();
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        return $queries;
     }
 }
