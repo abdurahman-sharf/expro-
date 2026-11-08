@@ -1,63 +1,71 @@
 # تقرير WP42: الوحدات المتعددة والحزم والتتبع بالرقم المسلسل والدفعة وتاريخ الصلاحية
 
-> الحالة (2026-11-08): **نُفِّذ على الفرع `wp/WP42`** بتفويض المالك التنفيذي الشامل (E47): قوالب وحدات، وأسطر مبيعات ومشتريات وأذون مخزن تُدخَل بوحدة أكبر وتُخزَّن بالوحدة الأساسية، وحزم على الأطقم القائمة، وتتبع بالرقم المسلسل وبالدفعة مع تاريخ صلاحية، وثلاثة خيارات للمبيع الذي يُنزل المخزون عن الصفر. **كل شيء خلف إعدادات مطفأة افتراضيًا** والصلاحيات الثلاث الجديدة **غير ممنوحة لأحد**، والمحاسبة المطفأة = OSPOS كما هو (D1). **لا كتابة في دفترة، ولا دمج في `master`، ولا نشر، ولا طلب سحب.** سلوك دفترة هنا **مرصود إعدادات ونماذج فقط** (انظر القسم 4): كل ما يخص التحويل وتكلفة الحزمة واختيار الدفعة **تصميمنا المحافظ وافتراضات موثّقة** لا ادعاء تطابق.
+> الحالة (2026-11-08): **نُفِّذ على الفرع `wp/WP42`** بتفويض المالك التنفيذي الشامل (E47): قوالب وحدات، وأسطر مبيعات ومشتريات وأذون مخزن تُدخَل بوحدة أكبر وتُخزَّن بالوحدة الأساسية، وحزم على الأطقم القائمة، وتتبع بالرقم المسلسل وبالدفعة مع تاريخ صلاحية، وثلاثة خيارات للمبيع الذي يُنزل المخزون عن الصفر. **كل شيء خلف إعدادات مطفأة افتراضيًا** والصلاحيات الثلاث الجديدة **غير ممنوحة لأحد**، والمحاسبة المطفأة = OSPOS كما هو (D1). **لا كتابة في دفترة، ولا دمج في `master`، ولا نشر، ولا طلب سحب.** **مرحلة الإصلاح (2026-11-08):** راجع مراجعان مستقلان العمل وأرجعا 24 ادعاءً فتتبّعتُ كلًّا منها في الكود وأُصلح كل ما هو حقيقي باختبار يفشل بدونه وحارس يُثبته (القسم 9). سلوك دفترة هنا **مرصود إعدادات ونماذج فقط** (انظر القسم 4): كل ما يخص التحويل وتكلفة الحزمة واختيار الدفعة **تصميمنا المحافظ وافتراضات موثّقة** لا ادعاء تطابق.
 
 ## 1. ما نُفِّذ
 
 | الجزء | ما يفعله |
 |---|---|
 | **الترحيل** `20273100000000_StockUnitsAndTracking` (إضافي وآمن للتكرار، مصنَّف HEAVY في `MigrationChecks::SENSITIVE`) | ثمانية جداول جديدة: `unit_templates` و`unit_template_units` و`item_stock_profiles` و`item_unit_barcodes` و`stock_serials` و`stock_batches` و`stock_batch_quantities` و`stock_tracking_lines`. وأعمدة قابلة للفراغ على `sales_items` و`receivings_items` و`stock_permit_lines` (`unit_id` و`unit_factor` و`unit_quantity` وسعر أو تكلفة الوحدة المُدخَلة) **مع قيد `CHECK` في القاعدة** يُبقي الكمية الأساسية = الكمية المُدخَلة × المعامل. ووحدة `stock_units` وثلاث صلاحيات (`stk_units_manage` و`stk_tracking_manage` و`stk_batch_manual_pick`) **لا تُمنح لأحد**. لا صف قائم يُعاد كتابته: **صنف قديم = وحدة واحدة وبلا تتبع**. `down()` يرفض إن وُجد سطر بوحدة أو سجل تتبع |
-| **الإعدادات** (`StockOptions`) | `stock_units_enabled` و`stock_bundles_enabled` و`stock_tracking_enabled` **مطفأة**، و`stock_expired_sale_policy` (افتراضها **رفض**)، و`negative_stock_option` (افتراضها **`allow`** أي سلوك اليوم). تغييرها لمن يملك صلاحية إعدادات المحاسبة، ويُكتب في سجل التدقيق بقيمته قبل |
+| **الإعدادات** (`StockOptions`) | `stock_units_enabled` و`stock_bundles_enabled` و`stock_tracking_enabled` **مطفأة**، و`stock_expired_sale_policy` (افتراضها **رفض**)، و`negative_stock_option` (افتراضها **`allow`** أي سلوك اليوم). تغييرها لمن يملك صلاحية إعدادات المحاسبة، ويُكتب في سجل التدقيق بقيمته قبل. **ولا يُوقَف التتبع ما دام صنف متتبَّع يحمل رصيدًا** (`tracking_off_with_stock`: رف أو رقم مسلسل متوفر أو دفعة) **ولا يُشغَّل والرف لا يطابق أرقام صنف متتبَّع ودفعاته** (`tracking_on_untied`)، لأن الطرق العادية تتجاهل التتبع وهو مطفأ فتُفلت الأرقام من الرف |
 | **قوالب الوحدات** (`UnitTemplates`) | شكل النموذج المرصود (FRM-R50): اسم الوحدة الأساسية وتمييزها (حتى 25 حرفًا) واسم القالب ونشط وصفوف وحدات أكبر (اسم ومعامل وتمييز). **المعامل عدد موجب بأربع منازل عشرية على الأكثر.** **لا يتغير معامل ولا وحدة قالب استعمله سطر مستند قط**: التعديل يُرفض باسمه (`unit_template_used`) ويُحفظ التغيير **نسخةً جديدة** (`newVersion`: الإصدار التالي بالاسم نفسه ويُطفأ القديم، وتبقى أسطره تشير إلى وحداتها). يتغير اسم القالب ونشاطه بعد الاستعمال. **خيار «تحديث كل التكاليف» المخفي في دفترة (`update_all_costs`) لم يُرصد له أثر ولم يُبنَ، ونُصّ على ذلك في الشاشة** |
-| **الصنف** (`ItemStockProfile`) | قالب اختياري ونوع تتبع (بلا، رقم مسلسل، دفعة) في جدول جانبي: **لا ALTER على `items`**. **لا يتغير نوع التتبع إلا والصنف بلا رف ولا رقم مسلسل متوفر ولا دفعة** (`tracking_change_with_stock`)، لأن مخزونًا لا يفسّره رقم ولا دفعة يكسر قاعدة المساواة |
-| **باركود لكل وحدة** (`UnitBarcodes`) | باركود فريد لوحدة (أو للأساسية) لا يطابق رقم أي صنف ولا باركود آخر؛ مسحه في سجل المبيعات يُدخل الصنف بتلك الوحدة (يُضاف معامل الوحدة بالأساسية ويُعرض السطر بالوحدة) |
+| **الصنف** (`ItemStockProfile`) | قالب اختياري ونوع تتبع (بلا، رقم مسلسل، دفعة) في جدول جانبي: **لا ALTER على `items`**. **لا يتغير نوع التتبع إلا والصنف بلا رف ولا رقم مسلسل متوفر ولا دفعة** (`tracking_change_with_stock`)، لأن مخزونًا لا يفسّره رقم ولا دفعة يكسر قاعدة المساواة. **ويُحفظ القالب ونوع التتبع معًا أو لا شيء** (`saveProfile`): ما لم يتغير لا يطلب صلاحية ولا إعدادًا (فمن يملك صلاحية واحدة يحفظ ما يخصه، ومن يطفئ إعدادًا يحفظ الآخر)، وحقل لم يُرسَل لا يُمسّ |
+| **باركود لكل وحدة** (`UnitBarcodes`) | باركود فريد لوحدة (أو للأساسية) لا يطابق رقم أي صنف ولا باركود آخر؛ مسحه في سجل المبيعات يُدخل الصنف بتلك الوحدة (يُضاف معامل الوحدة بالأساسية ويُعرض السطر بالوحدة). **ورقم صنف جديد يطابق باركود وحدة مرفوض** (`Item::item_number_exists` وشاشة الصنف)، فلا يطغى باركود وحدة على صنف لاحق |
 | **أسطر بوحدة أكبر** (`UnitLine` و`UnitLines` و`UnitCart`) | سجل المبيعات وشاشة الشراء يحوّلان السطر **إلى الوحدة الأساسية عند إدخاله**: الكمية الأساسية = المُدخَلة × المعامل **ويجب أن تكون دقيقة إلى الألف**، والسعر الأساسي = المُدخَل ÷ المعامل **ويجب أن يكون دقيقًا إلى القرش** (إلى ست منازل في تكلفة الإذن). **ما لا ينقسم بدقة يُرفض باسمه (`unit_quantity_inexact` و`unit_price_inexact`) ولا يُقرَّب قط**، فمجموع السطر والضريبة والمخزون والتكلفة والقيد هو ما كُتب. ويحفظ السطر الوحدة **والمعامل وقت الإدخال** وما كُتب، ويتحقق النموذج الذي يحفظ المستند من السطر مرة أخرى (وحدة من قالب الصنف، والمعامل، والكمية والسعر الأساسيان، ولا وحدة وعبوة معًا). **الإعداد مطفأ ← يُرفض السطر بوحدة (`stock_units_off`)** |
 | **الحزم** (`Bundles`) | **الحزمة طقم قائم** (`item_kits`): مع الإعداد يُحفظ الطقم حزمةً فقط إن كان منتجه المسعَّر من نوع طقم ولا يحتفظ بمخزون وخيار سعره هو خيار الطقم، **وإن لم يكن أحد مكوناته الحزمةَ نفسها ولا منتجَ حزمة أخرى ولا من نوع طقم** (`bundle_contains_itself` و`bundle_contains_bundle` و`bundle_keeps_stock` و`bundle_shape_invalid`)، في الشاشة وفي نموذج بنود الطقم معًا. **بيع الحزمة** يقيّد إيراد سعرها ويُخرج مكوناتها بتكلفة كلٍّ منها (متوسطها)، فتكلفة القيد مجموع تكاليف المكونات **ولا مخزون للحزمة نفسها** (افتراض موثّق). الإيراد والتكلفة والإلغاء ثُبتت باختبار على السجل |
 | **التتبع** (`StockTracking`) | **رقم مسلسل:** وحدة واحدة بحالة (`in_stock` و`sold` و`returned` و`removed`) لا تتحرك إلا بآلة الحالات: **موجود مرة واحدة** (مفتاح فريد `(صنف، رقم)`)، **يُباع مرة واحدة** (تحديث شرطي ذري بصفوف متأثرة)، **والمرتجع يعيد الوحدة نفسها** (لا يُقبل رقم لم يُبَع، ولا رقم باعته فاتورة غير المُرتجَعة منها). **دفعة:** كمية لكل (دفعة، موقع) بتاريخ صلاحية، **الأقرب انتهاءً أولًا** افتراضًا (`FEFO`) أو **باختيار يدوي بصلاحية `stk_batch_manual_pick`**، **والدفعة المنتهية لا تُباع والإعداد «رفض»** (الاختيار الآلي يتخطاها واليدوي يُرفض `batch_expired`)، والمرتجع يعود إلى الدفعات التي أخذ البيعُ منها بترتيب أخذها وبما لم تُعِده مرتجعات سابقة. **كل تغيير لصنف متتبَّع يمرّ من `StockTracking` وهو الذي يغيّر الرف** فمجموع الدفعات في موقع (أو الأرقام المتوفرة) = كمية الموقع **دائمًا** (يُتحقق عقب كل عملية)، **وأي طريق آخر لتغيير رف صنف متتبَّع يُرفض باسمه** (`tracked_path_unsupported`) في `Item_quantity`. **كل سطر مستند يسجل ما حرّك** (`stock_tracking_lines`) فإلغاء المستند يعيد ما حرّكه تمامًا (ويُرفض إن تحرك رقم أو دفعة بعده)، وكل إلغاء عكس لا حذف |
 | **حركة لكل رقم مسلسل** (`StockLedger::record`) | في مستوى `StockLedger` نفسه: حركة وحدات صنف مسلسل تُكتب **حركةً لكل رقم** (كمية ±1) ويُقسَّم المبلغ بينها **إلى آخر منزلة** فمجموعها ما يقوله القيد، كما رُصد لأذون المنتج المتتبَّع (E79): الحسابان الآليان نفسهما والقيد واحد |
 | **المخزون السالب** (`NegativeStockGuard`) | ثلاثة خيارات: `allow` (السلوك الحالي، الافتراضي) و`refuse` (يرفض بيعًا بأكثر مما في الموقع) و`refuse_below_available` (أقل من المتاح = ما في الموقع ناقصًا ما وعدت به فواتير صدرت قبل خروج بضاعتها). الرف يُقرأ **تحت قفل** داخل معاملة البيع. يشمل **البيع المكتمل المسلَّم وتسليم الفاتورة**؛ ولا يُرفض مرتجع. وتبقى أذون المخزن والجرد ومرتجع المورّد بقواعدها |
-| **الشاشات** (`/stock_units`) | شاشة واحدة بالعربية والإنجليزية: الإعدادات (لمن يملك صلاحيتها) وقوالب الوحدات ونموذج القالب (ونسخة جديدة بعد الاستعمال) وبطاقة الصنف (قالب ونوع تتبع وباركود لكل وحدة). في **سجل المبيعات وشاشة الشراء:** قائمة الوحدة لكل سطر، وقائمة الأرقام المسلسلة (شاشة الشراء) والدفعة وتاريخها (شاشة الشراء) واختيار الدفعة يدويًا (سجل المبيعات لمن يملك الصلاحية). الوحدة تحت «المخزون» في القائمة |
+| **الشاشات** (`/stock_units`) | شاشة واحدة بالعربية والإنجليزية: الإعدادات (لمن يملك صلاحيتها) وقوالب الوحدات ونموذج القالب (ونسخة جديدة بعد الاستعمال) وبطاقة الصنف (قالب ونوع تتبع وباركود لكل وحدة؛ قائمة القالب تُغلق والوحدات مطفأة أو لمن لا يملك الصلاحية، وقائمة التتبع كذلك). في **شاشات أذون المخزن:** عمود الوحدة وعمود الأرقام المسلسلة أو الدفعة وتاريخها لصنف متتبَّع (يُعرف من بحث الأصناف الذي يعيد وحداته ونوع تتبعه)، وتحميل سطر إذن بوحدة كما أُدخل. في **سجل المبيعات وشاشة الشراء:** قائمة الوحدة لكل سطر، وقائمة الأرقام المسلسلة (شاشة الشراء) والدفعة وتاريخها (شاشة الشراء) واختيار الدفعة يدويًا (سجل المبيعات لمن يملك الصلاحية). الوحدة تحت «المخزون» في القائمة |
 | **فحوص الجاهزية** (`StockTrackingChecks`، فحصان) | `WP42-TRACKING`: رف كل صنف متتبَّع في كل موقع = أرقامه المتوفرة أو مجموع دفعاته (يفشل ويسمّي الصنف)، ودفعات منتهية ما زالت على رف (للمراجعة). `WP42-BUNDLES`: أطقم لا تتبع قواعد الحزمة (للمراجعة، والإعداد مفعّل)، وأسطر بوحدات والإعداد مطفأ (للمراجعة). صار عدد فحوص الجاهزية **27** (كان 25) في `ReadinessRunnerTest` و`AccountingReadinessTest` |
-| **تعديلات صغيرة على ملفات مشتركة** | `AccountingError` (حالات الرفض، وكل منها برسالته في 46 لغة)، `Routes.php` (مجموعة `stock_units`)، `navigation_helper.php`، `MigrationChecks::SENSITIVE` (سطر واحد)، `ReadinessRunner` (مجموعة فحوص)، `Module.php` (مفتاحان) و`Stock_units.php` جديد في كل اللغات (عربي مصري ولبناني حقيقيان وإنجليزيتان والباقي `''`)، و`RaceWorker.php` (ثلاثة عاملين للاختبار) |
+| **تعديلات صغيرة على ملفات مشتركة** | `AccountingError` (حالات الرفض، وكل منها برسالته في 46 لغة)، `Routes.php` (مجموعة `stock_units`)، `navigation_helper.php`، `MigrationChecks::SENSITIVE` (سطر واحد)، `ReadinessRunner` (مجموعة فحوص)، `Module.php` (مفتاحان) و`Stock_units.php` جديد في كل اللغات (عربي مصري ولبناني حقيقيان وإنجليزيتان والباقي `''`)، و`RaceWorker.php` (ثلاثة عاملين للاختبار). **ومن مرحلة الإصلاح:** `locale_helper.php` (`to_unit_price`: سعر الوحدة بمنازله في صيغة المتجر)، و`Items` و`Item` و`Item_quantity` (رفض باسمه بدل 500)، و`DraftInvoice` (وحدة السطر وبصمته)، و`StockDocumentController` و`StockPermits` وشاشة الإذن (وحدة وتتبع)، و`Sales` و`Receivings` (قيمة ليست نصًا، وسعر الوحدة، والرقم المسلسل كما كُتب) |
 | **ما لم يتغير** | ملف دفتر قائم، ولا قيد مرحَّل، ولا حركة قائمة تُعاد كتابتها. الصنف بلا قالب ولا تتبع يعمل كما كان (اختبارات تثبت: سطر قديم بلا وحدة، وشراء وبيع بلا تتبع والتتبع مفعّل، والتتبع مطفأ لصنف له ملف)، والاختبارات الذهبية T-06 إلى T-19 لم تُمَسّ |
 
 ## 2. الأدلة
 
-كل ملف شُغِّل وحده على قاعدة الاختبار `ospos_test_wp42`: `MYSQL_DB_NAME=ospos_test_wp42 vendor/bin/phpunit --no-coverage <الملف>`، من `/home/user/wt/WP42`، بعد آخر تعديل على الكود (2026-11-08). **كلها نجحت.** لم تُشغَّل المجموعة الكاملة (القيد: قاعدة اختبار واحدة وحاسوب مشترك بأربع أنوية).
+كل ملف شُغِّل وحده على قاعدة الاختبار `ospos_test_wp42`: `MYSQL_DB_NAME=ospos_test_wp42 vendor/bin/phpunit --no-coverage <الملف>`، من `/home/user/wt/WP42`، بعد آخر تعديل على الكود (2026-11-08، بعد مرحلة الإصلاح). **كلها نجحت.** لم تُشغَّل المجموعة الكاملة (القيد: قاعدة اختبار واحدة وحاسوب مشترك بأربع أنوية).
 
-**ملفات الحزمة الجديدة** (193 اختبارًا في 11 ملفًا، ملف واحد لكل صنف تحت الاختبار):
+**ملفات الحزمة الجديدة** (238 اختبارًا في 11 ملفًا، ملف واحد لكل صنف تحت الاختبار، وكل اسم اختبار `test{الدالة}_{السلوك}` يبدأ السلوك بفعل):
 
 | الملف | الاختبارات | التأكيدات | النتيجة |
 |---|---|---|---|
 | `tests/Libraries/Stock/UnitLineTest.php` | 11 | 21 | نجح |
-| `tests/Libraries/Stock/StockOptionsTest.php` | 6 | 25 | نجح |
+| `tests/Libraries/Stock/StockOptionsTest.php` | 16 | 63 | نجح |
 | `tests/Libraries/Stock/UnitTemplatesTest.php` | 23 | 104 | نجح |
-| `tests/Libraries/Stock/ItemStockProfileTest.php` | 14 | 57 | نجح |
-| `tests/Libraries/Stock/UnitBarcodesTest.php` | 10 | 41 | نجح |
+| `tests/Libraries/Stock/ItemStockProfileTest.php` | 21 | 88 | نجح |
+| `tests/Libraries/Stock/UnitBarcodesTest.php` | 11 | 47 | نجح |
 | `tests/Libraries/Stock/BundlesTest.php` | 12 | 57 | نجح |
-| `tests/Libraries/Stock/StockTrackingTest.php` | 69 | 697 | نجح |
-| `tests/Libraries/Stock/NegativeStockGuardTest.php` | 15 | 141 | نجح |
+| `tests/Libraries/Stock/StockTrackingTest.php` | 76 | 774 | نجح |
+| `tests/Libraries/Stock/NegativeStockGuardTest.php` | 17 | 160 | نجح |
 | `tests/Libraries/Accounting/Readiness/StockTrackingChecksTest.php` | 7 | 47 | نجح |
-| `tests/Controllers/StockUnitsControllerTest.php` | 16 | 99 | نجح |
-| `tests/Database/StockUnitsAndTrackingMigrationTest.php` | 10 | 37 | نجح |
+| `tests/Controllers/StockUnitsControllerTest.php` | 28 | 181 | نجح |
+| `tests/Database/StockUnitsAndTrackingMigrationTest.php` | 16 | 73 | نجح |
 
 **ملفات موجودة أُضيفت إليها اختبارات** (ملف واحد لكل صنف، فالأسطر الجديدة في ملف الصنف القائم):
 
-| الملف | الاختبارات الجديدة | الاختبارات الكلية | التأكيدات | النتيجة |
-|---|---|---|---|---|
-| `tests/Libraries/Accounting/SalePostingTest.php` (وحدات وسجل مبيعات وحزم) | 25 | 466 | 3580 | نجح |
-| `tests/Libraries/Accounting/ReceivingPostingTest.php` (وحدات وشاشة شراء وتتبع) | 13 | 326 | 2992 | نجح |
-| `tests/Libraries/Accounting/StockLedgerTest.php` (تحويل الوحدات وعكس البيع) | 2 | 21 | 123 | نجح |
-| `tests/Libraries/Stock/StockPermitTest.php` (أذون بوحدات) | 6 | 75 | 781 | نجح |
-| `tests/Controllers/ItemKitsControllerTest.php` (رفض الحزمة في الشاشة) | 3 | 5 | 25 | نجح |
-| `tests/LanguageFilesTest.php` (`Stock_units` والوحدة) | 2 (8 حالات) | 2930 | 8434 | نجح |
+| الملف | الاختبارات الجديدة | ما تغطيه | الاختبارات الكلية | التأكيدات | النتيجة |
+|---|---|---|---|---|---|
+| `tests/Libraries/Accounting/SalePostingTest.php` | 26 | وحدات وسجل مبيعات وحزم ومسودة فاتورة بوحدة | 467 | 3590 | نجح |
+| `tests/Libraries/Accounting/ReceivingPostingTest.php` | 13 | وحدات وشاشة شراء وتتبع | 326 | 2992 | نجح |
+| `tests/Libraries/Accounting/StockLedgerTest.php` | 2 | تحويل الوحدات وعكس البيع | 21 | 123 | نجح |
+| `tests/Libraries/Stock/StockPermitTest.php` | 6 | أذون بوحدات | 75 | 781 | نجح |
+| `tests/Controllers/ItemKitsControllerTest.php` | 3 | رفض الحزمة في الشاشة | 5 | 25 | نجح |
+| `tests/LanguageFilesTest.php` | 2 | `Stock_units` والوحدة | 2930 | 8470 | نجح |
+| `tests/Controllers/ItemsControllerTest.php` | 5 | صنف متتبَّع: رفض باسمه بدل 500، ورقم صنف يطابق باركود وحدة | 142 | 946 | نجح |
+| `tests/Controllers/SalesControllerTest.php` | 7 | سعر وحدة بأكثر من منزلتين، والرقم المسلسل كما كُتب، وقيمة ليست نصًا | 486 | 3471 | نجح |
+| `tests/Controllers/ReceivingsControllerTest.php` | 4 | قائمة وحدات شاشة الشراء، وسطر بالكراتين، وقيمة ليست نصًا | 225 | 1847 | نجح |
+| `tests/Controllers/StockPermitsControllerTest.php` | 11 | وحدة وأرقام مسلسلة ودفعة في شاشة الإذن، وبحث الأصناف يعيد الوحدات والتتبع | 34 | 450 | نجح |
+| `tests/Models/ItemTest.php` | 4 | حذف صنف متتبَّع، ورقم صنف يطابق باركود وحدة | 58 | 366 | نجح |
+| `tests/Libraries/Accounting/DraftInvoiceTest.php` | 3 | وحدة سطر المسودة وبصمتها | 28 | 153 | نجح |
 
 وعُدِّل عدّ الفحوص إلى 27 في `tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php` و`tests/Commands/AccountingReadinessTest.php` (كان 25).
 
-**انحدار على ما يلمسه الكود المشترك** (الأذون والجرد والطلبات والاستلام ودفتر الحركات وتسويات الكمية والأرصدة الافتتاحية والجاهزية والسجل والتنقل والصلاحيات والأطقم):
+**انحدار على ما يلمسه الكود المشترك** (الأذون والجرد والطلبات والاستلام ودفتر الحركات وتسويات الكمية والأرصدة الافتتاحية والجاهزية والسجل والتنقل والصلاحيات والأطقم والتقارير والضرائب والترقيم):
 
 | الملف | الاختبارات | التأكيدات | النتيجة |
 |---|---|---|---|
+| `tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php` | 13 | 34 | نجح |
+| `tests/Commands/AccountingReadinessTest.php` | 25 | 131 | نجح |
 | `tests/Libraries/Stock/StockAccessTest.php` | 5 | 37 | نجح |
 | `tests/Libraries/Stock/StockDocumentSearchTest.php` | 3 | 12 | نجح |
 | `tests/Libraries/Stock/StockDocumentSettingsTest.php` | 5 | 46 | نجح |
@@ -73,40 +81,51 @@
 | `tests/Libraries/Accounting/ReceivingPostingBuilderTest.php` | 63 | 154 | نجح |
 | `tests/Libraries/Accounting/InventoryValuationTest.php` | 51 | 398 | نجح |
 | `tests/Libraries/Accounting/OpeningStockTest.php` | 78 | 826 | نجح |
-| `tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php` | 13 | 34 | نجح |
 | `tests/Libraries/Accounting/Readiness/MigrationChecksTest.php` | 18 | 33 | نجح |
-| `tests/Commands/AccountingReadinessTest.php` | 25 | 131 | نجح |
 | `tests/Models/ItemQuantityTest.php` | 4 | 13 | نجح |
 | `tests/Models/InventoryTest.php` | 4 | 4 | نجح |
 | `tests/Models/ReceivingTest.php` | 75 | 654 | نجح |
-| `tests/Controllers/StockPermitsControllerTest.php` | 23 | 335 | نجح |
 | `tests/Controllers/StocktakesControllerTest.php` | 19 | 257 | نجح |
 | `tests/Controllers/StockRequestsControllerTest.php` | 12 | 167 | نجح |
-| `tests/Controllers/ReceivingsControllerTest.php` | 221 | 1812 | نجح |
 | `tests/helpers/NavigationHelperTest.php` | 16 | 22 | نجح |
 | `tests/Libraries/Roles/PermissionCatalogTest.php` | 6 | 82 | نجح |
-| `tests/Libraries/Sale_libTest.php` | 88 | 238 | نجح (فشل 9 اختبارات في التشغيل الأول لأن صفوف الاختبار الوهمية لا تحمل عمود `unit_id`، فصار القراءة `?? null` وأُعيد التشغيل فنجح) |
+| `tests/Libraries/Sale_libTest.php` | 88 | 238 | نجح |
 | `tests/Libraries/Receiving_libTest.php` | 24 | 48 | نجح |
 | `tests/Support/ParityFixtureTest.php` | 411 | 2915 | نجح |
-
-**انحدار إضافي على كل ملف اختبار يذكر `changeQuantity` أو `StockLedger` أو `Item_quantity` أو `confirm_delivery` أو `StockPermit`** (شُغِّل ملفًا ملفًا بعد آخر تعديل على الكود، فنجحت كلها): `AccountingInventoryReportsControllerTest` (43) و`ItemsControllerTest` (137) و`SalesControllerTest` (479) و`BackfillServiceTest` (84) و`BalanceSheetTest` (32) و`StockAgingReportTest` (7) و`StockMovementsReportTest` (5) و`StockOperationsReportTest` (4) و`LegacyPurchaseDiscountTest` (19) و`ProfitReportTest` (13) و`TieChecksTest` (34) و`TrialBalanceTest` (66) و`UndeliveredReturnsTest` (5) و`DocumentNumberingTest` (90) و`Sale_libPaymentTest` (12) و`Tax_libTest` (41) و`ItemTest` (54) و`SaleTest` (110) و`Receiving_libTest` (24).
+| `tests/Controllers/AccountingInventoryReportsControllerTest.php` | 43 | 444 | نجح |
+| `tests/Libraries/Accounting/Backfill/BackfillServiceTest.php` | 84 | 738 | نجح |
+| `tests/Libraries/Accounting/BalanceSheetTest.php` | 32 | 296 | نجح |
+| `tests/Libraries/Accounting/FamilyReports/StockAgingReportTest.php` | 7 | 43 | نجح |
+| `tests/Libraries/Accounting/FamilyReports/StockMovementsReportTest.php` | 5 | 48 | نجح |
+| `tests/Libraries/Accounting/FamilyReports/StockOperationsReportTest.php` | 4 | 38 | نجح |
+| `tests/Libraries/Accounting/LegacyPurchaseDiscountTest.php` | 19 | 107 | نجح |
+| `tests/Libraries/Accounting/OperationalReports/ProfitReportTest.php` | 13 | 74 | نجح |
+| `tests/Libraries/Accounting/Readiness/TieChecksTest.php` | 34 | 161 | نجح |
+| `tests/Libraries/Accounting/TrialBalanceTest.php` | 66 | 389 | نجح |
+| `tests/Libraries/Accounting/UndeliveredReturnsTest.php` | 5 | 22 | نجح |
+| `tests/Libraries/Numbering/DocumentNumberingTest.php` | 90 | 428 | نجح |
+| `tests/Libraries/Sale_libPaymentTest.php` | 12 | 21 | نجح |
+| `tests/Libraries/Tax_libTest.php` | 41 | 71 | نجح |
+| `tests/Models/SaleTest.php` | 110 | 733 | نجح |
 
 **الاختبارات الذهبية T-06 إلى T-19** تُشغَّل داخل `SalePostingTest` و`ReceivingPostingTest` و`ParityFixtureTest` وكلها نجحت دون تعديل أي ملف تثبيت.
 
-**ما يثبته الاختبار (من أسماء الاختبارات):** سطر مبيعات ومشتريات وإذن بوحدة أكبر يُخزَّن بالأساسية (24 قطعة بسعر 10.00 لكرتونتين بـ120) ويرحّل الإيراد والتكلفة منها، **وتتطابق حركات المخزون وحساب الموقع بالأساسية بالضبط** (`StockLedger::reconcile` و`mismatchedJournals`) مع شراء بالكراتين وبيع بالقطع وإلغاء البيع؛ رفض السعر الذي لا ينقسم والكمية التي لا تتحول والمعامل والكمية والسعر الأساسيين اللذين لا يطابقان وحدة السطر ووحدة من قالب آخر ووحدة والإعداد مطفأ ووحدة وعبوة معًا؛ سطر قديم بلا وحدة؛ تصحيح سطر شراء بوحدة؛ سجل المبيعات (تغيير الوحدة ونص بالوحدة وسعر لا ينقسم ودمج سطر ومسح باركود وحدة واستعادة الوحدة من مبيعة محفوظة)؛ حزمة مباعة بإيرادها وتكلفة مكوناتها وإلغاؤها وقواعدها (ذاتها وحزمة داخلها ومنتج بمخزون وشكلها) في المكتبة والنموذج والشاشة؛ رقم مسلسل يُستلم ويُباع مرة ويعود بمرتجع ويُباع ثانية، ويُرفض المكرر والمباع والذي في موقع آخر والذي باعته فاتورة غير المرتجَع منها، وحركة لكل رقم بقسمة المبلغ إلى آخر منزلة؛ دفعة تُستلم بتاريخها وتُؤخذ الأقرب انتهاءً أولًا وباليد بصلاحية ولا تُباع المنتهية وتُباع بإعداد يسمح؛ مرتجع الدفعة إلى دفعات البيع وبقسمة مرتجعين؛ إلغاء المستند يعيد ما حرّكه ويُرفض إن تحرك رقم أو دفعة بعده؛ مساواة الرف بالأرقام والدفعات عقب كل عملية وفي الجاهزية؛ **سباق اتصالين حقيقيين** على الرقم المسلسل نفسه في إذنين وفي بيعين (واحد ينجح والآخر يُرفض) وسباق بيعين للوحدة الأخيرة بخيار الرفض؛ رفض مرتجع المورّد وفاتورة بلا تسليم وتسليم فاتورة وتصحيح بنود استلام وجرد وتعديل الرف لصنف متتبَّع؛ والأصناف غير المتتبَّعة تعمل كما كانت والتتبع مفعّل.
+**ما يثبته الاختبار (من أسماء الاختبارات):** سطر مبيعات ومشتريات وإذن بوحدة أكبر يُخزَّن بالأساسية (24 قطعة بسعر 10.00 لكرتونتين بـ120) ويرحّل الإيراد والتكلفة منها، **وتتطابق حركات المخزون وحساب الموقع بالأساسية بالضبط** (`StockLedger::reconcile` و`mismatchedJournals`) مع شراء بالكراتين وبيع بالقطع وإلغاء البيع؛ رفض السعر الذي لا ينقسم والكمية التي لا تتحول والمعامل والكمية والسعر الأساسيين اللذين لا يطابقان وحدة السطر ووحدة من قالب آخر ووحدة والإعداد مطفأ ووحدة وعبوة معًا؛ سطر قديم بلا وحدة؛ تصحيح سطر شراء بوحدة؛ سجل المبيعات (تغيير الوحدة ونص بالوحدة وسعر لا ينقسم ودمج سطر ومسح باركود وحدة واستعادة الوحدة من مبيعة محفوظة)؛ حزمة مباعة بإيرادها وتكلفة مكوناتها وإلغاؤها وقواعدها (ذاتها وحزمة داخلها ومنتج بمخزون وشكلها) في المكتبة والنموذج والشاشة؛ رقم مسلسل يُستلم ويُباع مرة ويعود بمرتجع ويُباع ثانية، ويُرفض المكرر والمباع والذي في موقع آخر والذي باعته فاتورة غير المرتجَع منها، وحركة لكل رقم بقسمة المبلغ إلى آخر منزلة؛ دفعة تُستلم بتاريخها وتُؤخذ الأقرب انتهاءً أولًا وباليد بصلاحية ولا تُباع المنتهية وتُباع بإعداد يسمح؛ مرتجع الدفعة إلى دفعات البيع وبقسمة مرتجعين؛ إلغاء المستند يعيد ما حرّكه ويُرفض إن تحرك رقم أو دفعة بعده؛ مساواة الرف بالأرقام والدفعات عقب كل عملية وفي الجاهزية؛ **سباق اتصالين حقيقيين** على الرقم المسلسل نفسه في إذنين وفي بيعين (واحد ينجح والآخر يُرفض) وسباق بيعين للوحدة الأخيرة بخيار الرفض؛ رفض مرتجع المورّد وفاتورة بلا تسليم وتسليم فاتورة وتصحيح بنود استلام وجرد وتعديل الرف لصنف متتبَّع؛ والأصناف غير المتتبَّعة تعمل كما كانت والتتبع مفعّل. ومن مرحلة الإصلاح: لا يُوقَف التتبع ولا يُشغَّل وفي المخزون ما لا يطابق، وحفظ بطاقة الصنف كله أو لا شيء، وشاشة الإذن بوحدة ورقم ودفعة، وشاشة الشراء بقائمة وحدتها، وسعر وحدة بثلاث منازل لا يُعاد تقريبه، وقيد `CHECK` للوحدة في الجداول الثلاثة، ورفض باسمه (لا 500) لصنف متتبَّع في شاشات الصنف.
 
 ## 3. الحراس
 
-أُضيف هنا كل حارس في الكود وأُثبت بـ`tools/dev/guard_mutations.py`: يُعطَّل الحارس (أو تُعكس شرطيته) ويُشغَّل ملف الاختبار المسمّى، فإن لم يفشل فالحارس غير مثبت. قائمة التعطيلات في `wp42-guards.json` (**143 تعطيلًا**). **النتيجة: 143 من 143 كُشفت** (DETECTED) و0 غير مثبتة و0 غير صالحة.
+أُضيف هنا كل حارس في الكود وأُثبت بـ`tools/dev/guard_mutations.py`: يُعطَّل الحارس (أو تُعكس شرطيته) ويُشغَّل ملف الاختبار المسمّى (أو اختباراته المرشَّحة بـ`--filter` حين يكون الملف كبيرًا)، فإن لم يفشل فالحارس غير مثبت. قائمة التعطيلات في `wp42-guards.json` (**193 تعطيلًا**). **النتيجة: 193 من 193 كُشفت** (DETECTED) و0 غير مثبتة و0 غير صالحة.
 
 **العائلات:** `UnitLine` (التحويل) (2)، `StockOptions` (الإعدادات) (5)، `UnitTemplates` (القوالب) (17)، `ItemStockProfile` (ملف الصنف) (10)، `UnitBarcodes` (الباركود) (8)، سطر بوحدة (`UnitLines` والنماذج) (10)، سجل المبيعات (`UnitCart`) (4)، `Bundles` (الحزم) (8)، `StockTracking` (التتبع) (40)، `StockLedger` (حركة لكل رقم) (3)، ربط المستندات (22)، `NegativeStockGuard` (7)، فحوص الجاهزية (4)، الشاشات (3).
 
 **التشغيل الأول** (140 تعطيلًا على الكود النهائي): كشف **131** وترك **تسعة** غير مثبتة، فعولجت كلها:
-- `B02` (الباركود والإعداد مطفأ) و`BD06` (منتج حزمة من النوع العادي) و`K10` (مرتجع رقم لم يُبَع ولا يسمّي فاتورة) و`K16` (دفعة كميتها سالبة أو صفر والدفعات تساوي السطر) و`K37` (استدعاء مباشر لصنف غير متتبَّع) و`N02` (مرتجع والرف تحت الصفر) و`N07` (فاتورة سُلِّمت لا تَعِد): **أُضيف اختبار لكل** (`testAssign_RefusesWhileTheUnitsSettingIsOff` و`testAssertValid_RejectsAComponentThatIsTheProductOfAnotherKitEvenWhenThatProductIsOfTheOrdinaryType` و`testSave_RefusesToReturnASerialNumberThatWasNeverSoldEvenWhenTheReturnNamesNoSale` و`testReceive_RejectsABatchWhoseQuantityIsNegativeOrNothingEvenWhenTheBatchesAddUpToTheLine` و`testReceive_RefusesAnItemThatIsNotTrackedWhateverTheMovement` و`testAssertSale_NeverRefusesAReturnEvenWhenTheShelfIsAlreadyBelowNothing` و`testPromised_LeavesOutInvoicesWhoseGoodsHaveLeft`)، وأُضيف `K38` إلى `K40` للفروع الثلاثة الباقية من الحارس نفسه.
+- `B02` (الباركود والإعداد مطفأ) و`BD06` (منتج حزمة من النوع العادي) و`K10` (مرتجع رقم لم يُبَع ولا يسمّي فاتورة) و`K16` (دفعة كميتها سالبة أو صفر والدفعات تساوي السطر) و`K37` (استدعاء مباشر لصنف غير متتبَّع) و`N02` (مرتجع والرف تحت الصفر) و`N07` (فاتورة سُلِّمت لا تَعِد): **أُضيف اختبار لكل** (`testAssign_RefusesWhileTheUnitsSettingIsOff` و`testAssertValid_RejectsAComponentThatIsTheProductOfAnotherKitEvenWhenThatProductIsOfTheOrdinaryType` و`testSave_RefusesToReturnASerialNumberThatWasNeverSoldEvenWhenTheReturnNamesNoSale` و`testReceive_RejectsABatchWhoseQuantityIsNegativeOrNothingEvenWhenTheBatchesAddUpToTheLine` و`testReceive_RefusesAnItemThatIsNotTrackedWhateverTheMovement` و`testAssertSale_AcceptsAReturnEvenWhenTheShelfIsAlreadyBelowNothing` و`testPromised_LeavesOutInvoicesWhoseGoodsHaveLeft`)، وأُضيف `K38` إلى `K40` للفروع الثلاثة الباقية من الحارس نفسه.
 - `K08` (البيع مرة واحدة): كان التعطيل يمسّ شرط الحالة وحده والموقع يحميه أيضًا (الرقم المباع بلا موقع بقيد في القاعدة)، فصار التعطيل **يرفع الشرطين معًا**.
 - `R03` (فحص الأطقم): كان التعطيل مكافئًا لحارس `BD01` (`Bundles::violations` يعود فارغًا والإعداد مطفأ)، فاستُبدل به تعطيل **حالة المراجعة نفسها**.
 
 **التشغيل الثاني** لهذه الاثني عشر (التسعة المعدّلة والثلاثة الجديدة): كُشفت **كلها**. بقية التعطيلات (131) لم يتغير الكود تحتها بعد التشغيل الأول (أُضيفت اختبارات ولم يُضعَف واحد).
+
+**مرحلة الإصلاح بعد المراجعة** (`F01` إلى `F50`، وسبعة تعطيلات قديمة عُدِّلت نصوصها لأن الكود تحتها تغيّر: `B03` و`B04` و`K26` و`W08` و`W21` و`W22` و`R01`): قفل تغيير التتبع (`StockOptions` و`TrackingTies`) (6)، وحفظ بطاقة الصنف وإغلاق قوائمها (`ItemStockProfile` و`StockUnits`) (5)، وإلغاء بيعة بعد مرتجع (`StockTracking`) (2)، وفحص الأرقام قبل تقسيم الحركات ودفعة الإذن الواحدة (`StockTracking` و`Receiving` و`StockPermit` و`TrackingEntry`) (4)، وإفراغ الرف وحذف الصنف (`Item_quantity` و`Item`) (3)، ورقم صنف يطابق باركود وحدة (`Item` و`Items`) (2)، وأخطاء الصنف (`Items`) (2)، ووحدة المسودة (`DraftInvoice`) (3)، وسجل المبيعات (`Sales`) (4)، وشاشة الشراء (`Receivings`) (2)، وشاشات الإذن وبحث الأصناف (`StockDocumentController` و`StockPermits`) (7)، ووعد الفواتير (`NegativeStockGuard`) (1)، ورسائل الباركود والقالب (`UnitBarcodes` و`UnitTemplates`) (2)، وقيد `CHECK` والتراجع في الترحيل (7). **التشغيل الأول** كشف 50 وترك **سبعة** غير مثبتة: `F05` و`F06` (فروع رقم مسلسل متوفر ودفعة تحمل كمية: كان الرف يغطيها)، و`F16` (إذن بحجم لا يفشل إلا بعد كتابة الدفتر: صار الاختبار يتحقق أن لا `INSERT` في `accounting_stock_entries` سبق الرفض)، و`F18` (رف بصف صفري)، و`F38` (البحث والوحدات مطفأة والتتبع مفعّل)، و`F40` (مرشِّح الاختبار لم يشمل اختبار «التتبع وحده»)، و`F46` (معامل صفر بكمية صفر). أُضيف اختبار لكلٍّ منها (وصُحّح مرشِّح `F40`) وأُعيد تشغيلها فكُشفت **كلها**، ثم **أُعيد تشغيل كل التعطيلات القديمة** على الكود المعدّل فكُشفت كلها.
 
 | # | الحارس | الملف الذي يحرسه | الاختبار الذي يكشفه | النتيجة |
 |---|---|---|---|---|
@@ -246,13 +265,63 @@
 | N05 | a sale that would go below nothing is refused | `NegativeStockGuard.php` | `NegativeStockGuardTest.php` | كُشف |
 | N06 | what is promised leaves out the invoice that is being delivered | `NegativeStockGuard.php` | `NegativeStockGuardTest.php` | كُشف |
 | N07 | only invoices whose goods have not left promise stock | `NegativeStockGuard.php` | `NegativeStockGuardTest.php` | كُشف |
-| R01 | a shelf that is not what its batches or serial numbers add up to fails the check | `StockTrackingChecks.php` | `StockTrackingChecksTest.php` | كُشف |
+| R01 | a shelf that is not what its batches or serial numbers add up to fails the check | `TrackingTies.php` | `StockTrackingChecksTest.php` و`StockOptionsTest.php` | كُشف |
 | R02 | an expired batch on a shelf is for review | `StockTrackingChecks.php` | `StockTrackingChecksTest.php` | كُشف |
 | R03 | kits that break the rules of a bundle are for review | `StockTrackingChecks.php` | `StockTrackingChecksTest.php` | كُشف |
 | R04 | lines in units while the units setting is off are for review | `StockTrackingChecks.php` | `StockTrackingChecksTest.php` | كُشف |
 | Q01 | the form of a template is forbidden to who may not manage units | `StockUnits.php` | `StockUnitsControllerTest.php` | كُشف |
 | Q02 | the settings are shown only to who may change them | `StockUnits.php` | `StockUnitsControllerTest.php` | كُشف |
 | Q03 | the screens belong to the module of units and tracking | `StockUnits.php` | `StockUnitsControllerTest.php` | كُشف |
+| F01 | switching tracking is checked against the tracked stock | `StockOptions.php` | `StockOptionsTest.php` | كُشف |
+| F02 | tracking is not switched on while a tracked item does not tie | `StockOptions.php` | `StockOptionsTest.php` | كُشف |
+| F03 | tracking is not switched off while a tracked item holds stock | `StockOptions.php` | `StockOptionsTest.php` | كُشف |
+| F04 | a tracked item holds stock when its shelf holds some | `TrackingTies.php` | `StockOptionsTest.php` | كُشف |
+| F05 | a tracked item holds stock when a serial number is on hand | `TrackingTies.php` | `StockOptionsTest.php` | كُشف |
+| F06 | a tracked item holds stock when a batch holds some | `TrackingTies.php` | `StockOptionsTest.php` | كُشف |
+| F07 | a template that did not change asks for no permission | `ItemStockProfile.php` | `ItemStockProfileTest.php` | كُشف |
+| F08 | a tracking type that did not change asks for no permission | `ItemStockProfile.php` | `ItemStockProfileTest.php` | كُشف |
+| F09 | the template and the tracking of an item are saved all or nothing | `ItemStockProfile.php` | `ItemStockProfileTest.php` | كُشف |
+| F10 | a template that was not posted is left as it is | `StockUnits.php` | `StockUnitsControllerTest.php` | كُشف |
+| F11 | the tracking select of an item is closed to whoever may not manage tracking | `manage.php` | `StockUnitsControllerTest.php` | كُشف |
+| F12 | a sale of batches is not taken back while a return put a batch back | `StockTracking.php` | `StockTrackingTest.php` | كُشف |
+| F13 | a return that was cancelled no longer holds the sale back | `StockTracking.php` | `StockTrackingTest.php` | كُشف |
+| F14 | a serial item entry is checked before the books split the line | `StockTracking.php` | `StockTrackingTest.php` | كُشف |
+| F15 | a purchase checks its serial entries before the books split the lines | `Receiving.php` | `StockTrackingTest.php` | كُشف |
+| F16 | a permit checks its serial entries before the books split the lines | `StockPermit.php` | `StockTrackingTest.php` | كُشف |
+| F17 | a single batch of a permit line takes the whole quantity | `TrackingEntry.php` | `StockTrackingTest.php` | كُشف |
+| F18 | only an item that holds something is refused a reset | `Item_quantity.php` | `StockTrackingTest.php` | كُشف |
+| F19 | the deletion of a tracked item that holds stock is refused by name | `Item.php` | `ItemTest.php` | كُشف |
+| F20 | the deletion of a list holding a tracked item is refused by name | `Item.php` | `ItemTest.php` | كُشف |
+| F21 | an item number is taken when it is the barcode of a unit | `Item.php` | `ItemTest.php` | كُشف |
+| F22 | a refusal of the shelf of a tracked item is answered by name | `Items.php` | `ItemsControllerTest.php` | كُشف |
+| F23 | an item cannot take the barcode of a unit as its number | `Items.php` | `ItemsControllerTest.php` | كُشف |
+| F24 | a tracked item with stock cannot be deleted from the list | `Items.php` | `ItemsControllerTest.php` | كُشف |
+| F25 | the unit of a draft line is carried to the invoice | `DraftInvoice.php` | `DraftInvoiceTest.php` | كُشف |
+| F26 | the unit of a draft line counts in its fingerprint | `DraftInvoice.php` | `DraftInvoiceTest.php` | كُشف |
+| F27 | an issued draft keeps the unit its lines were entered in | `DraftInvoice.php` | `SalePostingTest.php` | كُشف |
+| F28 | a unit price keeps its decimals on the register | `Sales.php` | `SalesControllerTest.php` | كُشف |
+| F29 | the price of a unit line is compared to the decimal that was entered | `Sales.php` | `SalesControllerTest.php` | كُشف |
+| F30 | the serial number of a tracked item is kept as typed | `Sales.php` | `SalesControllerTest.php` | كُشف |
+| F31 | a posted value that is not text is read as empty on the register | `Sales.php` | `SalesControllerTest.php` | كُشف |
+| F32 | the purchase screen offers the units of an item | `Receivings.php` | `ReceivingsControllerTest.php` | كُشف |
+| F33 | a posted value that is not text is read as empty on the purchase screen | `Receivings.php` | `ReceivingsControllerTest.php` | كُشف |
+| F34 | a permit line carries the unit it was entered in | `StockDocumentController.php` | `StockPermitsControllerTest.php` | كُشف |
+| F35 | a permit line carries the serial numbers typed for it | `StockDocumentController.php` | `StockPermitsControllerTest.php` | كُشف |
+| F36 | a permit line carries the batch typed for it | `StockDocumentController.php` | `StockPermitsControllerTest.php` | كُشف |
+| F37 | the item lookup tells the tracking type while tracking is on | `StockDocumentController.php` | `StockPermitsControllerTest.php` | كُشف |
+| F38 | the item lookup tells the units while units are on | `StockDocumentController.php` | `StockPermitsControllerTest.php` | كُشف |
+| F39 | the permit form offers the tracking column only while tracking is on | `StockPermits.php` | `StockPermitsControllerTest.php` | كُشف |
+| F40 | the permit form offers the unit column only while units are on | `StockPermits.php` | `StockPermitsControllerTest.php` | كُشف |
+| F41 | invoices that are drafts or cancelled promise no stock | `NegativeStockGuard.php` | `NegativeStockGuardTest.php` | كُشف |
+| F42 | a barcode that is empty, too long or of no item is named invalid | `UnitBarcodes.php` | `UnitBarcodesTest.php` | كُشف |
+| F43 | a template without larger units is refused by its own name | `UnitTemplates.php` | `UnitTemplatesTest.php` | كُشف |
+| F44 | the three line tables carry the check of the unit shape | `20273100000000_StockUnitsAndTracking.php` | `StockUnitsAndTrackingMigrationTest.php` | كُشف |
+| F45 | the base quantity of a purchase line counts its pack in the check | `20273100000000_StockUnitsAndTracking.php` | `StockUnitsAndTrackingMigrationTest.php` | كُشف |
+| F46 | the factor of a unit line must be above zero | `20273100000000_StockUnitsAndTracking.php` | `StockUnitsAndTrackingMigrationTest.php` | كُشف |
+| F47 | a unit line must name the quantity entered | `20273100000000_StockUnitsAndTracking.php` | `StockUnitsAndTrackingMigrationTest.php` | كُشف |
+| F48 | the base quantity must equal the quantity entered times the factor | `20273100000000_StockUnitsAndTracking.php` | `StockUnitsAndTrackingMigrationTest.php` | كُشف |
+| F49 | the roll back stops once a line was entered in a unit | `20273100000000_StockUnitsAndTracking.php` | `StockUnitsAndTrackingMigrationTest.php` | كُشف |
+| F50 | the roll back stops once a line was entered in a unit, whichever table | `20273100000000_StockUnitsAndTracking.php` | `StockUnitsAndTrackingMigrationTest.php` | كُشف |
 
 ## 4. ما افترضتُه
 
@@ -269,11 +338,17 @@
 9. **المخزون السالب:** `refuse_below_available` يحسب «المتاح» = الرف − ما وعدت به الفواتير الصادرة غير المسلَّمة في الموقع نفسه (لا حجوزات ولا أوامر بيع). الخيار الثاني المرصود «السماح للمنتجات القابلة للتتبع فقط» (FRM-R51) **لم يُبنَ** (معناه لم يوضَّح)، ومقابله عندنا: الصنف المتتبَّع لا يهبط أبدًا عن صفر مهما كان الإعداد.
 10. **ثغرة المراقبة الواحدة:** الحركات تُكتب **حركةً لكل رقم مسلسل** في `StockLedger` دون عمود يسمّي الرقم في صف الحركة؛ تسمية الرقم في `stock_tracking_lines` (المصدر والسطر والصنف والموقع).
 11. **سجل المبيعات:** الباركود المرصود لكل وحدة يُضيف معاملها بالوحدات الأساسية ويُظهر السطر بالوحدة؛ **اختيار السطر بوحدة آخر** يعرض السطر بها ما دامت كميته تنقسم بدقة وإلا يُرفض. ومسح باركود وحدة يُدمج في سطر قائم فيبقى بوحدته إن انقسم المجموع بدقة وإلا يعود إلى الأساسية.
+12. **تقييد مفتاح التتبع (افتراض):** التتبع المطفأ يجعل المستندات تعامل صنفًا متتبَّعًا كأي صنف، فيُفلت الرف من الأرقام والدفعات. لذلك **لا يُوقَف التتبع** والرصيد المتتبَّع قائم، ولا يُشغَّل والرف لا يطابق؛ ومن أراد إيقافه صفّر الأصناف المتتبَّعة أولًا (بإذن صرف بأرقامها أو دفعاتها).
+13. **إلغاء بيعة بعد مرتجعها:** يُرفض لصنف متتبَّع بالدفعة (`batch_moved`) كما يُرفض بالرقم المسلسل (`serial_moved`)، لأن الإلغاء كان سيعيد الدفعة مرتين. وإشعار الائتمان لا يُلغى أصلًا مع المحاسبة، فالرفض يكون نهائيًا ما دام المرتجع قائمًا.
+14. **مسودة فاتورة بالكراتين:** تُصدر بوحدتها ومعاملها وقت إدخالها (القالب يبقى «مستعملًا»)، **وإن أُطفئ إعداد الوحدات قبل إصدارها يُرفض الإصدار باسمه** (`stock_units_off`) بدل أن تُسقَط وحدتها بصمت؛ تُشغَّل الوحدات ثم تُصدر.
+15. **رقم صنف يطابق باركود وحدة:** مرفوض ولو كان إعداد الوحدات مطفأً (الباركود مسجَّل ويعود عمله بتشغيل الإعداد) وبغض النظر عن إعداد «السماح بتكرار الباركود» (لا يسري على باركود الوحدة)، وهو افتراض محافظ.
 
 ## 5. ما بقي
 
 - **لم يُنفَّذ:** نوع الحزمة «معد مسبقًا» (تجميع المكونات إلى مخزون الحزمة)، وسعر لكل دفعة وتكلفة لكل دفعة، وأرقام مسلسلة أطول من 30 حرفًا، وتقارير الدفعات والصلاحيات (قائمة بالقريب انتهاؤه)، وتتبع مرتجعات المورّد وتحويلات الاستلام وتصحيح الاستلام لصنف متتبَّع، ونقل صنف قائم إلى التتبع بمخزونه (دفعة افتتاحية)، وباركود الدفعة، وطباعة الوحدة في الإيصال (يُطبع المقدار الأساسي)، وعرض الرقم المسلسل لكل وحدة في سطر الشراء المُصحَّح.
-- **شاشات الكتابة (متحكّمات السجل وشاشة الشراء) لها اختبارات للمكتبات والنماذج ولا اختبارات متحكّم لإرسال الوحدة والدفعة** (`Sales::postEditItem` و`Receivings::postEditItem`)، ولم يُجرَ فحص المتصفح.
+- **لها الآن اختبارات متحكّم** لإرسال الوحدة والدفعة والرقم المسلسل (`Sales::postEditItem` و`Receivings::postEditItem` وحفظ الإذن)، **ولم يُجرَ فحص المتصفح** (جافاسكربت نموذج الإذن لم تُشغَّل في متصفح: تحقّق منها بالمتصفح قبل الاعتماد عليها).
+- **تعديل إذن متتبَّع:** نموذج التعديل يُحمِّل الوحدة والكمية والتكلفة كما أُدخلت، **ولا يُحمِّل الأرقام المسلسلة ولا الدفعات**؛ التعديل يعكس ويُعيد الترحيل فيُطلب إدخالها من جديد (يُرفض باسمه إن غابت).
+- **إلغاء بيعة بعد مرتجعها لصنف غير متتبَّع** (سلوك قديم خارج الحزمة) يعيد المخزون مرتين ولم أمسّه (القسم 8).
 - **لم تُشغَّل المجموعة الكاملة** (القيد: قاعدة اختبار واحدة وحاسوب مشترك)؛ ما شُغِّل مذكور في القسم 2.
 
 ## 6. بنود تنتظر قرار المالك وملاحظات دفترة
@@ -293,19 +368,51 @@
 3. الإعدادات كلها مطفأة (والمخزون السالب `allow`): لا شيء يتغير حتى تُفعَّل من `/stock_units`. **فعّل التتبع قبل أن تبدأ بإدخال مخزون متتبَّع**، وصفّر الصنف الذي سيُتتبَّع قبل تغيير نوعه.
 4. شغّل `php spark accounting:readiness`: فحصان جديدان (`WP42-TRACKING` و`WP42-BUNDLES`)، والعدد الكلي صار 27.
 5. **اختبر في المتصفح** سجل المبيعات (وحدة وباركود وفاتورة ورقم مسلسل ودفعة) وشاشة الشراء (وحدة وأرقام ودفعة) بالعربية والإنجليزية وبالأحجام الثلاثة: لم يُجرَ فحص متصفح في هذه الحزمة.
+6. **مرحلة الإصلاح لا تضيف ترحيلًا.** تضيف مفاتيح لغة (ستة في `Accounting.php` واثنان في `Stock_units.php` بالـ46 لغة) وتعدّل نصوصًا (رسالة القالب بلا `({0})`، وعبارتان عربيتان)، وثلاثة أخطاء جديدة في `AccountingError` (إضافة فقط). **افحص بالمتصفح نموذج الإذن** (عمودا الوحدة والتتبع وجافاسكربتهما) بالعربية والإنجليزية: لم يُشغَّل في متصفح.
+7. **قبل إيقاف التتبع** في منشأة بدأت التتبع: صفّر الأصناف المتتبَّعة أولًا (القسم 4 البند 12)، وإلا رُفض الإيقاف باسم أول صنف يحمل رصيدًا.
 
 ## 8. ما وجدتُه بقراءة الكود (ليس في هذه الحزمة)
 
 - `Sale_lib::add_item_kit` تعلن `bool $kit_price_option` فيتحول خيار السعر `PRICE_OPTION_KIT_STOCK` (2) إلى `true` ثم إلى 1 عند تمريره إلى `add_item`: **خيار «سعر أصناف المخزون فقط» يعمل كخيار «سعر الطقم»**. وجدته وأنا أبني الحزم؛ لم أغيّره (ليس من نطاق الحزمة) وأسجّله بندًا جديدًا.
+- **إلغاء بيعة بعد أن أُعيد صنف منها بمرتجع** (`Sale::deleteLocked`) يردّ الكمية إلى المخزون مرة ثانية لصنف **غير متتبَّع** (والمرتجع قائم): وجدته وأنا أتتبع ادعاء مراجِع عن الدفعات؛ الصنف المتتبَّع صار مرفوضًا باسمه، أما القديم فلم أغيّره (ليس من نطاق الحزمة) وأسجّله بندًا جديدًا.
 - `Receiving::unitsOf` و`ReceivingLine::units()` يضربان الكمية في «وحدات العبوة»؛ **سطر بوحدة يحمل عبوة 1** عمدًا (القسم 1)، فلا يتداخل المساران.
 
-## 9. تحديثات الوثائق المشتركة للمُدمِج
+## 9. مرحلة الإصلاح بعد المراجعة المستقلة
+
+أرجع المراجعان 24 ادعاءً (باختصار رقم كلٍّ منها بحسب ترتيبه عندهما؛ والمتكرر بين المراجِعَين: 3 و10، و4 و22)، وتتبّعتُ كلًّا منها في الكود قبل أن أُصلحه. **ما كان حقيقيًا أُصلح باختبار يفشل بدون الإصلاح، وحيث أضاف الإصلاح حارسًا عُطِّل الحارس وشُغِّل الاختبار (التعطيلات `F01` إلى `F50`، كلها كُشفت).** لم أرفض ادعاءً كاملًا؛ رفضتُ جزءًا واحدًا (1) وقيّدتُ آخر (2).
+
+| # | الادعاء | الحكم | الإصلاح | الدليل |
+|---|---|---|---|---|
+| 1 | إيقاف التتبع والرصيد المتتبَّع قائم يُفلت الرف، وتشغيله ثانية يترك الصنف مسدودًا والرقم المباع قابلًا للبيع | حقيقي. (وجزء «لا تدقيق» غير صحيح: التغيير يُكتب أصلًا في سجل التدقيق بقيمته قبل وبعد) | `StockOptions` يرفض الإيقاف ما دام صنف متتبَّع يحمل رصيدًا (`tracking_off_with_stock`) ويرفض التشغيل والرف لا يطابق (`tracking_on_untied`) عبر `TrackingTies` (يقرأ الجداول بغض النظر عن الإعداد) | `StockOptionsTest` (9 اختبارات جديدة) وF01 إلى F06 |
+| 2 | إلغاء بيعة بعد مرتجعها يعيد الدفعة مرتين | حقيقي للدفعة (الرقم المسلسل كان يُرفض). وعلى الأصناف غير المتتبَّعة سلوك قديم خارج الحزمة (القسم 8) | `StockTracking::reverseBatch` يرفض بـ`batch_moved` إن كان مرتجع قائم قد أعاد الدفعة | `StockTrackingTest` وF12 وF13 |
+| 3 و10 | حفظ بطاقة الصنف يستدعي القالب ثم التتبع دائمًا: يفشل أو يحفظ نصفًا، ولا يعمل التتبع وحده | حقيقي | `ItemStockProfile::saveProfile` (يحفظ ما تغيّر فقط، في معاملة واحدة، ولا يُمسّ حقل لم يُرسَل)؛ وقائمتا القالب والتتبع تُغلقان لمن لا يملك الصلاحية أو والإعداد مطفأ | `ItemStockProfileTest` و`StockUnitsControllerTest` وF07 إلى F11 |
+| 4 و22 | باركود وحدة يطغى على رقم صنف يُنشأ بعده فيُباع الصنف الخطأ | حقيقي | `Item::item_number_exists` و`Items::validateItemFields` يرفضان رقمًا هو باركود وحدة (`unit_barcode_taken`) | `ItemTest` و`ItemsControllerTest` و`UnitBarcodesTest` وF21 وF23 |
+| 5 | الرقم المسلسل يُخزَّن بنصين مختلفين بحسب الشاشة | حقيقي لصنف متتبَّع بالرقم المسلسل | `Sales::postEditItem` يقرأ رقم صنف متتبَّع كما كُتب (كل ما يُخرجه يمرّ بـ`esc()`)؛ والصنف غير المتتبَّع يبقى كما كان | `SalesControllerTest` وF30 |
+| 6 | إصدار فاتورة مسودة يُسقط وحدة السطر | حقيقي | `DraftInvoice::lines` يحمل الوحدة والمعامل والكمية والسعر المُدخَلين وبصمة المسودة تشملها، فيبقى القالب «مستعملًا» | `DraftInvoiceTest` و`SalePostingTest` وF25 إلى F27 |
+| 7 | صنف متتبَّع لا يُحذف حتى برف فارغ، والرفض 500 | حقيقي | `Item_quantity` يرفض التصفير لما يحمل رصيدًا فقط، و`Item::delete` و`delete_list` يلتقطان الرفض ويسمّيانه | `ItemTest` و`ItemsControllerTest` و`StockTrackingTest` وF18 إلى F20 وF24 |
+| 8 | تقسيم حركات الدفتر لكل رقم يدور قبل التحقق من الإدخال | حقيقي | `StockTracking::assertSerialEntry` قبل أي كتابة في الشراء والإذن (يرفض بـ`tracked_entry_required`) | `StockTrackingTest` (اختبار يتحقق أن لا `INSERT` في `accounting_stock_entries` سبق الرفض) وF14 إلى F16 |
+| 9 | شاشة الشراء لا تعرض قائمة الوحدة لأن `unit_choices` في الدالة الخطأ | حقيقي (خطأ في المكان: كانت في `getReceipt` ولا يقرؤها الإيصال) | نُقلت إلى `_reload` | `ReceivingsControllerTest` وF32 |
+| 11 | شاشات الإذن لا تحمل وحدة ولا رقمًا مسلسلًا ولا دفعة | حقيقي | عمودان في نموذج الإذن، و`postedLines` يمرّرهما، وبحث الأصناف يعيد الوحدات ونوع التتبع، ودفعة واحدة بلا كمية تأخذ كمية السطر كلها (`TrackingEntry::filledFor`) | `StockPermitsControllerTest` و`StockTrackingTest` وF17 وF34 إلى F40 |
+| 12 | تعديل كمية صنف متتبَّع أو جرده من شاشات الصنف يرمي استثناءً (500) | حقيقي | `Items::saveShelf` يلتقط الرفض ويُعيده رسالةً باسمه (للحفظ والجرد والاستيراد) | `ItemsControllerTest` وF22 |
+| 13 | سعر الوحدة يُقرَّب إلى منزلتين في سجل المبيعات فيُرفض تعديل الكمية أو يُظنّ تغيير سعر | حقيقي (والسعر كان يُعرض بنقطة خام لا بصيغة المتجر) | سعر سطر الوحدة بست منازل وتُقارن بست منازل، و`to_unit_price` يعرضه بصيغة المتجر | `SalesControllerTest` (منها تغيير في المنزلة الثالثة لمن لا يملك صلاحية تغيير السعر) وF28 وF29 |
+| 14 | قيود `CHECK` الثلاثة والتراجع بلا اختبار ولا حارس | حقيقي | اختبارات تُدخل أسطرًا مخالفة في الجداول الثلاثة، وتراجع ناجح وتراجع مرفوض | `StockUnitsAndTrackingMigrationTest` وF44 إلى F50 |
+| 15 | اختبار «تتبع صنف يحمل مخزونًا» يمرّ لسبب خاطئ (الوحدات مطفأة) | حقيقي | الاختبار يفعّل الوحدات ويتحقق من نص الرفض ومن بقاء الملف كما كان؛ واختبار الدخول بلا وحدة يتحقق من التحويل إلى `no_access` | `StockUnitsControllerTest` |
+| 16 | مرشّح حالة الفاتورة في `promised()` بلا اختبار | حقيقي | اختبار بمسودة غير مسلَّمة وأخرى ملغاة | `NegativeStockGuardTest` وF41 |
+| 17 | مسارات حفظ نسخة جديدة وتعديل القالب بلا اختبار متحكّم | حقيقي | اختبارات النسخة الجديدة والتعديل والرفض والنموذج والتعطيل | `StockUnitsControllerTest` |
+| 18 | 193 اختبارًا بأسماء لا تتبع `test{الدالة}_{السلوك}` وتقرير يذكر أسماء غير موجودة | حقيقي | أُعيدت تسمية الـ193 كلها (يبدأ السلوك بفعل) وصُحّحت الأسماء المذكورة في القسم 3 | كل ملفات القسم 2 |
+| 19 | 46 ملف `Stock_units.php` غير محاذية | حقيقي | `php-cs-fixer` على الملفات كلها ثم أُدرجت المفاتيح الجديدة بالأداة | `LanguageFilesTest` |
+| 20 | تعليق يتيم في `Sale_lib` ومتغير snake_case في `Sales.php` | حقيقي | أُعيد التعليق إلى `currencyFailure()` وسُمّي المتغيران `currentPrice` و`employeeId` | — |
+| 21 | رسائل رفض خاطئة أو غامضة | حقيقي (البنود الأربعة) | أخطاء جديدة `unit_barcode_invalid` و`unit_template_units_invalid` و`unit_name_repeated`؛ وبلا `({0})` في رسالة القالب؛ ورسالة الدفعة تسمّي الصنف؛ وعربية «وحدات الصنف» و«الاسم المختصر» | `UnitBarcodesTest` و`UnitTemplatesTest` وF42 وF43 |
+| 23 | عناصر بلا تسمية في الشاشات الجديدة | حقيقي | `aria-label` لقائمة وحدة الباركود، ونص مخفي لعمودَي «نشط» و«مستعمل» وعمود الإجراءات، و`dir="ltr"` لحقول الرقم المسلسل والدفعة | — |
+| 24 | قيم غير نصية في الطلب تُحوَّل إلى نص بلا فحص | حقيقي (لا يصل من نموذج سليم) | `postedText` في `Sales` و`Receivings` | `SalesControllerTest` و`ReceivingsControllerTest` وF31 وF33 |
+
+## 10. تحديثات الوثائق المشتركة للمُدمِج
 
 لم أُعدِّل `decisions.md` ولا مصفوفة التطابق ولا تقرير الفجوات ولا `backlog.md` ولا أي `README` ولا قائمة النشر. هذا ما يُضاف (يعيّن المُدمِج رقم القرار، وأرقام القرارات تتابع بعد E122):
 
 **decisions.md** (صف جديد، رقمه E-التالي بعد E122):
 
-> | E-؟؟ | **الوحدات المتعددة والحزم والتتبع بالرقم المسلسل والدفعة (`INV-04` و`INV-05` و`INV-06`، WP42، 2026-11-08):** سلوك دفترة **مرصود إعدادات ونماذج فقط** (قالب الوحدات FRM-R50، وخيارات المخزون السالب FRM-R51، وأذون المنتج المتتبَّع بحركة لكل رقم E79)، وما عداه **تصميم محافظ وافتراضات**: (1) **الوحدات:** قوالب بمعامل موجب بأربع منازل عشرية **لا يتغير بعد أن يستعمله سطر مستند** (التغيير نسخة جديدة)، وسطر المبيعات والمشتريات وإذن المخزن يُدخَل بوحدة أكبر **ويُخزَّن بالوحدة الأساسية** (المخزون والتكلفة والقيد والتقارير تقرأ الأساسية فقط) مع الوحدة **والمعامل وقت الإدخال** وما كُتب، **والكمية الأساسية دقيقة إلى 0.001 والسعر الأساسي دقيق إلى القرش وإلا يُرفض السطر باسمه ولا يُقرَّب**، وقيد `CHECK` في القاعدة يُبقي الكمية الأساسية = المُدخَلة × المعامل؛ صنف بلا قالب = وحدة واحدة؛ خيار «تحديث كل التكاليف» المخفي لم يُرصد ولم يُبنَ. (2) **الحزم:** الطقم القائم مع الإعداد: منتج مسعَّر من نوع طقم بلا مخزون وخيار سعر الطقم، **ولا حزمة داخل حزمة ولا فيها نفسها**، وبيعها يقيّد سعرها ويُخرج مكوناتها بتكلفة كلٍّ منها فتكلفتها مجموع تكاليفها **ولا مخزون لها** (النوع «معد مسبقًا» لم يُبنَ). (3) **التتبع:** رقم مسلسل بحالات (متوفر، مباع، مُرتجَع، مُخرَج) لا يتحرك إلا بآلتها: **موجود مرة ويُباع مرة والمرتجع يعيد الوحدة نفسها**، وحركة مقيَّمة لكل رقم في `StockLedger`؛ ودفعة بكمية لكل موقع وتاريخ صلاحية: **الأقرب انتهاءً أولًا** وباختيار يدوي بصلاحية، **والمنتهية مرفوضة في البيع بإعداد افتراضه رفض**؛ **مجموع الدفعات (أو الأرقام المتوفرة) في الموقع = كمية الموقع دائمًا** لأن كل تغيير لصنف متتبَّع يمرّ من `StockTracking` وكل طريق آخر يُرفض باسمه؛ تكلفة الصنف تبقى متوسطه (لا تكلفة لدفعة ولا رقم)؛ **المسارات المدعومة:** الشراء والبيع المسلَّم ومرتجع العميل وأذون الإضافة والصرف والتحويل وإلغاؤها، **والمرفوض باسمه:** مرتجع المورّد وتحويل الاستلام وتصحيح بنود الاستلام وفاتورة تصدر قبل خروج بضاعتها وتسليمها والجرد وتعديل الرف يدويًا. (4) **المخزون السالب:** ثلاثة خيارات (`allow` الافتراضي = اليوم، و`refuse`، و`refuse_below_available` = الرف ناقصًا ما وعدت به فواتير لم تُسلَّم)، يقرأ الرف تحت قفل ويشمل البيع المكتمل وتسليم الفاتورة. كل شيء **خلف إعدادات مطفأة**، والصلاحيات الثلاث (`stk_units_manage` و`stk_tracking_manage` و`stk_batch_manual_pick`) غير ممنوحة لأحد. **ما نخالف فيه عمدًا:** لا تقريب لسعر وحدة لا ينقسم (دفترة لم تُرصد). **أسئلة للمالك:** توسيع سعر البند إلى أربع منازل، ونوع الحزمة «معد مسبقًا»، ودفعة منتهية بإذن، ونقل صنف قائم إلى التتبع بمخزونه. الأدلة: [تقرير WP42](wp42-report.md)، `StockTrackingTest` و`UnitLineTest` و`UnitTemplatesTest` و`BundlesTest` و`NegativeStockGuardTest` و`SalePostingTest` و`ReceivingPostingTest` و`StockLedgerTest` و`StockPermitTest`. | يحدّد `INV-04` و`INV-05` و`INV-06` ويحدّث WP42 في [الجرد](daftra-parity/backlog.md). **لا ترحيل مرحَّل يُعاد كتابته**، ولا دمج في `master` ولا نشر |
+> | E-؟؟ | **الوحدات المتعددة والحزم والتتبع بالرقم المسلسل والدفعة (`INV-04` و`INV-05` و`INV-06`، WP42، 2026-11-08):** سلوك دفترة **مرصود إعدادات ونماذج فقط** (قالب الوحدات FRM-R50، وخيارات المخزون السالب FRM-R51، وأذون المنتج المتتبَّع بحركة لكل رقم E79)، وما عداه **تصميم محافظ وافتراضات**: (1) **الوحدات:** قوالب بمعامل موجب بأربع منازل عشرية **لا يتغير بعد أن يستعمله سطر مستند** (التغيير نسخة جديدة)، وسطر المبيعات والمشتريات وإذن المخزن يُدخَل بوحدة أكبر **ويُخزَّن بالوحدة الأساسية** (المخزون والتكلفة والقيد والتقارير تقرأ الأساسية فقط) مع الوحدة **والمعامل وقت الإدخال** وما كُتب، **والكمية الأساسية دقيقة إلى 0.001 والسعر الأساسي دقيق إلى القرش وإلا يُرفض السطر باسمه ولا يُقرَّب**، وقيد `CHECK` في القاعدة يُبقي الكمية الأساسية = المُدخَلة × المعامل؛ صنف بلا قالب = وحدة واحدة؛ خيار «تحديث كل التكاليف» المخفي لم يُرصد ولم يُبنَ. (2) **الحزم:** الطقم القائم مع الإعداد: منتج مسعَّر من نوع طقم بلا مخزون وخيار سعر الطقم، **ولا حزمة داخل حزمة ولا فيها نفسها**، وبيعها يقيّد سعرها ويُخرج مكوناتها بتكلفة كلٍّ منها فتكلفتها مجموع تكاليفها **ولا مخزون لها** (النوع «معد مسبقًا» لم يُبنَ). (3) **التتبع:** رقم مسلسل بحالات (متوفر، مباع، مُرتجَع، مُخرَج) لا يتحرك إلا بآلتها: **موجود مرة ويُباع مرة والمرتجع يعيد الوحدة نفسها**، وحركة مقيَّمة لكل رقم في `StockLedger`؛ ودفعة بكمية لكل موقع وتاريخ صلاحية: **الأقرب انتهاءً أولًا** وباختيار يدوي بصلاحية، **والمنتهية مرفوضة في البيع بإعداد افتراضه رفض**؛ **مجموع الدفعات (أو الأرقام المتوفرة) في الموقع = كمية الموقع دائمًا** لأن كل تغيير لصنف متتبَّع يمرّ من `StockTracking` وكل طريق آخر يُرفض باسمه؛ تكلفة الصنف تبقى متوسطه (لا تكلفة لدفعة ولا رقم)؛ **المسارات المدعومة:** الشراء والبيع المسلَّم ومرتجع العميل وأذون الإضافة والصرف والتحويل وإلغاؤها، **والمرفوض باسمه:** مرتجع المورّد وتحويل الاستلام وتصحيح بنود الاستلام وفاتورة تصدر قبل خروج بضاعتها وتسليمها والجرد وتعديل الرف يدويًا، **ولا يُوقَف التتبع ما دام صنف متتبَّع يحمل رصيدًا ولا يُشغَّل والرف لا يطابق أرقامه ودفعاته، وإلغاء بيعة أعاد مرتجعها دفعتها أو رقمها مرفوض، ورقم صنف يطابق باركود وحدة مرفوض.** (4) **المخزون السالب:** ثلاثة خيارات (`allow` الافتراضي = اليوم، و`refuse`، و`refuse_below_available` = الرف ناقصًا ما وعدت به فواتير لم تُسلَّم)، يقرأ الرف تحت قفل ويشمل البيع المكتمل وتسليم الفاتورة. كل شيء **خلف إعدادات مطفأة**، والصلاحيات الثلاث (`stk_units_manage` و`stk_tracking_manage` و`stk_batch_manual_pick`) غير ممنوحة لأحد. **ما نخالف فيه عمدًا:** لا تقريب لسعر وحدة لا ينقسم (دفترة لم تُرصد). **أسئلة للمالك:** توسيع سعر البند إلى أربع منازل، ونوع الحزمة «معد مسبقًا»، ودفعة منتهية بإذن، ونقل صنف قائم إلى التتبع بمخزونه. الأدلة: [تقرير WP42](wp42-report.md)، `StockTrackingTest` و`UnitLineTest` و`UnitTemplatesTest` و`BundlesTest` و`NegativeStockGuardTest` و`SalePostingTest` و`ReceivingPostingTest` و`StockLedgerTest` و`StockPermitTest`. | يحدّد `INV-04` و`INV-05` و`INV-06` ويحدّث WP42 في [الجرد](daftra-parity/backlog.md). **لا ترحيل مرحَّل يُعاد كتابته**، ولا دمج في `master` ولا نشر |
 
 **مصفوفة التطابق** (`conformance-matrix.md`):
 
