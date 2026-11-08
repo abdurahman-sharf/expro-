@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\MasterData\CustomerStatus;
 use App\Libraries\MasterData\CustomerType;
 use App\Libraries\MasterData\LookupKind;
@@ -14,6 +15,7 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Models\Price_list;
+use App\Models\Sale;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -1195,20 +1197,68 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertSame(date('Y-m-d'), substr($this->customerRow((int) $result['id'])['date'], 0, 10));
     }
 
-    public function testPostSave_ChangingTheTypeAndTheOtherMasterDataLeavesThePostedDocumentsAndTheLedgerUntouched(): void
+    public function testPostSave_KeepsThePostedDocumentsAndTheLedgerUntouchedWhenTheMasterDataChanges(): void
     {
         $this->startAccountingWithCustomerOpening();
-        $created = $this->saveMaster(['customer_type' => 'individual', 'opening_side' => 'owes_us', 'opening_amount' => '750.00', 'opening_date' => date('Y-m-d', strtotime('-20 days'))]);
+        $named      = ['first_name' => 'Omar', 'last_name' => 'Fixed' . uniqid()];
+        $created    = $this->saveMaster(['customer_type' => 'individual', 'opening_side' => 'owes_us', 'opening_amount' => '750.00', 'opening_date' => date('Y-m-d', strtotime('-20 days'))], NEW_ENTRY, $named);
+        $customerId = (int) $created['id'];
         $this->assertTrue($created['success']);
 
-        $before   = $this->documentFigures((int) $created['id']);
-        $classify = $this->classification('Strategic');
+        $invoiceId = $this->postedInvoiceOf($customerId, '100', '40');
+        $draftId   = $this->postedInvoiceOf($customerId, '30', null, SUSPENDED);
 
-        $this->saveMaster(['customer_type' => 'commercial', 'classification_id' => (string) $classify, 'manual_status' => 'archived', 'is_government_entity' => '1'], (int) $created['id']);
+        try {
+            $before   = $this->documentFigures($customerId);
+            $classify = $this->classification('Strategic');
 
-        $this->assertSame($before, $this->documentFigures((int) $created['id']));
-        $this->assertSame('commercial', $this->customerRow((int) $created['id'])['customer_type']);
-        $this->cleanMaster();
+            $this->assertGreaterThan(0, $before['journals'], 'the invoice posted its journal');
+            $this->assertSame(1, $before['paid'], 'and took a payment');
+
+            $this->assertTrue($this->saveMaster(['customer_type' => 'commercial', 'classification_id' => (string) $classify, 'manual_status' => 'archived', 'is_government_entity' => '1'], $customerId, $named)['success']);
+
+            $this->assertSame($before, $this->documentFigures($customerId));
+            $this->assertSame('commercial', $this->customerRow($customerId)['customer_type']);
+            $this->assertSame(COMPLETED, (int) $this->accountingDb()->table('sales')->where('sale_id', $invoiceId)->get()->getRow()->sale_status);
+            $this->assertSame(SUSPENDED, (int) $this->accountingDb()->table('sales')->where('sale_id', $draftId)->get()->getRow()->sale_status);
+        } finally {
+            $this->removeSales([$invoiceId, $draftId]);
+            $this->cleanMaster();
+        }
+    }
+
+    /**
+     * @return int The sale the customer owes, with a cash payment when one is given.
+     */
+    private function postedInvoiceOf(int $customerId, string $price, ?string $paid, int $status = COMPLETED): int
+    {
+        (new EntityAccountService())->ensure(EntityAccountService::STOCK_LOCATION, 1, 'stock');
+
+        $items    = [['item_id' => $this->masterItems[] = $this->createTestItem(HAS_NO_STOCK), 'line' => 0, 'description' => 'Service', 'serialnumber' => '', 'quantity' => '1', 'discount' => '0', 'discount_type' => PERCENT, 'cost_price' => '0', 'price' => $price, 'item_location' => 1, 'print_option' => 0]];
+        $taxes    = [[], []];
+        $payments = $paid === null ? [] : [['payment_type' => lang('Sales.cash'), 'payment_amount' => $paid, 'cash_refund' => '0', 'cash_adjustment' => 0, 'reference_code' => null]];
+        $saleId   = model(Sale::class)->save_value(NEW_ENTRY, $status, $items, $customerId, (int) session()->get('person_id'), 'test', null, null, null, SALE_TYPE_INVOICE, $payments, null, $taxes, true);
+
+        $this->assertGreaterThan(0, $saleId);
+
+        return $saleId;
+    }
+
+    /**
+     * @param list<int> $saleIds
+     */
+    private function removeSales(array $saleIds): void
+    {
+        $db = $this->accountingDb();
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        foreach ($saleIds as $saleId) {
+            foreach (['sales_payments', 'sales_items_taxes', 'sales_items', 'sales_taxes', 'sales'] as $table) {
+                $db->table($table)->where('sale_id', $saleId)->delete();
+            }
+        }
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
     }
 
     /**
@@ -1218,14 +1268,22 @@ class CustomersControllerTest extends CIUnitTestCase
     {
         $db       = $this->accountingDb();
         $position = (new CustomerLedger())->position($customerId);
-        $tables   = ['accounting_journals', 'accounting_journal_lines', 'customer_openings', 'accounting_stock_entries', 'sales', 'sales_items', 'sales_payments'];
+        $tables   = ['accounting_journals', 'accounting_journal_lines', 'accounting_accounts', 'customer_openings', 'accounting_stock_entries', 'sales', 'sales_items', 'sales_payments', 'sales_items_taxes'];
         $checksum = [];
 
         foreach ($tables as $table) {
             $checksum[$table] = $db->query('CHECKSUM TABLE `' . $db->prefixTable($table) . '`')->getRow()->Checksum . '/' . $db->table($table)->countAllResults();
         }
 
-        return ['open' => $position->open(), 'agrees' => $position->agrees(), 'tables' => $checksum, 'opening' => $db->table('customer_openings')->where('customer_id', $customerId)->get()->getResultArray()];
+        return [
+            'open'     => $position->open(),
+            'agrees'   => $position->agrees(),
+            'tables'   => $checksum,
+            'opening'  => $db->table('customer_openings')->where('customer_id', $customerId)->get()->getResultArray(),
+            'sales'    => $db->table('sales')->where('customer_id', $customerId)->orderBy('sale_id')->get()->getResultArray(),
+            'journals' => $db->table('accounting_journals')->countAllResults(),
+            'paid'     => $db->table('sales_payments')->countAllResults(),
+        ];
     }
 
     public function testGetView_OffersTheMasterDataFieldsWithTheFiveStatusesAndTheTwoTypes(): void
@@ -1291,6 +1349,50 @@ class CustomersControllerTest extends CIUnitTestCase
         $page->assertDontSee('Strangerzed');
 
         $this->resetBranches();
+    }
+
+    public function testGetView_ShowsAnEmployeeOfAnotherBranchTheCustomerIsAssignedToWithoutHisNameAndKeepsHim(): void
+    {
+        $this->resetBranches();
+        $branch   = $this->createBranch('B2');
+        $other    = $this->createBranch('B3');
+        $viewer   = $this->employeeWithGrants(['customers'], [$branch]);
+        $stranger = $this->employeeWithGrants(['customers'], [$other]);
+        $this->accountingDb()->table('people')->where('person_id', $stranger)->update(['first_name' => 'Strangerzed']);
+
+        $created = $this->saveMaster(['assigned_employee_id' => (string) $stranger]);
+        $this->assertTrue($created['success']);
+
+        $this->withSession(['person_id' => $viewer, 'menu_group' => 'office']);
+
+        $page = $this->get('/customers/view/' . $created['id']);
+
+        $page->assertDontSee('Strangerzed');
+        $page->assertSee(lang('Customers.assigned_other_branch'));
+        $this->assertMatchesRegularExpression('/<option value="' . $stranger . '" selected(?:="selected")?>' . preg_quote(lang('Customers.assigned_other_branch'), '/') . '</', $page->getBody());
+        $this->assertTrue($this->saveMaster(['assigned_employee_id' => (string) $stranger, 'area' => 'Olaya'], (int) $created['id'])['success'], 'saving the form again keeps the employee');
+        $this->assertSame($stranger, (int) $this->customerRow((int) $created['id'])['assigned_employee_id']);
+
+        $this->resetBranches();
+        $this->cleanMaster();
+    }
+
+    public function testGetView_EscapesTheNamesOfTheClassificationAndTheEmployeeInTheirLists(): void
+    {
+        $hostile  = '</select><img src=x onerror=alert(1)>';
+        $employee = $this->employeeWithGrants(['customers']);
+        $this->accountingDb()->table('people')->where('person_id', $employee)->update(['first_name' => $hostile]);
+        $this->classification($hostile);
+
+        $form = $this->get('/customers/view/-1')->getBody();
+        $list = $this->get('/customers')->getBody();
+
+        foreach ([$form, $list] as $body) {
+            $this->assertStringNotContainsString('<img src=x', $body);
+            $this->assertStringContainsString(esc($hostile), $body);
+        }
+
+        $this->cleanMaster();
     }
 
     public function testGetIndex_OffersTheFiltersOfTheDirectory(): void
@@ -1575,6 +1677,7 @@ class CustomersControllerTest extends CIUnitTestCase
             'a country code of three letters'      => [['', '', '', '', 'SAU', '', '', '']],
             'a type outside the two'               => [['', '', '', '', '', 'both', '', '']],
             'a billing method outside the two'     => [['', '', '', '', '', '', '', 'fax']],
+            'a government flag that is no word'    => [['', '', '', '', '', '', 'maybe', '']],
         ];
     }
 
@@ -1591,6 +1694,20 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertFalse($imported['result']['success']);
         $this->assertNull($this->customerByEmail($imported['emails'][0]));
         $this->assertNotNull($this->customerByEmail($imported['emails'][1]));
+        $this->cleanMaster();
+    }
+
+    public function testPostImportCsvFile_ReadsTheGovernmentColumnAsYesOrNoAndNotAsAnyText(): void
+    {
+        $words    = ['y', 'YES', '1', 'true', '0', 'n', 'No', 'false'];
+        $imported = $this->importWithExtraCells(array_map(static fn (string $word): array => ['', '', '', '', '', '', $word, ''], $words));
+
+        $this->assertTrue($imported['result']['success']);
+
+        foreach ($words as $position => $word) {
+            $this->assertSame(in_array($word, ['y', 'YES', '1', 'true'], true) ? 1 : 0, (int) $this->customerByEmail($imported['emails'][$position])['is_government_entity'], "the cell says {$word}");
+        }
+
         $this->cleanMaster();
     }
 

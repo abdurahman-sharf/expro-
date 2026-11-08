@@ -7,6 +7,7 @@ return [
     'area'                          => '',
     'assigned_employee'             => '',
     'assigned_employee_none'        => '',
+    'assigned_other_branch'         => '',
     'available_points'              => 'Poin tersedia',
     'available_points_value'        => '',
     'average'                       => 'Rata-rata yang dihabiskan',

@@ -7,6 +7,7 @@ return [
     'area'                          => '',
     'assigned_employee'             => '',
     'assigned_employee_none'        => '',
+    'assigned_other_branch'         => '',
     'available_points'              => 'Available Points',
     'available_points_value'        => '',
     'average'                       => 'Average spent',

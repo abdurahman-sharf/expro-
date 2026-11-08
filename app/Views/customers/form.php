@@ -259,7 +259,7 @@ $creditPeriodShown ??= false;
                             <div class="field">
                                 <?= form_label(lang('Customers.classification'), 'classification_id', ['class' => 'form-label']) ?>
                                 <div class="field-control">
-                                    <?= form_dropdown('classification_id', $classificationOptions, (string) $masterData['classification_id'], 'id="classification_id" class="form-select form-select-sm"') ?>
+                                    <?= form_dropdown('classification_id', array_map('esc', $classificationOptions), (string) $masterData['classification_id'], 'id="classification_id" class="form-select form-select-sm"') ?>
                                     <p class="form-text mb-0"><?= anchor('customer_classifications', lang('Customers.classifications_manage'), ['target' => '_blank', 'rel' => 'noopener']) ?></p>
                                 </div>
                             </div>
@@ -267,7 +267,7 @@ $creditPeriodShown ??= false;
                             <div class="field">
                                 <?= form_label(lang('Customers.manual_status'), 'manual_status', ['class' => 'form-label']) ?>
                                 <div class="field-control">
-                                    <?= form_dropdown('manual_status', $statusOptions, $masterData['manual_status'], 'id="manual_status" class="form-select form-select-sm"') ?>
+                                    <?= form_dropdown('manual_status', array_map('esc', $statusOptions), $masterData['manual_status'], 'id="manual_status" class="form-select form-select-sm"') ?>
                                     <p class="form-text mb-0"><?= lang('Customers.manual_status_help') ?></p>
                                 </div>
                             </div>
@@ -275,7 +275,7 @@ $creditPeriodShown ??= false;
                             <div class="field">
                                 <?= form_label(lang('Customers.assigned_employee'), 'assigned_employee_id', ['class' => 'form-label']) ?>
                                 <div class="field-control">
-                                    <?= form_dropdown('assigned_employee_id', $employeeOptions, (string) $masterData['assigned_employee_id'], 'id="assigned_employee_id" class="form-select form-select-sm"') ?>
+                                    <?= form_dropdown('assigned_employee_id', array_map('esc', $employeeOptions), (string) $masterData['assigned_employee_id'], 'id="assigned_employee_id" class="form-select form-select-sm"') ?>
                                 </div>
                             </div>
 
@@ -304,7 +304,7 @@ $creditPeriodShown ??= false;
                             <div class="field">
                                 <?= form_label(lang('Customers.billing_method'), 'billing_method', ['class' => 'form-label']) ?>
                                 <div class="field-control">
-                                    <?= form_dropdown('billing_method', $billingOptions, $masterData['billing_method'], 'id="billing_method" class="form-select form-select-sm"') ?>
+                                    <?= form_dropdown('billing_method', array_map('esc', $billingOptions), $masterData['billing_method'], 'id="billing_method" class="form-select form-select-sm"') ?>
                                     <p class="form-text mb-0"><?= lang('Customers.billing_method_help') ?></p>
                                 </div>
                             </div>

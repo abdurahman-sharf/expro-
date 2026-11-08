@@ -129,6 +129,22 @@ final class CustomerFields
     }
 
     /**
+     * What a spreadsheet cell says of a flag: yes or no in a word or a digit, and nothing for no.
+     *
+     * @throws AccountingException
+     */
+    public static function flag(string $typed): int
+    {
+        $word = mb_strtolower(trim($typed));
+
+        return match (true) {
+            in_array($word, ['', '0', 'n', 'no', 'false'], true) => 0,
+            in_array($word, ['1', 'y', 'yes', 'true'], true)     => 1,
+            default                                              => throw new AccountingException(AccountingError::CustomerGovernmentInvalid, 'The government entity flag is yes or no.'),
+        };
+    }
+
+    /**
      * An ISO 3166 alpha-2 code in capitals, or null for none.
      *
      * @throws AccountingException

@@ -185,6 +185,34 @@ final class CustomerFieldsTest extends CIUnitTestCase
         $this->assertSame(AccountingError::CountryCodeInvalid, $this->refusalOf(fn () => $this->read(['country_code' => $code])));
     }
 
+    /**
+     * @return array<string, array{string, int}>
+     */
+    public static function flagWordsProvider(): array
+    {
+        return ['empty' => ['', 0], 'zero' => ['0', 0], 'n' => ['n', 0], 'no in capitals' => [' NO ', 0], 'false' => ['false', 0], 'one' => ['1', 1], 'y' => ['y', 1], 'yes' => ['Yes', 1], 'true' => ['TRUE', 1]];
+    }
+
+    #[DataProvider('flagWordsProvider')]
+    public function testFlag_ReadsAYesOrANoInAWordOrADigit(string $typed, int $expected): void
+    {
+        $this->assertSame($expected, CustomerFields::flag($typed));
+    }
+
+    #[DataProvider('badFlagWordsProvider')]
+    public function testFlag_RejectsAnyOtherText(string $typed): void
+    {
+        $this->assertSame(AccountingError::CustomerGovernmentInvalid, $this->refusalOf(fn () => CustomerFields::flag($typed)));
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function badFlagWordsProvider(): array
+    {
+        return ['a maybe' => ['maybe'], 'two' => ['2'], 'a sentence' => ['government entity'], 'minus one' => ['-1']];
+    }
+
     public function testRead_NormalisesACountryCodeToCapitals(): void
     {
         $this->assertSame('EG', $this->read(['country_code' => ' eg '])['country_code']);

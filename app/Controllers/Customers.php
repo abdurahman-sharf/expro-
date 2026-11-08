@@ -161,9 +161,9 @@ class Customers extends Persons
      * Gets one row for a customer manage table. This is called using AJAX to update one row.
      * @return ResponseInterface
      */
-    public function getRow(int $row_id): ResponseInterface
+    public function getRow(int $rowId): ResponseInterface
     {
-        $filters = ['person_id' => $row_id, 'visible_employee_ids' => $this->directoryFilters()['visible_employee_ids']];
+        $filters = ['person_id' => $rowId, 'visible_employee_ids' => $this->directoryFilters()['visible_employee_ids']];
         $person  = $this->customer->search('', 1, 0, 'last_name', 'asc', false, $filters)->getRow();
 
         if ($person === null) {
@@ -207,9 +207,9 @@ class Customers extends Persons
         $scope = $this->branchScope();
 
         $customers = $this->customer->search($search, $limit, $offset, $sort, $order, false, $filters);
-        $total_rows = $this->customer->get_found_rows($search, $filters);
+        $totalRows = $this->customer->get_found_rows($search, $filters);
 
-        $data_rows = [];
+        $dataRows = [];
 
         foreach ($customers->getResult() as $person) {
             // Retrieve the total amount the customer spent so far together with min, max and average values
@@ -225,10 +225,10 @@ class Customers extends Persons
                 $stats->quantity = 0;
             }
 
-            $data_rows[] = get_customer_data_row($person, $stats);
+            $dataRows[] = get_customer_data_row($person, $stats);
         }
 
-        return $this->response->setJSON(['total' => $total_rows, 'rows' => $data_rows]);
+        return $this->response->setJSON(['total' => $totalRows, 'rows' => $dataRows]);
     }
 
     /**
@@ -501,9 +501,7 @@ class Customers extends Persons
         $assigned  = (int) ($info->assigned_employee_id ?? 0);
 
         if ($assigned > 0 && ! isset($employees[$assigned])) {
-            $named = $this->employee->get_info($assigned);
-
-            $employees[$assigned] = trim($named->first_name . ' ' . $named->last_name);
+            $employees[$assigned] = lang('Customers.assigned_other_branch');
         }
 
         return [
@@ -816,7 +814,7 @@ class Customers extends Persons
             'area'                 => $cell(21),
             'country_code'         => $cell(22),
             'customer_type'        => $cell(23),
-            'is_government_entity' => $cell(24) === '' ? 0 : 1,
+            'is_government_entity' => CustomerFields::flag($cell(24)),
             'billing_method'       => $cell(25),
         ], null, $this->viewerId(), $email);
     }

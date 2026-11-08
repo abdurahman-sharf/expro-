@@ -7,6 +7,7 @@ return [
     'area'                          => '',
     'assigned_employee'             => '',
     'assigned_employee_none'        => '',
+    'assigned_other_branch'         => '',
     'available_points'              => 'ពិន្ទុដែលប្រើប្រាស់បាន',
     'available_points_value'        => '',
     'average'                       => 'ចំណាយជាមធ្យម',

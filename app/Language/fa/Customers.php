@@ -7,6 +7,7 @@ return [
     'area'                          => '',
     'assigned_employee'             => '',
     'assigned_employee_none'        => '',
+    'assigned_other_branch'         => '',
     'available_points'              => 'امتیازهای موجود',
     'available_points_value'        => '',
     'average'                       => 'متوسط u200bu200bصرف شده',

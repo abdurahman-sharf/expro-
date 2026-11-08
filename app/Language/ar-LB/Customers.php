@@ -7,6 +7,7 @@ return [
     'area'                          => 'المنطقة',
     'assigned_employee'             => 'الموظف المسند',
     'assigned_employee_none'        => 'لا أحد',
+    'assigned_other_branch'         => 'موظف من فرع آخر',
     'available_points'              => 'النقاط المتاحة',
     'available_points_value'        => '',
     'average'                       => 'معدل الصرف',
