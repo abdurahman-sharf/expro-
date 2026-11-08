@@ -180,7 +180,7 @@ $routes->group('accounting_assets', static function (RouteCollection $routes): v
     $routes->get('form/(:num)', 'AccountingAssets::getForm/$1');
     $routes->post('save', 'AccountingAssets::postSave');
     $routes->post('save/(:num)', 'AccountingAssets::postSave/$1');
-    $routes->post('delete/(:num)', 'AccountingAssets::postDelete/$1');
+    $routes->post('delete/(:num)', 'AccountingAssets::postDeleteAsset/$1');
     $routes->post('status/(:num)/(:num)', 'AccountingAssets::postStatus/$1/$2');
     $routes->get('usage_form/(:num)', 'AccountingAssets::getUsageForm/$1');
     $routes->post('usage/(:num)', 'AccountingAssets::postUsage/$1');

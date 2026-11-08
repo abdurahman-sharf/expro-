@@ -245,13 +245,14 @@ final class AssetInput
             return ['length' => 1, 'interval' => AssetInterval::Month];
         }
 
-        $length = trim((string) ($input['period_length'] ?? '1'));
+        $length = trim((string) ($input['period_length'] ?? ''));
+        $length = $length === '' ? '1' : $length;
 
         if (preg_match('/^\d{1,3}$/', $length) !== 1 || (int) $length < 1) {
             $this->fail('period_length');
         }
 
-        return ['length' => (int) $length, 'interval' => AssetInterval::tryFrom(trim((string) ($input['period_interval'] ?? AssetInterval::Month->value))) ?? $this->fail('period_interval')];
+        return ['length' => (int) $length, 'interval' => AssetInterval::tryFrom(trim((string) ($input['period_interval'] ?? '')) ?: AssetInterval::Month->value) ?? $this->fail('period_interval')];
     }
 
     /**
@@ -414,7 +415,8 @@ final class AssetInput
     private function units(array $input, ?object $existing): array
     {
         $tracked  = ($input['track_units'] ?? '') === '1' || ($input['track_units'] ?? false) === true || ($input['track_units'] ?? 0) === 1;
-        $quantity = trim((string) ($input['quantity'] ?? '1'));
+        $quantity = trim((string) ($input['quantity'] ?? ''));
+        $quantity = $quantity === '' ? '1' : $quantity;
 
         if (preg_match('/^\d{1,5}$/', $quantity) !== 1 || (int) $quantity < 1 || (int) $quantity > self::QUANTITY_MAX) {
             $this->fail('quantity');

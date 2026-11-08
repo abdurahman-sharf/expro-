@@ -143,7 +143,7 @@ class AccountingAssets extends AccountingController
         });
     }
 
-    public function postDelete(int $assetId): ResponseInterface
+    public function postDeleteAsset(int $assetId): ResponseInterface
     {
         return $this->attempt(function () use ($assetId): array {
             $this->visible($assetId);
