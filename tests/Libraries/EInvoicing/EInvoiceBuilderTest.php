@@ -83,23 +83,6 @@ class EInvoiceBuilderTest extends CIUnitTestCase
         $this->fail('The document was not refused.');
     }
 
-    private function referenceSale(?int $customerId = null, array $payments = []): int
-    {
-        $cycle = $this->referenceInvoice();
-
-        $this->nameItem($cycle['cream'], 'Cream');
-        $this->nameItem($cycle['perfume'], 'Perfume');
-
-        return $this->save($cycle['items'], $cycle['taxes'], $payments, SALE_TYPE_INVOICE, $customerId ?? -1);
-    }
-
-    private function counterSale(): int
-    {
-        $cycle = $this->referenceInvoice();
-
-        return $this->save($cycle['items'], $cycle['taxes'], [$this->payment('Cash', '816.50')], SALE_TYPE_INVOICE, null);
-    }
-
     public function testFromSale_BuildsTheReferenceInvoiceWithTheFiguresOfTheBooks(): void
     {
         $saleId   = $this->referenceSale();
@@ -177,7 +160,7 @@ class EInvoiceBuilderTest extends CIUnitTestCase
     {
         $cycle    = $this->referenceInvoice();
         $invoice  = $this->save($cycle['items'], $cycle['taxes']);
-        $return   = $this->save([$this->line($cycle['perfume'], 0, '-1', '220', '120.00')], [$this->tax($cycle['perfume'], 0, '-33.00')], [$this->payment('Cash', '-253.00')], SALE_TYPE_RETURN, -1, true, $invoice);
+        $return   = $this->perfumeReturn($invoice, $cycle['perfume']);
         $original = new OriginalReference(7, 'INV-7', EInvoiceSubtype::Simplified);
 
         $this->nameItem($cycle['perfume'], 'Perfume');

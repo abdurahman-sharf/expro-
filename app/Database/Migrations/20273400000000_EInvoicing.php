@@ -60,7 +60,7 @@ class EInvoicing extends Migration
             "CREATE TABLE IF NOT EXISTS `{$counters}` (
                 `company_id` INT UNSIGNED NOT NULL,
                 `last_icv` BIGINT UNSIGNED NOT NULL DEFAULT 0,
-                `last_hash` VARCHAR(64) NOT NULL DEFAULT '',
+                `last_hash` VARCHAR(100) NOT NULL DEFAULT '',
                 `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (`company_id`),
                 CONSTRAINT `{$counters}_fk_company` FOREIGN KEY (`company_id`) REFERENCES `{$companies}` (`company_id`) ON DELETE RESTRICT
@@ -79,8 +79,8 @@ class EInvoicing extends Migration
                 `document_number` VARCHAR(127) NOT NULL,
                 `uuid` CHAR(36) NOT NULL,
                 `icv` BIGINT UNSIGNED NOT NULL,
-                `previous_hash` VARCHAR(64) NOT NULL,
-                `invoice_hash` VARCHAR(64) NOT NULL,
+                `previous_hash` VARCHAR(100) NOT NULL,
+                `invoice_hash` VARCHAR(100) NOT NULL,
                 `issue_date` DATE NOT NULL,
                 `issue_time` TIME NOT NULL,
                 `currency` CHAR(3) NOT NULL DEFAULT 'SAR',

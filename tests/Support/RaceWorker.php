@@ -18,6 +18,7 @@ use App\Libraries\Accounting\OpeningStockResult;
 use App\Libraries\Accounting\OpeningStockStatus;
 use App\Libraries\Accounting\ReceivingLineEdit;
 use App\Libraries\Accounting\YearEndClosing;
+use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockRequest;
 use App\Libraries\Stock\Stocktake;
@@ -154,6 +155,15 @@ $result = match ($method) {
         $payments = isset($args[7]) ? [['payment_type' => (string) $args[7], 'payment_amount' => (string) $args[8], 'cash_refund' => '0', 'cash_adjustment' => 0, 'reference_code' => null]] : [];
 
         return model(Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $args[5] > 0 ? (int) $args[5] : NEW_ENTRY, (int) $args[6], 'race', null, null, null, SALE_TYPE_RETURN, $payments, null, $taxes, true, (int) $args[0]) > 0;
+    })($args),
+    'issueEInvoice' => (static function (array $args): bool {
+        try {
+            (new EInvoiceService())->issueSale((int) $args[0], null, '', null);
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
     })($args),
     'recurringRun' => (static fn (array $args): bool => (new RecurringGenerator())->run((string) $args[0], (int) $args[1])->generated() > 0)($args),
     'orderInvoice' => (static function (array $args): bool {

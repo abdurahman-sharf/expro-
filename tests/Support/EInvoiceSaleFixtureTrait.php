@@ -79,6 +79,39 @@ trait EInvoiceSaleFixtureTrait
         $db->table('accounting_audit_log')->whereIn('entity_type', ['einvoice_document', 'einvoice_settings', 'customer_einvoice_party'])->delete();
     }
 
+    /**
+     * The invoice of the reference cycle for a customer (the fixture customer by default), 816.50 with 106.50 of tax.
+     *
+     * @param list<array<string, mixed>> $payments
+     */
+    protected function referenceSale(?int $customerId = null, array $payments = []): int
+    {
+        $cycle = $this->referenceInvoice();
+
+        $this->nameItem($cycle['cream'], 'Cream');
+        $this->nameItem($cycle['perfume'], 'Perfume');
+
+        return $this->save($cycle['items'], $cycle['taxes'], $payments, SALE_TYPE_INVOICE, $customerId ?? -1);
+    }
+
+    /**
+     * The same invoice with no customer, paid in full in cash.
+     */
+    protected function counterSale(): int
+    {
+        $cycle = $this->referenceInvoice();
+
+        return $this->save($cycle['items'], $cycle['taxes'], [$this->payment('Cash', '816.50')], SALE_TYPE_INVOICE, null);
+    }
+
+    /**
+     * A return of the perfume of an invoice of the reference cycle, 253.00 with 33.00 of tax, paid back in cash.
+     */
+    protected function perfumeReturn(int $invoiceId, int $perfumeId): int
+    {
+        return $this->save([$this->line($perfumeId, 0, '-1', '220', '120.00')], [$this->tax($perfumeId, 0, '-33.00')], [$this->payment('Cash', '-253.00')], SALE_TYPE_RETURN, -1, true, $invoiceId);
+    }
+
     protected function nameItem(int $itemId, string $name): void
     {
         $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['name' => $name]);
