@@ -26,6 +26,11 @@ enum DocumentType: string
     case SalesDebitNote  = 'sales_debit_note';
     case SalesOrder      = 'sales_order';
 
+    case PurchaseRequest     = 'purchase_request';
+    case QuotationRequest    = 'quotation_request';
+    case SupplierQuotation   = 'supplier_quotation';
+    case PurchaseOrder       = 'purchase_order';
+
     case StockPermitAdd      = 'permit_in';
     case StockPermitIssue    = 'permit_out';
     case StockPermitTransfer = 'permit_transfer';
@@ -53,6 +58,10 @@ enum DocumentType: string
             self::Stocktake    => ['stocktakes' => 'stocktake_id'],
             self::StockRequest => ['stock_requests' => 'request_id'],
             self::SalesOrder     => ['sales_orders' => 'order_id'],
+            self::PurchaseRequest   => ['purchase_requests' => 'request_id'],
+            self::QuotationRequest  => ['quotation_requests' => 'rfq_id'],
+            self::SupplierQuotation => ['supplier_quotations' => 'quotation_id'],
+            self::PurchaseOrder     => ['purchase_orders' => 'order_id'],
         };
     }
 
@@ -79,7 +88,7 @@ enum DocumentType: string
     public function bareIdSources(): array
     {
         return match ($this) {
-            self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue, self::SalesDebitNote, self::SalesOrder => $this->sources(),
+            self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue, self::SalesDebitNote, self::SalesOrder, self::PurchaseRequest, self::QuotationRequest, self::SupplierQuotation, self::PurchaseOrder => $this->sources(),
             default => [],
         };
     }
@@ -93,7 +102,7 @@ enum DocumentType: string
             self::CreditNote, self::RefundInvoice => 'POS ' . $id,
             self::Purchase, self::DebitNote => 'RECV ' . $id,
             self::CustomerPayment, self::SupplierPayment, self::Expense, self::Revenue => (string) $id,
-            self::SalesDebitNote, self::SalesOrder => str_pad((string) $id, $this->defaultPadding(), '0', STR_PAD_LEFT),
+            self::SalesDebitNote, self::SalesOrder, self::PurchaseRequest, self::QuotationRequest, self::SupplierQuotation, self::PurchaseOrder => str_pad((string) $id, $this->defaultPadding(), '0', STR_PAD_LEFT),
             self::ReceivedCheque      => 'CHQ-IN ' . $id,
             self::PaidCheque          => 'CHQ-OUT ' . $id,
             self::StockPermitAdd      => 'STK-IN ' . $id,
@@ -107,12 +116,13 @@ enum DocumentType: string
 
     /**
      * The digits a number of the kind has until the company chooses otherwise: the sales debit note
-     * and the sales order are numbered with five and the stock documents with six, as the reference system numbers them.
+     * and the sales order are numbered with five and the stock documents with six, as the reference system numbers them;
+     * the four purchase cycle documents are numbered with five as an assumption, since none of them was observed.
      */
     public function defaultPadding(): int
     {
         return match ($this) {
-            self::SalesDebitNote, self::SalesOrder => 5,
+            self::SalesDebitNote, self::SalesOrder, self::PurchaseRequest, self::QuotationRequest, self::SupplierQuotation, self::PurchaseOrder => 5,
             self::StockPermitAdd, self::StockPermitIssue, self::StockPermitTransfer, self::Stocktake, self::StockRequest => 6,
             default => 0,
         };

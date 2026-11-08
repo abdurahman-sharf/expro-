@@ -30,6 +30,9 @@ return [
     'type_permit_out'         => 'Stock issue permit',
     'type_permit_transfer'    => 'Stock transfer permit',
     'type_purchase'           => 'Purchase',
+    'type_purchase_order'     => 'Purchase order',
+    'type_purchase_request'   => 'Purchase request',
+    'type_quotation_request'  => 'Quotation request',
     'type_received_cheque'    => 'Received cheque',
     'type_refund_invoice'     => 'Refund invoice',
     'type_revenue'            => 'Receipt voucher',
@@ -40,4 +43,5 @@ return [
     'type_stock_request'      => 'Stock request',
     'type_stocktake'          => 'Stocktake',
     'type_supplier_payment'   => 'Supplier payment',
+    'type_supplier_quotation' => 'Supplier quotation',
 ];

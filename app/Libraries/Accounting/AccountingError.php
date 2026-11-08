@@ -150,6 +150,24 @@ enum AccountingError: string
     case SalesOrderQuantityExceeded = 'sales_order_quantity_exceeded';
     case SalesOrderCustomerMismatch = 'sales_order_customer_mismatch';
 
+    case PurchaseDocumentModuleOff        = 'purchase_document_module_off';
+    case PurchaseDocumentNotFound         = 'purchase_document_not_found';
+    case PurchaseDocumentNoLines          = 'purchase_document_no_lines';
+    case PurchaseDocumentLineInvalid      = 'purchase_document_line_invalid';
+    case PurchaseDocumentSupplierInvalid  = 'purchase_document_supplier_invalid';
+    case PurchaseDocumentSupplierNeeded   = 'purchase_document_supplier_needed';
+    case PurchaseDocumentDateInvalid      = 'purchase_document_date_invalid';
+    case PurchaseDocumentLocationInvalid  = 'purchase_document_location_invalid';
+    case PurchaseDocumentStatusNotAllowed = 'purchase_document_status_not_allowed';
+    case PurchaseDocumentManualStatusOff  = 'purchase_document_manual_status_off';
+    case PurchaseDocumentLocked           = 'purchase_document_locked';
+    case PurchaseDocumentNotConvertible   = 'purchase_document_not_convertible';
+    case PurchaseOrderQuantityExceeded    = 'purchase_order_quantity_exceeded';
+    case PurchaseOrderSupplierMismatch    = 'purchase_order_supplier_mismatch';
+    case PurchaseOrderBranchMismatch      = 'purchase_order_branch_mismatch';
+    case PurchaseOrderNotReceivable       = 'purchase_order_not_receivable';
+    case PurchaseOrderReceivingKind       = 'purchase_order_receiving_kind';
+
     case RecurringNotFound           = 'recurring_not_found';
     case RecurringNameInvalid        = 'recurring_name_invalid';
     case RecurringPeriodInvalid      = 'recurring_period_invalid';

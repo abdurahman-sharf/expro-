@@ -30,6 +30,9 @@ return [
     'type_permit_out'         => 'إذن صرف مخزن',
     'type_permit_transfer'    => 'إذن تحويل مخزن',
     'type_purchase'           => 'فاتورة شراء',
+    'type_purchase_order'     => 'أمر شراء',
+    'type_purchase_request'   => 'طلب شراء',
+    'type_quotation_request'  => 'طلب عرض سعر',
     'type_received_cheque'    => 'شيك مستلم',
     'type_refund_invoice'     => 'فاتورة مرتجعة',
     'type_revenue'            => 'سند قبض',
@@ -40,4 +43,5 @@ return [
     'type_stock_request'      => 'طلب مخزون',
     'type_stocktake'          => 'جرد المخزون',
     'type_supplier_payment'   => 'دفعة مورد',
+    'type_supplier_quotation' => 'عرض سعر مورد',
 ];

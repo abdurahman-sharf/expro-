@@ -485,8 +485,49 @@ class Receiving_lib
         // $this->set_reference($this->receiving->get_info($receiving_id)->getRow()->reference);    // TODO: If this code won't be added back in, then let's delete it.
     }
 
+    /**
+     * The purchase order the receiving being made in the register was converted from, or null when it was not.
+     */
+    public function getOrderSource(): ?int
+    {
+        $orderId = $this->session->get('recv_order_source');
+
+        return $orderId === null ? null : (int) $orderId;
+    }
+
+    public function setOrderSource(?int $orderId): void
+    {
+        $orderId === null ? $this->session->remove('recv_order_source') : $this->session->set('recv_order_source', $orderId);
+    }
+
+    public function clearOrderSource(): void
+    {
+        $this->session->remove('recv_order_source');
+    }
+
+    /**
+     * Fills the register with a new receiving from the supplier of a purchase order, with the units each line of the order has left
+     * to receive at the price the order gave it, and remembers the order. Nothing is saved and nothing is posted: the units are taken
+     * from the order when the receiving is.
+     *
+     * @param list<object> $lines The lines of the order with something left, as the service of the orders returns them.
+     */
+    public function prepareReceivingFromOrder(int $orderId, int $supplierId, int $locationId, array $lines): void
+    {
+        $this->clear_all();
+
+        foreach ($lines as $line) {
+            $this->add_item((string) $line->item_id, (float) $line->remaining, $locationId, 0, 0, (float) $line->unit_price, (string) $line->description, null, 1.0);
+        }
+
+        $this->set_supplier($supplierId);
+        $this->set_mode('receive');
+        $this->setOrderSource($orderId);
+    }
+
     public function clear_all(): void
     {
+        $this->clearOrderSource();
         $this->clear_mode();
         $this->empty_cart();
         $this->remove_supplier();

@@ -148,6 +148,10 @@ class Receivings extends Secure_Controller
         }
 
         if ($this->receiving_lib->get_mode() !== 'receive') {
+            $this->receiving_lib->clearOrderSource();
+        }
+
+        if ($this->receiving_lib->get_mode() !== 'receive') {
             $this->receiving_lib->clearInvoiceDiscount();
         }
 
@@ -631,7 +635,7 @@ class Receivings extends Secure_Controller
         }
 
         // SAVE receiving to database
-        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoiceDiscount'] : null, $this->receiving_lib->getInvoiceDate(), $this->receiving_lib->getPaymentTerms());
+        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoiceDiscount'] : null, $this->receiving_lib->getInvoiceDate(), $this->receiving_lib->getPaymentTerms(), $this->receiving_lib->getOrderSource());
 
         if ($saved === ACCOUNTING_FAILED) {
             return $this->_reload(['error' => $this->accountingFailureMessage() ?? lang('Receivings.transaction_failed')]);
@@ -795,6 +799,7 @@ class Receivings extends Secure_Controller
         $data['tax_total']            = $this->receiving_lib->get_tax_total();
         $data['total_with_tax']       = $this->receiving_lib->get_total_with_tax();
         $data['return_origin']        = $this->receiving_lib->get_return_origin();
+        $data['order_source']         = $this->orderSourceLabel();
         $data['items_module_allowed'] = $this->employee->has_grant('items', $this->employee->get_logged_in_employee_info()->person_id);
         $data['comment']              = $this->receiving_lib->get_comment();
         $data['reference']            = $this->receiving_lib->get_reference();
@@ -1288,6 +1293,13 @@ class Receivings extends Secure_Controller
             'supplier_tax_id'              => (string) ($supplier->tax_id ?? ''),
             'supplier_commercial_registry' => (string) ($supplier->commercial_registry ?? ''),
         ];
+    }
+
+    private function orderSourceLabel(): ?string
+    {
+        $orderId = $this->receiving_lib->getOrderSource();
+
+        return $orderId === null ? null : (new DocumentNumbering())->label(DocumentType::PurchaseOrder, 'purchase_orders', $orderId);
     }
 
     private function accountingFailureMessage(): ?string
