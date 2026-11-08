@@ -1,0 +1,1290 @@
+[
+ {
+  "name": "U01 a quantity that does not convert to whole thousandths is refused",
+  "file": "app/Libraries/Stock/UnitLine.php",
+  "find": "if (bccomp(bcadd($baseQuantity, '0', self::QUANTITY_SCALE), $baseQuantity, self::WORKING_SCALE) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitLineTest.php"
+  ]
+ },
+ {
+  "name": "U02 a price that does not divide exactly into a base price is refused",
+  "file": "app/Libraries/Stock/UnitLine.php",
+  "find": "if (bccomp(bcmul($basePrice, $factor, self::WORKING_SCALE), bcadd($enteredPrice, '0', self::WORKING_SCALE), self::WORKING_SCALE) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitLineTest.php"
+  ]
+ },
+ {
+  "name": "O01 changing the stock options needs the accounting settings permission",
+  "file": "app/Libraries/Stock/StockOptions.php",
+  "find": "        $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);\n\n        if (array_key_exists('negative_stock'",
+  "replace": "        if (array_key_exists('negative_stock'",
+  "tests": [
+   "tests/Libraries/Stock/StockOptionsTest.php"
+  ]
+ },
+ {
+  "name": "O02 an unknown negative stock option is refused",
+  "file": "app/Libraries/Stock/StockOptions.php",
+  "find": "if (array_key_exists('negative_stock', $input) && NegativeStockOption::tryFrom((string) $input['negative_stock']) === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockOptionsTest.php"
+  ]
+ },
+ {
+  "name": "O03 a change is written to the audit log with what it was before",
+  "file": "app/Libraries/Stock/StockOptions.php",
+  "find": "        $this->audit->write('settings', null, 'stock_options_updated', $employeeId, JournalOrigin::User, ['before' => array_intersect_key($before, $changes), 'after' => $changes]);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockOptionsTest.php"
+  ]
+ },
+ {
+  "name": "O04 nothing is written when nothing changes",
+  "file": "app/Libraries/Stock/StockOptions.php",
+  "find": "        if ($changes === []) {\n            return;\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockOptionsTest.php"
+  ]
+ },
+ {
+  "name": "O05 an unknown stored value of negative stock is read as allow",
+  "file": "app/Libraries/Stock/StockOptions.php",
+  "find": "?? NegativeStockOption::Allow;",
+  "replace": "?? NegativeStockOption::Refuse;",
+  "tests": [
+   "tests/Libraries/Stock/StockOptionsTest.php"
+  ]
+ },
+ {
+  "name": "T01 managing templates needs the permission",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "        $this->guard->require(StockUnitPermissions::UNITS_MANAGE, $employeeId);\n\n        if (! $this->options->unitsEnabled()) {",
+  "replace": "        if (! $this->options->unitsEnabled()) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T02 managing templates needs the units setting on",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "        if (! $this->options->unitsEnabled()) {\n            throw new AccountingException(AccountingError::UnitsOff, 'Multiple units are switched off.');\n        }\n    }",
+  "replace": "    }",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T03 a template that no document line used is the only one whose units change",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "if ($this->isUsed($templateId) && $this->shapeOf($before) !== $this->shapeOfInput($data)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T04 a template name is unique among the versions of a name when created",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "            $this->assertNameFree($data['name'], 1);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T05 a template name is unique when another one is renamed to it",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "if ($data['name'] !== $template->name) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T06 a factor is a number",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "preg_match(self::FACTOR, $factor) !== 1 ||",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T07 a factor is above zero",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "|| bccomp($factor, '0', UnitLine::FACTOR_SCALE) <= 0) {",
+  "replace": ") {",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T08 a unit name is not repeated and is not the main unit",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "if (in_array(mb_strtolower($unitName), $names, true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T09 a name is not empty and is not too long",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "if ($text === '' || mb_strlen($text) > $max) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T10 a template has from one to twenty larger units",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "if (! is_array($rows) || $rows === [] || count($rows) > self::UNITS_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T11 a new version switches the old template off",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "            $this->db->table('unit_templates')->where('template_id', $templateId)->update(['active' => 0, 'updated_at' => date('Y-m-d H:i:s')]);\n            $this->audit->write(self::ENTITY, $newId, 'unit_template_versioned'",
+  "replace": "            $this->audit->write(self::ENTITY, $newId, 'unit_template_versioned'",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T12 a template that does not exist is refused",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "        if ($row === null) {\n            throw new AccountingException(AccountingError::UnitTemplateNotFound, 'The unit template does not exist.', ['id' => $templateId]);\n        }",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T13 a unit of a template is used when a sale line, a purchase line or a permit line names it",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "private const LINE_TABLES = ['sales_items', 'receivings_items', 'stock_permit_lines'];",
+  "replace": "private const LINE_TABLES = ['sales_items', 'receivings_items'];",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T14 a template is created only by who may manage units",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "        $this->assertMayManage($employeeId);\n\n        $data = $this->checked($input);\n\n        return $this->transactional(function () use ($data, $employeeId): int {",
+  "replace": "        $data = $this->checked($input);\n\n        return $this->transactional(function () use ($data, $employeeId): int {",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T15 a template is changed only by who may manage units",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "        $this->assertMayManage($employeeId);\n\n        $data = $this->checked($input);\n\n        $this->transactional(function () use ($templateId, $data, $employeeId): void {",
+  "replace": "        $data = $this->checked($input);\n\n        $this->transactional(function () use ($templateId, $data, $employeeId): void {",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T16 a new version is made only by who may manage units",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "        $this->assertMayManage($employeeId);\n\n        return $this->transactional(function () use ($templateId, $input, $employeeId): int {",
+  "replace": "        return $this->transactional(function () use ($templateId, $input, $employeeId): int {",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "T17 a template is switched on and off only by who may manage units",
+  "file": "app/Libraries/Stock/UnitTemplates.php",
+  "find": "        $this->assertMayManage($employeeId);\n\n        $this->lockedTemplate($templateId);",
+  "replace": "        $this->lockedTemplate($templateId);",
+  "tests": [
+   "tests/Libraries/Stock/UnitTemplatesTest.php"
+  ]
+ },
+ {
+  "name": "P01 giving an item a template needs the permission",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "        $this->guard->require(StockUnitPermissions::UNITS_MANAGE, $employeeId);\n\n        if (! $this->options->unitsEnabled()) {",
+  "replace": "        if (! $this->options->unitsEnabled()) {",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "P02 giving an item a template needs the units setting on",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "        if (! $this->options->unitsEnabled()) {\n            throw new AccountingException(AccountingError::UnitsOff, 'Multiple units are switched off.');\n        }",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "P03 a template that does not exist or is switched off is refused",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "if ($template === null || (! (bool) $template->active && $this->get($itemId)->unitTemplateId !== $templateId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "P04 changing the tracking of an item needs the permission",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "        $this->guard->require(StockUnitPermissions::TRACKING_MANAGE, $employeeId);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "P05 changing the tracking of an item needs the tracking setting on",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "        if (! $this->options->trackingEnabled()) {\n            throw new AccountingException(AccountingError::TrackingOff, 'Tracking is switched off.');\n        }",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "P06 the tracking of an item changes only while it holds nothing and keeps stock",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "if ((int) $item->stock_type !== HAS_STOCK || (int) $item->item_type !== ITEM || $this->holdsStock($itemId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "P07 an item holds stock when a shelf holds some",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "return $shelves + $serials + $batches > 0;",
+  "replace": "return $serials + $batches > 0;",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "P08 an item holds stock when a serial number is on hand",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "return $shelves + $serials + $batches > 0;",
+  "replace": "return $shelves + $batches > 0;",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "P09 an item holds stock when a batch holds some",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "return $shelves + $serials + $batches > 0;",
+  "replace": "return $shelves + $serials > 0;",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "P10 documents see no tracking while the setting is off",
+  "file": "app/Libraries/Stock/ItemStockProfile.php",
+  "find": "return $this->options->trackingEnabled() ? $this->get($itemId)->tracking : TrackingType::None;",
+  "replace": "return $this->get($itemId)->tracking;",
+  "tests": [
+   "tests/Libraries/Stock/ItemStockProfileTest.php"
+  ]
+ },
+ {
+  "name": "B01 giving a unit a barcode needs the permission",
+  "file": "app/Libraries/Stock/UnitBarcodes.php",
+  "find": "        $this->guard->require(StockUnitPermissions::UNITS_MANAGE, $employeeId);\n\n        if (! $this->options->unitsEnabled()) {",
+  "replace": "        if (! $this->options->unitsEnabled()) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitBarcodesTest.php"
+  ]
+ },
+ {
+  "name": "B02 giving a unit a barcode needs the units setting on",
+  "file": "app/Libraries/Stock/UnitBarcodes.php",
+  "find": "        if (! $this->options->unitsEnabled()) {\n            throw new AccountingException(AccountingError::UnitsOff, 'Multiple units are switched off.');\n        }",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/UnitBarcodesTest.php"
+  ]
+ },
+ {
+  "name": "B03 a barcode that another unit has is refused",
+  "file": "app/Libraries/Stock/UnitBarcodes.php",
+  "find": "if ($this->db->table('item_unit_barcodes')->where('barcode', $barcode)->countAllResults() > 0 || $this->db->table('items')->where('item_number', $barcode)->countAllResults() > 0) {",
+  "replace": "if ($this->db->table('items')->where('item_number', $barcode)->countAllResults() > 0) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitBarcodesTest.php"
+  ]
+ },
+ {
+  "name": "B04 a barcode that is the number of an item is refused",
+  "file": "app/Libraries/Stock/UnitBarcodes.php",
+  "find": "if ($this->db->table('item_unit_barcodes')->where('barcode', $barcode)->countAllResults() > 0 || $this->db->table('items')->where('item_number', $barcode)->countAllResults() > 0) {",
+  "replace": "if ($this->db->table('item_unit_barcodes')->where('barcode', $barcode)->countAllResults() > 0) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitBarcodesTest.php"
+  ]
+ },
+ {
+  "name": "B05 a unit of another template is refused",
+  "file": "app/Libraries/Stock/UnitBarcodes.php",
+  "find": "if ($unitId !== null && (new UnitTemplates($this->db, $this->guard))->unitOfItem($itemId, $unitId) === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitBarcodesTest.php"
+  ]
+ },
+ {
+  "name": "B06 a blank or too long barcode is refused",
+  "file": "app/Libraries/Stock/UnitBarcodes.php",
+  "find": "if ($barcode === '' || mb_strlen($barcode) > self::MAX || $item === null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/UnitBarcodesTest.php"
+  ]
+ },
+ {
+  "name": "B07 removing a barcode needs the permission",
+  "file": "app/Libraries/Stock/UnitBarcodes.php",
+  "find": "        $this->guard->require(StockUnitPermissions::UNITS_MANAGE, $employeeId);\n\n        $row = $this->db->table('item_unit_barcodes')->where('barcode_id', $barcodeId)",
+  "replace": "        $row = $this->db->table('item_unit_barcodes')->where('barcode_id', $barcodeId)",
+  "tests": [
+   "tests/Libraries/Stock/UnitBarcodesTest.php"
+  ]
+ },
+ {
+  "name": "B08 a barcode means nothing while the units setting is off",
+  "file": "app/Libraries/Stock/UnitBarcodes.php",
+  "find": "        if (! $this->options->unitsEnabled()) {\n            return null;\n        }",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/UnitBarcodesTest.php"
+  ]
+ },
+ {
+  "name": "L01 a line in a unit is refused while the units setting is off",
+  "file": "app/Libraries/Stock/UnitLines.php",
+  "find": "        if (! $this->options->unitsEnabled()) {\n            throw new AccountingException(AccountingError::UnitsOff, 'Multiple units are switched off.');\n        }\n\n        $unit = $this->templates->unitOfItem",
+  "replace": "        $unit = $this->templates->unitOfItem",
+  "tests": [
+   "--filter",
+   "testSaveValue_RejectsALineInAUnitWhileTheUnitsSettingIsOff",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "L02 a unit that is not one of the template of the item is refused",
+  "file": "app/Libraries/Stock/UnitLines.php",
+  "find": "        if ($unit === null) {\n            throw new AccountingException(AccountingError::UnitNotOfItem",
+  "replace": "        if (false) {\n            throw new AccountingException(AccountingError::UnitNotOfItem",
+  "tests": [
+   "--filter",
+   "testSaveValue_RejectsALineWhoseUnitIsNotOfTheTemplate",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "L03 a line that names a unit and a pack is refused",
+  "file": "app/Libraries/Stock/UnitLines.php",
+  "find": "if ($perPack !== '' && bccomp((string) ($line[$perPack] ?? '1'), '1', 3) !== 0 && bccomp((string) ($line[$perPack] ?? '1'), '0', 3) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_RejectsAPurchaseLineThatNamesAUnitAndAPack",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "L04 the factor of a line must be the one of its unit",
+  "file": "app/Libraries/Stock/UnitLines.php",
+  "find": "if (bccomp($converted->factor, bcadd((string) ($line['unit_factor'] ?? '0'), '0', UnitLine::FACTOR_SCALE), UnitLine::FACTOR_SCALE) !== 0",
+  "replace": "if (false",
+  "tests": [
+   "--filter",
+   "testSaveValue_RejectsALineWhoseFactorIsNotTheOneOfItsUnit",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "L05 the base quantity of a line must be what its unit converts to",
+  "file": "app/Libraries/Stock/UnitLines.php",
+  "find": "|| bccomp($converted->baseQuantity, bcadd((string) $line[$quantity], '0', UnitLine::QUANTITY_SCALE), UnitLine::QUANTITY_SCALE) !== 0",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSaveValue_RejectsALineWhoseBaseQuantityIsNotWhatItsUnit",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "L06 the base price of a line must be what its unit converts to",
+  "file": "app/Libraries/Stock/UnitLines.php",
+  "find": "|| bccomp($converted->basePrice, bcadd((string) $line[$price], '0', $priceScale), $priceScale) !== 0) {",
+  "replace": ") {",
+  "tests": [
+   "--filter",
+   "testSaveValue_RejectsALineWhoseBasePriceIsNotWhatItsUnit",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "L07 a sale line keeps its unit columns",
+  "file": "app/Models/Sale.php",
+  "find": "$columns[$key] = $units->columnsOf($itemData, (int) ($itemData['line'] ?? 0), 'quantity', 'price', '', 'unit_price_entered');",
+  "replace": "$columns[$key] = [];",
+  "tests": [
+   "--filter",
+   "testSaveValue_StoresALineEnteredInCartons",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "L08 a purchase line keeps its unit columns",
+  "file": "app/Models/Receiving.php",
+  "find": "$columns[$key] = $units->columnsOf($itemData, (int) ($itemData['line'] ?? 0), 'quantity', 'price', 'receiving_quantity', 'unit_price_entered');",
+  "replace": "$columns[$key] = [];",
+  "tests": [
+   "--filter",
+   "testSaveValue_StoresAPurchaseLineEnteredInCartons",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "L09 a correction that changes the quantity or the price of a purchase line takes its unit off",
+  "file": "app/Models/Receiving.php",
+  "find": "return $moved ? ['unit_id' => null, 'unit_factor' => null, 'unit_quantity' => null, 'unit_price_entered' => null] : [];",
+  "replace": "return [];",
+  "tests": [
+   "--filter",
+   "testUpdateLines_TurnsALineEnteredInCartons",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "L10 a correction that changes nothing of the figures keeps the unit of a purchase line",
+  "file": "app/Models/Receiving.php",
+  "find": "return $moved ? ['unit_id' => null, 'unit_factor' => null, 'unit_quantity' => null, 'unit_price_entered' => null] : [];",
+  "replace": "return ['unit_id' => null, 'unit_factor' => null, 'unit_quantity' => null, 'unit_price_entered' => null];",
+  "tests": [
+   "--filter",
+   "testUpdateLines_KeepsTheUnitOfALine",
+   "tests/Libraries/Accounting/ReceivingPostingTest.php"
+  ]
+ },
+ {
+  "name": "C01 a line whose quantity does not divide into a unit is not shown in it",
+  "file": "app/Libraries/Stock/UnitCart.php",
+  "find": "if (bccomp(bcmul($entered, $unit->factor, 8), bcadd((string) $line['quantity'], '0', 8), 8) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testChangeUnit_RefusesAUnitTheQuantityDoesNotDivideInto",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "C02 a unit of another item is refused on the register",
+  "file": "app/Libraries/Stock/UnitCart.php",
+  "find": "        if ($unit === null) {\n            throw new AccountingException(AccountingError::UnitNotOfItem, 'The unit is not a unit of the template of the item.', ['name' => (string) ($line['name'] ?? $line['item_id'])]);\n        }",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testChangeUnit_RefusesAUnitOfAnotherItem",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "C03 a line whose quantity stops dividing goes back to base units",
+  "file": "app/Libraries/Stock/UnitCart.php",
+  "find": "        } catch (AccountingException) {\n            return $this->clear($line);\n        }",
+  "replace": "        } catch (AccountingException) {\n            return $line;\n        }",
+  "tests": [
+   "--filter",
+   "testAddItem_KeepsALineInCartons",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "C04 what is typed in a unit is converted before it is kept",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "            if ($unitCart->hasUnit($items[$line])) {\n                try {\n                    $typed = $unitCart->enter($items[$line], $quantity, (string) $price);",
+  "replace": "            if (false) {\n                try {\n                    $typed = $unitCart->enter($items[$line], $quantity, (string) $price);",
+  "tests": [
+   "--filter",
+   "testEditItem_ConvertsWhatIsTypedInCartons",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "BD01 a kit is asked nothing while the bundles setting is off",
+  "file": "app/Libraries/Stock/Bundles.php",
+  "find": "        if (! $this->options->bundlesEnabled()) {\n            return;\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/BundlesTest.php"
+  ]
+ },
+ {
+  "name": "BD02 a bundle needs a kit product that carries the price and the price option of the kit",
+  "file": "app/Libraries/Stock/Bundles.php",
+  "find": "if ($priced === null || (int) $priced->item_type !== ITEM_KIT || $priceOption !== PRICE_OPTION_KIT) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/BundlesTest.php"
+  ]
+ },
+ {
+  "name": "BD03 the product of a bundle keeps no stock",
+  "file": "app/Libraries/Stock/Bundles.php",
+  "find": "if ((int) $priced->stock_type === HAS_STOCK) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/BundlesTest.php"
+  ]
+ },
+ {
+  "name": "BD04 a bundle cannot contain itself",
+  "file": "app/Libraries/Stock/Bundles.php",
+  "find": "if ($componentId === $pricedItemId) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/BundlesTest.php"
+  ]
+ },
+ {
+  "name": "BD05 a component of the kit type is a bundle",
+  "file": "app/Libraries/Stock/Bundles.php",
+  "find": "(int) $component->item_type === ITEM_KIT || in_array($componentId, $pricedProducts, true)",
+  "replace": "in_array($componentId, $pricedProducts, true)",
+  "tests": [
+   "tests/Libraries/Stock/BundlesTest.php"
+  ]
+ },
+ {
+  "name": "BD06 the product of another bundle is a bundle",
+  "file": "app/Libraries/Stock/Bundles.php",
+  "find": "(int) $component->item_type === ITEM_KIT || in_array($componentId, $pricedProducts, true)",
+  "replace": "(int) $component->item_type === ITEM_KIT",
+  "tests": [
+   "tests/Libraries/Stock/BundlesTest.php"
+  ]
+ },
+ {
+  "name": "BD07 the model of the kit items refuses what the rules refuse",
+  "file": "app/Models/Item_kit_items.php",
+  "find": "            $this->bundleRefusal = $refusal;\n\n            return false;",
+  "replace": "            $this->bundleRefusal = $refusal;",
+  "tests": [
+   "tests/Libraries/Stock/BundlesTest.php"
+  ]
+ },
+ {
+  "name": "BD08 the kit screen refuses a bundle before it saves anything",
+  "file": "app/Controllers/Item_kits.php",
+  "find": "->assertValid((int) $item_kit_data['item_id'], $bundleComponents, (int) $item_kit_data['price_option']);",
+  "replace": "->violations();",
+  "tests": [
+   "tests/Controllers/ItemKitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "K01 one serial number for each unit",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "|| count($entry->serials) !== (int) $quantity ||",
+  "replace": "||",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K02 a serial item takes no batch entry",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "|| $entry->batches !== []) {\n            throw new AccountingException(AccountingError::TrackedEntryRequired, 'One serial number is needed for each unit.'",
+  "replace": ") {\n            throw new AccountingException(AccountingError::TrackedEntryRequired, 'One serial number is needed for each unit.'",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K03 serial units are whole numbers",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if (! $whole || bccomp($quantity, '0', 3) <= 0",
+  "replace": "if (false || bccomp($quantity, '0', 3) <= 0",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K04 a serial number is not empty or longer than thirty characters",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if ($serial === '' || mb_strlen($serial) > TrackingEntry::SERIAL_MAX) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K05 a serial number is not repeated in a line",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if (count(array_unique($entry->serials)) !== count($entry->serials)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K06 a serial number that is on record is not received again",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if ($row === null || (string) $row->state !== 'removed') {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K07 a serial number is sold only from where it is on hand",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "AND state IN (\\'in_stock\\', \\'returned\\') AND location_id = ?',\n                [$state, $source, $sourceId, $itemId, $serial, $locationId],",
+  "replace": "AND state IN (\\'in_stock\\', \\'returned\\') AND (location_id = ? OR 1 = 1)',\n                [$state, $source, $sourceId, $itemId, $serial, $locationId],",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K08 a serial number is sold once",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "AND state IN (\\'in_stock\\', \\'returned\\') AND location_id = ?',\n                [$state, $source, $sourceId, $itemId, $serial, $locationId],",
+  "replace": "AND state IN (\\'in_stock\\', \\'returned\\', \\'sold\\') AND location_id = ?',\n                [$state, $source, $sourceId, $itemId, $serial, $locationId],",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K09 a sale of a serial number that is not on hand is refused",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "        $state = $movement === self::SALE ? 'sold' : 'removed';\n\n        foreach ($this->serialsFor($itemId, $line, $quantity, $entry) as $serial) {\n            $this->db->query(\n                'UPDATE ' . $this->db->prefixTable('stock_serials') . ' SET state = ?, location_id = NULL, sold_source = ?, sold_id = ?, updated_at = NOW()\n                 WHERE item_id = ? AND serial_number = ? AND state IN (\\'in_stock\\', \\'returned\\') AND location_id = ?',\n                [$state, $source, $sourceId, $itemId, $serial, $locationId],\n            );\n\n            if ($this->db->affectedRows() !== 1) {",
+  "replace": "        $state = $movement === self::SALE ? 'sold' : 'removed';\n\n        foreach ($this->serialsFor($itemId, $line, $quantity, $entry) as $serial) {\n            $this->db->query(\n                'UPDATE ' . $this->db->prefixTable('stock_serials') . ' SET state = ?, location_id = NULL, sold_source = ?, sold_id = ?, updated_at = NOW()\n                 WHERE item_id = ? AND serial_number = ? AND state IN (\\'in_stock\\', \\'returned\\') AND location_id = ?',\n                [$state, $source, $sourceId, $itemId, $serial, $locationId],\n            );\n\n            if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K10 a return puts back only a serial number that was sold",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "SET state = \\'returned\\', location_id = ?, updated_at = NOW()\n                 WHERE item_id = ? AND serial_number = ? AND state = \\'sold\\'' . $origin,",
+  "replace": "SET state = \\'returned\\', location_id = ?, updated_at = NOW()\n                 WHERE item_id = ? AND serial_number = ? AND state <> \\'zzz\\'' . $origin,",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K11 a return puts back only a serial number the sale it returns sold",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "$origin = $originSaleId === null ? '' : ' AND sold_source = \\'sale\\' AND sold_id = ' . (int) $originSaleId;",
+  "replace": "$origin = '';",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K12 a transfer moves a serial number only from where it is on hand",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "SET location_id = ?, updated_at = NOW()\n                 WHERE item_id = ? AND serial_number = ? AND state IN (\\'in_stock\\', \\'returned\\') AND location_id = ?',\n                [$toLocation, $itemId, $serial, $fromLocation],",
+  "replace": "SET location_id = ?, updated_at = NOW()\n                 WHERE item_id = ? AND serial_number = ? AND state IN (\\'in_stock\\', \\'returned\\') AND (location_id = ? OR 1 = 1)',\n                [$toLocation, $itemId, $serial, $fromLocation],",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K13 a batch needs an expiry date when it comes in",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": " || ($expiryRequired && $expiry === null)",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K14 a batch has a number of at most sixty characters",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if ($number === '' || mb_strlen($number) > TrackingEntry::BATCH_MAX ||",
+  "replace": "if (false ||",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K15 a batch has a real date",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "|| ! $validDate ||",
+  "replace": "||",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K16 a batch has a quantity above zero",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "|| preg_match('/^\\d{1,9}(\\.\\d{1,3})?$/', $amount) !== 1 || bccomp($amount, '0', 3) <= 0) {",
+  "replace": ") {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K17 the batches of a line add up to its quantity",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if ($merged !== [] && bccomp($total, bcadd($quantity, '0', 3), 3) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K18 a purchase of a batch item names its batch",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if ($batches === [] || $entry->serials !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K19 a batch is on record with one expiry date only",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if ($row === null || (string) $row->expiry_date !== $batch['expiry']) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K20 a sale never takes an expired batch while the setting refuses it",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "$refuseExpired = $checkExpiry && $this->options->expiredSalesRefused();",
+  "replace": "$refuseExpired = false;",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K21 picking a batch by hand needs its permission",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if (! $this->guard->has(StockUnitPermissions::BATCH_MANUAL_PICK, $employeeId)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K22 a batch picked by hand that has expired is refused",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if ($refuseExpired && (string) $row->expiry_date < $date) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K23 the batch that expires first is taken first",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "ORDER BY b.expiry_date ASC, b.batch_id ASC FOR UPDATE",
+  "replace": "ORDER BY b.expiry_date DESC, b.batch_id ASC FOR UPDATE",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K24 the automatic pick leaves out batches that have expired",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "($refuseExpired ? ' AND b.expiry_date >= ?' : '')",
+  "replace": "($refuseExpired ? ' AND (b.expiry_date >= ? OR 1 = 1)' : '')",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K25 a sale of more than the unexpired batches hold is refused",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "        if (bccomp($left, '0', 3) > 0) {\n            throw new AccountingException(AccountingError::BatchInsufficient, 'There is not enough in unexpired batches.'",
+  "replace": "        if (false) {\n            throw new AccountingException(AccountingError::BatchInsufficient, 'There is not enough in unexpired batches.'",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K26 a batch is never taken below nothing",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "        if ($this->db->affectedRows() !== 1) {\n            throw new AccountingException(AccountingError::BatchInsufficient, 'There is not enough in the batch.'",
+  "replace": "        if (false) {\n            throw new AccountingException(AccountingError::BatchInsufficient, 'There is not enough in the batch.'",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K27 a batch picked by hand must exist",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "                if ($row === null) {\n                    throw new AccountingException(AccountingError::BatchInvalid, 'The batch does not exist.', ['line' => $line]);\n                }\n\n                if ($refuseExpired",
+  "replace": "                if (false) {\n                    throw new AccountingException(AccountingError::BatchInvalid, 'The batch does not exist.', ['line' => $line]);\n                }\n\n                if ($refuseExpired",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K28 a return of batches names where the goods go back",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if ($targets === [] || bccomp(array_reduce($targets, static fn (string $sum, array $target): string => bcadd($sum, $target['quantity'], 3), '0'), bcadd($quantity, '0', 3), 3) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K29 a return goes back into the batches the sale took, less what earlier returns put back",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "$room = bcsub((string) $row->taken, $back[(int) $row->batch_id] ?? '0', 3);",
+  "replace": "$room = (string) $row->taken;",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K30 taking a document back is refused when a serial number has moved on",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if ($ran !== null && $this->db->affectedRows() !== 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K31 a document is taken back once",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": " AND r.tracking_id IS NULL",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K32 the shelf of a tracked item must equal its serial numbers or batches",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if (bccomp($tie['shelf'], $tie['tracked'], 3) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K33 the tracking itself may change the shelf of a tracked item",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "        if (self::$applying) {\n            return;\n        }",
+  "replace": "        if (false) {\n            return;\n        }",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K34 nothing else may change the shelf of a tracked item",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if ($profile === null || (string) $profile->tracking_type === TrackingType::None->value) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K35 the shelf of an item is free while tracking is off",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "if ($enabled === null || (string) $enabled->value !== '1') {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K36 a tracked item is refused where it has no serial number or batch to name",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "            if ($this->handles($itemId)) {\n                throw new AccountingException(AccountingError::TrackedPathUnsupported, 'A tracked item changes only with serial numbers or batches.', ['name' => $this->nameOf($itemId)]);",
+  "replace": "            if (false) {\n                throw new AccountingException(AccountingError::TrackedPathUnsupported, 'A tracked item changes only with serial numbers or batches.', ['name' => $this->nameOf($itemId)]);",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "K37 an item that is not tracked takes no entry",
+  "file": "app/Libraries/Stock/StockTracking.php",
+  "find": "            default              => throw new AccountingException(AccountingError::TrackedEntryNotAllowed, 'The item is not tracked.', ['line' => $line, 'name' => $this->nameOf($itemId)]),\n        };\n\n        $this->shelf($itemId, $locationId, $quantity);\n        $this->assertTied($itemId, $locationId);\n    }\n\n    /**\n     * Takes units out",
+  "replace": "            default              => null,\n        };\n\n        $this->shelf($itemId, $locationId, $quantity);\n        $this->assertTied($itemId, $locationId);\n    }\n\n    /**\n     * Takes units out",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "SL01 the movements of a serial item are written one for each serial number",
+  "file": "app/Libraries/Accounting/StockLedger.php",
+  "find": "if (! in_array($movement->itemId, $serialItems, true) || bccomp($units, '1', self::QUANTITY_SCALE) <= 0 || bccomp($units, bcadd($units, '0', 0), self::QUANTITY_SCALE) !== 0) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "SL02 the value is shared among the serial numbers to the last digit",
+  "file": "app/Libraries/Accounting/StockLedger.php",
+  "find": "$value     = $index === $count ? $remaining : $each;",
+  "replace": "$value     = $each;",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "SL03 nothing is split while tracking is off",
+  "file": "app/Libraries/Accounting/StockLedger.php",
+  "find": "if ($on === null || (string) $on->value !== '1' || $itemIds === []) {",
+  "replace": "if ($itemIds === []) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W01 an invoice issued before its goods leave is refused when it has a tracked item",
+  "file": "app/Models/Sale.php",
+  "find": "        if ($saleStatus == COMPLETED && $saleType === SALE_TYPE_INVOICE && ! $delivered) {\n            try {\n                $tracking->requireUntracked",
+  "replace": "        if (false) {\n            try {\n                $tracking->requireUntracked",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W02 a sale of a tracked item goes through its serial numbers and batches",
+  "file": "app/Models/Sale.php",
+  "find": "                    if ($tracking->handles((int) $itemData['item_id'])) {\n                        $this->moveTrackedStock(",
+  "replace": "                    if (false) {\n                        $this->moveTrackedStock(",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W03 the option on negative stock is asked of every sale line that is not tracked",
+  "file": "app/Models/Sale.php",
+  "find": "                        (new NegativeStockGuard($this->db))->assertSale((int) $itemData['item_id'], (int) $itemData['item_location'], (string) $itemData['quantity']);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/NegativeStockGuardTest.php"
+  ]
+ },
+ {
+  "name": "W04 cancelling a sale puts its serial numbers and batches back",
+  "file": "app/Models/Sale.php",
+  "find": "                $reversed = $tracking->reverseSource('sale', (int) $sale_id);",
+  "replace": "                $reversed = [];",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W05 cancelling a sale changes the shelf of a tracked item only once",
+  "file": "app/Models/Sale.php",
+  "find": "if (! in_array((int) $item_data['item_id'], $reversed, true)) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W06 the delivery of an invoice refuses tracked items",
+  "file": "app/Models/Sale.php",
+  "find": "            (new StockTracking($this->db))->requireUntracked(array_map(static fn (array $row): int => (int) $row['item_id'], $this->get_sale_items($saleId)->getResultArray()));",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W07 the delivery of an invoice asks the option on negative stock",
+  "file": "app/Models/Sale.php",
+  "find": "            try {\n                $negative->assertSale((int) $line['item_id'], (int) $line['item_location'], $units, $saleId);",
+  "replace": "            try {\n                $negative->assertSale(0, 0, '0', $saleId);",
+  "tests": [
+   "tests/Libraries/Stock/NegativeStockGuardTest.php"
+  ]
+ },
+ {
+  "name": "W08 a return to a supplier or a transfer between locations refuses tracked items",
+  "file": "app/Models/Receiving.php",
+  "find": "        if ($type !== ReceivingType::Receive) {\n            try {\n                $tracking->requireUntracked",
+  "replace": "        if (false) {\n            try {\n                $tracking->requireUntracked",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W09 a purchase of a tracked item goes through its serial numbers and batches",
+  "file": "app/Models/Receiving.php",
+  "find": "                if ($tracking->handles((int) $itemData['item_id'])) {\n                    $tracking->receive(",
+  "replace": "                if (false) {\n                    $tracking->receive(",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W10 a purchase line of an item that is not tracked takes no entry",
+  "file": "app/Models/Receiving.php",
+  "find": "                    $this->assertNoTrackingEntry($itemData);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W11 cancelling a purchase takes its serial numbers and batches out",
+  "file": "app/Models/Receiving.php",
+  "find": "                $reversed = $tracking->reverseSource('receiving', (int) $receiving_id);",
+  "replace": "                $reversed = [];",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W12 cancelling a purchase changes the shelf of a tracked item only once",
+  "file": "app/Models/Receiving.php",
+  "find": "if (! in_array((int) $item['item_id'], $reversed, true)) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W13 a permit moves the serial numbers and batches of its tracked lines",
+  "file": "app/Libraries/Stock/StockPermit.php",
+  "find": "        $this->applyTracking($permitId, $data, $employeeId);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W14 a permit line of an item that is not tracked takes no entry",
+  "file": "app/Libraries/Stock/StockPermit.php",
+  "find": "                if (! $entry->isEmpty()) {\n                    throw new AccountingException(AccountingError::TrackedEntryNotAllowed",
+  "replace": "                if (false) {\n                    throw new AccountingException(AccountingError::TrackedEntryNotAllowed",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W15 cancelling a permit takes its serial numbers and batches back",
+  "file": "app/Libraries/Stock/StockPermit.php",
+  "find": "        $reversed = $this->tracking->reverseSource('stock_permit', $permitId);",
+  "replace": "        $reversed = [];",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W16 a permit leaves the shelf of a tracked item to its serial numbers and batches",
+  "file": "app/Libraries/Stock/StockPermit.php",
+  "find": "$this->trackedItems($data['lines']));",
+  "replace": "[]);",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W17 a stocktake leaves out tracked items that are named",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "        (new StockTracking($this->db))->requireUntracked($ids);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W18 a stocktake of a whole location leaves out tracked items",
+  "file": "app/Libraries/Stock/Stocktake.php",
+  "find": "static fn (int $itemId): bool => ! $tracking->handles($itemId)",
+  "replace": "static fn (int $itemId): bool => true",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W19 the shelf of a tracked item changes only through its tracking",
+  "file": "app/Models/Item_quantity.php",
+  "find": "        StockTracking::assertShelfMayChange($itemId, $this->db);\n\n        $builder = $this->db->table('item_quantities');\n        $builder->set([",
+  "replace": "        $builder = $this->db->table('item_quantities');\n        $builder->set([",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W20 a typed quantity cannot change the shelf of a tracked item",
+  "file": "app/Models/Item_quantity.php",
+  "find": "if (isset($location_detail['quantity']) && bccomp((string) $location_detail['quantity'], (string) $this->get_item_quantity($item_id, $location_id)->quantity, 3) !== 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W21 a tracked item cannot be zeroed",
+  "file": "app/Models/Item_quantity.php",
+  "find": "    public function reset_quantity(int $item_id): bool\n    {\n        StockTracking::assertShelfMayChange($item_id, $this->db);\n",
+  "replace": "    public function reset_quantity(int $item_id): bool\n    {\n",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "W22 a list of tracked items cannot be zeroed",
+  "file": "app/Models/Item_quantity.php",
+  "find": "        foreach ($item_ids as $itemId) {\n            StockTracking::assertShelfMayChange((int) $itemId, $this->db);\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Stock/StockTrackingTest.php"
+  ]
+ },
+ {
+  "name": "N01 a sale below nothing is allowed only when the option allows it",
+  "file": "app/Libraries/Stock/NegativeStockGuard.php",
+  "find": "if ($option === NegativeStockOption::Allow || bccomp($quantity, '0', 3) <= 0) {",
+  "replace": "if (bccomp($quantity, '0', 3) <= 0) {",
+  "tests": [
+   "tests/Libraries/Stock/NegativeStockGuardTest.php"
+  ]
+ },
+ {
+  "name": "N02 a return is never refused",
+  "file": "app/Libraries/Stock/NegativeStockGuard.php",
+  "find": "if ($option === NegativeStockOption::Allow || bccomp($quantity, '0', 3) <= 0) {",
+  "replace": "if ($option === NegativeStockOption::Allow) {",
+  "tests": [
+   "tests/Libraries/Stock/NegativeStockGuardTest.php"
+  ]
+ },
+ {
+  "name": "N03 the shelf is read under a lock",
+  "file": "app/Libraries/Stock/NegativeStockGuard.php",
+  "find": "WHERE item_id = ? AND location_id = ? FOR UPDATE'",
+  "replace": "WHERE item_id = ? AND location_id = ?'",
+  "tests": [
+   "tests/Libraries/Stock/NegativeStockGuardTest.php"
+  ]
+ },
+ {
+  "name": "N04 the third option subtracts what issued invoices promise",
+  "file": "app/Libraries/Stock/NegativeStockGuard.php",
+  "find": "$option === NegativeStockOption::RefuseAvailable ? bcsub($onHand, $this->promised($itemId, $locationId, $exceptSaleId), 3) : $onHand",
+  "replace": "$onHand",
+  "tests": [
+   "tests/Libraries/Stock/NegativeStockGuardTest.php"
+  ]
+ },
+ {
+  "name": "N05 a sale that would go below nothing is refused",
+  "file": "app/Libraries/Stock/NegativeStockGuard.php",
+  "find": "if (bccomp($reached, '0', 3) < 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Stock/NegativeStockGuardTest.php"
+  ]
+ },
+ {
+  "name": "N06 what is promised leaves out the invoice that is being delivered",
+  "file": "app/Libraries/Stock/NegativeStockGuard.php",
+  "find": " AND l.quantity_purchased > 0 AND s.sale_id <> ?'",
+  "replace": " AND l.quantity_purchased > 0 AND 0 <> ?'",
+  "tests": [
+   "tests/Libraries/Stock/NegativeStockGuardTest.php"
+  ]
+ },
+ {
+  "name": "N07 only invoices whose goods have not left promise stock",
+  "file": "app/Libraries/Stock/NegativeStockGuard.php",
+  "find": "AND s.delivered = 0 AND l.quantity_purchased > 0",
+  "replace": "AND l.quantity_purchased > 0",
+  "tests": [
+   "tests/Libraries/Stock/NegativeStockGuardTest.php"
+  ]
+ },
+ {
+  "name": "R01 a shelf that is not what its batches or serial numbers add up to fails the check",
+  "file": "app/Libraries/Accounting/Readiness/StockTrackingChecks.php",
+  "find": "HAVING ABS(shelf - tracked) > 0.0005",
+  "replace": "HAVING ABS(shelf - tracked) > 999999",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/StockTrackingChecksTest.php"
+  ]
+ },
+ {
+  "name": "R02 an expired batch on a shelf is for review",
+  "file": "app/Libraries/Accounting/Readiness/StockTrackingChecks.php",
+  "find": "->where('b.expiry_date <', date('Y-m-d'))",
+  "replace": "->where('b.expiry_date >', date('Y-m-d'))",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/StockTrackingChecksTest.php"
+  ]
+ },
+ {
+  "name": "R03 kits are checked against the rules of a bundle only while the setting is on",
+  "file": "app/Libraries/Accounting/Readiness/StockTrackingChecks.php",
+  "find": "        if ($options->bundlesEnabled()) {\n            foreach ((new Bundles",
+  "replace": "        if (true) {\n            foreach ((new Bundles",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/StockTrackingChecksTest.php"
+  ]
+ },
+ {
+  "name": "R04 lines in units while the units setting is off are for review",
+  "file": "app/Libraries/Accounting/Readiness/StockTrackingChecks.php",
+  "find": "if ($unitLines > 0 && ! $options->unitsEnabled()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/StockTrackingChecksTest.php"
+  ]
+ },
+ {
+  "name": "Q01 the form of a template is forbidden to who may not manage units",
+  "file": "app/Controllers/StockUnits.php",
+  "find": "        if (! $this->can(StockUnitPermissions::UNITS_MANAGE)) {\n            return $this->forbidden();\n        }",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/StockUnitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "Q02 the settings are shown only to who may change them",
+  "file": "app/Controllers/StockUnits.php",
+  "find": "'canSettings' => $this->can(AccountingGuard::SETTINGS_MANAGE),",
+  "replace": "'canSettings' => true,",
+  "tests": [
+   "tests/Controllers/StockUnitsControllerTest.php"
+  ]
+ },
+ {
+  "name": "Q03 the screens belong to the module of units and tracking",
+  "file": "app/Controllers/StockUnits.php",
+  "find": "parent::__construct(StockUnitPermissions::MODULE, false);",
+  "replace": "parent::__construct('home', false);",
+  "tests": [
+   "tests/Controllers/StockUnitsControllerTest.php"
+  ]
+ }
+]

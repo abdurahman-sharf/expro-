@@ -212,4 +212,24 @@ final class NegativeStockGuardTest extends CIUnitTestCase
         $this->refusedWith(AccountingError::NegativeStockRefused, static fn () => (new NegativeStockGuard())->assertSale($itemId, self::LOCATION_ID, '3'));
         $this->assertSame('2.000', $this->onHand($itemId));
     }
+
+    public function testAssertSaleReadsTheShelfUnderALockInTheTransactionOfTheSale(): void
+    {
+        $itemId = $this->stocked('5', '5');
+
+        $this->option(NegativeStockOption::Refuse);
+
+        $queries = $this->queriesOf(static fn () => (new NegativeStockGuard())->assertSale($itemId, self::LOCATION_ID, '1'));
+
+        $this->assertNotNull($this->firstQuery($queries, ['item_quantities', 'FOR UPDATE']));
+    }
+
+    public function testAssertSaleReadsNothingWhileTheOptionAllowsANegativeStock(): void
+    {
+        $itemId = $this->stocked('5', '5');
+
+        $queries = $this->queriesOf(static fn () => (new NegativeStockGuard())->assertSale($itemId, self::LOCATION_ID, '99'));
+
+        $this->assertNull($this->firstQuery($queries, ['item_quantities']));
+    }
 }

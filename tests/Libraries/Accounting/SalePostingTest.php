@@ -7597,6 +7597,18 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(AccountingError::UnitQuantityInexact, $this->sales->accountingFailure()?->error);
     }
 
+    public function testSaveValue_RejectsALineWhoseFactorIsNotTheOneOfItsUnit(): void
+    {
+        $setup = $this->cartonItem('5.00');
+
+        $this->putOnShelf($setup['item'], '50');
+
+        $line = [...$this->inUnit($this->line($setup['item'], 0, '1', '1', '5.00'), $setup['carton'], '2', '120'), 'unit_factor' => '6.0000'];
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->save([$line]));
+        $this->assertSame(AccountingError::UnitQuantityInexact, $this->sales->accountingFailure()?->error);
+    }
+
     public function testSaveValue_RejectsALineInAUnitWhileTheUnitsSettingIsOff(): void
     {
         $setup = $this->cartonItem('5.00');

@@ -17,6 +17,7 @@ use App\Libraries\Recurring\ScheduleStatus;
 use App\Libraries\SalesOrders\SalesOrderStatus;
 use App\Libraries\Roles\RoleError;
 use App\Libraries\Stock\StockPermissions;
+use App\Libraries\Stock\StockUnitPermissions;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -273,6 +274,37 @@ class LanguageFilesTest extends CIUnitTestCase
 
         foreach (['action_stock_permit_created', 'action_stock_permit_edited', 'action_stock_permit_cancelled', 'action_stocktake_started', 'action_stocktake_counted', 'action_stocktake_items_added', 'action_stocktake_item_removed', 'action_stocktake_approved', 'action_stocktake_cancelled', 'action_stock_request_created', 'action_stock_request_approved', 'action_stock_request_fulfilled', 'action_stock_request_cancelled', 'entity_stock_permit', 'entity_stocktake', 'entity_stock_request', 'source_stock_permit', 'source_stock_transfer_permit', 'source_stock_transfer_permit_receipt', 'source_stocktake'] as $key) {
             $this->assertNotSame('', $audit[$key] ?? '', "{$locale} lacks {$key}");
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testStockUnitsFile_LabelsThePermissionsOfTheModuleAndEveryLineOfTheScreens(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Stock_units.php";
+        $english  = include __DIR__ . '/../app/Language/en/Stock_units.php';
+        $module   = include __DIR__ . "/../app/Language/{$locale}/Module.php";
+
+        foreach (StockUnitPermissions::ALL as $permission) {
+            $this->assertNotSame('', $messages[explode('_', $permission, 2)[1]] ?? '', "{$locale} lacks the label of the permission {$permission}");
+        }
+
+        foreach (array_keys($english) as $key) {
+            $this->assertNotSame('', $messages[$key] ?? '', "{$locale} lacks {$key}");
+        }
+
+        foreach (['stock_units', 'stock_units_desc'] as $key) {
+            $this->assertNotSame('', $module[$key] ?? '', "{$locale} lacks the module label {$key}");
+        }
+    }
+
+    #[DataProvider('arabicLocaleProvider')]
+    public function testStockUnitsFile_IsTranslatedIntoArabic(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Stock_units.php";
+        $english  = include __DIR__ . '/../app/Language/en/Stock_units.php';
+
+        foreach ($english as $key => $line) {
+            $this->assertNotSame($line, $messages[$key], "{$locale} shows English for {$key}");
         }
     }
 

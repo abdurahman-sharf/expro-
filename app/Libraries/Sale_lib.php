@@ -2162,7 +2162,7 @@ class Sale_lib
 
             $this->add_item($row->item_id, $row->item_location, $row->quantity_purchased, $row->discount, $row->discount_type, PRICE_MODE_STANDARD, null, null, $row->item_unit_price, $row->description, $row->serialnumber, $saleId, true, $row->print_option);
 
-            if ($row->unit_id !== null) {
+            if (($row->unit_id ?? null) !== null) {
                 $this->changeUnit((string) $this->cartLineOf($linesBefore, (int) $row->item_id, (int) $row->item_location), (int) $row->unit_id);
             }
 

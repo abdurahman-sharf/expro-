@@ -1,12 +1,15 @@
 <?php
+
+use App\Libraries\Stock\UnitTemplate;
+
 /**
- * @var list<App\Libraries\Stock\UnitTemplate>                                                                  $templates
- * @var array<int, bool>                                                                                        $used
- * @var array{units: bool, bundles: bool, tracking: bool, expired_refused: bool, negative_stock: string}        $settings
- * @var bool                                                                                                    $canManage
- * @var bool                                                                                                    $canSettings
+ * @var list<UnitTemplate>                                                                                                     $templates
+ * @var array<int, bool>                                                                                                       $used
+ * @var array{units: bool, bundles: bool, tracking: bool, expired_refused: bool, negative_stock: string}                       $settings
+ * @var bool                                                                                                                   $canManage
+ * @var bool                                                                                                                   $canSettings
  * @var array{id: int, name: string, template: ?int, tracking: string, barcodes: list<object>, units: array<int, string>}|null $item
- * @var string                                                                                                  $itemSearch
+ * @var string                                                                                                                 $itemSearch
  */
 $templateChoices = ['' => lang('Stock_units.no_template')];
 

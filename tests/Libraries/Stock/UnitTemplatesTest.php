@@ -46,6 +46,13 @@ final class UnitTemplatesTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $db = $this->accountingDb();
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+        $db->table('stock_permit_lines')->truncate();
+        $db->table('stock_permits')->truncate();
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+
         $this->stopStockUnits();
         $this->removeInsertedEntities();
 
@@ -231,5 +238,67 @@ final class UnitTemplatesTest extends CIUnitTestCase
     public function testIsUsedIsFalseForATemplateNoLineHasUsed(): void
     {
         $this->assertFalse($this->templates->isUsed($this->template()));
+    }
+
+    private function useUnitOf(int $templateId): void
+    {
+        $db     = $this->accountingDb();
+        $itemId = $this->createTestItem();
+
+        $db->table('stock_permits')->insert(['company_id' => 1, 'branch_id' => 1, 'permit_type' => 'add', 'permit_date' => date('Y-m-d'), 'location_id' => 1]);
+        $db->table('stock_permit_lines')->insert(['permit_id' => (int) $db->insertID(), 'line_no' => 1, 'item_id' => $itemId, 'quantity' => '24', 'unit_cost' => '5', 'unit_id' => $this->unitIdOf($templateId), 'unit_factor' => '12', 'unit_quantity' => '2', 'unit_cost_entered' => '60']);
+    }
+
+    public function testIsUsedIsTrueOnceADocumentLineWasEnteredInAUnitOfTheTemplate(): void
+    {
+        $templateId = $this->template();
+
+        $this->useUnitOf($templateId);
+
+        $this->assertTrue($this->templates->isUsed($templateId));
+    }
+
+    public function testUpdateRejectsChangingTheFactorOrTheUnitsOfATemplateADocumentLineUsed(): void
+    {
+        $templateId = $this->template();
+
+        $this->useUnitOf($templateId);
+
+        $this->refusedWith(AccountingError::UnitTemplateUsed, fn () => $this->templates->update($templateId, $this->input(['units' => [['name' => 'Carton', 'factor' => '10', 'small_name' => 'ctn']]]), $this->unitManagerId));
+        $this->refusedWith(AccountingError::UnitTemplateUsed, fn () => $this->templates->update($templateId, $this->input(['units' => [['name' => 'Case', 'factor' => '12', 'small_name' => 'ctn']]]), $this->unitManagerId));
+        $this->refusedWith(AccountingError::UnitTemplateUsed, fn () => $this->templates->update($templateId, $this->input(['main_unit_name' => 'Item']), $this->unitManagerId));
+        $this->assertSame('12.0000', $this->templates->find($templateId)->units[0]->factor);
+    }
+
+    public function testUpdateAcceptsRenamingAUsedTemplateAndSwitchingItOffAndLeavesItsUnitsAlone(): void
+    {
+        $templateId = $this->template();
+
+        $this->useUnitOf($templateId);
+        $this->templates->update($templateId, $this->input(['name' => 'Renamed', 'active' => false]), $this->unitManagerId);
+
+        $template = $this->templates->find($templateId);
+
+        $this->assertSame(['Renamed', false, '12.0000'], [$template->name, $template->active, $template->units[0]->factor]);
+    }
+
+    public function testNewVersionLeavesTheUsedTemplateAndTheUnitsItsLinesPointAtAsTheyWere(): void
+    {
+        $templateId = $this->template();
+        $unitId     = $this->unitIdOf($templateId);
+
+        $this->useUnitOf($templateId);
+        $newId = $this->templates->newVersion($templateId, $this->input(['units' => [['name' => 'Carton', 'factor' => '10', 'small_name' => 'ctn']]]), $this->unitManagerId);
+
+        $this->assertSame('12.0000', $this->templates->find($templateId)->units[0]->factor);
+        $this->assertSame($unitId, $this->templates->find($templateId)->units[0]->unitId);
+        $this->assertSame('10.0000', $this->templates->find($newId)->units[0]->factor);
+        $this->assertTrue($this->templates->isUsed($templateId));
+        $this->assertFalse($this->templates->isUsed($newId));
+    }
+
+    public function testFindReturnsNullForAnUnknownTemplate(): void
+    {
+        $this->assertNull($this->templates->find(999999));
     }
 }

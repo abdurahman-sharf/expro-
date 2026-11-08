@@ -1,7 +1,10 @@
 <?php
+
+use App\Libraries\Stock\UnitTemplate;
+
 /**
- * @var App\Libraries\Stock\UnitTemplate|null $template
- * @var bool                                  $used
+ * @var UnitTemplate|null $template
+ * @var bool              $used
  */
 $units = $template === null || $template->units === [] ? [null] : $template->units;
 $id    = $template === null ? '-1' : (string) $template->templateId;
