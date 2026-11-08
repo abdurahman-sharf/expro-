@@ -44,10 +44,12 @@ final class AssetPostingBuilder
                 $lines[] = new JournalLineDraft($this->routing->accountFor(RoutingKey::Treasuries, (int) $asset->treasury_id) ?? $this->unrouted(RoutingKey::Treasuries), credit: $cost, description: $this->describe($asset));
 
                 break;
+
             case 'payable':
                 $lines[] = new JournalLineDraft($this->routing->accountFor(RoutingKey::AssetPayable) ?? $this->unrouted(RoutingKey::AssetPayable), credit: $cost, description: $this->describe($asset));
 
                 break;
+
             case 'opening':
                 $accumulated = bcadd((string) $asset->opening_accumulated, '0', self::SCALE);
                 $net         = bcsub($cost, $accumulated, self::SCALE);
@@ -61,6 +63,7 @@ final class AssetPostingBuilder
                 }
 
                 break;
+
             default:
                 return null;
         }

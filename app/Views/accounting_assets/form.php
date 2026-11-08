@@ -1,17 +1,17 @@
 <?php
 /**
- * @var object|null  $asset
- * @var string       $code
- * @var list<object> $categories
+ * @var object|null                                                                 $asset
+ * @var string                                                                      $code
+ * @var list<object>                                                                $categories
  * @var array{cost: list<object>, accumulated: list<object>, expense: list<object>} $accounts
- * @var list<object> $branches
- * @var list<object> $treasuries
- * @var list<object> $suppliers
- * @var list<object> $employees
- * @var list<object> $storages
- * @var string       $today
- * @var bool         $locked
- * @var string|null  $notice
+ * @var list<object>                                                                $branches
+ * @var list<object>                                                                $treasuries
+ * @var list<object>                                                                $suppliers
+ * @var list<object>                                                                $employees
+ * @var list<object>                                                                $storages
+ * @var string                                                                      $today
+ * @var bool                                                                        $locked
+ * @var string|null                                                                 $notice
  */
 $isNew  = $asset === null;
 $value  = static fn (string $field, string $default = ''): string => $isNew ? $default : (string) ($asset->{$field} ?? $default);
@@ -312,7 +312,7 @@ $option = static fn (string $current, string $wanted): string => $current === $w
 <script type="text/javascript">
     $(document).ready(function() {
         const stored = <?= json_encode(array_map(static fn (object $unit): array => [
-            'serial_number' => (string) $unit->serial_number, 'barcode' => (string) $unit->barcode, 'used_by' => (string) $unit->used_by, 'employee_id' => (string) $unit->employee_id,
+            'serial_number'     => (string) $unit->serial_number, 'barcode' => (string) $unit->barcode, 'used_by' => (string) $unit->used_by, 'employee_id' => (string) $unit->employee_id,
             'stock_location_id' => (string) $unit->stock_location_id, 'physical_location' => (string) $unit->physical_location,
         ], $units), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 

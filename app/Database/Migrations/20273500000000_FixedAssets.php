@@ -173,12 +173,12 @@ class FixedAssets extends Migration
 
     private function createUnits(): void
     {
-        $table      = $this->db->prefixTable('asset_units');
-        $companies  = $this->db->prefixTable('companies');
-        $assets     = $this->db->prefixTable('assets');
-        $people     = $this->db->prefixTable('people');
-        $locations  = $this->db->prefixTable('stock_locations');
-        $options    = self::TABLE_OPTIONS;
+        $table     = $this->db->prefixTable('asset_units');
+        $companies = $this->db->prefixTable('companies');
+        $assets    = $this->db->prefixTable('assets');
+        $people    = $this->db->prefixTable('people');
+        $locations = $this->db->prefixTable('stock_locations');
+        $options   = self::TABLE_OPTIONS;
 
         $this->db->query(
             "CREATE TABLE IF NOT EXISTS `{$table}` (

@@ -7,7 +7,7 @@ final readonly class DepreciationLine
     /**
      * @param numeric-string $amount
      * @param numeric-string $accumulatedBefore
-     * @param list<string>   $missedMonths       The earlier months the asset was due depreciation for and has none that stands.
+     * @param list<string>   $missedMonths      The earlier months the asset was due depreciation for and has none that stands.
      */
     public function __construct(
         public object $asset,

@@ -49,7 +49,7 @@ final class AssetsReport
     public function tie(ReportScope $scope, ?string $asOf = null): array
     {
         $asOf ??= date('Y-m-d');
-        $held   = ['cost' => [], 'accumulated' => []];
+        $held = ['cost' => [], 'accumulated' => []];
 
         foreach ($this->collect($scope, new AssetsFilter(), $asOf) as $asset) {
             $held['cost'][(int) $asset->cost_account_id] ??= '0';

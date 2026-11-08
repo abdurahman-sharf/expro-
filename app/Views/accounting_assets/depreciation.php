@@ -1,20 +1,21 @@
 <?php
 /**
- * @var bool                      $can_run
- * @var array<string, string>     $scopes
- * @var string                    $scope
- * @var string                    $month
- * @var DepreciationPreview|null  $preview
- * @var string|null               $error
- * @var list<string>              $blockers
- * @var list<object>              $runs
- * @var Closure                   $amount
- * @var Closure                   $date
- * @var string|null               $notice
+ * @var bool                     $can_run
+ * @var array<string, string>    $scopes
+ * @var string                   $scope
+ * @var string                   $month
+ * @var DepreciationPreview|null $preview
+ * @var string|null              $error
+ * @var list<string>             $blockers
+ * @var list<object>             $runs
+ * @var Closure                  $amount
+ * @var Closure                  $date
+ * @var string|null              $notice
  */
 
 use App\Libraries\Assets\DepreciationBranchStatus;
 use App\Libraries\Assets\DepreciationPreview;
+
 ?>
 
 <?= view('partial/header') ?>

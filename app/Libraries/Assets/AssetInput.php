@@ -27,7 +27,6 @@ final class AssetInput
         'percentage', 'cost_per_unit', 'total_units', 'first_depreciation_date', 'end_date', 'cost_account_id', 'accumulated_account_id',
         'expense_account_id', 'funding', 'treasury_id', 'opening_accumulated', 'opening_through',
     ];
-
     private const AMOUNT_PATTERN = '/^\d{1,11}(\.\d{1,4})?$/';
     private const LIFE_MAX       = 1200;
     private const QUANTITY_MAX   = 10000;

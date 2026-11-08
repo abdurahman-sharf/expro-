@@ -1,6 +1,6 @@
 <?php
 /**
- * @var object|null $category
+ * @var object|null                                                                 $category
  * @var array{cost: list<object>, accumulated: list<object>, expense: list<object>} $accounts
  */
 $isNew  = $category === null;

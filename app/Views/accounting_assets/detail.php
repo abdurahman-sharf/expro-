@@ -1,21 +1,21 @@
 <?php
 /**
- * @var object                                              $asset
+ * @var object                                                  $asset
  * @var list<array{date: string, amount: string, posted: bool}> $schedule
- * @var list<object>                                        $depreciation
- * @var list<object>                                        $operations
- * @var bool                                                $can_manage
- * @var bool                                                $can_dispose
- * @var Closure                                             $amount
- * @var Closure                                             $date
- * @var string|null                                         $notice
+ * @var list<object>                                            $depreciation
+ * @var list<object>                                            $operations
+ * @var bool                                                    $can_manage
+ * @var bool                                                    $can_dispose
+ * @var Closure                                                 $amount
+ * @var Closure                                                 $date
+ * @var string|null                                             $notice
  */
 
 use App\Libraries\Assets\AssetStatus;
 
-$status   = AssetStatus::from((string) $asset->status);
-$id       = (int) $asset->asset_id;
-$modal    = static fn (string $path, string $label, string $title, string $class = 'btn-outline-secondary'): string => '<button type="button" class="btn btn-sm modal-dlg ' . $class . '" data-btn-submit="' . esc($label, 'attr') . '" data-href="' . esc($path, 'attr') . '" title="' . esc($title, 'attr') . '">' . esc($label) . '</button>';
+$status = AssetStatus::from((string) $asset->status);
+$id     = (int) $asset->asset_id;
+$modal  = static fn (string $path, string $label, string $title, string $class = 'btn-outline-secondary'): string => '<button type="button" class="btn btn-sm modal-dlg ' . $class . '" data-btn-submit="' . esc($label, 'attr') . '" data-href="' . esc($path, 'attr') . '" title="' . esc($title, 'attr') . '">' . esc($label) . '</button>';
 ?>
 
 <?= view('partial/header') ?>

@@ -6,7 +6,6 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AuditLog;
-use App\Libraries\Accounting\ClosedPeriodService;
 use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalOrigin;
@@ -258,16 +257,16 @@ final class DepreciationRun
         $latest = LockedRead::row($this->db, "SELECT COALESCE(MAX(run_number), 0) AS latest FROM {$table} WHERE company_id = ? AND branch_id = ? AND period_start = ? FOR UPDATE", [CompanyContext::id(), $plan->branchId, $period->start]);
 
         $inserted = $this->db->table('asset_depreciation_runs')->insert([
-            'company_id'  => CompanyContext::id(),
-            'branch_id'   => $plan->branchId,
+            'company_id'   => CompanyContext::id(),
+            'branch_id'    => $plan->branchId,
             'period_start' => $period->start,
-            'period_end'  => $period->end,
-            'run_number'  => (int) $latest->latest + 1,
-            'total'       => $plan->total,
-            'line_count'  => count($plan->lines),
-            'fingerprint' => $this->branchFingerprint($plan),
-            'status'      => 'active',
-            'created_by'  => $employeeId,
+            'period_end'   => $period->end,
+            'run_number'   => (int) $latest->latest + 1,
+            'total'        => $plan->total,
+            'line_count'   => count($plan->lines),
+            'fingerprint'  => $this->branchFingerprint($plan),
+            'status'       => 'active',
+            'created_by'   => $employeeId,
         ]);
 
         if ($inserted === false) {

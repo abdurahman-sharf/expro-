@@ -56,20 +56,20 @@ class AccountingAssets extends AccountingController
         $result = $this->report->build($scope, $filter);
 
         return view('accounting_assets/index', [
-            'result'       => $result,
-            'filter'       => $filter,
-            'scope'        => $scope,
-            'branches'     => $this->branchChoices($scope),
-            'scope_label'  => $this->scopeLabel($scope),
-            'employees'    => $this->choices->employees(),
-            'accounts'     => $this->choices->accounts()['cost'],
-            'categories'   => $this->categories->all(),
-            'statuses'     => AssetStatus::cases(),
-            'can_manage'   => $this->can(AccountingGuard::ASSETS_MANAGE),
-            'csv_url'      => base_url('accounting_assets/csv') . '?' . $this->queryString($scope),
-            'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'         => fn (string $value): string => $this->formatDate($value),
-            'notice'       => session()->getFlashdata('accounting_notice'),
+            'result'      => $result,
+            'filter'      => $filter,
+            'scope'       => $scope,
+            'branches'    => $this->branchChoices($scope),
+            'scope_label' => $this->scopeLabel($scope),
+            'employees'   => $this->choices->employees(),
+            'accounts'    => $this->choices->accounts()['cost'],
+            'categories'  => $this->categories->all(),
+            'statuses'    => AssetStatus::cases(),
+            'can_manage'  => $this->can(AccountingGuard::ASSETS_MANAGE),
+            'csv_url'     => base_url('accounting_assets/csv') . '?' . $this->queryString($scope),
+            'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'        => fn (string $value): string => $this->formatDate($value),
+            'notice'      => session()->getFlashdata('accounting_notice'),
         ]);
     }
 
@@ -350,9 +350,9 @@ class AccountingAssets extends AccountingController
 
     public function getApproveForm(): string
     {
-        $scope   = $this->scopeParameter($this->scopeOptions());
-        $month   = $this->monthParameter();
-        $shown   = $this->request->getGet('fingerprint');
+        $scope = $this->scopeParameter($this->scopeOptions());
+        $month = $this->monthParameter();
+        $shown = $this->request->getGet('fingerprint');
 
         if (! is_string($shown) || preg_match('/^[0-9a-f]{64}$/', $shown) !== 1) {
             throw PageNotFoundException::forPageNotFound();
@@ -453,7 +453,7 @@ class AccountingAssets extends AccountingController
         $input = [];
 
         foreach ($names as $name) {
-            $value         = $this->request->getPost($name);
+            $value        = $this->request->getPost($name);
             $input[$name] = is_string($value) ? trim($value) : '';
         }
 

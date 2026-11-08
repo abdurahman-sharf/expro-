@@ -91,8 +91,8 @@ final class AssetFigures
         $zero   = bcadd('0', '0', self::SCALE);
         $amount = match ($terms->method) {
             AssetMethod::Fixed, AssetMethod::Declining => $this->schedule->between($terms, $period->previous()->end, $period->end),
-            AssetMethod::Units                         => $this->unitsDue($asset, $terms, $period, $posted),
-            AssetMethod::None                          => $zero,
+            AssetMethod::Units => $this->unitsDue($asset, $terms, $period, $posted),
+            AssetMethod::None  => $zero,
         };
 
         $left = bcsub(bcsub($terms->base(), $terms->openingAccumulated, self::SCALE), array_reduce($posted, static fn (string $sum, string $line): string => bcadd($sum, $line, self::SCALE), $zero), self::SCALE);

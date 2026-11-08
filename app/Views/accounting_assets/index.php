@@ -1,19 +1,19 @@
 <?php
 /**
- * @var AssetsReportResult                                    $result
- * @var AssetsFilter                                          $filter
- * @var ReportScope                                           $scope
- * @var list<object>                                          $branches
- * @var string|null                                           $scope_label
- * @var list<object>                                          $employees
- * @var list<object>                                          $accounts
- * @var list<object>                                          $categories
- * @var list<AssetStatus>                                     $statuses
- * @var bool                                                  $can_manage
- * @var string                                                $csv_url
- * @var Closure                                               $amount
- * @var Closure                                               $date
- * @var string|null                                           $notice
+ * @var AssetsReportResult $result
+ * @var AssetsFilter       $filter
+ * @var ReportScope        $scope
+ * @var list<object>       $branches
+ * @var string|null        $scope_label
+ * @var list<object>       $employees
+ * @var list<object>       $accounts
+ * @var list<object>       $categories
+ * @var list<AssetStatus>  $statuses
+ * @var bool               $can_manage
+ * @var string             $csv_url
+ * @var Closure            $amount
+ * @var Closure            $date
+ * @var string|null        $notice
  */
 
 use App\Libraries\Accounting\ReportScope;
