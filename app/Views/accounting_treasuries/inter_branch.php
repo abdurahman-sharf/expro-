@@ -43,6 +43,8 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 <div id="title_bar" class="print_hide btn-toolbar">
     <a class="btn btn-outline-secondary btn-sm" href="accounting_treasuries"><span class="bi bi-wallet2" aria-hidden="true">&nbsp;</span><?= lang('Accounting_treasuries.treasuries') ?></a>
     <a class="btn btn-outline-secondary btn-sm" href="accounting_treasuries/transfers"><span class="bi bi-arrow-left-right" aria-hidden="true">&nbsp;</span><?= lang('Accounting_treasuries.transfers') ?></a>
+    <a class="btn btn-outline-secondary btn-sm" id="inter_branch_csv" href="<?= esc($csvUrl, 'attr') ?>"><span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?></a>
+    <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'inter_branch_csv']) ?>
 </div>
 
 <form id="pair_filters" class="acc-filters print_hide" method="get" action="<?= esc(base_url('accounting_treasuries/inter_branch'), 'attr') ?>" role="search" aria-label="<?= esc(lang('Accounting_reports.filters'), 'attr') ?>">

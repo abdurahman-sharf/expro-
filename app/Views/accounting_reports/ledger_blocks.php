@@ -63,7 +63,7 @@ $kind = static function (array $row) use ($source): string {
     <section class="mb-4" data-account="<?= (int) $block->accountId ?>" aria-label="<?= esc($block->code . ' ' . $block->name, 'attr') ?>">
         <h2 class="h5"><?= esc($block->name) ?> <bdi dir="ltr"><?= esc($block->code) ?></bdi></h2>
         <div class="table-responsive">
-            <table class="table table-sm" data-block="<?= esc($block->code, 'attr') ?>">
+            <table class="table table-sm acc-lines" data-block="<?= esc($block->code, 'attr') ?>">
                 <thead>
                     <tr>
                         <th scope="col"><?= lang('Accounting_reports.ledger_date') ?></th>

@@ -52,6 +52,7 @@ $showEmployee = ! $options['hideEmployee'];
         <a class="btn btn-outline-secondary btn-sm float-end" id="ledger_csv" href="<?= esc($csvUrl, 'attr') ?>">
             <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?>
         </a>
+        <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'ledger_csv']) ?>
     <?php endif; ?>
     <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
@@ -199,7 +200,7 @@ $showEmployee = ! $options['hideEmployee'];
             <p class="text-body-secondary" id="ledger_empty"><?= lang($report->employeeId === null ? 'Accounting_reports.ledger_empty' : 'Accounting_reports.ledger_nothing_matches') ?></p>
         <?php else: ?>
             <div class="table-responsive mb-3">
-                <table class="table table-sm" id="ledger_table">
+                <table class="table table-sm acc-lines" id="ledger_table">
                     <thead>
                         <tr>
                             <th scope="col"><?= lang('Accounting_reports.ledger_date') ?></th>

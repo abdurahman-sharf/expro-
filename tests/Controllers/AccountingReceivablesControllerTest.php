@@ -2372,4 +2372,228 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
 
         $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '0');
     }
+
+    /**
+     * @return list<list<string>>
+     */
+    private function csvRows(\CodeIgniter\Test\TestResponse $response): array
+    {
+        $body = $response->response()->getBody();
+
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
+
+        $handle = fopen('php://temp', 'r+b');
+        fwrite($handle, substr($body, 3));
+        rewind($handle);
+
+        $rows = [];
+
+        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
+            $rows[] = $row === [null] ? [] : $row;
+        }
+
+        return $rows;
+    }
+
+    public function testGetAgedLedgerCsv_GivesTheRowsAndTheTotalsOfTheScreenForTheSameFilters(): void
+    {
+        $this->invoiceDated('100.00', $this->daysAgo(5));
+        $this->invoiceDated('200.00', $this->daysAgo(3));
+        $this->invoiceDated('50.00', $this->daysAgo(0));
+        $paid = $this->invoiceDated('120.00', $this->daysAgo(1));
+        $this->addPayment($paid, '120.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_receivables/aged_ledger/csv?period=1');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('attachment; filename="aged_ledger_customer_' . date('Y-m-d') . '.csv"', $response->response()->getHeaderLine('Content-Disposition'));
+
+        $rows = $this->csvRows($response);
+
+        $this->assertSame([lang('Accounting_receivables.aged_title')], $rows[0]);
+        $this->assertSame(lang('Accounting_receivables.customer'), $rows[2][0]);
+        $this->assertContains(lang('Accounting_receivables.bucket_days', ['3 - 3']), $rows[2]);
+        $this->assertContains(lang('Accounting_receivables.bucket_days', ['4+']), $rows[2]);
+        $this->assertSame('Omar Khaled', $rows[3][0]);
+
+        $totals = end($rows);
+
+        $this->assertSame(lang('Accounting_receivables.totals'), $totals[0]);
+        $this->assertSame(['350.0000', '0.0000', '350.0000'], array_slice($totals, -3));
+
+        foreach (['50.0000', '120.0000', '180.0000'] as $bucket) {
+            $this->assertContains($bucket, $totals);
+        }
+    }
+
+    public function testGetAgedLedgerCsv_GivesNoTotalsRowWhenNoCustomerOwesAnything(): void
+    {
+        $this->viewer();
+
+        $rows = $this->csvRows($this->get('/accounting_receivables/aged_ledger/csv'));
+
+        $this->assertCount(3, $rows);
+        $this->assertSame(lang('Accounting_receivables.customer'), $rows[2][0]);
+    }
+
+    public function testGetAgedLedgerCsv_ShowsTheNameOfACustomerThatStartsLikeAFormulaAsText(): void
+    {
+        $this->invoiceOf('100.00', $this->anotherCustomer('=SUM(A1)', 'Name'));
+        $this->viewer();
+
+        $names = array_column($this->csvRows($this->get('/accounting_receivables/aged_ledger/csv')), 0);
+
+        $this->assertContains("'=SUM(A1) Name", $names);
+        $this->assertNotContains('=SUM(A1) Name', $names);
+    }
+
+    public function testGetAgedLedgerCsv_RefusesADayThatIsNotADayInWords(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_receivables/aged_ledger/csv?to=2026-02-30');
+
+        $response->assertStatus(422);
+        $this->assertSame(lang('Accounting.error_invalid_date'), $response->response()->getBody());
+    }
+
+    public function testGetAgedLedgerCsv_RedirectsAUserWithoutTheModuleGrantIsNotFoundWhileAccountingIsOffAndForSomeoneLimitedToABranch(): void
+    {
+        $this->withSession(['person_id' => $this->employeeWithGrants(['accounting_chart']), 'menu_group' => 'home']);
+
+        $this->get('/accounting_receivables/aged_ledger/csv')->assertRedirect();
+
+        $this->viewer([1]);
+
+        try {
+            $this->get('/accounting_receivables/aged_ledger/csv');
+
+            $this->fail('Someone limited to a branch is not given the figures of the company');
+        } catch (PageNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->viewer();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/aged_ledger/csv');
+    }
+
+    public function testGetBalancesCsv_GivesTheColumnsTheRowsAndTheTotalsOfTheScreen(): void
+    {
+        $first  = $this->invoiceOf('1000.00');
+        $second = $this->invoiceOf('1541.50');
+
+        $this->addPayment($first, '1000.00');
+        $this->addPayment($second, '563.50');
+        $this->creditNoteOf($second, '253.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_receivables/balances/csv');
+
+        $response->assertStatus(200);
+
+        $rows = $this->csvRows($response);
+
+        $this->assertSame([lang('Accounting_receivables.balances_title')], $rows[0]);
+        $this->assertSame([lang('Accounting_receivables.customer'), ...array_map(static fn (string $column): string => lang('Accounting_receivables.' . $column), ['col_before', 'col_sales', 'col_returns', 'col_net', 'col_payments', 'col_settlements', 'balance'])], $rows[2]);
+        $this->assertSame(['Omar Khaled', '0.0000', '2541.5000', '-253.0000', '2288.5000', '1563.5000', '0.0000', '725.0000'], $rows[3]);
+        $this->assertSame([lang('Accounting_receivables.totals'), '0.0000', '2541.5000', '-253.0000', '2288.5000', '1563.5000', '0.0000', '725.0000'], end($rows));
+    }
+
+    public function testGetBalancesCsv_AddsTheColumnForWhatNoOtherColumnExplainsOnlyWhenThereIsSuchAJournal(): void
+    {
+        $this->invoiceOf('100.00');
+        $this->viewer();
+
+        $this->assertNotContains(lang('Accounting_receivables.col_other'), $this->csvRows($this->get('/accounting_receivables/balances/csv'))[2]);
+
+        (new PostingService())->post(new JournalDraft(
+            date: date('Y-m-d'),
+            lines: [new JournalLineDraft($this->customerAccount(), debit: '25.00'), new JournalLineDraft($this->accountId('sales_revenue'), credit: '25.00')],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+            employeeId: $this->employeeId,
+            currencyCode: 'SAR',
+        ));
+
+        $rows = $this->csvRows($this->get('/accounting_receivables/balances/csv'));
+
+        $this->assertContains(lang('Accounting_receivables.col_other'), $rows[2]);
+        $this->assertSame('125.0000', end($rows)[count(end($rows)) - 1]);
+    }
+
+    public function testGetBalancesCsv_KeepsThePeriodAndTheEmptyChoiceOfTheScreen(): void
+    {
+        $this->invoiceOf('100.00');
+        $this->anotherCustomer('Idle', 'Customer');
+        $this->viewer();
+
+        $without = array_column($this->csvRows($this->get('/accounting_receivables/balances/csv?from=2020-01-01&to=' . date('Y-m-d'))), 0);
+        $with    = array_column($this->csvRows($this->get('/accounting_receivables/balances/csv?from=2020-01-01&to=' . date('Y-m-d') . '&empty=1')), 0);
+
+        $this->assertNotContains('Idle Customer', $without);
+        $this->assertContains('Idle Customer', $with);
+        $this->assertSame(lang('Accounting_receivables.balances_period', ['2020-01-01', date('Y-m-d')]), $this->csvRows($this->get('/accounting_receivables/balances/csv?from=2020-01-01&to=' . date('Y-m-d')))[1][0]);
+    }
+
+    public function testGetBalancesCsv_RefusesAPeriodThatEndsBeforeItStartsInWords(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_receivables/balances/csv?from=2026-10-31&to=2026-10-01');
+
+        $response->assertStatus(422);
+        $this->assertSame(lang('Accounting.error_report_period_invalid'), $response->response()->getBody());
+    }
+
+    public function testGetBalancesCsv_RedirectsAUserWithoutTheModuleGrantIsNotFoundWhileAccountingIsOffAndForSomeoneLimitedToABranch(): void
+    {
+        $this->withSession(['person_id' => $this->employeeWithGrants(['accounting_chart']), 'menu_group' => 'home']);
+
+        $this->get('/accounting_receivables/balances/csv')->assertRedirect();
+
+        $this->viewer([1]);
+
+        try {
+            $this->get('/accounting_receivables/balances/csv');
+
+            $this->fail('Someone limited to a branch is not given the figures of the company');
+        } catch (PageNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->viewer();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_receivables/balances/csv');
+    }
+
+    public function testGetAgedLedger_LinksTheThreeFilesWithTheFiltersAsRead(): void
+    {
+        $this->invoiceDated('100.00', $this->daysAgo(5));
+        $this->viewer();
+
+        $response = $this->get('/accounting_receivables/aged_ledger?to=2026-10-31&period=15');
+
+        $response->assertSee('id="aged_ledger_csv" href="' . site_url('accounting_receivables/aged_ledger/csv') . '?to=2026-10-31&amp;period=15"');
+        $response->assertSee('id="aged_ledger_csv_xlsx" href="' . site_url('accounting_receivables/aged_ledger/xlsx') . '?to=2026-10-31&amp;period=15"');
+        $response->assertSee('id="aged_ledger_csv_pdf" href="' . site_url('accounting_receivables/aged_ledger/pdf') . '?to=2026-10-31&amp;period=15"');
+    }
+
+    public function testGetBalances_LinksTheThreeFilesWithTheFiltersAsRead(): void
+    {
+        $this->invoiceOf('100.00');
+        $this->viewer();
+
+        $response = $this->get('/accounting_receivables/balances?from=2026-01-01&to=2026-10-31&empty=1');
+
+        $response->assertSee('id="balances_csv" href="' . site_url('accounting_receivables/balances/csv') . '?from=2026-01-01&amp;to=2026-10-31&amp;empty=1"');
+        $response->assertSee('id="balances_csv_xlsx" href="' . site_url('accounting_receivables/balances/xlsx') . '?from=2026-01-01&amp;to=2026-10-31&amp;empty=1"');
+        $response->assertSee('id="balances_csv_pdf" href="' . site_url('accounting_receivables/balances/pdf') . '?from=2026-01-01&amp;to=2026-10-31&amp;empty=1"');
+    }
 }

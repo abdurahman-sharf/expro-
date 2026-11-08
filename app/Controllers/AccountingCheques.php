@@ -10,6 +10,7 @@ use App\Libraries\Accounting\ChequeDirection;
 use App\Libraries\Accounting\ChequeList;
 use App\Libraries\Accounting\ChequeService;
 use App\Libraries\Accounting\ChequeStatus;
+use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -23,6 +24,8 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingCheques extends AccountingController
 {
+    use ExportsCsv;
+
     private const MAX_PAGE_SIZE = 500;
     private const ACTIONS       = ['deposit', 'collect', 'reject', 'deliver'];
     private const PARTY_LIMIT   = 20;
@@ -306,7 +309,96 @@ class AccountingCheques extends AccountingController
             'amount'    => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'      => fn (?string $value): string => $this->formatDate($value),
             'status'    => static fn (string $value): string => lang('Accounting_cheques.status_' . $value),
+            'csvUrl'    => base_url('accounting_cheques/report/' . $kind->value . '/csv') . $this->reportQuery($filters),
         ]);
+    }
+
+    public function getReportCsv(string $direction): ResponseInterface
+    {
+        $kind   = $this->direction($direction);
+        $report = $this->list->report($kind, $this->branchIds(), $this->filters());
+
+        return $this->response
+            ->setContentType('text/csv', 'UTF-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="cheques_' . $kind->value . '_' . date('Y-m-d') . '.csv"')
+            ->setBody("\xEF\xBB\xBF" . $this->reportCsv($kind, $report));
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     */
+    private function reportQuery(array $filters): string
+    {
+        $query = [];
+
+        foreach (['status', 'date_from', 'date_to', 'due_from', 'due_to'] as $name) {
+            if (($filters[$name] ?? '') !== '') {
+                $query[$name] = $filters[$name];
+            }
+        }
+
+        return $query === [] ? '' : '?' . http_build_query($query);
+    }
+
+    /**
+     * @param array{rows: list<object>, truncated: bool, totals: array<string, string>, total: string, ties: list<array{key: string, account: ?object, ledger: string, cheques: string, agrees: bool}>} $report
+     */
+    private function reportCsv(ChequeDirection $kind, array $report): string
+    {
+        $handle = fopen('php://temp', 'r+b');
+        $status = static fn (string $value): string => lang('Accounting_cheques.status_' . $value);
+        $blank  = array_fill(0, 7, '');
+
+        $this->csvRow($handle, [lang('Accounting_cheques.report_' . $kind->value)]);
+        $this->csvRow($handle, [
+            lang('Accounting_cheques.number'),
+            lang('Accounting_cheques.cheque_number'),
+            lang('Accounting_cheques.drawer_name'),
+            lang($kind === ChequeDirection::Received ? 'Accounting_cheques.customer' : 'Accounting_cheques.supplier'),
+            lang('Accounting_cheques.bank'),
+            lang('Accounting_cheques.issue_date'),
+            lang('Accounting_cheques.due_date'),
+            lang('Accounting_cheques.status'),
+            lang('Accounting_cheques.amount'),
+        ]);
+
+        foreach ($report['rows'] as $cheque) {
+            $this->csvRow($handle, [
+                (string) ($cheque->document_number ?? $this->fallbackNumber($cheque)),
+                (string) $cheque->cheque_number,
+                (string) $cheque->drawer_name,
+                (string) $cheque->party_name,
+                (string) $cheque->treasury_name,
+                (string) $cheque->issue_date,
+                (string) $cheque->due_date,
+                $status((string) $cheque->status),
+                (string) $cheque->amount,
+            ]);
+        }
+
+        foreach ($report['totals'] as $key => $total) {
+            $this->csvRow($handle, [...$blank, $status($key), $total]);
+        }
+
+        $this->csvRow($handle, [...$blank, lang('Accounting_cheques.total'), $report['total']]);
+
+        if ($report['truncated']) {
+            $this->csvNote($handle, lang('Accounting_cheques.report_truncated', [ChequeList::REPORT_LIMIT]));
+        }
+
+        $this->csvRow($handle, []);
+        $this->csvRow($handle, [lang('Accounting_cheques.tie_account'), lang('Accounting_cheques.tie_ledger'), lang('Accounting_cheques.tie_cheques'), lang('Accounting_cheques.tie_result')]);
+
+        foreach ($report['ties'] as $tie) {
+            $this->csvRow($handle, [
+                $tie['account'] === null ? lang('Accounting_cheques.tie_no_account') : $tie['account']->code . ' - ' . $tie['account']->name,
+                $tie['ledger'],
+                $tie['cheques'],
+                lang($tie['agrees'] ? 'Accounting_cheques.tie_agrees' : 'Accounting_cheques.tie_differs'),
+            ]);
+        }
+
+        return $this->csvText($handle);
     }
 
     private function requireManage(): void

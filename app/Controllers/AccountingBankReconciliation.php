@@ -10,11 +10,13 @@ use App\Libraries\Accounting\Bank\BankMatches;
 use App\Libraries\Accounting\Bank\BankMatchSettings;
 use App\Libraries\Accounting\Bank\BankReconciliation;
 use App\Libraries\Accounting\Bank\ImportResult;
+use App\Libraries\Accounting\Bank\ReconciliationFigures;
 use App\Libraries\Accounting\Bank\ReconciliationReport;
 use App\Libraries\Accounting\Bank\StatementMapping;
 use App\Libraries\Accounting\Bank\StatementParser;
 use App\Libraries\Accounting\Bank\StatementRejected;
 use App\Libraries\Accounting\Bank\StatementRowError;
+use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -29,6 +31,8 @@ use DateTimeImmutable;
  */
 class AccountingBankReconciliation extends AccountingController
 {
+    use ExportsCsv;
+
     private const PAGE_SIZE = 50;
 
     private BankReconciliation $bank;
@@ -295,7 +299,30 @@ class AccountingBankReconciliation extends AccountingController
             'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'         => fn (?string $value): string => $this->formatDate($value),
             'number'       => fn (object $line): string => $this->displayNumber((string) $line->series, (string) $line->number),
+            'csvUrl'       => base_url('accounting_treasuries/bank/' . $treasuryId . '/report/csv') . '?' . http_build_query(array_filter(['as_of' => $asOf, 'statement_balance' => $balance], static fn (string $value): bool => $value !== '')),
         ]);
+    }
+
+    public function getReportCsv(int $treasuryId): ResponseInterface
+    {
+        $treasury = $this->visible($treasuryId);
+        $asOf     = $this->dateParameter('as_of') ?? date('Y-m-d');
+        $balance  = trim((string) $this->request->getGet('statement_balance'));
+
+        try {
+            $figures = $this->bank->report($treasuryId, $asOf, $balance === '' ? null : $balance, $this->employeeId());
+        } catch (AccountingException $exception) {
+            if ($exception->error === AccountingError::BankAccountNotFound) {
+                throw PageNotFoundException::forPageNotFound();
+            }
+
+            return $this->response->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)->setBody($this->messageFor($exception));
+        }
+
+        return $this->response
+            ->setContentType('text/csv', 'UTF-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="bank_reconciliation_' . $treasuryId . '_' . $asOf . '.csv"')
+            ->setBody("\xEF\xBB\xBF" . $this->reportCsv($treasury, $figures));
     }
 
     public function postClose(int $treasuryId): ResponseInterface
@@ -398,5 +425,62 @@ class AccountingBankReconciliation extends AccountingController
         $name = $code === '' ? null : BankDirectory::nameOf($code, service('language')->getLocale());
 
         return $name ?? (string) ($treasury->bank_name ?? '');
+    }
+
+    private function reportCsv(object $treasury, ReconciliationFigures $figures): string
+    {
+        $handle  = fopen('php://temp', 'r+b');
+        $pair    = fn (string $label, int $count, string $total): array => [$label . ' (' . $count . ')', $total];
+        $journal = fn (object $line): array => [(string) $line->journal_date, $this->displayNumber((string) $line->series, (string) $line->number), (string) $line->description, (string) $line->amount];
+
+        $this->csvRow($handle, [lang('Accounting_bank.report_title', [(string) $treasury->name])]);
+        $this->csvRow($handle, [lang('Accounting_bank.as_of'), $figures->asOf]);
+
+        if ($figures->closedThrough !== null) {
+            $this->csvRow($handle, [lang('Accounting_bank.closed_up_to', [$figures->closedThrough])]);
+        }
+
+        $this->csvRow($handle, []);
+        $this->csvRow($handle, [lang('Accounting_bank.side_books')]);
+        $this->csvRow($handle, [lang('Accounting_bank.book_balance'), $figures->bookBalance]);
+        $this->csvRow($handle, $pair(lang('Accounting_bank.unmatched_statement'), $figures->unmatchedStatement['count'], $figures->unmatchedStatement['total']));
+        $this->csvRow($handle, [lang('Accounting_bank.adjusted_book'), $figures->adjustedBook]);
+        $this->csvRow($handle, []);
+        $this->csvRow($handle, [lang('Accounting_bank.side_bank')]);
+        $this->csvRow($handle, [lang('Accounting_bank.statement_balance'), $figures->statementBalance ?? lang('Accounting_bank.not_entered')]);
+        $this->csvRow($handle, $pair(lang('Accounting_bank.outstanding_books'), $figures->outstandingBook['count'], $figures->outstandingBook['total']));
+        $this->csvRow($handle, [lang('Accounting_bank.adjusted_bank'), $figures->adjustedBank ?? '']);
+        $this->csvRow($handle, [lang('Accounting_bank.difference'), $figures->difference === null ? lang('Accounting_bank.not_computed') : ($figures->reconciled() ? lang('Accounting_bank.reconciled') : $figures->difference)]);
+        $this->csvRow($handle, [lang('Accounting_bank.statement_lines_total'), $figures->statementLinesTotal]);
+        $this->csvRow($handle, $pair(lang('Accounting_bank.carried'), $figures->carriedBook['count'], $figures->carriedBook['total']));
+        $this->csvRow($handle, [lang('Accounting_bank.matches_made'), (string) $figures->matchesMade]);
+
+        $this->csvRow($handle, []);
+        $this->csvRow($handle, [lang('Accounting_bank.unmatched_statement')]);
+        $this->csvRow($handle, [lang('Accounting_bank.date'), lang('Accounting_bank.description'), lang('Accounting_bank.reference'), lang('Accounting_bank.amount')]);
+
+        foreach ($figures->statementLines as $line) {
+            $this->csvRow($handle, [(string) $line->line_date, (string) $line->description, (string) $line->reference, (string) $line->amount]);
+        }
+
+        foreach ([['outstanding_books', $figures->bookLines], ['carried', $figures->carriedLines]] as [$heading, $lines]) {
+            if ($lines === []) {
+                continue;
+            }
+
+            $this->csvRow($handle, []);
+            $this->csvRow($handle, [lang('Accounting_bank.' . $heading)]);
+            $this->csvRow($handle, [lang('Accounting_bank.date'), lang('Accounting_bank.journal'), lang('Accounting_bank.description'), lang('Accounting_bank.amount')]);
+
+            foreach ($lines as $line) {
+                $this->csvRow($handle, $journal($line));
+            }
+        }
+
+        if (max($figures->unmatchedStatement['count'], $figures->outstandingBook['count'], $figures->carriedBook['count']) > ReconciliationReport::LIST_LIMIT) {
+            $this->csvNote($handle, lang('Accounting_bank.list_limit', [ReconciliationReport::LIST_LIMIT]));
+        }
+
+        return $this->csvText($handle);
     }
 }

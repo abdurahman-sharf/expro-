@@ -8,7 +8,7 @@ $routes->setDefaultController('Login');
 
 $reportFiles = static function (RouteCollection $routes, string $handler, string $titleKey, string $prefix = ''): void {
     foreach (['xlsx', 'pdf'] as $format) {
-        $routes->get($prefix . $format, $handler, ['filter' => "reportexport:{$format},{$titleKey}"]);
+        $routes->get($prefix . $format, $handler, ['filter' => "reportexport:{$format}" . ($titleKey === '' ? '' : ",{$titleKey}")]);
     }
 };
 
@@ -86,7 +86,7 @@ $routes->group('accounting_routing', static function (RouteCollection $routes): 
     $routes->post('save', 'AccountingRouting::postSaveRouting');
 });
 
-$routes->group('accounting_receivables', static function (RouteCollection $routes): void {
+$routes->group('accounting_receivables', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingReceivables::getIndex');
     $routes->get('search', 'AccountingReceivables::getSearch');
     $routes->get('row/(:num)', 'AccountingReceivables::getRow/$1');
@@ -96,7 +96,11 @@ $routes->group('accounting_receivables', static function (RouteCollection $route
     $routes->get('credit_notes', 'AccountingReceivables::getCreditNotes');
     $routes->get('credit_notes/search', 'AccountingReceivables::getCreditNotesSearch');
     $routes->get('aged_ledger', 'AccountingReceivables::getAgedLedger');
+    $routes->get('aged_ledger/csv', 'AccountingReceivables::getAgedLedgerCsv');
+    $reportFiles($routes, 'AccountingReceivables::getAgedLedgerCsv', 'Accounting_receivables.aged_title', 'aged_ledger/');
     $routes->get('balances', 'AccountingReceivables::getBalances');
+    $routes->get('balances/csv', 'AccountingReceivables::getBalancesCsv');
+    $reportFiles($routes, 'AccountingReceivables::getBalancesCsv', 'Accounting_receivables.balances_title', 'balances/');
     $routes->get('opening_form/(:num)', 'AccountingReceivables::getOpeningForm/$1');
     $routes->post('opening/(:num)', 'AccountingReceivables::postOpening/$1');
     $routes->get('opening_edit_form/(:num)', 'AccountingReceivables::getOpeningEditForm/$1');
@@ -111,7 +115,7 @@ $routes->group('accounting_receivables', static function (RouteCollection $route
     $routes->post('cancel/(:segment)/(:num)', 'AccountingReceivables::postCancel/$1/$2');
 });
 
-$routes->group('accounting_payables', static function (RouteCollection $routes): void {
+$routes->group('accounting_payables', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingPayables::getIndex');
     $routes->get('search', 'AccountingPayables::getSearch');
     $routes->get('row/(:num)', 'AccountingPayables::getRow/$1');
@@ -121,7 +125,11 @@ $routes->group('accounting_payables', static function (RouteCollection $routes):
     $routes->get('debit_notes', 'AccountingPayables::getDebitNotes');
     $routes->get('debit_notes/search', 'AccountingPayables::getDebitNotesSearch');
     $routes->get('aged_ledger', 'AccountingPayables::getAgedLedger');
+    $routes->get('aged_ledger/csv', 'AccountingPayables::getAgedLedgerCsv');
+    $reportFiles($routes, 'AccountingPayables::getAgedLedgerCsv', 'Accounting_payables.aged_title', 'aged_ledger/');
     $routes->get('balances', 'AccountingPayables::getBalances');
+    $routes->get('balances/csv', 'AccountingPayables::getBalancesCsv');
+    $reportFiles($routes, 'AccountingPayables::getBalancesCsv', 'Accounting_payables.balances_title', 'balances/');
     $routes->get('payment_form/(:num)', 'AccountingPayables::getPaymentForm/$1');
     $routes->post('payment/(:num)', 'AccountingPayables::postPayment/$1');
     $routes->get('opening_form/(:num)', 'AccountingPayables::getOpeningForm/$1');
@@ -132,7 +140,7 @@ $routes->group('accounting_payables', static function (RouteCollection $routes):
     $routes->post('refund/(:num)', 'AccountingPayables::postRefund/$1');
 });
 
-$routes->group('accounting_cheques', static function (RouteCollection $routes): void {
+$routes->group('accounting_cheques', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingCheques::getIndex');
     $routes->get('search', 'AccountingCheques::getSearch');
     $routes->get('row/(:num)', 'AccountingCheques::getRow/$1');
@@ -155,6 +163,8 @@ $routes->group('accounting_cheques', static function (RouteCollection $routes): 
     $routes->post('book_active/(:num)/(:num)', 'AccountingCheques::postBookActive/$1/$2');
     $routes->post('delete_book/(:num)', 'AccountingCheques::postDeleteBook/$1');
     $routes->get('report/(:segment)', 'AccountingCheques::getReport/$1');
+    $routes->get('report/(:segment)/csv', 'AccountingCheques::getReportCsv/$1');
+    $reportFiles($routes, 'AccountingCheques::getReportCsv/$1', '', 'report/(:segment)/');
 });
 
 $routes->group('accounting_debit_notes', static function (RouteCollection $routes): void {
@@ -340,7 +350,11 @@ $routes->group('accounting_reports', static function (RouteCollection $routes) u
 $routes->group('accounting_statements', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingStatements::getIncomeStatement');
     $routes->get('income_statement', 'AccountingStatements::getIncomeStatement');
+    $routes->get('income_statement/csv', 'AccountingStatements::getIncomeStatementCsv');
+    $reportFiles($routes, 'AccountingStatements::getIncomeStatementCsv', 'Accounting_statements.income_statement', 'income_statement/');
     $routes->get('balance_sheet', 'AccountingStatements::getBalanceSheet');
+    $routes->get('balance_sheet/csv', 'AccountingStatements::getBalanceSheetCsv');
+    $reportFiles($routes, 'AccountingStatements::getBalanceSheetCsv', 'Accounting_statements.balance_sheet', 'balance_sheet/');
     $routes->get('profit_loss', 'AccountingProfitLoss::getIndex');
     $routes->get('profit_loss/csv', 'AccountingProfitLoss::getCsv');
     $reportFiles($routes, 'AccountingProfitLoss::getCsv', 'Accounting_profit_loss.title', 'profit_loss/');
@@ -390,6 +404,8 @@ $routes->group('accounting_treasuries', static function (RouteCollection $routes
     $routes->post('bank/(:num)/unmatch/(:num)', 'AccountingBankReconciliation::postUnmatch/$1/$2');
     $routes->get('bank/(:num)/suggestions', 'AccountingBankReconciliation::getSuggestions/$1');
     $routes->get('bank/(:num)/report', 'AccountingBankReconciliation::getReport/$1');
+    $routes->get('bank/(:num)/report/csv', 'AccountingBankReconciliation::getReportCsv/$1');
+    $reportFiles($routes, 'AccountingBankReconciliation::getReportCsv/$1', '', 'bank/(:num)/report/');
     $routes->post('bank/(:num)/close', 'AccountingBankReconciliation::postClose/$1');
     $routes->post('bank/reopen/(:num)', 'AccountingBankReconciliation::postReopen/$1');
     $routes->post('bank/statement_delete/(:num)', 'AccountingBankReconciliation::postDeleteStatement/$1');
@@ -397,6 +413,8 @@ $routes->group('accounting_treasuries', static function (RouteCollection $routes
 
     $routes->get('inter_branch', 'AccountingInterBranch::getIndex');
     $routes->get('inter_branch/pairs', 'AccountingInterBranch::getPairs');
+    $routes->get('inter_branch/csv', 'AccountingInterBranch::getCsv');
+    $reportFiles($routes, 'AccountingInterBranch::getCsv', 'Accounting_treasuries.inter_branch', 'inter_branch/');
     $routes->get('inter_branch/settlements/search', 'AccountingInterBranch::getSettlementsSearch');
     $routes->get('inter_branch/settlements/row/(:num)', 'AccountingInterBranch::getSettlementsRow/$1');
     $routes->get('inter_branch/settle_form', 'AccountingInterBranch::getSettleForm');
@@ -405,7 +423,7 @@ $routes->group('accounting_treasuries', static function (RouteCollection $routes
     $routes->post('inter_branch/cancel/(:num)', 'AccountingInterBranch::postCancel/$1');
 });
 
-$routes->group('accounting_periods', static function (RouteCollection $routes): void {
+$routes->group('accounting_periods', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingPeriods::getIndex');
     $routes->get('search', 'AccountingPeriods::getSearch');
     $routes->get('row/(:num)', 'AccountingPeriods::getRow/$1');
@@ -437,6 +455,8 @@ $routes->group('accounting_periods', static function (RouteCollection $routes): 
     $routes->post('opening/stock/reprice', 'AccountingOpening::postStockReprice');
 
     $routes->get('year_end', 'AccountingYearEnd::getIndex');
+    $routes->get('year_end/csv', 'AccountingYearEnd::getCsv');
+    $reportFiles($routes, 'AccountingYearEnd::getCsv', 'Accounting_periods.year_end_title', 'year_end/');
     $routes->get('year_end/approve_form', 'AccountingYearEnd::getApproveForm');
     $routes->post('year_end/approve', 'AccountingYearEnd::postApprove');
     $routes->get('year_end/reverse_form/(:num)', 'AccountingYearEnd::getReverseForm/$1');

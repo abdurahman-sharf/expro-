@@ -13,6 +13,7 @@
  * @var Closure               $amount
  * @var Closure               $date
  * @var Closure               $status_text
+ * @var string|null           $csv_url
  */
 
 use App\Libraries\Accounting\YearEndBranchPlan;
@@ -136,6 +137,14 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
                         </div>
                     <?php endforeach; ?>
 
+                    <?php if ($csv_url !== null): ?>
+                        <div class="print_hide mb-3 clearfix" id="year_end_files">
+                            <a class="btn btn-outline-secondary btn-sm float-end" id="year_end_csv" href="<?= esc($csv_url, 'attr') ?>"><span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?></a>
+                            <?= view('partial/report_files', ['csvUrl' => $csv_url, 'id' => 'year_end_csv']) ?>
+                            <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()"><span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?></button>
+                        </div>
+                    <?php endif; ?>
+
                     <?php if ($preview->canApprove()): ?>
                         <button type="button" id="year_end_approve" class="btn btn-primary btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_periods.year_end_approve_submit'), 'attr') ?>" data-href="<?= esc('accounting_periods/year_end/approve_form?' . http_build_query(['year' => $year_id, 'scope' => $scope, 'fingerprint' => $preview->fingerprint]), 'attr') ?>" title="<?= esc(lang('Accounting_periods.year_end_approve_title'), 'attr') ?>">
                             <span class="bi bi-check2-circle" aria-hidden="true">&nbsp;</span><?= lang('Accounting_periods.year_end_approve') ?>
@@ -155,7 +164,7 @@ $side = static fn (string $value, Closure $amount): string => bccomp($value, '0'
             <p class="text-body-secondary" id="year_end_no_closings"><?= lang('Accounting_periods.year_end_no_closings') ?></p>
         <?php else: ?>
             <div class="table-responsive">
-                <table class="table table-sm" id="year_end_closings_table">
+                <table class="table table-sm acc-lines" id="year_end_closings_table">
                     <thead>
                         <tr>
                             <th scope="col"><?= lang('Accounting_periods.year_end_year') ?></th>

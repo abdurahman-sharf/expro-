@@ -37,6 +37,26 @@ final readonly class PartyReportQuery
         return $this->period->to;
     }
 
+    /**
+     * What an aged ledger was read with, as the address of its file carries it.
+     *
+     * @return array<string, int|string>
+     */
+    public function agingFilters(): array
+    {
+        return ['to' => $this->day(), 'period' => $this->days];
+    }
+
+    /**
+     * What a balance report was read with, as the address of its file carries it.
+     *
+     * @return array<string, string>
+     */
+    public function balanceFilters(): array
+    {
+        return array_filter(['from' => $this->from, 'to' => $this->day(), 'empty' => $this->showEmpty ? '1' : ''], static fn (string $value): bool => $value !== '');
+    }
+
     private static function read(mixed $input, string $today, bool $withFrom): self
     {
         $get  = is_array($input) ? $input : [];

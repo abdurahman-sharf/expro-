@@ -78,6 +78,7 @@ $head = static function (array $columns): string {
     <a class="btn btn-outline-secondary btn-sm float-end" id="export_csv" href="<?= esc($csv_url, 'attr') ?>">
         <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_family_reports.csv') ?>
     </a>
+    <?= view('partial/report_files', ['csvUrl' => $csv_url, 'id' => 'export_csv']) ?>
 </div>
 
 <form id="report_filters" class="acc-filters print_hide" method="get" action="<?= esc($address, 'attr') ?>" role="search" aria-label="<?= esc(lang('Accounting_reports.filters'), 'attr') ?>">
@@ -176,7 +177,7 @@ $head = static function (array $columns): string {
             <?php endif; ?>
             <?php if ($block->rows !== []): ?>
                 <div class="table-responsive">
-                    <table class="table table-sm family-table">
+                    <table class="table table-sm family-table acc-lines">
                         <?= $head($table->columns) ?>
                         <tbody>
                             <?php foreach ($block->rows as $row): ?>
@@ -194,7 +195,7 @@ $head = static function (array $columns): string {
 
     <?php if ($table->grand !== null && $all->rowCount() > 0): ?>
         <div class="table-responsive">
-            <table class="table table-sm family-table" id="report_grand">
+            <table class="table table-sm family-table acc-lines" id="report_grand">
                 <tbody><?= $rowHtml($table->grand, $table->columns) ?></tbody>
             </table>
         </div>

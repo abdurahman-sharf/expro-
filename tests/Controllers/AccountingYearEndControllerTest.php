@@ -612,4 +612,134 @@ final class AccountingYearEndControllerTest extends CIUnitTestCase
         $this->assertFalse($this->jsonOf($this->post('/accounting_periods/year_end/reverse/' . $closing, ['reason' => 'Why']))['success']);
         $this->assertSame('active', $this->accountingDb()->table('accounting_year_end_closings')->where('closing_id', $closing)->get()->getRow()->status);
     }
+
+    /**
+     * @return list<list<string>>
+     */
+    private function csvRows(\CodeIgniter\Test\TestResponse $response): array
+    {
+        $body = $response->response()->getBody();
+
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
+
+        $handle = fopen('php://temp', 'r+b');
+        fwrite($handle, substr($body, 3));
+        rewind($handle);
+
+        $rows = [];
+
+        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
+            $rows[] = $row === [null] ? [] : $row;
+        }
+
+        return $rows;
+    }
+
+    public function testGetCsv_GivesThePreviewOfTheScreenWithTheLinesAndTheResultOfEachBranch(): void
+    {
+        $this->readyYear();
+        $this->closer();
+
+        $response = $this->get('/accounting_periods/year_end/csv?year=' . $this->yearId() . '&scope=company');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('attachment; filename="year_end_preview_' . $this->yearId() . '_company.csv"', $response->response()->getHeaderLine('Content-Disposition'));
+
+        $rows = $this->csvRows($response);
+
+        $this->assertSame([lang('Accounting_periods.year_end_title')], $rows[0]);
+        $this->assertSame(lang('Accounting_periods.year_end_period', ['2025', '2025-01-01', '2025-12-31']), $rows[1][0]);
+
+        $heads = array_values(array_filter($rows, static fn (array $row): bool => count($row) === 1 && str_contains($row[0], ' (')));
+
+        $this->assertCount(2, $heads, 'A heading for each branch');
+        $this->assertContains('1000.0000', array_merge(...$rows));
+        $this->assertNotNull(array_values(array_filter($rows, static fn (array $row): bool => ($row[0] ?? '') === lang('Accounting_periods.year_end_loss')))[0] ?? null);
+    }
+
+    public function testGetCsv_GivesTheTotalsTheScreenGivesForABranch(): void
+    {
+        $this->readyYear();
+        $this->closer();
+
+        $rows = $this->csvRows($this->get('/accounting_periods/year_end/csv?year=' . $this->yearId() . '&scope=' . $this->second));
+
+        $revenue = array_values(array_filter($rows, static fn (array $row): bool => ($row[0] ?? '') === lang('Accounting_periods.year_end_revenue')));
+        $expense = array_values(array_filter($rows, static fn (array $row): bool => ($row[0] ?? '') === lang('Accounting_periods.year_end_expense')));
+
+        $this->assertSame('0.0000', $revenue[0][1]);
+        $this->assertSame('500.0000', $expense[0][1]);
+        $this->assertStringNotContainsString('1000.0000', implode(',', array_merge(...$rows)), 'The other branch is not in the file');
+    }
+
+    public function testGetCsv_DoesNotGiveTheFingerprintThatApprovesTheClosing(): void
+    {
+        $this->readyYear();
+        $this->closer();
+
+        $response = $this->get('/accounting_periods/year_end/csv?year=' . $this->yearId() . '&scope=company');
+
+        $this->assertStringNotContainsString($this->fingerprint(), $response->response()->getBody());
+    }
+
+    public function testGetCsv_SaysWhatStopsTheClosingInWords(): void
+    {
+        $this->twoBranchYear();
+        $this->closer();
+
+        $rows = $this->csvRows($this->get('/accounting_periods/year_end/csv?year=' . $this->yearId() . '&scope=company'));
+
+        $this->assertNotNull(array_values(array_filter($rows, static fn (array $row): bool => count($row) === 1 && $row[0] !== '' && ! str_contains($row[0], ' (') && $row[0] !== lang('Accounting_periods.year_end_title')))[0] ?? null);
+    }
+
+    public function testGetCsv_IsNotFoundWithoutThePermissionToCloseAndForABranchOutsideTheScopeAndWhileAccountingIsOff(): void
+    {
+        $this->readyYear();
+        $this->closer(null, false);
+
+        try {
+            $this->get('/accounting_periods/year_end/csv?year=' . $this->yearId() . '&scope=company');
+
+            $this->fail('A user without the permission is not given the preview');
+        } catch (PageNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->closer([1]);
+
+        try {
+            $this->get('/accounting_periods/year_end/csv?year=' . $this->yearId() . '&scope=' . $this->second);
+
+            $this->fail('A branch outside the scope is not there');
+        } catch (PageNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        try {
+            $this->get('/accounting_periods/year_end/csv?year=' . $this->yearId() . '&scope=company');
+
+            $this->fail('The company is for someone with every branch');
+        } catch (PageNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->prepareAccounting(false);
+        $this->closer();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_periods/year_end/csv?year=' . $this->yearId());
+    }
+
+    public function testGetIndex_LinksTheThreeFilesOfThePreviewWithTheYearAndTheScope(): void
+    {
+        $this->readyYear();
+        $this->closer();
+
+        $response = $this->get('/accounting_periods/year_end?year=' . $this->yearId() . '&scope=company');
+
+        $response->assertSee('id="year_end_csv" href="' . site_url('accounting_periods/year_end/csv') . '?year=' . $this->yearId() . '&amp;scope=company"');
+        $response->assertSee('id="year_end_csv_xlsx" href="' . site_url('accounting_periods/year_end/xlsx') . '?year=' . $this->yearId() . '&amp;scope=company"');
+        $response->assertSee('id="year_end_csv_pdf" href="' . site_url('accounting_periods/year_end/pdf') . '?year=' . $this->yearId() . '&amp;scope=company"');
+    }
 }

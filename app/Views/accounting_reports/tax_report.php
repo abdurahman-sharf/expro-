@@ -30,6 +30,7 @@ $roleLabel = static fn (array $roles): string => implode(' / ', array_map(static
         <a class="btn btn-outline-secondary btn-sm float-end" id="export_csv" href="<?= esc($csvUrl, 'attr') ?>">
             <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_tax_reports.csv') ?>
         </a>
+        <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'export_csv']) ?>
     <?php endif; ?>
     <a class="btn btn-outline-secondary btn-sm float-end" href="<?= esc(base_url('accounting_reports'), 'attr') ?>">
         <span class="bi bi-file-earmark-bar-graph" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.trial_balance') ?>
@@ -131,7 +132,7 @@ $roleLabel = static fn (array $roles): string => implode(' / ', array_map(static
         <?php endif; ?>
 
         <div class="table-responsive mb-3">
-            <table class="table table-sm" id="tax_table">
+            <table class="table table-sm acc-lines" id="tax_table">
                 <thead>
                     <tr>
                         <th scope="col"><?= lang('Accounting_tax_reports.col_part') ?></th>
@@ -193,7 +194,7 @@ $roleLabel = static fn (array $roles): string => implode(' / ', array_map(static
             <section class="mb-4" id="tax_accounts" aria-labelledby="tax_accounts_title">
                 <h2 class="h5" id="tax_accounts_title"><?= lang('Accounting_tax_reports.accounts_title') ?></h2>
                 <div class="table-responsive">
-                    <table class="table table-sm" id="tax_accounts_table">
+                    <table class="table table-sm acc-lines" id="tax_accounts_table">
                         <thead>
                             <tr>
                                 <th scope="col"><?= lang('Accounting_tax_reports.account') ?></th>

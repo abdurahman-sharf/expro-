@@ -43,7 +43,7 @@ class ReportExport implements FilterInterface
         $query = $request instanceof IncomingRequest ? $request->getGet() : [];
 
         try {
-            $body = (new ReportExporter())->convert($format, (string) $response->getBody(), lang($arguments[1] ?? ''), ExportOptions::fromQuery(is_array($query) ? $query : []));
+            $body = (new ReportExporter())->convert($format, (string) $response->getBody(), isset($arguments[1]) ? lang($arguments[1]) : '', ExportOptions::fromQuery(is_array($query) ? $query : []));
         } catch (AccountingException $refusal) {
             return $this->refused($response, AccountingMessage::of($refusal));
         } catch (MpdfException $failure) {

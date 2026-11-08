@@ -593,4 +593,134 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
     {
         return json_decode($response->getJSON(), true);
     }
+
+    /**
+     * @return list<list<string>>
+     */
+    private function csvRows(\CodeIgniter\Test\TestResponse $response): array
+    {
+        $body = $response->response()->getBody();
+
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
+
+        $handle = fopen('php://temp', 'r+b');
+        fwrite($handle, substr($body, 3));
+        rewind($handle);
+
+        $rows = [];
+
+        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
+            $rows[] = $row === [null] ? [] : $row;
+        }
+
+        return $rows;
+    }
+
+    public function testGetCsv_GivesThePairsWithWhatEachOwesAndTheBasisOfTheScreen(): void
+    {
+        $this->send(true, '100.00');
+        $this->actAsWith(['accounting_treasuries']);
+
+        $response = $this->get('/accounting_treasuries/inter_branch/csv?as_of=2026-10-31');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('attachment; filename="inter_branch_balances_2026-10-31.csv"', $response->response()->getHeaderLine('Content-Disposition'));
+
+        $rows = $this->csvRows($response);
+
+        $this->assertSame([lang('Accounting_treasuries.inter_branch')], $rows[0]);
+        $this->assertSame([lang('Accounting_treasuries.as_of'), '2026-10-31'], $rows[1]);
+        $this->assertSame(lang('Accounting_treasuries.pair_branch'), $rows[4][0]);
+        $this->assertSame(7, count($rows[4]));
+
+        $pairs = array_values(array_filter($rows, static fn (array $row): bool => count($row) === 7 && in_array($row[0], ['HQ', 'B2'], true)));
+
+        $this->assertCount(2, $pairs);
+        $this->assertSame(['HQ', 'B2', '0.0000', '100.0000'], array_slice($pairs[0], 0, 4));
+        $this->assertSame(['B2', 'HQ', '100.0000', '0.0000', '100.0000'], array_slice($pairs[1], 0, 5));
+    }
+
+    public function testGetCsv_StopsAtTheDayAskedAndSaysWhenNothingIsOwed(): void
+    {
+        $this->send(true, '100.00', '2026-10-21');
+        $this->actAsWith(['accounting_treasuries']);
+
+        $before = $this->csvRows($this->get('/accounting_treasuries/inter_branch/csv?as_of=2026-10-20'));
+
+        $this->assertContains([lang('Accounting_treasuries.pair_none')], $before);
+        $this->assertSame([], array_values(array_filter($before, static fn (array $row): bool => count($row) === 7 && in_array($row[0], ['HQ', 'B2'], true))));
+    }
+
+    public function testGetCsv_ShowsOnlyThePairsOfTheBranchesTheEmployeeWorksInAndSaysTheyArePartial(): void
+    {
+        $third = $this->createBranch('B3');
+
+        $this->send(true, '100.00');
+        $this->actAsWith(['accounting_treasuries'], [$this->branch, $third]);
+
+        $rows  = $this->csvRows($this->get('/accounting_treasuries/inter_branch/csv'));
+        $firsts = array_column(array_filter($rows, static fn (array $row): bool => count($row) === 7), 0);
+
+        $this->assertContains('B2', $firsts);
+        $this->assertNotContains('HQ', $firsts);
+    }
+
+    public function testGetCsv_GivesTheDifferenceAcrossTheCompanyToWhoReadsEveryBranchOnlyAndTheUnattributed(): void
+    {
+        $this->createBranch('B3');
+
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-10-21',
+            lines: [new JournalLineDraft($this->accountId('branches_receivable'), debit: '25.00'), new JournalLineDraft($this->accountId('opening_balance'), credit: '25.00')],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+        ));
+
+        $this->actAsWith(['accounting_treasuries']);
+
+        $all = $this->csvRows($this->get('/accounting_treasuries/inter_branch/csv'));
+
+        $this->assertContains([lang('Accounting_treasuries.company_difference', ['25.0000'])], $all);
+        $this->assertContains([lang('Accounting_treasuries.unattributed_title')], $all);
+
+        $this->actAsWith(['accounting_treasuries'], [1, $this->branch]);
+
+        $some = $this->csvRows($this->get('/accounting_treasuries/inter_branch/csv'));
+
+        $this->assertNotContains([lang('Accounting_treasuries.company_difference', ['25.0000'])], $some);
+    }
+
+    public function testGetCsv_RefusesADayThatIsNotOneInWords(): void
+    {
+        $this->actAsWith(['accounting_treasuries']);
+
+        $response = $this->get('/accounting_treasuries/inter_branch/csv?as_of=2026-02-30');
+
+        $response->assertStatus(422);
+        $this->assertSame(lang('Accounting.error_invalid_date'), $response->response()->getBody());
+    }
+
+    public function testGetCsv_RedirectsAUserWithoutTheModuleAndIsNotFoundWhileAccountingIsOff(): void
+    {
+        $this->actAsWith(['accounting_payables']);
+
+        $this->get('/accounting_treasuries/inter_branch/csv')->assertRedirect();
+
+        $this->actAsWith(['accounting_treasuries']);
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_treasuries/inter_branch/csv');
+    }
+
+    public function testGetIndex_LinksTheThreeFilesWithTheDayAndTheBranchesAsked(): void
+    {
+        $this->actAsWith(['accounting_treasuries']);
+
+        $response = $this->get('/accounting_treasuries/inter_branch?as_of=2026-10-31&branches[]=1');
+
+        $response->assertSee('id="inter_branch_csv" href="' . site_url('accounting_treasuries/inter_branch/csv') . '?as_of=2026-10-31&amp;branches%5B0%5D=1"');
+        $response->assertSee('id="inter_branch_csv_xlsx" href="' . site_url('accounting_treasuries/inter_branch/xlsx') . '?as_of=2026-10-31&amp;branches%5B0%5D=1"');
+        $response->assertSee('id="inter_branch_csv_pdf" href="' . site_url('accounting_treasuries/inter_branch/pdf') . '?as_of=2026-10-31&amp;branches%5B0%5D=1"');
+    }
 }

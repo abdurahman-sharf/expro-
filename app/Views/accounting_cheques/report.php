@@ -11,6 +11,7 @@ use App\Libraries\Accounting\ChequeList;
  * @var callable(string): string  $amount
  * @var callable(?string): string $date
  * @var callable(string): string  $status
+ * @var string                    $csvUrl
  */
 ?>
 
@@ -21,6 +22,8 @@ use App\Libraries\Accounting\ChequeList;
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_cheques/report/' . ($direction === 'received' ? 'paid' : 'received')), 'attr') ?>"><?= lang('Accounting_cheques.report_' . ($direction === 'received' ? 'paid' : 'received')) ?></a>
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_cheques?direction=' . $direction), 'attr') ?>"><span class="bi bi-arrow-left" aria-hidden="true">&nbsp;</span><?= lang('Accounting_cheques.back') ?></a>
     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?></button>
+    <a class="btn btn-outline-secondary btn-sm" id="cheque_report_csv" href="<?= esc($csvUrl, 'attr') ?>"><span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?></a>
+    <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'cheque_report_csv']) ?>
 </div>
 
 <form method="get" class="acc-filters print_hide px-2" role="search" aria-label="<?= esc(lang('Accounting_cheques.filters'), 'attr') ?>">
@@ -51,7 +54,7 @@ use App\Libraries\Accounting\ChequeList;
 <?php endif; ?>
 
 <div class="table-responsive px-2">
-    <table class="table table-sm" id="cheque_report">
+    <table class="table table-sm acc-lines" id="cheque_report">
         <thead><tr>
             <th><?= lang('Accounting_cheques.number') ?></th>
             <th><?= lang('Accounting_cheques.cheque_number') ?></th>
@@ -93,7 +96,7 @@ use App\Libraries\Accounting\ChequeList;
 <h6 class="px-2 mt-3"><?= lang('Accounting_cheques.ties_title') ?></h6>
 <p class="small text-body-secondary px-2"><?= lang('Accounting_cheques.ties_note') ?></p>
 <div class="table-responsive px-2">
-    <table class="table table-sm" id="cheque_ties">
+    <table class="table table-sm acc-lines" id="cheque_ties">
         <thead><tr>
             <th><?= lang('Accounting_cheques.tie_account') ?></th>
             <th><?= lang('Accounting_cheques.tie_ledger') ?></th>

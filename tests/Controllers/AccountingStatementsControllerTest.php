@@ -1123,4 +1123,228 @@ class AccountingStatementsControllerTest extends CIUnitTestCase
         $response->assertSee('accounting_statements/balance_sheet');
         $response->assertSee('href="' . base_url('accounting_reports') . '"');
     }
+
+    /**
+     * @return list<list<string>>
+     */
+    private function csvRows(TestResponse $response): array
+    {
+        $body = $response->response()->getBody();
+
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
+
+        $handle = fopen('php://temp', 'r+b');
+        fwrite($handle, substr($body, 3));
+        rewind($handle);
+
+        $rows = [];
+
+        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
+            $rows[] = $row === [null] ? [] : $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     *
+     * @return list<string>|null
+     */
+    private function csvRowWith(array $rows, string $label): ?array
+    {
+        foreach ($rows as $row) {
+            if (in_array($label, $row, true)) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    public function testGetIncomeStatementCsv_GivesTheSectionsTheTotalsAndTheNetIncomeOfTheScreen(): void
+    {
+        $this->threeBranches();
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/income_statement/csv?to=2026-10-31');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('text/csv', $response->response()->getHeaderLine('Content-Type'));
+        $this->assertStringContainsString('attachment; filename="income_statement_2026-10-31.csv"', $response->response()->getHeaderLine('Content-Disposition'));
+
+        $rows = $this->csvRows($response);
+
+        $this->assertSame([lang('Accounting_statements.income_statement')], $rows[0]);
+        $this->assertSame([lang('Accounting_reports.code'), lang('Accounting_reports.account'), lang('Accounting_statements.amount')], $this->csvRowWith($rows, lang('Accounting_statements.amount')));
+        $this->assertSame(['', lang('Accounting_statements.total_revenue'), '7777.0000'], $this->csvRowWith($rows, lang('Accounting_statements.total_revenue')));
+        $this->assertSame(['', lang('Accounting_statements.total_expenses'), '0.0000'], $this->csvRowWith($rows, lang('Accounting_statements.total_expenses')));
+        $this->assertSame(['', lang('Accounting_statements.net_income'), '7777.0000'], $this->csvRowWith($rows, lang('Accounting_statements.net_income')));
+        $this->assertNotNull($this->csvRowWith($rows, lang('Accounting_statements.revenue')), 'The section has its heading');
+    }
+
+    public function testGetIncomeStatementCsv_GivesTheSameTotalsAsTheScreenForTheSameFilters(): void
+    {
+        $this->threeBranches();
+        $this->viewer();
+
+        $screen = $this->amountOfRow($this->get('/accounting_statements/income_statement?from=2026-10-01&to=2026-10-31&level=3'), 'total_revenue');
+        $file   = $this->csvRowWith($this->csvRows($this->get('/accounting_statements/income_statement/csv?from=2026-10-01&to=2026-10-31&level=3')), lang('Accounting_statements.total_revenue'));
+
+        $this->assertSame($this->amountOf('7777.00'), $screen);
+        $this->assertSame('7777.0000', $file[2]);
+    }
+
+    public function testGetIncomeStatementCsv_AddsUpOnlyTheBranchesTheEmployeeWorksInWhateverTheRequestAsks(): void
+    {
+        $this->threeBranches();
+        $this->viewer([1, $this->second]);
+
+        $rows = $this->csvRows($this->get('/accounting_statements/income_statement/csv?to=2026-10-31&branches[]=1&branches[]=' . $this->second . '&branches[]=' . $this->third));
+
+        $this->assertSame('3333.0000', $this->csvRowWith($rows, lang('Accounting_statements.total_revenue'))[2]);
+        $this->assertSame($this->branchCode(1) . ' T2', $this->csvRowWith($rows, lang('Accounting_reports.csv_branches'))[1]);
+        $this->assertNotNull($this->csvRowWith($rows, lang('Accounting_reports.scope_partial', [$this->codes($this->branchCode(1), 'T2')])));
+        $this->assertStringNotContainsString('7777', implode(',', array_merge(...$rows)));
+        $this->assertStringNotContainsString('4444', implode(',', array_merge(...$rows)));
+    }
+
+    public function testGetIncomeStatementCsv_SaysWhetherTheFigureIsOfTheWholeCompanyToSomeoneWhoReadsEveryBranch(): void
+    {
+        $this->threeBranches();
+        $this->viewer();
+
+        $this->assertNotNull($this->csvRowWith($this->csvRows($this->get('/accounting_statements/income_statement/csv?to=2026-10-31')), lang('Accounting_reports.scope_company')));
+    }
+
+    public function testGetIncomeStatementCsv_StartsFromTheFirstDayWhenOneIsGiven(): void
+    {
+        $this->cashSale('2026-09-05', 1, '100.00');
+        $this->cashSale('2026-10-05', 1, '40.00');
+        $this->viewer();
+
+        $all  = $this->csvRowWith($this->csvRows($this->get('/accounting_statements/income_statement/csv?to=2026-10-31')), lang('Accounting_statements.total_revenue'));
+        $some = $this->csvRowWith($this->csvRows($this->get('/accounting_statements/income_statement/csv?from=2026-10-01&to=2026-10-31')), lang('Accounting_statements.total_revenue'));
+
+        $this->assertSame('140.0000', $all[2]);
+        $this->assertSame('40.0000', $some[2]);
+    }
+
+    public function testGetIncomeStatementCsv_RefusesAPeriodThatEndsBeforeItStartsInWords(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/income_statement/csv?from=2026-10-31&to=2026-10-01');
+
+        $response->assertStatus(422);
+        $this->assertSame(lang('Accounting.error_report_period_invalid'), $response->response()->getBody());
+    }
+
+    public function testGetIncomeStatementCsv_ShowsAnAccountNamedLikeAFormulaAsText(): void
+    {
+        $this->cashSale('2026-10-05', 1, '10.00');
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->accountId('sales_revenue'))->update(['name' => '=HYPERLINK("http://evil")']);
+        $this->viewer();
+
+        $rows = $this->csvRows($this->get('/accounting_statements/income_statement/csv?to=2026-10-31&level=5'));
+
+        $this->assertNotNull($this->csvRowWith($rows, "'=HYPERLINK(\"http://evil\")"));
+        $this->assertNull($this->csvRowWith($rows, '=HYPERLINK("http://evil")'));
+    }
+
+    public function testGetIncomeStatementCsv_RedirectsAUserWithoutTheModuleGrantAndIsNotFoundWhileAccountingIsOff(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_payables']));
+
+        $this->get('/accounting_statements/income_statement/csv')->assertRedirect();
+
+        $this->prepareAccounting(false);
+        $this->viewer();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_statements/income_statement/csv');
+    }
+
+    public function testGetBalanceSheetCsv_GivesTheSectionsTheUnclosedResultAndTheEquation(): void
+    {
+        $this->threeBranches();
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/balance_sheet/csv?to=2026-10-31');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('attachment; filename="balance_sheet_2026-10-31.csv"', $response->response()->getHeaderLine('Content-Disposition'));
+
+        $rows = $this->csvRows($response);
+
+        $this->assertSame([lang('Accounting_statements.balance_sheet_as_of', ['2026-10-31'])], $rows[0]);
+        $this->assertSame(['', lang('Accounting_statements.total_assets'), '7777.0000'], $this->csvRowWith($rows, lang('Accounting_statements.total_assets')));
+        $this->assertSame(['', lang('Accounting_statements.total_liabilities'), '0.0000'], $this->csvRowWith($rows, lang('Accounting_statements.total_liabilities')));
+        $this->assertSame(['', lang('Accounting_statements.result_unclosed'), '7777.0000'], $this->csvRowWith($rows, lang('Accounting_statements.result_unclosed')));
+        $this->assertSame(['', lang('Accounting_statements.total_equity'), '7777.0000'], $this->csvRowWith($rows, lang('Accounting_statements.total_equity')));
+        $this->assertSame(['', lang('Accounting_statements.total_liabilities_equity'), '7777.0000'], $this->csvRowWith($rows, lang('Accounting_statements.total_liabilities_equity')));
+        $this->assertNotNull($this->csvRowWith($rows, lang('Accounting_statements.balanced')));
+        $this->assertNull($this->csvRowWith($rows, lang('Accounting_statements.unbalanced')));
+    }
+
+    public function testGetBalanceSheetCsv_AddsUpOnlyTheBranchesTheEmployeeWorksIn(): void
+    {
+        $this->threeBranches();
+        $this->viewer([1, $this->second]);
+
+        $rows = $this->csvRows($this->get('/accounting_statements/balance_sheet/csv?to=2026-10-31&branches[]=' . $this->third . '&branches[]=1'));
+
+        $this->assertSame('1111.0000', $this->csvRowWith($rows, lang('Accounting_statements.total_assets'))[2]);
+        $this->assertSame($this->branchCode(1), $this->csvRowWith($rows, lang('Accounting_reports.csv_branches'))[1], 'The branch that is not theirs is left out of the request');
+        $this->assertStringNotContainsString('7777', implode(',', array_merge(...$rows)));
+    }
+
+    public function testGetBalanceSheetCsv_RefusesADayThatIsNotADateInWords(): void
+    {
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/balance_sheet/csv?to=2026-02-31');
+
+        $response->assertStatus(422);
+        $this->assertSame(lang('Accounting.error_invalid_date'), $response->response()->getBody());
+    }
+
+    public function testGetBalanceSheetCsv_RedirectsAUserWithoutTheModuleGrantAndIsNotFoundWhileAccountingIsOff(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_payables']));
+
+        $this->get('/accounting_statements/balance_sheet/csv')->assertRedirect();
+
+        $this->prepareAccounting(false);
+        $this->viewer();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_statements/balance_sheet/csv');
+    }
+
+    public function testGetIncomeStatement_LinksTheThreeFilesWithTheFiltersAsked(): void
+    {
+        $this->threeBranches();
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/income_statement?from=2026-10-01&to=2026-10-31&level=3&branches[]=1');
+
+        $response->assertSee('id="statement_csv" href="' . site_url('accounting_statements/income_statement/csv') . '?from=2026-10-01&amp;to=2026-10-31&amp;level=3&amp;branches%5B0%5D=1"');
+        $response->assertSee('id="statement_csv_xlsx" href="' . site_url('accounting_statements/income_statement/xlsx') . '?from=2026-10-01&amp;to=2026-10-31&amp;level=3&amp;branches%5B0%5D=1"');
+        $response->assertSee('id="statement_csv_pdf" href="' . site_url('accounting_statements/income_statement/pdf') . '?from=2026-10-01&amp;to=2026-10-31&amp;level=3&amp;branches%5B0%5D=1"');
+    }
+
+    public function testGetBalanceSheet_LinksTheThreeFilesWithTheFiltersAsked(): void
+    {
+        $this->threeBranches();
+        $this->viewer();
+
+        $response = $this->get('/accounting_statements/balance_sheet?to=2026-10-31&entities=1');
+
+        $response->assertSee('id="statement_csv" href="' . site_url('accounting_statements/balance_sheet/csv') . '?to=2026-10-31&amp;entities=1"');
+        $response->assertSee('id="statement_csv_xlsx" href="' . site_url('accounting_statements/balance_sheet/xlsx') . '?to=2026-10-31&amp;entities=1"');
+        $response->assertSee('id="statement_csv_pdf" href="' . site_url('accounting_statements/balance_sheet/pdf') . '?to=2026-10-31&amp;entities=1"');
+    }
 }

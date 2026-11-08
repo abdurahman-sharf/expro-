@@ -2,12 +2,17 @@
 /**
  * @var string $otherUrl
  * @var string $otherLabel
+ * @var string $csvUrl
  */
 ?>
 <div id="title_bar" class="print_hide btn-toolbar">
     <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
+    <a class="btn btn-outline-secondary btn-sm float-end" id="statement_csv" href="<?= esc($csvUrl, 'attr') ?>">
+        <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?>
+    </a>
+    <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'statement_csv']) ?>
     <a class="btn btn-outline-secondary btn-sm float-end" id="other_statement" href="<?= esc($otherUrl, 'attr') ?>">
         <span class="bi bi-file-earmark-bar-graph" aria-hidden="true">&nbsp;</span><?= esc($otherLabel) ?>
     </a>

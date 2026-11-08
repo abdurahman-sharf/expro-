@@ -1009,13 +1009,43 @@ class Sales extends Secure_Controller
         $raw       = $this->request->getGet('quote_status');
         $only      = is_string($raw) && preg_match('/^-?[0-9]$/', $raw) === 1 ? QuoteStatus::tryFrom((int) $raw) : null;
 
+        $draftTotal = $lists->countDrafts($branchIds, $personId);
+        $quoteTotal = $lists->countQuotes($branchIds, $only, $personId);
+        $draftPage  = min(SaleDocumentList::pages($draftTotal), $this->pageParameter('drafts_page'));
+        $quotePage  = min(SaleDocumentList::pages($quoteTotal), $this->pageParameter('quotes_page'));
+
         return view('sales/documents', [
-            'drafts'       => $lists->drafts($branchIds, $personId),
-            'quotes'       => $lists->quotes($branchIds, $only, $personId),
+            'drafts'       => $lists->drafts($branchIds, $personId, $draftPage),
+            'quotes'       => $lists->quotes($branchIds, $only, $personId, $quotePage),
             'quote_filter' => $only,
             'statuses'     => QuoteStatus::cases(),
             'show_branch'  => $guard->seesBranches($personId),
+            'paging'       => [
+                'drafts' => ['page' => $draftPage, 'pages' => SaleDocumentList::pages($draftTotal), 'total' => $draftTotal],
+                'quotes' => ['page' => $quotePage, 'pages' => SaleDocumentList::pages($quoteTotal), 'total' => $quoteTotal],
+            ],
+            'page_url'     => fn (string $list, int $target): string => $this->documentsUrl($only, $list === 'drafts' ? $target : $draftPage, $list === 'quotes' ? $target : $quotePage),
         ]);
+    }
+
+    private function documentsUrl(?QuoteStatus $only, int $draftsPage, int $quotesPage): string
+    {
+        $query = $only === null ? [] : ['quote_status' => $only->value];
+
+        foreach (['drafts_page' => $draftsPage, 'quotes_page' => $quotesPage] as $name => $number) {
+            if ($number > 1) {
+                $query[$name] = $number;
+            }
+        }
+
+        return site_url('sales/documents') . ($query === [] ? '' : '?' . http_build_query($query));
+    }
+
+    private function pageParameter(string $name): int
+    {
+        $value = $this->request->getGet($name);
+
+        return is_string($value) && ctype_digit($value) && strlen($value) <= 6 ? max(1, (int) $value) : 1;
     }
 
     /**

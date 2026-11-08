@@ -2132,6 +2132,14 @@ input.flatpickr-input,
         text-align: start;
     }
 
+    .acc-lines td:empty {
+        display: none;
+    }
+
+    .acc-lines td.text-end {
+        text-align: start !important;
+    }
+
     .acc-lines .acc-line-actions {
         width: 100%;
         text-align: end;

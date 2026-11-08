@@ -5207,37 +5207,71 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
     }
 
-    public function testGetDocuments_SaysThatOnlyTheNewestAreListedWhenAListIsCutAtTheLimit(): void
+    public function testGetDocuments_OffersThePagesOfAListThatHoldsMoreThanOnePage(): void
     {
         $this->supervisorForDocuments();
 
-        $this->suspendedRows(SaleDocumentList::LIMIT, SALE_TYPE_INVOICE);
+        $waiting = Database::connect()->table('sales')->where(['sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_INVOICE])->countAllResults();
+
+        $this->suspendedRows(SaleDocumentList::PAGE_SIZE + 1 - $waiting, SALE_TYPE_INVOICE);
 
         $page = $this->get('/sales/documents');
 
-        $page->assertSee('id="drafts_limited"');
-        $page->assertDontSee('id="quotes_limited"');
-        $this->assertStringContainsString(lang('Sales.documents_drafts_limited', [SaleDocumentList::LIMIT]), $page->getBody());
-
-        $this->suspendedRows(SaleDocumentList::LIMIT, SALE_TYPE_QUOTE);
-
-        $this->get('/sales/documents')->assertSee('id="quotes_limited"');
+        $page->assertSee('id="drafts_pager"');
+        $page->assertSee('id="drafts_next" href="' . site_url('sales/documents') . '?drafts_page=2"');
+        $page->assertDontSee('id="drafts_previous"');
+        $page->assertDontSee('id="quotes_pager"');
+        $this->assertStringContainsString(lang('Sales.documents_page_of', [1, 2, SaleDocumentList::PAGE_SIZE + 1]), $page->getBody());
+        $this->assertSame(SaleDocumentList::PAGE_SIZE, substr_count($page->getBody(), 'data-sale-id="'));
     }
 
-    public function testGetDocuments_SaysNothingAboutALimitWhileEveryDocumentIsListed(): void
+    public function testGetDocuments_ShowsTheOlderDocumentsOnTheSecondPageAndKeepsTheOtherListAndTheFilter(): void
+    {
+        $this->supervisorForDocuments();
+
+        $waiting = Database::connect()->table('sales')->where(['sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_QUOTE])->countAllResults();
+
+        $this->suspendedRows(SaleDocumentList::PAGE_SIZE + 2 - $waiting, SALE_TYPE_QUOTE);
+
+        $page = $this->get('/sales/documents?quote_status=' . QuoteStatus::Open->value . '&quotes_page=2');
+
+        $page->assertSee('id="quotes_previous" href="' . site_url('sales/documents') . '?quote_status=' . QuoteStatus::Open->value . '"');
+        $page->assertDontSee('id="quotes_next"');
+        $this->assertStringContainsString(lang('Sales.documents_page_of', [2, 2, SaleDocumentList::PAGE_SIZE + 2]), $page->getBody());
+        $this->assertSame(2, substr_count($page->getBody(), 'data-sale-id="'));
+    }
+
+    public function testGetDocuments_ReadsAPageBeyondTheLastOrNotANumberAsTheLastOrTheFirst(): void
+    {
+        $this->supervisorForDocuments();
+
+        $waiting = Database::connect()->table('sales')->where(['sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_INVOICE])->countAllResults();
+
+        $this->suspendedRows(SaleDocumentList::PAGE_SIZE + 1 - $waiting, SALE_TYPE_INVOICE);
+
+        $last = $this->get('/sales/documents?drafts_page=99');
+
+        $this->assertStringContainsString(lang('Sales.documents_page_of', [2, 2, SaleDocumentList::PAGE_SIZE + 1]), $last->getBody());
+
+        foreach (['abc', '-3', '0', '2.5', ''] as $value) {
+            $this->assertStringContainsString(lang('Sales.documents_page_of', [1, 2, SaleDocumentList::PAGE_SIZE + 1]), $this->get('/sales/documents?drafts_page=' . $value)->getBody(), 'Page ' . $value);
+        }
+    }
+
+    public function testGetDocuments_OffersNoPagerWhileEveryDocumentFitsOnOnePage(): void
     {
         $this->supervisorForDocuments();
 
         foreach ([SALE_TYPE_INVOICE, SALE_TYPE_QUOTE] as $type) {
             $waiting = Database::connect()->table('sales')->where(['sale_status' => SUSPENDED, 'sale_type' => $type])->countAllResults();
 
-            $this->suspendedRows(SaleDocumentList::LIMIT - 1 - $waiting, $type);
+            $this->suspendedRows(SaleDocumentList::PAGE_SIZE - $waiting, $type);
         }
 
         $page = $this->get('/sales/documents');
 
-        $page->assertDontSee('id="drafts_limited"');
-        $page->assertDontSee('id="quotes_limited"');
+        $page->assertDontSee('id="drafts_pager"');
+        $page->assertDontSee('id="quotes_pager"');
     }
 
     public function testGetDocuments_NamesTheActionColumnAndGivesEveryOpenLinkTheNumberOfItsDocument(): void

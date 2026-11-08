@@ -71,6 +71,7 @@ foreach ($table?->columns ?? [] as $column) {
         <a class="btn btn-outline-secondary btn-sm float-end" id="report_csv" href="<?= esc($csvUrl, 'attr') ?>">
             <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?>
         </a>
+        <?= view('partial/report_files', ['csvUrl' => $csvUrl, 'id' => 'report_csv']) ?>
     <?php endif; ?>
     <?php foreach ($siblings as $sibling): ?>
         <a class="btn btn-outline-secondary btn-sm float-end" href="<?= esc($sibling['url'], 'attr') ?>"><?= esc($sibling['label']) ?></a>

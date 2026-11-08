@@ -1022,4 +1022,120 @@ class AccountingBankReconciliationControllerTest extends CIUnitTestCase
             $this->assertDoesNotMatchRegularExpression('/https?:\/\//', (string) file_get_contents($file), basename($file));
         }
     }
+
+    /**
+     * @return list<list<string>>
+     */
+    private function csvRows(\CodeIgniter\Test\TestResponse $response): array
+    {
+        $body = $response->response()->getBody();
+
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $body);
+
+        $handle = fopen('php://temp', 'r+b');
+        fwrite($handle, substr($body, 3));
+        rewind($handle);
+
+        $rows = [];
+
+        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
+            $rows[] = $row === [null] ? [] : $row;
+        }
+
+        return $rows;
+    }
+
+    public function testGetReportCsv_GivesBothSidesTheDifferenceAndTheOpenLinesOfTheScreen(): void
+    {
+        $this->scenario();
+        $this->actAsReconciler();
+
+        $response = $this->get($this->accountUrl('/report/csv?as_of=2026-03-31&statement_balance=1150.00'));
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('attachment; filename="bank_reconciliation_' . $this->bankId . '_2026-03-31.csv"', $response->response()->getHeaderLine('Content-Disposition'));
+
+        $rows = $this->csvRows($response);
+        $flat = array_merge(...$rows);
+
+        $this->assertSame([lang('Accounting_bank.report_title', ['Bank 1'])], $rows[0]);
+        $this->assertContains('975.0000', $flat);
+        $this->assertContains('925.0000', $flat);
+        $this->assertContains('Bank fee', $flat);
+        $this->assertContains('Cheque 501', $flat);
+        $this->assertContains('Deposit in transit', $flat);
+        $this->assertContains(lang('Accounting_bank.reconciled'), $flat);
+    }
+
+    public function testGetReportCsv_ShowsTheDifferenceWhenTheBalanceIsWrongAndSaysSoWhenNoneWasEntered(): void
+    {
+        $this->scenario();
+        $this->actAsReconciler();
+
+        $wrong = array_merge(...$this->csvRows($this->get($this->accountUrl('/report/csv?as_of=2026-03-31&statement_balance=1140.00'))));
+
+        $this->assertContains('-10.0000', $wrong);
+        $this->assertNotContains(lang('Accounting_bank.reconciled'), $wrong);
+
+        $none = array_merge(...$this->csvRows($this->get($this->accountUrl('/report/csv?as_of=2026-03-31'))));
+
+        $this->assertContains(lang('Accounting_bank.not_entered'), $none);
+        $this->assertContains(lang('Accounting_bank.not_computed'), $none);
+    }
+
+    public function testGetReportCsv_RefusesABalanceThatIsNotANumberInWords(): void
+    {
+        $this->scenario();
+        $this->actAsReconciler();
+
+        $response = $this->get($this->accountUrl('/report/csv?as_of=2026-03-31&statement_balance=abc'));
+
+        $response->assertStatus(422);
+        $this->assertNotSame('', $response->response()->getBody());
+    }
+
+    public function testGetReportCsv_ShowsADescriptionThatStartsLikeAFormulaAsText(): void
+    {
+        $this->scenario();
+        $this->actAsReconciler();
+
+        $this->accountingDb()->table('accounting_journal_lines')->like('description', 'Cheque 501')->update(['description' => '=1+1']);
+        $this->accountingDb()->table('accounting_journals')->like('description', 'Cheque 501')->update(['description' => '=1+1']);
+
+        $flat = array_merge(...$this->csvRows($this->get($this->accountUrl('/report/csv?as_of=2026-03-31'))));
+
+        $this->assertNotContains('=1+1', $flat);
+    }
+
+    public function testGetReportCsv_IsNotFoundWithoutThePermissionToReconcileAndForAnotherBranchsBankAccount(): void
+    {
+        $this->scenario();
+        $this->withSession(['person_id' => $this->employeeWithGrants(['accounting_treasuries']), 'menu_group' => 'home']);
+
+        try {
+            $this->get($this->accountUrl('/report/csv'));
+
+            $this->fail('Someone who may not reconcile is not given the statement');
+        } catch (PageNotFoundException) {
+            $this->assertTrue(true);
+        }
+
+        $this->actAsReconciler([], [$this->createBranch('OTH', 'Other branch')]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get($this->accountUrl('/report/csv'));
+    }
+
+    public function testGetReport_LinksTheThreeFilesWithTheDayAndTheBalanceAsked(): void
+    {
+        $this->scenario();
+        $this->actAsReconciler();
+
+        $response = $this->get($this->accountUrl('/report?as_of=2026-03-31&statement_balance=1150.00'));
+
+        $response->assertSee('id="bank_report_csv" href="' . site_url('accounting_treasuries/bank/' . $this->bankId . '/report/csv') . '?as_of=2026-03-31&amp;statement_balance=1150.00"');
+        $response->assertSee('id="bank_report_csv_xlsx" href="' . site_url('accounting_treasuries/bank/' . $this->bankId . '/report/xlsx') . '?as_of=2026-03-31&amp;statement_balance=1150.00"');
+        $response->assertSee('id="bank_report_csv_pdf" href="' . site_url('accounting_treasuries/bank/' . $this->bankId . '/report/pdf') . '?as_of=2026-03-31&amp;statement_balance=1150.00"');
+    }
 }

@@ -14,6 +14,7 @@ use App\Libraries\Accounting\CustomerDocuments;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\CustomerPosition;
+use App\Libraries\Accounting\PartyReportCsv;
 use App\Libraries\Accounting\PartyReportQuery;
 use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\PaymentStatus;
@@ -341,10 +342,52 @@ class AccountingReceivables extends AccountingController
             'statement_url' => static fn (int $partyId): string => base_url('accounting_receivables/customer/' . $partyId . '?to=' . $query->day()),
             'table'         => new AgedLedgerTable($query->day(), $query->days, $this->ledger->agedLedger($query->day(), $query->days)),
             'query'         => $query,
+            'csv_url'       => base_url('accounting_receivables/aged_ledger/csv') . '?' . http_build_query($query->agingFilters()),
             'error'         => $query->refusal === null ? null : $this->messageFor($query->refusal),
             'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'          => fn (string $value): string => $this->formatDate($value),
         ]);
+    }
+
+    public function getAgedLedgerCsv(): ResponseInterface
+    {
+        $this->requireCompanyScope();
+
+        $query = PartyReportQuery::forAging($this->request->getGet(), date('Y-m-d'));
+
+        if ($query->refusal !== null) {
+            return $this->refusedFile($this->messageFor($query->refusal));
+        }
+
+        $table = new AgedLedgerTable($query->day(), $query->days, $this->ledger->agedLedger($query->day(), $query->days));
+
+        return $this->csvFile('aged_ledger_customer_' . $query->day() . '.csv', (new PartyReportCsv())->aged($table, 'Accounting_receivables', 'customer'));
+    }
+
+    public function getBalancesCsv(): ResponseInterface
+    {
+        $this->requireCompanyScope();
+
+        $query = PartyReportQuery::forBalances($this->request->getGet(), date('Y-m-d'));
+
+        if ($query->refusal !== null) {
+            return $this->refusedFile($this->messageFor($query->refusal));
+        }
+
+        return $this->csvFile('balances_customer_' . ($query->from === '' ? '' : $query->from . '_') . $query->day() . '.csv', (new PartyReportCsv())->balances($this->balances->build($query->period, ! $query->showEmpty), 'Accounting_receivables', 'customer'));
+    }
+
+    private function refusedFile(string $message): ResponseInterface
+    {
+        return $this->response->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)->setBody($message);
+    }
+
+    private function csvFile(string $name, string $text): ResponseInterface
+    {
+        return $this->response
+            ->setContentType('text/csv', 'UTF-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $name . '"')
+            ->setBody("\xEF\xBB\xBF" . $text);
     }
 
     public function getBalances(): string
@@ -360,6 +403,7 @@ class AccountingReceivables extends AccountingController
             'statement_url' => static fn (int $partyId): string => base_url('accounting_receivables/customer/' . $partyId),
             'table'         => $this->balances->build($query->period, ! $query->showEmpty),
             'query'         => $query,
+            'csv_url'       => base_url('accounting_receivables/balances/csv') . '?' . http_build_query($query->balanceFilters()),
             'error'         => $query->refusal === null ? null : $this->messageFor($query->refusal),
             'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'          => fn (string $value): string => $this->formatDate($value),

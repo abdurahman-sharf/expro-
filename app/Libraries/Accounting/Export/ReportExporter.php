@@ -15,21 +15,27 @@ final class ReportExporter
     public const MAX_ROWS     = 20_000;
     public const MAX_PDF_ROWS = 3_000;
 
+    public function __construct(private readonly int $maxRows = self::MAX_ROWS, private readonly int $maxPdfRows = self::MAX_PDF_ROWS)
+    {
+    }
+
     /**
      * @throws AccountingException
      */
     public function convert(ExportFormat $format, string $csv, string $title, ExportOptions $options): string
     {
-        $sheet = ReportSheet::fromCsv($csv, $title);
-
-        if ($sheet->rowCount() > $format->maxRows()) {
-            throw new AccountingException(AccountingError::ReportFileTooLarge, 'The report is too large for the file asked for.', ['max' => $format->maxRows()]);
+        if ($format === ExportFormat::Csv) {
+            return $csv;
         }
 
-        return match ($format) {
-            ExportFormat::Csv  => $csv,
-            ExportFormat::Xlsx => (new XlsxWriter())->render($sheet, isRtl()),
-            ExportFormat::Pdf  => (new ReportPdf())->render($sheet, $options),
-        };
+        $sheet = ReportSheet::fromCsv($csv, $title);
+
+        $limit = $format === ExportFormat::Pdf ? $this->maxPdfRows : $this->maxRows;
+
+        if ($sheet->rowCount() > $limit) {
+            throw new AccountingException(AccountingError::ReportFileTooLarge, 'The report is too large for the file asked for.', ['max' => $limit]);
+        }
+
+        return $format === ExportFormat::Xlsx ? (new XlsxWriter())->render($sheet, isRtl()) : (new ReportPdf())->render($sheet, $options);
     }
 }

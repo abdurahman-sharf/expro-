@@ -168,4 +168,64 @@ class ReportExportTest extends CIUnitTestCase
             $this->assertSame(array_values(array_filter($row, static fn (string $cell): bool => $cell !== '')), array_values($texts), 'Row ' . ($index + 1));
         }
     }
+
+    public function testAfter_WritesAmountsAsNumbersAndNamesAsText(): void
+    {
+        $this->threeBranches();
+        $this->viewer();
+
+        $sheet = $this->workbookGrid($this->get('/accounting_reports/xlsx?type=balances&to=2026-10-31'));
+
+        $cash = null;
+
+        foreach ($sheet as $row) {
+            if (($row[1]['text'] ?? '') === lang('Accounting_reports.cash') || ($row[0]['text'] ?? '') === $this->codeOf('cash')) {
+                $cash = $row;
+            }
+        }
+
+        $this->assertNotNull($cash);
+        $this->assertSame(['type' => 'number', 'text' => '7777'], array_map(static fn (array $cell): array => $cell, [2 => $cash[2]])[2] === null ? [] : ['type' => $cash[2]['type'], 'text' => (string) (float) $cash[2]['text']]);
+        $this->assertSame('text', $cash[1]['type'], 'The name of the account is text');
+    }
+
+    public function testAfter_GivesTheTrialBalanceAsAPdfWithTheTitleAndTheAmounts(): void
+    {
+        $this->threeBranches();
+        $this->viewer();
+
+        $response = $this->get('/accounting_reports/pdf?type=balances&to=2026-10-31');
+
+        $response->assertStatus(200);
+        $this->assertSame('application/pdf', $response->response()->getHeaderLine('Content-Type'));
+        $this->assertStringContainsString('attachment; filename="trial_balance_balances_2026-10-31.pdf"', $response->response()->getHeaderLine('Content-Disposition'));
+        $this->assertStringStartsWith('%PDF-', $response->response()->getBody());
+
+        $text = $this->pdfText($response);
+
+        $this->assertStringContainsString(lang('Accounting_reports.trial_balance'), $text);
+        $this->assertStringContainsString('7777.0000', $text);
+    }
+
+    private function codeOf(string $systemKey): string
+    {
+        return (string) $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->accountId($systemKey))->get()->getRow()->code;
+    }
+
+    private function pdfText(TestResponse $response): string
+    {
+        if (trim((string) shell_exec('command -v pdftotext')) === '') {
+            $this->markTestSkipped('pdftotext is not installed');
+        }
+
+        $path = tempnam(sys_get_temp_dir(), 'pdftest');
+
+        file_put_contents($path, $response->response()->getBody());
+
+        $text = (string) shell_exec('pdftotext -layout ' . escapeshellarg($path) . ' - 2>/dev/null');
+
+        unlink($path);
+
+        return $text;
+    }
 }

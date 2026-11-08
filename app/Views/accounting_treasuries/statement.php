@@ -57,6 +57,7 @@ $journal = static function (array $row) use ($journal_links, $matched): string {
     <a class="btn btn-outline-secondary btn-sm float-end" id="statement_csv" href="<?= esc($csv_url, 'attr') ?>">
         <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_treasuries.statement_csv') ?>
     </a>
+    <?= view('partial/report_files', ['csvUrl' => $csv_url, 'id' => 'statement_csv']) ?>
 </div>
 
 <div class="container-fluid py-3" id="treasury_statement">
@@ -90,7 +91,7 @@ $journal = static function (array $row) use ($journal_links, $matched): string {
         <p class="text-body-secondary" id="treasury_no_crossings"><?= lang('Accounting_treasuries.crossings_none') ?></p>
     <?php else: ?>
         <div class="table-responsive mb-4">
-            <table class="table table-sm" id="treasury_crossings">
+            <table class="table table-sm acc-lines" id="treasury_crossings">
                 <thead>
                     <tr>
                         <th scope="col"><?= lang('Accounting_treasuries.date') ?></th>
@@ -160,7 +161,7 @@ $journal = static function (array $row) use ($journal_links, $matched): string {
     <?php else: ?>
         <p class="small text-body-secondary" id="statement_count"><?= esc(lang('Accounting_treasuries.statement_count', [$total_rows])) ?></p>
         <div class="table-responsive mb-4">
-            <table class="table table-sm" id="treasury_movements">
+            <table class="table table-sm acc-lines" id="treasury_movements">
                 <thead>
                     <tr>
                         <th scope="col"><?= lang('Accounting_treasuries.date') ?></th>

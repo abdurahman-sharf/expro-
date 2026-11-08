@@ -17,11 +17,8 @@ enum ExportFormat: string
         };
     }
 
-    public function maxRows(): int
+    public function addressOf(string $csvUrl): string
     {
-        return match ($this) {
-            self::Pdf => ReportExporter::MAX_PDF_ROWS,
-            default   => ReportExporter::MAX_ROWS,
-        };
+        return (string) preg_replace('~/csv(?=\?|$)~', '/' . $this->value, $csvUrl, 1);
     }
 }

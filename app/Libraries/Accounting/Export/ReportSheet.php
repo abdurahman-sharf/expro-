@@ -38,6 +38,10 @@ final readonly class ReportSheet
             array_pop($rows);
         }
 
+        if ($title === '' && isset($rows[0]) && count($rows[0]) === 1) {
+            $title = $rows[0][0];
+        }
+
         return new self($title, $rows);
     }
 

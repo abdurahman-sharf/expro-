@@ -5,11 +5,12 @@
  * @var QuoteStatus|null  $quote_filter
  * @var list<QuoteStatus> $statuses
  * @var bool              $show_branch
+ * @var array             $paging
+ * @var Closure           $page_url
  * @var array             $config
  */
 
 use App\Libraries\Accounting\QuoteStatus;
-use App\Libraries\Accounting\SaleDocumentList;
 
 $badges = [
     QuoteStatus::Draft->value     => 'text-bg-secondary',
@@ -71,9 +72,7 @@ $badges = [
                 </tbody>
             </table>
         </div>
-        <?php if (count($drafts) >= SaleDocumentList::LIMIT): ?>
-            <p class="small text-body-secondary" id="drafts_limited"><?= lang('Sales.documents_drafts_limited', [SaleDocumentList::LIMIT]) ?></p>
-        <?php endif; ?>
+        <?= view('sales/documents_pager', ['list' => 'drafts', 'paging' => $paging['drafts'], 'page_url' => $page_url]) ?>
     <?php endif; ?>
 
     <h2 class="h5 mt-4"><?= lang('Sales.documents_quotes') ?></h2>
@@ -128,9 +127,7 @@ $badges = [
                 </tbody>
             </table>
         </div>
-        <?php if (count($quotes) >= SaleDocumentList::LIMIT): ?>
-            <p class="small text-body-secondary" id="quotes_limited"><?= lang('Sales.documents_quotes_limited', [SaleDocumentList::LIMIT]) ?></p>
-        <?php endif; ?>
+        <?= view('sales/documents_pager', ['list' => 'quotes', 'paging' => $paging['quotes'], 'page_url' => $page_url]) ?>
     <?php endif; ?>
 </div>
 
