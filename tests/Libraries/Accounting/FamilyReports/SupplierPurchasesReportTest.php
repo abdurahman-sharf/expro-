@@ -23,7 +23,7 @@ final class SupplierPurchasesReportTest extends FamilyReportTestCase
         $this->report = new SupplierPurchasesReport();
     }
 
-    public function testBuild_RefusesTheCheckAgainstTheBooksByNameWhenAPurchaseIsInAForeignCurrency(): void
+    public function testBuild_RejectsTheCheckAgainstTheBooksByNameWhenAPurchaseIsInAForeignCurrency(): void
     {
         $facts = $this->market();
 

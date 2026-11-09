@@ -75,7 +75,7 @@ class AccountingBenchmarkTest extends CIUnitTestCase
         return Database::connect()->getDatabase();
     }
 
-    public function testRun_RefusesWithoutTheNameOfTheDatabaseAndWritesNothing(): void
+    public function testRun_RejectsWithoutTheNameOfTheDatabaseAndWritesNothing(): void
     {
         $before = $this->databaseFingerprint();
 
@@ -86,7 +86,7 @@ class AccountingBenchmarkTest extends CIUnitTestCase
         $this->assertDatabaseUnchanged($before);
     }
 
-    public function testRun_RefusesAnotherNameThanTheDatabaseItIsConnectedTo(): void
+    public function testRun_RejectsAnotherNameThanTheDatabaseItIsConnectedTo(): void
     {
         $before = $this->databaseFingerprint();
 
@@ -96,7 +96,7 @@ class AccountingBenchmarkTest extends CIUnitTestCase
         $this->assertDatabaseUnchanged($before);
     }
 
-    public function testRun_RefusesANumberOfDocumentsThatIsNotAWholeNumberInRange(): void
+    public function testRun_RejectsANumberOfDocumentsThatIsNotAWholeNumberInRange(): void
     {
         foreach (['0', '-4', 'ten', '2.5', '200001', ''] as $documents) {
             [$exit, $output] = $this->benchmark(['confirm' => $this->database(), 'documents' => $documents]);
@@ -106,7 +106,7 @@ class AccountingBenchmarkTest extends CIUnitTestCase
         }
     }
 
-    public function testRun_RefusesWhileTheBooksAreOffBecauseItSavesSalesWithTheirPosting(): void
+    public function testRun_RejectsWhileTheBooksAreOffBecauseItSavesSalesWithTheirPosting(): void
     {
         $this->setConfigValue('accounting_enabled', '0');
 

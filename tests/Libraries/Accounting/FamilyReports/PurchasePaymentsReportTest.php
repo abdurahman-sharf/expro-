@@ -61,7 +61,7 @@ final class PurchasePaymentsReportTest extends FamilyReportTestCase
         $this->assertStringContainsString(to_currency_no_money('30'), implode(' ', $table->notes));
     }
 
-    public function testBuild_RefusesTheCheckAgainstTheAccountsByNameWhenAPurchaseIsInAForeignCurrency(): void
+    public function testBuild_RejectsTheCheckAgainstTheAccountsByNameWhenAPurchaseIsInAForeignCurrency(): void
     {
         $ids = $this->market();
 

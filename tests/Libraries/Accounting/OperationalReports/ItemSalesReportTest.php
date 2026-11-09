@@ -169,7 +169,7 @@ class ItemSalesReportTest extends CIUnitTestCase
         $this->assertSame('50.0000', $this->table(ItemGroup::Category, false, ['category' => 'Oils'])->total['total']);
     }
 
-    public function testBuild_RefusesTheCheckAgainstTheBooksByNameWhenADocumentIsInAForeignCurrency(): void
+    public function testBuild_RejectsTheCheckAgainstTheBooksByNameWhenADocumentIsInAForeignCurrency(): void
     {
         $cycle  = $this->referenceInvoice();
         $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, $this->customerId);

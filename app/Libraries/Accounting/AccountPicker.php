@@ -41,6 +41,16 @@ final class AccountPicker
     }
 
     /**
+     * How many entries a screen lists in a select box: up to the threshold while accounting is on, because above
+     * it the screen searches, and the default size while accounting is off, when there is no search and the
+     * threshold cannot be set.
+     */
+    public function listLimit(): int
+    {
+        return $this->settings->isEnabled() ? $this->threshold() : AccountingSettings::DEFAULT_PICKER_SIZE;
+    }
+
+    /**
      * Whether the screen should offer a search box: there are more entries than the threshold.
      *
      * @param list<int>|null $branchIds Null is every branch.
@@ -157,12 +167,13 @@ final class AccountPicker
     /**
      * What a screen that picks a customer or a supplier needs to render: above the threshold, the settings of the
      * search box and the name of the one already chosen, and below it nothing, so that the screen keeps its list.
+     * The search is answered by an accounting screen, so while accounting is off the screen keeps its list too.
      *
      * @return array{url: string, selector: string, params: array<string, string>, initial: list<array{id: int, code: string, label: string}>, text: array<string, string>}|null
      */
     public function partyScreen(string $kind, ?int $selected, string $url, string $selector): ?array
     {
-        if (! $this->searching($kind, self::EVERY, null)) {
+        if (! $this->settings->isEnabled() || ! $this->searching($kind, self::EVERY, null)) {
             return null;
         }
 

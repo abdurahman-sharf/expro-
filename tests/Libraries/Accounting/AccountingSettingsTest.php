@@ -928,7 +928,7 @@ class AccountingSettingsTest extends CIUnitTestCase
         $this->assertSame(200, $this->settings->pickerThreshold());
     }
 
-    public function testUpdate_RefusesThePickerThresholdToSomeoneWithoutThePermissionToManageTheSettings(): void
+    public function testUpdate_RejectsThePickerThresholdToSomeoneWithoutThePermissionToManageTheSettings(): void
     {
         $this->forgetPickerThreshold();
 

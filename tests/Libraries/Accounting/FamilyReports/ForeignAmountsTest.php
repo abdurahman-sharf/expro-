@@ -32,7 +32,7 @@ final class ForeignAmountsTest extends CIUnitTestCase
         $this->assertSame($ties, ForeignAmounts::guard($ties, []));
     }
 
-    public function testGuard_RefusesEveryCheckByNameAndSaysWhichCurrencies(): void
+    public function testGuard_RejectsEveryCheckByNameAndSaysWhichCurrencies(): void
     {
         $guarded = ForeignAmounts::guard([new TieCheck('Net', '1.0000', '1.0000'), new TieCheck('Lines', '1.0000', '2.0000')], [null, 'USD', 'EUR', 'USD']);
 

@@ -26,10 +26,11 @@ class AccountingLookup extends AccountingController
 
     public function getSearch(): ResponseInterface
     {
-        $kind = (string) $this->request->getGet('kind');
-        $mode = (string) $this->request->getGet('mode');
+        $kind = $this->request->getGet('kind');
+        $mode = $this->request->getGet('mode');
+        $term = $this->request->getGet('term') ?? '';
 
-        if (! in_array($kind, AccountPicker::KINDS, true) || ! in_array($mode, AccountPicker::MODES, true)) {
+        if (! in_array($kind, AccountPicker::KINDS, true) || ! in_array($mode, AccountPicker::MODES, true) || ! is_string($term)) {
             return $this->response->setStatusCode(400);
         }
 
@@ -37,7 +38,7 @@ class AccountingLookup extends AccountingController
             return $this->response->setStatusCode(403);
         }
 
-        return $this->response->setJSON([...(new AccountPicker())->search($kind, $mode, (string) $this->request->getGet('term'), $this->branchIds()), 'limit' => AccountPicker::LIMIT]);
+        return $this->response->setJSON([...(new AccountPicker())->search($kind, $mode, $term, $this->branchIds()), 'limit' => AccountPicker::LIMIT]);
     }
 
     /**

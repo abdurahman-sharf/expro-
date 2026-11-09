@@ -88,19 +88,19 @@ abstract class RecurringScreen extends DocumentScreen
             : null;
 
         return view('recurring/form', [
-            'kind'       => $kind,
-            'schedule'   => $schedule,
-            'lines'      => $lines,
-            'reminders'  => $schedule === null ? [] : $this->schedules->reminders($scheduleId),
-            'frequency'  => $schedule === null ? self::DEFAULT_FREQUENCY : (RecurrenceTerms::of($schedule)->frequency() ?? self::DEFAULT_FREQUENCY),
-            'locations'  => $kind === RecurringKind::Invoice ? $this->locationOptions() : [],
-            'categories' => $kind === RecurringKind::Expense ? $this->categoryOptions() : [],
-            'payments'   => $kind === RecurringKind::Expense ? $this->paymentOptions() : [],
-            'suppliers'  => $kind === RecurringKind::Expense && $supplierPicker === null ? $this->supplierOptions() : [],
+            'kind'           => $kind,
+            'schedule'       => $schedule,
+            'lines'          => $lines,
+            'reminders'      => $schedule === null ? [] : $this->schedules->reminders($scheduleId),
+            'frequency'      => $schedule === null ? self::DEFAULT_FREQUENCY : (RecurrenceTerms::of($schedule)->frequency() ?? self::DEFAULT_FREQUENCY),
+            'locations'      => $kind === RecurringKind::Invoice ? $this->locationOptions() : [],
+            'categories'     => $kind === RecurringKind::Expense ? $this->categoryOptions() : [],
+            'payments'       => $kind === RecurringKind::Expense ? $this->paymentOptions() : [],
+            'suppliers'      => $kind === RecurringKind::Expense && $supplierPicker === null ? $this->supplierOptions() : [],
             'supplierPicker' => $supplierPicker,
             'supplierName'   => $supplierPicker['initial'][0]['label'] ?? '',
-            'treasuries' => $kind === RecurringKind::Expense ? $this->treasuryOptions() : [],
-            'today'      => date('Y-m-d'),
+            'treasuries'     => $kind === RecurringKind::Expense ? $this->treasuryOptions() : [],
+            'today'          => date('Y-m-d'),
         ]);
     }
 
@@ -253,7 +253,7 @@ abstract class RecurringScreen extends DocumentScreen
     private function supplierOptions(): array
     {
         $options = [];
-        $limit   = (new AccountPicker())->threshold();
+        $limit   = (new AccountPicker())->listLimit();
 
         foreach (Database::connect()->table('suppliers s')->select("s.person_id, s.company_name, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS name", false)->join('people p', 'p.person_id = s.person_id')->where('s.deleted', 0)->orderBy('s.company_name', 'ASC')->limit($limit)->get()->getResult() as $row) {
             $options[(int) $row->person_id] = (string) ($row->company_name !== '' ? $row->company_name : $row->name);

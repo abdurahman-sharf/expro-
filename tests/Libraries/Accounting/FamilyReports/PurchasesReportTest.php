@@ -58,7 +58,7 @@ final class PurchasesReportTest extends FamilyReportTestCase
         }
     }
 
-    public function testBuild_RefusesTheCheckAgainstTheBooksByNameWhenAPurchaseIsInAForeignCurrency(): void
+    public function testBuild_RejectsTheCheckAgainstTheBooksByNameWhenAPurchaseIsInAForeignCurrency(): void
     {
         $facts = $this->market();
 

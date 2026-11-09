@@ -5,7 +5,7 @@
  * @var int                                                                                                               $branch_id
  * @var array<int, array{date: string, label: string}|null>                                                               $cutoffs
  * @var list<object>                                                                                                      $accounts
- * @var array<string, mixed>|null                                                                                          $picker   The search box that replaces the list of accounts when there are many.
+ * @var array<string, mixed>|null                                                                                         $picker   The search box that replaces the list of accounts when there are many.
  * @var list<object>                                                                                                      $cost_centers
  * @var string                                                                                                            $currency
  * @var bool                                                                                                              $can_post

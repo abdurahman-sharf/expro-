@@ -632,4 +632,19 @@ class LanguageFilesTest extends CIUnitTestCase
             $this->assertSame([''], array_values(array_unique($messages)), "{$locale} holds text that is not translated");
         }
     }
+
+    #[DataProvider('arabicLocaleProvider')]
+    public function testAccountingPickerFile_IsTranslatedIntoArabicAndSpeaksTheNumberOfResultsWithoutACountedNoun(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_picker.php";
+        $english  = include __DIR__ . '/../app/Language/en/Accounting_picker.php';
+
+        foreach ($english as $key => $line) {
+            $this->assertNotSame($line, $messages[$key], "{$locale} shows English for {$key}");
+            $this->assertSame(substr_count($line, '{0}'), substr_count($messages[$key], '{0}'), "{$locale} keeps the placeholder of {$key}");
+        }
+
+        $this->assertStringContainsString('{0}', $messages['count']);
+        $this->assertDoesNotMatchRegularExpression('/\{0\}\s*نتيجة/u', $messages['count'], "{$locale}: a counted noun after the number is wrong for most numbers");
+    }
 }

@@ -360,6 +360,21 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertSame(350, (new AccountingSettings())->pickerThreshold(), 'a form without the field leaves it alone');
     }
 
+    public function testPostSave_RejectsANumberOfEntriesSentAsAnArray(): void
+    {
+        $this->manager();
+
+        $form = ['base_currency' => 'usd', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1'];
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + ['picker_threshold' => '120']))['success']);
+
+        $answer = $this->jsonOf($this->post('/accounting_settings/save', $form + ['picker_threshold' => ['5', '6']]));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.error_picker_threshold_invalid', [(string) AccountingSettings::MAX_PICKER_SIZE]), $answer['message']);
+        $this->assertSame(120, (new AccountingSettings())->pickerThreshold());
+    }
+
     public function testGetIndex_ShowsTheNumberOfEntriesBeforeASearchBoxInItsField(): void
     {
         $this->manager();

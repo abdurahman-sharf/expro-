@@ -6,7 +6,7 @@
         return $.trim(value || '').toLowerCase();
     };
 
-    const bindSearch = function(remote, remember) {
+    const bindSearch = function(remote, remember, pin) {
         const id = ++pickers;
         const listId = 'acc_picker_list_' + id;
         const hintId = 'acc_picker_hint_' + id;
@@ -19,6 +19,7 @@
         let active = -1;
         let timer = null;
         let request = null;
+        let choosing = false;
 
         $('body').append($list, $hint, $status);
 
@@ -51,10 +52,14 @@
                 return;
             }
 
-            remember(entry);
+            pin(entry);
             const $chosen = $input;
+            clearTimeout(timer);
+            request && request.abort();
             close();
+            choosing = true;
             $chosen.val(entry.label).trigger('input').trigger('change');
+            choosing = false;
         };
 
         const render = function(found, more) {
@@ -100,7 +105,7 @@
             $input.attr({role: 'combobox', 'aria-autocomplete': 'list', 'aria-haspopup': 'listbox', 'aria-controls': listId, 'aria-describedby': hintId, 'aria-expanded': 'false', autocomplete: 'off'});
         }).on('input', remote.selector, function() {
             $input = $(this);
-            search();
+            choosing || search();
         }).on('keydown', remote.selector, function(event) {
             const open = !$list.prop('hidden') && entries.length > 0;
 
@@ -137,10 +142,29 @@
     const accountPicker = function(listId, remote) {
         const byLabel = {};
         const byCode = {};
+        const pinned = {};
+
+        const add = function(map, key, entry) {
+            key !== '' && (map[key] = (map[key] || []).filter(function(other) {
+                return other.id !== entry.id;
+            }).concat(entry));
+        };
 
         const remember = function(entry) {
-            byLabel[normalize(entry.label)] = entry;
-            normalize(entry.code) !== '' && (byCode[normalize(entry.code)] = entry);
+            const known = {id: String(entry.id), label: entry.label, code: entry.code};
+
+            add(byLabel, normalize(known.label), known);
+            add(byCode, normalize(known.code), known);
+
+            return known;
+        };
+
+        const pin = function(entry) {
+            pinned[normalize(entry.label)] = remember(entry);
+        };
+
+        const only = function(found) {
+            return found && found.length === 1 ? found[0] : null;
         };
 
         $('#' + listId + ' option').each(function() {
@@ -149,14 +173,14 @@
 
         if (remote && remote.url) {
             $.each(remote.initial || [], function(index, entry) {
-                remember({id: String(entry.id), label: entry.label, code: entry.code});
+                pin({id: String(entry.id), label: entry.label, code: entry.code});
             });
-            bindSearch(remote, remember);
+            bindSearch(remote, remember, pin);
         }
 
         const resolve = function(text) {
             const key = normalize(text);
-            return key === '' ? null : byLabel[key] || byCode[key] || null;
+            return key === '' ? null : pinned[key] || only(byLabel[key]) || only(byCode[key]);
         };
 
         const sync = function($text, $hidden) {

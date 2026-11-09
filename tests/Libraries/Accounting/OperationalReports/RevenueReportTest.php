@@ -111,7 +111,7 @@ class RevenueReportTest extends CIUnitTestCase
         }
     }
 
-    public function testBuild_RefusesTheThreeChecksAgainstTheBooksByNameWhenADocumentIsInAForeignCurrency(): void
+    public function testBuild_RejectsTheThreeChecksAgainstTheBooksByNameWhenADocumentIsInAForeignCurrency(): void
     {
         $ids = $this->sales();
 

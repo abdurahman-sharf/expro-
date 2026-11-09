@@ -39,8 +39,8 @@ final class UniqueModuleSortValuesMigrationTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
-        (new UniqueModuleSortValues())->up();
         $this->accountingDb()->table('modules')->where('module_id', 'zz_sort_probe')->delete();
+        (new UniqueModuleSortValues())->up();
 
         parent::tearDown();
     }

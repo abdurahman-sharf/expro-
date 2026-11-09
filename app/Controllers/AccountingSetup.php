@@ -138,10 +138,16 @@ class AccountingSetup extends AccountingController
                 }
             }
 
-            foreach (['shipping_tax_percent', 'picker_threshold', 'journal_description_sales', 'journal_description_purchases'] as $text) {
+            foreach (['shipping_tax_percent', 'journal_description_sales', 'journal_description_purchases'] as $text) {
                 if ($this->request->getPost($text) !== null) {
                     $input[$text] = (string) $this->request->getPost($text);
                 }
+            }
+
+            $pickerThreshold = $this->request->getPost('picker_threshold');
+
+            if ($pickerThreshold !== null) {
+                $input['picker_threshold'] = is_array($pickerThreshold) ? 'not a value' : (string) $pickerThreshold;
             }
 
             $this->settings->update($input, $this->employeeId());

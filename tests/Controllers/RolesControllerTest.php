@@ -282,7 +282,7 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(AccountingGuard::PERIODS_CLOSE, $result['message']);
     }
 
-    public function testPostSave_RefusesAPermissionThatMovesMoneyAndNamesIt(): void
+    public function testPostSave_RejectsAPermissionThatMovesMoneyAndNamesIt(): void
     {
         $this->manager();
 

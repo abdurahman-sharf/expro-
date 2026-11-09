@@ -76,7 +76,7 @@ final class SupplierPaymentsReportTest extends FamilyReportTestCase
         $this->assertAmount('230.00', $table->ties[0]->book);
     }
 
-    public function testBuild_RefusesTheCheckAgainstTheTreasuryByNameWhenAPaymentIsInAForeignCurrency(): void
+    public function testBuild_RejectsTheCheckAgainstTheTreasuryByNameWhenAPaymentIsInAForeignCurrency(): void
     {
         $this->payments();
 

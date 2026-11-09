@@ -34,6 +34,12 @@ M = [
     ('J14 an empty result says so', 'found.length === 0 ? text.none :', "found.length === 0 ? '' :"),
     ('J15 the term is trimmed and sent with the kind', '$.extend({}, remote.params, {term: $.trim($asked.val())})', '{term: $.trim($asked.val())}'),
     ('J16 the box is closed when it loses focus', "}).on('focusout', remote.selector, function() {\n            clearTimeout(timer);\n            request && request.abort();\n            close();", "}).on('focusout', remote.selector, function() {\n            clearTimeout(timer);\n            request && request.abort();"),
+    ('J17 choosing sends no search of its own', 'choosing || search();', 'search();'),
+    ('J18 choosing cancels a search that was typed a moment before', "clearTimeout(timer);\n            request && request.abort();\n            close();\n            choosing = true;", "close();\n            choosing = true;"),
+    ('J19 an entry that was chosen out of twins is the one the name stands for', 'pinned[normalize(entry.label)] = remember(entry);', 'remember(entry);'),
+    ('J20 a name that two entries share is left unresolved', 'found && found.length === 1 ? found[0] : null', 'found ? found[found.length - 1] : null'),
+    ('J21 an entry is known by the same id wherever it came from', 'const known = {id: String(entry.id),', 'const known = {id: entry.id,'),
+    ('J22 an entry already on the screen is the one its name stands for', 'pin({id: String(entry.id), label: entry.label, code: entry.code});', 'remember({id: String(entry.id), label: entry.label, code: entry.code});'),
 ]
 
 results = []

@@ -106,7 +106,17 @@ final class AccountingLookupControllerTest extends CIUnitTestCase
         $this->get('/accounting_lookup/search')->assertStatus(400);
     }
 
-    public function testGetSearch_RefusesAnAccountSearchToSomeoneWhoseScreensNeverListAccounts(): void
+    public function testGetSearch_RejectsAQueryValueThatIsAnArray(): void
+    {
+        $this->accountant();
+
+        $this->get('/accounting_lookup/search?kind[]=account&mode=postable')->assertStatus(400);
+        $this->get('/accounting_lookup/search?kind=account&mode[]=postable')->assertStatus(400);
+        $this->get('/accounting_lookup/search?kind=account&mode=postable&term[]=cash')->assertStatus(400);
+        $this->get('/accounting_lookup/search?kind=account&mode=postable')->assertStatus(200);
+    }
+
+    public function testGetSearch_RejectsAnAccountSearchToSomeoneWhoseScreensNeverListAccounts(): void
     {
         $this->actAs($this->employeeWithGrants(['customers']));
 

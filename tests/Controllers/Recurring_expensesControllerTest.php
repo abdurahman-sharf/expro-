@@ -58,7 +58,9 @@ class Recurring_expensesControllerTest extends CIUnitTestCase
     {
         $this->releaseOpenTransactions();
         $this->clearSchedules();
+        $this->removeInsertedEntities();
         $this->accountingDb()->table('accounting_audit_log')->whereIn('entity_type', ['recurring_invoice', 'recurring_expense'])->delete();
+        $this->accountingDb()->table('app_config')->where('key', 'accounting_picker_threshold')->delete();
         $this->stopExpenses();
 
         parent::tearDown();
@@ -244,6 +246,23 @@ class Recurring_expensesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('accounting_lookup\/search', $body);
         $this->assertStringContainsString('"kind":"supplier"', $body);
         $this->assertStringNotContainsString('Recurring Other Supplies', $body, 'The suppliers are not all written into the page');
+    }
+
+    public function testGetForm_KeepsTheSelectOfSuppliersAboveTheThresholdWhileAccountingIsDisabled(): void
+    {
+        $first  = $this->insertSupplier('Recurring Plain Supplies');
+        $second = $this->insertSupplier('Recurring Second Supplies');
+
+        $this->setConfigValue('accounting_picker_threshold', '1');
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $body = $this->get('/recurring_expenses/add')->getBody();
+
+        $this->assertStringContainsString('<select name="supplier_id" id="supplier_id"', $body);
+        $this->assertStringContainsString('<option value="' . $first . '">Recurring Plain Supplies</option>', $body);
+        $this->assertStringContainsString('<option value="' . $second . '">Recurring Second Supplies</option>', $body, 'The stored threshold does not cut the list while accounting is off');
+        $this->assertStringNotContainsString('id="supplier_text"', $body, 'The search answers only while accounting is on');
     }
 
     public function testGetForm_SelectsTheFrequencyAndTheWayOfPaymentOfTheScheduleWhateverLanguageItWasTypedIn(): void

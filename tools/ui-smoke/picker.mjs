@@ -37,6 +37,10 @@ const entries = (term) => {
         return { results: Array.from({ length: 20 }, (_, index) => ({ id: 100 + index, code: `9${index}`, label: `9${index} - Account ${index}` })), more: true, limit: 20 };
     }
 
+    if (term.toLowerCase().includes('nour')) {
+        return { results: [{ id: 5, code: '', label: 'Al Nour Trading' }, { id: 9, code: '', label: 'Al Nour Trading' }], more: false, limit: 20 };
+    }
+
     return { results: [{ id: 7, code: '1101', label: '1101 - Cash' }, { id: 8, code: '1102', label: '1102 - Cash in transit' }, { id: 9, code: '1103', label: '1103 - Cashier float' }], more: false, limit: 20 };
 };
 
@@ -116,9 +120,13 @@ try {
         await page.keyboard.press('ArrowUp');
         check(`${label}the up arrow wraps to the last option`, (await input.getAttribute('aria-activedescendant')) === (await page.locator('[role=option]').nth(2).getAttribute('id')));
 
+        const askedBeforeChoosing = requests.length;
+
         await page.keyboard.press('Enter');
         check(`${label}Enter chooses the option and fills the hidden id`, (await input.inputValue()) === '1103 - Cashier float' && (await hidden.inputValue()) === '9');
         check(`${label}choosing closes the list`, (await list.isHidden()) && (await input.getAttribute('aria-expanded')) === 'false');
+        await page.waitForTimeout(600);
+        check(`${label}choosing asks the server nothing more and the list stays closed`, requests.length === askedBeforeChoosing && (await list.isHidden()) && (await page.locator('[role=status]').innerText()).includes('3 results'));
 
         await input.fill('');
         await page.keyboard.type('cas');
@@ -173,6 +181,72 @@ try {
         await page.keyboard.press('ArrowDown');
         await page.keyboard.press('Enter');
         check(`${label}a row added after the page loaded is searched too`, (await added.inputValue()) === '1101 - Cash' && (await page.locator('.acc-account').nth(1).inputValue()) === '7');
+
+        await added.fill('');
+        await page.keyboard.type('cash');
+        await list.waitFor({ state: 'visible' });
+        await page.keyboard.type('x');
+        const askedBeforeClick = requests.length;
+        await page.locator('[role=option]').nth(0).dispatchEvent('mousedown');
+        await page.waitForTimeout(600);
+        check(`${label}a search typed just before a choice does not reopen the list`, requests.length === askedBeforeClick && (await list.isHidden()) && (await page.locator('.acc-account').nth(1).inputValue()) === '7');
+
+        await added.fill('1101');
+        await added.blur();
+        check(`${label}the code of an entry that was chosen and searched again still completes it`, (await added.inputValue()) === '1101 - Cash' && (await page.locator('.acc-account').nth(1).inputValue()) === '7');
+
+        await page.evaluate(() => {
+            window.$('#rows').append(window.$('.row').first().clone().find('input').val('').end());
+        });
+        const twin = page.locator('.acc-account-text').nth(2);
+        const twinHidden = page.locator('.acc-account').nth(2);
+
+        await twin.focus();
+        await page.keyboard.type('Al Nour Trading');
+        await list.waitFor({ state: 'visible' });
+        await twin.blur();
+        check(`${label}a name that two entries share does not pick one of them when it is typed`, (await twinHidden.inputValue()) === '' && (await twin.getAttribute('class')).includes('is-invalid'));
+
+        await twin.focus();
+        await twin.fill('');
+        await page.keyboard.type('Al Nour');
+        await list.waitFor({ state: 'visible' });
+        await page.locator('[role=option]').nth(0).dispatchEvent('mousedown');
+        await page.waitForTimeout(600);
+        check(`${label}the entry chosen out of two with the same name keeps its id while the list stays closed`, (await twinHidden.inputValue()) === '5' && (await list.isHidden()));
+
+        await page.keyboard.press('ArrowDown');
+        await list.waitFor({ state: 'visible' });
+        await twin.blur();
+        check(`${label}opening the list again and leaving the box does not swap the chosen entry for its twin`, (await twinHidden.inputValue()) === '5' && (await twin.inputValue()) === 'Al Nour Trading');
+
+        await page.evaluate(() => {
+            const $ = window.$;
+
+            $('#f').append('<p><input type="text" class="acc-edit-text" aria-label="Supplier" value="Al Nour Trading"><input type="hidden" class="acc-edit" value="9"></p>');
+
+            const editPicker = window.accounting_support.accountPicker('unused_list_2', {
+                url: 'http://picker.test/search',
+                selector: '.acc-edit-text',
+                params: { kind: 'supplier', mode: 'every' },
+                initial: [{ id: 9, code: '', label: 'Al Nour Trading' }],
+                text: { count: '{0} results', failed: 'failed', hint: 'Type to search', more: 'Only the first 20 are shown', none: 'No results' },
+            });
+
+            $(document).on('input change', '.acc-edit-text', function () {
+                editPicker.sync($(this), $('.acc-edit'));
+            }).on('blur', '.acc-edit-text', function () {
+                editPicker.complete($(this), $('.acc-edit'));
+            });
+        });
+
+        const edit = page.locator('.acc-edit-text');
+
+        await edit.focus();
+        await page.keyboard.press('ArrowDown');
+        await page.locator('#acc_picker_list_2').waitFor({ state: 'visible' });
+        await edit.blur();
+        check(`${label}the supplier already on the screen keeps its id when its name is shared and the box is only passed through`, (await page.locator('.acc-edit').inputValue()) === '9' && (await edit.inputValue()) === 'Al Nour Trading');
 
         check(`${label}no script error`, errors.length === 0, errors.join('; '));
         await context.close();

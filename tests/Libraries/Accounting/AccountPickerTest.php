@@ -49,6 +49,7 @@ final class AccountPickerTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->accountingDb()->table('app_config')->where('key', 'accounting_picker_threshold')->delete();
+        $this->setConfigValue('accounting_enabled', '0');
         $this->removeInsertedEntities();
 
         parent::tearDown();
@@ -266,6 +267,50 @@ final class AccountPickerTest extends CIUnitTestCase
         $screen = $this->picker->screen(AccountPicker::POSTABLE, [$account], [1], 'http://x/search', '.box', static fn (): array => []);
 
         $this->assertSame([$account], array_map(static fn (object $row): int => (int) $row->account_id, $screen['accounts']));
+    }
+
+    public function testListLimit_IsTheThresholdWhileAccountingIsOnAndTheDefaultSizeWhileItIsOff(): void
+    {
+        $this->setConfigValue('accounting_picker_threshold', '35');
+
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->assertSame(35, $this->picker->listLimit());
+
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->assertSame(AccountingSettings::DEFAULT_PICKER_SIZE, $this->picker->listLimit());
+    }
+
+    public function testPartyScreen_OffersASearchBoxAboveTheThresholdAndNamesTheChosenSupplier(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue('accounting_picker_threshold', '1');
+        $chosen = $this->insertSupplier('Party Screen Chosen');
+        $this->insertSupplier('Party Screen Other');
+
+        $screen = $this->picker->partyScreen(AccountPicker::SUPPLIER, $chosen, 'http://x/search', '#box');
+
+        $this->assertSame(['kind' => 'supplier', 'mode' => 'every'], $screen['params']);
+        $this->assertSame('#box', $screen['selector']);
+        $this->assertSame([$chosen], array_column($screen['initial'], 'id'));
+    }
+
+    public function testPartyScreen_KeepsTheListBelowTheThreshold(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue('accounting_picker_threshold', '100000');
+        $this->insertSupplier('Party Screen Few');
+
+        $this->assertNull($this->picker->partyScreen(AccountPicker::SUPPLIER, null, 'http://x/search', '#box'));
+    }
+
+    public function testPartyScreen_KeepsTheListWhileAccountingIsDisabledBecauseTheSearchIsAnAccountingScreen(): void
+    {
+        $this->setConfigValue('accounting_picker_threshold', '1');
+        $this->insertSupplier('Party Screen First');
+        $this->insertSupplier('Party Screen Second');
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertNull($this->picker->partyScreen(AccountPicker::SUPPLIER, null, 'http://x/search', '#box'));
     }
 
     public function testThresholdSetting_IsReadByTheSettingsOfTheBooks(): void

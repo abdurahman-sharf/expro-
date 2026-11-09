@@ -37,7 +37,7 @@ final class ForeignAmountsTest extends CIUnitTestCase
         $this->assertSame($ties, ForeignAmounts::guard($ties, []));
     }
 
-    public function testGuard_RefusesEveryCheckByNameWhenOneDocumentIsInAForeignCurrency(): void
+    public function testGuard_RejectsEveryCheckByNameWhenOneDocumentIsInAForeignCurrency(): void
     {
         $guarded = ForeignAmounts::guard([new TieCheck('a', '1.0000', '2.0000'), new TieCheck('b', '1.0000', '1.0000')], [$this->document(1, null), $this->document(2, 'USD')]);
 

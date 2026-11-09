@@ -241,7 +241,7 @@ class NetPositionReportTest extends CIUnitTestCase
         }
     }
 
-    public function testBuild_RefusesBothChecksByNameWhenAnInvoiceIsInAForeignCurrency(): void
+    public function testBuild_RejectsBothChecksByNameWhenAnInvoiceIsInAForeignCurrency(): void
     {
         $ids = $this->documents();
 

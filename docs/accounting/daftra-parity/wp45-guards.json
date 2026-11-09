@@ -595,7 +595,7 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "RefusesAnAccountSearch|ServesCustomers",
+      "RejectsAnAccountSearch|ServesCustomers",
       "tests/Controllers/AccountingLookupControllerTest.php"
     ]
   },
@@ -613,8 +613,8 @@
   {
     "name": "G59 the search keeps to the branches of the employee",
     "file": "app/Controllers/AccountingLookup.php",
-    "find": "(string) $this->request->getGet('term'), $this->branchIds())",
-    "replace": "(string) $this->request->getGet('term'), null)",
+    "find": "$mode, $term, $this->branchIds())",
+    "replace": "$mode, $term, null)",
     "tests": [
       "--filter",
       "LeavesOutTheStockAccount",
@@ -646,8 +646,8 @@
   {
     "name": "G62 the screen of the settings saves the threshold",
     "file": "app/Controllers/AccountingSetup.php",
-    "find": "['shipping_tax_percent', 'picker_threshold', 'journal_description_sales', 'journal_description_purchases']",
-    "replace": "['shipping_tax_percent', 'journal_description_sales', 'journal_description_purchases']",
+    "find": "$input['picker_threshold'] = is_array($pickerThreshold) ? 'not a value' : (string) $pickerThreshold;",
+    "replace": "unset($input['picker_threshold']);",
     "tests": [
       "--filter",
       "PickerThreshold|NumberOfEntriesBeforeASearchBox",
@@ -657,7 +657,7 @@
   {
     "name": "G63 the supplier list below the threshold holds as many suppliers as the threshold",
     "file": "app/Controllers/RecurringScreen.php",
-    "find": "$limit   = (new AccountPicker())->threshold();",
+    "find": "$limit   = (new AccountPicker())->listLimit();",
     "replace": "$limit   = 200;",
     "tests": [
       "--filter",
@@ -705,7 +705,7 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "RefusesWithoutTheName|RefusesAnotherName",
+      "RejectsWithoutTheName|RejectsAnotherName",
       "tests/Commands/AccountingBenchmarkTest.php"
     ]
   },
@@ -716,7 +716,7 @@
     "replace": " ? (int) $given : null;",
     "tests": [
       "--filter",
-      "RefusesANumberOfDocuments",
+      "RejectsANumberOfDocuments",
       "tests/Commands/AccountingBenchmarkTest.php"
     ]
   },
@@ -727,7 +727,7 @@
     "replace": "if (false) {",
     "tests": [
       "--filter",
-      "RefusesWhileTheBooksAreOff",
+      "RejectsWhileTheBooksAreOff",
       "tests/Commands/AccountingBenchmarkTest.php"
     ]
   },
@@ -774,6 +774,94 @@
       "--filter",
       "SixRealSessions",
       "tests/Libraries/Accounting/InterBranchSettlementsTest.php"
+    ]
+  },
+  {
+    "name": "G74 a search box is offered for suppliers only while accounting is on, because the search is an accounting screen",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "if (! $this->settings->isEnabled() || ! $this->searching($kind, self::EVERY, null)) {",
+    "replace": "if (! $this->searching($kind, self::EVERY, null)) {",
+    "tests": [
+      "--filter",
+      "KeepsTheListWhileAccountingIsDisabled",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G75 the recurring expense form keeps the select of suppliers while accounting is off",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "if (! $this->settings->isEnabled() || ! $this->searching($kind, self::EVERY, null)) {",
+    "replace": "if (! $this->searching($kind, self::EVERY, null)) {",
+    "tests": [
+      "--filter",
+      "KeepsTheSelectOfSuppliersAboveTheThresholdWhileAccountingIsDisabled",
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ]
+  },
+  {
+    "name": "G76 a term sent as an array is rejected",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "! is_string($term)",
+    "replace": "false",
+    "tests": [
+      "--filter",
+      "RejectsAQueryValueThatIsAnArray",
+      "tests/Controllers/AccountingLookupControllerTest.php"
+    ]
+  },
+  {
+    "name": "G77 a threshold sent as an array is refused as not a number",
+    "file": "app/Controllers/AccountingSetup.php",
+    "find": "is_array($pickerThreshold) ? 'not a value' : (string) $pickerThreshold",
+    "replace": "(string) $pickerThreshold",
+    "tests": [
+      "--filter",
+      "RejectsANumberOfEntriesSentAsAnArray",
+      "tests/Controllers/AccountingSetupControllerTest.php"
+    ]
+  },
+  {
+    "name": "G78 the Arabic count of results has no counted noun after the number (Egypt)",
+    "file": "app/Language/ar-EG/Accounting_picker.php",
+    "find": "'عدد النتائج: {0}'",
+    "replace": "'{0} نتيجة'",
+    "tests": [
+      "--filter",
+      "AccountingPickerFile",
+      "tests/LanguageFilesTest.php"
+    ]
+  },
+  {
+    "name": "G79 the Arabic count of results has no counted noun after the number (Lebanon)",
+    "file": "app/Language/ar-LB/Accounting_picker.php",
+    "find": "'عدد النتائج: {0}'",
+    "replace": "'{0} نتيجة'",
+    "tests": [
+      "--filter",
+      "AccountingPickerFile",
+      "tests/LanguageFilesTest.php"
+    ]
+  },
+  {
+    "name": "G80 while accounting is off a select of suppliers holds the default number, whatever threshold was stored",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "return $this->settings->isEnabled() ? $this->threshold() : AccountingSettings::DEFAULT_PICKER_SIZE;",
+    "replace": "return $this->threshold();",
+    "tests": [
+      "--filter",
+      "ListLimit_",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "G81 the recurring expense form lists the default number of suppliers while accounting is off",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "return $this->settings->isEnabled() ? $this->threshold() : AccountingSettings::DEFAULT_PICKER_SIZE;",
+    "replace": "return $this->threshold();",
+    "tests": [
+      "--filter",
+      "KeepsTheSelectOfSuppliersAboveTheThresholdWhileAccountingIsDisabled",
+      "tests/Controllers/Recurring_expensesControllerTest.php"
     ]
   }
 ]
