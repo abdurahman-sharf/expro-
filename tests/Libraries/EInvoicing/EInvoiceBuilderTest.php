@@ -28,10 +28,8 @@ use Tests\Support\SaleAccountingFixtureTrait;
 /**
  * The document of a sale: the figures are those of the books, and a sale the standard cannot be written from
  * is refused with the rule instead of being adjusted.
- *
- * @internal
  */
-final class EInvoiceBuilderTest extends CIUnitTestCase
+class EInvoiceBuilderTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -44,7 +42,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace;
+    protected $namespace   = null;
     private EInvoiceBuilder $builder;
 
     public static function setUpBeforeClass(): void
@@ -86,7 +84,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->fail('The document was not refused.');
     }
 
-    public function testFromSaleBuildsTheReferenceInvoiceWithTheFiguresOfTheBooks(): void
+    public function testFromSale_BuildsTheReferenceInvoiceWithTheFiguresOfTheBooks(): void
     {
         $saleId   = $this->referenceSale();
         $document = $this->builder->fromSale($saleId);
@@ -122,7 +120,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame('106.50', $document->taxSubtotals[0]->taxAmount);
     }
 
-    public function testFromSaleStatesTheTotalsTheSalePostingBuilderPutsInTheJournal(): void
+    public function testFromSale_StatesTheTotalsTheSalePostingBuilderPutsInTheJournal(): void
     {
         $saleId   = $this->referenceSale();
         $document = $this->builder->fromSale($saleId);
@@ -144,7 +142,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame($document->taxExclusive, bcadd($figures['revenue'], '0', 2));
     }
 
-    public function testFromSaleFoldsTheDiscountOnTheWholeInvoiceIntoTheAllowanceOfTheLines(): void
+    public function testFromSale_FoldsTheDiscountOnTheWholeInvoiceIntoTheAllowanceOfTheLines(): void
     {
         $cycle  = $this->discountedReferenceInvoice();
         $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
@@ -159,7 +157,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame('396.00', $document->lines[1]->netAmount);
     }
 
-    public function testFromSaleWritesTheCreditNoteOfAReturnWithPositiveAmountsAndTheReferenceToTheInvoice(): void
+    public function testFromSale_WritesTheCreditNoteOfAReturnWithPositiveAmountsAndTheReferenceToTheInvoice(): void
     {
         $cycle    = $this->referenceInvoice();
         $invoice  = $this->save($cycle['items'], $cycle['taxes']);
@@ -183,7 +181,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertStringStartsWith('POS ', $document->number);
     }
 
-    public function testFromSaleRefusesACreditNoteThatNamesNoReasonAndNoOriginal(): void
+    public function testFromSale_RefusesACreditNoteThatNamesNoReasonAndNoOriginal(): void
     {
         $cycle  = $this->referenceInvoice();
         $return = $this->creditNoteOf($this->save($cycle['items'], $cycle['taxes']), '100.00');
@@ -193,7 +191,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::ReasonTooLong, $this->refusal(fn () => $this->builder->fromSale($return, null, str_repeat('x', 1001), new OriginalReference(1, 'INV-1', EInvoiceSubtype::Simplified)))->error);
     }
 
-    public function testFromSaleChoosesSimplifiedForACounterSaleAndStandardForACustomerWithATaxNumber(): void
+    public function testFromSale_ChoosesSimplifiedForACounterSaleAndStandardForACustomerWithATaxNumber(): void
     {
         $counter = $this->counterSale();
         $company = $this->referenceSale($this->makeBusinessCustomer());
@@ -206,7 +204,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame('311111111111113', $this->builder->fromSale($company)->buyer->vatNumber);
     }
 
-    public function testFromSaleTreatsAGovernmentEntityAsABusinessWhateverItsTaxNumber(): void
+    public function testFromSale_TreatsAGovernmentEntityAsABusinessWhateverItsTaxNumber(): void
     {
         $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['is_government_entity' => 1]);
 
@@ -215,14 +213,14 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceSubtype::Standard, $this->builder->defaultSubtype($saleId));
     }
 
-    public function testFromSaleLetsTheIssuerChooseTheSubtypeOfAnInvoice(): void
+    public function testFromSale_LetsTheIssuerChooseTheSubtypeOfAnInvoice(): void
     {
         $saleId = $this->referenceSale($this->makeBusinessCustomer());
 
         $this->assertSame(EInvoiceSubtype::Simplified, $this->builder->fromSale($saleId, EInvoiceSubtype::Simplified)->subtype);
     }
 
-    public function testFromSaleRefusesATaxInvoiceToABusinessWithNoTaxNumberAndNoIdentification(): void
+    public function testFromSale_RefusesATaxInvoiceToABusinessWithNoTaxNumberAndNoIdentification(): void
     {
         $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['customer_type' => 'commercial']);
 
@@ -231,14 +229,14 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::BuyerIdentificationMissing, $this->refusal(fn () => $this->builder->fromSale($saleId))->error);
     }
 
-    public function testFromSaleRefusesATaxNumberOfTheBuyerThatIsNotFifteenDigitsBeginningAndEndingWithThree(): void
+    public function testFromSale_RefusesATaxNumberOfTheBuyerThatIsNotFifteenDigitsBeginningAndEndingWithThree(): void
     {
         $saleId = $this->referenceSale($this->makeBusinessCustomer(null, '12345'));
 
         $this->assertSame(EInvoiceError::BuyerVatInvalid, $this->refusal(fn () => $this->builder->fromSale($saleId))->error);
     }
 
-    public function testFromSaleRefusesATaxInvoiceWhoseBuyerHasNoNationalAddress(): void
+    public function testFromSale_RefusesATaxInvoiceWhoseBuyerHasNoNationalAddress(): void
     {
         $this->makeBusinessCustomer();
         $this->accountingDb()->table('customer_einvoice_parties')->where('person_id', $this->customerId)->update(['district' => '']);
@@ -248,7 +246,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::BuyerAddressIncomplete, $this->refusal(fn () => $this->builder->fromSale($saleId))->error);
     }
 
-    public function testFromSaleUsesTheIdentificationOfABuyerWithNoTaxNumber(): void
+    public function testFromSale_UsesTheIdentificationOfABuyerWithNoTaxNumber(): void
     {
         $this->makeBusinessCustomer(null, '', 'Mohammed Co');
         $this->accountingDb()->table('customer_einvoice_parties')->where('person_id', $this->customerId)->update(['identification_type' => 'NAT', 'identification_number' => '1098765432']);
@@ -261,7 +259,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame('', $document->buyer->vatNumber);
     }
 
-    public function testFromSaleGivesTheBuyerOfASimplifiedInvoiceNoAddressWhenItIsNotComplete(): void
+    public function testFromSale_GivesTheBuyerOfASimplifiedInvoiceNoAddressWhenItIsNotComplete(): void
     {
         $this->accountingDb()->table('customer_einvoice_parties')->replace(['person_id' => $this->customerId, 'street' => 'Only a street']);
 
@@ -271,7 +269,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertNull($document->buyer->address);
     }
 
-    public function testFromSaleRefusesTheDocumentWhileTheSellerIsIncomplete(): void
+    public function testFromSale_RefusesTheDocumentWhileTheSellerIsIncomplete(): void
     {
         $saleId = $this->referenceSale();
 
@@ -295,7 +293,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         }
     }
 
-    public function testFromSaleRefusesALineThatCarriesTwoTaxes(): void
+    public function testFromSale_RefusesALineThatCarriesTwoTaxes(): void
     {
         $item  = $this->item('0', false);
         $first = $this->taxRow($item, 0, 'VAT', '15.0000', 1, '15.00');
@@ -306,7 +304,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::LineTaxAmbiguous, $this->refusal(fn () => $this->builder->fromSale($saleId))->error);
     }
 
-    public function testFromSaleRefusesALineWithoutTaxWhileTheSettingsDoNotSayWhatItIs(): void
+    public function testFromSale_RefusesALineWithoutTaxWhileTheSettingsDoNotSayWhatItIs(): void
     {
         $item   = $this->item('0', false);
         $saleId = $this->save([$this->line($item, 0, '1', '100')]);
@@ -314,7 +312,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::ExemptionNotConfigured, $this->refusal(fn () => $this->builder->fromSale($saleId))->error);
     }
 
-    public function testFromSaleClassifiesALineWithoutTaxAsTheSettingsSayWithItsReasonCode(): void
+    public function testFromSale_ClassifiesALineWithoutTaxAsTheSettingsSayWithItsReasonCode(): void
     {
         $this->configureEInvoicing(['einvoice_exempt_category' => 'Z', 'einvoice_exempt_reason_code' => 'VATEX-SA-32', 'einvoice_exempt_reason_text' => 'Export of goods']);
 
@@ -329,7 +327,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame('Export of goods', $document->taxSubtotals[0]->exemptionText);
     }
 
-    public function testFromSaleWritesOneSubtotalForEachCategoryAndRate(): void
+    public function testFromSale_WritesOneSubtotalForEachCategoryAndRate(): void
     {
         $this->configureEInvoicing(['einvoice_exempt_category' => 'E', 'einvoice_exempt_reason_code' => 'VATEX-SA-29']);
 
@@ -345,7 +343,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(['S', 'E'], array_map(static fn ($subtotal): string => $subtotal->category, $document->taxSubtotals));
     }
 
-    public function testFromSaleFoldsTheDiscountOfALineWhoseTaxIsInsideItsPriceIntoItsPrice(): void
+    public function testFromSale_FoldsTheDiscountOfALineWhoseTaxIsInsideItsPriceIntoItsPrice(): void
     {
         $item = $this->item('0', false);
         $tax  = $this->taxRow($item, 0, 'VAT', '15.0000', 0, '13.04');
@@ -359,7 +357,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame('100.00', $document->taxInclusive);
     }
 
-    public function testFromSaleRefusesATaxTheBooksDoNotHoldEvenWhenTheTotalTies(): void
+    public function testFromSale_RefusesATaxTheBooksDoNotHoldEvenWhenTheTotalTies(): void
     {
         $sale    = (new SaleLoader())->load($this->referenceSale());
         $figures = SaleAmounts::figures($sale, totals_decimals());
@@ -379,7 +377,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertNull($tie->invoke($this->builder, $sale, $rules));
     }
 
-    public function testFromSaleRefusesATotalThatTheStandardCannotWriteTheWayTheBooksHaveIt(): void
+    public function testFromSale_RefusesATotalThatTheStandardCannotWriteTheWayTheBooksHaveIt(): void
     {
         $item   = $this->item('0', false);
         $other  = $this->item('0', false);
@@ -393,7 +391,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame('0.76', $refusal->context['actual']);
     }
 
-    public function testFromSaleRefusesASaleInAForeignCurrency(): void
+    public function testFromSale_RefusesASaleInAForeignCurrency(): void
     {
         $saleId = $this->referenceSale();
 
@@ -402,7 +400,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::ForeignCurrency, $this->refusal(fn () => $this->builder->fromSale($saleId))->error);
     }
 
-    public function testFromSaleRefusesASaleWithShippingOrAnAdjustmentInItsHeader(): void
+    public function testFromSale_RefusesASaleWithShippingOrAnAdjustmentInItsHeader(): void
     {
         $saleId = $this->referenceSale();
 
@@ -411,7 +409,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::HeaderChargesUnsupported, $this->refusal(fn () => $this->builder->fromSale($saleId))->error);
     }
 
-    public function testFromSaleRefusesAQuoteASaleThatDoesNotExistAndASaleThatIsNotCompleted(): void
+    public function testFromSale_RefusesAQuoteASaleThatDoesNotExistAndASaleThatIsNotCompleted(): void
     {
         $cycle = $this->referenceInvoice();
         $quote = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_QUOTE, -1, false, null, SUSPENDED);
@@ -420,14 +418,14 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::SourceNotFound, $this->refusal(fn () => $this->builder->fromSale(987654321))->error);
     }
 
-    public function testFromSaleNamesThePaymentMeansOfTheCompletedPayments(): void
+    public function testFromSale_NamesThePaymentMeansOfTheCompletedPayments(): void
     {
         $document = $this->builder->fromSale($this->referenceSale(null, [$this->payment('Cash', '500.00'), $this->payment('Debit Card', '316.50')]));
 
         $this->assertSame(['10', '48'], $document->paymentMeansCodes);
     }
 
-    public function testFromSaleUsesTheDayOfTheInvoiceAndTheTimeItWasSaved(): void
+    public function testFromSale_UsesTheDayOfTheInvoiceAndTheTimeItWasSaved(): void
     {
         $this->grantInvoiceDate();
 
@@ -443,7 +441,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame('21:15:42', $document->issueTime);
     }
 
-    public function testFromDebitNoteWritesOneLineOfTheNoteWithItsTax(): void
+    public function testFromDebitNote_WritesOneLineOfTheNoteWithItsTax(): void
     {
         $this->setConfigValue('accounting_debit_note', '1');
 
@@ -463,7 +461,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame($this->daysAgo(2), $document->issueDate);
     }
 
-    public function testFromDebitNoteRefusesANoteThatWasTakenBackAndOneThatDoesNotExist(): void
+    public function testFromDebitNote_RefusesANoteThatWasTakenBackAndOneThatDoesNotExist(): void
     {
         $this->setConfigValue('accounting_debit_note', '1');
 
@@ -479,7 +477,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::SourceNotFound, $this->refusal(fn () => $this->builder->fromDebitNote(987654321, 'a reason', $original))->error);
     }
 
-    public function testFromSaleRefusesATaxRateThatHasMoreThanTwoDecimals(): void
+    public function testFromSale_RefusesATaxRateThatHasMoreThanTwoDecimals(): void
     {
         $item   = $this->item('0', false);
         $saleId = $this->save([$this->line($item, 0, '1', '100')], [$this->taxRow($item, 0, 'VAT', '15.1250', 1, '15.13')]);
@@ -490,7 +488,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame('15.1250', $refusal->context['actual']);
     }
 
-    public function testFromSaleRefusesATaxOfACategoryThatIsNotItsTaxableAmountTimesItsRate(): void
+    public function testFromSale_RefusesATaxOfACategoryThatIsNotItsTaxableAmountTimesItsRate(): void
     {
         $cycle  = $this->referenceInvoice();
         $saleId = $this->save($cycle['items'], [$this->tax($cycle['cream'], 0, '40.00'), $this->tax($cycle['perfume'], 1, '66.00')]);
@@ -503,7 +501,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame('106.00', $refusal->context['actual']);
     }
 
-    public function testFromSaleRefusesALineThatIsNotItsQuantityTimesItsPriceLessItsDiscountAfterRounding(): void
+    public function testFromSale_RefusesALineThatIsNotItsQuantityTimesItsPriceLessItsDiscountAfterRounding(): void
     {
         $item   = $this->item('0', false);
         $saleId = $this->save([$this->line($item, 0, '1', '10.00')], [$this->tax($item, 0, '1.50')]);
@@ -517,7 +515,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(1, $refusal->context['line']);
     }
 
-    public function testFromSaleRefusesALineThatComesToLessThanNothing(): void
+    public function testFromSale_RefusesALineThatComesToLessThanNothing(): void
     {
         $item   = $this->item('0', false);
         $saleId = $this->save([$this->line($item, 0, '1', '10.00')], [$this->tax($item, 0, '1.50')]);
@@ -530,7 +528,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame('BR-24', $refusal->context['rule']);
     }
 
-    public function testFromSaleRefusesATaxInvoiceToAnonymousBuyerAndOneToACustomerWithNoName(): void
+    public function testFromSale_RefusesATaxInvoiceToAnonymousBuyerAndOneToACustomerWithNoName(): void
     {
         $counter = $this->counterSale();
 
@@ -544,7 +542,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::BuyerNameMissing, $this->refusal(fn () => $this->builder->fromSale($named, EInvoiceSubtype::Standard))->error);
     }
 
-    public function testFromSaleRefusesASaleWhoseLinesAreAllOfZeroQuantity(): void
+    public function testFromSale_RefusesASaleWhoseLinesAreAllOfZeroQuantity(): void
     {
         $saleId = $this->referenceSale();
 
@@ -553,7 +551,7 @@ final class EInvoiceBuilderTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::NothingToIssue, $this->refusal(fn () => $this->builder->fromSale($saleId))->error);
     }
 
-    public function testFromDebitNoteRefusesANoteWhoseTotalIsNotItsAmountPlusItsTax(): void
+    public function testFromDebitNote_RefusesANoteWhoseTotalIsNotItsAmountPlusItsTax(): void
     {
         $this->setConfigValue('accounting_debit_note', '1');
 

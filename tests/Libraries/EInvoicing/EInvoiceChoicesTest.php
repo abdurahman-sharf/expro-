@@ -21,10 +21,8 @@ use Tests\Support\SaleAccountingFixtureTrait;
 /**
  * What the form of a debit note document offers: the notes that wait for a document and the documents they
  * may refer to, cut to the branches and to the records of whoever opens it.
- *
- * @internal
  */
-final class EInvoiceChoicesTest extends CIUnitTestCase
+class EInvoiceChoicesTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -37,7 +35,8 @@ final class EInvoiceChoicesTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace;
+    protected $namespace   = null;
+
     private EInvoiceChoices $choices;
     private EInvoiceService $service;
 
@@ -82,7 +81,7 @@ final class EInvoiceChoicesTest extends CIUnitTestCase
         return array_map(static fn (array $row): int => (int) $row[$key], $rows);
     }
 
-    public function testNotesWaitingListsTheNotesThatStandAndHaveNoDocumentNewestFirstWithTheirNumberAndCustomer(): void
+    public function testNotesWaiting_ListsTheNotesThatStandAndHaveNoDocumentNewestFirstWithTheirNumberAndCustomer(): void
     {
         $invoice = $this->service->issueSale($this->referenceSale(), null, '', null);
         $first   = $this->debitNoteOf($this->employeeId, '200');
@@ -101,7 +100,7 @@ final class EInvoiceChoicesTest extends CIUnitTestCase
         $this->assertSame([$first], $this->idsOf($this->choices->notesWaiting(null), 'debit_note_id'));
     }
 
-    public function testNotesWaitingNamesTheNoteByItsDocumentNumberWhenTheSeriesIsOnAndNamesTheCompanyOfTheCustomer(): void
+    public function testNotesWaiting_NamesTheNoteByItsDocumentNumberWhenTheSeriesIsOnAndNamesTheCompanyOfTheCustomer(): void
     {
         $manager = $this->employeeWithGrants([DocumentNumbering::PERMISSION]);
 
@@ -116,7 +115,7 @@ final class EInvoiceChoicesTest extends CIUnitTestCase
         $this->assertSame('Khaled Trading', $notes[0]['customer']);
     }
 
-    public function testNotesWaitingLeavesOutANoteThatWasTakenBack(): void
+    public function testNotesWaiting_LeavesOutANoteThatWasTakenBack(): void
     {
         $noteId = $this->debitNoteOf($this->employeeId);
 
@@ -125,7 +124,7 @@ final class EInvoiceChoicesTest extends CIUnitTestCase
         $this->assertSame([], $this->choices->notesWaiting(null));
     }
 
-    public function testNotesWaitingListsOnlyTheNotesOfTheBranchesTheEmployeeWorksIn(): void
+    public function testNotesWaiting_ListsOnlyTheNotesOfTheBranchesTheEmployeeWorksIn(): void
     {
         $other   = $this->createBranch('B2');
         $inFirst = $this->debitNoteOf($this->employeeId);
@@ -139,7 +138,7 @@ final class EInvoiceChoicesTest extends CIUnitTestCase
         $this->assertSame([], $this->choices->notesWaiting($nowhere));
     }
 
-    public function testNotesWaitingListsOnlyTheNotesTheyMadeToSomeoneWhoSeesTheirOwnRecordsOnly(): void
+    public function testNotesWaiting_ListsOnlyTheNotesTheyMadeToSomeoneWhoSeesTheirOwnRecordsOnly(): void
     {
         $own     = $this->seesOwnRecordsOnly($this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]));
         $mine    = $this->debitNoteOf($own);
@@ -149,7 +148,7 @@ final class EInvoiceChoicesTest extends CIUnitTestCase
         $this->assertSame([$foreign, $mine], $this->idsOf($this->choices->notesWaiting(null), 'debit_note_id'));
     }
 
-    public function testNotesWaitingStopsAtTheLimitWithTheNewestNotes(): void
+    public function testNotesWaiting_StopsAtTheLimitWithTheNewestNotes(): void
     {
         $this->debitNoteOf($this->employeeId, '10');
         $second = $this->debitNoteOf($this->employeeId, '20');
@@ -158,7 +157,7 @@ final class EInvoiceChoicesTest extends CIUnitTestCase
         $this->assertSame([$third, $second], $this->idsOf($this->choices->notesWaiting(null, 2), 'debit_note_id'));
     }
 
-    public function testOriginalsOfListsTheInvoicesAndTheCreditNotesOfTheCustomersNewestFirst(): void
+    public function testOriginalsOf_ListsTheInvoicesAndTheCreditNotesOfTheCustomersNewestFirst(): void
     {
         $cycle   = $this->referenceInvoice();
         $invoice = $this->service->issueSale($this->save($cycle['items'], $cycle['taxes']), null, '', null);
@@ -175,7 +174,7 @@ final class EInvoiceChoicesTest extends CIUnitTestCase
         $this->assertNotContains($note->documentId, $this->idsOf($originals, 'document_id'));
     }
 
-    public function testOriginalsOfLeavesOutTheDocumentsOfOtherCustomersAndOfTheCounter(): void
+    public function testOriginalsOf_LeavesOutTheDocumentsOfOtherCustomersAndOfTheCounter(): void
     {
         $other = $this->makeBusinessCustomer($this->anotherCustomer('Layla', 'Hassan'), '322222222222223', 'Other Co');
         $mine  = $this->service->issueSale($this->referenceSale(), null, '', null);
@@ -188,7 +187,7 @@ final class EInvoiceChoicesTest extends CIUnitTestCase
         $this->assertCount(2, $this->choices->originalsOf([$this->customerId, $other, $other], null));
     }
 
-    public function testOriginalsOfListsOnlyTheDocumentsOfTheBranchesTheEmployeeWorksIn(): void
+    public function testOriginalsOf_ListsOnlyTheDocumentsOfTheBranchesTheEmployeeWorksIn(): void
     {
         $other    = $this->createBranch('B2');
         $document = $this->service->issueSale($this->referenceSale(), null, '', null);
@@ -202,7 +201,7 @@ final class EInvoiceChoicesTest extends CIUnitTestCase
         $this->assertSame([$document->documentId], $this->idsOf($this->choices->originalsOf([$this->customerId], $limited), 'document_id'));
     }
 
-    public function testOriginalsOfListsOnlyTheDocumentsOfTheirOwnSalesToSomeoneWhoSeesTheirOwnRecordsOnly(): void
+    public function testOriginalsOf_ListsOnlyTheDocumentsOfTheirOwnSalesToSomeoneWhoSeesTheirOwnRecordsOnly(): void
     {
         $own     = $this->seesOwnRecordsOnly($this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]));
         $foreign = $this->service->issueSale($this->referenceSale(), null, '', null);
@@ -212,7 +211,7 @@ final class EInvoiceChoicesTest extends CIUnitTestCase
         $this->assertSame([$mine->documentId, $foreign->documentId], $this->idsOf($this->choices->originalsOf([$this->customerId], null), 'document_id'));
     }
 
-    public function testOriginalsOfStopsAtTheLimitWithTheNewestDocuments(): void
+    public function testOriginalsOf_StopsAtTheLimitWithTheNewestDocuments(): void
     {
         $this->service->issueSale($this->referenceSale(), null, '', null);
 

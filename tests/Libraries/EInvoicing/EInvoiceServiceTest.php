@@ -38,10 +38,8 @@ use Tests\Support\WorkerRequestTrait;
  * Issuing the documents: the counter and the chain of hashes, the document that is stored once and never
  * changed, the credit note that refers to its invoice, the tie to the journals, the permission, the branch,
  * the transport that sends nothing, and the rule that nothing of it touches the books.
- *
- * @internal
  */
-final class EInvoiceServiceTest extends CIUnitTestCase
+class EInvoiceServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -57,7 +55,8 @@ final class EInvoiceServiceTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace;
+    protected $namespace   = null;
+
     private EInvoiceService $service;
     private int $clerk;
 
@@ -123,7 +122,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->configureEInvoicing(['einvoice_key_path' => $pair['key'], 'einvoice_certificate_path' => $pair['certificate']]);
     }
 
-    public function testIssueSaleStoresTheDocumentWithTheFirstCounterAndTheFirstPreviousHash(): void
+    public function testIssueSale_StoresTheDocumentWithTheFirstCounterAndTheFirstPreviousHash(): void
     {
         $document = $this->issue();
 
@@ -139,7 +138,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(['icv' => 1, 'hash' => $document->hash], $this->counter());
     }
 
-    public function testIssueSaleStoresTheFileAndItsHashAsTheStandardTakesIt(): void
+    public function testIssueSale_StoresTheFileAndItsHashAsTheStandardTakesIt(): void
     {
         $document = $this->issue();
 
@@ -151,7 +150,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertNotSame('', $document->qr);
     }
 
-    public function testIssueSaleChainsTheHashOfEachDocumentToTheNextAndCountsWithoutGaps(): void
+    public function testIssueSale_ChainsTheHashOfEachDocumentToTheNextAndCountsWithoutGaps(): void
     {
         $first  = $this->issue();
         $second = $this->issue($this->referenceSale());
@@ -165,7 +164,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertCount(3, array_unique([$first->hash, $second->hash, $third->hash]));
     }
 
-    public function testIssueSaleIssuesASaleOnceAndGivesTheSameDocumentTheSecondTime(): void
+    public function testIssueSale_IssuesASaleOnceAndGivesTheSameDocumentTheSecondTime(): void
     {
         $saleId = $this->referenceSale();
         $first  = $this->issue($saleId);
@@ -178,7 +177,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('einvoice_transport_log'));
     }
 
-    public function testIssueSaleNeverChangesTheStoredDocumentWhenTheBooksChangeAfterwards(): void
+    public function testIssueSale_NeverChangesTheStoredDocumentWhenTheBooksChangeAfterwards(): void
     {
         $saleId = $this->referenceSale();
         $first  = $this->issue($saleId);
@@ -199,7 +198,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame($first->documentId, $this->issue($saleId)->documentId);
     }
 
-    public function testSourceHoldsNoStatementThatChangesOrDeletesAnIssuedDocument(): void
+    public function testSource_HoldsNoStatementThatChangesOrDeletesAnIssuedDocument(): void
     {
         foreach (glob(APPPATH . 'Libraries/EInvoicing/*.php') ?: [] as $file) {
             $source = (string) file_get_contents($file);
@@ -209,7 +208,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         }
     }
 
-    public function testIssueSaleIssuesTheCreditNoteOfAReturnReferringToTheInvoiceItTakesBack(): void
+    public function testIssueSale_IssuesTheCreditNoteOfAReturnReferringToTheInvoiceItTakesBack(): void
     {
         $cycle   = $this->referenceInvoice();
         $invoice = $this->save($cycle['items'], $cycle['taxes']);
@@ -232,7 +231,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertStringContainsString('<cbc:InstructionNote>In case of goods or services refund.</cbc:InstructionNote>', $note->xml);
     }
 
-    public function testIssueSaleRefusesACreditNoteWhoseInvoiceWasNeverIssuedAndLeavesTheCounterAlone(): void
+    public function testIssueSale_RefusesACreditNoteWhoseInvoiceWasNeverIssuedAndLeavesTheCounterAlone(): void
     {
         $cycle   = $this->referenceInvoice();
         $invoice = $this->save($cycle['items'], $cycle['taxes']);
@@ -245,7 +244,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('einvoice_documents'));
     }
 
-    public function testIssueSaleRefusesACreditNoteWithoutAReason(): void
+    public function testIssueSale_RefusesACreditNoteWithoutAReason(): void
     {
         $cycle   = $this->referenceInvoice();
         $invoice = $this->save($cycle['items'], $cycle['taxes']);
@@ -257,7 +256,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->counter()['icv']);
     }
 
-    public function testIssueDebitNoteIssuesANoteThatRefersToAnIssuedInvoice(): void
+    public function testIssueDebitNote_IssuesANoteThatRefersToAnIssuedInvoice(): void
     {
         $this->setConfigValue('accounting_debit_note', '1');
 
@@ -277,7 +276,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame($note->documentId, $this->service->issueDebitNote($noteId, 'again', $invoice->documentId, $clerk)->documentId);
     }
 
-    public function testIssueDebitNoteRefusesANoteWhoseTaxTheJournalOfTheNoteDoesNotHoldAndStoresNothing(): void
+    public function testIssueDebitNote_RefusesANoteWhoseTaxTheJournalOfTheNoteDoesNotHoldAndStoresNothing(): void
     {
         $this->setConfigValue('accounting_debit_note', '1');
 
@@ -295,7 +294,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->counter()['icv']);
     }
 
-    public function testIssueDebitNoteRefusesANoteThatRefersToNothingOrToAnotherDebitNote(): void
+    public function testIssueDebitNote_RefusesANoteThatRefersToNothingOrToAnotherDebitNote(): void
     {
         $this->setConfigValue('accounting_debit_note', '1');
 
@@ -312,7 +311,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::OriginalNotIssued, $this->refusal(fn () => $this->service->issueDebitNote($second, 'reason', $debitNote->documentId, $clerk))->error);
     }
 
-    public function testIssueSaleTiesTheDocumentToTheJournalsOfTheSale(): void
+    public function testIssueSale_TiesTheDocumentToTheJournalsOfTheSale(): void
     {
         $document = $this->issue();
         $journal  = $this->standing((int) $document->sourceId, 'revenue')[0];
@@ -324,7 +323,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertContains((string) $this->customerAccount() . ':816.50:0.00', $journal['lines']);
     }
 
-    public function testIssueSaleRefusesASaleWhoseJournalIsNoLongerPosted(): void
+    public function testIssueSale_RefusesASaleWhoseJournalIsNoLongerPosted(): void
     {
         $saleId = $this->referenceSale();
 
@@ -334,7 +333,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->counter()['icv']);
     }
 
-    public function testIssueSaleRefusesADocumentThatDoesNotTieToTheJournalAndStoresNothing(): void
+    public function testIssueSale_RefusesADocumentThatDoesNotTieToTheJournalAndStoresNothing(): void
     {
         $saleId  = $this->referenceSale();
         $journal = $this->standing($saleId, 'revenue')[0];
@@ -349,7 +348,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->counter()['icv']);
     }
 
-    public function testIssueSaleRefusesATaxOfTheDocumentThatTheJournalDoesNotHold(): void
+    public function testIssueSale_RefusesATaxOfTheDocumentThatTheJournalDoesNotHold(): void
     {
         $saleId  = $this->referenceSale();
         $journal = $this->standing($saleId, 'revenue')[0];
@@ -360,7 +359,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame('journal tax', $this->refusal(fn () => $this->issue($saleId))->context['rule']);
     }
 
-    public function testIssueSaleRefusesRevenueOfTheDocumentThatTheJournalDoesNotHold(): void
+    public function testIssueSale_RefusesRevenueOfTheDocumentThatTheJournalDoesNotHold(): void
     {
         $saleId  = $this->referenceSale();
         $journal = $this->standing($saleId, 'revenue')[0];
@@ -371,7 +370,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame('journal revenue', $this->refusal(fn () => $this->issue($saleId))->context['rule']);
     }
 
-    public function testIssueSaleRequiresThePermissionToManageElectronicInvoicing(): void
+    public function testIssueSale_RequiresThePermissionToManageElectronicInvoicing(): void
     {
         $saleId = $this->referenceSale();
         $other  = $this->employeeWithGrants([AccountingGuard::JOURNALS_POST]);
@@ -387,7 +386,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->service->issueSale($saleId, null, '', null)->icv);
     }
 
-    public function testIssueSaleRefusesWhileTheLayerIsOffAndWhileAccountingIsOff(): void
+    public function testIssueSale_RefusesWhileTheLayerIsOffAndWhileAccountingIsOff(): void
     {
         $saleId = $this->referenceSale();
 
@@ -404,7 +403,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->setConfigValue('accounting_enabled', '1');
     }
 
-    public function testIssueSaleRefusesASaleOfABranchTheEmployeeDoesNotWorkInAndIssuesItToSomeoneWhoDoes(): void
+    public function testIssueSale_RefusesASaleOfABranchTheEmployeeDoesNotWorkInAndIssuesItToSomeoneWhoDoes(): void
     {
         $this->configureEInvoicing(['einvoice_exempt_category' => 'Z', 'einvoice_exempt_reason_code' => 'VATEX-SA-32']);
 
@@ -429,7 +428,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->counter()['icv']);
     }
 
-    public function testIssueSaleRollsTheCounterBackWhenTheDocumentIsRefused(): void
+    public function testIssueSale_RollsTheCounterBackWhenTheDocumentIsRefused(): void
     {
         $this->configureEInvoicing(['einvoice_seller_city' => '']);
 
@@ -441,7 +440,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->issue()->icv);
     }
 
-    public function testIssueSaleSignsADocumentWhenAKeyAndACertificateAreInPlace(): void
+    public function testIssueSale_SignsADocumentWhenAKeyAndACertificateAreInPlace(): void
     {
         $this->useKeys();
 
@@ -454,7 +453,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(EInvoiceSubtype::Simplified, $document->subtype);
     }
 
-    public function testIssueSaleChainsAfterASignedDocumentWithItsHash(): void
+    public function testIssueSale_ChainsAfterASignedDocumentWithItsHash(): void
     {
         $this->useKeys();
 
@@ -465,7 +464,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertTrue((new StampVerifier())->verify($second->xml)['signature']);
     }
 
-    public function testIssueSaleRefusesAKeyPathInsideTheApplicationEvenWhenTheSettingWasWrittenPastTheScreen(): void
+    public function testIssueSale_RefusesAKeyPathInsideTheApplicationEvenWhenTheSettingWasWrittenPastTheScreen(): void
     {
         $pair = $this->generateKeyPair();
 
@@ -478,7 +477,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->counter()['icv']);
     }
 
-    public function testIssueSaleRefusesWhenOnlyTheKeyOrOnlyTheCertificateIsNamedInsteadOfIssuingUnsigned(): void
+    public function testIssueSale_RefusesWhenOnlyTheKeyOrOnlyTheCertificateIsNamedInsteadOfIssuingUnsigned(): void
     {
         $this->skipWithoutTheCurve();
 
@@ -490,7 +489,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('einvoice_documents'));
     }
 
-    public function testIssueSaleWritesTheCodeOfTheFirstPhaseWhenNoKeyIsInPlace(): void
+    public function testIssueSale_WritesTheCodeOfTheFirstPhaseWhenNoKeyIsInPlace(): void
     {
         $document = $this->issue($this->counterSale());
         $bytes    = (string) base64_decode($document->qr, true);
@@ -500,7 +499,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertStringNotContainsString('UBLExtensions', $document->xml);
     }
 
-    public function testIssueSaleRecordsThatNothingWasSubmittedThroughTheNullTransport(): void
+    public function testIssueSale_RecordsThatNothingWasSubmittedThroughTheNullTransport(): void
     {
         $document = $this->issue();
         $log      = $this->accountingDb()->table('einvoice_transport_log')->where('document_id', $document->documentId)->get()->getResult();
@@ -511,7 +510,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame('not_submitted', $this->service->submissionOf($document->documentId));
     }
 
-    public function testSubmitAsksTheTransportAndRecordsWhatItSaysAsOneMoreRowOfTheLog(): void
+    public function testSubmit_AsksTheTransportAndRecordsWhatItSaysAsOneMoreRowOfTheLog(): void
     {
         $transport = new class () implements EInvoiceTransport {
             /**
@@ -548,7 +547,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame('fake', json_decode((string) $entry->details, true)['transport']);
     }
 
-    public function testSubmitRequiresThePermissionAndTheBranchAndNamesNothingTheDocumentDoesNotHave(): void
+    public function testSubmit_RequiresThePermissionAndTheBranchAndNamesNothingTheDocumentDoesNotHave(): void
     {
         $document = $this->issue();
         $other    = $this->employeeWithGrants([AccountingGuard::JOURNALS_POST]);
@@ -563,13 +562,13 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::DocumentNotFound, $this->refusal(fn () => $this->service->submit(987654321, $this->clerk))->error);
     }
 
-    public function testDefaultTransportIsTheOneThatSendsNothing(): void
+    public function testDefaultTransport_IsTheOneThatSendsNothing(): void
     {
         $this->assertSame('null', EInvoiceService::defaultTransport()->name());
         $this->assertSame(TransportResult::NOT_SUBMITTED, EInvoiceService::defaultTransport()->submit($this->issue())->status);
     }
 
-    public function testXmlGivesTheDocumentToSomeoneWithThePermissionInItsBranchOnly(): void
+    public function testXml_GivesTheDocumentToSomeoneWithThePermissionInItsBranchOnly(): void
     {
         $document = $this->issue();
         $other    = $this->employeeWithGrants([AccountingGuard::JOURNALS_POST]);
@@ -590,12 +589,12 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->service->xml($document->documentId, $limited);
     }
 
-    public function testXmlRefusesADocumentThatDoesNotExist(): void
+    public function testXml_RefusesADocumentThatDoesNotExist(): void
     {
         $this->assertSame(EInvoiceError::DocumentNotFound, $this->refusal(fn () => $this->service->xml(987654321, $this->clerk))->error);
     }
 
-    public function testIssuedInListsTheDocumentsOfTheBranchesTheReaderMaySeeNewestFirst(): void
+    public function testIssuedIn_ListsTheDocumentsOfTheBranchesTheReaderMaySeeNewestFirst(): void
     {
         $first  = $this->issue();
         $second = $this->issue($this->counterSale());
@@ -606,7 +605,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertCount(2, $this->service->issuedIn([1]));
     }
 
-    public function testIssueSaleRefusesTheSaleOfAnotherEmployeeToSomeoneWhoSeesTheirOwnRecordsAsIfItDidNotExist(): void
+    public function testIssueSale_RefusesTheSaleOfAnotherEmployeeToSomeoneWhoSeesTheirOwnRecordsAsIfItDidNotExist(): void
     {
         $saleId = $this->referenceSale();
         $own    = $this->seesOwnRecordsOnly($this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]));
@@ -620,7 +619,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->counter()['icv']);
     }
 
-    public function testIssueSaleIssuesTheSaleOfTheEmployeeWhoSeesTheirOwnRecordsOnly(): void
+    public function testIssueSale_IssuesTheSaleOfTheEmployeeWhoSeesTheirOwnRecordsOnly(): void
     {
         $own    = $this->seesOwnRecordsOnly($this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]));
         $saleId = $this->ownedBy($this->referenceSale(), $own);
@@ -631,7 +630,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->counter()['icv']);
     }
 
-    public function testIssueSaleIssuesTheSaleOfAnotherEmployeeToWhoDoesNotSeeTheirOwnRecordsOnly(): void
+    public function testIssueSale_IssuesTheSaleOfAnotherEmployeeToWhoDoesNotSeeTheirOwnRecordsOnly(): void
     {
         $saleId = $this->referenceSale();
         $wide   = $this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]);
@@ -639,7 +638,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame($saleId, $this->service->issueSale($saleId, null, '', $wide)->sourceId);
     }
 
-    public function testIssueDebitNoteRefusesTheNoteOfAnotherEmployeeToSomeoneWhoSeesTheirOwnRecordsAsIfItDidNotExist(): void
+    public function testIssueDebitNote_RefusesTheNoteOfAnotherEmployeeToSomeoneWhoSeesTheirOwnRecordsAsIfItDidNotExist(): void
     {
         $invoice = $this->issue();
         $own     = $this->seesOwnRecordsOnly($this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]));
@@ -653,7 +652,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('einvoice_documents'));
     }
 
-    public function testIssueDebitNoteIssuesTheNoteOfTheEmployeeWhoSeesTheirOwnRecordsOnly(): void
+    public function testIssueDebitNote_IssuesTheNoteOfTheEmployeeWhoSeesTheirOwnRecordsOnly(): void
     {
         $own     = $this->seesOwnRecordsOnly($this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]));
         $invoice = $this->service->issueSale($this->ownedBy($this->referenceSale(), $own), null, '', $own);
@@ -664,7 +663,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame($invoice->documentId, $note->originalDocumentId);
     }
 
-    public function testIssueDebitNoteRefusesADocumentOfAnotherEmployeeToSomeoneWhoSeesTheirOwnRecordsAsIfItDidNotExist(): void
+    public function testIssueDebitNote_RefusesADocumentOfAnotherEmployeeToSomeoneWhoSeesTheirOwnRecordsAsIfItDidNotExist(): void
     {
         $own     = $this->seesOwnRecordsOnly($this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]));
         $foreign = $this->issue();
@@ -675,7 +674,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('einvoice_documents'));
     }
 
-    public function testIssueDebitNoteRefusesADocumentOfAnotherCustomerAndStoresNothing(): void
+    public function testIssueDebitNote_RefusesADocumentOfAnotherCustomerAndStoresNothing(): void
     {
         $other   = $this->makeBusinessCustomer($this->anotherCustomer('Layla', 'Hassan'), '322222222222223', 'Other Co');
         $invoice = $this->issue($this->referenceSale($other));
@@ -689,7 +688,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertNull($this->service->documentOf(EInvoiceService::SOURCE_NOTE, $noteId));
     }
 
-    public function testIssueDebitNoteRefusesAnInvoiceOfTheCounterThatHasNoCustomer(): void
+    public function testIssueDebitNote_RefusesAnInvoiceOfTheCounterThatHasNoCustomer(): void
     {
         $invoice = $this->issue($this->counterSale());
         $noteId  = $this->debitNoteOf($this->clerk);
@@ -697,7 +696,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::OriginalOfAnotherCustomer, $this->refusal(fn () => $this->service->issueDebitNote($noteId, 'reason', $invoice->documentId, $this->clerk))->error);
     }
 
-    public function testIssueDebitNoteRefusesADocumentOfABranchTheEmployeeDoesNotWorkInAsIfItDidNotExist(): void
+    public function testIssueDebitNote_RefusesADocumentOfABranchTheEmployeeDoesNotWorkInAsIfItDidNotExist(): void
     {
         $other   = $this->createBranch('B2');
         $invoice = $this->issue();
@@ -714,7 +713,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame($invoice->documentId, $this->service->issueDebitNote($noteId, 'reason', $invoice->documentId, $limited)->originalDocumentId);
     }
 
-    public function testIssueDebitNoteAcceptsACreditNoteOfTheSameCustomerAsTheDocumentItRefersTo(): void
+    public function testIssueDebitNote_AcceptsACreditNoteOfTheSameCustomerAsTheDocumentItRefersTo(): void
     {
         $cycle   = $this->referenceInvoice();
         $invoice = $this->issue($this->save($cycle['items'], $cycle['taxes']));
@@ -726,7 +725,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame($credit->documentId, $this->service->issueDebitNote($noteId, 'reason', $credit->documentId, $this->clerk)->originalDocumentId);
     }
 
-    public function testXmlRefusesTheFileOfAnotherEmployeeToSomeoneWhoSeesTheirOwnRecordsAsIfItDidNotExist(): void
+    public function testXml_RefusesTheFileOfAnotherEmployeeToSomeoneWhoSeesTheirOwnRecordsAsIfItDidNotExist(): void
     {
         $document = $this->issue();
         $own      = $this->seesOwnRecordsOnly($this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]));
@@ -739,7 +738,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame($document->xml, $this->service->xml($document->documentId, $this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]))->xml);
     }
 
-    public function testXmlGivesTheFileOfTheirOwnSaleAndTheirOwnDebitNoteToSomeoneWhoSeesTheirOwnRecordsOnly(): void
+    public function testXml_GivesTheFileOfTheirOwnSaleAndTheirOwnDebitNoteToSomeoneWhoSeesTheirOwnRecordsOnly(): void
     {
         $own     = $this->seesOwnRecordsOnly($this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]));
         $invoice = $this->service->issueSale($this->ownedBy($this->referenceSale(), $own), null, '', $own);
@@ -751,7 +750,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(EInvoiceError::DocumentNotFound, $this->refusal(fn () => $this->service->xml($foreign->documentId, $own))->error);
     }
 
-    public function testIssuedInListsOnlyTheDocumentsOfTheirOwnRecordsToSomeoneWhoSeesTheirOwnRecordsOnly(): void
+    public function testIssuedIn_ListsOnlyTheDocumentsOfTheirOwnRecordsToSomeoneWhoSeesTheirOwnRecordsOnly(): void
     {
         $own     = $this->seesOwnRecordsOnly($this->employeeWithGrants([AccountingGuard::EINVOICING_MANAGE]));
         $foreign = $this->issue();
@@ -770,7 +769,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->service->countIssued([]));
     }
 
-    public function testIssueSaleAssignsTheCountersWithoutGapsOrRepeatsWhenTwoRequestsRunInTwoConnections(): void
+    public function testIssueSale_AssignsTheCountersWithoutGapsOrRepeatsWhenTwoRequestsRunInTwoConnections(): void
     {
         $first  = $this->referenceSale();
         $second = $this->counterSale();
@@ -789,7 +788,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(['icv' => 2, 'hash' => $rows[1]->invoice_hash], $this->counter());
     }
 
-    public function testIssueSaleIssuesOneDocumentWhenTwoConnectionsAskForTheSameSale(): void
+    public function testIssueSale_IssuesOneDocumentWhenTwoConnectionsAskForTheSameSale(): void
     {
         $saleId = $this->referenceSale();
 
@@ -801,7 +800,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->counter()['icv']);
     }
 
-    public function testIssueSaleChangesNoJournalNoNumberNoStockMovementAndNoTotal(): void
+    public function testIssueSale_ChangesNoJournalNoNumberNoStockMovementAndNoTotal(): void
     {
         $saleId  = $this->referenceSale();
         $before  = $this->databaseFingerprint();
@@ -938,7 +937,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         return $prefix . ($digits - ($bases[$prefix] ?? 0));
     }
 
-    public function testIssueSaleLeavesTheBooksOfTheSamePostingsAsTheyAreWhenTheLayerIsOffAndWhenItIsOn(): void
+    public function testIssueSale_LeavesTheBooksOfTheSamePostingsAsTheyAreWhenTheLayerIsOffAndWhenItIsOn(): void
     {
         $manager = $this->employeeWithGrants([DocumentNumbering::PERMISSION]);
         $numbers = new DocumentNumbering();
@@ -975,7 +974,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(3, $this->countRows('einvoice_documents'));
     }
 
-    public function testIssueSaleFingerprintsTheNumbersTheStockMovementsAndTheTotalsOfASaleBeforeComparingThem(): void
+    public function testIssueSale_FingerprintsTheNumbersTheStockMovementsAndTheTotalsOfASaleBeforeComparingThem(): void
     {
         $manager = $this->employeeWithGrants([DocumentNumbering::PERMISSION]);
 
@@ -992,7 +991,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame('106.5000', $book['totals']['tax']);
     }
 
-    public function testIssueSaleCreatesTheCounterRowOfTheCompanyWhenItIsNotThere(): void
+    public function testIssueSale_CreatesTheCounterRowOfTheCompanyWhenItIsNotThere(): void
     {
         $this->accountingDb()->table('einvoice_counters')->where('company_id', 1)->delete();
 
@@ -1002,7 +1001,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(['icv' => 1, 'hash' => $document->hash], $this->counter());
     }
 
-    public function testIssueSaleWritesTheAuditEntryOfTheDocumentWithItsCounterAndHash(): void
+    public function testIssueSale_WritesTheAuditEntryOfTheDocumentWithItsCounterAndHash(): void
     {
         $document = $this->issue();
 
@@ -1016,7 +1015,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame('sale:' . $document->sourceId, $details['source']);
     }
 
-    public function testIssueSaleWaitsForTheLockOfTheCounterBeforeItTakesTheNextNumber(): void
+    public function testIssueSale_WaitsForTheLockOfTheCounterBeforeItTakesTheNextNumber(): void
     {
         $saleId = $this->referenceSale();
         $db     = $this->accountingDb();
@@ -1041,7 +1040,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->counter()['icv']);
     }
 
-    public function testIssueDebitNoteRefusesANoteOfABranchTheEmployeeDoesNotWorkInAndStoresNothing(): void
+    public function testIssueDebitNote_RefusesANoteOfABranchTheEmployeeDoesNotWorkInAndStoresNothing(): void
     {
         $this->setConfigValue('accounting_debit_note', '1');
 
@@ -1061,7 +1060,7 @@ final class EInvoiceServiceTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('einvoice_documents'));
     }
 
-    public function testIssueDebitNoteRequiresThePermissionAndTheLayerAndAnExistingNote(): void
+    public function testIssueDebitNote_RequiresThePermissionAndTheLayerAndAnExistingNote(): void
     {
         $this->setConfigValue('accounting_debit_note', '1');
 

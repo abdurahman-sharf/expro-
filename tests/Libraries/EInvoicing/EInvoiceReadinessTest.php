@@ -16,10 +16,8 @@ use Tests\Support\EmployeeFixtureTrait;
 /**
  * What the readiness check says: the seller, the classification of a line without tax, the key, and the
  * customers that are businesses and cannot receive a tax invoice yet.
- *
- * @internal
  */
-final class EInvoiceReadinessTest extends CIUnitTestCase
+class EInvoiceReadinessTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -30,7 +28,8 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace;
+    protected $namespace   = null;
+
     private EInvoiceReadiness $readiness;
 
     public static function setUpBeforeClass(): void
@@ -72,14 +71,14 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->fail('No check named ' . $id);
     }
 
-    public function testChecksPassForASellerThatIsCompleteWhileTheLayerIsOn(): void
+    public function testChecks_PassForASellerThatIsCompleteWhileTheLayerIsOn(): void
     {
         foreach (['accounting', 'enabled', 'seller_name', 'seller_vat', 'seller_identification', 'seller_address', 'customers'] as $id) {
             $this->assertSame(ReadinessCheck::PASS, $this->statusOf($id), $id);
         }
     }
 
-    public function testChecksFailForAMissingSellerTaxNumber(): void
+    public function testChecks_FailForAMissingSellerTaxNumber(): void
     {
         $this->configureEInvoicing(['tax_id' => '']);
 
@@ -102,7 +101,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         return '';
     }
 
-    public function testChecksFailForAnIncompleteSeller(): void
+    public function testChecks_FailForAnIncompleteSeller(): void
     {
         $this->configureEInvoicing(['company' => '']);
         $this->assertSame(ReadinessCheck::FAIL, $this->statusOf('seller_name'));
@@ -114,7 +113,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertSame(ReadinessCheck::FAIL, $this->statusOf('seller_address'));
     }
 
-    public function testChecksWarnWhileTheLayerIsOffAndFailWhileAccountingIsOff(): void
+    public function testChecks_WarnWhileTheLayerIsOffAndFailWhileAccountingIsOff(): void
     {
         $this->configureEInvoicing([EInvoiceSettings::ENABLED => '0']);
 
@@ -125,7 +124,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertSame(ReadinessCheck::FAIL, $this->statusOf('accounting'));
     }
 
-    public function testChecksWarnAboutALineWithoutTaxUntilItIsClassified(): void
+    public function testChecks_WarnAboutALineWithoutTaxUntilItIsClassified(): void
     {
         $this->assertSame(ReadinessCheck::WARN, $this->statusOf('exemption'));
 
@@ -134,13 +133,13 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertSame(ReadinessCheck::PASS, $this->statusOf('exemption'));
     }
 
-    public function testChecksSayThatNothingIsSentBecauseNoTransportIsInPlace(): void
+    public function testChecks_SayThatNothingIsSentBecauseNoTransportIsInPlace(): void
     {
         $this->assertSame(ReadinessCheck::WARN, $this->statusOf('transport'));
         $this->assertSame('null', $this->detail('transport'));
     }
 
-    public function testChecksWarnThatDocumentsAreUnsignedWhileNoKeyIsNamedAndPassWithAKeyThatLoads(): void
+    public function testChecks_WarnThatDocumentsAreUnsignedWhileNoKeyIsNamedAndPassWithAKeyThatLoads(): void
     {
         $this->assertSame(ReadinessCheck::WARN, $this->statusOf('signing'));
         $this->assertSame('not_configured', $this->detail('signing'));
@@ -154,7 +153,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertSame(ReadinessCheck::PASS, $this->statusOf('signing'));
     }
 
-    public function testChecksFailForAKeyThatCannotBeUsedAndSayWhy(): void
+    public function testChecks_FailForAKeyThatCannotBeUsedAndSayWhy(): void
     {
         $this->configureEInvoicing(['einvoice_key_path' => WRITEPATH . 'key.pem', 'einvoice_certificate_path' => WRITEPATH . 'cert.pem']);
 
@@ -162,7 +161,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertSame('key_path_unsafe', $this->detail('signing'));
     }
 
-    public function testCustomersWithoutIdentificationListsBusinessesFirstAndSaysWhatIsWrong(): void
+    public function testCustomersWithoutIdentification_ListsBusinessesFirstAndSaysWhatIsWrong(): void
     {
         $individual = $this->insertCustomer('Layla', 'Hassan');
         $company    = $this->insertCustomer('Omar', 'Khaled', 'Khaled Trading');
@@ -193,7 +192,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertLessThan($firstIndividual, $lastBusiness);
     }
 
-    public function testCustomersWithoutIdentificationLeavesOutACustomerWithAValidTaxNumberOrAnIdentification(): void
+    public function testCustomersWithoutIdentification_LeavesOutACustomerWithAValidTaxNumberOrAnIdentification(): void
     {
         $withVat = $this->insertCustomer('Ali', 'Vat', 'Vat Co');
         $withId  = $this->insertCustomer('Ali', 'Identified');
@@ -207,7 +206,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertNotContains($withId, $ids);
     }
 
-    public function testCustomersWithoutIdentificationListsACustomerWithAnInvalidTaxNumberAlthoughItHasAnIdentification(): void
+    public function testCustomersWithoutIdentification_ListsACustomerWithAnInvalidTaxNumberAlthoughItHasAnIdentification(): void
     {
         $customer = $this->insertCustomer('Sara', 'Nasser', 'Sara Co');
 
@@ -221,7 +220,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertTrue($rows[$customer]['business']);
     }
 
-    public function testCustomersWithoutIdentificationReadsABlankedTaxNumberAsTheDocumentDoes(): void
+    public function testCustomersWithoutIdentification_ReadsABlankedTaxNumberAsTheDocumentDoes(): void
     {
         $padded = $this->insertCustomer('Ali', 'Padded', 'Padded Co');
         $blank  = $this->insertCustomer('Ali', 'Blank', 'Blank Co');
@@ -235,7 +234,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertSame('no_identification', $rows[$blank]['problem']);
     }
 
-    public function testCustomersWithoutIdentificationLeavesOutADeletedCustomer(): void
+    public function testCustomersWithoutIdentification_LeavesOutADeletedCustomer(): void
     {
         $gone = $this->insertCustomer('Gone', 'Customer', 'Gone Co');
 
@@ -244,7 +243,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertNotContains($gone, array_column($this->readiness->customersWithoutIdentification(500)['rows'], 'person_id'));
     }
 
-    public function testCustomersWithoutIdentificationPagesTheList(): void
+    public function testCustomersWithoutIdentification_PagesTheList(): void
     {
         $this->insertCustomer('Page', 'One');
         $this->insertCustomer('Page', 'Two');
@@ -257,7 +256,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertSame($all['total'], $page['total']);
     }
 
-    public function testChecksFailWhileABusinessCustomerHasNoIdentificationAndPassOnceItHasOne(): void
+    public function testChecks_FailWhileABusinessCustomerHasNoIdentificationAndPassOnceItHasOne(): void
     {
         $company = $this->insertCustomer('Omar', 'Khaled', 'Khaled Trading');
 
@@ -270,7 +269,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertSame(ReadinessCheck::PASS, $this->statusOf('customers'));
     }
 
-    public function testChecksFailWhileABusinessCustomerHasAnInvalidTaxNumberWhateverItsIdentification(): void
+    public function testChecks_FailWhileABusinessCustomerHasAnInvalidTaxNumberWhateverItsIdentification(): void
     {
         $company = $this->insertCustomer('Sara', 'Nasser', 'Sara Co');
 
@@ -285,7 +284,7 @@ final class EInvoiceReadinessTest extends CIUnitTestCase
         $this->assertSame(ReadinessCheck::PASS, $this->statusOf('customers'));
     }
 
-    public function testReadinessChangesNothing(): void
+    public function testReadiness_ChangesNothing(): void
     {
         $this->insertCustomer('Omar', 'Khaled', 'Khaled Trading');
 
