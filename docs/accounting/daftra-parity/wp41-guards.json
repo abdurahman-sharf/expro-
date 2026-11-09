@@ -217,8 +217,8 @@
   {
     "name": "PM05 a switched-off way is refused by name",
     "file": "app/Libraries/Integrations/PaymentMethods.php",
-    "find": "if (! $this->isOffered($paymentType)) {",
-    "replace": "if (false) {",
+    "find": "return $this->isOffered($paymentType) ? null : lang('Integrations.error_payment_method_disabled', [$paymentType]);",
+    "replace": "return null;",
     "tests": [
       "tests/Libraries/Integrations/PaymentMethodsTest.php"
     ],
@@ -1715,8 +1715,8 @@
   {
     "name": "SR01 the register refuses a payment method that is switched off",
     "file": "app/Controllers/Sales.php",
-    "find": "if (!(new PaymentMethods())->isOffered($paymentType)) {",
-    "replace": "if (false) {",
+    "find": "if ($refusal !== null) {\n            $data['error'] = $refusal;",
+    "replace": "if (false) {\n            $data['error'] = $refusal;",
     "tests": [
       "--filter",
       "testPostAddPayment_|testGetIndex_OffersThePaymentMethods",
@@ -1727,8 +1727,8 @@
   {
     "name": "SR02 the completion of a purchase refuses a payment method that is switched off",
     "file": "app/Controllers/Receivings.php",
-    "find": "if (is_string($data['payment_type']) && ! (new PaymentMethods())->isOffered($data['payment_type'])) {",
-    "replace": "if (false) {",
+    "find": "$refusal = is_string($data['payment_type']) ? (new PaymentMethods())->refusal($data['payment_type']) : null;",
+    "replace": "$refusal = null;",
     "tests": [
       "--filter",
       "testPostComplete_RefusesAPaymentMethod|testPostComplete_StillTakesAPaymentMethod",
@@ -1900,6 +1900,499 @@
     "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
     "find": "CONSTRAINT `{$notices}_fk_rule` FOREIGN KEY (`rule_id`) REFERENCES `{$rules}` (`rule_id`) ON DELETE RESTRICT,",
     "replace": "",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM19 a way the form of a record names stays offered although it is switched off",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "if ($method->enabled || in_array($method->type, $kept, true)) {",
+    "replace": "if ($method->enabled) {",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM20 a record keeps the way it already carries",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "if ($stored !== null && ($paymentType === $stored || $this->sameWay($paymentType, $stored))) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM21 the same way under another name is the same way",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "|| $this->sameWay($paymentType, $stored))) {",
+    "replace": "|| false)) {",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM22 a posted payment is compared with the way the payment of that number carries",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "$stored[(int) ($payment['payment_id'] ?? 0)] ?? null);",
+    "replace": "null);",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM23 the values of a way of payment are plain values",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "if (array_filter($values, static fn (mixed $value): bool => ! is_scalar($value) && $value !== null) !== []) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM24 a way the form names is found by the name it is stored under",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "array_map(static fn (string $name): ?PaymentType => PaymentType::fromLabel($name), $keep)",
+    "replace": "array_map(static fn (string $name): ?PaymentType => null, $keep)",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SR07 the form of a sale keeps the way of each payment it carries",
+    "file": "app/Controllers/Sales.php",
+    "find": "$rowOptions     = $this->sale->get_payment_options(false, true, array_map(static fn (object $payment): string => (string) $payment->payment_type, $data['payments']));",
+    "replace": "$rowOptions     = $this->sale->get_payment_options(false, true, []);",
+    "tests": [
+      "--filter",
+      "testGetEdit_KeepsThePaymentMethodThatWasSwitchedOff|testPostSave_SavesThePaymentThatCarries|testPostSave_RefusesAPaymentChanged|testPostSave_RefusesANewPayment",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SR08 a new payment of a sale is not offered a way that is off",
+    "file": "app/Controllers/Sales.php",
+    "find": "$paymentOptions = $this->sale->get_payment_options(false);\n        $rowOptions ",
+    "replace": "$paymentOptions = $this->sale->get_payment_options(false, true, array_map(static fn (object $payment): string => (string) $payment->payment_type, $data['payments']));\n        $rowOptions ",
+    "tests": [
+      "--filter",
+      "testGetEdit_KeepsThePaymentMethodThatWasSwitchedOff|testPostSave_SavesThePaymentThatCarries|testPostSave_RefusesAPaymentChanged|testPostSave_RefusesANewPayment",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SR09 a refund of a sale is not offered a way that is off",
+    "file": "app/Controllers/Sales.php",
+    "find": "$data['refund_options'] = $paymentOptions;",
+    "replace": "$data['refund_options'] = $rowOptions;",
+    "tests": [
+      "--filter",
+      "testGetEdit_KeepsThePaymentMethodThatWasSwitchedOff|testPostSave_SavesThePaymentThatCarries|testPostSave_RefusesAPaymentChanged|testPostSave_RefusesANewPayment",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SR10 saving a sale refuses a payment with a way that is off",
+    "file": "app/Controllers/Sales.php",
+    "find": "$refusal = (new PaymentMethods())->refusalOfPayments($saleData['payments'] ?? [], $stored);",
+    "replace": "$refusal = null;",
+    "tests": [
+      "--filter",
+      "testGetEdit_KeepsThePaymentMethodThatWasSwitchedOff|testPostSave_SavesThePaymentThatCarries|testPostSave_RefusesAPaymentChanged|testPostSave_RefusesANewPayment",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SR11 saving a sale compares each payment with the way it carries",
+    "file": "app/Controllers/Sales.php",
+    "find": "$stored[(int) $payment->payment_id] = (string) $payment->payment_type;",
+    "replace": "$stored[(int) $payment->payment_id] = '';",
+    "tests": [
+      "--filter",
+      "testGetEdit_KeepsThePaymentMethodThatWasSwitchedOff|testPostSave_SavesThePaymentThatCarries|testPostSave_RefusesAPaymentChanged|testPostSave_RefusesANewPayment",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RC01 the form of a purchase keeps the way of each payment it carries",
+    "file": "app/Controllers/Receivings.php",
+    "find": "$data['row_payment_options']    = $this->supplierPaymentOptions(array_map(static fn (object $payment): string => (string) $payment->payment_type, $data['payments']));",
+    "replace": "$data['row_payment_options']    = $this->supplierPaymentOptions();",
+    "tests": [
+      "--filter",
+      "testGetEdit_KeepsThePaymentMethodThatWasSwitchedOff|testPostSave_SavesThePaymentThatCarries|testPostSave_RefusesAPaymentChanged|testPostSave_RefusesANewPayment",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RC02 a new payment of a purchase is not offered a way that is off",
+    "file": "app/Controllers/Receivings.php",
+    "find": "$data['payment_options']        = $this->supplierPaymentOptions();",
+    "replace": "$data['payment_options']        = $this->supplierPaymentOptions(array_map(static fn (object $payment): string => (string) $payment->payment_type, $data['payments']));",
+    "tests": [
+      "--filter",
+      "testGetEdit_KeepsThePaymentMethodThatWasSwitchedOff|testPostSave_SavesThePaymentThatCarries|testPostSave_RefusesAPaymentChanged|testPostSave_RefusesANewPayment",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RC03 saving a purchase refuses a payment with a way that is off",
+    "file": "app/Controllers/Receivings.php",
+    "find": "$refusal = (new PaymentMethods())->refusalOfPayments($payments, $stored);",
+    "replace": "$refusal = null;",
+    "tests": [
+      "--filter",
+      "testGetEdit_KeepsThePaymentMethodThatWasSwitchedOff|testPostSave_SavesThePaymentThatCarries|testPostSave_RefusesAPaymentChanged|testPostSave_RefusesANewPayment",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RC04 saving a purchase compares each payment with the way it carries",
+    "file": "app/Controllers/Receivings.php",
+    "find": "$stored[(int) $payment->payment_id] = (string) $payment->payment_type;",
+    "replace": "$stored[(int) $payment->payment_id] = '';",
+    "tests": [
+      "--filter",
+      "testGetEdit_KeepsThePaymentMethodThatWasSwitchedOff|testPostSave_SavesThePaymentThatCarries|testPostSave_RefusesAPaymentChanged|testPostSave_RefusesANewPayment",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "EX01 the form of an expense keeps the way it carries",
+    "file": "app/Controllers/Expenses.php",
+    "find": "$expenseId == NEW_ENTRY ? [] : [(string) $data['expenses_info']->payment_type]",
+    "replace": "[]",
+    "tests": [
+      "--filter",
+      "testGetView_KeepsThePaymentMethod|testPostSave_Refuses|testPostSave_SavesAnExpenseThatCarries",
+      "tests/Controllers/ExpensesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "EX02 saving an expense refuses a way that is off",
+    "file": "app/Controllers/Expenses.php",
+    "find": "$refusal = is_string($expenseData['payment_type']) ? (new PaymentMethods())->refusal($expenseData['payment_type'], $stored) : null;",
+    "replace": "$refusal = null;",
+    "tests": [
+      "--filter",
+      "testGetView_KeepsThePaymentMethod|testPostSave_Refuses|testPostSave_SavesAnExpenseThatCarries",
+      "tests/Controllers/ExpensesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "EX03 an expense keeps the way it already carries",
+    "file": "app/Controllers/Expenses.php",
+    "find": "->refusal($expenseData['payment_type'], $stored) : null;",
+    "replace": "->refusal($expenseData['payment_type'], null) : null;",
+    "tests": [
+      "--filter",
+      "testGetView_KeepsThePaymentMethod|testPostSave_Refuses|testPostSave_SavesAnExpenseThatCarries",
+      "tests/Controllers/ExpensesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RP01 the form of a receipt voucher keeps the way it carries",
+    "file": "app/Controllers/Receipt_vouchers.php",
+    "find": "get_payment_options($stored === null ? [] : [$stored])",
+    "replace": "get_payment_options()",
+    "tests": [
+      "--filter",
+      "RenamedMethod|SwitchedOff",
+      "tests/Controllers/Receipt_vouchersControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RP02 saving a receipt voucher refuses a way that is off",
+    "file": "app/Controllers/Receipt_vouchers.php",
+    "find": "if ($refused !== null) {\n                return $refused;\n            }\n\n            $id = $this->vouchers->save(",
+    "replace": "if (false) {\n                return $refused;\n            }\n\n            $id = $this->vouchers->save(",
+    "tests": [
+      "--filter",
+      "RenamedMethod|SwitchedOff",
+      "tests/Controllers/Receipt_vouchersControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RP03 a receipt voucher keeps the way it already carries",
+    "file": "app/Controllers/Receipt_vouchers.php",
+    "find": "$this->paymentMethodRefusal($input['payment_type'], $stored);",
+    "replace": "$this->paymentMethodRefusal($input['payment_type'], null);",
+    "tests": [
+      "--filter",
+      "RenamedMethod|SwitchedOff",
+      "tests/Controllers/Receipt_vouchersControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RP04 the form of a receipt voucher sends the name a way is stored under",
+    "file": "app/Views/receipt_vouchers/form.php",
+    "find": "<option value=\"<?= esc($stored, 'attr') ?>\"",
+    "replace": "<option value=\"<?= esc($label, 'attr') ?>\"",
+    "tests": [
+      "--filter",
+      "RenamedMethod|SwitchedOff",
+      "tests/Controllers/Receipt_vouchersControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RP05 the form of a receipt voucher shows the name chosen for a way",
+    "file": "app/Views/receipt_vouchers/form.php",
+    "find": "<?= esc($label) ?></option>",
+    "replace": "<?= esc($stored) ?></option>",
+    "tests": [
+      "--filter",
+      "RenamedMethod|SwitchedOff",
+      "tests/Controllers/Receipt_vouchersControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AC01 a way that is switched off is refused for a customer or a supplier",
+    "file": "app/Controllers/AccountingController.php",
+    "find": "return $refusal === null ? null : ['success' => false, 'message' => $refusal, 'id' => NEW_ENTRY];",
+    "replace": "return null;",
+    "tests": [
+      "--filter",
+      "testPostAdvance_RefusesAPaymentMethod|testPostRefund_RefusesAPaymentMethod",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AR01 a customer advance is refused when its way is switched off",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "$refused     = $this->paymentMethodRefusal($paymentType);\n\n            if ($refused !== null) {\n                return $refused;\n            }\n\n            $treasuryId = (int) $this->request->getPost('treasury_id');\n\n            $id = $this->advances->receive(",
+    "replace": "$refused     = $this->paymentMethodRefusal($paymentType);\n\n            if (false) {\n                return $refused;\n            }\n\n            $treasuryId = (int) $this->request->getPost('treasury_id');\n\n            $id = $this->advances->receive(",
+    "tests": [
+      "--filter",
+      "testPostAdvance_RefusesAPaymentMethod",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AR02 a customer refund is refused when its way is switched off",
+    "file": "app/Controllers/AccountingReceivables.php",
+    "find": "$refused     = $this->paymentMethodRefusal($paymentType);\n\n            if ($refused !== null) {\n                return $refused;\n            }\n\n            $treasuryId = (int) $this->request->getPost('treasury_id');\n\n            $id = $this->refunds->refund(",
+    "replace": "$refused     = $this->paymentMethodRefusal($paymentType);\n\n            if (false) {\n                return $refused;\n            }\n\n            $treasuryId = (int) $this->request->getPost('treasury_id');\n\n            $id = $this->refunds->refund(",
+    "tests": [
+      "--filter",
+      "testPostRefund_RefusesAPaymentMethod",
+      "tests/Controllers/AccountingReceivablesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AP01 a payment to a supplier is refused when its way is switched off",
+    "file": "app/Controllers/AccountingPayables.php",
+    "find": "$refused     = $this->paymentMethodRefusal($paymentType);\n\n            if ($refused !== null) {\n                return $refused;\n            }\n\n            $treasuryId = (int) $this->request->getPost('treasury_id');\n\n            $id = $this->advances->pay(",
+    "replace": "$refused     = $this->paymentMethodRefusal($paymentType);\n\n            if (false) {\n                return $refused;\n            }\n\n            $treasuryId = (int) $this->request->getPost('treasury_id');\n\n            $id = $this->advances->pay(",
+    "tests": [
+      "--filter",
+      "testPostPayment_RefusesAPaymentMethod",
+      "tests/Controllers/AccountingPayablesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AP02 a refund by a supplier is refused when its way is switched off",
+    "file": "app/Controllers/AccountingPayables.php",
+    "find": "$refused     = $this->paymentMethodRefusal($paymentType);\n\n            if ($refused !== null) {\n                return $refused;\n            }\n\n            $treasuryId = (int) $this->request->getPost('treasury_id');\n\n            $id = $this->refunds->refund(",
+    "replace": "$refused     = $this->paymentMethodRefusal($paymentType);\n\n            if (false) {\n                return $refused;\n            }\n\n            $treasuryId = (int) $this->request->getPost('treasury_id');\n\n            $id = $this->refunds->refund(",
+    "tests": [
+      "--filter",
+      "testPostRefund_RefusesAPaymentMethod",
+      "tests/Controllers/AccountingPayablesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS18 a schedule of expenses keeps the way it already carries",
+    "file": "app/Libraries/Recurring/RecurringSchedules.php",
+    "find": "$this->ownerOf($scheduleId), $this->storedPaymentOf($scheduleId));",
+    "replace": "$this->ownerOf($scheduleId), null);",
+    "tests": [
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS19 a schedule of expenses is not made or changed to a way that is off",
+    "file": "app/Libraries/Recurring/ScheduleInput.php",
+    "find": "return $type !== null && array_key_exists(lang($type->languageKey()), $options) ? $type->value : null;",
+    "replace": "return $type !== null ? $type->value : null;",
+    "tests": [
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS20 the form of a schedule keeps the way it carries",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "foreach (get_payment_options($kept === null ? [] : [lang($kept->languageKey())]) as $name => $shown) {",
+    "replace": "foreach (get_payment_options() as $name => $shown) {",
+    "tests": [
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS21 the form of a schedule shows the name chosen for a way",
+    "file": "app/Controllers/RecurringScreen.php",
+    "find": "$options[$type->value] = $shown;",
+    "replace": "$options[$type->value] = $name;",
+    "tests": [
+      "tests/Controllers/Recurring_expensesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE16 an overdue-invoice rule reads the books only while accounting is on",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "NotificationRuleKind::InvoiceOverdue => $this->accounting->isEnabled() ? $this->overdueInvoices($rule->threshold ?? 1, $today) : [],",
+    "replace": "NotificationRuleKind::InvoiceOverdue => $this->overdueInvoices($rule->threshold ?? 1, $today),",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NT09 an overdue invoice is named by its number in the notice",
+    "file": "app/Libraries/Integrations/Notifications.php",
+    "find": "lang('Integrations.document_invoice_numbered', [$document])",
+    "replace": "$document",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET24 a translation needs a language",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "if ($language === '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IN04 the translations screen asks for a language while none is chosen",
+    "file": "app/Views/integrations/translations.php",
+    "find": "<?php if ($editing === null && $language === ''): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "testPostTranslationSave_AsksForALanguage|testGetTranslations_ShowsTheLanguage",
+      "tests/Controllers/IntegrationsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK23 the scopes of a key are plain text",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "if (! is_array($value) || array_filter($value, static fn (mixed $scope): bool => ! is_string($scope)) !== []) {",
+    "replace": "if (! is_array($value)) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php",
+      "tests/Controllers/Api_keysControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK24 the name of a key is plain text",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "$name = is_scalar($value) ? trim(preg_replace('/\\s+/u', ' ', (string) $value) ?? '') : '';",
+    "replace": "$name = trim(preg_replace('/\\s+/u', ' ', (string) $value) ?? '');",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IC04 a refusal to manage names the module and the permission",
+    "file": "app/Controllers/IntegrationController.php",
+    "find": "throw new RedirectException('no_access/' . IntegrationAccess::MODULE . '/' . IntegrationAccess::MANAGE);",
+    "replace": "throw new RedirectException('no_access/' . IntegrationAccess::MANAGE);",
+    "tests": [
+      "tests/Controllers/IntegrationsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "KC03 a refusal to manage keys names the module and the permission",
+    "file": "app/Controllers/Api_keys.php",
+    "find": "throw new RedirectException('no_access/' . IntegrationAccess::MODULE . '/' . IntegrationAccess::API_KEYS);",
+    "replace": "throw new RedirectException('no_access/' . IntegrationAccess::API_KEYS);",
+    "tests": [
+      "tests/Controllers/Api_keysControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IC05 the screens of the integrations open while accounting is off",
+    "file": "app/Controllers/IntegrationController.php",
+    "find": "parent::__construct($moduleId, false);",
+    "replace": "parent::__construct($moduleId);",
+    "tests": [
+      "--filter",
+      "testGetIndex_OpensEveryScreen|testGetIndex_OpensWhileAccounting|testGetIndex_OpensWhetherAccounting",
+      "tests/Controllers/IntegrationsControllerTest.php",
+      "tests/Controllers/NotificationsControllerTest.php",
+      "tests/Controllers/Api_keysControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IC06 the notifications screen needs no configuration grant",
+    "file": "app/Controllers/Notifications.php",
+    "find": "parent::__construct(IntegrationAccess::NOTIFICATIONS_MODULE, false);",
+    "replace": "parent::__construct(IntegrationAccess::NOTIFICATIONS_MODULE);",
+    "tests": [
+      "--filter",
+      "testGetIndex_OpensWhileAccounting",
+      "tests/Controllers/NotificationsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "MG12 the two modules of the integrations are ordered apart",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "['integrations' => 160, 'notifications' => 161]",
+    "replace": "['integrations' => 160, 'notifications' => 160]",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "MG13 no other module is ordered where the modules of the integrations are",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "['integrations' => 160, 'notifications' => 161]",
+    "replace": "['integrations' => 140, 'notifications' => 161]",
     "tests": [
       "tests/Database/IntegrationSettingsTablesMigrationTest.php"
     ],
