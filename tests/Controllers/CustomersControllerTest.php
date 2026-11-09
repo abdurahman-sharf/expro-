@@ -18,12 +18,14 @@ use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Models\Price_list;
 use App\Models\Sale;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
 use Config\OSPOS;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -1860,6 +1862,61 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertFalse($this->save($this->eInvoiceForm(['einvoice_identification_type' => 'XXX']))['success']);
         $this->assertFalse($this->save($this->eInvoiceForm(['einvoice_postal_code' => '1156']))['success']);
         $this->assertSame(0, $this->accountingDb()->table('customer_einvoice_parties')->countAllResults());
+    }
+
+    public function testPostSave_RefusesAValueWiderThanItsColumnAndSavesNoCustomer(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $before = $this->accountingDb()->table('customers')->countAllResults();
+
+        foreach ([['einvoice_street' => str_repeat('x', 256)], ['einvoice_identification_number' => str_repeat('1', 61)], ['einvoice_country_code' => 'AE', 'einvoice_building_number' => str_repeat('9', 11)], ['einvoice_country_code' => 'AE', 'einvoice_postal_code' => 'P.O. Box 55']] as $values) {
+            $result = $this->save($this->eInvoiceForm($values));
+
+            $this->assertFalse($result['success'], json_encode($values));
+            $this->assertStringContainsString('is not valid', $result['message']);
+        }
+
+        $this->assertSame($before, $this->accountingDb()->table('customers')->countAllResults());
+        $this->assertSame(0, $this->accountingDb()->table('customer_einvoice_parties')->countAllResults());
+    }
+
+    public function testPostSave_KeepsAValueThatFillsItsColumnWhole(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $result = $this->save($this->eInvoiceForm(['einvoice_street' => str_repeat('x', 255), 'einvoice_country_code' => 'AE', 'einvoice_postal_code' => 'SW1A 1AA', 'einvoice_building_number' => str_repeat('9', 10)]));
+        $held   = (new CustomerParties())->find((int) $result['id']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(str_repeat('x', 255), $held['street']);
+        $this->assertSame('SW1A 1AA', $held['postal_code']);
+        $this->assertSame(str_repeat('9', 10), $held['building_number']);
+    }
+
+    public function testPostSave_SaysThatTheIdentificationWasNotSavedWhenTheDatabaseRefusesItAndStillGivesTheCustomer(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $db      = $this->accountingDb();
+        $table   = $db->prefixTable('customer_einvoice_parties');
+        $debug   = new ReflectionProperty(BaseConnection::class, 'DBDebug');
+        $trigger = $table . '_refuse';
+
+        $db->query("CREATE TRIGGER {$trigger} BEFORE INSERT ON {$table} FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'refused'");
+        $debug->setValue($db, false);
+
+        try {
+            $result = $this->save($this->eInvoiceForm());
+        } finally {
+            $debug->setValue($db, true);
+            $db->query("DROP TRIGGER IF EXISTS {$trigger}");
+        }
+
+        $this->assertTrue($result['success']);
+        $this->assertStringContainsString('were not saved; open the customer again and save them', $result['message']);
+        $this->assertSame(1, $db->table('customers')->where('person_id', $result['id'])->countAllResults());
+        $this->assertSame(0, $db->table('customer_einvoice_parties')->countAllResults());
     }
 
     public function testPostSave_LeavesWhatACustomerHoldsAloneWhenTheFormDoesNotCarryTheSection(): void
