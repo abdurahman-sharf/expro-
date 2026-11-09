@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -90,6 +91,16 @@ abstract class AccountingController extends Secure_Controller
                 'id'      => NEW_ENTRY,
             ]);
         }
+    }
+
+    /**
+     * @return array{success: false, message: string, id: int}|null The answer that refuses a way of payment switched off, or null when it may be used.
+     */
+    protected function paymentMethodRefusal(string $paymentType, ?string $stored = null): ?array
+    {
+        $refusal = (new PaymentMethods())->refusal($paymentType, $stored);
+
+        return $refusal === null ? null : ['success' => false, 'message' => $refusal, 'id' => NEW_ENTRY];
     }
 
     protected function messageFor(AccountingException|BranchException|PostingException $exception): string

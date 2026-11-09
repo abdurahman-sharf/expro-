@@ -55,8 +55,8 @@ $isNew = $voucher === null;
                 <?= form_label(lang('Receipt_vouchers.payment_type'), 'payment_type', ['class' => 'form-label text-danger required']) ?>
                 <div class="field-control">
                     <select name="payment_type" id="payment_type" class="form-select form-select-sm">
-                        <?php foreach ($paymentOptions as $label): ?>
-                            <option value="<?= esc($label, 'attr') ?>"<?= ! $isNew && $voucher->payment_type === $label ? ' selected' : '' ?>><?= esc($label) ?></option>
+                        <?php foreach ($paymentOptions as $stored => $label): ?>
+                            <option value="<?= esc($stored, 'attr') ?>"<?= ! $isNew && $voucher->payment_type === $stored ? ' selected' : '' ?>><?= esc($label) ?></option>
                         <?php endforeach; ?>
                     </select>
                     <p class="form-text"><?= lang('Receipt_vouchers.payment_type_note') ?></p>

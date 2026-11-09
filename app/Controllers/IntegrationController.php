@@ -48,7 +48,7 @@ abstract class IntegrationController extends AccountingController
     protected function requireManage(): void
     {
         if (! $this->access->mayManage($this->employeeId())) {
-            throw new RedirectException('no_access/' . IntegrationAccess::MANAGE);
+            throw new RedirectException('no_access/' . IntegrationAccess::MODULE . '/' . IntegrationAccess::MANAGE);
         }
     }
 

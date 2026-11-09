@@ -338,17 +338,75 @@ class PaymentMethodsTest extends CIUnitTestCase
         $this->assertTrue($this->methods->isOffered('Unknown way'));
     }
 
-    public function testAssertOffered_NamesTheSwitchedOffWay(): void
+    public function testRefusal_NamesTheSwitchedOffWayOnlyWhileTheSwitchIsOn(): void
     {
         $this->methods->save(['debit' => ['enabled' => '0']], null);
+
+        $this->assertNull($this->methods->refusal(lang('Sales.debit')), 'The switch is off.');
+
         $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
 
-        $refusal = $this->refusal(fn () => $this->methods->assertOffered(lang('Sales.debit')));
+        $this->assertSame(lang('Integrations.error_payment_method_disabled', [lang('Sales.debit')]), $this->methods->refusal(lang('Sales.debit')));
+        $this->assertNull($this->methods->refusal(lang('Sales.credit')));
+        $this->assertNull($this->methods->refusal(lang('Sales.cash')));
+    }
 
-        $this->assertSame(IntegrationError::PaymentMethodDisabled, $refusal->error);
-        $this->assertSame(lang('Sales.debit'), $refusal->context['name']);
-        $this->methods->assertOffered(lang('Sales.credit'));
-        $this->addToAssertionCount(1);
+    public function testRefusal_AcceptsTheWayARecordAlreadyCarriesButNotAChangeToAnotherSwitchedOffWay(): void
+    {
+        $this->methods->save(['debit' => ['enabled' => '0'], 'wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+
+        $this->assertNull($this->methods->refusal(lang('Sales.debit'), lang('Sales.debit')), 'The same name.');
+        $this->assertNull($this->methods->refusal(lang('Sales.debit', [], 'en'), lang('Sales.debit')), 'The same way under its name in the fallback language.');
+        $this->assertNotNull($this->methods->refusal(lang('Sales.wallet'), lang('Sales.debit')), 'Another way that is off.');
+        $this->assertNotNull($this->methods->refusal(lang('Sales.debit'), lang('Sales.cash')), 'A record that carried cash and now asks for a way that is off.');
+        $this->assertNotNull($this->methods->refusal(lang('Sales.debit'), null), 'A new record has no way to keep.');
+    }
+
+    public function testRefusalOfPayments_RefusesANewPaymentAndAChangedOneButNotAnUnchangedOne(): void
+    {
+        $this->methods->save(['check' => ['enabled' => '0'], 'wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+
+        $stored = [7 => lang('Sales.check'), 8 => lang('Sales.cash')];
+
+        $this->assertNull($this->methods->refusalOfPayments([['payment_id' => 7, 'payment_type' => lang('Sales.check')], ['payment_id' => 8, 'payment_type' => lang('Sales.cash')]], $stored));
+        $this->assertSame(
+            lang('Integrations.error_payment_method_disabled', [lang('Sales.wallet')]),
+            $this->methods->refusalOfPayments([['payment_id' => 7, 'payment_type' => lang('Sales.check')], ['payment_id' => -1, 'payment_type' => lang('Sales.wallet')]], $stored),
+            'A new payment.',
+        );
+        $this->assertNotNull($this->methods->refusalOfPayments([['payment_id' => 8, 'payment_type' => lang('Sales.check')]], $stored), 'A payment of cash changed to a way that is off.');
+        $this->assertNull($this->methods->refusalOfPayments([['payment_id' => 8, 'payment_type' => lang('Sales.debit')]], $stored), 'A way that is on.');
+    }
+
+    public function testOffered_KeepsASwitchedOffWayTheFormNamesUnderItsChosenName(): void
+    {
+        $this->methods->save(['debit' => ['enabled' => '0'], 'check' => ['enabled' => '0', 'name' => 'Cheque'], 'wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+
+        $offered = $this->methods->offered($this->standardOptions(), [lang('Sales.check'), lang('Sales.cash')]);
+
+        $this->assertSame('Cheque', $offered[lang('Sales.check')], 'The way the record carries stays, under the name chosen.');
+        $this->assertArrayNotHasKey(lang('Sales.debit'), $offered);
+        $this->assertArrayNotHasKey(lang('Sales.wallet'), $offered);
+        $this->assertSame(
+            array_values(array_diff(array_keys($this->standardOptions()), [lang('Sales.debit'), lang('Sales.wallet')])),
+            array_keys($offered),
+            'The kept way sits where it always sat.',
+        );
+    }
+
+    public function testSave_RejectsValuesThatAreNotPlain(): void
+    {
+        $refusal = $this->refusal(fn () => $this->methods->save(['debit' => ['name' => ['x']]], null));
+
+        $this->assertSame(IntegrationError::InputInvalid, $refusal->error);
+
+        $refusal = $this->refusal(fn () => $this->methods->save(['debit' => ['enabled' => ['1']]], null));
+
+        $this->assertSame(IntegrationError::InputInvalid, $refusal->error);
+        $this->assertSame(0, Database::connect()->table('payment_methods')->countAllResults());
     }
 
     public function testRoutedTo_ShowsTheAccountEachWayIsRoutedToAndTheTreasuryThatOwnsIt(): void

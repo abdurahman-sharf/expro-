@@ -12,6 +12,7 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Documents\RendersPdf;
 use App\Libraries\Documents\VoucherDocument;
 use App\Libraries\Documents\VoucherDocuments;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -162,7 +163,7 @@ class Expenses extends Secure_Controller
         }
 
         // Don't allow gift card to be a payment option in a sale transaction edit because it's a complex change
-        $data['payment_options'] = $this->expense->get_payment_options();
+        $data['payment_options'] = $this->expense->get_payment_options($expenseId == NEW_ENTRY ? [] : [(string) $data['expenses_info']->payment_type]);
 
         $followed = $expenseId == NEW_ENTRY || $data['expenses_info']->branch_id !== null;
 
@@ -267,6 +268,13 @@ class Expenses extends Secure_Controller
             'employee_id'         => $employeeId,
             'deleted'             => $this->request->getPost('deleted') != null
         ];
+
+        $stored  = $expenseId == NEW_ENTRY ? null : (string) $this->expense->get_info($expenseId)->payment_type;
+        $refusal = is_string($expenseData['payment_type']) ? (new PaymentMethods())->refusal($expenseData['payment_type'], $stored) : null;
+
+        if ($refusal !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $refusal, 'id' => NEW_ENTRY]);
+        }
 
         $accountingOn = (new AccountingSettings())->isEnabled();
 

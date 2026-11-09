@@ -10,14 +10,14 @@ use RuntimeException;
  * register offers and under what name, the second-language name of a customer, a supplier, an item or a
  * category, the keys of the read-only API (only the hash of a secret is stored), the windows that count
  * the calls of a key, and the rules that make in-app notifications with the notifications themselves.
- * Two modules and three permissions are registered and nothing is granted; the permission to manage the
+ * Two modules and four permissions are registered and nothing is granted; the permission to manage the
  * keys is sensitive. No journal, no document, no amount and no balance is touched and no existing table
  * changes. Safe to run again.
  */
 class IntegrationSettingsTables extends Migration
 {
     private const TABLE_OPTIONS = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci';
-    private const MODULES       = ['integrations' => 135, 'notifications' => 136];
+    private const MODULES       = ['integrations' => 160, 'notifications' => 161];
     private const PERMISSIONS   = [
         'integrations'            => 'integrations',
         'acc_integrations_manage' => 'integrations',

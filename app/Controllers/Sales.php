@@ -33,9 +33,9 @@ use App\Libraries\Documents\DocumentException;
 use App\Libraries\Documents\RendersPdf;
 use App\Libraries\Documents\VoucherDocuments;
 use App\Libraries\HeaderCharges;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountProblem;
-use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -1352,8 +1352,10 @@ class Sales extends Secure_Controller
             return $this->reload($data);
         }
 
-        if (!(new PaymentMethods())->isOffered($paymentType)) {
-            $data['error'] = lang('Integrations.error_payment_method_disabled', [$paymentType]);
+        $refusal = (new PaymentMethods())->refusal($paymentType);
+
+        if ($refusal !== null) {
+            $data['error'] = $refusal;
 
             return $this->reload($data);
         }
@@ -3363,12 +3365,15 @@ class Sales extends Secure_Controller
 
         // Don't allow gift card to be a payment option in a sale transaction edit because it's a complex change
         $paymentOptions = $this->sale->get_payment_options(false);
+        $rowOptions     = $this->sale->get_payment_options(false, true, array_map(static fn (object $payment): string => (string) $payment->payment_type, $data['payments']));
 
         if ($this->sale_lib->reset_cash_rounding()) {
             $paymentOptions[lang('Sales.cash_adjustment')] = lang('Sales.cash_adjustment');
+            $rowOptions[lang('Sales.cash_adjustment')]     = lang('Sales.cash_adjustment');
         }
 
-        $data['payment_options'] = $paymentOptions;
+        $data['payment_options'] = $rowOptions;
+        $data['refund_options'] = $paymentOptions;
         $data['reference_code_payment_types'] = get_reference_code_payment_types();
 
         // Set up a slightly modified list of payment types for new payment entry
@@ -3576,6 +3581,18 @@ class Sales extends Secure_Controller
                 'reference_code'  => $referenceCodeNew,
                 ...$this->postedTreasury('treasury_id_new'),
             ];
+        }
+
+        $stored = [];
+
+        foreach ($this->sale->get_sale_payments($saleId)->getResult() as $payment) {
+            $stored[(int) $payment->payment_id] = (string) $payment->payment_type;
+        }
+
+        $refusal = (new PaymentMethods())->refusalOfPayments($saleData['payments'] ?? [], $stored);
+
+        if ($refusal !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $refusal, 'id' => $saleId]);
         }
 
         if ($this->sale->update($saleId, $saleData)) {

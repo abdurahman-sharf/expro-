@@ -183,7 +183,7 @@ final class ApiKeys
      */
     private function name(mixed $value): string
     {
-        $name = trim(preg_replace('/\s+/u', ' ', (string) $value) ?? '');
+        $name = is_scalar($value) ? trim(preg_replace('/\s+/u', ' ', (string) $value) ?? '') : '';
 
         if ($name === '' || mb_strlen($name) > self::MAX_NAME || preg_match('/\p{C}/u', $name) === 1) {
             throw new IntegrationException(IntegrationError::ApiKeyName, 'A key needs a short plain name.', ['max' => self::MAX_NAME]);
@@ -199,7 +199,11 @@ final class ApiKeys
      */
     private function scopes(mixed $value): array
     {
-        $asked = is_array($value) ? array_values(array_unique(array_map('strval', $value))) : [];
+        if (! is_array($value) || array_filter($value, static fn (mixed $scope): bool => ! is_string($scope)) !== []) {
+            throw new IntegrationException(IntegrationError::ApiKeyScopes, 'The scopes are a list of plain text.', ['name' => '']);
+        }
+
+        $asked = array_values(array_unique($value));
         $found = [];
 
         foreach ($asked as $text) {

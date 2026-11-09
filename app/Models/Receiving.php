@@ -1900,7 +1900,7 @@ class Receiving extends Model
         return $supplier->get_info($builder->get()->getRow()->supplier_id);
     }
 
-    public function get_payment_options(): array
+    public function get_payment_options(array $keep = []): array
     {
         return (new PaymentMethods())->offered([
             lang('Sales.cash')          => lang('Sales.cash'),
@@ -1910,7 +1910,7 @@ class Receiving extends Model
             lang('Sales.due')           => lang('Sales.due'),
             lang('Sales.bank_transfer') => lang('Sales.bank_transfer'),
             lang('Sales.wallet')        => lang('Sales.wallet'),
-        ]);
+        ], $keep);
     }
 
     /**

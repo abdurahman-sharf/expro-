@@ -11,6 +11,7 @@ use App\Libraries\Integrations\TranslationKind;
  * @var TranslationKind|null    $kind
  * @var string                  $search
  * @var string                  $language
+ * @var list<string>            $locales
  * @var bool                    $enabled
  * @var bool                    $printing
  * @var EntityTranslation|null  $editing
@@ -68,7 +69,11 @@ foreach (TranslationKind::cases() as $case) {
             <div class="field">
                 <label class="form-label" for="translation_language"><?= lang('Integrations.language') ?></label>
                 <div class="field-control">
-                    <input type="text" class="form-control form-control-sm" id="translation_language" name="language" value="<?= esc($editing?->language ?? $language, 'attr') ?>" readonly>
+                    <?php if ($editing === null && $language === ''): ?>
+                        <?= form_dropdown('language', ['' => '-'] + array_combine($locales, $locales), '', ['class' => 'form-select form-select-sm', 'id' => 'translation_language', 'required' => 'required']) ?>
+                    <?php else: ?>
+                        <input type="text" class="form-control form-control-sm" id="translation_language" name="language" value="<?= esc($editing?->language ?? $language, 'attr') ?>" readonly>
+                    <?php endif; ?>
                 </div>
             </div>
             <div class="field">

@@ -119,7 +119,7 @@ final class NotificationRules
             $rule = $this->find($ruleId) ?? throw new IntegrationException(IntegrationError::RuleNotFound, "The rule {$ruleId} does not exist.", ['id' => $ruleId]);
 
             if ($this->db->table('notifications')->where('rule_id', $ruleId)->countAllResults() > 0) {
-                throw new IntegrationException(IntegrationError::RuleInUse, "The rule {$ruleId} has made notifications, so it is switched off and kept.", ['id' => $ruleId]);
+                throw new IntegrationException(IntegrationError::RuleInUse, "The rule {$ruleId} has made notifications, so it is kept.", ['id' => $ruleId]);
             }
 
             $this->db->table('notification_rules')->where('rule_id', $ruleId)->delete();

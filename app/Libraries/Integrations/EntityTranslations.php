@@ -241,6 +241,10 @@ final class EntityTranslations
     {
         $language = trim($language);
 
+        if ($language === '') {
+            throw new IntegrationException(IntegrationError::TranslationNoLanguage, 'The language of the translation is not chosen.');
+        }
+
         if (! in_array($language, IntegrationOptions::locales(), true)) {
             throw new IntegrationException(IntegrationError::TranslationLanguage, "{$language} is not a language of the application.", ['code' => $language]);
         }

@@ -2772,9 +2772,9 @@ class Sale extends Model
     /**
      * Gets sale payment options
      */
-    public function get_payment_options(bool $giftcard = true, bool $reward_points = true): array
+    public function get_payment_options(bool $giftcard = true, bool $reward_points = true, array $keep = []): array
     {
-        $payments = get_payment_options();
+        $payments = get_payment_options($keep);
 
         if ($giftcard) {
             $payments[lang('Sales.giftcard')] = lang('Sales.giftcard');

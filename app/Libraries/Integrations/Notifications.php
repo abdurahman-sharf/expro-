@@ -84,7 +84,7 @@ final class Notifications
 
         if ($kind === NotificationRuleKind::InvoiceOverdue) {
             $document           = (string) ($params['document'] ?? '');
-            $params['document'] = $document !== '' ? $document : lang('Integrations.document_' . (string) ($params['kind'] ?? 'invoice'));
+            $params['document'] = $document !== '' ? lang('Integrations.document_invoice_numbered', [$document]) : lang('Integrations.document_' . (string) ($params['kind'] ?? 'invoice'));
         }
 
         return lang($kind->noticeKey(), array_map('strval', $params));

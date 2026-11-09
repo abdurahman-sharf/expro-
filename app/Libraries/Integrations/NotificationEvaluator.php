@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Integrations;
 
+use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\InvoiceFigures;
 use App\Libraries\Organization\CompanyContext;
@@ -15,7 +16,9 @@ use Config\Database;
  * again if it comes back. It reads what the screens read and writes nothing but notifications. No mail, no
  * message, no call to another server: a notification is a row an employee sees on the screen of notifications,
  * and sending one anywhere else is not built, because nothing may leave the shop without the owner's
- * separate permission.
+ * separate permission. What customers owe is read from the books, which stop while accounting is off, so an
+ * overdue-invoice rule then finds nothing and closes its notifications rather than keep saying what the
+ * frozen books say.
  */
 final class NotificationEvaluator
 {
@@ -24,12 +27,14 @@ final class NotificationEvaluator
     private BaseConnection $db;
     private IntegrationOptions $options;
     private NotificationRules $rules;
+    private AccountingSettings $accounting;
 
-    public function __construct(?BaseConnection $db = null, ?IntegrationOptions $options = null, ?NotificationRules $rules = null)
+    public function __construct(?BaseConnection $db = null, ?IntegrationOptions $options = null, ?NotificationRules $rules = null, ?AccountingSettings $accounting = null)
     {
-        $this->db      = $db ?? Database::connect();
-        $this->options = $options ?? new IntegrationOptions($this->db);
-        $this->rules   = $rules ?? new NotificationRules($this->db);
+        $this->db         = $db ?? Database::connect();
+        $this->options    = $options ?? new IntegrationOptions($this->db);
+        $this->rules      = $rules ?? new NotificationRules($this->db);
+        $this->accounting = $accounting ?? new AccountingSettings($this->db);
     }
 
     public function run(?string $today = null): NotificationRun
@@ -95,7 +100,7 @@ final class NotificationEvaluator
     private function subjects(NotificationRule $rule, string $today): array
     {
         return match ($rule->kind) {
-            NotificationRuleKind::InvoiceOverdue => $this->overdueInvoices($rule->threshold ?? 1, $today),
+            NotificationRuleKind::InvoiceOverdue => $this->accounting->isEnabled() ? $this->overdueInvoices($rule->threshold ?? 1, $today) : [],
             NotificationRuleKind::LowStock       => $this->lowStock(),
             NotificationRuleKind::ChequeDue      => $this->chequesDue($rule->threshold ?? 0, $today),
         };

@@ -6,14 +6,15 @@ enum IntegrationError: string
 {
     case PermissionDenied         = 'permission_denied';
     case SettingInvalid           = 'setting_invalid';
+    case InputInvalid             = 'input_invalid';
     case PaymentMethodUnknown     = 'payment_method_unknown';
     case PaymentMethodProtected   = 'payment_method_protected';
     case PaymentMethodName        = 'payment_method_name';
     case PaymentMethodNameTaken   = 'payment_method_name_taken';
-    case PaymentMethodDisabled    = 'payment_method_disabled';
     case TranslationKind          = 'translation_kind';
     case TranslationEntityMissing = 'translation_entity_missing';
     case TranslationLanguage      = 'translation_language';
+    case TranslationNoLanguage    = 'translation_no_language';
     case TranslationName          = 'translation_name';
     case TranslationNote          = 'translation_note';
     case TranslationNotFound      = 'translation_not_found';

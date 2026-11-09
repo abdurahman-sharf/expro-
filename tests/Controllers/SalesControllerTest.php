@@ -9599,6 +9599,100 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertStringContainsString('value="' . lang('Sales.due') . '"', $on);
     }
 
+    private function saleWithWalletPayment(): int
+    {
+        $service = $this->item('0', false);
+        $this->startSelling();
+        $saleId = $this->save([$this->line($service, 0, '1', '230')], [], [$this->payment(lang('Sales.wallet'), '100.00')]);
+
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        return $saleId;
+    }
+
+    private function selectOf(string $body, string $name): string
+    {
+        $this->assertSame(1, preg_match('#<select name="' . preg_quote($name, '#') . '".*?</select>#s', $body, $found), $name . ' is not on the form.');
+
+        return $found[0];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function editFormOfSale(int $saleId, int $paymentId, string $type, string $amount, array $more = []): array
+    {
+        return [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'only the comment',
+            'number_of_payments' => '1',
+            'payment_id_0'       => (string) $paymentId,
+            'payment_type_0'     => $type,
+            'payment_amount_0'   => $amount,
+            'refund_type_0'      => lang('Sales.cash'),
+            'refund_amount_0'    => '0.00',
+            'payment_type_new'   => '--',
+            ...$more,
+        ];
+    }
+
+    public function testGetEdit_KeepsThePaymentMethodThatWasSwitchedOffSelectedOnItsOwnRowOnly(): void
+    {
+        $saleId = $this->saleWithWalletPayment();
+
+        $body = $this->get('/sales/edit/' . $saleId)->getBody();
+        $row  = $this->selectOf($body, 'payment_type_0');
+
+        $this->assertMatchesRegularExpression('#<option value="' . preg_quote(lang('Sales.wallet'), '#') . '"[^>]*selected#', $row, 'The payment keeps the method it was taken with.');
+        $this->assertStringNotContainsString('value="' . lang('Sales.wallet') . '"', $this->selectOf($body, 'payment_type_new'), 'A new payment is not offered the method that is off.');
+        $this->assertStringNotContainsString('value="' . lang('Sales.wallet') . '"', $this->selectOf($body, 'refund_type_0'), 'A refund is not offered it either.');
+    }
+
+    public function testPostSave_SavesThePaymentThatCarriesASwitchedOffMethodWithTheMethodItHad(): void
+    {
+        $saleId  = $this->saleWithWalletPayment();
+        $payment = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, $this->editFormOfSale($saleId, (int) $payment->payment_id, lang('Sales.wallet'), '100.00')));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Sales.wallet'), $this->accountingDb()->table('sales_payments')->where('payment_id', $payment->payment_id)->get()->getRow()->payment_type);
+    }
+
+    public function testPostSave_RefusesAPaymentChangedToAMethodThatIsSwitchedOff(): void
+    {
+        $service = $this->item('0', false);
+        $this->startSelling();
+        $saleId  = $this->save([$this->line($service, 0, '1', '230')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
+        $payment = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, $this->editFormOfSale($saleId, (int) $payment->payment_id, lang('Sales.wallet'), '100.00')));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Integrations.error_payment_method_disabled', [lang('Sales.wallet')]), $result['message']);
+        $this->assertSame(lang('Sales.cash'), $this->accountingDb()->table('sales_payments')->where('payment_id', $payment->payment_id)->get()->getRow()->payment_type);
+    }
+
+    public function testPostSave_RefusesANewPaymentWithAMethodThatIsSwitchedOff(): void
+    {
+        $saleId  = $this->saleWithWalletPayment();
+        $payment = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, $this->editFormOfSale($saleId, (int) $payment->payment_id, lang('Sales.wallet'), '100.00', ['payment_type_new' => lang('Sales.wallet'), 'payment_amount_new' => '50.00'])));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Integrations.error_payment_method_disabled', [lang('Sales.wallet')]), $result['message']);
+        $this->assertSame(1, $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->countAllResults(), 'No payment was added.');
+    }
+
     public function testPostAddPayment_RefusesAPaymentMethodThatIsSwitchedOffAndAddsNothing(): void
     {
         $this->registerWithACart();

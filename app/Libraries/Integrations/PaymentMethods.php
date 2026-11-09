@@ -90,13 +90,16 @@ final class PaymentMethods
 
     /**
      * What the register offers: the options given, less the ways switched off and with the name chosen for
-     * the others. The key of an option stays the name the way is stored under.
+     * the others. The key of an option stays the name the way is stored under. The form of a record that
+     * already carries a way of payment names it in $keep, so that a way switched off since stays in that
+     * form and is saved again as it was.
      *
      * @param array<string, string> $options
+     * @param list<string>          $keep    The names the ways are stored under.
      *
      * @return array<string, string>
      */
-    public function offered(array $options): array
+    public function offered(array $options, array $keep = []): array
     {
         if (! $this->options->paymentMethodsCustom()) {
             return $options;
@@ -107,6 +110,8 @@ final class PaymentMethods
         foreach ($this->all() as $method) {
             $methods[$method->type->value] = $method;
         }
+
+        $kept = array_values(array_filter(array_map(static fn (string $name): ?PaymentType => PaymentType::fromLabel($name), $keep)));
 
         $offered = [];
 
@@ -120,7 +125,7 @@ final class PaymentMethods
                 continue;
             }
 
-            if ($method->enabled) {
+            if ($method->enabled || in_array($method->type, $kept, true)) {
                 $offered[$key] = $method->customName ?? $label;
             }
         }
@@ -150,13 +155,37 @@ final class PaymentMethods
     }
 
     /**
-     * @throws IntegrationException
+     * The words that refuse a way of payment a new payment or a changed one may not use, or null when it may.
+     * A record that already carries a way switched off since keeps it, so the way it is saved with again
+     * is not a change.
      */
-    public function assertOffered(string $paymentType): void
+    public function refusal(string $paymentType, ?string $stored = null): ?string
     {
-        if (! $this->isOffered($paymentType)) {
-            throw new IntegrationException(IntegrationError::PaymentMethodDisabled, "The way of payment {$paymentType} is switched off.", ['name' => $paymentType]);
+        if ($stored !== null && ($paymentType === $stored || $this->sameWay($paymentType, $stored))) {
+            return null;
         }
+
+        return $this->isOffered($paymentType) ? null : lang('Integrations.error_payment_method_disabled', [$paymentType]);
+    }
+
+    /**
+     * The words that refuse the payments an edit form posts when one of them takes a way that is switched
+     * off, a payment that keeps the way it already carries excepted.
+     *
+     * @param list<array<string, mixed>> $payments Each with its number and its way of payment.
+     * @param array<int, string>         $stored   The way each payment of the record carries now, by its number.
+     */
+    public function refusalOfPayments(array $payments, array $stored): ?string
+    {
+        foreach ($payments as $payment) {
+            $refusal = $this->refusal((string) ($payment['payment_type'] ?? ''), $stored[(int) ($payment['payment_id'] ?? 0)] ?? null);
+
+            if ($refusal !== null) {
+                return $refusal;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -181,6 +210,10 @@ final class PaymentMethods
 
             if ($type === null || ! isset($current[$type->value])) {
                 throw new IntegrationException(IntegrationError::PaymentMethodUnknown, "{$code} is not a way of payment this screen manages.", ['code' => (string) $code]);
+            }
+
+            if (array_filter($values, static fn (mixed $value): bool => ! is_scalar($value) && $value !== null) !== []) {
+                throw new IntegrationException(IntegrationError::InputInvalid, "The values of {$code} are not plain values.");
             }
 
             $method  = $current[$type->value];
@@ -219,6 +252,13 @@ final class PaymentMethods
 
             $this->audit->write('payment_methods', null, 'payment_methods_updated', $employeeId, JournalOrigin::User, ['before' => $before, 'after' => $changes]);
         });
+    }
+
+    private function sameWay(string $first, string $second): bool
+    {
+        $type = PaymentType::fromLabel($first);
+
+        return $type !== null && $type === PaymentType::fromLabel($second);
     }
 
     private function truthy(mixed $value): bool

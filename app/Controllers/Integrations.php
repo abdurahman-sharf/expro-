@@ -120,6 +120,7 @@ class Integrations extends IntegrationController
             'kind'     => $kind,
             'search'   => $this->requestText('search'),
             'language' => $option->secondLanguageCode(),
+            'locales'  => IntegrationOptions::locales(),
             'enabled'  => $option->secondLanguageEnabled(),
             'printing' => $option->secondLanguagePrint(),
             'editing'  => $this->editing(),

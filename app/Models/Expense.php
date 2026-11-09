@@ -575,9 +575,9 @@ class Expense extends Model
     /**
      * Gets the payment options to show in the expense forms
      */
-    public function get_payment_options(): array
+    public function get_payment_options(array $keep = []): array
     {
-        return get_payment_options();
+        return get_payment_options($keep);
     }
 
     /**

@@ -22,7 +22,7 @@ class Api_keys extends IntegrationController
         parent::__construct(IntegrationAccess::MODULE);
 
         if (! $this->access->mayManageKeys($this->employeeId())) {
-            throw new RedirectException('no_access/' . IntegrationAccess::API_KEYS);
+            throw new RedirectException('no_access/' . IntegrationAccess::MODULE . '/' . IntegrationAccess::API_KEYS);
         }
     }
 

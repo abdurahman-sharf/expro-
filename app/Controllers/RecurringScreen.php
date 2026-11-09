@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Recurring\RecurrenceTerms;
 use App\Libraries\Recurring\RecurringGenerator;
 use App\Libraries\Recurring\RecurringKind;
@@ -90,7 +91,7 @@ abstract class RecurringScreen extends DocumentScreen
             'frequency'  => $schedule === null ? self::DEFAULT_FREQUENCY : (RecurrenceTerms::of($schedule)->frequency() ?? self::DEFAULT_FREQUENCY),
             'locations'  => $kind === RecurringKind::Invoice ? $this->locationOptions() : [],
             'categories' => $kind === RecurringKind::Expense ? $this->categoryOptions() : [],
-            'payments'   => $kind === RecurringKind::Expense ? $this->paymentOptions() : [],
+            'payments'   => $kind === RecurringKind::Expense ? $this->paymentOptions($schedule === null ? null : (string) $schedule->payment_type) : [],
             'suppliers'  => $kind === RecurringKind::Expense ? $this->supplierOptions() : [],
             'treasuries' => $kind === RecurringKind::Expense ? $this->treasuryOptions() : [],
             'today'      => date('Y-m-d'),
@@ -136,6 +137,12 @@ abstract class RecurringScreen extends DocumentScreen
             $post  = $this->request->getPost();
             $input = array_intersect_key(is_array($post) ? $post : [], array_flip(self::FIELDS));
             $kind  = $this->kind();
+
+            $refusal = $this->paymentRefusal($input, $scheduleId);
+
+            if ($refusal !== null) {
+                return ['success' => false, 'message' => $refusal, 'id' => $scheduleId];
+            }
 
             if ($scheduleId === NEW_ENTRY) {
                 $scheduleId = $this->schedules->create($kind, $input, $this->employeeId());
@@ -197,19 +204,34 @@ abstract class RecurringScreen extends DocumentScreen
     /**
      * @return array<string, string> The way of payment by its type and its name in the language in use.
      */
-    private function paymentOptions(): array
+    private function paymentOptions(?string $stored): array
     {
         $options = [];
+        $kept    = PaymentType::tryFrom((string) $stored);
 
-        foreach (array_keys(get_payment_options()) as $label) {
-            $type = PaymentType::fromLabel($label);
+        foreach (get_payment_options($kept === null ? [] : [lang($kept->languageKey())]) as $name => $shown) {
+            $type = PaymentType::fromLabel($name);
 
             if ($type !== null) {
-                $options[$type->value] = $label;
+                $options[$type->value] = $shown;
             }
         }
 
         return $options;
+    }
+
+    private function paymentRefusal(array $input, int $scheduleId): ?string
+    {
+        $type = PaymentType::tryFrom((string) ($input['payment_type'] ?? ''));
+
+        if ($this->kind() !== RecurringKind::Expense || $type === null) {
+            return null;
+        }
+
+        $stored     = $scheduleId === NEW_ENTRY ? null : $this->schedules->find($scheduleId, $this->employeeId());
+        $storedType = $stored === null ? null : PaymentType::tryFrom((string) $stored->payment_type);
+
+        return (new PaymentMethods())->refusal(lang($type->languageKey()), $storedType === null ? null : lang($storedType->languageKey()));
     }
 
     private function paymentName(string $stored): string

@@ -8,6 +8,7 @@
  * @var array $payments
  * @var array $payment_amounts
  * @var array $payment_options
+ * @var array $refund_options
  * @var string $selected_customer_name
  * @var int $selected_customer_id
  * @var string $selected_employee_name
@@ -183,7 +184,7 @@ use App\Libraries\Accounting\CreditSource;
                     <?php if (!empty(strstr($row->payment_type, lang('Sales.giftcard')))): ?>
                         <?= form_input(['name' => "refund_type_$i", 'value' => lang('Sales.cash'), 'id' => "refund_type_$i", 'class' => 'form-control form-control-sm', 'readonly' => 'true']) ?>
                     <?php else: ?>
-                        <?= form_dropdown("refund_type_$i", $payment_options, lang('Sales.cash'), ['id' => "refund_types_$i", 'class' => 'form-select']) ?>
+                        <?= form_dropdown("refund_type_$i", $refund_options, lang('Sales.cash'), ['id' => "refund_types_$i", 'class' => 'form-select']) ?>
                     <?php endif; ?>
                 </div>
                 <div class="col-4">
