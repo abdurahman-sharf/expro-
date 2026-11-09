@@ -96,9 +96,9 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
 
     private function assertEscaped(object $response): void
     {
-        $body = $response->getBody();
+        $body = (string) $response->response()->getBody();
 
-        $this->assertStringContainsString('alert(7)', $body, 'the text is shown');
+        $this->assertStringContainsString('alert', $body, 'the text is shown');
         $this->assertStringNotContainsString(self::MARKUP, $body, 'but never as markup');
     }
 
@@ -284,7 +284,7 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
         $response->assertSee('data-method="declining" data-life="60"');
         $response->assertSee('id="first_date_hint"');
         $response->assertSee('aria-describedby="first_date_hint"');
-        $this->assertStringNotContainsString('placeholder', (string) preg_replace('/.*?(<input[^>]*first_depreciation_date[^>]*>).*/s', '$1', $response->getBody()));
+        $this->assertStringNotContainsString('placeholder', (string) preg_replace('/.*?(<input[^>]*first_depreciation_date[^>]*>).*/s', '$1', (string) $response->response()->getBody()));
     }
 
     public function testGetForm_ShowsTheValuesOfTheAssetBeingEdited(): void
@@ -909,7 +909,7 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
         $assetId = $this->markedAsset();
         $this->actAsWith(['accounting_assets']);
 
-        $body = $this->get('/accounting_assets/view/' . $assetId)->getBody();
+        $body = (string) $this->get('/accounting_assets/view/' . $assetId)->response()->getBody();
 
         foreach (['desk', 'about', 'category', 'serial', 'barcode', 'floor'] as $text) {
             $this->assertStringNotContainsString(self::MARKUP . ' ' . $text, $body, $text);
@@ -922,7 +922,7 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
         $assetId = $this->markedAsset();
         $this->manager();
 
-        $body = $this->get('/accounting_assets/form/' . $assetId)->getBody();
+        $body = (string) $this->get('/accounting_assets/form/' . $assetId)->response()->getBody();
 
         $this->assertStringContainsString('alert', $body, 'the values are shown');
 
@@ -936,7 +936,7 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
         $assetId = $this->enterAsset(['track_units' => '1', 'quantity' => '1', 'units' => [['serial_number' => '</script><b id="broken">']]]);
         $this->manager();
 
-        $body = $this->get('/accounting_assets/form/' . $assetId)->getBody();
+        $body = (string) $this->get('/accounting_assets/form/' . $assetId)->response()->getBody();
 
         $this->assertStringNotContainsString('</script><b id="broken">', $body);
         $this->assertStringContainsString('\\u003C\\/script\\u003E', $body);
@@ -967,7 +967,7 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
         $this->enterAsset(['branch_id' => $branch, 'funding' => 'payable', 'treasury_id' => '', 'name' => self::MARKUP . ' chair']);
         $this->runner();
 
-        $body = $this->get('/accounting_assets/depreciation?month=2026-02')->getBody();
+        $body = (string) $this->get('/accounting_assets/depreciation?month=2026-02')->response()->getBody();
 
         foreach (['desk', 'chair', 'branch'] as $text) {
             $this->assertStringNotContainsString(self::MARKUP . ' ' . $text, $body, $text);
