@@ -732,11 +732,7 @@ class Customers extends Persons
         return null;
     }
 
-    /**
-     * The contacts of a customer as a list.
-     *
-     * @noinspection PhpUnused
-     */
+    /** @noinspection PhpUnused */
     public function getContacts(int $customerId): ResponseInterface
     {
         if (! $this->customer->exists($customerId)) {

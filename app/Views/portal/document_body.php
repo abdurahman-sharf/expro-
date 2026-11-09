@@ -119,6 +119,12 @@ $logo       = documentLogoSource($config, $context);
                             <td class="<?= $alignEnd ?>"><?= documentIsolate($payment['amount']) ?></td>
                         </tr>
                     <?php endforeach; ?>
+                    <?php if ($doc['total_base'] !== null) : ?>
+                        <tr class="doc-base-total">
+                            <td class="<?= $alignStart ?>"><?= esc(lang('Portal.total_base')) ?></td>
+                            <td class="<?= $alignEnd ?>"><?= documentIsolate($doc['total_base']) ?></td>
+                        </tr>
+                    <?php endif; ?>
                     <?php if ($doc['open'] !== null) : ?>
                         <tr class="doc-balance">
                             <td class="<?= $alignStart ?>"><?= esc(lang('Portal.remaining')) ?></td>

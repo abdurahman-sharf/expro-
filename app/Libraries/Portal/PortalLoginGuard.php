@@ -10,7 +10,9 @@ use Config\Database;
  * whether or not an account has it, so a locked name looks the same for a real account and for a guess.
  * Five failures lock a name and twenty lock an address; the first lock lasts fifteen minutes and every
  * lock after it twice as long as the one before, up to a day. Failures older than a day are forgotten, a
- * success clears the name, and an employee who resets the password clears it too.
+ * success clears the name, and an employee who resets the password clears it too. The attempts on one
+ * name are taken one at a time, so that the failures of a burst of parallel attempts are counted before
+ * the next password is looked at; an attempt that cannot have its turn is refused as a locked one is.
  */
 final class PortalLoginGuard
 {
@@ -19,12 +21,15 @@ final class PortalLoginGuard
     public const BASE_LOCK_SECONDS = 900;
     public const MAX_LOCK_SECONDS  = 86400;
     public const WINDOW_SECONDS    = 86400;
+    public const TURN_WAIT_SECONDS = 3;
 
     private BaseConnection $db;
+    private int $turnWait;
 
-    public function __construct(?BaseConnection $db = null)
+    public function __construct(?BaseConnection $db = null, int $turnWait = self::TURN_WAIT_SECONDS)
     {
-        $this->db = $db ?? Database::connect();
+        $this->db       = $db ?? Database::connect();
+        $this->turnWait = $turnWait;
     }
 
     public static function userKey(string $username): string
@@ -35,6 +40,23 @@ final class PortalLoginGuard
     public static function addressKey(string $address): string
     {
         return self::key('address|' . $address);
+    }
+
+    public function takeTurn(string $key): bool
+    {
+        $row = $this->db->query('SELECT GET_LOCK(?, ?) AS taken', [$this->turnName($key), $this->turnWait])->getRow();
+
+        return $row !== null && (int) $row->taken === 1;
+    }
+
+    public function endTurn(string $key): void
+    {
+        $this->db->query('SELECT RELEASE_LOCK(?)', [$this->turnName($key)]);
+    }
+
+    public function turnName(string $key): string
+    {
+        return 'portal_' . substr(sha1($this->db->getDatabase() . '|' . $key), 0, 40);
     }
 
     /**

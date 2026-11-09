@@ -31,7 +31,7 @@ class Customer_portal extends Secure_Controller
     public function postCreate(int $customerId): ResponseInterface
     {
         return $this->attempt(function () use ($customerId): array {
-            $made = $this->accounts->create($customerId, (string) $this->request->getPost('username'), $this->employeeId());
+            $made = $this->accounts->create($customerId, $this->text('username'), $this->employeeId());
 
             return ['temporary_password' => $made['temporary_password'], 'account_id' => $made['account_id'], 'message' => lang('Portal.manage_created')];
         });
@@ -70,6 +70,13 @@ class Customer_portal extends Secure_Controller
         } catch (AccountingException $failure) {
             return $this->response->setStatusCode($failure->error === AccountingError::PermissionDenied ? 403 : 200)->setJSON(['success' => false, 'message' => AccountingMessage::of($failure)]);
         }
+    }
+
+    private function text(string $field): string
+    {
+        $value = $this->request->getPost($field);
+
+        return is_string($value) ? $value : '';
     }
 
     private function employeeId(): int

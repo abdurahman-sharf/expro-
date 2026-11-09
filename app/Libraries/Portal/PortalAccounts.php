@@ -16,7 +16,11 @@ use Config\Database;
  * employee who holds the permission to manage the portal, one account for each customer, and the password
  * it starts with is a temporary one that is shown once to the employee and must be changed at the first
  * sign-in. Only the hash of a password is ever stored, and nothing is sent to the customer: the employee
- * hands the temporary password over. Every change is written to the audit log without any password.
+ * hands the temporary password over. Every change is written to the audit log without any password and
+ * without the user name, which the account row keeps and a privacy delete scrambles. A user name is found
+ * only by the exact spelling it was made with: the collation of the column also equates accented and
+ * differently spelled names, and a spelling that opens an account must be a spelling that is counted
+ * against it.
  */
 final class PortalAccounts
 {
@@ -47,7 +51,10 @@ final class PortalAccounts
 
     public function findByUsername(string $username): ?object
     {
-        return $this->db->table('portal_accounts')->where('username', self::normalise($username))->get()->getRow();
+        $name    = self::normalise($username);
+        $account = $this->db->table('portal_accounts')->where('username', $name)->get()->getRow();
+
+        return $account !== null && $account->username === $name ? $account : null;
     }
 
     public function forCustomer(int $customerId): ?object
@@ -154,7 +161,7 @@ final class PortalAccounts
 
         $accountId = (int) $this->db->insertID();
 
-        $this->audit->write(self::ENTITY, $accountId, 'portal_account_created', $employeeId, JournalOrigin::User, ['customer_id' => $customerId, 'username' => $username]);
+        $this->audit->write(self::ENTITY, $accountId, 'portal_account_created', $employeeId, JournalOrigin::User, ['customer_id' => $customerId]);
         $this->db->transComplete();
 
         return ['account_id' => $accountId, 'temporary_password' => $temporary];

@@ -27,7 +27,14 @@ final class PartyContacts
     public const MAX_ROWS       = 50;
     public const LIMITS         = ['first_name' => 100, 'last_name' => 100, 'email' => 254, 'phone' => 30, 'mobile' => 30, 'position' => 100, 'note' => 500];
     public const TEXTS          = ['first_name', 'last_name', 'email', 'phone', 'mobile', 'position', 'note'];
+    private const NUMBERS       = ['phone', 'mobile'];
     private const PHONE_PATTERN = '/^[0-9+\-().\s]+$/';
+    private const DIGITS        = [
+        '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+        '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+        '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+        '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+    ];
 
     private BaseConnection $db;
     private AuditLog $audit;
@@ -85,8 +92,9 @@ final class PartyContacts
     }
 
     /**
-     * The rows as they will be stored: trimmed, the e-mail address in lower case, a row with nothing in it
-     * dropped, and every limit checked.
+     * The rows as they will be stored: trimmed, the e-mail address in lower case, the Arabic-Indic and
+     * Persian digits of a phone number turned into the digits the rest of the books use, a row with nothing
+     * in it dropped, and every limit checked.
      *
      * @param list<array<string, mixed>> $rows
      *
@@ -104,7 +112,8 @@ final class PartyContacts
             foreach (self::TEXTS as $field) {
                 $value = $row[$field] ?? '';
 
-                $contact[$field] = is_scalar($value) ? trim((string) $value) : '';
+                $text            = is_scalar($value) ? trim((string) $value) : '';
+                $contact[$field] = in_array($field, self::NUMBERS, true) ? strtr($text, self::DIGITS) : $text;
             }
 
             if (implode('', array_map(static fn (string $field): string => $contact[$field], self::TEXTS)) !== '') {
@@ -263,7 +272,7 @@ final class PartyContacts
             throw new AccountingException(AccountingError::ContactEmailInvalid, 'The e-mail address of a contact is not valid.', ['line' => $line]);
         }
 
-        foreach (['phone', 'mobile'] as $field) {
+        foreach (self::NUMBERS as $field) {
             if ($contact[$field] !== '' && preg_match(self::PHONE_PATTERN, $contact[$field]) !== 1) {
                 throw new AccountingException(AccountingError::ContactPhoneInvalid, 'A phone number holds digits, spaces and + - ( ) . only.', ['line' => $line]);
             }

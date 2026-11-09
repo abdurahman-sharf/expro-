@@ -86,5 +86,6 @@ return [
     'title'                     => '',
     'too_many_attempts'         => '',
     'total'                     => '',
+    'total_base'                => '',
     'username'                  => '',
 ];

@@ -554,4 +554,5 @@ enum AccountingError: string
     case PortalAccountUnknown     = 'portal_account_unknown';
     case PortalPasswordInvalid    = 'portal_password_invalid';
     case PortalPasswordWrong      = 'portal_password_wrong';
+    case PortalLocked             = 'portal_locked';
 }

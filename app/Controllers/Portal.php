@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Documents\RendersPdf;
@@ -92,9 +93,9 @@ class Portal extends BaseController
                 return $this->response->setStatusCode(422)->setBody(view('portal/password', ['signedIn' => true, 'forced' => $this->mustChange(), 'error' => lang('Portal.password_mismatch')]));
             }
 
-            $version = (new PortalAccounts())->changePassword($accountId, $this->text('current_password'), $new);
+            $version = (new PortalLogin())->changePassword($accountId, $this->text('current_password'), $new, $this->request->getIPAddress());
         } catch (AccountingException $failure) {
-            return $this->response->setStatusCode(422)->setBody(view('portal/password', ['signedIn' => true, 'forced' => $this->mustChange(), 'error' => AccountingMessage::of($failure)]));
+            return $this->response->setStatusCode($failure->error === AccountingError::PortalLocked ? 429 : 422)->setBody(view('portal/password', ['signedIn' => true, 'forced' => $this->mustChange(), 'error' => AccountingMessage::of($failure)]));
         }
 
         $session->renew($version);
@@ -195,7 +196,7 @@ class Portal extends BaseController
 
     private function page(): int
     {
-        return max(1, (int) $this->request->getGet('page'));
+        return PortalDocuments::clampPage((int) $this->request->getGet('page'));
     }
 
     private function requirePost(): void

@@ -26,7 +26,12 @@
                     <td><a href="<?= esc(site_url('portal/invoice/' . (int) $row['sale_id']), 'attr') ?>"><bdi dir="ltr"><?= esc($row['number']) ?></bdi></a></td>
                     <td><bdi dir="ltr"><?= esc($row['date']) ?></bdi></td>
                     <td><bdi dir="ltr"><?= esc((string) $row['due_date']) ?></bdi></td>
-                    <td class="text-end portal-amount"><bdi dir="ltr"><?= esc($row['total']) ?></bdi></td>
+                    <td class="text-end portal-amount">
+                        <bdi dir="ltr"><?= esc($row['total']) ?></bdi>
+                        <?php if ($row['total_base'] !== null) : ?>
+                            <div class="small text-secondary portal-base-total"><?= esc(lang('Portal.total_base')) ?>: <bdi dir="ltr"><?= esc($row['total_base']) ?></bdi></div>
+                        <?php endif; ?>
+                    </td>
                     <td class="text-end portal-amount"><bdi dir="ltr"><?= esc((string) $row['open']) ?></bdi></td>
                     <td><?= $row['state'] === null ? '' : esc(lang($row['state'])) ?></td>
                 </tr>

@@ -217,11 +217,7 @@ class Suppliers extends Persons
         }
     }
 
-    /**
-     * The contacts of a supplier as a list.
-     *
-     * @noinspection PhpUnused
-     */
+    /** @noinspection PhpUnused */
     public function getContacts(int $supplierId): ResponseInterface
     {
         if (! $this->supplier->exists($supplierId)) {

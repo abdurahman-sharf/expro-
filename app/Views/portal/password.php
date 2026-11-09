@@ -30,7 +30,7 @@ $forced ??= false;
             <div class="mb-3">
                 <label class="form-label" for="new_password"><?= esc(lang('Portal.new_password')) ?></label>
                 <input class="form-control" type="password" name="new_password" id="new_password" maxlength="200" dir="ltr" autocomplete="new-password" required>
-                <div class="form-text"><?= esc(lang('Portal.password_hint', [PortalPasswords::MIN_LENGTH])) ?></div>
+                <div class="form-text"><?= esc(lang('Portal.password_hint', [PortalPasswords::MIN_LENGTH, PortalPasswords::MAX_BYTES])) ?></div>
             </div>
             <div class="mb-3">
                 <label class="form-label" for="confirm_password"><?= esc(lang('Portal.confirm_password')) ?></label>

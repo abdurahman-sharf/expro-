@@ -98,14 +98,15 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertStringNotContainsString($made['temporary_password'], json_encode($this->accountingDb()->table('accounting_audit_log')->get()->getResultArray()));
     }
 
-    public function testCreate_WritesOneAuditEntryWithTheCustomerAndTheUserNameButNoPassword(): void
+    public function testCreate_WritesOneAuditEntryWithTheCustomerAndNeitherTheUserNameNorAPassword(): void
     {
         $made  = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
         $audit = $this->portalAudit('portal_account_created');
 
         $this->assertCount(1, $audit);
         $this->assertSame([(string) $made['account_id'], (string) $this->manager, 'portal_account'], [(string) $audit[0]['entity_id'], (string) $audit[0]['employee_id'], $audit[0]['entity_type']]);
-        $this->assertSame(['customer_id' => $this->customer, 'username' => 'ahmed'], json_decode($audit[0]['details'], true));
+        $this->assertSame(['customer_id' => $this->customer], json_decode($audit[0]['details'], true));
+        $this->assertStringNotContainsString('ahmed', json_encode($audit));
     }
 
     public function testCreate_RequiresThePermissionToManageThePortal(): void
@@ -204,6 +205,38 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertSame([null, 'customer_deleted'], $this->accounts()->check('ahmed', $made['temporary_password']));
     }
 
+    #[DataProvider('provideFindByUsername_FindsOnlyTheSpellingTheAccountWasMadeWith')]
+    public function testFindByUsername_FindsOnlyTheSpellingTheAccountWasMadeWith(string $typed, bool $found): void
+    {
+        $made = $this->accounts()->create($this->customer, 'alice', $this->manager);
+
+        $account = $this->accounts()->findByUsername($typed);
+
+        $this->assertSame($found ? $made['account_id'] : null, $account === null ? null : (int) $account->account_id);
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: bool}>
+     */
+    public static function provideFindByUsername_FindsOnlyTheSpellingTheAccountWasMadeWith(): iterable
+    {
+        return [
+            'the same name'                   => ['alice', true],
+            'capitals and spaces around'      => ['  ALICE ', true],
+            'an accent the collation ignores' => ["\u{E1}lice", false],
+            'an accent on the last letter'    => ["alic\u{E9}", false],
+            'a combining mark'                => ["alice\u{301}", false],
+        ];
+    }
+
+    public function testCheck_RefusesASpellingThatTheCollationTakesForTheNameEvenWithTheRightPassword(): void
+    {
+        $made = $this->accounts()->create($this->customer, 'alice', $this->manager);
+
+        $this->assertSame([null, 'unknown_user'], $this->accounts()->check("\u{E1}lice", $made['temporary_password']));
+        $this->assertNotNull($this->accounts()->check('alice', $made['temporary_password'])[0]);
+    }
+
     public function testCheck_RefusesATemporaryPasswordAfterItsWeekAndAcceptsItBefore(): void
     {
         $made    = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
@@ -230,6 +263,28 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertNull($this->accounts()->live($made['account_id'], $version));
         $this->assertStringNotContainsString($new, json_encode($this->accountingDb()->table('accounting_audit_log')->get()->getResultArray()));
         $this->assertCount(1, $this->portalAudit('portal_password_reset'));
+    }
+
+    #[DataProvider('provideResetPassword_GivesTheNewPasswordAFreshWeek')]
+    public function testResetPassword_GivesTheNewPasswordAFreshWeek(?string $expiresBefore, int $mustChangeBefore): void
+    {
+        $made = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
+        $this->accountingDb()->table('portal_accounts')->where('account_id', $made['account_id'])->update(['temporary_expires_at' => $expiresBefore === null ? null : date('Y-m-d H:i:s', strtotime($expiresBefore)), 'must_change' => $mustChangeBefore]);
+
+        $new = $this->accounts()->resetPassword($made['account_id'], $this->manager);
+
+        $expires = strtotime((string) $this->row($made['account_id'])->temporary_expires_at);
+
+        $this->assertEqualsWithDelta(PortalAccounts::TEMPORARY_SECONDS, $expires - time(), 5);
+        $this->assertNotNull($this->accounts()->check('ahmed', $new)[0]);
+    }
+
+    /**
+     * @return array<string, array{0: string|null, 1: int}>
+     */
+    public static function provideResetPassword_GivesTheNewPasswordAFreshWeek(): iterable
+    {
+        return ['an account whose temporary password ran out' => ['-8 days', 1], 'an account whose password was changed' => [null, 0]];
     }
 
     public function testResetPassword_LiftsTheLockOnTheUserName(): void

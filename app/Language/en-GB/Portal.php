@@ -62,7 +62,7 @@ return [
     'page_of'                   => 'Page {0} of {1}',
     'paid'                      => 'Settled',
     'password'                  => 'Password',
-    'password_hint'             => 'At least {0} characters, different from your user name.',
+    'password_hint'             => 'At least {0} characters and at most {1} bytes (a letter that is not Latin takes two or three bytes), different from your user name.',
     'password_mismatch'         => 'The two passwords differ.',
     'pdf'                       => 'PDF',
     'previous'                  => 'Previous',
@@ -86,5 +86,6 @@ return [
     'title'                     => 'Customer portal',
     'too_many_attempts'         => 'Too many failed attempts. Try again later.',
     'total'                     => 'Total',
+    'total_base'                => 'Total in the shop currency',
     'username'                  => 'User name',
 ];

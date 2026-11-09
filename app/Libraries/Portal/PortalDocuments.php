@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerPosition;
+use App\Libraries\Accounting\InvoiceFigures;
 use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
@@ -32,6 +33,7 @@ use Config\Database;
 final class PortalDocuments
 {
     public const PAGE_SIZE = 25;
+    public const MAX_PAGE  = 100000;
 
     private BaseConnection $db;
     private DocumentNumbering $numbering;
@@ -56,13 +58,14 @@ final class PortalDocuments
             $total   = $this->totalOf((int) $sale->sale_id);
 
             $rows[] = [
-                'sale_id'  => (int) $sale->sale_id,
-                'number'   => $this->invoiceLabel($sale),
-                'date'     => $this->dateOf($sale),
-                'due_date' => $figures === null ? null : to_date(strtotime($figures->dueDate)),
-                'total'    => $this->money($total, $sale->currency_code),
-                'open'     => $figures === null ? null : $this->money($figures->open(), null),
-                'state'    => $figures?->paymentState()->languageKey(),
+                'sale_id'    => (int) $sale->sale_id,
+                'number'     => $this->invoiceLabel($sale),
+                'date'       => $this->dateOf($sale),
+                'due_date'   => $figures === null ? null : to_date(strtotime($figures->dueDate)),
+                'total'      => $this->money($total, $sale->currency_code),
+                'total_base' => $this->totalInBase($figures, $sale->currency_code),
+                'open'       => $figures === null ? null : $this->money($figures->open(), null),
+                'state'      => $figures?->paymentState()->languageKey(),
             ];
         }
 
@@ -132,10 +135,11 @@ final class PortalDocuments
         $figures = $this->position($customerId)?->invoice($saleId);
 
         return $this->document($customerId, $sale, lang((int) $sale->sale_type === SALE_TYPE_INVOICE ? 'Sales.invoice' : 'Sales.receipt'), $this->invoiceLabel($sale)) + [
-            'due_date' => $figures === null ? null : to_date(strtotime($figures->dueDate)),
-            'settled'  => $figures === null ? null : $this->money($figures->settled(), null),
-            'open'     => $figures === null ? null : $this->money($figures->open(), null),
-            'origin'   => null,
+            'due_date'   => $figures === null ? null : to_date(strtotime($figures->dueDate)),
+            'total_base' => $this->totalInBase($figures, $sale->currency_code),
+            'settled'    => $figures === null ? null : $this->money($figures->settled(), null),
+            'open'       => $figures === null ? null : $this->money($figures->open(), null),
+            'origin'     => null,
         ];
     }
 
@@ -154,7 +158,7 @@ final class PortalDocuments
 
         [$title, $number] = $this->returnLabels($sale);
 
-        return $this->document($customerId, $sale, $title, $number) + ['due_date' => null, 'settled' => null, 'open' => null, 'origin' => $this->originLabel($customerId, $sale)];
+        return $this->document($customerId, $sale, $title, $number) + ['due_date' => null, 'total_base' => null, 'settled' => null, 'open' => null, 'origin' => $this->originLabel($customerId, $sale)];
     }
 
     /**
@@ -241,9 +245,14 @@ final class PortalDocuments
         return ['total' => $total, 'rows' => $rows];
     }
 
+    public static function clampPage(int $page): int
+    {
+        return min(self::MAX_PAGE, max(1, $page));
+    }
+
     private function offset(int $page): int
     {
-        return (max(1, $page) - 1) * self::PAGE_SIZE;
+        return (self::clampPage($page) - 1) * self::PAGE_SIZE;
     }
 
     private function position(int $customerId): ?CustomerPosition
@@ -309,6 +318,15 @@ final class PortalDocuments
         $loaded = (new SaleLoader($this->db))->load($saleId, false);
 
         return SaleAmounts::absolute(SaleAmounts::figures($loaded, (new Currencies($this->db))->baseDecimals())['total']);
+    }
+
+    private function totalInBase(?InvoiceFigures $figures, ?string $currency): ?string
+    {
+        if ($figures === null || $currency === null || $currency === (new Currencies($this->db))->baseCode()) {
+            return null;
+        }
+
+        return $this->money($figures->total, null);
     }
 
     private function invoiceLabel(object $sale): string
