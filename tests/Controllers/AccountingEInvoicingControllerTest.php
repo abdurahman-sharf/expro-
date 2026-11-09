@@ -309,7 +309,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
             $this->assertStringContainsString('51 to 55 of 55', $this->get('/accounting_einvoicing?documents_offset=' . $outOfRange)->response()->getBody(), $outOfRange);
         }
 
-        foreach (['-5', 'abc', '3'] as $inRange) {
+        foreach (['-5', '-60', 'abc', '3'] as $inRange) {
             $this->assertStringContainsString('1 to 50 of 55', $this->get('/accounting_einvoicing?documents_offset=' . $inRange)->response()->getBody(), $inRange);
         }
     }

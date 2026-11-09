@@ -473,6 +473,8 @@
     "find": "if ($referred === null || $referred->kind === EInvoiceKind::DebitNote ||",
     "replace": "if ($referred === null ||",
     "tests": [
+      "--filter",
+      "testIssueDebitNote_RefusesANoteThatRefersToNothing",
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
   },
@@ -1167,6 +1169,8 @@
     "find": "if ($sale === null || ! $this->scope->allows($employeeId, $sale->employee_id)) {",
     "replace": "if ($sale === null) {",
     "tests": [
+      "--filter",
+      "testIssueSale_RefusesTheSaleOfAnotherEmployee",
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
   },
@@ -1176,6 +1180,8 @@
     "find": "if ($note === null || ! $this->scope->allows($employeeId, $note->created_by)) {",
     "replace": "if ($note === null) {",
     "tests": [
+      "--filter",
+      "testIssueDebitNote_RefusesTheNoteOfAnotherEmployee",
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
   },
@@ -1185,6 +1191,8 @@
     "find": "if ($document === null || $this->outsideScope($document->sourceType, $document->sourceId, $employeeId)) {",
     "replace": "if ($document === null) {",
     "tests": [
+      "--filter",
+      "testXml_RefusesTheFileOfAnotherEmployee",
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
   },
@@ -1194,6 +1202,8 @@
     "find": "if ($mine !== null) {",
     "replace": "if (false) {",
     "tests": [
+      "--filter",
+      "testIssuedIn_ListsOnlyTheDocumentsOfTheirOwnRecords",
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
   },
@@ -1203,6 +1213,8 @@
     "find": "|| ! $this->branches->canAccess($referred->branchId, $employeeId)",
     "replace": "",
     "tests": [
+      "--filter",
+      "testIssueDebitNote_RefusesADocumentOfABranch",
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
   },
@@ -1212,6 +1224,8 @@
     "find": "|| $this->outsideScope($referred->sourceType, $referred->sourceId, $employeeId)) {",
     "replace": ") {",
     "tests": [
+      "--filter",
+      "testIssueDebitNote_RefusesADocumentOfAnotherEmployee",
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
   },
@@ -1221,6 +1235,8 @@
     "find": "if ($this->customerOf($referred->sourceType, $referred->sourceId) !== $customerId) {",
     "replace": "if (false) {",
     "tests": [
+      "--filter",
+      "testIssueDebitNote_RefusesADocumentOfAnotherCustomer|testIssueDebitNote_RefusesAnInvoiceOfTheCounter",
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
   },
@@ -1239,6 +1255,8 @@
     "find": "        $issued = $this->find($documentId);",
     "replace": "        $this->db->table('sales_payments')->where('sale_id', $sourceId)->update(['payment_amount' => 1]);\n        $issued = $this->find($documentId);",
     "tests": [
+      "--filter",
+      "testIssueSale_LeavesTheBooksOfTheSamePostings",
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
   },
@@ -1248,6 +1266,8 @@
     "find": "        $issued = $this->find($documentId);",
     "replace": "        $this->db->query('UPDATE ' . $this->db->prefixTable('inventory') . ' SET trans_inventory = trans_inventory + 1 WHERE trans_comment LIKE ?', ['POS ' . $sourceId . '%']);\n        $issued = $this->find($documentId);",
     "tests": [
+      "--filter",
+      "testIssueSale_LeavesTheBooksOfTheSamePostings",
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
   },
@@ -1257,6 +1277,8 @@
     "find": "        $issued = $this->find($documentId);",
     "replace": "        $this->db->query('UPDATE ' . $this->db->prefixTable('sales') . \" SET invoice_number = CONCAT(IFNULL(invoice_number, ''), 'X') WHERE sale_id = ?\", [$sourceId]);\n        $issued = $this->find($documentId);",
     "tests": [
+      "--filter",
+      "testIssueSale_LeavesTheBooksOfTheSamePostings",
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
   },
@@ -1266,6 +1288,8 @@
     "find": "        $issued = $this->find($documentId);",
     "replace": "        $this->db->query('UPDATE ' . $this->db->prefixTable('accounting_stock_entries') . \" SET quantity = quantity + 1 WHERE source_type = 'sale' AND source_id = ?\", [$sourceId]);\n        $issued = $this->find($documentId);",
     "tests": [
+      "--filter",
+      "testIssueSale_LeavesTheBooksOfTheSamePostings",
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
   },
