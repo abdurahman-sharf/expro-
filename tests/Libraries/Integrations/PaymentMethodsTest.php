@@ -116,7 +116,7 @@ class PaymentMethodsTest extends CIUnitTestCase
     public function testOffered_DropsTheSwitchedOffWaysAndShowsTheChosenNamesKeepingTheStoredKeysWhileTheSwitchIsOn(): void
     {
         $this->methods->save(['debit' => ['enabled' => '0'], 'wallet' => ['name' => 'E-wallet'], 'check' => ['name' => 'Cheque']], null);
-        $this->switchOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
 
         $offered = $this->methods->offered($this->standardOptions());
 
@@ -131,7 +131,7 @@ class PaymentMethodsTest extends CIUnitTestCase
     public function testOffered_NeverTouchesCreditSaleGiftCardsAndRewardPoints(): void
     {
         $this->methods->save(['wallet' => ['enabled' => '0']], null);
-        $this->switchOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
 
         $offered = $this->methods->offered($this->standardOptions());
 
@@ -142,7 +142,7 @@ class PaymentMethodsTest extends CIUnitTestCase
 
     public function testOffered_LeavesAnOptionThatIsNoWayOfPaymentAlone(): void
     {
-        $this->switchOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
 
         $this->assertSame(['Something else' => 'Something else'], $this->methods->offered(['Something else' => 'Something else']));
     }
@@ -290,7 +290,7 @@ class PaymentMethodsTest extends CIUnitTestCase
         $this->refusal(fn () => $this->methods->save(['debit' => ['enabled' => '0'], 'cash' => ['enabled' => '0']], null));
 
         $this->assertSame(0, Database::connect()->table('payment_methods')->countAllResults());
-        $this->assertSame([], $this->auditActions('payment_methods'));
+        $this->assertSame([], $this->integrationAudit('payment_methods'));
     }
 
     public function testSave_RequiresThePermissionToManage(): void
@@ -309,7 +309,7 @@ class PaymentMethodsTest extends CIUnitTestCase
         $this->methods->save(['debit' => ['enabled' => '0']], null);
         $this->methods->save(['debit' => ['enabled' => '0']], null);
 
-        $this->assertSame(['payment_methods_updated'], $this->auditActions('payment_methods'));
+        $this->assertSame(['payment_methods_updated'], $this->integrationAudit('payment_methods'));
     }
 
     public function testIsOffered_RefusesASwitchedOffWayOnlyWhileTheSwitchIsOn(): void
@@ -318,7 +318,7 @@ class PaymentMethodsTest extends CIUnitTestCase
 
         $this->assertTrue($this->methods->isOffered(lang('Sales.debit')), 'The switch is off.');
 
-        $this->switchOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
 
         $this->assertFalse($this->methods->isOffered(lang('Sales.debit')));
         $this->assertFalse($this->methods->isOffered(lang('Sales.debit', [], 'en')), 'The name in the fallback language is the same way.');
@@ -328,7 +328,7 @@ class PaymentMethodsTest extends CIUnitTestCase
 
     public function testIsOffered_AcceptsWhatIsNotAManagedWay(): void
     {
-        $this->switchOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
         $this->methods->save(['wallet' => ['enabled' => '0']], null);
 
         $this->assertTrue($this->methods->isOffered(lang('Sales.due')));
@@ -340,7 +340,7 @@ class PaymentMethodsTest extends CIUnitTestCase
     public function testAssertOffered_NamesTheSwitchedOffWay(): void
     {
         $this->methods->save(['debit' => ['enabled' => '0']], null);
-        $this->switchOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
 
         $refusal = $this->refusal(fn () => $this->methods->assertOffered(lang('Sales.debit')));
 

@@ -107,7 +107,7 @@ class NotificationsControllerTest extends CIUnitTestCase
     public function testGetIndex_ShowsNoBannerWhileTheRulesAreOn(): void
     {
         $this->actAsWith([IntegrationAccess::NOTIFICATIONS_MODULE]);
-        $this->switchOn(IntegrationOptions::NOTIFICATIONS);
+        $this->switchIntegrationOn(IntegrationOptions::NOTIFICATIONS);
 
         $response = $this->get('/notifications');
 

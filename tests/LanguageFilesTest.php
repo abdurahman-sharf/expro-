@@ -10,6 +10,10 @@ use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Documents\CustomFieldType;
 use App\Libraries\Documents\DocumentError;
+use App\Libraries\Integrations\ApiScope;
+use App\Libraries\Integrations\IntegrationError;
+use App\Libraries\Integrations\NotificationRuleKind;
+use App\Libraries\Integrations\TranslationKind;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
@@ -630,6 +634,93 @@ class LanguageFilesTest extends CIUnitTestCase
 
         if (! in_array($locale, ['en', 'en-GB', 'ar-EG', 'ar-LB'], true)) {
             $this->assertSame([''], array_values(array_unique($messages)), "{$locale} holds text that is not translated");
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testIntegrationsFiles_NameTheModuleLabelsThePermissionsAndEveryWordTheScreensUse(string $locale): void
+    {
+        $module   = include __DIR__ . "/../app/Language/{$locale}/Module.php";
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Integrations.php";
+        $english  = include __DIR__ . '/../app/Language/en/Integrations.php';
+
+        foreach (['integrations', 'integrations_desc', 'notifications', 'notifications_desc'] as $key) {
+            $this->assertNotSame('', $module[$key] ?? '', "{$locale} lacks the module label {$key}");
+        }
+
+        foreach (['integrations_manage', 'keys_manage'] as $key) {
+            $this->assertNotSame('', $messages[$key] ?? '', "{$locale} lacks the label of a permission: {$key}");
+        }
+
+        foreach (IntegrationError::cases() as $error) {
+            $this->assertNotSame('', $messages['error_' . $error->value] ?? '', "{$locale} lacks the message for {$error->value}");
+        }
+
+        foreach (ApiScope::cases() as $scope) {
+            $this->assertNotSame('', $messages[str_replace('Integrations.', '', $scope->languageKey())] ?? '', "{$locale} lacks the scope {$scope->value}");
+        }
+
+        foreach (NotificationRuleKind::cases() as $kind) {
+            foreach ([$kind->languageKey(), $kind->noticeKey()] as $key) {
+                $this->assertNotSame('', $messages[str_replace('Integrations.', '', $key)] ?? '', "{$locale} lacks {$key}");
+            }
+        }
+
+        foreach (TranslationKind::cases() as $kind) {
+            $this->assertNotSame('', $messages[str_replace('Integrations.', '', $kind->languageKey())] ?? '', "{$locale} lacks {$kind->languageKey()}");
+        }
+
+        foreach (array_keys($english) as $key) {
+            $this->assertNotSame('', $messages[$key] ?? '', "{$locale} lacks {$key}");
+        }
+    }
+
+    #[DataProvider('arabicLocaleProvider')]
+    public function testIntegrationsFile_IsTranslatedIntoArabicWithoutEnglishTextAndKeepsEveryPlaceholder(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Integrations.php";
+        $english  = include __DIR__ . '/../app/Language/en/Integrations.php';
+
+        foreach ($english as $key => $line) {
+            $this->assertNotSame($line, $messages[$key], "{$locale} shows English for {$key}");
+            $this->assertNotSame('', $messages[$key], "{$locale} lacks {$key}");
+
+            preg_match_all('/\{[A-Za-z0-9_]+\}/', $line, $placeholders);
+
+            foreach ($placeholders[0] as $placeholder) {
+                $this->assertStringContainsString($placeholder, $messages[$key], "{$locale} lost {$placeholder} in {$key}");
+            }
+        }
+    }
+
+    #[DataProvider('everyLocaleProvider')]
+    public function testIntegrationsFile_KeepsTheKeysOfEnglishInTheirOrderAndLeavesWhatIsNotTranslatedEmpty(string $locale): void
+    {
+        $english  = include __DIR__ . '/../app/Language/en/Integrations.php';
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Integrations.php";
+        $keys     = array_keys($english);
+        $sorted   = $keys;
+        sort($sorted);
+
+        $this->assertSame($keys, array_keys($messages), $locale);
+        $this->assertSame($sorted, $keys, 'The keys of the English file are in alphabetical order.');
+
+        if (! in_array($locale, ['en', 'en-GB', 'ar-EG', 'ar-LB'], true)) {
+            $this->assertSame([''], array_values(array_unique($messages)), "{$locale} holds text that is not translated");
+        }
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testAccountingFile_NamesTheActionsAndTheRecordsOfTheIntegrationsInTheAuditLog(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting.php";
+
+        foreach (['api_auth_failed', 'api_auth_throttled', 'api_key_created', 'api_key_revoked', 'entity_translation_deleted', 'entity_translation_saved', 'integration_options_updated', 'notification_rule_activated', 'notification_rule_created', 'notification_rule_deactivated', 'notification_rule_deleted', 'notification_rule_updated', 'payment_methods_updated'] as $action) {
+            $this->assertNotSame('', $messages['action_' . $action] ?? '', "{$locale} lacks the audit action {$action}");
+        }
+
+        foreach (['api_key', 'entity_translation', 'integration', 'notification_rule', 'payment_methods'] as $entity) {
+            $this->assertNotSame('', $messages['entity_' . $entity] ?? '', "{$locale} lacks the audit record {$entity}");
         }
     }
 }

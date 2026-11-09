@@ -102,7 +102,7 @@ class IntegrationOptionsTest extends CIUnitTestCase
         $this->options->update(['notifications' => true], $manager);
         $this->options->update(['notifications' => true], $manager);
 
-        $this->assertSame(['integration_options_updated'], $this->auditActions('integration'));
+        $this->assertSame(['integration_options_updated'], $this->integrationAudit('integration'));
     }
 
     public function testUpdate_RequiresThePermissionToManageForTheOrdinarySwitches(): void
@@ -114,7 +114,7 @@ class IntegrationOptionsTest extends CIUnitTestCase
         $this->assertInstanceOf(IntegrationException::class, $refusal);
         $this->assertSame(IntegrationError::PermissionDenied, $refusal->error);
         $this->assertFalse($this->options->paymentMethodsCustom());
-        $this->assertSame([], $this->auditActions('integration'));
+        $this->assertSame([], $this->integrationAudit('integration'));
     }
 
     public function testUpdate_RequiresThePermissionToManageKeysForTheApiSwitchAndNotJustThePermissionToManage(): void

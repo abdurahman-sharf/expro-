@@ -25,6 +25,7 @@ use App\Libraries\Documents\PurchasePaidAmounts;
 use App\Libraries\Documents\RendersPdf;
 use App\Libraries\Documents\VoucherDocument;
 use App\Libraries\Documents\VoucherDocuments;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -635,6 +636,10 @@ class Receivings extends Secure_Controller
         $data['payment_type']         = $this->request->getPost('payment_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
         $data['show_stock_locations'] = $this->stock_location->show_locations('receivings');
         $data['stock_location']       = $this->receiving_lib->get_stock_source();
+
+        if (is_string($data['payment_type']) && ! (new PaymentMethods())->isOffered($data['payment_type'])) {
+            return $this->_reload(['error' => lang('Integrations.error_payment_method_disabled', [$data['payment_type']])]);
+        }
 
         $data['invoiceDiscount']       = $this->receiving_lib->getInvoiceDiscount();
         $data['invoiceDiscountAmount'] = $this->receiving_lib->getInvoiceDiscountAmount();

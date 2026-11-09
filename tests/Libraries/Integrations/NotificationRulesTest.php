@@ -172,7 +172,7 @@ class NotificationRulesTest extends CIUnitTestCase
 
         $this->rules->update($id, 'Late', '7', null);
 
-        $this->assertSame(['notification_rule_created'], $this->auditActions('notification_rule'));
+        $this->assertSame(['notification_rule_created'], $this->integrationAudit('notification_rule'));
     }
 
     public function testUpdate_RejectsARuleThatDoesNotExistAndDaysOutsideTheBoundsOfItsKind(): void
@@ -205,7 +205,7 @@ class NotificationRulesTest extends CIUnitTestCase
         $this->rules->setActive($id, true, null);
 
         $this->assertTrue($this->rules->find($id)->active);
-        $this->assertSame(['notification_rule_created', 'notification_rule_deactivated', 'notification_rule_activated'], $this->auditActions('notification_rule'));
+        $this->assertSame(['notification_rule_created', 'notification_rule_deactivated', 'notification_rule_activated'], $this->integrationAudit('notification_rule'));
     }
 
     public function testSetActive_RejectsARuleThatDoesNotExistAndRequiresThePermission(): void
@@ -235,7 +235,7 @@ class NotificationRulesTest extends CIUnitTestCase
         $this->rules->delete($id, $this->integrationManager());
 
         $this->assertNull($this->rules->find($id));
-        $this->assertSame(['notification_rule_created', 'notification_rule_deleted'], $this->auditActions('notification_rule'));
+        $this->assertSame(['notification_rule_created', 'notification_rule_deleted'], $this->integrationAudit('notification_rule'));
     }
 
     public function testDelete_RefusesARuleThatMadeNotificationsEvenClosedOnes(): void

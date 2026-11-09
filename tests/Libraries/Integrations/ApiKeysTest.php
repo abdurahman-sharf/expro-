@@ -178,7 +178,7 @@ class ApiKeysTest extends CIUnitTestCase
         $this->assertInstanceOf(IntegrationException::class, $refusal);
         $this->assertSame(IntegrationError::PermissionDenied, $refusal->error);
         $this->assertSame(0, Database::connect()->table('api_keys')->countAllResults());
-        $this->assertSame([], $this->auditActions('api_key'));
+        $this->assertSame([], $this->integrationAudit('api_key'));
     }
 
     public function testCreate_RequiresEveryBranch(): void
@@ -225,7 +225,7 @@ class ApiKeysTest extends CIUnitTestCase
 
         $this->assertSame($error, $refusal->error);
         $this->assertSame(0, Database::connect()->table('api_keys')->countAllResults());
-        $this->assertSame([], $this->auditActions('api_key'));
+        $this->assertSame([], $this->integrationAudit('api_key'));
     }
 
     public function testCreate_RejectsABranchThatIsSwitchedOff(): void
@@ -255,7 +255,7 @@ class ApiKeysTest extends CIUnitTestCase
         $this->assertTrue($key->revoked);
         $this->assertNotNull($key->revokedAt);
         $this->assertSame($manager, (int) Database::connect()->table('api_keys')->where('key_id', $key->id)->get()->getRow()->revoked_by);
-        $this->assertSame(['api_key_created', 'api_key_revoked'], $this->auditActions('api_key'));
+        $this->assertSame(['api_key_created', 'api_key_revoked'], $this->integrationAudit('api_key'));
         $this->assertNotNull($this->keys->rowOfPrefix($key->prefix), 'A revoked key stays, so that its calls are still known by it.');
     }
 
@@ -267,7 +267,7 @@ class ApiKeysTest extends CIUnitTestCase
 
         $this->assertSame(IntegrationError::ApiKeyRevoked, $this->refusal(fn () => $this->keys->revoke($made['key']->id, null))->error);
         $this->assertSame(IntegrationError::ApiKeyNotFound, $this->refusal(fn () => $this->keys->revoke(987654, null))->error);
-        $this->assertSame(['api_key_created', 'api_key_revoked'], $this->auditActions('api_key'));
+        $this->assertSame(['api_key_created', 'api_key_revoked'], $this->integrationAudit('api_key'));
     }
 
     public function testRevoke_RequiresTheSensitivePermissionAndEveryBranch(): void

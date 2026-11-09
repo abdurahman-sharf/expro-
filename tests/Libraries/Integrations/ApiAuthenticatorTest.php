@@ -220,7 +220,7 @@ class ApiAuthenticatorTest extends CIUnitTestCase
             $this->authenticator->authenticate(null, '203.0.113.9');
         }
 
-        $this->assertSame(['api_auth_failed' => 20, 'api_auth_throttled' => 1], array_count_values($this->auditActions('api_key')));
+        $this->assertSame(['api_auth_failed' => 20, 'api_auth_throttled' => 1], array_count_values($this->integrationAudit('api_key')));
     }
 
     public function testAuthenticate_CountsTheFailuresOfEachAddressOnItsOwnAndStillAcceptsAGoodKeyFromAFloodingAddress(): void
@@ -233,7 +233,7 @@ class ApiAuthenticatorTest extends CIUnitTestCase
 
         $this->authenticator->authenticate(null, '203.0.113.10');
 
-        $this->assertSame(21, count(array_filter($this->auditActions('api_key'), static fn (string $action): bool => $action === 'api_auth_failed')) - 0, '20 of the first address and 1 of the second.');
+        $this->assertSame(21, count(array_filter($this->integrationAudit('api_key'), static fn (string $action): bool => $action === 'api_auth_failed')) - 0, '20 of the first address and 1 of the second.');
         $this->assertTrue($this->authenticator->authenticate($key['secret'], '203.0.113.9')->succeeded());
     }
 

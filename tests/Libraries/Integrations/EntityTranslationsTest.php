@@ -146,7 +146,7 @@ class EntityTranslationsTest extends CIUnitTestCase
         $this->translations->save('item', (string) $item, 'en', 'Same', '', null);
         $this->translations->save('item', (string) $item, 'en', '  Same ', '', null);
 
-        $this->assertSame(['entity_translation_saved'], $this->auditActions('entity_translation'));
+        $this->assertSame(['entity_translation_saved'], $this->integrationAudit('entity_translation'));
     }
 
     public function testSave_KeepsOneNameForEachLanguageOfOneRecord(): void

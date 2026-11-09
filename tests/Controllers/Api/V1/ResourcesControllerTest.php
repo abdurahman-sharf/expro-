@@ -45,7 +45,7 @@ class ResourcesControllerTest extends CIUnitTestCase
 
         $this->wipeIntegration();
         $this->startSelling();
-        $this->switchOn(IntegrationOptions::API);
+        $this->switchIntegrationOn(IntegrationOptions::API);
     }
 
     protected function tearDown(): void

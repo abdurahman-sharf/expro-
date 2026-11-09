@@ -43,7 +43,7 @@ trait IntegrationFixtureTrait
         ])->delete();
     }
 
-    protected function switchOn(string ...$keys): void
+    protected function switchIntegrationOn(string ...$keys): void
     {
         foreach ($keys as $key) {
             $this->setConfigValue($key, '1');
@@ -98,7 +98,7 @@ trait IntegrationFixtureTrait
     /**
      * @return list<string>
      */
-    protected function auditActions(string $entityType): array
+    protected function integrationAudit(string $entityType): array
     {
         return array_column(Database::connect()->table('accounting_audit_log')->select('action')->where('entity_type', $entityType)->orderBy('audit_id', 'ASC')->get()->getResultArray(), 'action');
     }

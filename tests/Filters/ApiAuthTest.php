@@ -92,7 +92,7 @@ class ApiAuthTest extends CIUnitTestCase
             }
         }
 
-        $this->assertSame([], $this->auditActions('api_key') === [] ? [] : array_diff($this->auditActions('api_key'), ['api_key_created']), 'A call to a switched-off API writes nothing.');
+        $this->assertSame([], $this->integrationAudit('api_key') === [] ? [] : array_diff($this->integrationAudit('api_key'), ['api_key_created']), 'A call to a switched-off API writes nothing.');
         $this->assertNull($this->keys->find($key['id'])->lastUsedAt);
     }
 
@@ -100,7 +100,7 @@ class ApiAuthTest extends CIUnitTestCase
     {
         $key = $this->makeKey();
 
-        $this->switchOn(IntegrationOptions::API);
+        $this->switchIntegrationOn(IntegrationOptions::API);
         $this->ping($key['secret'])->assertStatus(200);
 
         $this->setConfigValue(IntegrationOptions::API, '0');
@@ -109,7 +109,7 @@ class ApiAuthTest extends CIUnitTestCase
 
     public function testBefore_AnswersAKeyThatPassesWithTheKeyItself(): void
     {
-        $this->switchOn(IntegrationOptions::API);
+        $this->switchIntegrationOn(IntegrationOptions::API);
         $key = $this->makeKey(['scopes' => ['read:customers', 'read:documents'], 'rate_limit' => '75']);
 
         $response = $this->ping($key['secret']);
@@ -126,7 +126,7 @@ class ApiAuthTest extends CIUnitTestCase
 
     public function testBefore_TakesTheKeyFromTheBearerHeaderOrFromXApiKeyAndNeverFromTheAddress(): void
     {
-        $this->switchOn(IntegrationOptions::API);
+        $this->switchIntegrationOn(IntegrationOptions::API);
         $key = $this->makeKey();
 
         $this->ping(null, ['Authorization' => 'bearer ' . $key['secret']])->assertStatus(200);
@@ -138,7 +138,7 @@ class ApiAuthTest extends CIUnitTestCase
 
     public function testBefore_RefusesACallWithoutAKeyWithAKeyThatIsNotOneOrWrongAndSaysNothingMore(): void
     {
-        $this->switchOn(IntegrationOptions::API);
+        $this->switchIntegrationOn(IntegrationOptions::API);
         $key = $this->makeKey();
 
         $wrong = 'exk_' . $key['prefix'] . '_' . str_repeat('0', 64);
@@ -155,7 +155,7 @@ class ApiAuthTest extends CIUnitTestCase
 
     public function testBefore_RefusesARevokedKeyAndAnExpiredOneWithTheSameWordsAsAWrongOne(): void
     {
-        $this->switchOn(IntegrationOptions::API);
+        $this->switchIntegrationOn(IntegrationOptions::API);
         $revoked = $this->makeKey(['name' => 'Revoked']);
         $expired = $this->makeKey(['name' => 'Expired']);
 
@@ -174,20 +174,20 @@ class ApiAuthTest extends CIUnitTestCase
 
     public function testBefore_AuditsAFailedCallWithoutTheSecretAndWithoutAnySession(): void
     {
-        $this->switchOn(IntegrationOptions::API);
+        $this->switchIntegrationOn(IntegrationOptions::API);
         $key   = $this->makeKey();
         $wrong = 'exk_' . $key['prefix'] . '_' . str_repeat('9', 64);
 
         $this->ping($wrong)->assertStatus(401);
 
-        $this->assertSame(1, count(array_filter($this->auditActions('api_key'), static fn (string $action): bool => $action === 'api_auth_failed')));
+        $this->assertSame(1, count(array_filter($this->integrationAudit('api_key'), static fn (string $action): bool => $action === 'api_auth_failed')));
         $this->assertStringNotContainsString(str_repeat('9', 64), $this->auditText());
         $this->assertStringNotContainsString($key['secret'], $this->auditText());
     }
 
     public function testBefore_NeedsNoSessionAndNeverSendsAnApiCallerToTheLoginPage(): void
     {
-        $this->switchOn(IntegrationOptions::API);
+        $this->switchIntegrationOn(IntegrationOptions::API);
 
         $response = $this->ping(null);
 
@@ -197,7 +197,7 @@ class ApiAuthTest extends CIUnitTestCase
 
     public function testBefore_HoldsAKeyToItsCallsAMinuteWithARetryAfter(): void
     {
-        $this->switchOn(IntegrationOptions::API);
+        $this->switchIntegrationOn(IntegrationOptions::API);
 
         for ($attempt = 0; $attempt < 3; $attempt++) {
             $key      = $this->makeKey(['name' => 'Slow ' . $attempt, 'rate_limit' => '2']);
@@ -244,7 +244,7 @@ class ApiAuthTest extends CIUnitTestCase
 
     public function testBefore_ReachesNoWriteWhateverTheKeyAndTheVerb(): void
     {
-        $this->switchOn(IntegrationOptions::API);
+        $this->switchIntegrationOn(IntegrationOptions::API);
         $key = $this->makeKey();
 
         foreach (['post', 'put', 'patch', 'delete'] as $verb) {

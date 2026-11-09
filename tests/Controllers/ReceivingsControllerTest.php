@@ -6,6 +6,9 @@ use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\ReceivingType;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Documents\CustomFields;
+use App\Libraries\Integrations\EntityTranslations;
+use App\Libraries\Integrations\IntegrationOptions;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
@@ -25,6 +28,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\IntegrationFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\PurchaseCycleFixtureTrait;
@@ -45,6 +49,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use DatabaseFingerprintTrait;
     use EmployeeFixtureTrait;
+    use IntegrationFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
@@ -80,6 +85,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
+        $this->wipeIntegration();
 
         parent::tearDown();
     }
@@ -4140,5 +4146,65 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $response->assertStatus(200);
         $response->assertHeader('Content-Type', 'application/pdf');
         $this->assertStringStartsWith('%PDF-', $response->response()->getBody());
+    }
+
+    public function testPostComplete_RefusesAPaymentMethodThatIsSwitchedOffAndSavesNothing(): void
+    {
+        $itemId = $this->item('0.00');
+        $before = $this->countRows('receivings');
+
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '2', '100')]));
+
+        $response = $this->post('/receivings/complete', $this->completeForm('Wallet', ''));
+
+        $response->assertSee('The payment method Wallet is switched off.');
+        $this->assertSame($before, $this->countRows('receivings'));
+        $this->assertEqualsWithDelta(0.0, (float) $this->onHand($itemId), 0.0001, 'No stock came in.');
+    }
+
+    public function testPostComplete_StillTakesAPaymentMethodThatIsOfferedAndOneSwitchedOffWhileTheSwitchIsOff(): void
+    {
+        $itemId = $this->item('0.00');
+
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '2', '100')]));
+
+        $this->post('/receivings/complete', $this->completeForm('Wallet', ''))->assertSee('RECV ');
+
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '2', '100')]));
+
+        $this->post('/receivings/complete', $this->completeForm('Cash', ''))->assertSee('RECV ');
+
+        $ids = $this->accountingDb()->table('receivings')->select('receiving_id')->where('comment', '')->orderBy('receiving_id', 'DESC')->limit(2)->get()->getResultArray();
+        $this->receivingIds = array_merge($this->receivingIds, array_map('intval', array_column($ids, 'receiving_id')));
+        $this->assertCount(2, $ids);
+    }
+
+    public function testGetPrint_PrintsTheSecondLanguageNamesOfTheSupplierAndTheItemsOnlyWhenTheSettingSaysSo(): void
+    {
+        $item      = $this->item('0.00');
+        $receiving = $this->buy([$this->purchaseLine($item, 0, '1', '500.00')], $this->supplierId);
+        $names     = new EntityTranslations();
+
+        $names->save('supplier', (string) $this->supplierId, 'en', 'Gulf Supplies Trading Company', 'Dammam, Port Road', null);
+        $names->save('item', (string) $item, 'en', 'Second language item', '', null);
+        $this->loginAs($this->buyer());
+
+        $silent = $this->get('/receivings/print/' . $receiving)->getBody();
+
+        $this->assertStringNotContainsString('Gulf Supplies Trading Company', $silent);
+        $this->assertStringNotContainsString('Second language item', $silent);
+
+        $this->useSecondLanguage('en');
+
+        $printed = $this->get('/receivings/print/' . $receiving)->getBody();
+
+        $this->assertStringContainsString('Gulf Supplies Trading Company', $printed);
+        $this->assertStringContainsString('Dammam, Port Road', $printed);
+        $this->assertStringContainsString('Second language item', $printed);
+        $this->assertStringContainsString('doc-second-language', $printed);
     }
 }

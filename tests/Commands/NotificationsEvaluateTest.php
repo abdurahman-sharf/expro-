@@ -41,7 +41,7 @@ class NotificationsEvaluateTest extends CIUnitTestCase
 
         $this->wipeIntegration();
         $this->startSelling();
-        $this->switchOn(IntegrationOptions::NOTIFICATIONS);
+        $this->switchIntegrationOn(IntegrationOptions::NOTIFICATIONS);
     }
 
     protected function tearDown(): void

@@ -1283,4 +1283,45 @@ class EmployeesControllerTest extends CIUnitTestCase
 
         $this->assertTrue($result['success'], 'What a role gives is not a change of the grants of the employee');
     }
+
+    public function testPostSave_LetsAnAdministratorGrantThePermissionToManageApiKeysAndRecordsIt(): void
+    {
+        $target = $this->createNonAdminEmployee();
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('apikeys' . uniqid(), [
+            'grant_employees'       => 'employees',
+            'grant_integrations'    => 'integrations',
+            'grant_api_keys_manage' => AccountingGuard::API_KEYS_MANAGE,
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue(model(Employee::class)->has_grant(AccountingGuard::API_KEYS_MANAGE, $target));
+        $this->assertSame([AccountingGuard::API_KEYS_MANAGE], $this->auditedPermissions($target, 'permission_granted'));
+    }
+
+    public function testPostSave_IgnoresThePermissionToManageApiKeysTickedByAnEditorWhoIsNotAnAdministratorEvenWhenHeHoldsIt(): void
+    {
+        $editor = $this->sensitiveHolder(AccountingGuard::API_KEYS_MANAGE);
+        $target = $this->createNonAdminEmployee();
+        $this->loginAsNonAdmin($editor);
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('noapikeys' . uniqid(), [
+            'grant_employees'       => 'employees',
+            'grant_integrations'    => 'integrations',
+            'grant_api_keys_manage' => AccountingGuard::API_KEYS_MANAGE,
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertFalse(model(Employee::class)->has_grant(AccountingGuard::API_KEYS_MANAGE, $target));
+        $this->assertSame([], $this->auditedPermissions($target, 'permission_granted'));
+    }
+
+    public function testGetView_OffersThePermissionToManageApiKeysAmongTheSensitiveOnes(): void
+    {
+        $this->loginAsAdmin();
+
+        $this->get('/employees/view/-1')->assertSee('grant_api_keys_manage');
+        $this->assertContains(AccountingGuard::API_KEYS_MANAGE, AccountingGuard::SENSITIVE);
+    }
 }

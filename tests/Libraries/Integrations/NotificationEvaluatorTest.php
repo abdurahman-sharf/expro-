@@ -49,7 +49,7 @@ class NotificationEvaluatorTest extends CIUnitTestCase
         $this->startSelling();
         $this->evaluator = new NotificationEvaluator();
         $this->rules     = new NotificationRules();
-        $this->switchOn(IntegrationOptions::NOTIFICATIONS);
+        $this->switchIntegrationOn(IntegrationOptions::NOTIFICATIONS);
     }
 
     protected function tearDown(): void

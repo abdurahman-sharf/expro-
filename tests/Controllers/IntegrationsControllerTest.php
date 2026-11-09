@@ -226,7 +226,7 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
         (new PaymentMethods())->save(['wallet' => ['name' => 'Pay by phone']], null);
-        $this->switchOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
 
         $response = $this->get('/integrations/payment_methods');
 
