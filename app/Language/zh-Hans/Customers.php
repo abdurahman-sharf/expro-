@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => '',
     'discount_percent'              => '折扣率',
     'discount_type'                 => '优惠类型',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'email地址已被使用',
     'employee'                      => '员工',
     'error_adding_updating'         => '添加/更新客戶错误',

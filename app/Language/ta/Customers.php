@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'நிலையான தள்ளுபடி',
     'discount_percent'              => 'சதவீத தள்ளுபடி',
     'discount_type'                 => 'தள்ளுபடி வகை',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'மின்னஞ்சல் முகவரி ஏற்கனவே தரவுத்தளத்தில் உள்ளது.',
     'employee'                      => 'ஊழியர்',
     'error_adding_updating'         => 'வாடிக்கையாளர் சேர்க்க அல்லது புதுப்பித்தல் தோல்வியுற்றது.',

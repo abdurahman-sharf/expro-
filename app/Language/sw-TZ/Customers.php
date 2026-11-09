@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Punguzo la Kudumu',
     'discount_percent'              => 'Punguzo la Asilimia',
     'discount_type'                 => 'Aina ya Punguzo',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'Barua pepe tayari ipo kwenye kanzidata.',
     'employee'                      => 'Mfanyakazi',
     'error_adding_updating'         => 'Kuongeza au kusasisha mteja kimeshindikana.',

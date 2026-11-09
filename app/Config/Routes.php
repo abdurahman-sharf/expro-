@@ -586,7 +586,6 @@ $routes->group('accounting_currencies', static function (RouteCollection $routes
 
 $routes->group('accounting_einvoicing', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingEInvoicing::getIndex');
-    $routes->get('customers', 'AccountingEInvoicing::getCustomers');
     $routes->get('xml/(:num)', 'AccountingEInvoicing::getXml/$1');
     $routes->post('save_settings', 'AccountingEInvoicing::postSaveSettings');
     $routes->post('issue/(:num)', 'AccountingEInvoicing::postIssue/$1');

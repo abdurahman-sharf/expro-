@@ -8,9 +8,10 @@ use Config\Database;
 
 /**
  * What stands between the shop and a document the standard would accept, read and never written: the seller,
- * the way a line without tax is classified, the key and the certificate, and the customers that are
- * businesses and have neither a valid tax number nor an identification. A customer that is not a business
- * needs none for a simplified invoice, so the list puts the businesses first and says which they are.
+ * the way a line without tax is classified, the key and the certificate, and the customers a document
+ * would be refused for: a tax number that is not a valid one, or neither a tax number nor an identification.
+ * A customer that is not a business needs no identification for a simplified invoice, so the list puts the
+ * businesses first and says which they are.
  */
 final class EInvoiceReadiness
 {
@@ -51,7 +52,8 @@ final class EInvoiceReadiness
     }
 
     /**
-     * The customers that have neither a valid tax number nor an identification, those that are businesses
+     * The customers a document would be refused for: those with a tax number that is not a valid one, an
+     * identification or not, and those with neither a tax number nor an identification. The businesses come
      * first.
      *
      * @return array{total: int, businesses: int, rows: list<array{person_id: int, name: string, business: bool, problem: string}>}
@@ -61,9 +63,10 @@ final class EInvoiceReadiness
         $customers = $this->db->prefixTable('customers');
         $people    = $this->db->prefixTable('people');
         $parties   = $this->db->prefixTable('customer_einvoice_parties');
-        $business  = "(c.tax_id <> '' OR c.is_government_entity = 1 OR c.customer_type = 'commercial')";
-        $from      = "FROM {$customers} c JOIN {$people} p ON p.person_id = c.person_id LEFT JOIN {$parties} e ON e.person_id = c.person_id"
-            . " WHERE c.deleted = 0 AND c.tax_id NOT REGEXP '^3[0-9]{13}3\$' AND (e.person_id IS NULL OR e.identification_type IS NULL OR e.identification_number = '')";
+        $vat       = "COALESCE(TRIM(c.tax_id), '')";
+        $business  = "({$vat} <> '' OR c.is_government_entity = 1 OR c.customer_type = 'commercial')";
+        $from      = "FROM {$customers} c JOIN {$people} p ON p.person_id = c.person_id LEFT JOIN {$parties} e ON e.person_id = c.person_id WHERE c.deleted = 0"
+            . " AND (({$vat} <> '' AND {$vat} NOT REGEXP '^3[0-9]{13}3\$') OR ({$vat} = '' AND (e.person_id IS NULL OR e.identification_type IS NULL OR e.identification_number = '')))";
 
         $counts = $this->db->query("SELECT COUNT(*) AS total, COALESCE(SUM({$business}), 0) AS businesses {$from}")->getRow();
         $rows   = [];

@@ -452,12 +452,18 @@ class Customers extends Persons
                 (new CustomerFields())->audit((int) ($customerData['person_id'] ?? $customerId), $before, $master, $this->viewerId());
             }
 
+            $partyNote = '';
+
             if ($eInvoice['party'] !== null) {
-                (new CustomerParties())->save((int) ($customerData['person_id'] ?? $customerId), $eInvoice['party'], $this->viewerId());
+                try {
+                    (new CustomerParties())->save((int) ($customerData['person_id'] ?? $customerId), $eInvoice['party'], $this->viewerId());
+                } catch (AccountingException) {
+                    $partyNote = ' ' . lang('Customers.einvoice_not_saved');
+                }
             }
 
             $notSaved    = $this->saveCustomerPricing((int) ($customerData['person_id'] ?? $customerId));
-            $pricingNote = $notSaved === null ? '' : ' ' . lang('Customers.pricing_not_saved', [$notSaved]);
+            $pricingNote = $partyNote . ($notSaved === null ? '' : ' ' . lang('Customers.pricing_not_saved', [$notSaved]));
 
             // Save customer to Mailchimp selected list    // TODO: addOrUpdateMember should be refactored. Potentially pass an array or object instead of 6 parameters.
             $mailchimpStatus = $this->request->getPost('mailchimp_status');

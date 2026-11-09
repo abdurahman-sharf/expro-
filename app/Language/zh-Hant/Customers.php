@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => '固定折扣',
     'discount_percent'              => '折扣百分比',
     'discount_type'                 => '折扣種類',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => '電子郵件地址重複.',
     'employee'                      => '僱員',
     'error_adding_updating'         => '添加/更新客戶錯誤.',

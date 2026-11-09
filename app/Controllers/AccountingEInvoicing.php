@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\EInvoicing\EInvoiceChoices;
 use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\EInvoiceKind;
 use App\Libraries\EInvoicing\EInvoiceReadiness;
@@ -25,9 +26,13 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingEInvoicing extends AccountingController
 {
+    private const DOCUMENTS_PAGE = 50;
+    private const CUSTOMERS_PAGE = 25;
+
     private EInvoiceSettings $settings;
     private EInvoiceService $service;
     private EInvoiceReadiness $readiness;
+    private EInvoiceChoices $choices;
 
     public function __construct()
     {
@@ -36,26 +41,42 @@ class AccountingEInvoicing extends AccountingController
         $this->settings  = new EInvoiceSettings(null, null, $this->branchGuard());
         $this->service   = new EInvoiceService(null, null, $this->branchGuard());
         $this->readiness = new EInvoiceReadiness(null, $this->settings);
+        $this->choices   = new EInvoiceChoices(null, $this->branchGuard());
     }
 
     public function getIndex(): string
     {
-        $canManage = $this->canManage(AccountingGuard::EINVOICING_MANAGE);
+        $canManage   = $this->canManage(AccountingGuard::EINVOICING_MANAGE);
+        $canDownload = $this->can(AccountingGuard::EINVOICING_MANAGE);
+        $values      = $this->settings->all();
+        $documents   = $this->documentsPage();
+        $customers   = $this->customersPage();
+        $notes       = $canDownload ? $this->choices->notesWaiting($this->employeeId()) : [];
+        $originals   = $this->choices->originalsOf(array_column($notes, 'customer_id'), $this->employeeId());
+
+        if (! $canManage) {
+            $values['key_path']         = '';
+            $values['certificate_path'] = '';
+        }
 
         return view('accounting_einvoicing/manage', [
-            'enabled'      => $this->settings->stored(),
-            'active'       => $this->settings->isEnabled(),
-            'values'       => $this->settings->all(),
-            'seller_name'  => $this->settings->sellerName(),
-            'seller_vat'   => $this->settings->sellerVatNumber(),
-            'seller_types' => PartyIdentificationType::forSeller(),
-            'exemptions'   => EInvoiceSettings::EXEMPTION_CODES,
-            'checks'       => $this->readiness->checks(),
-            'customers'    => $this->readiness->customersWithoutIdentification(25),
-            'documents'    => $this->documents(),
-            'can_manage'   => $canManage,
-            'can_download' => $this->can(AccountingGuard::EINVOICING_MANAGE),
-            'reasons'      => EInvoiceRules::NOTE_REASONS,
+            'enabled'         => $this->settings->stored(),
+            'active'          => $this->settings->isEnabled(),
+            'values'          => $values,
+            'seller_name'     => $this->settings->sellerName(),
+            'seller_vat'      => $this->settings->sellerVatNumber(),
+            'seller_types'    => PartyIdentificationType::forSeller(),
+            'exemptions'      => EInvoiceSettings::EXEMPTION_CODES,
+            'checks'          => $this->readiness->checks(),
+            'customers'       => $customers['summary'],
+            'customers_pager' => $customers['pager'],
+            'documents'       => $documents['rows'],
+            'documents_pager' => $documents['pager'],
+            'notes'           => array_map(fn (array $note): array => [...$note, 'total' => $this->formatAmount($note['total']), 'date' => $this->formatDate($note['date'])], $notes),
+            'originals'       => $originals,
+            'can_manage'      => $canManage,
+            'can_download'    => $canDownload,
+            'reasons'         => EInvoiceRules::NOTE_REASONS,
         ]);
     }
 
@@ -112,22 +133,18 @@ class AccountingEInvoicing extends AccountingController
             ->setBody($document->xml);
     }
 
-    public function getCustomers(): ResponseInterface
-    {
-        $limit  = max(1, min((int) $this->request->getGet('limit') ?: 25, 200));
-        $offset = max(0, (int) $this->request->getGet('offset'));
-
-        return $this->response->setJSON($this->readiness->customersWithoutIdentification($limit, $offset));
-    }
-
     /**
-     * @return list<array<string, mixed>>
+     * @return array{rows: list<array<string, mixed>>, pager: array{total: int, offset: int, size: int}}
      */
-    private function documents(): array
+    private function documentsPage(): array
     {
-        $rows = [];
+        $branchIds = $this->branchIds();
+        $viewerId  = $this->employeeId();
+        $total     = $this->service->countIssued($branchIds, $viewerId);
+        $offset    = $this->offsetWithin('documents_offset', $total, self::DOCUMENTS_PAGE);
+        $rows      = [];
 
-        foreach ($this->service->issuedIn($this->branchIds(), 50) as $row) {
+        foreach ($this->service->issuedIn($branchIds, self::DOCUMENTS_PAGE, $viewerId, $offset) as $row) {
             $rows[] = [
                 'document_id' => (int) $row->document_id,
                 'number'      => (string) $row->document_number,
@@ -141,7 +158,26 @@ class AccountingEInvoicing extends AccountingController
             ];
         }
 
-        return $rows;
+        return ['rows' => $rows, 'pager' => ['total' => $total, 'offset' => $offset, 'size' => self::DOCUMENTS_PAGE]];
+    }
+
+    /**
+     * @return array{summary: array<string, mixed>, pager: array{total: int, offset: int, size: int}}
+     */
+    private function customersPage(): array
+    {
+        $total   = $this->readiness->customersWithoutIdentification(1)['total'];
+        $offset  = $this->offsetWithin('customers_offset', $total, self::CUSTOMERS_PAGE);
+        $summary = $this->readiness->customersWithoutIdentification(self::CUSTOMERS_PAGE, $offset);
+
+        return ['summary' => $summary, 'pager' => ['total' => $total, 'offset' => $offset, 'size' => self::CUSTOMERS_PAGE]];
+    }
+
+    private function offsetWithin(string $name, int $total, int $size): int
+    {
+        $offset = max(0, (int) $this->request->getGet($name));
+
+        return $offset < $total ? intdiv($offset, $size) * $size : max(0, intdiv($total - 1, $size) * $size);
     }
 
     /**

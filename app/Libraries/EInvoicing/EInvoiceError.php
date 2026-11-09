@@ -31,9 +31,10 @@ enum EInvoiceError: string
     case BuyerAddressIncomplete      = 'buyer_address_incomplete';
     case StandardNeedsCustomer       = 'standard_needs_customer';
 
-    case OriginalNotIssued = 'original_not_issued';
-    case ReasonRequired    = 'reason_required';
-    case ReasonTooLong     = 'reason_too_long';
+    case OriginalNotIssued         = 'original_not_issued';
+    case OriginalOfAnotherCustomer = 'original_of_another_customer';
+    case ReasonRequired            = 'reason_required';
+    case ReasonTooLong             = 'reason_too_long';
 
     case TotalsDoNotTie = 'totals_do_not_tie';
     case RuleBroken     = 'rule_broken';

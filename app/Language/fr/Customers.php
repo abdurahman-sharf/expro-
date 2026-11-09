@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Rabais fixe',
     'discount_percent'              => 'Pourcentage de rabais',
     'discount_type'                 => 'Type de rabais',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'L\'adresse courriel existe déjà dans la base de données.',
     'employee'                      => 'Employé',
     'error_adding_updating'         => 'Erreur lors de l\'ajout/suppression de client.',

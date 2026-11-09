@@ -2,6 +2,8 @@
 
 namespace App\Libraries\EInvoicing;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
 use CodeIgniter\Database\BaseConnection;
@@ -15,6 +17,7 @@ use Config\Database;
  */
 final class CustomerParties
 {
+    public const LIMITS = ['identification_number' => 60, 'street' => 255, 'additional_street' => EInvoiceRules::TEXT_MAX, 'building_number' => 10, 'additional_number' => 10, 'district' => EInvoiceRules::TEXT_MAX, 'city' => EInvoiceRules::TEXT_MAX, 'province' => EInvoiceRules::TEXT_MAX, 'postal_code' => 10];
     public const FIELDS = ['identification_type', 'identification_number', 'street', 'additional_street', 'building_number', 'additional_number', 'district', 'city', 'province', 'postal_code', 'country_code'];
 
     private BaseConnection $db;
@@ -61,6 +64,10 @@ final class CustomerParties
             throw new EInvoiceException(EInvoiceError::IdentificationInvalid, 'An identification number holds letters and digits only.', ['field' => $clean['identification_number']]);
         }
 
+        if (! EInvoiceRules::within($clean['identification_number'], self::LIMITS['identification_number'])) {
+            throw new EInvoiceException(EInvoiceError::IdentificationInvalid, 'An identification number is too long.', ['field' => 'identification_number', 'expected' => self::LIMITS['identification_number']]);
+        }
+
         if ($clean['identification_type'] !== '' && $clean['identification_number'] === '') {
             throw new EInvoiceException(EInvoiceError::IdentificationInvalid, 'A scheme needs its number.', ['field' => $clean['identification_type']]);
         }
@@ -85,7 +92,7 @@ final class CustomerParties
             throw new EInvoiceException(EInvoiceError::AddressInvalid, 'The additional number holds digits only.', ['field' => $clean['additional_number']]);
         }
 
-        foreach (['street' => EInvoiceRules::STREET_MAX, 'additional_street' => EInvoiceRules::TEXT_MAX, 'district' => EInvoiceRules::TEXT_MAX, 'city' => EInvoiceRules::TEXT_MAX, 'province' => EInvoiceRules::TEXT_MAX] as $field => $limit) {
+        foreach (array_slice(self::LIMITS, 1) as $field => $limit) {
             if (! EInvoiceRules::within($clean[$field], $limit)) {
                 throw new EInvoiceException(EInvoiceError::AddressInvalid, 'An address field is too long.', ['field' => $field, 'expected' => $limit]);
             }
@@ -100,7 +107,7 @@ final class CustomerParties
      *
      * @param array<string, mixed> $input
      *
-     * @throws EInvoiceException
+     * @throws AccountingException|EInvoiceException
      */
     public function save(int $personId, array $input, ?int $employeeId = null): bool
     {
@@ -113,15 +120,17 @@ final class CustomerParties
 
         $blank = $clean === array_merge(array_fill_keys(self::FIELDS, ''), ['country_code' => 'SA']);
 
-        if ($blank) {
-            $this->db->table('customer_einvoice_parties')->where('person_id', $personId)->delete();
-        } else {
-            $this->db->table('customer_einvoice_parties')->replace([
+        $written = $blank
+            ? $this->db->table('customer_einvoice_parties')->where('person_id', $personId)->delete()
+            : $this->db->table('customer_einvoice_parties')->replace([
                 'person_id'  => $personId,
                 'updated_by' => $employeeId,
                 ...$clean,
                 'identification_type' => $clean['identification_type'] === '' ? null : $clean['identification_type'],
             ]);
+
+        if ($written === false) {
+            throw new AccountingException(AccountingError::WriteFailed, 'The identification and the address of the customer could not be saved.');
         }
 
         $this->audit->write('customer_einvoice_party', $personId, 'updated', $employeeId, JournalOrigin::User, ['before' => $before, 'after' => $clean]);

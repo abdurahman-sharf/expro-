@@ -15,7 +15,9 @@ use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
+use App\Libraries\Roles\RecordScope;
 use Closure;
+use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -26,7 +28,9 @@ use Config\Database;
  * changed, and the transport is asked to carry it, which today records that nothing was sent. A sale or a
  * note is issued once: asking again gives the document that was issued, so a retry or a second click makes
  * nothing new. A document that is wrong is corrected by a note, never by writing it again. Nothing here
- * writes to a journal, a number, a stock movement or a total.
+ * writes to a journal, a number, a stock movement or a total. Whoever sees their own records only neither
+ * issues nor reads the document of a sale or a note another employee made, and cannot tell it from one that
+ * does not exist.
  */
 final class EInvoiceService
 {
@@ -44,6 +48,7 @@ final class EInvoiceService
     private JournalTie $tie;
     private AuditLog $audit;
     private EInvoiceTransport $transport;
+    private RecordScope $scope;
 
     /**
      * @var Closure(): int
@@ -64,6 +69,7 @@ final class EInvoiceService
         $this->tie       = new JournalTie($this->db);
         $this->audit     = new AuditLog($this->db);
         $this->transport = $transport ?? self::defaultTransport();
+        $this->scope     = new RecordScope($this->db);
         $this->clock     = $clock ?? static fn (): int => time();
     }
 
@@ -80,9 +86,9 @@ final class EInvoiceService
         $this->guard->require(AccountingGuard::EINVOICING_MANAGE, $employeeId);
         $this->assertOn();
 
-        $sale = $this->db->table('sales')->select('branch_id, sale_type, return_of_sale_id')->where('sale_id', $saleId)->get()->getRow();
+        $sale = $this->db->table('sales')->select('branch_id, sale_type, return_of_sale_id, employee_id')->where('sale_id', $saleId)->get()->getRow();
 
-        if ($sale === null) {
+        if ($sale === null || ! $this->scope->allows($employeeId, $sale->employee_id)) {
             throw new EInvoiceException(EInvoiceError::SourceNotFound, 'The sale does not exist.', ['number' => (string) $saleId]);
         }
 
@@ -113,9 +119,9 @@ final class EInvoiceService
         $this->guard->require(AccountingGuard::EINVOICING_MANAGE, $employeeId);
         $this->assertOn();
 
-        $note = $this->db->table('sales_debit_notes')->select('branch_id')->where('debit_note_id', $debitNoteId)->get()->getRow();
+        $note = $this->db->table('sales_debit_notes')->select('branch_id, customer_id, created_by')->where('debit_note_id', $debitNoteId)->get()->getRow();
 
-        if ($note === null) {
+        if ($note === null || ! $this->scope->allows($employeeId, $note->created_by)) {
             throw new EInvoiceException(EInvoiceError::SourceNotFound, 'The debit note does not exist.', ['number' => (string) $debitNoteId]);
         }
 
@@ -129,11 +135,7 @@ final class EInvoiceService
                 return $known;
             }
 
-            $referred = $this->find($originalDocumentId);
-
-            if ($referred === null || $referred->kind === EInvoiceKind::DebitNote) {
-                throw new EInvoiceException(EInvoiceError::OriginalNotIssued, 'The debit note must refer to an issued invoice or credit note.');
-            }
+            $referred = $this->referable($originalDocumentId, (int) $note->customer_id, $employeeId);
 
             $original = new OriginalReference($referred->documentId, $referred->number, $referred->subtype);
             $document = $this->builder->fromDebitNote($debitNoteId, $reason, $original);
@@ -172,7 +174,7 @@ final class EInvoiceService
 
         $document = $this->find($documentId);
 
-        if ($document === null) {
+        if ($document === null || $this->outsideScope($document->sourceType, $document->sourceId, $employeeId)) {
             throw new EInvoiceException(EInvoiceError::DocumentNotFound, 'The document does not exist.', ['number' => (string) $documentId]);
         }
 
@@ -228,26 +230,99 @@ final class EInvoiceService
      * The documents issued in the branches the reader may see, newest first.
      *
      * @param list<int>|null $branchIds The branches the reader may see, null for every branch.
+     * @param int|null       $viewerId  The reader, whose own records alone are listed when they see those only.
      *
      * @return list<object>
      */
-    public function issuedIn(?array $branchIds, int $limit = 100): array
+    public function issuedIn(?array $branchIds, int $limit = 100, ?int $viewerId = null, int $offset = 0): array
     {
         if ($branchIds === []) {
             return [];
         }
 
-        $builder = $this->db->table('einvoice_documents')
+        return $this->issuedBuilder($branchIds, $viewerId)
             ->select('document_id, branch_id, source_type, source_id, doc_kind, subtype, document_number, icv, issue_date, tax_inclusive, signed')
-            ->where('company_id', CompanyContext::id())
             ->orderBy('document_id', 'DESC')
-            ->limit($limit);
+            ->limit($limit, $offset)
+            ->get()
+            ->getResult();
+    }
+
+    /**
+     * How many documents issuedIn would list across its pages.
+     *
+     * @param list<int>|null $branchIds
+     */
+    public function countIssued(?array $branchIds, ?int $viewerId = null): int
+    {
+        return $branchIds === [] ? 0 : $this->issuedBuilder($branchIds, $viewerId)->countAllResults();
+    }
+
+    /**
+     * @param list<int>|null $branchIds
+     */
+    private function issuedBuilder(?array $branchIds, ?int $viewerId): BaseBuilder
+    {
+        $builder = $this->db->table('einvoice_documents')->where('company_id', CompanyContext::id());
 
         if ($branchIds !== null) {
             $builder->whereIn('branch_id', $branchIds);
         }
 
-        return $builder->get()->getResult();
+        $mine = $this->scope->limit($viewerId);
+
+        if ($mine !== null) {
+            $builder->groupStart()
+                ->groupStart()->where('source_type', self::SOURCE_SALE)->whereIn('source_id', static fn (BaseBuilder $sales): BaseBuilder => $sales->select('sale_id')->from('sales', true)->where('employee_id', $mine))->groupEnd()
+                ->orGroupStart()->where('source_type', self::SOURCE_NOTE)->whereIn('source_id', static fn (BaseBuilder $notes): BaseBuilder => $notes->select('debit_note_id')->from('sales_debit_notes', true)->where('created_by', $mine))->groupEnd()
+                ->groupEnd();
+        }
+
+        return $builder;
+    }
+
+    /**
+     * The document a debit note may refer to: an invoice or a credit note that was issued, in a branch the
+     * employee works in, out of the records they may see, and to the same customer as the note. One that
+     * the employee may not see is told apart from none by nothing.
+     *
+     * @throws EInvoiceException
+     */
+    private function referable(int $documentId, int $customerId, ?int $employeeId): IssuedEInvoice
+    {
+        $referred = $this->find($documentId);
+
+        if ($referred === null || $referred->kind === EInvoiceKind::DebitNote || ! $this->branches->canAccess($referred->branchId, $employeeId) || $this->outsideScope($referred->sourceType, $referred->sourceId, $employeeId)) {
+            throw new EInvoiceException(EInvoiceError::OriginalNotIssued, 'The debit note must refer to an issued invoice or credit note.');
+        }
+
+        if ($this->customerOf($referred->sourceType, $referred->sourceId) !== $customerId) {
+            throw new EInvoiceException(EInvoiceError::OriginalOfAnotherCustomer, 'The debit note must refer to a document of its own customer.', ['number' => $referred->number]);
+        }
+
+        return $referred;
+    }
+
+    private function outsideScope(string $sourceType, int $sourceId, ?int $employeeId): bool
+    {
+        if (! $this->scope->ownOnly($employeeId)) {
+            return false;
+        }
+
+        $row = $sourceType === self::SOURCE_NOTE
+            ? $this->db->table('sales_debit_notes')->select('created_by AS owner')->where('debit_note_id', $sourceId)->get()->getRow()
+            : $this->db->table('sales')->select('employee_id AS owner')->where('sale_id', $sourceId)->get()->getRow();
+
+        return ! $this->scope->allows($employeeId, $row?->owner);
+    }
+
+    private function customerOf(string $sourceType, int $sourceId): ?int
+    {
+        $row = $sourceType === self::SOURCE_NOTE
+            ? $this->db->table('sales_debit_notes')->select('customer_id')->where('debit_note_id', $sourceId)->get()->getRow()
+            : $this->db->table('sales')->select('customer_id')->where('sale_id', $sourceId)->get()->getRow();
+
+        return $row === null || $row->customer_id === null ? null : (int) $row->customer_id;
     }
 
     /**

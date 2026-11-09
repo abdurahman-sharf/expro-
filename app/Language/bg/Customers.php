@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Фиксирана отстъпка',
     'discount_percent'              => 'Процент отстъпка',
     'discount_type'                 => 'Вид отстъпка',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'Имейл адресът вече е в базата данни.',
     'employee'                      => 'Служител',
     'error_adding_updating'         => 'Добавянето или актуализирането на клиента е неуспешно.',

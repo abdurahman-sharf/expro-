@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'تخفیف ثابت',
     'discount_percent'              => 'تخفیف درصدی',
     'discount_type'                 => 'نوع تخفیف',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'آدرس ایمیل در حال حاضر در پایگاه داده موجود است.',
     'employee'                      => 'کارمند',
     'error_adding_updating'         => 'افزودن یا به روزرسانی مشتری ناموفق بود.',

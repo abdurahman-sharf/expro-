@@ -9,18 +9,32 @@
  * @var array<string, list<string>>                                                                                          $exemptions
  * @var list<ReadinessCheck>                                                                                                 $checks
  * @var array{total: int, businesses: int, rows: list<array{person_id: int, name: string, business: bool, problem: string}>} $customers
+ * @var array{total: int, offset: int, size: int}                                                                            $customers_pager
  * @var list<array<string, mixed>>                                                                                           $documents
+ * @var array{total: int, offset: int, size: int}                                                                            $documents_pager
+ * @var list<array{debit_note_id: int, number: string, customer_id: int, customer: string, total: string, date: string}>     $notes
+ * @var list<array{document_id: int, number: string, kind: EInvoiceKind, customer_id: int}>                                  $originals
  * @var bool                                                                                                                 $can_manage
  * @var bool                                                                                                                 $can_download
  * @var list<string>                                                                                                         $reasons
  */
 
+use App\Libraries\EInvoicing\EInvoiceKind;
 use App\Libraries\EInvoicing\PartyIdentificationType;
 use App\Libraries\EInvoicing\ReadinessCheck;
 
 $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 $disabled  = $can_manage ? '' : ' disabled';
 $icons     = [ReadinessCheck::PASS => 'bi-check-circle-fill text-success', ReadinessCheck::WARN => 'bi-exclamation-triangle-fill text-warning', ReadinessCheck::FAIL => 'bi-x-circle-fill text-danger'];
+$detailOf  = static function (ReadinessCheck $check): string {
+    if (! in_array($check->id, ['signing', 'transport'], true)) {
+        return esc($check->detail);
+    }
+
+    $key = 'Accounting_einvoicing.detail_' . $check->detail;
+
+    return lang($key) === $key ? esc($check->detail) : lang($key);
+};
 ?>
 
 <?= view('partial/header') ?>
@@ -50,6 +64,20 @@ $icons     = [ReadinessCheck::PASS => 'bi-check-circle-fill text-success', Readi
                 send('accounting_einvoicing/issue_debit_note/' + noteId, $(this).serialize(), true);
             }
         });
+
+        const fillOriginals = function() {
+            const customer = String($('#debit_note_id option:selected').data('customer'));
+            const select = $('#original_document_id');
+            select.find('option').each(function() {
+                const fits = String($(this).data('customer')) === customer;
+                $(this).prop('hidden', !fits).prop('disabled', !fits);
+            });
+            if (select.find('option:selected').prop('disabled')) {
+                select.find('option:not(:disabled)').first().prop('selected', true);
+            }
+        };
+        $('#debit_note_id').on('change', fillOriginals);
+        fillOriginals();
 
         const categories = <?= json_encode($exemptions, $jsonFlags) ?>;
         const fillReasonCodes = function() {
@@ -85,9 +113,10 @@ $icons     = [ReadinessCheck::PASS => 'bi-check-circle-fill text-success', Readi
             <?php foreach ($checks as $check): ?>
                 <li data-check="<?= esc($check->id, 'attr') ?>" data-status="<?= esc($check->status, 'attr') ?>">
                     <span class="bi <?= $icons[$check->status] ?>" aria-hidden="true"></span>
+                    <span class="visually-hidden"><?= lang('Accounting_einvoicing.status_' . $check->status) ?>:</span>
                     <?= lang('Accounting_einvoicing.check_' . $check->id) ?>
                     <?php if ($check->status !== ReadinessCheck::PASS): ?>
-                        <small class="text-body-secondary d-block ms-4"><?= lang('Accounting_einvoicing.hint_' . $check->id, [esc($check->detail)]) ?></small>
+                        <small class="text-body-secondary d-block ms-4"><?= lang('Accounting_einvoicing.hint_' . $check->id . ($check->id === 'signing' && $check->status === ReadinessCheck::FAIL ? '_failed' : ''), [$detailOf($check)]) ?></small>
                     <?php endif; ?>
                 </li>
             <?php endforeach; ?>
@@ -164,18 +193,20 @@ $icons     = [ReadinessCheck::PASS => 'bi-check-circle-fill text-success', Readi
                     <div class="field-control"><input type="text" name="exempt_reason_text" id="exempt_reason_text" class="form-control form-control-sm" maxlength="1000" value="<?= esc($values['exempt_reason_text'], 'attr') ?>"<?= $disabled ?>></div>
                 </div>
 
-                <div class="field span-all">
-                    <label class="form-label" for="key_path"><?= lang('Accounting_einvoicing.key_path') ?></label>
-                    <div class="field-control">
-                        <input type="text" name="key_path" id="key_path" class="form-control form-control-sm ltr-input" dir="ltr" maxlength="500" value="<?= esc($values['key_path'], 'attr') ?>"<?= $disabled ?>>
-                        <p class="form-text mb-0"><?= lang('Accounting_einvoicing.key_path_help') ?></p>
+                <?php if ($can_manage): ?>
+                    <div class="field span-all">
+                        <label class="form-label" for="key_path"><?= lang('Accounting_einvoicing.key_path') ?></label>
+                        <div class="field-control">
+                            <input type="text" name="key_path" id="key_path" class="form-control form-control-sm ltr-input" dir="ltr" maxlength="500" value="<?= esc($values['key_path'], 'attr') ?>"<?= $disabled ?>>
+                            <p class="form-text mb-0"><?= lang('Accounting_einvoicing.key_path_help') ?></p>
+                        </div>
                     </div>
-                </div>
 
-                <div class="field span-all">
-                    <label class="form-label" for="certificate_path"><?= lang('Accounting_einvoicing.certificate_path') ?></label>
-                    <div class="field-control"><input type="text" name="certificate_path" id="certificate_path" class="form-control form-control-sm ltr-input" dir="ltr" maxlength="500" value="<?= esc($values['certificate_path'], 'attr') ?>"<?= $disabled ?>></div>
-                </div>
+                    <div class="field span-all">
+                        <label class="form-label" for="certificate_path"><?= lang('Accounting_einvoicing.certificate_path') ?></label>
+                        <div class="field-control"><input type="text" name="certificate_path" id="certificate_path" class="form-control form-control-sm ltr-input" dir="ltr" maxlength="500" value="<?= esc($values['certificate_path'], 'attr') ?>"<?= $disabled ?>></div>
+                    </div>
+                <?php endif; ?>
             </div>
 
             <?php if ($can_manage): ?>
@@ -210,6 +241,7 @@ $icons     = [ReadinessCheck::PASS => 'bi-check-circle-fill text-success', Readi
                     </tbody>
                 </table>
             </div>
+            <?= view('accounting_einvoicing/pager', [...$customers_pager, 'name' => 'customers_offset', 'anchor' => 'einvoice_customers_title']) ?>
         <?php endif; ?>
     </section>
 
@@ -254,6 +286,7 @@ $icons     = [ReadinessCheck::PASS => 'bi-check-circle-fill text-success', Readi
                     </tbody>
                 </table>
             </div>
+            <?= view('accounting_einvoicing/pager', [...$documents_pager, 'name' => 'documents_offset', 'anchor' => 'einvoice_documents_title']) ?>
         <?php endif; ?>
     </section>
 
@@ -261,38 +294,46 @@ $icons     = [ReadinessCheck::PASS => 'bi-check-circle-fill text-success', Readi
         <section class="acc-setup-card" aria-labelledby="einvoice_debit_title">
             <h2 id="einvoice_debit_title" class="acc-setup-title"><?= lang('Accounting_einvoicing.debit_title') ?></h2>
             <p class="form-text"><?= lang('Accounting_einvoicing.debit_help') ?></p>
-            <form id="debit_note_form" class="app-form" novalidate>
-                <div class="form-grid">
-                    <div class="field">
-                        <label class="form-label" for="debit_note_id"><?= lang('Accounting_einvoicing.debit_note_id') ?></label>
-                        <div class="field-control"><input type="number" min="1" name="debit_note_id" id="debit_note_id" class="form-control form-control-sm ltr-input" dir="ltr"></div>
-                    </div>
-                    <div class="field">
-                        <label class="form-label" for="original_document_id"><?= lang('Accounting_einvoicing.original_document') ?></label>
-                        <div class="field-control">
-                            <select name="original_document_id" id="original_document_id" class="form-select form-select-sm">
-                                <?php foreach ($documents as $document): ?>
-                                    <?php if ($document['kind']->value !== 'debit_note'): ?>
-                                        <option value="<?= (int) $document['document_id'] ?>"><?= esc($document['number']) ?></option>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
-                            </select>
+            <?php if ($notes === []): ?>
+                <p class="text-body-secondary" id="einvoice_notes_none"><?= lang('Accounting_einvoicing.debit_note_none') ?></p>
+            <?php else: ?>
+                <form id="debit_note_form" class="app-form" novalidate>
+                    <div class="form-grid">
+                        <div class="field">
+                            <label class="form-label" for="debit_note_id"><?= lang('Accounting_einvoicing.debit_note_id') ?></label>
+                            <div class="field-control">
+                                <select name="debit_note_id" id="debit_note_id" class="form-select form-select-sm">
+                                    <?php foreach ($notes as $note): ?>
+                                        <option value="<?= (int) $note['debit_note_id'] ?>" data-customer="<?= (int) $note['customer_id'] ?>"><?= esc($note['number']) ?> - <?= esc($note['customer']) ?> - <?= esc($note['total']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="form-label" for="original_document_id"><?= lang('Accounting_einvoicing.original_document') ?></label>
+                            <div class="field-control">
+                                <select name="original_document_id" id="original_document_id" class="form-select form-select-sm">
+                                    <?php foreach ($originals as $original): ?>
+                                        <option value="<?= (int) $original['document_id'] ?>" data-customer="<?= (int) $original['customer_id'] ?>"><?= esc($original['number']) ?> (<?= lang($original['kind']->languageKey()) ?>)</option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="field span-all">
+                            <label class="form-label" for="debit_reason"><?= lang('Accounting_einvoicing.reason') ?></label>
+                            <div class="field-control">
+                                <input type="text" name="reason" id="debit_reason" class="form-control form-control-sm" maxlength="1000" list="einvoice_reasons">
+                                <datalist id="einvoice_reasons">
+                                    <?php foreach ($reasons as $reason): ?>
+                                        <option value="<?= esc($reason, 'attr') ?>"></option>
+                                    <?php endforeach; ?>
+                                </datalist>
+                            </div>
                         </div>
                     </div>
-                    <div class="field span-all">
-                        <label class="form-label" for="debit_reason"><?= lang('Accounting_einvoicing.reason') ?></label>
-                        <div class="field-control">
-                            <input type="text" name="reason" id="debit_reason" class="form-control form-control-sm" maxlength="1000" list="einvoice_reasons">
-                            <datalist id="einvoice_reasons">
-                                <?php foreach ($reasons as $reason): ?>
-                                    <option value="<?= esc($reason, 'attr') ?>"></option>
-                                <?php endforeach; ?>
-                            </datalist>
-                        </div>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-outline-primary btn-sm"><?= lang('Accounting_einvoicing.issue_debit') ?></button>
-            </form>
+                    <button type="submit" class="btn btn-outline-primary btn-sm"><?= lang('Accounting_einvoicing.issue_debit') ?></button>
+                </form>
+            <?php endif; ?>
         </section>
     <?php endif; ?>
 </div>

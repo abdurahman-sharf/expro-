@@ -2,18 +2,25 @@
 
 namespace Tests\Libraries\EInvoicing;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\EInvoicing\CustomerParties;
 use App\Libraries\EInvoicing\EInvoiceError;
 use App\Libraries\EInvoicing\EInvoiceException;
 use App\Libraries\EInvoicing\PartyIdentificationType;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\Services;
+use ReflectionProperty;
 use Tests\Support\AccountingFixtureTrait;
-use Tests\Support\EInvoiceSaleFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 
-class CustomerPartiesTest extends CIUnitTestCase
+/**
+ * @internal
+ */
+final class CustomerPartiesTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -22,8 +29,7 @@ class CustomerPartiesTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
-
+    protected $namespace;
     private CustomerParties $parties;
     private int $customerId;
 
@@ -71,7 +77,7 @@ class CustomerPartiesTest extends CIUnitTestCase
         $this->fail('The data was not refused.');
     }
 
-    public function testFind_GivesEveryFieldEmptyAndSaudiArabiaForACustomerWithNothingSaved(): void
+    public function testFindGivesEveryFieldEmptyAndSaudiArabiaForACustomerWithNothingSaved(): void
     {
         $found = $this->parties->find($this->customerId);
 
@@ -81,7 +87,7 @@ class CustomerPartiesTest extends CIUnitTestCase
         $this->assertSame('', $found['street']);
     }
 
-    public function testSave_StoresTheIdentificationAndTheNationalAddressOfACustomer(): void
+    public function testSaveStoresTheIdentificationAndTheNationalAddressOfACustomer(): void
     {
         $this->assertTrue($this->parties->save($this->customerId, $this->input(['additional_street' => 'Side St', 'additional_number' => '8228', 'province' => 'Riyadh Region']), 1));
 
@@ -95,7 +101,7 @@ class CustomerPartiesTest extends CIUnitTestCase
         $this->assertSame('11564', $found['postal_code']);
     }
 
-    public function testSave_AcceptsEachOfTheElevenCodes(): void
+    public function testSaveAcceptsEachOfTheElevenCodes(): void
     {
         foreach (PartyIdentificationType::codes() as $code) {
             $this->parties->save($this->customerId, $this->input(['identification_type' => $code]), 1);
@@ -104,43 +110,122 @@ class CustomerPartiesTest extends CIUnitTestCase
         }
     }
 
-    public function testClean_RejectsACodeThatIsNotOneOfTheEleven(): void
+    public function testCleanRejectsACodeThatIsNotOneOfTheEleven(): void
     {
         $this->assertSame(EInvoiceError::IdentificationInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['identification_type' => 'ABC'])))->error);
         $this->assertSame(EInvoiceError::IdentificationInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['identification_type' => 'crn'])))->error);
     }
 
-    public function testClean_RequiresASchemeAndItsNumberTogether(): void
+    public function testCleanRequiresASchemeAndItsNumberTogether(): void
     {
         $this->assertSame(EInvoiceError::IdentificationInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['identification_number' => ''])))->error);
         $this->assertSame(EInvoiceError::IdentificationInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['identification_type' => ''])))->error);
         $this->assertSame(EInvoiceError::IdentificationInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['identification_number' => '10-10'])))->error);
     }
 
-    public function testClean_RejectsABuildingNumberAndAPostalCodeOfTheWrongLengthForASaudiAddress(): void
+    public function testCleanRejectsABuildingNumberAndAPostalCodeOfTheWrongLengthForASaudiAddress(): void
     {
         $this->assertSame(EInvoiceError::AddressInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['building_number' => '432'])))->error);
         $this->assertSame(EInvoiceError::AddressInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['postal_code' => '1156'])))->error);
         $this->assertSame(EInvoiceError::AddressInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['additional_number' => 'x'])))->error);
     }
 
-    public function testClean_LetsAnAddressOutsideSaudiArabiaKeepItsOwnFormats(): void
+    public function testCleanLetsAnAddressOutsideSaudiArabiaKeepItsOwnFormats(): void
     {
-        $clean = $this->parties->clean($this->input(['country_code' => 'ae', 'building_number' => 'Tower 2', 'postal_code' => 'P.O. Box 55']));
+        $clean = $this->parties->clean($this->input(['country_code' => 'ae', 'building_number' => 'Tower 2', 'postal_code' => 'SW1A 1AA']));
 
         $this->assertSame('AE', $clean['country_code']);
         $this->assertSame('Tower 2', $clean['building_number']);
+        $this->assertSame('SW1A 1AA', $clean['postal_code']);
     }
 
-    public function testClean_RejectsACountryCodeOfNotTwoLettersAndFieldsThatAreTooLong(): void
+    public function testCleanRejectsACountryCodeOfNotTwoLettersAndFieldsThatAreTooLong(): void
     {
         $this->assertSame(EInvoiceError::AddressInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['country_code' => 'SAU'])))->error);
-        $this->assertSame(EInvoiceError::AddressInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['street' => str_repeat('x', 1001)])))->error);
         $this->assertSame(EInvoiceError::AddressInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['district' => str_repeat('x', 128)])))->error);
-        $this->assertSame(1000, mb_strlen($this->parties->clean($this->input(['street' => str_repeat('x', 1000)]))['street']));
     }
 
-    public function testClean_DefaultsTheCountryToSaudiArabiaAndTrimsWhatItIsGiven(): void
+    public function testCleanRejectsEveryValueThatIsWiderThanItsColumnAndAcceptsOneThatFillsIt(): void
+    {
+        $columns = $this->accountingDb()->query('SELECT COLUMN_NAME AS name, CHARACTER_MAXIMUM_LENGTH AS width FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?', [$this->accountingDb()->prefixTable('customer_einvoice_parties')])->getResult();
+
+        foreach ($columns as $column) {
+            if (isset(CustomerParties::LIMITS[$column->name])) {
+                $this->assertSame((int) $column->width, CustomerParties::LIMITS[$column->name], 'The limit of ' . $column->name . ' is not the width of its column.');
+            }
+        }
+
+        $this->assertSame(array_keys(CustomerParties::LIMITS), array_values(array_intersect(array_keys(CustomerParties::LIMITS), array_column($columns, 'name'))));
+
+        foreach (['street' => 'x', 'additional_street' => 'x', 'district' => 'x', 'city' => 'x', 'province' => 'x'] as $field => $letter) {
+            $limit = CustomerParties::LIMITS[$field];
+
+            $this->assertSame($limit, mb_strlen($this->parties->clean($this->input([$field => str_repeat($letter, $limit)]))[$field]), $field);
+            $this->assertSame(EInvoiceError::AddressInvalid, $this->refusal(fn () => $this->parties->clean($this->input([$field => str_repeat($letter, $limit + 1)])))->error, $field);
+        }
+
+        foreach (['building_number', 'postal_code'] as $field) {
+            $input = ['country_code' => 'AE', $field => str_repeat('9', 10)];
+
+            $this->assertSame(10, mb_strlen($this->parties->clean($this->input($input))[$field]), $field);
+            $this->assertSame(EInvoiceError::AddressInvalid, $this->refusal(fn () => $this->parties->clean($this->input([...$input, $field => str_repeat('9', 11)])))->error, $field);
+        }
+
+        $this->assertSame(60, mb_strlen($this->parties->clean($this->input(['identification_number' => str_repeat('1', 60)]))['identification_number']));
+        $this->assertSame(EInvoiceError::IdentificationInvalid, $this->refusal(fn () => $this->parties->clean($this->input(['identification_number' => str_repeat('1', 61)])))->error);
+    }
+
+    public function testCleanSaysTheNameOfTheFieldThatIsTooLongInTheLanguageOfTheReader(): void
+    {
+        $language = Services::language();
+        $before   = $language->getLocale();
+
+        try {
+            $language->setLocale('en');
+
+            $this->assertSame('The address is not valid: street', $this->refusal(fn () => $this->parties->clean($this->input(['street' => str_repeat('x', 256)])))->describe());
+            $this->assertSame('The identification is not valid: identification number', $this->refusal(fn () => $this->parties->clean($this->input(['identification_number' => str_repeat('1', 61)])))->describe());
+
+            $language->setLocale('ar-EG');
+
+            $this->assertSame('العنوان غير صالح: الشارع', $this->refusal(fn () => $this->parties->clean($this->input(['street' => str_repeat('x', 256)])))->describe());
+        } finally {
+            $language->setLocale($before);
+        }
+    }
+
+    public function testSaveStoresAFieldThatFillsItsColumnWithoutTruncatingIt(): void
+    {
+        $street = str_repeat('x', CustomerParties::LIMITS['street']);
+
+        $this->assertTrue($this->parties->save($this->customerId, $this->input(['street' => $street])));
+        $this->assertSame($street, $this->parties->find($this->customerId)['street']);
+    }
+
+    public function testSaveRefusesWithoutSayingSavedAWriteTheDatabaseRefused(): void
+    {
+        $db    = $this->accountingDb();
+        $debug = new ReflectionProperty(BaseConnection::class, 'DBDebug');
+
+        $debug->setValue($db, false);
+
+        try {
+            $failure = null;
+
+            try {
+                $this->parties->save(987654321, $this->input());
+            } catch (AccountingException $failure) {
+            }
+        } finally {
+            $debug->setValue($db, true);
+        }
+
+        $this->assertInstanceOf(AccountingException::class, $failure);
+        $this->assertSame(AccountingError::WriteFailed, $failure->error);
+        $this->assertSame(0, $this->accountingDb()->table('customer_einvoice_parties')->where('person_id', 987654321)->countAllResults());
+    }
+
+    public function testCleanDefaultsTheCountryToSaudiArabiaAndTrimsWhatItIsGiven(): void
     {
         $clean = $this->parties->clean($this->input(['country_code' => '', 'city' => '  Riyadh  ']));
 
@@ -148,7 +233,7 @@ class CustomerPartiesTest extends CIUnitTestCase
         $this->assertSame('Riyadh', $clean['city']);
     }
 
-    public function testSave_WritesNothingWhenTheFieldsDidNotChange(): void
+    public function testSaveWritesNothingWhenTheFieldsDidNotChange(): void
     {
         $this->parties->save($this->customerId, $this->input(), 1);
 
@@ -156,7 +241,7 @@ class CustomerPartiesTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer_einvoice_party', 'entity_id' => $this->customerId])->countAllResults());
     }
 
-    public function testSave_AuditsWhatWasReplacedAndWhatItBecame(): void
+    public function testSaveAuditsWhatWasReplacedAndWhatItBecame(): void
     {
         $this->parties->save($this->customerId, $this->input(), 7);
         $this->parties->save($this->customerId, $this->input(['city' => 'Jeddah']), 7);
@@ -170,7 +255,7 @@ class CustomerPartiesTest extends CIUnitTestCase
         $this->assertSame(7, (int) $rows[1]->employee_id);
     }
 
-    public function testSave_RemovesTheRowOfACustomerWhoseFieldsAreAllEmptied(): void
+    public function testSaveRemovesTheRowOfACustomerWhoseFieldsAreAllEmptied(): void
     {
         $this->parties->save($this->customerId, $this->input(), 1);
 
@@ -182,7 +267,7 @@ class CustomerPartiesTest extends CIUnitTestCase
         $this->assertSame('', $this->parties->find($this->customerId)['street']);
     }
 
-    public function testSave_KeepsTheAddressOfACustomerWhoseIdentificationIsRemoved(): void
+    public function testSaveKeepsTheAddressOfACustomerWhoseIdentificationIsRemoved(): void
     {
         $this->parties->save($this->customerId, $this->input(), 1);
         $this->parties->save($this->customerId, $this->input(['identification_type' => '', 'identification_number' => '']), 1);

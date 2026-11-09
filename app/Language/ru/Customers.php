@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Фиксированная скидка',
     'discount_percent'              => 'Скидка в процентах',
     'discount_type'                 => 'Тип скидки',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'Адрес электронной почты уже существует в базе данных.',
     'employee'                      => 'Сотрудник',
     'error_adding_updating'         => 'Ошибка при добавлении/обновлении клиента.',

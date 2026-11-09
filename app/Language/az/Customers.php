@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Sabit endirim',
     'discount_percent'              => 'Faiz dərəcəsi',
     'discount_type'                 => 'Endirim növü',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'Məlumat bazasında artıq bu e-poçt ünvanı var.',
     'employee'                      => 'Əməkdaş',
     'error_adding_updating'         => 'Müştəri əlavəsində ya da yenilənməsində XƏTA.',

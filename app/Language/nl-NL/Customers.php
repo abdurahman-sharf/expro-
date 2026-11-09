@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Vaste korting',
     'discount_percent'              => 'Kortingspercentage',
     'discount_type'                 => 'Kortingssoort',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'E-mailadres is al aanwezig in de database.',
     'employee'                      => 'Werknemer',
     'error_adding_updating'         => 'Klant toevoegen of bijwerken mislukt.',

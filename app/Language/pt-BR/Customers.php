@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Desconto fixo',
     'discount_percent'              => 'Percentual de desconto',
     'discount_type'                 => 'Tipo de desconto',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'O endereço de e-mail já está presente no banco de dados.',
     'employee'                      => 'Empregado',
     'error_adding_updating'         => 'Erro adicionar/atualizar cliente.',

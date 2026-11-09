@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'ส่วนลดคงที่',
     'discount_percent'              => 'ส่วนลดแบบร้อยละ',
     'discount_type'                 => 'ประเภทส่วนลด',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'มีที่อยู่อีเมลนี้ในฐานข้อมูลแล้ว',
     'employee'                      => 'พนักงาน',
     'error_adding_updating'         => 'แก้ไขข้อมูลลูกค้าผิดพลาด',
