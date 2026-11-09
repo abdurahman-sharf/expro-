@@ -48,21 +48,15 @@ class AccountingEInvoicing extends AccountingController
     {
         $canManage   = $this->canManage(AccountingGuard::EINVOICING_MANAGE);
         $canDownload = $this->can(AccountingGuard::EINVOICING_MANAGE);
-        $values      = $this->settings->all();
         $documents   = $this->documentsPage();
         $customers   = $this->customersPage();
         $notes       = $canDownload ? $this->choices->notesWaiting($this->employeeId()) : [];
         $originals   = $this->choices->originalsOf(array_column($notes, 'customer_id'), $this->employeeId());
 
-        if (! $canManage) {
-            $values['key_path']         = '';
-            $values['certificate_path'] = '';
-        }
-
         return view('accounting_einvoicing/manage', [
             'enabled'         => $this->settings->stored(),
             'active'          => $this->settings->isEnabled(),
-            'values'          => $values,
+            'values'          => $this->settings->all(),
             'seller_name'     => $this->settings->sellerName(),
             'seller_vat'      => $this->settings->sellerVatNumber(),
             'seller_types'    => PartyIdentificationType::forSeller(),

@@ -314,6 +314,18 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         }
     }
 
+    public function testGetIndex_ShowsNoPagerWhenEveryDocumentFitsOnOnePage(): void
+    {
+        $this->issued();
+        $this->manager();
+
+        $body = $this->decoded($this->get('/accounting_einvoicing'));
+
+        $this->assertSame(1, $this->occurrencesOf($body, 'data-document="'));
+        $this->assertStringNotContainsString('data-pager="documents_offset"', $body);
+        $this->assertStringNotContainsString('rel="next"', $body);
+    }
+
     public function testGetIndex_PagesTheCustomersWithoutIdentificationTwentyFiveAtATimeAndKeepsThePageOfTheDocumentsInTheLinks(): void
     {
         for ($i = 0; $i < 27; $i++) {

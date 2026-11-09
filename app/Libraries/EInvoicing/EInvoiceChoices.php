@@ -95,7 +95,6 @@ final class EInvoiceChoices
             ->select('d.document_id, d.document_number, d.doc_kind, s.customer_id')
             ->join('sales s', "d.source_type = '" . EInvoiceService::SOURCE_SALE . "' AND s.sale_id = d.source_id")
             ->where('d.company_id', CompanyContext::id())
-            ->whereIn('d.doc_kind', [EInvoiceKind::Invoice->value, EInvoiceKind::CreditNote->value])
             ->whereIn('s.customer_id', array_values(array_unique($customerIds)))
             ->orderBy('d.document_id', 'DESC')
             ->limit(max(1, $limit));

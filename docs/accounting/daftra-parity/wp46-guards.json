@@ -470,8 +470,8 @@
   {
     "name": "S18 a debit note refers to an issued invoice or credit note, not to another debit note",
     "file": "app/Libraries/EInvoicing/EInvoiceService.php",
-    "find": "if ($referred === null || $referred->kind === EInvoiceKind::DebitNote) {",
-    "replace": "if (false) {",
+    "find": "if ($referred === null || $referred->kind === EInvoiceKind::DebitNote ||",
+    "replace": "if ($referred === null ||",
     "tests": [
       "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
     ]
@@ -948,8 +948,8 @@
   {
     "name": "CP12 a customer whose fields are all emptied keeps no row",
     "file": "app/Libraries/EInvoicing/CustomerParties.php",
-    "find": "if ($blank) {",
-    "replace": "if (false) {",
+    "find": "$written = $blank\n            ? $this->db->table('customer_einvoice_parties')->where('person_id', $personId)->delete()",
+    "replace": "$written = false\n            ? $this->db->table('customer_einvoice_parties')->where('person_id', $personId)->delete()",
     "tests": [
       "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
     ]
@@ -993,8 +993,8 @@
   {
     "name": "X02 the settings form is offered to a manager of every branch only",
     "file": "app/Controllers/AccountingEInvoicing.php",
-    "find": "$canManage = $this->canManage(AccountingGuard::EINVOICING_MANAGE);",
-    "replace": "$canManage = $this->can(AccountingGuard::EINVOICING_MANAGE);",
+    "find": "$canManage   = $this->canManage(AccountingGuard::EINVOICING_MANAGE);",
+    "replace": "$canManage   = $this->can(AccountingGuard::EINVOICING_MANAGE);",
     "tests": [
       "tests/Controllers/AccountingEInvoicingControllerTest.php"
     ]
@@ -1002,8 +1002,8 @@
   {
     "name": "X03 the files are offered to who holds the permission only",
     "file": "app/Controllers/AccountingEInvoicing.php",
-    "find": "'can_download' => $this->can(AccountingGuard::EINVOICING_MANAGE),",
-    "replace": "'can_download' => true,",
+    "find": "$canDownload = $this->can(AccountingGuard::EINVOICING_MANAGE);",
+    "replace": "$canDownload = true;",
     "tests": [
       "tests/Controllers/AccountingEInvoicingControllerTest.php"
     ]
@@ -1159,6 +1159,437 @@
     "replace": "if (false) {",
     "tests": [
       "tests/Libraries/EInvoicing/EInvoicePanelTest.php"
+    ]
+  },
+  {
+    "name": "ZF01 issuing the sale of another employee is refused to someone who sees their own records only",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($sale === null || ! $this->scope->allows($employeeId, $sale->employee_id)) {",
+    "replace": "if ($sale === null) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF02 issuing the debit note of another employee is refused to someone who sees their own records only",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($note === null || ! $this->scope->allows($employeeId, $note->created_by)) {",
+    "replace": "if ($note === null) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF03 the file of the document of another employee is refused to someone who sees their own records only",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($document === null || $this->outsideScope($document->sourceType, $document->sourceId, $employeeId)) {",
+    "replace": "if ($document === null) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF04 the list of documents is cut to the records of someone who sees their own records only",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($mine !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF05 a debit note refers only to a document of a branch the employee works in",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "|| ! $this->branches->canAccess($referred->branchId, $employeeId)",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF06 a debit note refers only to a document out of the records the employee may see",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "|| $this->outsideScope($referred->sourceType, $referred->sourceId, $employeeId)) {",
+    "replace": ") {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF07 a debit note refers only to a document of its own customer",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($this->customerOf($referred->sourceType, $referred->sourceId) !== $customerId) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF08 the list of documents starts at the offset of its page",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "->limit($limit, $offset)",
+    "replace": "->limit($limit)",
+    "tests": [
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZT01 issuing never touches the payments of the sale",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $issued = $this->find($documentId);",
+    "replace": "        $this->db->table('sales_payments')->where('sale_id', $sourceId)->update(['payment_amount' => 1]);\n        $issued = $this->find($documentId);",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZT02 issuing never touches the stock movements of the sale",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $issued = $this->find($documentId);",
+    "replace": "        $this->db->query('UPDATE ' . $this->db->prefixTable('inventory') . ' SET trans_inventory = trans_inventory + 1 WHERE trans_comment LIKE ?', ['POS ' . $sourceId . '%']);\n        $issued = $this->find($documentId);",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZT03 issuing never touches the number of the invoice",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $issued = $this->find($documentId);",
+    "replace": "        $this->db->query('UPDATE ' . $this->db->prefixTable('sales') . \" SET invoice_number = CONCAT(IFNULL(invoice_number, ''), 'X') WHERE sale_id = ?\", [$sourceId]);\n        $issued = $this->find($documentId);",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZT04 issuing never touches the stock books of the sale",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $issued = $this->find($documentId);",
+    "replace": "        $this->db->query('UPDATE ' . $this->db->prefixTable('accounting_stock_entries') . \" SET quantity = quantity + 1 WHERE source_type = 'sale' AND source_id = ?\", [$sourceId]);\n        $issued = $this->find($documentId);",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZCP13 a write the database refused is not said to be saved",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if ($written === false) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "ZCP14 a street is no longer than its column",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "'street' => 255,",
+    "replace": "'street' => 1000,",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "ZCP15 an identification number is no longer than its column",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if (! EInvoiceRules::within($clean['identification_number'], self::LIMITS['identification_number'])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "ZCP16 the fields of the address are no longer than their columns",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "foreach (array_slice(self::LIMITS, 1) as $field => $limit) {",
+    "replace": "foreach ([] as $field => $limit) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "ZCP17 a postal code is no longer than its column",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "'postal_code' => 10]",
+    "replace": "'postal_code' => 11]",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "ZE01 the name of a field or of a figure is said in the language of the reader",
+    "file": "app/Libraries/EInvoicing/EInvoiceException.php",
+    "find": "$arguments[] = in_array($name, $labelled, true) ? $this->word((string) $this->context[$name]) : (string) $this->context[$name];",
+    "replace": "$arguments[] = (string) $this->context[$name];",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceExceptionTest.php"
+    ]
+  },
+  {
+    "name": "ZE02 a value of a field that is not too long is left as it was typed",
+    "file": "app/Libraries/EInvoicing/EInvoiceException.php",
+    "find": "EInvoiceError::AddressInvalid, EInvoiceError::IdentificationInvalid => array_key_exists('expected', $this->context) ? ['field'] : [],",
+    "replace": "EInvoiceError::AddressInvalid, EInvoiceError::IdentificationInvalid => ['field'],",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceExceptionTest.php"
+    ]
+  },
+  {
+    "name": "ZE03 the prefix of a field of the settings is read",
+    "file": "app/Libraries/EInvoicing/EInvoiceException.php",
+    "find": "$word = str_starts_with($word, 'seller_') ? substr($word, 7) : $word;",
+    "replace": "$word = $word;",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceExceptionTest.php"
+    ]
+  },
+  {
+    "name": "ZRD1 a customer with an invalid tax number is listed although it has an identification",
+    "file": "app/Libraries/EInvoicing/EInvoiceReadiness.php",
+    "find": " AND (({$vat} <> '' AND {$vat} NOT REGEXP '^3[0-9]{13}3\\$') OR ({$vat} = '' AND (e.person_id IS NULL OR e.identification_type IS NULL OR e.identification_number = '')))",
+    "replace": " AND ({$vat} NOT REGEXP '^3[0-9]{13}3\\$' AND (e.person_id IS NULL OR e.identification_type IS NULL OR e.identification_number = ''))",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceReadinessTest.php"
+    ]
+  },
+  {
+    "name": "ZRD2 a tax number is read trimmed, as the document reads it",
+    "file": "app/Libraries/EInvoicing/EInvoiceReadiness.php",
+    "find": "$vat       = \"COALESCE(TRIM(c.tax_id), '')\";",
+    "replace": "$vat       = \"c.tax_id\";",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceReadinessTest.php"
+    ]
+  },
+  {
+    "name": "ZCU1 a customer whose identification was not saved is told so",
+    "file": "app/Controllers/Customers.php",
+    "find": "$partyNote = ' ' . lang('Customers.einvoice_not_saved');",
+    "replace": "$partyNote = '';",
+    "tests": [
+      "--filter",
+      "testPostSave_SaysThatTheIdentification",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZV01 the paths of the key and of the certificate are not shown to who may not manage the settings",
+    "file": "app/Views/accounting_einvoicing/manage.php",
+    "find": "<?php if ($can_manage): ?>\n                    <div class=\"field span-all\">\n                        <label class=\"form-label\" for=\"key_path\">",
+    "replace": "<?php if (true): ?>\n                    <div class=\"field span-all\">\n                        <label class=\"form-label\" for=\"key_path\">",
+    "tests": [
+      "--filter",
+      "testGetIndex_ShowsThePathsOfTheKey",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZV02 each check says in words whether it is ready, a warning or not ready",
+    "file": "app/Views/accounting_einvoicing/manage.php",
+    "find": "<span class=\"visually-hidden\"><?= lang('Accounting_einvoicing.status_' . $check->status) ?>:</span>",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetIndex_SaysInWordsWhetherEachCheck",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZV03 the detail of a check is said in words and not as a code",
+    "file": "app/Views/accounting_einvoicing/manage.php",
+    "find": "return lang($key) === $key ? esc($check->detail) : lang($key);",
+    "replace": "return esc($check->detail);",
+    "tests": [
+      "--filter",
+      "testGetIndex_SaysTheNameOfTheTransport",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZV04 a key that cannot be used is not reported as documents issued unsigned",
+    "file": "app/Views/accounting_einvoicing/manage.php",
+    "find": "($check->id === 'signing' && $check->status === ReadinessCheck::FAIL ? '_failed' : '')",
+    "replace": "''",
+    "tests": [
+      "--filter",
+      "testGetIndex_SaysTheNameOfTheTransport",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZV05 the form of a debit note says when no note waits",
+    "file": "app/Views/accounting_einvoicing/manage.php",
+    "find": "<?php if ($notes === []): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "testGetIndex_SaysThatNoDebitNoteWaits",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZP01 the pager offers the next page",
+    "file": "app/Views/accounting_einvoicing/pager.php",
+    "find": "<?php if ($offset + $size < $total): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "testGetIndex_Pages",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZP02 the pager offers the previous page",
+    "file": "app/Views/accounting_einvoicing/pager.php",
+    "find": "<?php if ($offset > 0): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "testGetIndex_Pages",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZP03 the pager shows only when the list does not fit one page",
+    "file": "app/Views/accounting_einvoicing/pager.php",
+    "find": "<?php if ($total > $size): ?>",
+    "replace": "<?php if (true): ?>",
+    "tests": [
+      "--filter",
+      "testGetIndex_ShowsNoPager",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZP04 an offset out of range falls back to a page of the list",
+    "file": "app/Controllers/AccountingEInvoicing.php",
+    "find": "return $offset < $total ? intdiv($offset, $size) * $size : max(0, intdiv($total - 1, $size) * $size);",
+    "replace": "return $offset;",
+    "tests": [
+      "--filter",
+      "testGetIndex_Pages",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZP05 a negative offset is read as the first page",
+    "file": "app/Controllers/AccountingEInvoicing.php",
+    "find": "$offset = max(0, (int) $this->request->getGet($name));",
+    "replace": "$offset = (int) $this->request->getGet($name);",
+    "tests": [
+      "--filter",
+      "testGetIndex_PagesTheIssuedDocuments",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZR01 the status line is on the receipt",
+    "file": "app/Views/sales/receipt.php",
+    "find": "<?= view('accounting_einvoicing/sale_panel', ['sale_id' => $sale_id_num]) ?>",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSalePanel_ShowsTheStatusOnTheReceiptPage",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZR02 the status line is on the tax invoice",
+    "file": "app/Views/sales/tax_invoice.php",
+    "find": "<?= view('accounting_einvoicing/sale_panel', ['sale_id' => $sale_id_num]) ?>",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSalePanel_ShowsTheStatusOnTheTaxInvoicePage",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZN04 electronic invoicing is in the accounting group of the sidebar",
+    "file": "app/Helpers/navigation_helper.php",
+    "find": "'accounting_routing', 'accounting_einvoicing', 'accounting_settings'",
+    "replace": "'accounting_routing', 'accounting_settings'",
+    "tests": [
+      "tests/helpers/NavigationHelperTest.php"
+    ]
+  },
+  {
+    "name": "ZC01 a debit note that has its document is not offered again",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "            ->where('d.document_id IS NULL', null, false)\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC02 a debit note that was taken back is not offered",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "['n.company_id' => CompanyContext::id(), 'n.status' => 'posted']",
+    "replace": "['n.company_id' => CompanyContext::id()]",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC03 the debit notes offered are those of the branches the employee works in",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "$builder->whereIn('n.branch_id', $allowed);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC04 the debit notes offered are those the employee made when they see their own records only",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "$builder->where('n.created_by', $mine);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC05 the documents offered are those of the customers of the notes",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "->whereIn('s.customer_id', array_values(array_unique($customerIds)))",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC06 the documents offered are those of the branches the employee works in",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "$builder->whereIn('d.branch_id', $allowed);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC07 the documents offered are those of the records the employee may see",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "$builder->where('s.employee_id', $mine);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC08 a debit note is named by its number when the series is on",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "$numbers[(int) $row->debit_note_id] ?? DocumentType::SalesDebitNote->fallback((int) $row->debit_note_id)",
+    "replace": "DocumentType::SalesDebitNote->fallback((int) $row->debit_note_id)",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC09 a customer that is a company is named by its company",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "trim((string) $row->company_name) !== '' ? (string) $row->company_name : (string) $row->person_name",
+    "replace": "(string) $row->person_name",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
     ]
   }
 ]
