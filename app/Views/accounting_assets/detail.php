@@ -4,8 +4,8 @@
  * @var list<array{date: string, amount: string, posted: bool}> $schedule
  * @var list<object>                                            $depreciation
  * @var list<object>                                            $operations
- * @var bool                                                    $can_manage
- * @var bool                                                    $can_dispose
+ * @var bool                                                    $canManage
+ * @var bool                                                    $canDispose
  * @var Closure                                                 $amount
  * @var Closure                                                 $date
  * @var string|null                                             $notice
@@ -27,7 +27,7 @@ $modal  = static fn (string $path, string $label, string $title, string $class =
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2 print_hide">
         <h1 class="h4 me-auto mb-0"><bdi dir="ltr"><?= esc($asset->code) ?></bdi> <?= esc($asset->name) ?> <span class="badge text-bg-secondary"><?= lang('Accounting_assets.status_' . $status->value) ?></span></h1>
         <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_assets'), 'attr') ?>"><?= lang('Accounting_assets.back') ?></a>
-        <?php if ($can_manage && $status->canBeDisposed()): ?>
+        <?php if ($canManage && $status->canBeDisposed()): ?>
             <a class="btn btn-outline-primary btn-sm" id="edit_asset" href="<?= esc(base_url('accounting_assets/form/' . $id), 'attr') ?>"><?= lang('Accounting_assets.edit') ?></a>
             <?php if ($status === AssetStatus::Active || $status === AssetStatus::Consumed): ?>
                 <button type="button" class="btn btn-outline-secondary btn-sm asset-post" id="deactivate_asset" data-url="<?= esc(base_url('accounting_assets/status/' . $id . '/0'), 'attr') ?>"><?= lang('Accounting_assets.deactivate') ?></button>
@@ -36,11 +36,11 @@ $modal  = static fn (string $path, string $label, string $title, string $class =
             <?php endif; ?>
             <button type="button" class="btn btn-outline-danger btn-sm asset-post" id="delete_asset" data-confirm="<?= esc(lang('Accounting_assets.delete_confirm'), 'attr') ?>" data-url="<?= esc(base_url('accounting_assets/delete/' . $id), 'attr') ?>"><?= lang('Accounting_assets.delete') ?></button>
         <?php endif; ?>
-        <?php if ($can_dispose): ?>
+        <?php if ($canDispose): ?>
             <?= $modal('accounting_assets/dispose_form/sale/' . $id, lang('Accounting_assets.sell'), lang('Accounting_assets.sell_title'), 'btn-outline-primary') ?>
             <?= $modal('accounting_assets/dispose_form/write_off/' . $id, lang('Accounting_assets.write_off'), lang('Accounting_assets.write_off_title'), 'btn-outline-danger') ?>
         <?php endif; ?>
-        <?php if ($can_manage && $asset->method === 'units' && $status->canBeDisposed()): ?>
+        <?php if ($canManage && $asset->method === 'units' && $status->canBeDisposed()): ?>
             <?= $modal('accounting_assets/usage_form/' . $id, lang('Accounting_assets.usage'), lang('Accounting_assets.usage_title')) ?>
         <?php endif; ?>
     </div>
@@ -199,7 +199,7 @@ $modal  = static fn (string $path, string $label, string $title, string $class =
                                 <td data-label="<?= esc(lang('Accounting_assets.history_state'), 'attr') ?>"><?= lang('Accounting_assets.run_' . $operation->status) ?></td>
                                 <td class="print_hide">
                                     <a href="<?= esc(base_url('accounting_journals/view/' . (int) $operation->journal_id), 'attr') ?>"><?= lang('Accounting_assets.journal') ?></a>
-                                    <?php if ($can_manage && $operation->status === 'active'): ?>
+                                    <?php if ($canManage && $operation->status === 'active'): ?>
                                         <?= $modal('accounting_assets/dispose_reverse_form/' . (int) $operation->operation_id, lang('Accounting_assets.reverse'), lang('Accounting_assets.reverse_disposal_title')) ?>
                                     <?php endif; ?>
                                 </td>

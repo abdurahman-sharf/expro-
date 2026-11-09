@@ -56,7 +56,7 @@ $option = static fn (string $current, string $wanted): string => $current === $w
                     <select name="category_id" id="category_id" class="form-select form-select-sm">
                         <option value=""><?= lang('Accounting_assets.none') ?></option>
                         <?php foreach ($categories as $category): ?>
-                            <option value="<?= (int) $category->category_id ?>"<?= (int) $value('category_id', '0') === (int) $category->category_id ? ' selected' : '' ?>><?= esc($category->name) ?></option>
+                            <option value="<?= (int) $category->category_id ?>" data-method="<?= esc((string) $category->method, 'attr') ?>" data-life="<?= (int) $category->life_months ?>"<?= (int) $value('category_id', '0') === (int) $category->category_id ? ' selected' : '' ?>><?= esc($category->name) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -222,7 +222,10 @@ $option = static fn (string $current, string $wanted): string => $current === $w
             </div>
             <div class="field m-fixed m-declining">
                 <label class="form-label" for="first_depreciation_date"><?= lang('Accounting_assets.field_first_date') ?></label>
-                <div class="field-control"><input type="date" name="first_depreciation_date" id="first_depreciation_date" class="form-control form-control-sm ltr-input" dir="ltr" value="<?= esc($value('first_depreciation_date'), 'attr') ?>"></div>
+                <div class="field-control">
+                    <input type="date" name="first_depreciation_date" id="first_depreciation_date" class="form-control form-control-sm ltr-input" dir="ltr" aria-describedby="first_date_hint" value="<?= esc($value('first_depreciation_date'), 'attr') ?>">
+                    <div class="form-text" id="first_date_hint" aria-live="polite"></div>
+                </div>
             </div>
             <div class="field m-fixed m-declining m-units">
                 <label class="form-label" for="end_date"><?= lang('Accounting_assets.field_end_date') ?></label>
@@ -344,6 +347,14 @@ $option = static fn (string $current, string $wanted): string => $current === $w
 
         let firstDateTouched = $('#first_depreciation_date').val() !== '';
 
+        const firstDateText = "<?= esc(lang('Accounting_assets.first_date_default'), 'js') ?>";
+
+        const showFirstDateDefault = function() {
+            const proposed = firstDateTouched ? '' : defaultFirstDate();
+
+            $('#first_date_hint').text(proposed === '' ? '' : firstDateText.replace('{0}', proposed));
+        };
+
         const method = function() {
             const chosen = $('#method').val();
 
@@ -355,6 +366,24 @@ $option = static fn (string $current, string $wanted): string => $current === $w
 
                 $(this).toggle(show);
             });
+        };
+
+        const fromCategory = function() {
+            const chosen = $('#category_id option:selected');
+            const categoryMethod = String(chosen.data('method') || '');
+            const categoryLife = parseInt(chosen.data('life'), 10) || 0;
+
+            if (categoryMethod !== '') {
+                $('#method').val(categoryMethod);
+                method();
+            }
+
+            if (categoryLife > 0) {
+                const wholeYears = categoryLife % 12 === 0;
+
+                $('#useful_life_value').val(wholeYears ? categoryLife / 12 : categoryLife);
+                $('#useful_life_unit').val(wholeYears ? 'years' : 'months');
+            }
         };
 
         const funding = function() {
@@ -387,8 +416,11 @@ $option = static fn (string $current, string $wanted): string => $current === $w
 
                 row.find('[data-field]').each(function() {
                     const field = $(this).data('field');
+                    const id = 'unit_' + index + '_' + field;
+                    const label = $(this).closest('.field').find('label');
 
-                    $(this).attr('name', 'units[' + index + '][' + field + ']').val(saved[field] || '');
+                    $(this).attr({ name: 'units[' + index + '][' + field + ']', id: id, 'aria-label': label.text() + ' (' + (index + 1) + ')' }).val(saved[field] || '');
+                    label.attr('for', id);
                 });
 
                 row.find('.unit-used-by').on('change', function() { custody(row); });
@@ -400,17 +432,17 @@ $option = static fn (string $current, string $wanted): string => $current === $w
         $('#method').on('change', method);
         $('#funding').on('change', funding);
         $('#track_units, #quantity').on('input change', units);
-        $('#first_depreciation_date').on('input', function() { firstDateTouched = $(this).val() !== ''; });
-        $('#in_service_date, #period_length, #period_interval').on('input change', function() {
-            if (!firstDateTouched) {
-                $('#first_depreciation_date').attr('placeholder', defaultFirstDate());
-            }
+        $('#first_depreciation_date').on('input', function() {
+            firstDateTouched = $(this).val() !== '';
+            showFirstDateDefault();
         });
+        $('#category_id').on('change', fromCategory);
+        $('#in_service_date, #period_length, #period_interval').on('input change', showFirstDateDefault);
 
         method();
         funding();
         units();
-        $('#first_depreciation_date').attr('placeholder', defaultFirstDate());
+        showFirstDateDefault();
 
         $('#asset_form').on('submit', function(event) {
             event.preventDefault();

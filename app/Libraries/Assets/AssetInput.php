@@ -59,7 +59,9 @@ final class AssetInput
 
         $purchase  = $this->date($input['purchase_date'] ?? '', 'purchase_date');
         $inService = $this->date($input['in_service_date'] ?? '', 'in_service_date');
-        $method    = AssetMethod::tryFrom(trim((string) ($input['method'] ?? ''))) ?? $this->fail('method');
+        $category  = $this->category($input['category_id'] ?? null);
+        $starts    = $existing === null ? $category : null;
+        $method    = AssetMethod::tryFrom($this->orDefault($input['method'] ?? '', (string) $starts?->method)) ?? $this->fail('method');
         $cost      = $this->amount($input['cost'] ?? '', 'cost', false);
         $salvage   = $method === AssetMethod::None ? bcadd('0', '0', self::SCALE) : $this->amount($input['salvage'] ?? '0', 'salvage', true);
 
@@ -68,12 +70,11 @@ final class AssetInput
         }
 
         $base   = bcsub($cost, $salvage, self::SCALE);
-        $life   = $this->lifeMonths($input);
+        $life   = $this->lifeMonths($input) ?? ($starts?->life_months === null ? null : (int) $starts->life_months);
         $period = $this->period($input, $method);
 
-        $category = $this->category($input['category_id'] ?? null);
-        $funding  = $this->funding($input);
-        $opening  = $funding === 'opening' || $funding === 'none';
+        $funding = $this->funding($input);
+        $opening = $funding === 'opening' || $funding === 'none';
 
         $accumulated = $opening ? $this->amount($input['opening_accumulated'] ?? '0', 'opening_accumulated', true) : $this->noOpeningAmount($input);
 
@@ -252,6 +253,13 @@ final class AssetInput
         }
 
         return ['length' => (int) $length, 'interval' => AssetInterval::tryFrom(trim((string) ($input['period_interval'] ?? '')) ?: AssetInterval::Month->value) ?? $this->fail('period_interval')];
+    }
+
+    private function orDefault(mixed $value, string $default): string
+    {
+        $text = trim((string) $value);
+
+        return $text === '' ? $default : $text;
     }
 
     /**

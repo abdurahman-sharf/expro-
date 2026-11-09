@@ -383,14 +383,18 @@ final class DepreciationRun
                 continue;
             }
 
-            $amount = $this->figures->due($asset, $period, $posted);
+            $amount = $this->figures->due($asset, $period, $posted, $locked);
 
             if (bccomp($amount, '0', self::SCALE) <= 0) {
                 continue;
             }
 
-            $lines[] = new DepreciationLine($asset, $amount, $this->figures->accumulated($asset, null, $locked), $asset->method === AssetMethod::Units->value ? $this->usage((int) $asset->asset_id, $period) : null, $this->figures->missed($asset, $period, $posted));
+            $lines[] = new DepreciationLine($asset, $amount, $this->figures->accumulated($asset, null, $locked), $asset->method === AssetMethod::Units->value ? $this->figures->usage((int) $asset->asset_id, $period, $locked) : null, $this->figures->missed($asset, $period, $posted, $locked));
             $total   = bcadd($total, $amount, self::SCALE);
+        }
+
+        if ($blocker === null && $lines !== [] && (int) $branch->active === 0) {
+            $blocker = new AccountingException(AccountingError::AssetBranchInactive, "Branch {$branch->code} is inactive.", ['name' => (string) $branch->code]);
         }
 
         $status = $blocker !== null ? DepreciationBranchStatus::Blocked : ($lines === [] ? DepreciationBranchStatus::NothingDue : DepreciationBranchStatus::Ready);
@@ -410,13 +414,6 @@ final class DepreciationRun
         $args  = [CompanyContext::id(), $branchId, AssetStatus::Active->value, AssetMethod::None->value, $period->end];
 
         return $locked ? LockedRead::rows($this->db, $sql, $args) : $this->db->query($sql, $args)->getResult();
-    }
-
-    private function usage(int $assetId, DepreciationPeriod $period): ?string
-    {
-        $row = $this->db->table('asset_usage')->where(['asset_id' => $assetId, 'period_start' => $period->start])->get()->getRow();
-
-        return $row === null ? null : bcadd((string) $row->units, '0', 2);
     }
 
     private function closedPeriod(int $branchId, DepreciationPeriod $period, bool $locked): ?AccountingException

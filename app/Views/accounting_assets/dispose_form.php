@@ -4,7 +4,7 @@
  * @var string       $kind
  * @var list<object> $treasuries
  * @var string       $today
- * @var string       $book_value
+ * @var string       $bookValue
  */
 $sale = $kind === 'sale';
 ?>
@@ -14,7 +14,7 @@ $sale = $kind === 'sale';
 
 <?= form_open('accounting_assets/dispose/' . esc($kind, 'attr') . '/' . (int) $asset->asset_id, ['id' => 'dispose_form', 'class' => 'app-form']) ?>
     <fieldset>
-        <p><?= esc(lang('Accounting_assets.dispose_summary', [$asset->code, $book_value])) ?></p>
+        <p><?= esc(lang('Accounting_assets.dispose_summary', [$asset->code, $bookValue])) ?></p>
         <p class="small text-body-secondary"><?= lang($sale ? 'Accounting_assets.sale_note' : 'Accounting_assets.write_off_note') ?></p>
         <div class="form-grid">
             <div class="field">

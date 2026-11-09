@@ -12,6 +12,7 @@ use App\Libraries\Accounting\DocumentJournals;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\LockedRead;
+use App\Libraries\Accounting\PeriodLocks;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingFailureLog;
 use App\Libraries\Accounting\RoutingResolver;
@@ -50,6 +51,7 @@ final class AssetRegister
     private AccountingSettings $settings;
     private AuditLog $audit;
     private DocumentNumbering $numbering;
+    private PeriodLocks $locks;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
@@ -65,6 +67,7 @@ final class AssetRegister
         $this->input     = new AssetInput($this->db, $schedule, $this->settings, $routing);
         $this->audit     = new AuditLog($this->db);
         $this->numbering = new DocumentNumbering($this->db);
+        $this->locks     = new PeriodLocks($this->db);
     }
 
     /**
@@ -139,6 +142,7 @@ final class AssetRegister
 
         return $this->attempt(function () use ($row, $data, $branchId, $employeeId): int {
             return $this->transactional(function () use ($row, $data, $branchId, $employeeId): int {
+                $this->holdBranches([$branchId]);
                 $this->assertCodeFree((string) $row['code'], null);
 
                 $assetId = $this->insert($row, $branchId, $employeeId);
@@ -173,9 +177,12 @@ final class AssetRegister
         $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);
 
         $known = $this->find($assetId, $employeeId);
+        $hold  = $this->existingBranches([(int) $known->branch_id, (int) ($input['branch_id'] ?? 0)]);
 
-        $this->attempt(function () use ($assetId, $input, $employeeId): void {
-            $this->transactional(function () use ($assetId, $input, $employeeId): void {
+        $this->attempt(function () use ($assetId, $input, $employeeId, $hold): void {
+            $this->transactional(function () use ($assetId, $input, $employeeId, $hold): void {
+                $this->holdBranches($hold);
+
                 $asset = $this->lock($assetId, $employeeId);
 
                 if (AssetStatus::from((string) $asset->status)->isDisposed()) {
@@ -200,7 +207,7 @@ final class AssetRegister
                     throw new AccountingException(AccountingError::AssetTermsLocked, 'A depreciation or a disposal stands, so the terms of the asset are changed only after it is taken back.', ['name' => implode(', ', $changed)]);
                 }
 
-                if ($changed !== [] && $row['funding'] === 'opening') {
+                if ($changed !== [] && ($row['funding'] === 'opening' || $asset->funding === 'opening')) {
                     $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);
                 }
 
@@ -234,7 +241,11 @@ final class AssetRegister
     {
         $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);
 
-        $this->transactional(function () use ($assetId, $active, $employeeId): void {
+        $hold = $this->existingBranches([$this->branchOfAsset($assetId)]);
+
+        $this->transactional(function () use ($assetId, $active, $employeeId, $hold): void {
+            $this->holdBranches($hold);
+
             $asset   = $this->lock($assetId, $employeeId);
             $current = AssetStatus::from((string) $asset->status);
 
@@ -262,12 +273,18 @@ final class AssetRegister
 
         $known = $this->find($assetId, $employeeId);
 
-        $this->attempt(function () use ($assetId, $employeeId): void {
-            $this->transactional(function () use ($assetId, $employeeId): void {
+        $this->attempt(function () use ($assetId, $employeeId, $known): void {
+            $this->transactional(function () use ($assetId, $employeeId, $known): void {
+                $this->holdBranches([(int) $known->branch_id]);
+
                 $asset = $this->lock($assetId, $employeeId);
 
                 if (AssetStatus::from((string) $asset->status)->isDisposed() || $this->hasHistory($assetId)) {
                     throw new AccountingException(AccountingError::AssetHasHistory, 'A depreciation or a disposal stands on the asset, so it is not deleted.', ['name' => (string) $asset->code]);
+                }
+
+                if ($asset->funding === 'opening') {
+                    $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);
                 }
 
                 $this->journals->sync(AssetSources::ACQUISITION, $assetId, null, $employeeId, 'Asset ' . $asset->code . ' deleted');
@@ -296,8 +313,11 @@ final class AssetRegister
         }
 
         $units = bcadd(trim($units), '0', 2);
+        $hold  = $this->existingBranches([$this->branchOfAsset($assetId)]);
 
-        $this->transactional(function () use ($assetId, $period, $units, $employeeId): void {
+        $this->transactional(function () use ($assetId, $period, $units, $employeeId, $hold): void {
+            $this->holdBranches($hold);
+
             $asset = $this->lock($assetId, $employeeId);
 
             if ($asset->method !== AssetMethod::Units->value || AssetStatus::from((string) $asset->status)->isDisposed()) {
@@ -506,6 +526,48 @@ final class AssetRegister
         }
 
         return $branchId;
+    }
+
+    /**
+     * The branches among those given that exist, in the order of their numbers, which is the order the
+     * runs of depreciation take them in. Read before the transaction, so that the first thing the
+     * transaction does is take the locks and its snapshot is not older than they are.
+     *
+     * @param list<int> $branchIds
+     *
+     * @return list<int>
+     */
+    private function existingBranches(array $branchIds): array
+    {
+        $wanted = array_values(array_filter(array_unique($branchIds), static fn (int $branchId): bool => $branchId > 0));
+
+        if ($wanted === []) {
+            return [];
+        }
+
+        $found = $this->db->table('branches')->select('branch_id')->where('company_id', CompanyContext::id())->whereIn('branch_id', $wanted)->orderBy('branch_id', 'ASC')->get()->getResult();
+
+        return array_map(static fn (object $row): int => (int) $row->branch_id, $found);
+    }
+
+    private function branchOfAsset(int $assetId): int
+    {
+        $row = $this->db->table('assets')->select('branch_id')->where('company_id', CompanyContext::id())->where('asset_id', $assetId)->get()->getRow();
+
+        return $row === null ? 0 : (int) $row->branch_id;
+    }
+
+    /**
+     * A depreciation run holds the lock of a branch before it reads the assets of the branch, so a change
+     * of an asset holds the same lock, shared, before it locks the asset: both take the two in one order.
+     *
+     * @param list<int> $branchIds In the order of their numbers.
+     */
+    private function holdBranches(array $branchIds): void
+    {
+        foreach ($branchIds as $branchId) {
+            $this->locks->shareForPosting($branchId);
+        }
     }
 
     /**

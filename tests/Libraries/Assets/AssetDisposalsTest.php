@@ -6,13 +6,18 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CostCenterService;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
+use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Assets\AssetDisposals;
 use App\Libraries\Assets\AssetSources;
 use App\Libraries\Assets\AssetStatus;
+use App\Libraries\Organization\BranchException;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Events\Events;
@@ -473,7 +478,7 @@ final class AssetDisposalsTest extends CIUnitTestCase
         try {
             $this->disposals->reverse($operationId, 'Not mine', $limited);
             $this->fail('The employee works in branch 1 only.');
-        } catch (\App\Libraries\Organization\BranchException $exception) {
+        } catch (BranchException $exception) {
             $this->assertSame('active', $this->operation($operationId)->status);
         }
     }
@@ -516,6 +521,182 @@ final class AssetDisposalsTest extends CIUnitTestCase
         $this->assertRefused(AccountingError::TreasuryDepositDenied, fn () => $this->disposals->sell($assetId, ['date' => '2026-05-10', 'proceeds' => '9000', 'treasury_id' => $treasury], $this->assetClerk));
         $this->assertSame(AssetStatus::Active->value, $this->asset($assetId)->status);
         $this->assertSame(0, $this->countRows('asset_operations'));
+    }
+
+    public function testReverse_RefusesATreasuryTheEmployeeMayNotTakeMoneyOutOf(): void
+    {
+        $assetId  = $this->depreciatedAsset();
+        $taker    = $this->employeeWithGrants([AccountingGuard::ASSETS_MANAGE]);
+        $treasury = (new TreasuryService())->create(['name' => 'Guarded cash ' . uniqid(), 'kind' => 'cash', 'branch_id' => 1, 'withdraw_scope' => 'staff', 'withdraw_members' => [$taker]], $this->assetClerk);
+
+        $operationId = $this->disposals->sell($assetId, ['date' => '2026-05-10', 'proceeds' => '9000', 'treasury_id' => $treasury], $this->assetClerk);
+
+        $this->assertRefused(AccountingError::TreasuryWithdrawDenied, fn () => $this->disposals->reverse($operationId, 'Not my money', $this->assetClerk));
+        $this->assertSame('active', $this->operation($operationId)->status);
+        $this->assertSame(AssetStatus::Sold->value, $this->asset($assetId)->status);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', AssetSources::SALE)->where('status', JournalStatus::Reversed->value)->countAllResults());
+
+        $this->disposals->reverse($operationId, 'Mine to take back', $taker);
+
+        $this->assertSame('reversed', $this->operation($operationId)->status);
+        $this->assertSame(AssetStatus::Active->value, $this->asset($assetId)->status);
+    }
+
+    public function testReverse_AsksNoTreasuryRightForAWriteOffThatMovesNoMoney(): void
+    {
+        $assetId     = $this->depreciatedAsset();
+        $operationId = $this->disposals->writeOff($assetId, ['date' => '2026-05-10'], $this->assetClerk);
+
+        $this->disposals->reverse($operationId, 'No money moved', $this->employeeWithGrants([AccountingGuard::ASSETS_MANAGE]));
+
+        $this->assertSame('reversed', $this->operation($operationId)->status);
+    }
+
+    public function testSell_RefusesAnAssetEnteredAsAlreadyInTheBooksWhenTheBooksDoNotHoldItsCost(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+
+        $assetId = $this->enterAsset(['funding' => 'none', 'treasury_id' => '']);
+
+        $exception = $this->assertRefused(AccountingError::AssetNotInBooks, fn () => $this->disposals->sell($assetId, ['date' => '2026-01-20', 'proceeds' => '12000', 'treasury_id' => $this->assetTreasury], $this->assetClerk));
+
+        $this->assertSame((string) $this->asset($assetId)->code, $exception->context['name']);
+        $this->assertRefused(AccountingError::AssetNotInBooks, fn () => $this->disposals->writeOff($assetId, ['date' => '2026-01-20'], $this->assetClerk));
+        $this->assertSame(AssetStatus::Active->value, $this->asset($assetId)->status);
+        $this->assertSame(0, $this->countRows('asset_operations'));
+        $this->assertSame('0.0000', $this->accountNet($this->accountId('fixed_assets')));
+        $this->assertSame('0.0000', $this->accountNet($this->treasuryAccount($this->assetTreasury)));
+    }
+
+    public function testSell_RefusesAnAssetEnteredAsAlreadyInTheBooksWhenOnlyItsAccumulatedDepreciationIsMissing(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+
+        $assetId = $this->enterAsset(['funding' => 'none', 'treasury_id' => '', 'opening_accumulated' => '3000']);
+
+        (new PostingService())->post($this->draftWithLines([
+            new JournalLineDraft($this->accountId('fixed_assets'), debit: '12000'),
+            new JournalLineDraft($this->accountId('opening_balance'), credit: '12000'),
+        ], '2026-01-01'));
+
+        $this->assertRefused(AccountingError::AssetNotInBooks, fn () => $this->disposals->writeOff($assetId, ['date' => '2026-01-20'], $this->assetClerk));
+        $this->assertSame(0, $this->countRows('asset_operations'));
+    }
+
+    public function testSell_TakesAnAssetEnteredAsAlreadyInTheBooksOutWhenTheBooksHoldIt(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+
+        $assetId = $this->enterAsset(['funding' => 'none', 'treasury_id' => '', 'opening_accumulated' => '3000']);
+
+        (new PostingService())->post($this->draftWithLines([
+            new JournalLineDraft($this->accountId('fixed_assets'), debit: '12000'),
+            new JournalLineDraft($this->accountId('accumulated_depreciation'), credit: '3000'),
+            new JournalLineDraft($this->accountId('opening_balance'), credit: '9000'),
+        ], '2026-01-01'));
+
+        $operationId = $this->disposals->sell($assetId, ['date' => '2026-01-20', 'proceeds' => '9000', 'treasury_id' => $this->assetTreasury], $this->assetClerk);
+
+        $this->assertSame('active', $this->operation($operationId)->status);
+        $this->assertSame('0.0000', $this->accountNet($this->accountId('fixed_assets')));
+        $this->assertSame('0.0000', $this->accountNet($this->accountId('accumulated_depreciation')));
+    }
+
+    public function testSell_AsksNoProofOfTheBooksForAnAssetItsOwnJournalBroughtIn(): void
+    {
+        $assetId = $this->enterAsset();
+
+        $operationId = $this->disposals->sell($assetId, ['date' => '2026-01-20', 'proceeds' => '12000', 'treasury_id' => $this->assetTreasury], $this->assetClerk);
+
+        $this->assertSame('active', $this->operation($operationId)->status);
+    }
+
+    public function testSell_TakesTheBranchLockBeforeItLocksTheAsset(): void
+    {
+        $assetId = $this->depreciatedAsset();
+
+        $this->assertTakesTheBranchLockBeforeTheAsset(fn () => $this->disposals->sell($assetId, ['date' => '2026-05-10', 'proceeds' => '9000', 'treasury_id' => $this->assetTreasury], $this->assetClerk));
+    }
+
+    public function testWriteOff_TakesTheBranchLockBeforeItLocksTheAsset(): void
+    {
+        $assetId = $this->depreciatedAsset();
+
+        $this->assertTakesTheBranchLockBeforeTheAsset(fn () => $this->disposals->writeOff($assetId, ['date' => '2026-05-10'], $this->assetClerk));
+    }
+
+    public function testReverse_TakesTheBranchLockBeforeItLocksTheAsset(): void
+    {
+        $assetId     = $this->depreciatedAsset();
+        $operationId = $this->disposals->writeOff($assetId, ['date' => '2026-05-10'], $this->assetClerk);
+
+        $this->assertTakesTheBranchLockBeforeTheAsset(fn () => $this->disposals->reverse($operationId, 'Wrong asset', $this->assetClerk));
+    }
+
+    public function testSell_RefusesAnAssetEnteredAsAlreadyInTheBooksWhenTheBooksHoldItInAnotherBranchOnly(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+        $assetId = $this->enterAsset(['funding' => 'none', 'treasury_id' => '']);
+
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-01-01',
+            lines: [new JournalLineDraft($this->accountId('fixed_assets'), debit: '12000'), new JournalLineDraft($this->accountId('opening_balance'), credit: '12000')],
+            sourceType: 'sale',
+            sourceId: 1,
+            employeeId: 1,
+            currencyCode: 'SAR',
+            branchId: $this->second,
+        ));
+
+        $this->assertRefused(AccountingError::AssetNotInBooks, fn () => $this->disposals->writeOff($assetId, ['date' => '2026-01-20'], $this->assetClerk));
+    }
+
+    public function testSell_RefusesAnAssetEnteredAsAlreadyInTheBooksWhenTheBooksHoldItOnlyFromALaterDay(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+        $assetId = $this->enterAsset(['funding' => 'none', 'treasury_id' => '']);
+
+        (new PostingService())->post($this->draftWithLines([
+            new JournalLineDraft($this->accountId('fixed_assets'), debit: '12000'),
+            new JournalLineDraft($this->accountId('opening_balance'), credit: '12000'),
+        ], '2026-01-25'));
+
+        $this->assertRefused(AccountingError::AssetNotInBooks, fn () => $this->disposals->writeOff($assetId, ['date' => '2026-01-20'], $this->assetClerk));
+
+        $this->disposals->writeOff($assetId, ['date' => '2026-01-25'], $this->assetClerk);
+
+        $this->assertSame(AssetStatus::WrittenOff->value, $this->asset($assetId)->status);
+    }
+
+    public function testSell_CountsAJournalThatWasTakenBackAsNotThereForAnAssetEnteredAsAlreadyInTheBooks(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+        $assetId = $this->enterAsset(['funding' => 'none', 'treasury_id' => '']);
+
+        $posted = (new PostingService())->post($this->draftWithLines([
+            new JournalLineDraft($this->accountId('fixed_assets'), debit: '12000'),
+            new JournalLineDraft($this->accountId('opening_balance'), credit: '12000'),
+        ], '2026-01-01'));
+
+        (new JournalService())->reverseAutomatic($posted->journalId, '2026-01-10', 'Entered twice', null);
+
+        $this->assertRefused(AccountingError::AssetNotInBooks, fn () => $this->disposals->writeOff($assetId, ['date' => '2026-01-20'], $this->assetClerk));
+    }
+
+    public function testWriteOff_ReadsTheUsageOfMonthsBeforeTheDisposalUnderAShareLock(): void
+    {
+        $assetId = $this->enterAsset(['method' => 'units', 'cost_per_unit' => '2.5', 'amount_per_period' => '']);
+        $usage   = preg_quote($this->accountingDb()->prefixTable('asset_usage'), '/');
+
+        $this->register->recordUsage($assetId, '2026-01', '10', $this->assetClerk);
+
+        $preview = $this->depreciation->preview(1, '2026-01', $this->assetRunner);
+
+        $this->depreciation->approve(1, '2026-01', $preview->fingerprint, $this->assetRunner);
+
+        $queries = $this->queriesOf(fn () => $this->disposals->writeOff($assetId, ['date' => '2026-03-10'], $this->assetClerk));
+
+        $this->assertCount(1, array_filter($queries, static fn (string $query): bool => preg_match('/SELECT period_start FROM ' . $usage . ' WHERE.*LOCK IN SHARE MODE/', $query) === 1));
     }
 
     public function testSell_HoldsAnAssetToOneDisposalThatStandsWhateverTheCodeDoes(): void

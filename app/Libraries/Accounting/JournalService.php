@@ -2,11 +2,11 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Assets\AssetSources;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
-use App\Libraries\Assets\AssetSources;
 use App\Libraries\Stock\StockPermitSources;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;

@@ -9,13 +9,16 @@ use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\LockedRead;
 use App\Libraries\Accounting\RunsInTransaction;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
 /**
  * The categories of assets: a name, the accounts and the method and life an asset of the category
- * starts from. A category that assets use is switched off and not deleted.
+ * starts from. A category serves every branch, so it is changed only by someone who works in all of
+ * them. A category that assets use is switched off and not deleted.
  */
 final class AssetCategories
 {
@@ -27,22 +30,27 @@ final class AssetCategories
 
     private BaseConnection $db;
     private AccountingGuard $guard;
+    private BranchGuard $branches;
     private AuditLog $audit;
 
-    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null)
+    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
-        $this->db    = $db ?? Database::connect();
-        $this->guard = $guard ?? new AccountingGuard();
-        $this->audit = new AuditLog($this->db);
+        $this->db       = $db ?? Database::connect();
+        $this->guard    = $guard ?? new AccountingGuard();
+        $this->branches = $branches ?? new BranchGuard($this->db);
+        $this->audit    = new AuditLog($this->db);
     }
 
     /**
+     * Each category with the assets in the register that use it (asset_count) and every asset that names
+     * it, deleted ones too, which is what keeps a category from being deleted (referenced_count).
+     *
      * @return list<object>
      */
     public function all(bool $activeOnly = false): array
     {
         $builder = $this->db->table('asset_categories c')
-            ->select('c.*, ca.code AS cost_code, ca.name AS cost_name, aa.code AS accumulated_code, aa.name AS accumulated_name, ea.code AS expense_code, ea.name AS expense_name, (SELECT COUNT(*) FROM ' . $this->db->prefixTable('assets') . ' a WHERE a.category_id = c.category_id AND a.deleted = 0) AS asset_count', false)
+            ->select('c.*, ca.code AS cost_code, ca.name AS cost_name, aa.code AS accumulated_code, aa.name AS accumulated_name, ea.code AS expense_code, ea.name AS expense_name, (SELECT COUNT(*) FROM ' . $this->db->prefixTable('assets') . ' a WHERE a.category_id = c.category_id AND a.deleted = 0) AS asset_count, (SELECT COUNT(*) FROM ' . $this->db->prefixTable('assets') . ' r WHERE r.category_id = c.category_id) AS referenced_count', false)
             ->join('accounting_accounts ca', 'ca.account_id = c.cost_account_id', 'left')
             ->join('accounting_accounts aa', 'aa.account_id = c.accumulated_account_id', 'left')
             ->join('accounting_accounts ea', 'ea.account_id = c.expense_account_id', 'left')
@@ -63,11 +71,12 @@ final class AssetCategories
     /**
      * @param array{name?: string, cost_account_id?: int|string, accumulated_account_id?: int|string, expense_account_id?: int|string, method?: string, life_months?: int|string} $input
      *
-     * @throws AccountingException
+     * @throws AccountingException|BranchException
      */
     public function save(array $input, ?int $employeeId = null, ?int $categoryId = null): int
     {
         $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $row = $this->normalize($input, $categoryId);
 
@@ -92,11 +101,12 @@ final class AssetCategories
     }
 
     /**
-     * @throws AccountingException
+     * @throws AccountingException|BranchException
      */
     public function setActive(int $categoryId, bool $active, ?int $employeeId = null): void
     {
         $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $this->transactional(function () use ($categoryId, $active, $employeeId): void {
             $this->lock($categoryId);
@@ -106,11 +116,12 @@ final class AssetCategories
     }
 
     /**
-     * @throws AccountingException
+     * @throws AccountingException|BranchException
      */
     public function delete(int $categoryId, ?int $employeeId = null): void
     {
         $this->guard->require(AccountingGuard::ASSETS_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
 
         $this->transactional(function () use ($categoryId, $employeeId): void {
             $row = $this->lock($categoryId);

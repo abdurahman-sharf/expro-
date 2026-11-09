@@ -9,9 +9,11 @@ use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\AssetFixtureTrait;
+use Throwable;
 
 /**
  * The two migrations of fixed assets: the tables, the module and the permissions that nobody is granted,
@@ -171,7 +173,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
 
         $this->assertGreaterThan($first, $this->enterAsset(['code' => 'DESK']));
 
-        $this->expectException(\Throwable::class);
+        $this->expectException(Throwable::class);
 
         $this->accountingDb()->table('assets')->insert([...(array) $this->accountingDb()->table('assets')->where('code', 'DESK')->where('deleted', 0)->get()->getRow(), 'asset_id' => null, 'code_slot' => null]);
     }
@@ -357,7 +359,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
     /**
      * @param array<string, mixed> $change
      */
-    #[\PHPUnit\Framework\Attributes\DataProvider('refusedRowProvider')]
+    #[DataProvider('refusedRowProvider')]
     public function testTables_RefuseARowTheCodeShouldNeverWrite(string $table, array $change): void
     {
         $this->startAssets();
@@ -365,7 +367,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
 
         $this->accountingDb()->table('asset_usage')->insert(['company_id' => 1, 'asset_id' => $assetId, 'period_start' => '2026-02-01', 'units' => '1']);
 
-        $this->expectException(\Throwable::class);
+        $this->expectException(Throwable::class);
 
         $this->accountingDb()->table($table)->where('asset_id', $assetId)->update($change);
     }
@@ -388,7 +390,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
             try {
                 $insert();
                 $this->fail('The database took the row ' . $index);
-            } catch (\Throwable $exception) {
+            } catch (Throwable $exception) {
                 $this->assertStringNotContainsString('The database took', $exception->getMessage());
             }
         }

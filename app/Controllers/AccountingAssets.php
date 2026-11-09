@@ -42,7 +42,7 @@ class AccountingAssets extends AccountingController
         parent::__construct('accounting_assets');
 
         $this->register     = new AssetRegister(null, null, $this->branchGuard());
-        $this->categories   = new AssetCategories();
+        $this->categories   = new AssetCategories(null, null, $this->branchGuard());
         $this->disposals    = new AssetDisposals(null, null, $this->branchGuard());
         $this->depreciation = new DepreciationRun(null, null, $this->branchGuard());
         $this->report       = new AssetsReport();
@@ -56,20 +56,20 @@ class AccountingAssets extends AccountingController
         $result = $this->report->build($scope, $filter);
 
         return view('accounting_assets/index', [
-            'result'      => $result,
-            'filter'      => $filter,
-            'scope'       => $scope,
-            'branches'    => $this->branchChoices($scope),
-            'scope_label' => $this->scopeLabel($scope),
-            'employees'   => $this->choices->employees(),
-            'accounts'    => $this->choices->accounts()['cost'],
-            'categories'  => $this->categories->all(),
-            'statuses'    => AssetStatus::cases(),
-            'can_manage'  => $this->can(AccountingGuard::ASSETS_MANAGE),
-            'csv_url'     => base_url('accounting_assets/csv') . '?' . $this->queryString($scope),
-            'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'        => fn (string $value): string => $this->formatDate($value),
-            'notice'      => session()->getFlashdata('accounting_notice'),
+            'result'     => $result,
+            'filter'     => $filter,
+            'scope'      => $scope,
+            'branches'   => $this->branchChoices($scope),
+            'scopeLabel' => $this->scopeLabel($scope),
+            'employees'  => $this->choices->employees(),
+            'accounts'   => $this->choices->accounts()['cost'],
+            'categories' => $this->categories->all(),
+            'statuses'   => AssetStatus::cases(),
+            'canManage'  => $this->can(AccountingGuard::ASSETS_MANAGE),
+            'csvUrl'     => base_url('accounting_assets/csv') . '?' . $this->queryString($scope),
+            'amount'     => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'       => fn (string $value): string => $this->formatDate($value),
+            'notice'     => session()->getFlashdata('accounting_notice'),
         ]);
     }
 
@@ -93,8 +93,8 @@ class AccountingAssets extends AccountingController
             'schedule'     => $this->upcoming($asset),
             'depreciation' => $this->history($assetId),
             'operations'   => $this->disposals->operations($this->employeeId(), $assetId),
-            'can_manage'   => $this->can(AccountingGuard::ASSETS_MANAGE),
-            'can_dispose'  => $this->can(AccountingGuard::ASSETS_MANAGE) && AssetStatus::from((string) $asset->status)->canBeDisposed(),
+            'canManage'    => $this->can(AccountingGuard::ASSETS_MANAGE),
+            'canDispose'   => $this->can(AccountingGuard::ASSETS_MANAGE) && AssetStatus::from((string) $asset->status)->canBeDisposed(),
             'amount'       => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'         => fn (string $value): string => $this->formatDate($value),
             'notice'       => session()->getFlashdata('accounting_notice'),
@@ -182,7 +182,7 @@ class AccountingAssets extends AccountingController
     {
         return $this->attempt(function () use ($assetId): array {
             $this->visible($assetId);
-            $this->register->recordUsage($assetId, trim((string) $this->request->getPost('month')), trim((string) $this->request->getPost('units')), $this->employeeId());
+            $this->register->recordUsage($assetId, trim($this->postedText('month')), trim($this->postedText('units')), $this->employeeId());
 
             $message = lang('Accounting_assets.usage_saved');
 
@@ -207,7 +207,7 @@ class AccountingAssets extends AccountingController
             'kind'       => $kind,
             'treasuries' => array_values(array_filter($this->choices->treasuries($this->branchIds()), static fn (object $treasury): bool => (int) $treasury->branch_id === (int) $asset->branch_id)),
             'today'      => date('Y-m-d'),
-            'book_value' => $this->formatAmount($asset->book_value),
+            'bookValue'  => $this->formatAmount($asset->book_value),
         ]);
     }
 
@@ -216,10 +216,10 @@ class AccountingAssets extends AccountingController
         return $this->attempt(function () use ($kind, $assetId): array {
             $this->visible($assetId);
 
-            $input = ['date' => trim((string) $this->request->getPost('date')), 'note' => (string) $this->request->getPost('note')];
+            $input = ['date' => trim($this->postedText('date')), 'note' => $this->postedText('note')];
 
             if ($kind === 'sale') {
-                $this->disposals->sell($assetId, $input + ['proceeds' => trim((string) $this->request->getPost('proceeds')), 'treasury_id' => (int) $this->request->getPost('treasury_id'), 'customer_id' => (int) $this->request->getPost('customer_id')], $this->employeeId());
+                $this->disposals->sell($assetId, $input + ['proceeds' => trim($this->postedText('proceeds')), 'treasury_id' => (int) $this->request->getPost('treasury_id'), 'customer_id' => (int) $this->request->getPost('customer_id')], $this->employeeId());
             } elseif ($kind === 'write_off') {
                 $this->disposals->writeOff($assetId, $input, $this->employeeId());
             } else {
@@ -250,7 +250,7 @@ class AccountingAssets extends AccountingController
     public function postDisposeReverse(int $operationId): ResponseInterface
     {
         return $this->attempt(function () use ($operationId): array {
-            $this->disposals->reverse($operationId, (string) $this->request->getPost('reason'), $this->employeeId());
+            $this->disposals->reverse($operationId, $this->postedText('reason'), $this->employeeId());
 
             $message = lang('Accounting_assets.disposal_reversed');
 
@@ -264,14 +264,16 @@ class AccountingAssets extends AccountingController
     {
         return view('accounting_assets/categories', [
             'categories' => $this->categories->all(),
-            'can_manage' => $this->can(AccountingGuard::ASSETS_MANAGE),
+            'canManage'  => $this->canManage(AccountingGuard::ASSETS_MANAGE),
             'notice'     => session()->getFlashdata('accounting_notice'),
         ]);
     }
 
     public function getCategoryForm(int $categoryId = NEW_ENTRY): string
     {
-        $this->requireManage();
+        if (! $this->canManage(AccountingGuard::ASSETS_MANAGE)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
 
         $category = $categoryId === NEW_ENTRY ? null : $this->categories->find($categoryId);
 
@@ -286,12 +288,12 @@ class AccountingAssets extends AccountingController
     {
         return $this->attempt(function () use ($categoryId): array {
             $id = $this->categories->save([
-                'name'                   => (string) $this->request->getPost('name'),
+                'name'                   => $this->postedText('name'),
                 'cost_account_id'        => (int) $this->request->getPost('cost_account_id'),
                 'accumulated_account_id' => (int) $this->request->getPost('accumulated_account_id'),
                 'expense_account_id'     => (int) $this->request->getPost('expense_account_id'),
-                'method'                 => (string) $this->request->getPost('method'),
-                'life_months'            => (string) $this->request->getPost('life_months'),
+                'method'                 => $this->postedText('method'),
+                'life_months'            => $this->postedText('life_months'),
             ], $this->employeeId(), $categoryId === NEW_ENTRY ? null : $categoryId);
 
             return ['success' => true, 'message' => lang('Accounting_assets.category_saved'), 'id' => $id];
@@ -334,7 +336,7 @@ class AccountingAssets extends AccountingController
         }
 
         return view('accounting_assets/depreciation', [
-            'can_run'  => $canRun,
+            'canRun'   => $canRun,
             'scopes'   => $options,
             'scope'    => $scope,
             'month'    => $month,
@@ -405,7 +407,7 @@ class AccountingAssets extends AccountingController
     public function postReverse(int $runId): ResponseInterface
     {
         return $this->attempt(function () use ($runId): array {
-            $this->depreciation->reverse($runId, (string) $this->request->getPost('reason'), $this->employeeId());
+            $this->depreciation->reverse($runId, $this->postedText('reason'), $this->employeeId());
 
             $message = lang('Accounting_assets.run_reverse_done');
 

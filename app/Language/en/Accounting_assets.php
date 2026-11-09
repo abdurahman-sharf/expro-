@@ -100,6 +100,7 @@ return [
     'filter_purchase_from'         => 'Bought from',
     'filter_purchase_to'           => 'Bought to',
     'filter_status'                => 'Status',
+    'first_date_default'           => 'Default if left empty: {0}',
     'form_note'                    => 'The first depreciation date is the day of going into service plus a period unless it is given. The accounts are those of the category, then those of the account routing, unless they are chosen.',
     'funding_none'                 => 'Already in the books (no journal)',
     'funding_opening'              => 'Opening balance of an old asset',

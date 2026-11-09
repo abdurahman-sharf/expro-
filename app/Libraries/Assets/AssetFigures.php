@@ -76,6 +76,22 @@ final class AssetFigures
     }
 
     /**
+     * The units the asset was used for in a period, or null when none were entered. Under a lock the row
+     * is read as it is committed now and not as the snapshot of a transaction that began earlier holds it.
+     *
+     * @return numeric-string|null
+     */
+    public function usage(int $assetId, DepreciationPeriod $period, bool $lock = false): ?string
+    {
+        $table = $this->db->prefixTable('asset_usage');
+        $sql   = "SELECT units FROM {$table} WHERE asset_id = ? AND period_start = ?" . ($lock ? ' LOCK IN SHARE MODE' : '');
+        $args  = [$assetId, $period->start];
+        $row   = $lock ? LockedRead::row($this->db, $sql, $args) : $this->db->query($sql, $args)->getRow();
+
+        return $row === null ? null : bcadd((string) $row->units, '0', 2);
+    }
+
+    /**
      * What the asset is to be depreciated by for a period, whether or not it has been run: the events
      * of its schedule that fall in the period, or for the units of production method the units its
      * period was used for at the cost of a unit. Nothing for an asset that is not depreciated, and
@@ -85,13 +101,13 @@ final class AssetFigures
      *
      * @return numeric-string
      */
-    public function due(object $asset, DepreciationPeriod $period, array $posted): string
+    public function due(object $asset, DepreciationPeriod $period, array $posted, bool $lock = false): string
     {
         $terms  = self::termsOf($asset);
         $zero   = bcadd('0', '0', self::SCALE);
         $amount = match ($terms->method) {
             AssetMethod::Fixed, AssetMethod::Declining => $this->schedule->between($terms, $period->previous()->end, $period->end),
-            AssetMethod::Units => $this->unitsDue($asset, $terms, $period, $posted),
+            AssetMethod::Units => $this->unitsDue($asset, $terms, $period, $posted, $lock),
             AssetMethod::None  => $zero,
         };
 
@@ -111,7 +127,7 @@ final class AssetFigures
      *
      * @return list<string> The months, YYYY-MM.
      */
-    public function missed(object $asset, DepreciationPeriod $period, array $posted): array
+    public function missed(object $asset, DepreciationPeriod $period, array $posted, bool $lock = false): array
     {
         $terms  = self::termsOf($asset);
         $before = $period->previous()->end;
@@ -127,8 +143,10 @@ final class AssetFigures
             }
         } elseif ($terms->method === AssetMethod::Units) {
             $table = $this->db->prefixTable('asset_usage');
+            $sql   = "SELECT period_start FROM {$table} WHERE asset_id = ? AND units > 0 AND period_start <= ? ORDER BY period_start" . ($lock ? ' LOCK IN SHARE MODE' : '');
+            $args  = [(int) $asset->asset_id, $before];
 
-            foreach ($this->db->query("SELECT period_start FROM {$table} WHERE asset_id = ? AND units > 0 AND period_start <= ? ORDER BY period_start", [(int) $asset->asset_id, $before])->getResult() as $row) {
+            foreach ($lock ? LockedRead::rows($this->db, $sql, $args) : $this->db->query($sql, $args)->getResult() as $row) {
                 if (! isset($posted[(string) $row->period_start])) {
                     $months[substr((string) $row->period_start, 0, 7)] = true;
                 }
@@ -143,15 +161,14 @@ final class AssetFigures
      *
      * @return numeric-string
      */
-    private function unitsDue(object $asset, AssetTerms $terms, DepreciationPeriod $period, array $posted): string
+    private function unitsDue(object $asset, AssetTerms $terms, DepreciationPeriod $period, array $posted, bool $lock): string
     {
-        $table = $this->db->prefixTable('asset_usage');
-        $usage = $this->db->query("SELECT units FROM {$table} WHERE asset_id = ? AND period_start = ?", [(int) $asset->asset_id, $period->start])->getRow();
+        $usage = $this->usage((int) $asset->asset_id, $period, $lock);
 
         if ($usage === null) {
             return bcadd('0', '0', self::SCALE);
         }
 
-        return $this->schedule->forUnits($terms, (string) $usage->units, array_reduce($posted, static fn (string $sum, string $line): string => bcadd($sum, $line, self::SCALE), '0'));
+        return $this->schedule->forUnits($terms, $usage, array_reduce($posted, static fn (string $sum, string $line): string => bcadd($sum, $line, self::SCALE), '0'));
     }
 }

@@ -4,9 +4,13 @@ namespace Tests\Libraries\Assets;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Organization\BranchError;
+use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\AssetFixtureTrait;
 
@@ -114,7 +118,7 @@ final class AssetCategoriesTest extends CIUnitTestCase
     /**
      * @param array<string, mixed> $input
      */
-    #[\PHPUnit\Framework\Attributes\DataProvider('invalidInputProvider')]
+    #[DataProvider('invalidInputProvider')]
     public function testSave_RejectsANameThatIsNotAName(array $input): void
     {
         $this->assertRefused(AccountingError::AssetCategoryInvalid, fn () => $this->categories->save($input, $this->assetClerk));
@@ -213,6 +217,47 @@ final class AssetCategoriesTest extends CIUnitTestCase
 
         $this->assertRefused(AccountingError::PermissionDenied, fn () => $this->categories->delete($id, $this->employeeWithGrants([])));
         $this->assertNotNull($this->categories->find($id));
+    }
+
+    public function testSave_RefusesWhoDoesNotWorkInEveryBranchBecauseACategoryServesThemAll(): void
+    {
+        $id      = $this->categories->save(['name' => 'Furniture'], $this->assetClerk);
+        $limited = $this->employeeWithGrants([AccountingGuard::ASSETS_MANAGE], [1]);
+
+        $actions = [
+            'new'        => fn () => $this->categories->save(['name' => 'Vehicles'], $limited),
+            'change'     => fn () => $this->categories->save(['name' => 'Furniture', 'life_months' => '12'], $limited, $id),
+            'switch off' => fn () => $this->categories->setActive($id, false, $limited),
+            'delete'     => fn () => $this->categories->delete($id, $limited),
+        ];
+
+        foreach ($actions as $name => $action) {
+            try {
+                $action();
+                $this->fail('A branch of their own is not every branch: ' . $name);
+            } catch (BranchException $exception) {
+                $this->assertSame(BranchError::CompanyScopeNeeded, $exception->error, $name);
+            }
+        }
+
+        $category = $this->categories->find($id);
+
+        $this->assertSame(1, $this->countRows('asset_categories'));
+        $this->assertSame(1, (int) $category->active);
+        $this->assertNull($category->life_months);
+    }
+
+    public function testAll_CountsADeletedAssetAsNamingItsCategoryButNotAsAnAssetOfTheRegister(): void
+    {
+        $id      = $this->categories->save(['name' => 'Furniture'], $this->assetClerk);
+        $assetId = $this->enterAsset(['category_id' => $id]);
+
+        $this->register->delete($assetId, $this->assetClerk);
+
+        $row = $this->categories->all()[0];
+
+        $this->assertSame(0, (int) $row->asset_count);
+        $this->assertSame(1, (int) $row->referenced_count);
     }
 
     public function testAll_CountsTheAssetsOfEachCategoryAndNamesItsAccounts(): void

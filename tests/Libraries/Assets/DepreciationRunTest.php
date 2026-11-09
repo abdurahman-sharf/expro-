@@ -5,8 +5,11 @@ namespace Tests\Libraries\Assets;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\JournalStatus;
+use App\Libraries\Accounting\PeriodLocks;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Assets\AssetSources;
@@ -300,7 +303,7 @@ final class DepreciationRunTest extends CIUnitTestCase
 
         $exception = $this->assertRefused(AccountingError::AssetPeriodClosed, fn () => $this->depreciation->approve(1, '2026-02', $preview->fingerprint, $this->assetRunner));
 
-        $this->assertStringContainsString('2026-02', \App\Libraries\Accounting\AccountingMessage::of($exception));
+        $this->assertStringContainsString('2026-02', AccountingMessage::of($exception));
         $this->assertSame(0, $this->postedRows($assetId));
         $this->assertSame(0, $this->countRows('asset_depreciation_runs'));
     }
@@ -531,7 +534,7 @@ final class DepreciationRunTest extends CIUnitTestCase
 
     public function testApprove_ChargesTheCostCenterOfTheAssetOnTheExpenseLine(): void
     {
-        $center  = (new \App\Libraries\Accounting\CostCenterService())->create(['code' => 'CC1', 'name' => 'Workshop']);
+        $center  = (new CostCenterService())->create(['code' => 'CC1', 'name' => 'Workshop']);
         $assetId = $this->enterAsset(['cost_center_id' => $center]);
 
         [$runId] = $this->runMonth('2026-02');
@@ -577,6 +580,100 @@ final class DepreciationRunTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('asset_depreciation_runs'));
     }
 
+    public function testPreview_BlocksABranchThatIsSwitchedOffWhileAnAssetIsDueInIt(): void
+    {
+        $this->enterAsset();
+        $this->enterAsset(['branch_id' => $this->second, 'funding' => 'payable', 'treasury_id' => '', 'name' => 'Chair']);
+        $this->accountingDb()->table('branches')->where('branch_id', $this->second)->update(['active' => 0]);
+
+        $preview = $this->depreciation->preview(null, '2026-02', $this->assetRunner);
+
+        $this->assertFalse($preview->canApprove());
+        $this->assertSame([DepreciationBranchStatus::Ready, DepreciationBranchStatus::Blocked], array_map(static fn ($plan): DepreciationBranchStatus => $plan->status, $preview->branches));
+        $this->assertSame(AccountingError::AssetBranchInactive, $preview->blockers[0]->error);
+        $this->assertSame('T2', $preview->blockers[0]->context['name']);
+    }
+
+    public function testApprove_RefusesTheRunOfTheCompanyByNameWhileABranchWithDueAssetsIsSwitchedOff(): void
+    {
+        $this->enterAsset();
+        $this->enterAsset(['branch_id' => $this->second, 'funding' => 'payable', 'treasury_id' => '', 'name' => 'Chair']);
+        $this->accountingDb()->table('branches')->where('branch_id', $this->second)->update(['active' => 0]);
+
+        $preview = $this->depreciation->preview(null, '2026-02', $this->assetRunner);
+        $failures = $this->countRows('accounting_posting_failures');
+
+        $this->assertRefused(AccountingError::AssetBranchInactive, fn () => $this->depreciation->approve(null, '2026-02', $preview->fingerprint, $this->assetRunner));
+
+        $this->assertSame(0, $this->countRows('asset_depreciation_runs'));
+        $this->assertSame($failures, $this->countRows('accounting_posting_failures'), 'it is refused before anything is posted');
+
+        $this->assertCount(1, $this->runMonth('2026-02', 1));
+
+        $this->accountingDb()->table('branches')->where('branch_id', $this->second)->update(['active' => 1]);
+
+        $this->assertCount(1, $this->runMonth('2026-02', $this->second));
+    }
+
+    public function testPreview_NamesTheClosedPeriodBeforeASwitchedOffBranch(): void
+    {
+        $this->enterAsset(['branch_id' => $this->second, 'funding' => 'payable', 'treasury_id' => '', 'name' => 'Chair']);
+        $this->accountingDb()->table('branches')->where('branch_id', $this->second)->update(['active' => 0]);
+        $this->closeThrough('2026-02-28');
+
+        $preview = $this->depreciation->preview($this->second, '2026-02', $this->assetRunner);
+
+        $this->assertSame([AccountingError::AssetPeriodClosed], array_map(static fn (AccountingException $blocker): AccountingError => $blocker->error, $preview->blockers));
+    }
+
+    public function testPreview_AsksNothingOfASwitchedOffBranchThatHoldsNothingDue(): void
+    {
+        $this->enterAsset();
+        $this->accountingDb()->table('branches')->where('branch_id', $this->second)->update(['active' => 0]);
+
+        $preview = $this->depreciation->preview(null, '2026-02', $this->assetRunner);
+
+        $this->assertTrue($preview->canApprove());
+        $this->assertSame([DepreciationBranchStatus::Ready, DepreciationBranchStatus::NothingDue], array_map(static fn ($plan): DepreciationBranchStatus => $plan->status, $preview->branches));
+    }
+
+    public function testApprove_ReadsTheUsageAsItIsCommittedNowAndNotAsTheSnapshotOfItsTransactionHoldsIt(): void
+    {
+        $assetId = $this->enterAsset(['method' => 'units', 'cost_per_unit' => '2.5', 'total_units' => '4800', 'amount_per_period' => '', 'cost' => '12000']);
+
+        $this->register->recordUsage($assetId, '2026-02', '100', $this->assetClerk);
+
+        $preview = $this->depreciation->preview(1, '2026-02', $this->assetRunner);
+
+        $this->other = $this->openSecondConnection();
+        $this->startWithSnapshot($this->other);
+
+        $this->register->recordUsage($assetId, '2026-02', '150', $this->assetClerk);
+
+        $this->assertRefused(AccountingError::AssetRunChanged, fn () => (new DepreciationRun($this->other))->approve(1, '2026-02', $preview->fingerprint, $this->assetRunner));
+
+        $this->assertSame(0, $this->postedRows($assetId));
+        $this->assertSame('0.0000', $this->accumulatedNet());
+    }
+
+    public function testApprove_TakesTheUsageOfAnAssetUnderAShareLockWhereThePreviewTakesNone(): void
+    {
+        $assetId = $this->enterAsset(['method' => 'units', 'cost_per_unit' => '2.5', 'total_units' => '4800', 'amount_per_period' => '', 'cost' => '12000']);
+
+        $this->register->recordUsage($assetId, '2026-02', '100', $this->assetClerk);
+
+        $usage   = preg_quote($this->accountingDb()->prefixTable('asset_usage'), '/');
+        $preview = $this->depreciation->preview(1, '2026-02', $this->assetRunner);
+        $reads   = $this->queriesOf(fn () => $this->depreciation->preview(1, '2026-02', $this->assetRunner));
+
+        $this->assertSame([], array_values(array_filter($reads, static fn (string $query): bool => preg_match('/FROM ' . $usage . ' WHERE.*LOCK IN SHARE MODE/', $query) === 1)));
+
+        $locked = $this->queriesOf(fn () => $this->depreciation->approve(1, '2026-02', $preview->fingerprint, $this->assetRunner));
+
+        $this->assertCount(2, array_filter($locked, static fn (string $query): bool => preg_match('/SELECT units FROM ' . $usage . ' WHERE.*LOCK IN SHARE MODE/', $query) === 1), 'the amount due and the units of the line are both read as committed now');
+        $this->assertCount(1, array_filter($locked, static fn (string $query): bool => preg_match('/SELECT period_start FROM ' . $usage . ' WHERE.*LOCK IN SHARE MODE/', $query) === 1), 'and so are the months that were not run');
+    }
+
     public function testApprove_WritesOnlyOneRunWhenAnotherRequestRunsTheMonthFirst(): void
     {
         $assetId = $this->enterAsset();
@@ -601,7 +698,7 @@ final class DepreciationRunTest extends CIUnitTestCase
 
         $this->other = $this->openSecondConnection();
         $this->other->transStart();
-        (new \App\Libraries\Accounting\PeriodLocks($this->other))->holdBranch(1);
+        (new PeriodLocks($this->other))->holdBranch(1);
 
         $this->assertWaitsForLock(fn () => $this->depreciation->approve(1, '2026-02', $preview->fingerprint, $this->assetRunner));
 

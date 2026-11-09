@@ -212,7 +212,7 @@ enum RoutingKey: string
             self::AssetCost, self::AssetAccumulated => [AccountType::Asset],
             self::AssetExpense => [AccountType::Expense],
             self::AssetGain, self::AssetLoss => [AccountType::Revenue, AccountType::Expense],
-            self::AssetPayable => [AccountType::Liability],
+            self::AssetPayable     => [AccountType::Liability],
             self::RetainedEarnings => [AccountType::Equity],
             self::TaxInput         => [AccountType::Asset, AccountType::Liability],
             default                => [],

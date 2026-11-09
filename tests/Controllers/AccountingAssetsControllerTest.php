@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Assets\AssetDisposals;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -29,6 +30,8 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace;
+    private const MARKUP = '<script>alert(7)</script>';
+
     private int $second;
 
     protected function setUp(): void
@@ -89,6 +92,29 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
     private function runMonth(string $month = '2026-02', int $branchId = 1): int
     {
         return $this->depreciation->approve($branchId, $month, $this->fingerprint($month, $branchId), $this->assetRunner)[0];
+    }
+
+    private function assertEscaped(object $response): void
+    {
+        $body = $response->getBody();
+
+        $this->assertStringContainsString('alert(7)', $body, 'the text is shown');
+        $this->assertStringNotContainsString(self::MARKUP, $body, 'but never as markup');
+    }
+
+    private function markedAsset(): int
+    {
+        $category = $this->categories->save(['name' => self::MARKUP . ' category'], $this->assetClerk);
+
+        return $this->enterAsset([
+            'name'               => self::MARKUP . ' desk',
+            'description'        => self::MARKUP . ' about',
+            'purchase_reference' => self::MARKUP . ' reference',
+            'category_id'        => $category,
+            'track_units'        => '1',
+            'quantity'           => '1',
+            'units'              => [['serial_number' => self::MARKUP . ' serial', 'barcode' => self::MARKUP . ' barcode', 'physical_location' => self::MARKUP . ' floor']],
+        ]);
     }
 
     public function testGetIndex_IsNotFoundWhileAccountingIsOff(): void
@@ -345,7 +371,7 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
         $this->post('/accounting_assets/save/' . $assetId, $this->assetInput(['name' => 'Renamed']));
     }
 
-    public function testPostDelete_AndPostStatus_ChangeTheAssetAsTheServiceDoes(): void
+    public function testPostStatus_TakesAnAssetOutOfServiceAndPutsItBack(): void
     {
         $assetId = $this->enterAsset();
         $this->manager();
@@ -359,14 +385,21 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
 
         $this->assertSame('active', $this->accountingDb()->table('assets')->where('asset_id', $assetId)->get()->getRow()->status);
         $this->assertTrue($on['success']);
+    }
+
+    public function testPostDeleteAsset_TakesAnAssetEnteredByMistakeOutWithItsJournal(): void
+    {
+        $assetId = $this->enterAsset();
+        $this->manager();
 
         $deleted = $this->postJson('/accounting_assets/delete/' . $assetId);
 
         $this->assertTrue($deleted['success']);
+        $this->assertSame(1, (int) $this->accountingDb()->table('assets')->where('asset_id', $assetId)->get()->getRow()->deleted);
         $this->assertSame('0.0000', $this->accountNet($this->accountId('fixed_assets')));
     }
 
-    public function testPostDelete_SaysInWordsWhyAnAssetADepreciationStandsOnIsKept(): void
+    public function testPostDeleteAsset_SaysInWordsWhyAnAssetADepreciationStandsOnIsKept(): void
     {
         $assetId = $this->enterAsset();
         $this->runMonth();
@@ -510,7 +543,7 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_asset_operation_reversed'), $again['message']);
     }
 
-    public function testCategories_AreListedAddedChangedSwitchedOffAndDeleted(): void
+    public function testPostSaveCategory_AddsACategoryTheListShowsAndTheFormEditsAndRefusesAnotherWithItsName(): void
     {
         $this->manager();
 
@@ -531,19 +564,61 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
 
         $this->assertSame(lang('Accounting.error_asset_category_invalid'), $duplicate['message']);
 
+        $changed = $this->postJson('/accounting_assets/save_category/' . $added['id'], ['name' => 'Furniture', 'life_months' => '36']);
+
+        $this->assertTrue($changed['success'], $changed['message']);
+        $this->assertSame(36, (int) $this->accountingDb()->table('asset_categories')->where('category_id', $added['id'])->get()->getRow()->life_months);
+    }
+
+    public function testPostCategoryActive_SwitchesACategoryOffAndOn(): void
+    {
+        $this->manager();
+
+        $added = $this->postJson('/accounting_assets/save_category', ['name' => 'Furniture']);
+
         $this->assertTrue($this->postJson('/accounting_assets/category_active/' . $added['id'] . '/0')['success']);
         $this->assertSame(0, (int) $this->accountingDb()->table('asset_categories')->where('category_id', $added['id'])->get()->getRow()->active);
 
         $this->postJson('/accounting_assets/category_active/' . $added['id'] . '/1');
-        $this->enterAsset(['category_id' => $added['id']]);
 
-        $inUse = $this->postJson('/accounting_assets/delete_category/' . $added['id']);
+        $this->assertSame(1, (int) $this->accountingDb()->table('asset_categories')->where('category_id', $added['id'])->get()->getRow()->active);
+    }
+
+    public function testPostDeleteCategory_KeepsACategoryAnAssetUsesAndDeletesOneNoAssetNames(): void
+    {
+        $this->manager();
+
+        $used  = $this->postJson('/accounting_assets/save_category', ['name' => 'Furniture']);
+        $empty = $this->postJson('/accounting_assets/save_category', ['name' => 'Spare']);
+
+        $this->enterAsset(['category_id' => $used['id']]);
+
+        $inUse = $this->postJson('/accounting_assets/delete_category/' . $used['id']);
 
         $this->assertFalse($inUse['success']);
         $this->assertSame(lang('Accounting.error_asset_category_in_use', ['Furniture']), $inUse['message']);
+
+        $this->assertTrue($this->postJson('/accounting_assets/delete_category/' . $empty['id'])['success']);
+        $this->assertSame(1, $this->countRows('asset_categories'));
     }
 
-    public function testCategories_AreNotChangedByWhoMayOnlyRead(): void
+    public function testGetCategories_OffersTheDeleteOnlyForACategoryNoAssetNamesNotEvenADeletedOne(): void
+    {
+        $this->manager();
+
+        $used  = $this->postJson('/accounting_assets/save_category', ['name' => 'Furniture']);
+        $empty = $this->postJson('/accounting_assets/save_category', ['name' => 'Spare']);
+
+        $assetId = $this->enterAsset(['category_id' => $used['id']]);
+        $this->register->delete($assetId, $this->assetClerk);
+
+        $page = $this->get('/accounting_assets/categories');
+
+        $page->assertSee('accounting_assets/delete_category/' . $empty['id']);
+        $page->assertDontSee('accounting_assets/delete_category/' . $used['id']);
+    }
+
+    public function testPostSaveCategory_RejectsAnEmployeeWithoutThePermissionToChangeTheRegister(): void
     {
         $this->actAsWith(['accounting_assets']);
 
@@ -552,6 +627,27 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
         $denied = $this->postJson('/accounting_assets/save_category', ['name' => 'Furniture']);
 
         $this->assertSame(lang('Accounting.error_permission_denied'), $denied['message']);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_assets/category_form');
+    }
+
+    public function testPostSaveCategory_RejectsAnEmployeeWhoDoesNotWorkInEveryBranch(): void
+    {
+        $this->manager([1]);
+
+        $this->get('/accounting_assets/categories')->assertDontSee('id="new_category"');
+
+        $denied = $this->postJson('/accounting_assets/save_category', ['name' => 'Furniture']);
+
+        $this->assertFalse($denied['success']);
+        $this->assertSame(0, $this->countRows('asset_categories'));
+    }
+
+    public function testGetCategoryForm_IsNotFoundForAnEmployeeWhoDoesNotWorkInEveryBranch(): void
+    {
+        $this->manager([1]);
 
         $this->expectException(PageNotFoundException::class);
 
@@ -721,6 +817,167 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
         $refused = $this->postJson('/accounting_assets/usage/' . $assetId, ['month' => '2026-13', 'units' => '1']);
 
         $this->assertFalse($refused['success']);
+    }
+
+    public function testPostDisposeReverse_RejectsAReasonThatIsNotText(): void
+    {
+        $assetId     = $this->enterAsset();
+        $operationId = (new AssetDisposals())->writeOff($assetId, ['date' => '2026-01-20'], $this->assetClerk);
+        $this->manager();
+
+        $refused = $this->postJson('/accounting_assets/dispose_reverse/' . $operationId, ['reason' => ['Mistake']]);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_reason_required'), $refused['message']);
+        $this->assertSame('active', $this->accountingDb()->table('asset_operations')->where('operation_id', $operationId)->get()->getRow()->status);
+    }
+
+    public function testPostReverse_RejectsAReasonThatIsNotText(): void
+    {
+        $this->enterAsset(['code' => 'DESK']);
+        $runId = $this->runMonth();
+        $this->runner();
+
+        $refused = $this->postJson('/accounting_assets/depreciation/reverse/' . $runId, ['reason' => ['Wrong month']]);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_reason_required'), $refused['message']);
+        $this->assertSame('active', $this->accountingDb()->table('asset_depreciation_runs')->where('run_id', $runId)->get()->getRow()->status);
+    }
+
+    public function testPostUsage_RejectsAMonthAndUnitsThatAreNotText(): void
+    {
+        $assetId = $this->enterAsset(['method' => 'units', 'cost_per_unit' => '2.5', 'amount_per_period' => '']);
+        $this->manager();
+
+        $month = $this->postJson('/accounting_assets/usage/' . $assetId, ['month' => ['2026-02'], 'units' => '10']);
+        $units = $this->postJson('/accounting_assets/usage/' . $assetId, ['month' => '2026-02', 'units' => ['10']]);
+
+        $this->assertFalse($month['success']);
+        $this->assertFalse($units['success']);
+        $this->assertSame(0, $this->countRows('asset_usage'));
+    }
+
+    public function testPostDispose_RejectsADateAndProceedsThatAreNotText(): void
+    {
+        $assetId = $this->enterAsset();
+        $this->manager();
+
+        $date     = $this->postJson('/accounting_assets/dispose/write_off/' . $assetId, ['date' => ['2026-01-20']]);
+        $proceeds = $this->postJson('/accounting_assets/dispose/sale/' . $assetId, ['date' => '2026-01-20', 'proceeds' => ['100'], 'treasury_id' => $this->assetTreasury]);
+
+        $this->assertFalse($date['success']);
+        $this->assertSame(lang('Accounting.error_asset_disposal_date_invalid', ['']), $date['message']);
+        $this->assertFalse($proceeds['success']);
+        $this->assertSame(0, $this->countRows('asset_operations'));
+    }
+
+    public function testPostSaveCategory_RejectsANameThatIsNotText(): void
+    {
+        $this->manager();
+
+        $refused = $this->postJson('/accounting_assets/save_category', ['name' => ['Furniture']]);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_asset_category_invalid'), $refused['message']);
+        $this->assertSame(0, $this->countRows('asset_categories'));
+    }
+
+    public function testGetIndex_EscapesMarkupInTheNameOfAnAssetAndOfItsCategory(): void
+    {
+        $this->markedAsset();
+        $this->actAsWith(['accounting_assets']);
+
+        $this->assertEscaped($this->get('/accounting_assets?as_of=2026-02-28'));
+    }
+
+    public function testGetDetail_EscapesMarkupInTheTextsOfAnAssetAndItsUnits(): void
+    {
+        $assetId = $this->markedAsset();
+        $this->actAsWith(['accounting_assets']);
+
+        $body = $this->get('/accounting_assets/view/' . $assetId)->getBody();
+
+        foreach (['desk', 'about', 'category', 'serial', 'barcode', 'floor'] as $text) {
+            $this->assertStringNotContainsString(self::MARKUP . ' ' . $text, $body, $text);
+            $this->assertStringContainsString(htmlspecialchars(self::MARKUP, ENT_QUOTES) . ' ' . $text, $body, $text);
+        }
+    }
+
+    public function testGetForm_EscapesMarkupInTheValuesOfTheAssetBeingEdited(): void
+    {
+        $assetId = $this->markedAsset();
+        $this->manager();
+
+        $body = $this->get('/accounting_assets/form/' . $assetId)->getBody();
+
+        $this->assertStringContainsString('alert', $body, 'the values are shown');
+
+        foreach (['desk', 'about', 'reference', 'category', 'serial', 'barcode', 'floor'] as $text) {
+            $this->assertStringNotContainsString(self::MARKUP . ' ' . $text, $body, $text);
+        }
+    }
+
+    public function testGetForm_KeepsTheUnitsOfTheAssetFromClosingTheScriptThatCarriesThem(): void
+    {
+        $assetId = $this->enterAsset(['track_units' => '1', 'quantity' => '1', 'units' => [['serial_number' => '</script><b id="broken">']]]);
+        $this->manager();
+
+        $body = $this->get('/accounting_assets/form/' . $assetId)->getBody();
+
+        $this->assertStringNotContainsString('</script><b id="broken">', $body);
+        $this->assertStringContainsString('\\u003C\\/script\\u003E', $body);
+    }
+
+    public function testGetCategories_EscapesMarkupInTheNameOfACategory(): void
+    {
+        $this->markedAsset();
+        $this->manager();
+
+        $this->assertEscaped($this->get('/accounting_assets/categories'));
+    }
+
+    public function testGetCategoryForm_EscapesMarkupInTheNameOfTheCategoryBeingEdited(): void
+    {
+        $this->markedAsset();
+        $this->manager();
+
+        $id = (int) $this->accountingDb()->table('asset_categories')->get()->getRow()->category_id;
+
+        $this->assertEscaped($this->get('/accounting_assets/category_form/' . $id));
+    }
+
+    public function testGetDepreciation_EscapesMarkupInTheNamesOfTheAssetsAndTheBranchesOfThePreview(): void
+    {
+        $branch = $this->createBranch('B9', self::MARKUP . ' branch');
+        $this->enterAsset(['name' => self::MARKUP . ' desk']);
+        $this->enterAsset(['branch_id' => $branch, 'funding' => 'payable', 'treasury_id' => '', 'name' => self::MARKUP . ' chair']);
+        $this->runner();
+
+        $body = $this->get('/accounting_assets/depreciation?month=2026-02')->getBody();
+
+        foreach (['desk', 'chair', 'branch'] as $text) {
+            $this->assertStringNotContainsString(self::MARKUP . ' ' . $text, $body, $text);
+            $this->assertStringContainsString(htmlspecialchars(self::MARKUP, ENT_QUOTES) . ' ' . $text, $body, $text);
+        }
+    }
+
+    public function testGetUsageForm_EscapesMarkupInTheUnitOfTheAsset(): void
+    {
+        $assetId = $this->enterAsset(['method' => 'units', 'cost_per_unit' => '2.5', 'amount_per_period' => '', 'unit_name' => self::MARKUP]);
+        $this->manager();
+
+        $this->assertEscaped($this->get('/accounting_assets/usage_form/' . $assetId));
+    }
+
+    public function testGetDisposeForm_EscapesMarkupInTheNameOfATreasury(): void
+    {
+        $assetId = $this->enterAsset();
+
+        (new TreasuryService())->create(['name' => self::MARKUP . ' cash', 'kind' => 'cash', 'branch_id' => 1], $this->assetClerk);
+        $this->manager();
+
+        $this->assertEscaped($this->get('/accounting_assets/dispose_form/sale/' . $assetId));
     }
 
     public function testGetApproveForm_IsNotFoundWhenNothingIsDue(): void

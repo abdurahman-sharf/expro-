@@ -1,7 +1,7 @@
 <?php
 /**
  * @var list<object> $categories
- * @var bool         $can_manage
+ * @var bool         $canManage
  * @var string|null  $notice
  */
 ?>
@@ -14,7 +14,7 @@
 <div class="container-fluid py-3" id="categories_page">
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
         <h1 class="h4 me-auto mb-0"><?= lang('Accounting_assets.categories_title') ?></h1>
-        <?php if ($can_manage): ?>
+        <?php if ($canManage): ?>
             <button type="button" class="btn btn-primary btn-sm modal-dlg" id="new_category" data-btn-submit="<?= esc(lang('Accounting_assets.save'), 'attr') ?>" data-href="<?= esc('accounting_assets/category_form', 'attr') ?>" title="<?= esc(lang('Accounting_assets.category_new'), 'attr') ?>"><span class="bi bi-plus-lg" aria-hidden="true">&nbsp;</span><?= lang('Accounting_assets.category_new') ?></button>
         <?php endif; ?>
     </div>
@@ -46,10 +46,10 @@
                             <td data-label="<?= esc(lang('Accounting_assets.field_method'), 'attr') ?>"><?= $category->method === null ? '' : lang('Accounting_assets.method_' . $category->method) ?></td>
                             <td data-label="<?= esc(lang('Accounting_assets.category_assets'), 'attr') ?>"><?= (int) $category->asset_count ?></td>
                             <td class="print_hide">
-                                <?php if ($can_manage): ?>
+                                <?php if ($canManage): ?>
                                     <button type="button" class="btn btn-outline-secondary btn-sm modal-dlg" data-btn-submit="<?= esc(lang('Accounting_assets.save'), 'attr') ?>" data-href="<?= esc('accounting_assets/category_form/' . (int) $category->category_id, 'attr') ?>" title="<?= esc(lang('Accounting_assets.category_edit'), 'attr') ?>"><?= lang('Accounting_assets.category_edit') ?></button>
                                     <button type="button" class="btn btn-outline-secondary btn-sm category-post" data-url="<?= esc(base_url('accounting_assets/category_active/' . (int) $category->category_id . '/' . ((int) $category->active === 1 ? 0 : 1)), 'attr') ?>"><?= lang((int) $category->active === 1 ? 'Accounting_assets.deactivate' : 'Accounting_assets.activate') ?></button>
-                                    <?php if ((int) $category->asset_count === 0): ?>
+                                    <?php if ((int) $category->referenced_count === 0): ?>
                                         <button type="button" class="btn btn-outline-danger btn-sm category-post" data-confirm="<?= esc(lang('Accounting_assets.category_delete_confirm'), 'attr') ?>" data-url="<?= esc(base_url('accounting_assets/delete_category/' . (int) $category->category_id), 'attr') ?>"><?= lang('Accounting_assets.delete') ?></button>
                                     <?php endif; ?>
                                 <?php endif; ?>

@@ -1,6 +1,6 @@
 <?php
 /**
- * @var bool                     $can_run
+ * @var bool                     $canRun
  * @var array<string, string>    $scopes
  * @var string                   $scope
  * @var string                   $month
@@ -27,7 +27,7 @@ use App\Libraries\Assets\DepreciationPreview;
     <h1 class="h4"><?= lang('Accounting_assets.depreciation_title') ?></h1>
     <p class="text-body-secondary"><?= lang('Accounting_assets.depreciation_intro') ?></p>
 
-    <?php if (! $can_run): ?>
+    <?php if (! $canRun): ?>
         <p class="text-body-secondary small" id="depreciation_permission_note" role="note"><span class="bi bi-shield-lock" aria-hidden="true"></span> <?= lang('Accounting_assets.depreciation_permission_note') ?></p>
     <?php elseif ($scopes !== []): ?>
         <form id="depreciation_filters" class="acc-filters print_hide" method="get" action="<?= esc(base_url('accounting_assets/depreciation'), 'attr') ?>">
@@ -145,7 +145,7 @@ use App\Libraries\Assets\DepreciationPreview;
                                 <td data-label="<?= esc(lang('Accounting_assets.runs_by'), 'attr') ?>"><?= esc((string) $run->created_by_name) ?></td>
                                 <td class="print_hide">
                                     <a href="<?= esc(base_url('accounting_journals/view/' . (int) $run->journal_id), 'attr') ?>"><?= lang('Accounting_assets.journal') ?></a>
-                                    <?php if ($can_run && $run->status === 'active'): ?>
+                                    <?php if ($canRun && $run->status === 'active'): ?>
                                         <button type="button" class="btn btn-outline-danger btn-sm modal-dlg depreciation-reverse" data-btn-submit="<?= esc(lang('Accounting_assets.reverse'), 'attr') ?>" data-href="<?= esc('accounting_assets/depreciation/reverse_form/' . (int) $run->run_id, 'attr') ?>" title="<?= esc(lang('Accounting_assets.reverse_title'), 'attr') ?>"><?= lang('Accounting_assets.reverse') ?></button>
                                     <?php endif; ?>
                                 </td>

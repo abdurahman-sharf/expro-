@@ -8,6 +8,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Assets\AssetDisposals;
 use App\Libraries\Assets\AssetRegister;
 use App\Libraries\Assets\AssetSources;
@@ -16,9 +17,11 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\AssetFixtureTrait;
 
@@ -327,7 +330,7 @@ final class AssetRegisterTest extends CIUnitTestCase
     /**
      * @param array<string, mixed> $overrides
      */
-    #[\PHPUnit\Framework\Attributes\DataProvider('invalidFieldProvider')]
+    #[DataProvider('invalidFieldProvider')]
     public function testCreate_RejectsAFieldThatIsNotValid(array $overrides, string $field): void
     {
         $exception = $this->assertRefused(AccountingError::AssetFieldInvalid, fn () => $this->enterAsset($overrides));
@@ -541,7 +544,7 @@ final class AssetRegisterTest extends CIUnitTestCase
     public function testUpdate_MovesTheJournalToTheOtherTreasuryWhenItChanges(): void
     {
         $assetId = $this->enterAsset();
-        $other   = (new \App\Libraries\Accounting\TreasuryService())->create(['name' => 'Second cash ' . uniqid(), 'kind' => 'cash', 'branch_id' => 1], $this->assetClerk);
+        $other   = (new TreasuryService())->create(['name' => 'Second cash ' . uniqid(), 'kind' => 'cash', 'branch_id' => 1], $this->assetClerk);
 
         $this->register->update($assetId, $this->assetInput(['treasury_id' => $other, 'code' => $this->asset($assetId)->code]), $this->assetClerk);
 
@@ -800,6 +803,109 @@ final class AssetRegisterTest extends CIUnitTestCase
         $this->assertSame('0.0000', $this->asset($assetId)->opening_accumulated);
     }
 
+    public function testUpdate_RequiresTheOpeningPermissionToChangeTheTermsOfAnOpeningAsset(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+        $opener  = $this->employeeWithGrants([AccountingGuard::ASSETS_MANAGE, AccountingGuard::OPENING_MANAGE]);
+        $assetId = $this->enterAsset(['funding' => 'opening', 'treasury_id' => '', 'purchase_date' => '2024-01-01', 'in_service_date' => '2024-01-01', 'opening_accumulated' => '4000'], $opener);
+        $moved   = $this->assetInput(['funding' => 'payable', 'treasury_id' => '', 'purchase_date' => '2024-01-01', 'in_service_date' => '2024-01-01']);
+
+        $this->assertRefused(AccountingError::PermissionDenied, fn () => $this->register->update($assetId, $moved, $this->assetClerk));
+
+        $this->assertSame('opening', $this->asset($assetId)->funding);
+        $this->assertSame(JournalStatus::Posted->value, $this->journalOf(AssetSources::ACQUISITION, $assetId)->status);
+        $this->assertNull($this->journalOf(AssetSources::ACQUISITION, $assetId, 2));
+
+        $this->register->update($assetId, $moved, $opener);
+
+        $this->assertSame('payable', $this->asset($assetId)->funding);
+        $this->assertSame(JournalStatus::Reversed->value, $this->journalOf(AssetSources::ACQUISITION, $assetId)->status);
+    }
+
+    public function testUpdate_AsksNoOpeningPermissionForWhatTouchesNoBalanceOfAnOpeningAsset(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+        $opener  = $this->employeeWithGrants([AccountingGuard::ASSETS_MANAGE, AccountingGuard::OPENING_MANAGE]);
+        $assetId = $this->enterAsset(['funding' => 'opening', 'treasury_id' => '', 'purchase_date' => '2024-01-01', 'in_service_date' => '2024-01-01', 'opening_accumulated' => '4000'], $opener);
+
+        $this->register->update($assetId, $this->assetInput(['name' => 'Renamed desk', 'funding' => 'opening', 'treasury_id' => '', 'purchase_date' => '2024-01-01', 'in_service_date' => '2024-01-01', 'opening_accumulated' => '4000']), $this->assetClerk);
+
+        $this->assertSame('Renamed desk', $this->asset($assetId)->name);
+        $this->assertSame(JournalStatus::Posted->value, $this->journalOf(AssetSources::ACQUISITION, $assetId)->status);
+    }
+
+    public function testDelete_RequiresTheOpeningPermissionToTakeAnOpeningAssetOut(): void
+    {
+        $this->setConfigValue('accounting_start_date', '2026-01-01');
+        $opener  = $this->employeeWithGrants([AccountingGuard::ASSETS_MANAGE, AccountingGuard::OPENING_MANAGE]);
+        $assetId = $this->enterAsset(['funding' => 'opening', 'treasury_id' => '', 'purchase_date' => '2024-01-01', 'in_service_date' => '2024-01-01', 'opening_accumulated' => '4000'], $opener);
+
+        $this->assertRefused(AccountingError::PermissionDenied, fn () => $this->register->delete($assetId, $this->assetClerk));
+
+        $this->assertSame(0, (int) $this->asset($assetId)->deleted);
+        $this->assertSame(JournalStatus::Posted->value, $this->journalOf(AssetSources::ACQUISITION, $assetId)->status);
+        $this->assertSame('12000.0000', $this->accountNet($this->accountId('fixed_assets')));
+
+        $this->register->delete($assetId, $opener);
+
+        $this->assertSame(1, (int) $this->asset($assetId)->deleted);
+        $this->assertSame(JournalStatus::Reversed->value, $this->journalOf(AssetSources::ACQUISITION, $assetId)->status);
+    }
+
+    public function testCreate_TakesTheBranchLockBeforeItWritesTheAsset(): void
+    {
+        $this->assertTakesTheBranchLockBeforeTheAsset(fn () => $this->enterAsset());
+    }
+
+    public function testUpdate_TakesTheBranchLockBeforeItLocksTheAsset(): void
+    {
+        $assetId = $this->enterAsset();
+
+        $this->assertTakesTheBranchLockBeforeTheAsset(fn () => $this->register->update($assetId, $this->assetInput(['name' => 'Renamed desk']), $this->assetClerk));
+    }
+
+    public function testUpdate_TakesTheLocksOfBothBranchesInTheOrderOfTheirNumbersWhenItMovesTheAsset(): void
+    {
+        $assetId  = $this->enterAsset(['branch_id' => $this->second, 'funding' => 'payable', 'treasury_id' => '']);
+        $locked   = [];
+        $listener = static function ($query) use (&$locked): void {
+            if (preg_match('/accounting_period_locks WHERE company_id = \d+ AND branch_id = ([1-9]\d*) LOCK IN SHARE MODE/', (string) $query->getQuery(), $found) === 1) {
+                $locked[] = (int) $found[1];
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $this->register->update($assetId, $this->assetInput(['branch_id' => 1, 'funding' => 'payable', 'treasury_id' => '']), $this->assetClerk);
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        $this->assertSame([1, $this->second], array_slice(array_values(array_unique($locked)), 0, 2));
+    }
+
+    public function testSetActive_TakesTheBranchLockBeforeItLocksTheAsset(): void
+    {
+        $assetId = $this->enterAsset();
+
+        $this->assertTakesTheBranchLockBeforeTheAsset(fn () => $this->register->setActive($assetId, false, $this->assetClerk));
+    }
+
+    public function testDelete_TakesTheBranchLockBeforeItLocksTheAsset(): void
+    {
+        $assetId = $this->enterAsset();
+
+        $this->assertTakesTheBranchLockBeforeTheAsset(fn () => $this->register->delete($assetId, $this->assetClerk));
+    }
+
+    public function testRecordUsage_TakesTheBranchLockBeforeItLocksTheAsset(): void
+    {
+        $assetId = $this->enterAsset(['method' => 'units', 'cost_per_unit' => '2.5', 'amount_per_period' => '']);
+
+        $this->assertTakesTheBranchLockBeforeTheAsset(fn () => $this->register->recordUsage($assetId, '2026-02', '10', $this->assetClerk));
+    }
+
     public function testRecordUsage_RefusesAnAssetThatWasWrittenOff(): void
     {
         $assetId = $this->enterAsset(['method' => 'units', 'cost_per_unit' => '2.5', 'amount_per_period' => '']);
@@ -968,7 +1074,7 @@ final class AssetRegisterTest extends CIUnitTestCase
     public function testCreate_RefusesATreasuryTheEmployeeMayNotTakeMoneyFrom(): void
     {
         $someoneElse = $this->employeeWithGrants([]);
-        $treasury    = (new \App\Libraries\Accounting\TreasuryService())->create(['name' => 'Locked cash ' . uniqid(), 'kind' => 'cash', 'branch_id' => 1, 'withdraw_scope' => 'staff', 'withdraw_members' => [$someoneElse]], $this->assetClerk);
+        $treasury    = (new TreasuryService())->create(['name' => 'Locked cash ' . uniqid(), 'kind' => 'cash', 'branch_id' => 1, 'withdraw_scope' => 'staff', 'withdraw_members' => [$someoneElse]], $this->assetClerk);
 
         $this->assertRefused(AccountingError::TreasuryWithdrawDenied, fn () => $this->enterAsset(['treasury_id' => $treasury]));
         $this->assertSame(0, $this->countRows('assets'));

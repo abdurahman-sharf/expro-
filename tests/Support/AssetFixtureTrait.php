@@ -7,6 +7,7 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Assets\AssetCategories;
 use App\Libraries\Assets\AssetRegister;
 use App\Libraries\Assets\DepreciationRun;
+use CodeIgniter\Events\Events;
 
 /**
  * What a test needs to enter assets and depreciate them through the real services: an employee who
@@ -81,6 +82,44 @@ trait AssetFixtureTrait
     protected function enterAsset(array $overrides = [], ?int $employeeId = null): int
     {
         return $this->register->create($this->assetInput($overrides), $employeeId ?? $this->assetClerk);
+    }
+
+    /**
+     * A depreciation run holds the lock of a branch before it reads the assets of the branch, so whatever
+     * changes an asset takes the shared lock of the branch before it locks or writes the asset.
+     */
+    protected function assertTakesTheBranchLockBeforeTheAsset(callable $action): void
+    {
+        $assets  = preg_quote($this->accountingDb()->prefixTable('assets'), '/');
+        $lockAt  = null;
+        $assetAt = null;
+        $index   = 0;
+
+        $listener = static function ($query) use (&$lockAt, &$assetAt, &$index, $assets): void {
+            $sql = (string) $query->getQuery();
+
+            if ($lockAt === null && preg_match('/accounting_period_locks WHERE company_id = \d+ AND branch_id = [1-9]\d* LOCK IN SHARE MODE/', $sql) === 1) {
+                $lockAt = $index;
+            }
+
+            if ($assetAt === null && preg_match('/(INSERT INTO `?' . $assets . '`? |FROM ' . $assets . ' WHERE .*FOR UPDATE)/', $sql) === 1) {
+                $assetAt = $index;
+            }
+
+            $index++;
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $action();
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        $this->assertNotNull($lockAt, 'the shared lock of the branch is taken');
+        $this->assertNotNull($assetAt, 'the asset is locked or written');
+        $this->assertLessThan($assetAt, $lockAt, 'and it is taken first');
     }
 
     /**

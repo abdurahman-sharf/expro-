@@ -100,6 +100,7 @@ return [
     'filter_purchase_from'         => '',
     'filter_purchase_to'           => '',
     'filter_status'                => '',
+    'first_date_default'           => '',
     'form_note'                    => '',
     'funding_none'                 => '',
     'funding_opening'              => '',

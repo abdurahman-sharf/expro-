@@ -10,7 +10,9 @@ use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\JournalOrigin;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\LockedRead;
+use App\Libraries\Accounting\PeriodLocks;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\PostingFailureLog;
 use App\Libraries\Accounting\PostingService;
@@ -52,6 +54,7 @@ final class AssetDisposals
     private AssetFigures $figures;
     private TreasuryScopes $scopes;
     private AuditLog $audit;
+    private PeriodLocks $locks;
 
     public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
@@ -63,6 +66,7 @@ final class AssetDisposals
         $this->figures  = new AssetFigures($this->db, new DepreciationSchedule((new Currencies($this->db))->baseDecimals()));
         $this->scopes   = new TreasuryScopes($this->db, $this->branches);
         $this->audit    = new AuditLog($this->db);
+        $this->locks    = new PeriodLocks($this->db);
     }
 
     /**
@@ -143,6 +147,8 @@ final class AssetDisposals
         $this->branches->requireBranch((int) $known->branch_id, $employeeId);
 
         return $this->transactional(function () use ($operationId, $reason, $employeeId, $known): int {
+            $this->locks->shareForPosting((int) $known->branch_id);
+
             $table     = $this->db->prefixTable('asset_operations');
             $operation = LockedRead::row($this->db, "SELECT * FROM {$table} WHERE operation_id = ? FOR UPDATE", [$operationId]);
 
@@ -153,6 +159,8 @@ final class AssetDisposals
             $assets = $this->db->prefixTable('assets');
 
             LockedRead::row($this->db, "SELECT asset_id FROM {$assets} WHERE asset_id = ? FOR UPDATE", [(int) $known->asset_id]);
+
+            $this->scopes->assertMayReverse((int) $operation->journal_id, $employeeId);
 
             $reversal = (new JournalService($this->db, $this->guard, $this->posting, $this->branches))->reverseAutomatic((int) $operation->journal_id, (string) $operation->operation_date, $reason, $employeeId);
 
@@ -229,7 +237,9 @@ final class AssetDisposals
         $money = $sale ? $this->proceeds($input['proceeds'] ?? '') : bcadd('0', '0', self::SCALE);
 
         try {
-            return $this->transactional(function () use ($kind, $assetId, $date, $note, $sale, $money, $input, $employeeId): int {
+            return $this->transactional(function () use ($kind, $assetId, $date, $note, $sale, $money, $input, $employeeId, $known): int {
+                $this->locks->shareForPosting((int) $known->branch_id);
+
                 $assets = $this->db->prefixTable('assets');
                 $asset  = LockedRead::row($this->db, "SELECT * FROM {$assets} WHERE asset_id = ? AND deleted = 0 FOR UPDATE", [$assetId]);
 
@@ -251,7 +261,7 @@ final class AssetDisposals
                     }
                 }
 
-                $missed = $this->figures->missed($asset, DepreciationPeriod::containing($date), $standing);
+                $missed = $this->figures->missed($asset, DepreciationPeriod::containing($date), $standing, true);
 
                 if ($missed !== []) {
                     throw new AccountingException(AccountingError::AssetDepreciationPending, 'The asset is due depreciation for months before the disposal.', ['name' => implode(', ', $missed)]);
@@ -261,6 +271,11 @@ final class AssetDisposals
                 $cost        = bcadd((string) $asset->cost, '0', self::SCALE);
                 $accumulated = $this->figures->accumulated($asset, null, true);
                 $book        = bcsub($cost, $accumulated, self::SCALE);
+
+                if ($asset->funding === 'none') {
+                    $this->assertBooksHold($asset, $cost, $accumulated, $date);
+                }
+
                 $difference  = $sale ? bcsub($money, $book, self::SCALE) : bcsub('0', $book, self::SCALE);
 
                 $this->db->table('asset_operations')->insert([
@@ -312,6 +327,50 @@ final class AssetDisposals
 
             throw $failure;
         }
+    }
+
+    /**
+     * An asset entered as already in the books has no journal of its own, so what a disposal takes out
+     * is checked against the accounts of its branch: the cost account holds at least its cost and the
+     * accumulated depreciation account at least what it has depreciated by.
+     *
+     * @throws AccountingException
+     */
+    private function assertBooksHold(object $asset, string $cost, string $accumulated, string $date): void
+    {
+        $held = $this->ledgerNet((int) $asset->cost_account_id, (int) $asset->branch_id, $date);
+
+        if (bccomp($held, $cost, self::SCALE) < 0) {
+            throw new AccountingException(AccountingError::AssetNotInBooks, "The cost account holds less than the cost of asset {$asset->code}.", ['name' => (string) $asset->code]);
+        }
+
+        if ($asset->accumulated_account_id === null || bccomp($accumulated, '0', self::SCALE) <= 0) {
+            return;
+        }
+
+        $held = bcsub('0', $this->ledgerNet((int) $asset->accumulated_account_id, (int) $asset->branch_id, $date), self::SCALE);
+
+        if (bccomp($held, $accumulated, self::SCALE) < 0) {
+            throw new AccountingException(AccountingError::AssetNotInBooks, "The accumulated depreciation account holds less than asset {$asset->code} has depreciated by.", ['name' => (string) $asset->code]);
+        }
+    }
+
+    /**
+     * What an account of a branch holds through a day, debits less credits.
+     *
+     * @return numeric-string
+     */
+    private function ledgerNet(int $accountId, int $branchId, string $date): string
+    {
+        $journals = $this->db->prefixTable('accounting_journals');
+        $lines    = $this->db->prefixTable('accounting_journal_lines');
+        $row      = $this->db->query(
+            "SELECT COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS net FROM {$lines} l JOIN {$journals} j ON j.journal_id = l.journal_id
+             WHERE j.company_id = ? AND j.branch_id = ? AND j.status IN (?, ?) AND j.journal_date <= ? AND l.account_id = ?",
+            [CompanyContext::id(), $branchId, JournalStatus::Posted->value, JournalStatus::Reversed->value, $date, $accountId],
+        )->getRow();
+
+        return bcadd((string) $row->net, '0', self::SCALE);
     }
 
     /**

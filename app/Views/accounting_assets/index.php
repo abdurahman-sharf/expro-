@@ -4,13 +4,13 @@
  * @var AssetsFilter       $filter
  * @var ReportScope        $scope
  * @var list<object>       $branches
- * @var string|null        $scope_label
+ * @var string|null        $scopeLabel
  * @var list<object>       $employees
  * @var list<object>       $accounts
  * @var list<object>       $categories
  * @var list<AssetStatus>  $statuses
- * @var bool               $can_manage
- * @var string             $csv_url
+ * @var bool               $canManage
+ * @var string             $csvUrl
  * @var Closure            $amount
  * @var Closure            $date
  * @var string|null        $notice
@@ -32,7 +32,7 @@ $chosen = array_map(static fn (AssetStatus $status): string => $status->value, $
 <div class="container-fluid py-3" id="assets_page">
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
         <h1 class="h4 me-auto mb-0"><?= lang('Accounting_assets.title') ?></h1>
-        <?php if ($can_manage): ?>
+        <?php if ($canManage): ?>
             <a class="btn btn-primary btn-sm" id="new_asset" href="<?= esc(base_url('accounting_assets/form'), 'attr') ?>"><span class="bi bi-plus-lg" aria-hidden="true">&nbsp;</span><?= lang('Accounting_assets.new') ?></a>
         <?php endif; ?>
     </div>
@@ -120,8 +120,8 @@ $chosen = array_map(static fn (AssetStatus $status): string => $status->value, $
         </div>
     </form>
 
-    <?php if ($scope_label !== null): ?>
-        <p class="text-body-secondary small" id="assets_scope"><?= esc($scope_label) ?></p>
+    <?php if ($scopeLabel !== null): ?>
+        <p class="text-body-secondary small" id="assets_scope"><?= esc($scopeLabel) ?></p>
     <?php endif; ?>
 
     <?php if ($result->tie !== []): ?>
@@ -225,7 +225,7 @@ $chosen = array_map(static fn (AssetStatus $status): string => $status->value, $
     <?php endif; ?>
 
     <div class="print_hide mb-3 clearfix" id="assets_files">
-        <a class="btn btn-outline-secondary btn-sm float-end" id="assets_csv" href="<?= esc($csv_url, 'attr') ?>"><span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?></a>
+        <a class="btn btn-outline-secondary btn-sm float-end" id="assets_csv" href="<?= esc($csvUrl, 'attr') ?>"><span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?></a>
         <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()"><span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?></button>
     </div>
 </div>
