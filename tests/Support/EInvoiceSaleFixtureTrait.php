@@ -2,7 +2,11 @@
 
 namespace Tests\Support;
 
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\EInvoicing\EInvoiceSettings;
+use App\Libraries\Roles\RecordScope;
+use App\Libraries\Roles\RoleService;
 
 /**
  * What a test of the electronic invoice needs besides sales: the settings of the shop (the company, its tax
@@ -12,10 +16,12 @@ use App\Libraries\EInvoicing\EInvoiceSettings;
  */
 trait EInvoiceSaleFixtureTrait
 {
-    /** @var array<string, ?string> */
-    private array $savedConfig = [];
-
     protected const SELLER_VAT = '399999999900003';
+
+    /**
+     * @var array<string, ?string>
+     */
+    private array $savedConfig = [];
 
     /**
      * @param array<string, string> $override
@@ -23,20 +29,20 @@ trait EInvoiceSaleFixtureTrait
     protected function configureEInvoicing(array $override = []): void
     {
         $values = [
-            'company'                                => 'Maximum Speed Tech Supply LTD',
-            'tax_id'                                 => self::SELLER_VAT,
-            EInvoiceSettings::ENABLED                => '1',
-            'einvoice_seller_identification_type'    => 'CRN',
-            'einvoice_seller_identification_number'  => '1010010000',
-            'einvoice_seller_street'                 => 'Prince Sultan',
-            'einvoice_seller_building_number'        => '1234',
-            'einvoice_seller_district'               => 'Al-Murabba',
-            'einvoice_seller_city'                   => 'Riyadh',
-            'einvoice_seller_postal_code'            => '12345',
-            'einvoice_exempt_category'               => '',
-            'einvoice_exempt_reason_code'            => '',
-            'einvoice_key_path'                      => '',
-            'einvoice_certificate_path'              => '',
+            'company'                               => 'Maximum Speed Tech Supply LTD',
+            'tax_id'                                => self::SELLER_VAT,
+            EInvoiceSettings::ENABLED               => '1',
+            'einvoice_seller_identification_type'   => 'CRN',
+            'einvoice_seller_identification_number' => '1010010000',
+            'einvoice_seller_street'                => 'Prince Sultan',
+            'einvoice_seller_building_number'       => '1234',
+            'einvoice_seller_district'              => 'Al-Murabba',
+            'einvoice_seller_city'                  => 'Riyadh',
+            'einvoice_seller_postal_code'           => '12345',
+            'einvoice_exempt_category'              => '',
+            'einvoice_exempt_reason_code'           => '',
+            'einvoice_key_path'                     => '',
+            'einvoice_certificate_path'             => '',
             ...$override,
         ];
 
@@ -123,15 +129,42 @@ trait EInvoiceSaleFixtureTrait
 
         $this->accountingDb()->table('customers')->where('person_id', $customerId)->update(['tax_id' => $vat, 'company_name' => $company]);
         $this->accountingDb()->table('customer_einvoice_parties')->replace([
-            'person_id'     => $customerId,
-            'street'        => 'King Fahd Rd',
+            'person_id'       => $customerId,
+            'street'          => 'King Fahd Rd',
             'building_number' => '4321',
-            'district'      => 'Olaya',
-            'city'          => 'Riyadh',
-            'postal_code'   => '11564',
-            'country_code'  => 'SA',
+            'district'        => 'Olaya',
+            'city'            => 'Riyadh',
+            'postal_code'     => '11564',
+            'country_code'    => 'SA',
         ]);
 
         return $customerId;
+    }
+
+    protected function seesOwnRecordsOnly(int $personId): int
+    {
+        (new RoleService())->setRecordScope($personId, RecordScope::OWN, null);
+
+        return $personId;
+    }
+
+    protected function ownedBy(int $saleId, int $personId): int
+    {
+        $this->accountingDb()->table('sales')->where('sale_id', $saleId)->update(['employee_id' => $personId]);
+
+        return $saleId;
+    }
+
+    protected function debitNoteOf(int $createdBy, string $amount = '200', ?int $customerId = null, ?int $branchId = null): int
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $maker = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+        $input = ['customer_id' => $customerId ?? $this->customerId, 'date' => $this->daysAgo(1), 'amount' => $amount, 'tax_percent' => '15', 'note' => 'Freight', ...($branchId === null ? [] : ['branch_id' => $branchId])];
+        $id    = (new SalesDebitNotes())->create($input, $maker);
+
+        $this->accountingDb()->table('sales_debit_notes')->where('debit_note_id', $id)->update(['created_by' => $createdBy]);
+
+        return $id;
     }
 }

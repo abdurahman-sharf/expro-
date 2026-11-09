@@ -263,13 +263,12 @@ final class EInvoiceService
      */
     private function issuedBuilder(?array $branchIds, ?int $viewerId): BaseBuilder
     {
+        $mine    = $this->scope->limit($viewerId);
         $builder = $this->db->table('einvoice_documents')->where('company_id', CompanyContext::id());
 
         if ($branchIds !== null) {
             $builder->whereIn('branch_id', $branchIds);
         }
-
-        $mine = $this->scope->limit($viewerId);
 
         if ($mine !== null) {
             $builder->groupStart()

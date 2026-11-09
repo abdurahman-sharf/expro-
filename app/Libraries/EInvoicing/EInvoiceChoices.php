@@ -40,6 +40,7 @@ final class EInvoiceChoices
             return [];
         }
 
+        $mine    = $this->scope->limit($employeeId);
         $builder = $this->db->table('sales_debit_notes n')
             ->select("n.debit_note_id, n.customer_id, n.total, n.note_date, c.company_name, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS person_name", false)
             ->join('people p', 'p.person_id = n.customer_id', 'left')
@@ -53,8 +54,6 @@ final class EInvoiceChoices
         if ($allowed !== null) {
             $builder->whereIn('n.branch_id', $allowed);
         }
-
-        $mine = $this->scope->limit($employeeId);
 
         if ($mine !== null) {
             $builder->where('n.created_by', $mine);
@@ -91,6 +90,7 @@ final class EInvoiceChoices
             return [];
         }
 
+        $mine    = $this->scope->limit($employeeId);
         $builder = $this->db->table('einvoice_documents d')
             ->select('d.document_id, d.document_number, d.doc_kind, s.customer_id')
             ->join('sales s', "d.source_type = '" . EInvoiceService::SOURCE_SALE . "' AND s.sale_id = d.source_id")
@@ -103,8 +103,6 @@ final class EInvoiceChoices
         if ($allowed !== null) {
             $builder->whereIn('d.branch_id', $allowed);
         }
-
-        $mine = $this->scope->limit($employeeId);
 
         if ($mine !== null) {
             $builder->where('s.employee_id', $mine);

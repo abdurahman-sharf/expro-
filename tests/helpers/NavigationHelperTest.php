@@ -7,7 +7,10 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Tests\Support\AccountingFixtureTrait;
 
-class NavigationHelperTest extends CIUnitTestCase
+/**
+ * @internal
+ */
+final class NavigationHelperTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
@@ -16,8 +19,7 @@ class NavigationHelperTest extends CIUnitTestCase
     protected $migrateOnce = true;
     protected $seedOnce    = true;
     protected $refresh     = false;
-    protected $namespace   = null;
-
+    protected $namespace;
     private static bool $doneBootstrap = false;
 
     protected function setUp(): void
@@ -43,25 +45,25 @@ class NavigationHelperTest extends CIUnitTestCase
 
     private function modules(string ...$moduleIds): array
     {
-        return array_map(static fn(string $moduleId): object => (object) ['module_id' => $moduleId], $moduleIds);
+        return array_map(static fn (string $moduleId): object => (object) ['module_id' => $moduleId], $moduleIds);
     }
 
     private function itemIds(array $groups): array
     {
         return array_map(
-            static fn(array $group): array => array_column($group['items'], 'id'),
-            $groups
+            static fn (array $group): array => array_column($group['items'], 'id'),
+            $groups,
         );
     }
 
-    public function testNavigationGroups_PlacesModulesInTheirGroupsInOrder(): void
+    public function testNavigationGroupsPlacesModulesInTheirGroupsInOrder(): void
     {
         $groups = navigationGroups($this->modules('config', 'sales', 'home', 'items', 'receivings'), 'sales');
 
         $this->assertSame([['home'], ['sales'], ['receivings'], ['items'], ['config']], $this->itemIds($groups));
     }
 
-    public function testNavigationGroups_OmitsGroupsWithoutAllowedModules(): void
+    public function testNavigationGroupsOmitsGroupsWithoutAllowedModules(): void
     {
         $groups = navigationGroups($this->modules('reports'), 'reports');
 
@@ -69,18 +71,19 @@ class NavigationHelperTest extends CIUnitTestCase
         $this->assertSame(['reports'], array_column($groups[0]['items'], 'id'));
     }
 
-    public function testNavigationGroups_AppendsUnknownModulesToAdministration(): void
+    public function testNavigationGroupsAppendsUnknownModulesToAdministration(): void
     {
         $groups = navigationGroups($this->modules('employees', 'custom_module'), 'home');
 
         $this->assertSame([['employees', 'custom_module']], $this->itemIds($groups));
     }
 
-    public function testNavigationGroups_MarksOnlyTheActiveModule(): void
+    public function testNavigationGroupsMarksOnlyTheActiveModule(): void
     {
         $groups = navigationGroups($this->modules('sales', 'items'), 'items');
 
         $active = [];
+
         foreach ($groups as $group) {
             foreach ($group['items'] as $item) {
                 $active[$item['id']] = $item['active'];
@@ -90,41 +93,41 @@ class NavigationHelperTest extends CIUnitTestCase
         $this->assertSame(['sales' => false, 'items' => true], $active);
     }
 
-    public function testNavigationGroups_UsesTheFallbackIconForUnknownModules(): void
+    public function testNavigationGroupsUsesTheFallbackIconForUnknownModules(): void
     {
         $groups = navigationGroups($this->modules('custom_module'), 'home');
 
         $this->assertSame(NAVIGATION_FALLBACK_ICON, $groups[0]['items'][0]['icon']);
     }
 
-    public function testNavigationGroups_LinksToTheModuleRoot(): void
+    public function testNavigationGroupsLinksToTheModuleRoot(): void
     {
         $groups = navigationGroups($this->modules('customers'), 'home');
 
         $this->assertSame(base_url('customers'), $groups[0]['items'][0]['url']);
     }
 
-    public function testNavigationActiveModule_ReturnsHomeForTheRootPath(): void
+    public function testNavigationActiveModuleReturnsHomeForTheRootPath(): void
     {
         $this->assertSame('home', navigationActiveModule(''));
     }
 
-    public function testNavigationActiveModule_ReturnsTheFirstSegment(): void
+    public function testNavigationActiveModuleReturnsTheFirstSegment(): void
     {
         $this->assertSame('items', navigationActiveModule('items'));
     }
 
-    public function testNavigationPageTitle_ReturnsTheModuleName(): void
+    public function testNavigationPageTitleReturnsTheModuleName(): void
     {
         $this->assertSame(lang('Module.sales'), navigationPageTitle('sales'));
     }
 
-    public function testNavigationPageTitle_ReturnsEmptyForNonModuleControllers(): void
+    public function testNavigationPageTitleReturnsEmptyForNonModuleControllers(): void
     {
         $this->assertSame('', navigationPageTitle('tax_codes'));
     }
 
-    public function testSettingsSections_ListsEverySectionOnce(): void
+    public function testSettingsSectionsListsEverySectionOnce(): void
     {
         $ids = [];
 
@@ -138,7 +141,7 @@ class NavigationHelperTest extends CIUnitTestCase
         $this->assertSame($ids, array_values(array_unique($ids)));
     }
 
-    public function testNavigationSearchIndex_ListsOnlyAllowedModules(): void
+    public function testNavigationSearchIndexListsOnlyAllowedModules(): void
     {
         $entries = navigationSearchIndex($this->modules('sales', 'items'), []);
 
@@ -146,7 +149,7 @@ class NavigationHelperTest extends CIUnitTestCase
         $this->assertSame(['module'], array_values(array_unique(array_column($entries, 'type'))));
     }
 
-    public function testNavigationSearchIndex_AddsPermittedReportsForTheReportsModule(): void
+    public function testNavigationSearchIndexAddsPermittedReportsForTheReportsModule(): void
     {
         $entries = navigationSearchIndex($this->modules('reports'), ['reports_items', 'home']);
         $reports = array_values(array_filter($entries, static fn (array $entry): bool => $entry['type'] === 'report'));
@@ -156,14 +159,14 @@ class NavigationHelperTest extends CIUnitTestCase
         $this->assertStringEndsWith('reports/summary_items', $reports[1]['url']);
     }
 
-    public function testNavigationSearchIndex_OmitsReportsWithoutTheReportsModule(): void
+    public function testNavigationSearchIndexOmitsReportsWithoutTheReportsModule(): void
     {
         $entries = navigationSearchIndex($this->modules('sales'), ['reports_items']);
 
         $this->assertNotContains('report', array_column($entries, 'type'));
     }
 
-    public function testNavigationSearchIndex_AddsSettingsSectionsForTheConfigModule(): void
+    public function testNavigationSearchIndexAddsSettingsSectionsForTheConfigModule(): void
     {
         $entries  = navigationSearchIndex($this->modules('config'), []);
         $settings = array_values(array_filter($entries, static fn (array $entry): bool => $entry['type'] === 'setting'));
@@ -172,21 +175,21 @@ class NavigationHelperTest extends CIUnitTestCase
         $this->assertStringEndsWith('config#info_tab', $settings[0]['url']);
     }
 
-    public function testNavigationSearchIndex_OmitsSettingsWithoutTheConfigModule(): void
+    public function testNavigationSearchIndexOmitsSettingsWithoutTheConfigModule(): void
     {
         $entries = navigationSearchIndex($this->modules('sales'), []);
 
         $this->assertNotContains('setting', array_column($entries, 'type'));
     }
 
-    public function testNavigationGroups_PutsTheFourDocumentsOfThePurchaseCycleInThePurchasesGroupBeforeTheReceivingsInTheOrderOfTheChain(): void
+    public function testNavigationGroupsPutsTheFourDocumentsOfThePurchaseCycleInThePurchasesGroupBeforeTheReceivingsInTheOrderOfTheChain(): void
     {
         $groups = navigationGroups($this->modules('purchase_orders', 'receivings', 'supplier_quotations', 'quotation_requests', 'purchase_requests', 'suppliers'), 'purchase_orders');
 
         $this->assertSame([['purchase_requests', 'quotation_requests', 'supplier_quotations', 'purchase_orders', 'receivings', 'suppliers']], $this->itemIds($groups));
     }
 
-    public function testNavigationGroups_ShowsOnlyTheDocumentsOfThePurchaseCycleTheEmployeeMayOpenWithAnIconAndTheirOwnAddress(): void
+    public function testNavigationGroupsShowsOnlyTheDocumentsOfThePurchaseCycleTheEmployeeMayOpenWithAnIconAndTheirOwnAddress(): void
     {
         $groups = navigationGroups($this->modules('quotation_requests'), 'home');
 
@@ -196,7 +199,20 @@ class NavigationHelperTest extends CIUnitTestCase
         $this->assertNotSame(NAVIGATION_FALLBACK_ICON, $groups[0]['items'][0]['icon']);
     }
 
-    public function testNavigationSearchIndex_OffersTheReportsOfTheBooksBehindTheirPermissionAndOnlyWhileAccountingIsOn(): void
+    public function testNavigationGroupsPutsElectronicInvoicingInTheAccountingGroupAfterTheRoutingWithItsOwnIconAndAddress(): void
+    {
+        $groups = navigationGroups($this->modules('accounting_settings', 'accounting_einvoicing', 'accounting_routing', 'accounting_chart', 'config'), 'accounting_einvoicing');
+
+        $this->assertSame([['accounting_chart', 'accounting_routing', 'accounting_einvoicing', 'accounting_settings'], ['config']], $this->itemIds($groups));
+
+        $item = $groups[0]['items'][2];
+
+        $this->assertSame(base_url('accounting_einvoicing'), $item['url']);
+        $this->assertNotSame(NAVIGATION_FALLBACK_ICON, $item['icon']);
+        $this->assertTrue($item['active']);
+    }
+
+    public function testNavigationSearchIndexOffersTheReportsOfTheBooksBehindTheirPermissionAndOnlyWhileAccountingIsOn(): void
     {
         session()->set('person_id', $this->employeeWithGrants([], null));
 

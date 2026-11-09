@@ -4,11 +4,14 @@ namespace Tests\Controllers;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\SalesDebitNotes;
+use App\Libraries\EInvoicing\EInvoiceReadiness;
 use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\EInvoicing\EInvoiceSettings;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use CodeIgniter\Test\TestResponse;
+use Config\OSPOS;
 use Tests\Support\AccountingControllerFixtureTrait;
 use Tests\Support\EInvoiceFixtureTrait;
 use Tests\Support\EInvoiceSaleFixtureTrait;
@@ -18,8 +21,10 @@ use Tests\Support\SaleAccountingFixtureTrait;
 /**
  * The screens of the candidate layer of electronic invoicing: who opens them, what they say, what the
  * settings, the issue and the file need, and what the page of an invoice shows of its document.
+ *
+ * @internal
  */
-class AccountingEInvoicingControllerTest extends CIUnitTestCase
+final class AccountingEInvoicingControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingControllerFixtureTrait;
@@ -31,7 +36,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
+    protected $namespace;
 
     protected function setUp(): void
     {
@@ -79,7 +84,39 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         return (new EInvoiceService())->issueSale($this->referenceSale(), null, '', null)->documentId;
     }
 
-    public function testGetIndex_IsNotFoundWhileAccountingIsOff(): void
+    private function ownRecordsManager(): int
+    {
+        $personId = $this->seesOwnRecordsOnly($this->employeeWithGrants(['accounting_einvoicing', AccountingGuard::EINVOICING_MANAGE]));
+
+        $this->actAs($personId);
+
+        return $personId;
+    }
+
+    private function manyDocuments(int $documentId, int $count): void
+    {
+        $table = $this->accountingDb()->prefixTable('einvoice_documents');
+
+        for ($i = 1; $i <= $count; $i++) {
+            $this->accountingDb()->query(
+                "INSERT INTO {$table} (company_id, branch_id, source_type, source_id, doc_kind, subtype, document_number, uuid, icv, previous_hash, invoice_hash, issue_date, issue_time, currency, tax_exclusive, tax_amount, tax_inclusive, xml, qr_text, signed, profile) "
+                . "SELECT company_id, branch_id, source_type, 900000 + {$i}, doc_kind, subtype, CONCAT('COPY-', {$i}), UUID(), icv + {$i}, previous_hash, invoice_hash, issue_date, issue_time, currency, tax_exclusive, tax_amount, tax_inclusive, xml, qr_text, signed, profile FROM {$table} WHERE document_id = ?",
+                [$documentId],
+            );
+        }
+    }
+
+    private function decoded(TestResponse $page): string
+    {
+        return html_entity_decode($page->response()->getBody(), ENT_QUOTES);
+    }
+
+    private function occurrencesOf(string $html, string $needle): int
+    {
+        return substr_count($html, $needle);
+    }
+
+    public function testGetIndexIsNotFoundWhileAccountingIsOff(): void
     {
         $this->reader();
         $this->setConfigValue('accounting_enabled', '0');
@@ -89,7 +126,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->get('/accounting_einvoicing');
     }
 
-    public function testGetIndex_SaysLoudlyThatTheLayerIsACandidateAndNotACertification(): void
+    public function testGetIndexSaysLoudlyThatTheLayerIsACandidateAndNotACertification(): void
     {
         $this->reader();
 
@@ -101,7 +138,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $page->assertSee('not a certification or a claim of compliance');
     }
 
-    public function testGetIndex_ShowsTheReadinessWithoutTheFormToAReaderWhoMayNotManage(): void
+    public function testGetIndexShowsTheReadinessWithoutTheFormToAReaderWhoMayNotManage(): void
     {
         $this->reader();
 
@@ -113,7 +150,65 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $page->assertSee('Changing these settings needs the permission');
     }
 
-    public function testGetIndex_OffersTheSaveButtonToTheManagerAndListsTheCustomersWithoutIdentification(): void
+    public function testGetIndexShowsThePathsOfTheKeyAndTheCertificateOnlyToWhoMayManageTheSettings(): void
+    {
+        $this->configureEInvoicing(['einvoice_key_path' => '/srv/secrets/zatca/private-key.pem', 'einvoice_certificate_path' => '/srv/secrets/zatca/certificate.pem']);
+
+        $this->reader();
+
+        $page = $this->get('/accounting_einvoicing');
+
+        $page->assertDontSee('/srv/secrets/zatca');
+        $page->assertDontSee('id="key_path"');
+        $page->assertDontSee('id="certificate_path"');
+
+        $other = $this->createBranch('B2');
+
+        $this->manager([$other]);
+
+        $this->get('/accounting_einvoicing')->assertDontSee('/srv/secrets/zatca');
+
+        $this->manager();
+
+        $page = $this->get('/accounting_einvoicing');
+
+        $page->assertSee('id="key_path"');
+        $page->assertSee('/srv/secrets/zatca/private-key.pem');
+        $page->assertSee('/srv/secrets/zatca/certificate.pem');
+    }
+
+    public function testGetIndexSaysInWordsWhetherEachCheckIsReadyWarningOrNotReadyBesideItsIcon(): void
+    {
+        $this->configureEInvoicing(['einvoice_seller_city' => '']);
+        $this->reader();
+
+        $body = $this->get('/accounting_einvoicing')->response()->getBody();
+
+        $this->assertMatchesRegularExpression('#data-check="seller_vat" data-status="pass">.*?<span class="visually-hidden">Ready:</span>#s', $body);
+        $this->assertMatchesRegularExpression('#data-check="transport" data-status="warn">.*?<span class="visually-hidden">Warning:</span>#s', $body);
+        $this->assertMatchesRegularExpression('#data-check="seller_address" data-status="fail">.*?<span class="visually-hidden">Not ready:</span>#s', $body);
+    }
+
+    public function testGetIndexSaysTheNameOfTheTransportAndOfTheSigningFailureInWordsAndNotAsCodes(): void
+    {
+        $this->reader();
+
+        $page = $this->get('/accounting_einvoicing');
+
+        $page->assertSee('No transport is in place (the transport that sends nothing)');
+        $page->assertSee('Documents are issued unsigned (no key and no certificate are named)');
+        $page->assertDontSee('not_configured');
+
+        $this->configureEInvoicing(['einvoice_key_path' => WRITEPATH . 'key.pem', 'einvoice_certificate_path' => WRITEPATH . 'cert.pem']);
+
+        $page = $this->get('/accounting_einvoicing');
+
+        $page->assertSee('The key or the certificate cannot be used (the path is not allowed): documents are refused until it is put right.');
+        $page->assertDontSee('key_path_unsafe');
+        $page->assertDontSee('issued unsigned (the path');
+    }
+
+    public function testGetIndexOffersTheSaveButtonToTheManagerAndListsTheCustomersWithoutIdentification(): void
     {
         $this->manager();
 
@@ -128,7 +223,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $page->assertSee('No tax number and no identification');
     }
 
-    public function testGetIndex_OffersNoSaveButtonToAManagerWhoWorksInSomeBranchesOnly(): void
+    public function testGetIndexOffersNoSaveButtonToAManagerWhoWorksInSomeBranchesOnly(): void
     {
         $other = $this->createBranch('B2');
 
@@ -140,7 +235,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $page->assertDontSee('id="einvoice_save"');
     }
 
-    public function testGetIndex_SaysTheLayerIsOffUntilItIsSwitchedOn(): void
+    public function testGetIndexSaysTheLayerIsOffUntilItIsSwitchedOn(): void
     {
         $this->reader();
         $this->configureEInvoicing([EInvoiceSettings::ENABLED => '0']);
@@ -151,7 +246,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('#id="einvoice_state_badge">\s*Off\s*<#', $page->response()->getBody());
     }
 
-    public function testGetIndex_ListsTheIssuedDocumentsWithTheDownloadLinkOnlyForWhoMayTakeTheFile(): void
+    public function testGetIndexListsTheIssuedDocumentsWithTheDownloadLinkOnlyForWhoMayTakeTheFile(): void
     {
         $documentId = $this->issued();
 
@@ -167,7 +262,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->get('/accounting_einvoicing')->assertSee('accounting_einvoicing/xml/' . $documentId);
     }
 
-    public function testGetIndex_ListsOnlyTheDocumentsOfTheBranchesTheReaderMaySee(): void
+    public function testGetIndexListsOnlyTheDocumentsOfTheBranchesTheReaderMaySee(): void
     {
         $documentId = $this->issued();
         $other      = $this->createBranch('B2');
@@ -177,7 +272,114 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->get('/accounting_einvoicing')->assertDontSee('data-document="' . $documentId . '"');
     }
 
-    public function testPostSaveSettings_SavesForTheManagerAndTurnsTheLayerOn(): void
+    public function testGetIndexListsOnlyTheDocumentsOfTheirOwnRecordsToAReaderWhoSeesTheirOwnRecordsOnly(): void
+    {
+        $foreign = $this->issued();
+        $own     = $this->ownRecordsManager();
+        $mine    = (new EInvoiceService())->issueSale($this->ownedBy($this->referenceSale(), $own), null, '', null)->documentId;
+
+        $page = $this->get('/accounting_einvoicing');
+
+        $page->assertSee('data-document="' . $mine . '"');
+        $page->assertDontSee('data-document="' . $foreign . '"');
+    }
+
+    public function testGetIndexPagesTheIssuedDocumentsFiftyAtATimeAndClampsAnOffsetThatIsOutOfRange(): void
+    {
+        $documentId = $this->issued();
+
+        $this->manyDocuments($documentId, 54);
+        $this->manager();
+
+        $first = $this->decoded($this->get('/accounting_einvoicing'));
+
+        $this->assertSame(50, $this->occurrencesOf($first, 'data-document="'));
+        $this->assertStringContainsString('1 to 50 of 55', $first);
+        $this->assertStringContainsString('rel="next"', $first);
+        $this->assertStringNotContainsString('rel="prev"', $first);
+        $this->assertStringContainsString('documents_offset=50#einvoice_documents_title', $first);
+
+        $second = $this->decoded($this->get('/accounting_einvoicing?documents_offset=50'));
+
+        $this->assertSame(5, $this->occurrencesOf($second, 'data-document="'));
+        $this->assertStringContainsString('51 to 55 of 55', $second);
+        $this->assertStringContainsString('rel="prev"', $second);
+        $this->assertStringNotContainsString('rel="next"', $second);
+        $this->assertStringContainsString('documents_offset=0#einvoice_documents_title', $second);
+
+        foreach (['500', '55', '51'] as $outOfRange) {
+            $this->assertStringContainsString('51 to 55 of 55', $this->get('/accounting_einvoicing?documents_offset=' . $outOfRange)->response()->getBody(), $outOfRange);
+        }
+
+        foreach (['-5', 'abc', '3'] as $inRange) {
+            $this->assertStringContainsString('1 to 50 of 55', $this->get('/accounting_einvoicing?documents_offset=' . $inRange)->response()->getBody(), $inRange);
+        }
+    }
+
+    public function testGetIndexPagesTheCustomersWithoutIdentificationTwentyFiveAtATimeAndKeepsThePageOfTheDocumentsInTheLinks(): void
+    {
+        for ($i = 0; $i < 27; $i++) {
+            $this->insertCustomer('Page' . $i, 'Customer');
+        }
+
+        $this->manager();
+
+        $total = (new EInvoiceReadiness())->customersWithoutIdentification(1)['total'];
+        $first = $this->decoded($this->get('/accounting_einvoicing'));
+
+        $this->assertGreaterThanOrEqual(27, $total);
+        $this->assertSame(25, $this->occurrencesOf($first, 'data-customer="'));
+        $this->assertStringContainsString('1 to 25 of ' . $total, $first);
+        $this->assertStringContainsString('customers_offset=25#einvoice_customers_title', $first);
+
+        $second = $this->decoded($this->get('/accounting_einvoicing?customers_offset=25&documents_offset=50'));
+
+        $this->assertSame(min(25, $total - 25), $this->occurrencesOf($second, 'data-customer="'));
+        $this->assertStringContainsString('26 to ' . min(50, $total) . ' of ' . $total, $second);
+        $this->assertStringContainsString('rel="prev"', $second);
+    }
+
+    public function testGetIndexOffersTheDebitNotesThatWaitAndTheDocumentsOfTheirCustomerInsteadOfAFieldForANumber(): void
+    {
+        $document = $this->issued();
+        $noteId   = $this->debitNoteOf($this->employeeId);
+        $other    = $this->anotherCustomer('Layla', 'Hassan');
+        $foreign  = (new EInvoiceService())->issueSale($this->referenceSale($this->makeBusinessCustomer($other, '322222222222223', 'Other Co')), null, '', null)->documentId;
+
+        $this->manager();
+
+        $page = $this->get('/accounting_einvoicing');
+
+        $page->assertSee('<select name="debit_note_id" id="debit_note_id"');
+        $page->assertSee('<option value="' . $noteId . '" data-customer="' . $this->customerId . '">');
+        $page->assertSee('<option value="' . $document . '" data-customer="' . $this->customerId . '">');
+        $page->assertDontSee('type="number" min="1" name="debit_note_id"');
+        $page->assertDontSee('einvoice_notes_none');
+        $this->assertStringNotContainsString('<option value="' . $foreign . '" data-customer="' . $other . '">', $page->response()->getBody());
+    }
+
+    public function testGetIndexSaysThatNoDebitNoteWaitsWhenEveryOneHasItsDocument(): void
+    {
+        $this->manager();
+
+        $page = $this->get('/accounting_einvoicing');
+
+        $page->assertSee('id="einvoice_notes_none"');
+        $page->assertDontSee('id="debit_note_form"');
+    }
+
+    public function testGetIndexOffersNoDebitNotesToWhoMayNotManage(): void
+    {
+        $this->debitNoteOf($this->employeeId);
+        $this->reader();
+
+        $page = $this->get('/accounting_einvoicing');
+
+        $page->assertDontSee('id="debit_note_form"');
+        $page->assertDontSee('id="einvoice_notes_none"');
+    }
+
+    public function testPostSaveSettingsSavesForTheManagerAndTurnsTheLayerOn(): void
     {
         $this->configureEInvoicing([EInvoiceSettings::ENABLED => '0']);
         $this->manager();
@@ -189,7 +391,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertTrue((new EInvoiceSettings())->isEnabled());
     }
 
-    public function testPostSaveSettings_SaysNothingChangedWhenItDidNot(): void
+    public function testPostSaveSettingsSaysNothingChangedWhenItDidNot(): void
     {
         $this->manager();
 
@@ -199,7 +401,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertSame('Nothing changed.', $result['message']);
     }
 
-    public function testPostSaveSettings_RefusesToChangeAnythingWithoutThePermission(): void
+    public function testPostSaveSettingsRefusesToChangeAnythingWithoutThePermission(): void
     {
         $this->reader();
 
@@ -209,7 +411,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertSame('Riyadh', (new EInvoiceSettings())->all()['seller_city']);
     }
 
-    public function testPostSaveSettings_RefusesAManagerWhoWorksInSomeBranchesOnly(): void
+    public function testPostSaveSettingsRefusesAManagerWhoWorksInSomeBranchesOnly(): void
     {
         $other = $this->createBranch('B2');
 
@@ -221,7 +423,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertSame('Riyadh', (new EInvoiceSettings())->all()['seller_city']);
     }
 
-    public function testPostSaveSettings_RefusesAKeyPathInsideTheApplicationInTheLanguageInUse(): void
+    public function testPostSaveSettingsRefusesAKeyPathInsideTheApplicationInTheLanguageInUse(): void
     {
         $this->manager();
 
@@ -232,7 +434,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertSame('', (new EInvoiceSettings())->all()['key_path']);
     }
 
-    public function testPostIssue_IssuesTheDocumentOfASaleAndSaysItsNumberAndCounter(): void
+    public function testPostIssueIssuesTheDocumentOfASaleAndSaysItsNumberAndCounter(): void
     {
         $saleId = $this->referenceSale();
 
@@ -246,7 +448,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertSame((int) $result['id'], (int) (new EInvoiceService())->documentOf('sale', $saleId)->documentId);
     }
 
-    public function testPostIssue_IssuesATaxInvoiceWhenTheFormAsksForOne(): void
+    public function testPostIssueIssuesATaxInvoiceWhenTheFormAsksForOne(): void
     {
         $saleId = $this->referenceSale($this->makeBusinessCustomer());
 
@@ -258,7 +460,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertSame('standard', (new EInvoiceService())->documentOf('sale', $saleId)->subtype->value);
     }
 
-    public function testPostIssue_SaysInWordsWhyASaleCannotBeIssued(): void
+    public function testPostIssueSaysInWordsWhyASaleCannotBeIssued(): void
     {
         $saleId = $this->referenceSale();
 
@@ -272,7 +474,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('einvoice_documents'));
     }
 
-    public function testPostIssue_RefusesWithoutThePermissionAndStoresNothing(): void
+    public function testPostIssueRefusesWithoutThePermissionAndStoresNothing(): void
     {
         $saleId = $this->referenceSale();
 
@@ -284,9 +486,9 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('einvoice_documents'));
     }
 
-    public function testPostIssue_RefusesASaleOfABranchTheManagerDoesNotWorkIn(): void
+    public function testPostIssueRefusesASaleOfABranchTheManagerDoesNotWorkIn(): void
     {
-        $other  = $this->createBranch('B2');
+        $other = $this->createBranch('B2');
         $this->branchLocation($other);
         $saleId = $this->invoiceInBranch($other, '115.00');
 
@@ -298,7 +500,21 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('einvoice_documents'));
     }
 
-    public function testPostIssue_IssuesTheCreditNoteOfAReturnWithItsReason(): void
+    public function testPostIssueRefusesTheSaleOfAnotherEmployeeToSomeoneWhoSeesTheirOwnRecordsAndIssuesTheirOwn(): void
+    {
+        $foreign = $this->referenceSale();
+        $own     = $this->ownRecordsManager();
+        $mine    = $this->ownedBy($this->referenceSale(), $own);
+
+        $refused = $this->jsonOf($this->post('/accounting_einvoicing/issue/' . $foreign));
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(0, $this->countRows('einvoice_documents'));
+        $this->assertTrue($this->jsonOf($this->post('/accounting_einvoicing/issue/' . $mine))['success']);
+        $this->assertSame(1, $this->countRows('einvoice_documents'));
+    }
+
+    public function testPostIssueIssuesTheCreditNoteOfAReturnWithItsReason(): void
     {
         $cycle   = $this->referenceInvoice();
         $invoice = $this->save($cycle['items'], $cycle['taxes']);
@@ -315,7 +531,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertSame(2, $this->countRows('einvoice_documents'));
     }
 
-    public function testPostIssueDebitNote_IssuesTheDocumentOfADebitNote(): void
+    public function testPostIssueDebitNoteIssuesTheDocumentOfADebitNote(): void
     {
         $this->setConfigValue('accounting_debit_note', '1');
 
@@ -331,7 +547,21 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertSame('debit_note', (new EInvoiceService())->find((int) $result['id'])->kind->value);
     }
 
-    public function testGetXml_GivesTheFileAsAnAttachmentNamedAfterTheSellerTheTimeAndTheNumber(): void
+    public function testPostIssueDebitNoteSaysInWordsThatTheDocumentIsOfAnotherCustomer(): void
+    {
+        $invoice = (new EInvoiceService())->issueSale($this->referenceSale($this->makeBusinessCustomer($this->anotherCustomer('Layla', 'Hassan'), '322222222222223', 'Other Co')), null, '', null);
+        $noteId  = $this->debitNoteOf($this->employeeId);
+
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_einvoicing/issue_debit_note/' . $noteId, ['original_document_id' => (string) $invoice->documentId, 'reason' => 'reason']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('The debit note is not of the customer of the document ' . $invoice->number . ': a debit note refers to a document of its own customer.', $result['message']);
+        $this->assertSame(1, $this->countRows('einvoice_documents'));
+    }
+
+    public function testGetXmlGivesTheFileAsAnAttachmentNamedAfterTheSellerTheTimeAndTheNumber(): void
     {
         $documentId = $this->issued();
         $document   = (new EInvoiceService())->find($documentId);
@@ -348,7 +578,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/^399999999900003_\d{8}T\d{6}_[A-Za-z0-9-]+\.xml$/', $document->fileName(self::SELLER_VAT));
     }
 
-    public function testGetXml_IsNotFoundWithoutThePermissionAndForAnotherBranchAndForNoDocument(): void
+    public function testGetXmlIsNotFoundWithoutThePermissionAndForAnotherBranchAndForNoDocument(): void
     {
         $documentId = $this->issued();
 
@@ -379,20 +609,52 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->get('/accounting_einvoicing/xml/987654321');
     }
 
-    public function testGetCustomers_PagesTheCustomersWithoutIdentificationAsJson(): void
+    public function testGetXmlIsNotFoundForTheDocumentOfAnotherEmployeeToSomeoneWhoSeesTheirOwnRecordsOnly(): void
     {
-        $this->reader();
+        $foreign = $this->issued();
+        $own     = $this->ownRecordsManager();
+        $mine    = (new EInvoiceService())->issueSale($this->ownedBy($this->referenceSale(), $own), null, '', null)->documentId;
 
-        $this->insertCustomer('Layla', 'Hassan');
+        $this->get('/accounting_einvoicing/xml/' . $mine)->assertStatus(200);
 
-        $result = $this->jsonOf($this->get('/accounting_einvoicing/customers?limit=1'));
+        $this->expectException(PageNotFoundException::class);
 
-        $this->assertCount(1, $result['rows']);
-        $this->assertGreaterThanOrEqual(2, $result['total']);
-        $this->assertArrayHasKey('businesses', $result);
+        $this->get('/accounting_einvoicing/xml/' . $foreign);
     }
 
-    public function testSalePanel_ShowsTheStatusAndTheIssueButtonOnTheInvoicePageWhileTheLayerIsOn(): void
+    public function testSalePanelShowsTheStatusOnTheReceiptPage(): void
+    {
+        $saleId = $this->referenceSale();
+
+        $this->actAs($this->employeeWithGrants(['reports_sales', 'sales', 'sales_stock', AccountingGuard::EINVOICING_MANAGE]));
+
+        $page = $this->get('/sales/receipt/' . $saleId);
+
+        $page->assertSee('id="einvoice_panel" data-state="not_generated"');
+        $page->assertSee('id="einvoice_issue"');
+    }
+
+    public function testSalePanelShowsTheStatusOnTheTaxInvoicePage(): void
+    {
+        $saleId = $this->referenceSale();
+        $before = config(OSPOS::class)->settings;
+
+        config(OSPOS::class)->settings = [...$before, 'invoice_type' => 'tax_invoice'];
+
+        try {
+            $this->actAs($this->employeeWithGrants(['reports_sales', 'sales', 'sales_stock', AccountingGuard::EINVOICING_MANAGE]));
+
+            $page = $this->get('/sales/invoice/' . $saleId);
+
+            $this->assertStringContainsString('sales/pdf/' . $saleId . '/tax_invoice', $this->decoded($page));
+            $page->assertSee('id="einvoice_panel" data-state="not_generated"');
+            $page->assertSee('id="einvoice_issue"');
+        } finally {
+            config(OSPOS::class)->settings = $before;
+        }
+    }
+
+    public function testSalePanelShowsTheStatusAndTheIssueButtonOnTheInvoicePageWhileTheLayerIsOn(): void
     {
         $saleId = $this->referenceSale();
 
@@ -407,7 +669,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $page->assertSee('id="einvoice_issue"');
     }
 
-    public function testSalePanel_ShowsTheDocumentAndTheDownloadOnceItIsIssuedAndWarnsWhenTheBooksMoved(): void
+    public function testSalePanelShowsTheDocumentAndTheDownloadOnceItIsIssuedAndWarnsWhenTheBooksMoved(): void
     {
         $documentId = $this->issued();
         $saleId     = (new EInvoiceService())->find($documentId)->sourceId;
@@ -427,7 +689,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $this->get('/sales/invoice/' . $saleId)->assertSee('id="einvoice_drift"');
     }
 
-    public function testSalePanel_OffersNoIssueButtonAndNoDownloadToSomeoneWithoutThePermission(): void
+    public function testSalePanelOffersNoIssueButtonAndNoDownloadToSomeoneWithoutThePermission(): void
     {
         $documentId = $this->issued();
         $saleId     = (new EInvoiceService())->find($documentId)->sourceId;
@@ -440,7 +702,7 @@ class AccountingEInvoicingControllerTest extends CIUnitTestCase
         $page->assertDontSee('id="einvoice_download"');
     }
 
-    public function testSalePanel_IsAbsentWhileTheLayerIsOff(): void
+    public function testSalePanelIsAbsentWhileTheLayerIsOff(): void
     {
         $saleId = $this->referenceSale();
 
