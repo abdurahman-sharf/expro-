@@ -86,6 +86,22 @@ class IntegrationSettingsTablesMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $db->table('grants')->whereIn('permission_id', [IntegrationAccess::MODULE, IntegrationAccess::NOTIFICATIONS_MODULE, IntegrationAccess::MANAGE, AccountingGuard::API_KEYS_MANAGE])->countAllResults());
     }
 
+    public function testUp_RegistersFourPermissionsAndGivesTheModulesASortNoOtherModuleHolds(): void
+    {
+        $db   = Database::connect();
+        $ours = [IntegrationAccess::MODULE, IntegrationAccess::NOTIFICATIONS_MODULE];
+
+        $this->assertEqualsCanonicalizing(
+            [IntegrationAccess::MODULE, IntegrationAccess::MANAGE, AccountingGuard::API_KEYS_MANAGE, IntegrationAccess::NOTIFICATIONS_MODULE],
+            array_column($db->table('permissions')->select('permission_id')->whereIn('module_id', $ours)->get()->getResultArray(), 'permission_id'),
+        );
+
+        $sorts = array_map('intval', array_column($db->table('modules')->select('sort')->whereIn('module_id', $ours)->get()->getResultArray(), 'sort'));
+
+        $this->assertCount(2, array_unique($sorts), 'The two modules differ.');
+        $this->assertSame(0, $db->table('modules')->whereIn('sort', $sorts)->whereNotIn('module_id', $ours)->countAllResults(), 'No other module is ordered where these are.');
+    }
+
     public function testUp_IsSafeToRunAgainAndChangesNothingTheSecondTime(): void
     {
         $before = $this->databaseFingerprint();

@@ -240,7 +240,7 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::API_KEYS]);
 
-        $this->get('/integrations/payment_methods')->assertRedirectTo('no_access/' . IntegrationAccess::MANAGE);
+        $this->get('/integrations/payment_methods')->assertRedirectTo('no_access/' . IntegrationAccess::MODULE . '/' . IntegrationAccess::MANAGE);
     }
 
     public function testPostPaymentMethods_SavesWhatTheFormSendsAndRefusesWhatItMustNot(): void
@@ -320,7 +320,7 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG]);
 
-        $this->get('/integrations/translations')->assertRedirectTo('no_access/' . IntegrationAccess::MANAGE);
+        $this->get('/integrations/translations')->assertRedirectTo('no_access/' . IntegrationAccess::MODULE . '/' . IntegrationAccess::MANAGE);
     }
 
     public function testPostTranslationSave_KeepsTheNameInTheSecondLanguageOfTheShopAndDeleteRemovesIt(): void
@@ -353,6 +353,73 @@ class IntegrationsControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Integrations.error_translation_entity_missing', ['987654']), $body['message']);
     }
 
+    public function testPostTranslationSave_AsksForALanguageWhileNoSecondLanguageIsChosenAndTakesTheOneTheFormSends(): void
+    {
+        $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
+        $customer = $this->insertCustomer();
+
+        $page = $this->get('/integrations/translations')->getBody();
+
+        $this->assertMatchesRegularExpression('#<select[^>]*name="language"[^>]*required#', $this->selectOf($page, 'language'), 'No language is chosen, so the form asks for one.');
+
+        $refused = $this->postJson('/integrations/translations/save', ['kind' => 'customer', 'key' => (string) $customer, 'name' => 'Omar Trading']);
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Integrations.error_translation_no_language'), $refused['message']);
+        $this->assertSame(0, Database::connect()->table('entity_translations')->countAllResults());
+
+        $kept = $this->postJson('/integrations/translations/save', ['kind' => 'customer', 'key' => (string) $customer, 'language' => 'en', 'name' => 'Omar Trading']);
+
+        $this->assertTrue($kept['success']);
+        $this->assertSame('en', Database::connect()->table('entity_translations')->get()->getRow()->language);
+    }
+
+    public function testGetTranslations_ShowsTheLanguageOfTheShopAsAFixedValueOnceItIsChosen(): void
+    {
+        $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
+        $this->useSecondLanguage('en');
+
+        $body = $this->get('/integrations/translations')->getBody();
+
+        $this->assertStringNotContainsString('<select name="language"', $body);
+        $this->assertMatchesRegularExpression('#<input[^>]*name="language" value="en" readonly#', $body);
+    }
+
+    public function testPostPaymentMethods_RefusesValuesThatAreListsAndStoresNothing(): void
+    {
+        $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
+
+        $name    = $this->postJson('/integrations/payment_methods', ['name' => ['debit' => ['x']]]);
+        $enabled = $this->postJson('/integrations/payment_methods', ['enabled' => ['debit' => ['1']]]);
+
+        foreach ([$name, $enabled] as $body) {
+            $this->assertFalse($body['success']);
+            $this->assertSame(lang('Integrations.error_input_invalid'), $body['message']);
+        }
+
+        $this->assertSame(0, Database::connect()->table('payment_methods')->countAllResults());
+    }
+
+    public function testGetIndex_OpensEveryScreenOfTheIntegrationsWhetherAccountingIsOnOrOff(): void
+    {
+        $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
+        $was = $this->accountingDb()->table('app_config')->where('key', 'accounting_enabled')->get()->getRow()?->value ?? '0';
+
+        try {
+            foreach (['0', '1'] as $accounting) {
+                $this->setConfigValue('accounting_enabled', $accounting);
+
+                foreach (['/integrations', '/integrations/payment_methods', '/integrations/translations', '/integrations/rules'] as $url) {
+                    $this->get($url)->assertStatus(200);
+                }
+
+                $this->assertTrue($this->postJson('/integrations/options', ['payment_methods' => '1'])['success'], 'The switches were not saved with accounting at ' . $accounting);
+            }
+        } finally {
+            $this->setConfigValue('accounting_enabled', (string) $was);
+        }
+    }
+
     public function testPostTranslationSave_IsRefusedWithoutThePermissionToManage(): void
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG]);
@@ -381,7 +448,7 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG]);
 
-        $this->get('/integrations/rules')->assertRedirectTo('no_access/' . IntegrationAccess::MANAGE);
+        $this->get('/integrations/rules')->assertRedirectTo('no_access/' . IntegrationAccess::MODULE . '/' . IntegrationAccess::MANAGE);
     }
 
     public function testPostRuleSave_MakesAndChangesARuleAndSwitchesItAndDeletesIt(): void

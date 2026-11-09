@@ -88,11 +88,27 @@ class Api_keysControllerTest extends CIUnitTestCase
         $response->assertSee('api_off');
     }
 
+    public function testGetIndex_OpensWhetherAccountingIsOnOrOff(): void
+    {
+        $this->manager();
+        $was = Database::connect()->table('app_config')->where('key', 'accounting_enabled')->get()->getRow()?->value ?? '0';
+
+        try {
+            foreach (['0', '1'] as $accounting) {
+                $this->setConfigValue('accounting_enabled', $accounting);
+
+                $this->get('/api_keys')->assertStatus(200);
+            }
+        } finally {
+            $this->setConfigValue('accounting_enabled', (string) $was);
+        }
+    }
+
     public function testGetIndex_RedirectsAManagerOfIntegrationsWhoLacksTheSensitivePermission(): void
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
 
-        $this->get('/api_keys')->assertRedirectTo('no_access/' . IntegrationAccess::API_KEYS);
+        $this->get('/api_keys')->assertRedirectTo('no_access/' . IntegrationAccess::MODULE . '/' . IntegrationAccess::API_KEYS);
     }
 
     public function testGetIndex_RedirectsAHolderOfTheSensitivePermissionWithoutTheConfigurationGrant(): void
@@ -106,7 +122,7 @@ class Api_keysControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::API_KEYS], [$this->createBranch('B2')]);
 
-        $this->get('/api_keys')->assertRedirectTo('no_access/' . IntegrationAccess::API_KEYS);
+        $this->get('/api_keys')->assertRedirectTo('no_access/' . IntegrationAccess::MODULE . '/' . IntegrationAccess::API_KEYS);
     }
 
     public function testGetIndex_RedirectsAHolderOfEverythingExceptTheModule(): void
@@ -170,11 +186,23 @@ class Api_keysControllerTest extends CIUnitTestCase
         $this->assertSame(0, Database::connect()->table('api_keys')->countAllResults());
     }
 
+    public function testPostCreate_RefusesScopesAndANameThatAreListsInWordsAndStoresNothing(): void
+    {
+        $this->manager();
+
+        $scopes = $this->postJson('/api_keys/create', ['name' => 'Nested', 'scopes' => [['read:customers']]]);
+        $name   = $this->postJson('/api_keys/create', ['name' => ['Nested'], 'scopes' => ['read:customers']]);
+
+        $this->assertSame([false, lang('Integrations.error_api_key_scopes')], [$scopes['success'], $scopes['message']]);
+        $this->assertFalse($name['success']);
+        $this->assertSame(0, Database::connect()->table('api_keys')->countAllResults());
+    }
+
     public function testPostCreate_IsRefusedForAnEmployeeWhoMayNotOpenTheScreen(): void
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
 
-        $this->post('/api_keys/create', ['name' => 'Sneaky', 'scopes' => ['read:customers']])->assertRedirectTo('no_access/' . IntegrationAccess::API_KEYS);
+        $this->post('/api_keys/create', ['name' => 'Sneaky', 'scopes' => ['read:customers']])->assertRedirectTo('no_access/' . IntegrationAccess::MODULE . '/' . IntegrationAccess::API_KEYS);
         $this->assertSame(0, Database::connect()->table('api_keys')->countAllResults());
     }
 
@@ -217,7 +245,7 @@ class Api_keysControllerTest extends CIUnitTestCase
 
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
 
-        $this->post('/api_keys/revoke/' . $key->id)->assertRedirectTo('no_access/' . IntegrationAccess::API_KEYS);
+        $this->post('/api_keys/revoke/' . $key->id)->assertRedirectTo('no_access/' . IntegrationAccess::MODULE . '/' . IntegrationAccess::API_KEYS);
         $this->assertFalse((new ApiKeys())->find($key->id)->revoked);
     }
 }

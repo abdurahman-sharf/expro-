@@ -235,6 +235,14 @@ class EntityTranslationsTest extends CIUnitTestCase
         Database::connect()->table('suppliers')->where('person_id', $supplier)->update(['deleted' => 0]);
     }
 
+    public function testSave_AsksForALanguageWhenNoneIsGiven(): void
+    {
+        $refusal = $this->refusal(fn () => $this->translations->save('item', (string) $this->item(), '  ', 'Name', '', null));
+
+        $this->assertSame(IntegrationError::TranslationNoLanguage, $refusal->error);
+        $this->assertSame(0, Database::connect()->table('entity_translations')->countAllResults());
+    }
+
     public function testSave_RejectsALanguageThatIsNotALanguageOfTheApplication(): void
     {
         $refusal = $this->refusal(fn () => $this->translations->save('item', (string) $this->item(), 'xx', 'Name', '', null));

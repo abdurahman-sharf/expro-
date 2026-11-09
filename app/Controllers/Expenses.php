@@ -269,7 +269,7 @@ class Expenses extends Secure_Controller
             'deleted'             => $this->request->getPost('deleted') != null
         ];
 
-        $stored  = $expenseId == NEW_ENTRY ? null : (string) $this->expense->get_info($expenseId)->payment_type;
+        $stored  = $expenseId === NEW_ENTRY ? null : (string) $this->expense->get_info($expenseId)->payment_type;
         $refusal = is_string($expenseData['payment_type']) ? (new PaymentMethods())->refusal($expenseData['payment_type'], $stored) : null;
 
         if ($refusal !== null) {

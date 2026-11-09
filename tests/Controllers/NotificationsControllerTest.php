@@ -106,6 +106,22 @@ class NotificationsControllerTest extends CIUnitTestCase
         $this->get('/notifications')->assertRedirectTo('no_access/' . IntegrationAccess::NOTIFICATIONS_MODULE . '/');
     }
 
+    public function testGetIndex_OpensWhileAccountingIsOffToAnEmployeeWhoHoldsTheModuleAlone(): void
+    {
+        $was = Database::connect()->table('app_config')->where('key', 'accounting_enabled')->get()->getRow()?->value ?? '0';
+
+        try {
+            foreach (['0', '1'] as $accounting) {
+                $this->setConfigValue('accounting_enabled', $accounting);
+                $this->actAsWith([IntegrationAccess::NOTIFICATIONS_MODULE]);
+
+                $this->get('/notifications')->assertStatus(200);
+            }
+        } finally {
+            $this->setConfigValue('accounting_enabled', (string) $was);
+        }
+    }
+
     public function testGetIndex_ShowsNoBannerWhileTheRulesAreOn(): void
     {
         $this->actAsWith([IntegrationAccess::NOTIFICATIONS_MODULE]);

@@ -249,13 +249,24 @@ class NotificationsTest extends CIUnitTestCase
         $this->assertSame('Cheque CH-1 of Omar for 250.0000 falls due on 2027-03-01.', Notifications::message($cheque));
     }
 
-    public function testMessage_NamesAnOpeningBalanceAndADebitNoteWhereThereIsNoInvoiceNumber(): void
+    public function testMessage_NamesAnOpeningBalanceAndADebitNoteAsTheSubjectOfTheSentence(): void
     {
+        service('language')->setLocale('en');
+
         $opening = (object) ['kind' => 'invoice_overdue', 'rule_name' => 'Late', 'params' => json_encode(['customer' => 'Omar', 'document' => '', 'kind' => 'opening', 'amount' => '5.0000', 'days' => '3'])];
         $note    = (object) ['kind' => 'invoice_overdue', 'rule_name' => 'Late', 'params' => json_encode(['customer' => 'Omar', 'document' => '', 'kind' => 'debit_note', 'amount' => '5.0000', 'days' => '3'])];
 
-        $this->assertStringContainsString(lang('Integrations.document_opening'), Notifications::message($opening));
-        $this->assertStringContainsString(lang('Integrations.document_debit_note'), Notifications::message($note));
+        $this->assertSame('An opening balance of Omar is overdue by 3 days: 5.0000 is still owed.', Notifications::message($opening));
+        $this->assertSame('A debit note of Omar is overdue by 3 days: 5.0000 is still owed.', Notifications::message($note));
+    }
+
+    public function testMessage_NamesAnInvoiceWithoutANumberByItsSaleNumber(): void
+    {
+        service('language')->setLocale('en');
+
+        $unnumbered = (object) ['kind' => 'invoice_overdue', 'rule_name' => 'Late', 'params' => json_encode(['customer' => 'Omar', 'document' => '#12', 'kind' => 'invoice', 'amount' => '5.0000', 'days' => '3'])];
+
+        $this->assertSame('Invoice #12 of Omar is overdue by 3 days: 5.0000 is still owed.', Notifications::message($unnumbered));
     }
 
     public function testMessage_FallsBackToTheNameOfTheRuleForAKindItDoesNotKnow(): void

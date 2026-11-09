@@ -205,6 +205,45 @@ class NotificationEvaluatorTest extends CIUnitTestCase
         $this->assertSame(2, Database::connect()->table('notifications')->where('subject_key', 'invoice:' . $invoice)->countAllResults(), 'The first one stays closed and a new one is open.');
     }
 
+    public function testRun_RaisesNoOverdueInvoiceAndClosesTheOpenOnesWhileAccountingIsOffAndRaisesThemAgainWhenItIsOn(): void
+    {
+        $this->rules->create('invoice_overdue', 'Late', '1', null);
+
+        $invoice = $this->invoiceDated('100.00', $this->daysAgo(10));
+
+        $this->assertSame(1, $this->evaluator->run()->created());
+
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->invoiceDated('40.00', $this->daysAgo(20));
+
+        $off = $this->evaluator->run();
+
+        $this->assertSame(0, $off->created(), 'The books are frozen, so nothing new is read from them.');
+        $this->assertSame(1, $off->resolved(), 'The notification of an invoice the frozen books still show as open is closed, not kept.');
+        $this->assertSame([], $this->open('invoice:'));
+
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $on = $this->evaluator->run();
+
+        $this->assertSame(1, $on->created(), 'The invoice that is still owed is raised again.');
+        $this->assertContains('invoice:' . $invoice, array_column($this->open('invoice:'), 'subject_key'));
+    }
+
+    public function testRun_StillRaisesLowStockAndChequesWhileAccountingIsOff(): void
+    {
+        $this->rules->create('low_stock', 'Low', null, null);
+        $this->rules->create('cheque_due', 'Cheques', '0', null);
+        $this->stock($this->item('1.00'), '1', 5);
+        $this->cheque($this->daysAgo(2));
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->evaluator->run();
+
+        $this->assertNotSame([], $this->open('stock:'));
+        $this->assertCount(1, $this->open('cheque:'));
+    }
+
     public function testRun_RaisesTheNotificationOfAnInvoiceOfAnotherBranchInThatBranch(): void
     {
         $this->rules->create('invoice_overdue', 'Late', '1', null);
