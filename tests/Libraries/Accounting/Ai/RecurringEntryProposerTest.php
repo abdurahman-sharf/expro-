@@ -268,6 +268,58 @@ final class RecurringEntryProposerTest extends CIUnitTestCase
         $this->assertSame([], (new RecurringEntryProposer(null, null, 2))->propose($this->today, null));
     }
 
+    public function testPropose_NeverTakesTheCurrentMonthForAbsentBecauseTheCapLeftItsRowsOut(): void
+    {
+        $this->rent(['2026-08-05', '2026-09-05', '2026-10-05', '2026-11-05']);
+
+        $this->assertSame([], (new RecurringEntryProposer(null, null, 3))->propose($this->today, null));
+    }
+
+    public function testPropose_LeavesAJournalWithALineChargedToADistributionOfCostCentersToAPerson(): void
+    {
+        $db = $this->accountingDb();
+        $db->table('accounting_cost_centers')->insert(['code' => 'CCA', 'name' => 'Alpha', 'active' => 1]);
+        $first = (int) $db->insertID();
+        $db->table('accounting_cost_centers')->insert(['code' => 'CCB', 'name' => 'Beta', 'active' => 1]);
+        $second = (int) $db->insertID();
+
+        $this->rent(['2026-08-05', '2026-09-05']);
+        (new JournalService())->postNew([
+            'date'        => '2026-10-05',
+            'description' => 'Office rent',
+            'lines'       => [
+                ['account_id' => $this->rentExpense(), 'debit' => '2000.00', 'credit' => '', 'description' => '', 'distribution' => [['cost_center_id' => $first, 'percent' => '60'], ['cost_center_id' => $second, 'percent' => '40']]],
+                ['account_id' => $this->cashAccount(), 'debit' => '', 'credit' => '2000.00', 'description' => ''],
+            ],
+        ], null);
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_RepeatsAJournalOfAnExpenseDocumentWhoseLineGotTheDistributionOfItsAccount(): void
+    {
+        $db = $this->accountingDb();
+        $db->table('accounting_cost_centers')->insert(['code' => 'CCA', 'name' => 'Alpha', 'active' => 1]);
+        $center = (int) $db->insertID();
+
+        foreach (['2026-08-05', '2026-09-05', '2026-10-05'] as $index => $date) {
+            (new PostingService())->post(new JournalDraft(
+                date: $date,
+                lines: [new JournalLineDraft($this->rentExpense(), debit: '2000.00'), new JournalLineDraft($this->cashAccount(), credit: '2000.00')],
+                sourceType: 'expense',
+                sourceId: 900 + $index,
+                description: 'Rent',
+                branchId: 1,
+            ));
+        }
+
+        $line = $db->query('SELECT l.line_id FROM ' . $db->prefixTable('accounting_journal_lines') . ' l JOIN ' . $db->prefixTable('accounting_journals') . ' j ON j.journal_id = l.journal_id WHERE j.source_type = ? AND l.account_id = ? ORDER BY j.journal_id DESC LIMIT 1', ['expense', $this->rentExpense()])->getRow();
+
+        $db->table('accounting_journal_line_distributions')->insert(['line_id' => (int) $line->line_id, 'cost_center_id' => $center, 'percent' => '100.0000', 'amount' => '2000.0000']);
+
+        $this->assertCount(1, $this->proposer->propose($this->today, null));
+    }
+
     public function testPropose_ReadsTheExpenseDocumentsAsOneExpenseOfTheirAccount(): void
     {
         foreach (['2026-08-05', '2026-09-05', '2026-10-05'] as $index => $date) {

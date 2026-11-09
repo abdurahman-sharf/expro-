@@ -6,6 +6,8 @@ use App\Libraries\Accounting\Ai\AiSettings;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Organization\BranchError;
+use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -57,6 +59,17 @@ final class AiSettingsTest extends CIUnitTestCase
         try {
             $call();
         } catch (AccountingException $failure) {
+            return $failure;
+        }
+
+        $this->fail('The call was not refused.');
+    }
+
+    private function refusedByBranch(callable $call): BranchException
+    {
+        try {
+            $call();
+        } catch (BranchException $failure) {
             return $failure;
         }
 
@@ -324,5 +337,42 @@ final class AiSettingsTest extends CIUnitTestCase
 
         $this->assertSame(AccountingError::AiSettingInvalid, $this->refused(fn () => $this->settings->update(['night_end' => '22'], $manager))->error);
         $this->assertSame(6, $this->settings->int('night_end'));
+    }
+
+    public function testSetEnabled_RequiresEveryBranchToTurnItOn(): void
+    {
+        $limited = $this->employeeWithGrants([AccountingGuard::SETTINGS_MANAGE], [1]);
+
+        $this->assertSame(BranchError::CompanyScopeNeeded, $this->refusedByBranch(fn () => $this->settings->setEnabled(true, $limited))->error);
+        $this->assertFalse($this->settings->isSwitchedOn());
+        $this->assertSame([], $this->audit('ai_enabled'));
+    }
+
+    public function testSetEnabled_LetsAnEmployeeOfOneBranchSwitchItOff(): void
+    {
+        $this->setConfigValue(AiSettings::ENABLED_KEY, '1');
+
+        $this->settings->setEnabled(false, $this->employeeWithGrants([AccountingGuard::AI_USE], [1]));
+
+        $this->assertFalse($this->settings->isSwitchedOn());
+        $this->assertCount(1, $this->audit('ai_disabled'));
+    }
+
+    public function testSetEnabled_LetsAManagerOfOneBranchSwitchItOffToo(): void
+    {
+        $this->setConfigValue(AiSettings::ENABLED_KEY, '1');
+
+        $this->settings->setEnabled(false, $this->employeeWithGrants([AccountingGuard::SETTINGS_MANAGE], [1]));
+
+        $this->assertFalse($this->settings->isSwitchedOn());
+    }
+
+    public function testUpdate_RequiresEveryBranchToChangeTheThresholds(): void
+    {
+        $limited = $this->employeeWithGrants([AccountingGuard::SETTINGS_MANAGE], [1]);
+
+        $this->assertSame(BranchError::CompanyScopeNeeded, $this->refusedByBranch(fn () => $this->settings->update(['duplicate_days' => '5'], $limited))->error);
+        $this->assertSame(3, $this->settings->int('duplicate_days'));
+        $this->assertSame([], $this->audit('ai_settings_updated'));
     }
 }

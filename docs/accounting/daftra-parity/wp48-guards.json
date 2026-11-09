@@ -29,7 +29,7 @@
  {
   "name": "G04 settings: turning the agent on needs the permission to change the settings",
   "file": "app/Libraries/Accounting/Ai/AiSettings.php",
-  "find": "if ($enabled) {\n            $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);",
+  "find": "if ($enabled) {\n            $this->requireManage($employeeId);",
   "replace": "if ($enabled) {",
   "tests": [
    "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
@@ -74,7 +74,7 @@
  {
   "name": "G09 settings: updating needs the permission to change the settings",
   "file": "app/Libraries/Accounting/Ai/AiSettings.php",
-  "find": "public function update(array $input, ?int $employeeId): void\n    {\n        $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);",
+  "find": "public function update(array $input, ?int $employeeId): void\n    {\n        $this->requireManage($employeeId);",
   "replace": "public function update(array $input, ?int $employeeId): void\n    {",
   "tests": [
    "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
@@ -2310,8 +2310,8 @@
  {
   "name": "G405 reclassify: a journal dated after today is not the subject",
   "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
-  "find": "            ->where('j.journal_date <=', $today->format('Y-m-d'));",
-  "replace": "            ->where('j.journal_date >=', $since);",
+  "find": "->where('j.journal_date <=', $today->format('Y-m-d'))",
+  "replace": "->where('j.journal_date >=', $since)",
   "tests": [
    "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
   ]
@@ -2355,8 +2355,8 @@
  {
   "name": "G410 reclassify: the history is of posted journals only",
   "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
-  "find": "            ->where('j.status', JournalStatus::Posted->value)\n            ->whereIn('j.source_type', self::HISTORY_SOURCES)",
-  "replace": "            ->whereIn('j.source_type', self::HISTORY_SOURCES)",
+  "find": "->where('j.status', JournalStatus::Posted->value)\n            ->where('j.branch_id', (int) $subject->branch_id)",
+  "replace": "->where('j.branch_id', (int) $subject->branch_id)",
   "tests": [
    "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
   ]
@@ -2670,8 +2670,8 @@
  {
   "name": "G454 recurring: the expense documents are read",
   "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
-  "find": "private const SOURCES  = ['manual', ProposalService::SOURCE, ExpensePostingBuilder::SOURCE];",
-  "replace": "private const SOURCES  = ['manual', ProposalService::SOURCE];",
+  "find": "private const SOURCES  = [JournalDraft::SOURCE_MANUAL, ProposalService::SOURCE, ExpensePostingBuilder::SOURCE];",
+  "replace": "private const SOURCES  = [JournalDraft::SOURCE_MANUAL, ProposalService::SOURCE];",
   "tests": [
    "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
   ]
@@ -2679,8 +2679,8 @@
  {
   "name": "G455 recurring: the journals of the agent are read",
   "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
-  "find": "private const SOURCES  = ['manual', ProposalService::SOURCE, ExpensePostingBuilder::SOURCE];",
-  "replace": "private const SOURCES  = ['manual', ExpensePostingBuilder::SOURCE];",
+  "find": "private const SOURCES  = [JournalDraft::SOURCE_MANUAL, ProposalService::SOURCE, ExpensePostingBuilder::SOURCE];",
+  "replace": "private const SOURCES  = [JournalDraft::SOURCE_MANUAL, ExpensePostingBuilder::SOURCE];",
   "tests": [
    "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
   ]
@@ -3493,6 +3493,390 @@
   "replace": "return implode(', ', array_map(",
   "tests": [
    "tests/Libraries/Accounting/Ai/EvidenceRowsTest.php"
+  ]
+ },
+ {
+  "name": "G567 settings: turning the agent on needs every branch, as the switch is the company's",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "if ($enabled) {\n            $this->requireManage($employeeId);",
+  "replace": "if ($enabled) {\n            $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G568 settings: changing the thresholds needs every branch",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "public function update(array $input, ?int $employeeId): void\n    {\n        $this->requireManage($employeeId);",
+  "replace": "public function update(array $input, ?int $employeeId): void\n    {\n        $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G569 settings: the settings of the agent check the company scope",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php",
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G570 settings: the settings of the agent check the permission",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "        $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);\n        $this->branches->requireCompanyScope",
+  "replace": "        $this->branches->requireCompanyScope",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G571 screens: the form of the settings is for who manages them in every branch",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "$canManage = $this->canManage(AccountingGuard::SETTINGS_MANAGE);",
+  "replace": "$canManage = $this->can(AccountingGuard::SETTINGS_MANAGE);",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G572 reclassify: when the subjects are more than the cap the newest are kept",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "$builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->subjectCap)",
+  "replace": "$builder->orderBy('j.journal_id', 'ASC')->orderBy('l.line_no', 'ASC')->limit($this->subjectCap)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G573 reclassify: the suggestions come oldest first",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "return array_reverse($builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->subjectCap)->get()->getResult());",
+  "replace": "return $builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->subjectCap)->get()->getResult();",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G574 recurring: when the rows are more than the cap the newest are kept",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "$builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->rowCap)",
+  "replace": "$builder->orderBy('j.journal_id', 'ASC')->orderBy('l.line_no', 'ASC')->limit($this->rowCap)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G575 recurring: the rows are read oldest first, so the last of a month is the last",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "foreach (array_reverse($builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->rowCap)->get()->getResult()) as $row) {",
+  "replace": "foreach ($builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->rowCap)->get()->getResult() as $row) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G576 reclassify: the history is that of the branch of the subject",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->where('j.branch_id', (int) $subject->branch_id)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G577 reclassify: a line charged to a distribution of cost centers is left to a person",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "\n            ->where('NOT EXISTS (SELECT 1 FROM ' . $this->db->prefixTable('accounting_journal_line_distributions') . ' d WHERE d.line_id = l.line_id)', null, false);",
+  "replace": ";",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G578 recurring: a manual journal with a distribution of cost centers is left to a person",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "if (($manual && (int) $row->distributed === 1) || in_array(",
+  "replace": "if (in_array(",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G579 recurring: only a manual journal is left to a person for its distribution",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "if (($manual && (int) $row->distributed === 1)",
+  "replace": "if (((int) $row->distributed === 1)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G580 recurring: the distribution is looked for in the journal of the month",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "$template->source_type === JournalDraft::SOURCE_MANUAL",
+  "replace": "true",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G581 approval: the line rules of the books as they are now are checked again",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "            $this->assertLineRules($journal->lines);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G582 approval: a proposal that fails the line rules says so as the reason it was superseded",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "return 'line_rules_changed';",
+  "replace": "return 'x';",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G583 approval: a proposal that fails the line rules is superseded and not left standing",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "        } catch (AccountingException) {\n            return 'line_rules_changed';",
+  "replace": "        } catch (AccountingException $failure) {\n            throw $failure;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G584 labels: the source of a journal is shown by its label",
+  "file": "app/Libraries/Accounting/Ai/EvidenceLabels.php",
+  "find": "return JournalSources::label($value);",
+  "replace": "return $value;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceLabelsTest.php",
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php",
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G585 labels: the owner of an account is shown by its label",
+  "file": "app/Libraries/Accounting/Ai/EvidenceLabels.php",
+  "find": "'entity_type' => 'Accounting_ai.evidence_owner_',",
+  "replace": "'entity_type' => 'Accounting_ai.evidence_nothing_',",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceLabelsTest.php",
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G586 labels: the status of a journal is shown by its label",
+  "file": "app/Libraries/Accounting/Ai/EvidenceLabels.php",
+  "find": "'status'      => 'Accounting_ai.evidence_status_',",
+  "replace": "'status'      => 'Accounting_ai.evidence_nothing_',",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceLabelsTest.php",
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G587 labels: a code that has no label is shown as it is",
+  "file": "app/Libraries/Accounting/Ai/EvidenceLabels.php",
+  "find": "return $line === $prefix . $value ? $value : $line;",
+  "replace": "return $line;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceLabelsTest.php"
+  ]
+ },
+ {
+  "name": "G588 labels: a key that has no labels keeps its value",
+  "file": "app/Libraries/Accounting/Ai/EvidenceLabels.php",
+  "find": "        if ($prefix === null) {\n            return $value;\n        }\n",
+  "replace": "        $prefix ??= 'Accounting_ai.evidence_status_';\n",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceLabelsTest.php"
+  ]
+ },
+ {
+  "name": "G589 labels: the message of a finding names the source by its label",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "$args['source'] = EvidenceLabels::value('source', (string) $args['source']);",
+  "replace": "$args['source'] = (string) $args['source'];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php",
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G590 labels: the evidence of the screens is shown by its labels",
+  "file": "app/Views/accounting_ai/evidence.php",
+  "find": "<?= esc(EvidenceLabels::value((string) $key, (string) $value)) ?>",
+  "replace": "<?= esc((string) $value) ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G591 output: an evidence value typed by a person is escaped",
+  "file": "app/Views/accounting_ai/evidence.php",
+  "find": "<?= esc(EvidenceLabels::value((string) $key, (string) $value)) ?>",
+  "replace": "<?= EvidenceLabels::value((string) $key, (string) $value) ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G592 output: the title of a proposal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) $proposal->title_text) ?> <span",
+  "replace": "<?= (string) $proposal->title_text ?> <span",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G593 output: the rationale of a proposal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) $proposal->rationale_text) ?>",
+  "replace": "<?= (string) $proposal->rationale_text ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G594 output: the branch of a proposal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) $proposal->branch_code) ?>",
+  "replace": "<?= (string) $proposal->branch_code ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G595 output: the name of who asked for a proposal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "esc((string) $proposal->requester_name)",
+  "replace": "(string) $proposal->requester_name",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G596 output: the name of who decided is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "esc((string) $proposal->decider_name)",
+  "replace": "(string) $proposal->decider_name",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G597 output: the reason of a rejection is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) $proposal->reject_reason) ?>",
+  "replace": "<?= (string) $proposal->reject_reason ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G598 output: the text of the proposed journal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) ($proposal->payload_data['description'] ?? '')) ?>",
+  "replace": "<?= (string) ($proposal->payload_data['description'] ?? '') ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G599 output: the name of an account of the proposed journal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) $line['account_name']) ?>",
+  "replace": "<?= (string) $line['account_name'] ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G600 output: the text of a line of the proposed journal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) ($line['description'] ?? '')) ?>",
+  "replace": "<?= (string) ($line['description'] ?? '') ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G601 output: the title in the list of proposals is escaped",
+  "file": "app/Views/accounting_ai/proposals.php",
+  "find": "<td><?= esc((string) $row->title_text) ?></td>",
+  "replace": "<td><?= (string) $row->title_text ?></td>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G602 output: the branch in the list of proposals is escaped",
+  "file": "app/Views/accounting_ai/proposals.php",
+  "find": "<bdi dir=\"ltr\"><?= esc((string) $row->branch_code) ?></bdi>",
+  "replace": "<bdi dir=\"ltr\"><?= (string) $row->branch_code ?></bdi>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G603 output: the title in the form of an approval is escaped",
+  "file": "app/Views/accounting_ai/approve_form.php",
+  "find": "<p><?= esc((string) $proposal->title_text) ?></p>",
+  "replace": "<p><?= (string) $proposal->title_text ?></p>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G604 output: the title in the form of a rejection is escaped",
+  "file": "app/Views/accounting_ai/reject_form.php",
+  "find": "<p class=\"fw-bold\"><?= esc((string) $proposal->title_text) ?></p>",
+  "replace": "<p class=\"fw-bold\"><?= (string) $proposal->title_text ?></p>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G605 output: the message in the form of a decision is escaped",
+  "file": "app/Views/accounting_ai/decide_form.php",
+  "find": "<p class=\"fw-bold\"><?= esc((string) $finding->message) ?></p>",
+  "replace": "<p class=\"fw-bold\"><?= (string) $finding->message ?></p>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G606 output: the message of a finding is escaped",
+  "file": "app/Views/accounting_ai/findings.php",
+  "find": "<p class=\"mb-2\"><?= esc((string) $row->message) ?></p>",
+  "replace": "<p class=\"mb-2\"><?= (string) $row->message ?></p>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G607 output: the decision on a finding is escaped",
+  "file": "app/Views/accounting_ai/findings.php",
+  "find": "<?= esc(lang('Accounting_ai.decision_line', [(string) $row->decider_name, (string) $row->decided_at, (string) $row->decision_reason])) ?>",
+  "replace": "<?= lang('Accounting_ai.decision_line', [(string) $row->decider_name, (string) $row->decided_at, (string) $row->decision_reason]) ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G608 output: the branch of a finding is escaped",
+  "file": "app/Views/accounting_ai/findings.php",
+  "find": "<?= esc((string) $row->branch_code) ?>",
+  "replace": "<?= (string) $row->branch_code ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
   ]
  }
 ]

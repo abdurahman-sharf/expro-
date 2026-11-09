@@ -118,8 +118,11 @@ trait AiFixtureTrait
 
     /**
      * A valid proposal: the rent from the cash, for the amount.
+     *
+     * @param array<string, scalar>                 $args     Put over the figures its title and its rationale are filled with.
+     * @param list<array<string, scalar|null>>|null $evidence
      */
-    protected function proposalDraft(string $amount = '500.00', string $key = 'rent-1', string $date = '2026-10-21', ?int $branchId = 1, string $kind = 'recurring'): ProposalDraft
+    protected function proposalDraft(string $amount = '500.00', string $key = 'rent-1', string $date = '2026-10-21', ?int $branchId = 1, string $kind = 'recurring', array $args = [], string $description = 'Rent proposed', ?array $evidence = null, string $lineText = 'Rent'): ProposalDraft
     {
         return new ProposalDraft(
             kind: $kind,
@@ -127,13 +130,13 @@ trait AiFixtureTrait
             dedupeKey: $key,
             date: $date,
             branchId: $branchId,
-            description: 'Rent proposed',
+            description: $description,
             lines: [
-                new JournalLineDraft($this->rentExpense(), debit: $amount, description: 'Rent'),
-                new JournalLineDraft($this->cashAccount(), credit: $amount, description: 'Rent'),
+                new JournalLineDraft($this->rentExpense(), debit: $amount, description: $lineText),
+                new JournalLineDraft($this->cashAccount(), credit: $amount, description: $lineText),
             ],
-            evidence: [['type' => 'journal', 'journal_id' => 1, 'number' => '000001', 'date' => '2026-09-21', 'amount' => $amount]],
-            templateArgs: ['amount' => $amount, 'account' => '5201 Rent', 'month' => '2026-10', 'months' => 3, 'text' => 'Rent', 'number' => '000001'],
+            evidence: $evidence ?? [['type' => 'journal', 'journal_id' => 1, 'number' => '000001', 'date' => '2026-09-21', 'amount' => $amount]],
+            templateArgs: $args + ['amount' => $amount, 'account' => '5201 Rent', 'month' => '2026-10', 'months' => 3, 'text' => 'Rent', 'number' => '000001'],
         );
     }
 

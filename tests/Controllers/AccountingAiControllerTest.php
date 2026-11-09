@@ -14,6 +14,7 @@ use CodeIgniter\Test\TestResponse;
 use Config\Database;
 use Config\Filters;
 use Config\Services;
+use DateTimeImmutable;
 use ReflectionClass;
 use Tests\Support\AiFixtureTrait;
 use Tests\Support\CsvResponseTrait;
@@ -95,7 +96,11 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         return $this->proposals->create($this->proposalDraft('500.00', $key, '2026-10-21', $branchId, $kind), $this->approver);
     }
 
-    private function finding(string $rule = 'AI-ROUND', ?int $branchId = 1, string $status = 'open', string $reason = 'Looked at'): int
+    /**
+     * @param array<string, scalar>|null                 $args
+     * @param list<array<string, scalar|null>>|null      $evidence
+     */
+    private function finding(string $rule = 'AI-ROUND', ?int $branchId = 1, string $status = 'open', string $reason = 'Looked at', ?array $args = null, ?array $evidence = null): int
     {
         static $counter = 0;
 
@@ -109,8 +114,8 @@ final class AccountingAiControllerTest extends CIUnitTestCase
             'subject_type'    => 'journal',
             'subject_id'      => $counter,
             'occurred_on'     => '2026-10-10',
-            'template_args'   => json_encode(['number' => '00000' . $counter, 'amount' => '25000.0000', 'unit' => '1000.0000']),
-            'evidence'        => json_encode([['type' => 'journal', 'journal_id' => $counter, 'number' => '00000' . $counter, 'amount' => '25000.0000']]),
+            'template_args'   => json_encode($args ?? ['number' => '00000' . $counter, 'amount' => '25000.0000', 'unit' => '1000.0000']),
+            'evidence'        => json_encode($evidence ?? [['type' => 'journal', 'journal_id' => $counter, 'number' => '00000' . $counter, 'amount' => '25000.0000']]),
             'status'          => $status,
             'decided_by'      => $status === 'open' ? null : $this->approver,
             'decided_at'      => $status === 'open' ? null : '2026-10-11 10:00:00',
@@ -130,6 +135,20 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         parse_str((string) parse_url(html_entity_decode($match[1]), PHP_URL_QUERY), $query);
 
         return $query;
+    }
+
+    private const MARKUP         = '<img src=x onerror=alert(1)>';
+    private const MARKUP_ESCAPED = '&lt;img src=x onerror=alert(1)&gt;';
+
+    private function assertEscaped(TestResponse $page, string $where): void
+    {
+        $this->assertStringContainsString(self::MARKUP_ESCAPED, $page->getBody(), $where . ' does not show what was typed as text');
+        $this->assertDoesNotMatchRegularExpression('/<img src="?x"? onerror/', $page->getBody(), $where . ' lets what was typed become markup');
+    }
+
+    private function nameTheApproverWithMarkup(): void
+    {
+        $this->accountingDb()->table('people')->where('person_id', $this->approver)->update(['first_name' => '<b>Ann</b>', 'last_name' => self::MARKUP]);
     }
 
     private function rowOfProposal(string $body, int $proposalId): string
@@ -453,7 +472,7 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('name="decision"', $html);
     }
 
-    public function testEveryChangeIsAPostThatTheGlobalProtectionAgainstForgedRequestsCovers(): void
+    public function testPostActions_RequireTheGlobalProtectionAgainstForgedRequests(): void
     {
         $globals = (new ReflectionClass(Filters::class))->getDefaultProperties()['globals'];
 
@@ -597,8 +616,10 @@ final class AccountingAiControllerTest extends CIUnitTestCase
 
     public function testPostPropose_MakesTheProposalsOfTheRulesAndReportsTheFigures(): void
     {
-        foreach (['2026-08-05', '2026-09-05', '2026-10-05'] as $date) {
-            $this->manualJournal($date, $this->rentExpense(), $this->cashAccount(), '2000.00', 'Office rent');
+        $month = new DateTimeImmutable('first day of this month');
+
+        foreach ([3, 2, 1] as $back) {
+            $this->manualJournal($month->modify('-' . $back . ' months')->format('Y-m-d'), $this->rentExpense(), $this->cashAccount(), '2000.00', 'Office rent');
         }
 
         $before = $this->journalCount();
@@ -891,5 +912,124 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         $this->assertFalse($approve['success']);
         $this->assertSame(0, $this->aiJournals());
         $this->assertSame(1, (int) $this->accountingDb()->table('accounting_audit_log')->where('action', 'ai_disabled')->countAllResults());
+    }
+
+    public function testGetSettings_ShowsTheThresholdsReadOnlyToAManagerWhoWorksInSomeBranchesOnly(): void
+    {
+        $this->actAsWith(['accounting_ai', AccountingGuard::SETTINGS_MANAGE], [1]);
+
+        $page = $this->get('/accounting_ai/settings');
+
+        $page->assertStatus(200);
+        $page->assertDontSee('id="ai_settings_form"');
+        $page->assertSee('id="ai_thresholds_readonly"');
+        $page->assertSee('id="ai_disable"');
+    }
+
+    public function testPostSettings_RefusesAManagerWhoWorksInSomeBranchesOnlyInWords(): void
+    {
+        $this->actAsWith(['accounting_ai', AccountingGuard::SETTINGS_MANAGE], [1]);
+        $this->setConfigValue('accounting_ai_enabled', '0');
+
+        $result = $this->json($this->post('/accounting_ai/settings', ['enabled' => '1', 'threshold' => ['round_min' => '1']]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Branches.error_company_scope_needed'), $result['message']);
+        $this->assertFalse((new AiSettings())->isSwitchedOn());
+        $this->assertSame('10000.0000', (new AiSettings())->value('round_min'));
+        $this->assertSame(0, (int) $this->accountingDb()->table('accounting_audit_log')->whereIn('action', ['ai_enabled', 'ai_settings_updated'])->countAllResults());
+    }
+
+    public function testPostDisable_SwitchesTheAgentOffForAnEmployeeWhoWorksInOneBranchOnly(): void
+    {
+        $this->actAsWith(['accounting_ai'], [1]);
+
+        $result = $this->json($this->post('/accounting_ai/disable'));
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertFalse((new AiSettings())->isSwitchedOn());
+    }
+
+    public function testGetProposal_ShowsWhatPeopleTypedAsTextAndNeverAsMarkup(): void
+    {
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->rentExpense())->update(['name' => self::MARKUP]);
+        $this->nameTheApproverWithMarkup();
+
+        $branch = $this->createBranch('<i>B2</i>');
+        $id     = $this->proposals->create($this->proposalDraft('500.00', 'evil', '2026-10-21', $branch, 'recurring', ['account' => '5201 ' . self::MARKUP, 'text' => self::MARKUP], self::MARKUP, [['type' => 'journal', 'journal_id' => 1, 'number' => self::MARKUP, 'customer' => self::MARKUP]], self::MARKUP), $this->approver);
+
+        $page = $this->get('/accounting_ai/proposal/' . $id);
+
+        $this->assertEscaped($page, 'The proposal');
+        $this->assertStringContainsString('&lt;i&gt;B2&lt;/i&gt;', $page->getBody());
+        $this->assertStringNotContainsString('<i>B2</i>', $page->getBody());
+
+        $this->proposals->reject($id, self::MARKUP, $this->approver);
+
+        $rejected = $this->get('/accounting_ai/proposal/' . $id);
+
+        $this->assertEscaped($rejected, 'The rejected proposal');
+        $this->assertSame(1, preg_match('/id="ai_reject_reason">' . preg_quote(self::MARKUP_ESCAPED, '/') . '</', $rejected->getBody()));
+    }
+
+    public function testGetProposal_ShowsTheTextOfAProposalOfTheAgentAsTextWhenTheTitleAndTheRationaleHoldMarkup(): void
+    {
+        $id = $this->proposals->create($this->proposalDraft('500.00', 'title', '2026-10-21', 1, 'recurring', ['account' => self::MARKUP]), $this->approver);
+
+        $this->assertEscaped($this->get('/accounting_ai/proposal/' . $id), 'The title');
+        $this->assertEscaped($this->get('/accounting_ai/approve_form/' . $id), 'The form of the approval');
+        $this->assertEscaped($this->get('/accounting_ai/reject_form/' . $id), 'The form of the rejection');
+    }
+
+    public function testGetIndex_ShowsTheTitleAndTheBranchOfAProposalAsText(): void
+    {
+        $branch = $this->createBranch('<i>B2</i>');
+
+        $this->proposals->create($this->proposalDraft('500.00', 'list', '2026-10-21', $branch, 'recurring', ['account' => self::MARKUP]), $this->approver);
+
+        $page = $this->get('/accounting_ai');
+
+        $this->assertEscaped($page, 'The list of proposals');
+        $this->assertStringContainsString('&lt;i&gt;B2&lt;/i&gt;', $page->getBody());
+        $this->assertStringNotContainsString('<i>B2</i>', $page->getBody());
+    }
+
+    public function testGetFindings_ShowsWhatPeopleTypedAsTextAndNeverAsMarkup(): void
+    {
+        $this->nameTheApproverWithMarkup();
+
+        $branch = $this->createBranch('<i>B2</i>');
+
+        $this->finding('AI-BALANCE-JUMP', $branch, 'dismissed', self::MARKUP, ['customer' => self::MARKUP, 'prior' => '1', 'balance' => '2', 'increase' => '1', 'days' => 3], [['type' => 'journal', 'journal_id' => 1, 'customer' => self::MARKUP]]);
+
+        $page = $this->get('/accounting_ai/findings');
+
+        $this->assertEscaped($page, 'The findings');
+        $this->assertStringContainsString('&lt;i&gt;B2&lt;/i&gt;', $page->getBody());
+        $this->assertStringNotContainsString('<i>B2</i>', $page->getBody());
+        $this->assertSame(1, preg_match('/<p class="mb-2">[^<]*' . preg_quote(self::MARKUP_ESCAPED, '/') . '/', $page->getBody()));
+        $this->assertSame(1, preg_match('/ai-finding-decision">[^<]*' . preg_quote(self::MARKUP_ESCAPED, '/') . '/', $page->getBody()));
+    }
+
+    public function testGetDecideForm_ShowsTheMessageOfAFindingAsText(): void
+    {
+        $id = $this->finding('AI-BALANCE-JUMP', 1, 'open', 'x', ['customer' => self::MARKUP, 'prior' => '1', 'balance' => '2', 'increase' => '1', 'days' => 3]);
+
+        $this->assertEscaped($this->get('/accounting_ai/decide_form/' . $id), 'The form of the decision');
+    }
+
+    public function testGetFindings_ShowsTheLabelsOfTheSourceTheOwnerAndTheStatusAndNotTheirCodes(): void
+    {
+        $this->finding('AI-REVERSAL-CHAIN', 1, 'open', 'x', ['source' => 'sale', 'document' => 5, 'reversals' => 3], [['type' => 'journal', 'journal_id' => 1, 'source' => 'sale', 'status' => 'reversed', 'entity_type' => 'customer']]);
+
+        $body = $this->get('/accounting_ai/findings')->getBody();
+
+        $this->assertStringContainsString(lang('Accounting_ai.finding_ai_reversal_chain', ['source' => lang('Accounting.source_sale'), 'document' => 5, 'reversals' => 3]), $body);
+        $this->assertStringContainsString('<bdi dir="ltr">' . lang('Accounting.source_sale') . '</bdi>', $body);
+        $this->assertStringContainsString('<bdi dir="ltr">' . lang('Accounting_ai.evidence_status_reversed') . '</bdi>', $body);
+        $this->assertStringContainsString('<bdi dir="ltr">' . lang('Accounting_ai.evidence_owner_customer') . '</bdi>', $body);
+        $this->assertStringNotContainsString('<bdi dir="ltr">sale</bdi>', $body);
+        $this->assertStringNotContainsString('<bdi dir="ltr">reversed</bdi>', $body);
+        $this->assertStringNotContainsString('<bdi dir="ltr">customer</bdi>', $body);
     }
 }

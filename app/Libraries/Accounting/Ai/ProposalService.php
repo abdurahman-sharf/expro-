@@ -642,8 +642,9 @@ final class ProposalService
 
     /**
      * Why the proposal can no longer be posted as it stands, or null when it can: what its accounts and its
-     * branch were when it was made, whether the journals it rests on still stand, and every check a
-     * posted journal passes, the period of its date included.
+     * branch were when it was made, whether the journals it rests on still stand, what a manual journal must
+     * carry when the books ask for it (a text on every line, a cost center on income and expense lines, as the
+     * settings are now), and every check a posted journal passes, the period of its date included.
      *
      * @param array<string, mixed> $payload
      */
@@ -655,6 +656,12 @@ final class ProposalService
             if (! hash_equals((string) ($payload['snapshot'][$part] ?? ''), $now[$part])) {
                 return $reason;
             }
+        }
+
+        try {
+            $this->assertLineRules($journal->lines);
+        } catch (AccountingException) {
+            return 'line_rules_changed';
         }
 
         try {

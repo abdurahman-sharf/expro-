@@ -4,6 +4,7 @@ namespace App\Libraries\Accounting\Ai;
 
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\ExpensePostingBuilder;
+use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalStatus;
 use CodeIgniter\Database\BaseConnection;
@@ -19,7 +20,7 @@ final class RecurringEntryProposer implements Proposer
 {
     public const KIND      = 'recurring';
     public const NAME      = 'rules:recurring';
-    private const SOURCES  = ['manual', ProposalService::SOURCE, ExpensePostingBuilder::SOURCE];
+    private const SOURCES  = [JournalDraft::SOURCE_MANUAL, ProposalService::SOURCE, ExpensePostingBuilder::SOURCE];
     private const ROW_CAP  = 20000;
     private const AMOUNT_S = 4;
 
@@ -66,7 +67,9 @@ final class RecurringEntryProposer implements Proposer
     }
 
     /**
-     * The expense lines of the window, by branch, account and text, each with its occurrences by month.
+     * The expense lines of the window, by branch, account and text, each with its occurrences by month. Past the cap
+     * it is the oldest lines that are left out, never the newest: the month it looks for is the current one, and an
+     * expense that was posted this month must not look absent.
      *
      * @param list<int>|null $branchIds
      *
@@ -91,7 +94,7 @@ final class RecurringEntryProposer implements Proposer
 
         $groups = [];
 
-        foreach ($builder->orderBy('j.journal_id', 'ASC')->orderBy('l.line_no', 'ASC')->limit($this->rowCap)->get()->getResult() as $row) {
+        foreach (array_reverse($builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->rowCap)->get()->getResult()) as $row) {
             $text = $this->textOf($row);
             $key  = (int) $row->branch_id . '|' . (int) $row->account_id . '|' . $text;
             $mon  = substr((string) $row->journal_date, 0, 7);
@@ -167,7 +170,7 @@ final class RecurringEntryProposer implements Proposer
         $template = $seen[0];
         $account  = $this->db->table('accounting_accounts')->select('code, name')->where('account_id', $group['account_id'])->get()->getRow();
         $label    = $group['text'] !== '' ? mb_substr((string) ($template->line_description ?: $template->journal_description), 0, 200) : ProposalText::fill('label', self::KIND, ['account' => $account->code . ' ' . $account->name]);
-        $lines    = $this->templateLines((int) $template->journal_id, $group['text'] !== '' ? $label : null);
+        $lines    = $this->templateLines((int) $template->journal_id, $group['text'] !== '' ? $label : null, $template->source_type === JournalDraft::SOURCE_MANUAL);
 
         if ($lines === null) {
             return null;
@@ -216,15 +219,17 @@ final class RecurringEntryProposer implements Proposer
 
     /**
      * The lines of the journal of the last month, to be repeated, with the text of the expense on the lines that
-     * have none, or null when it is not one the agent may repeat: it has more than one expense line, or a line on
-     * the account of a customer, a supplier or a stock location.
+     * have none, or null when it is not one the agent may repeat: it has more than one expense line, a line of a manual
+     * journal charged to a distribution of several cost centers (which the repeated journal cannot carry; the
+     * distribution an account has by default is given again by the posting), or a line on the account of a customer,
+     * a supplier or a stock location.
      *
      * @return list<JournalLineDraft>|null
      */
-    private function templateLines(int $journalId, ?string $label): ?array
+    private function templateLines(int $journalId, ?string $label, bool $manual): ?array
     {
         $rows = $this->db->table('accounting_journal_lines l')
-            ->select('l.account_id, l.debit, l.credit, l.description, l.cost_center_id, a.account_type, a.entity_type')
+            ->select('l.account_id, l.debit, l.credit, l.description, l.cost_center_id, a.account_type, a.entity_type, EXISTS (SELECT 1 FROM ' . $this->db->prefixTable('accounting_journal_line_distributions') . ' d WHERE d.line_id = l.line_id) AS distributed', false)
             ->join('accounting_accounts a', 'a.account_id = l.account_id')
             ->where('l.journal_id', $journalId)
             ->orderBy('l.line_no', 'ASC')
@@ -234,7 +239,7 @@ final class RecurringEntryProposer implements Proposer
         $expenseLines = 0;
 
         foreach ($rows as $row) {
-            if (in_array($row->entity_type, [EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION], true)) {
+            if (($manual && (int) $row->distributed === 1) || in_array($row->entity_type, [EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION], true)) {
                 return null;
             }
 

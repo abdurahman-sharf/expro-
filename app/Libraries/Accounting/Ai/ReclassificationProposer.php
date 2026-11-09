@@ -14,8 +14,9 @@ use DateTimeImmutable;
 /**
  * A manual journal that put an amount on the account the books use for what has no account of its own (the
  * default of the expenses or of the revenues), with a text that earlier manual journals put on one account
- * again and again. The suggestion moves the amount to that account. The frequency table it rests on is the
- * evidence: for each account, how many times the same text went there.
+ * again and again, in the same branch. The suggestion moves the amount to that account. The frequency table it
+ * rests on is the evidence: for each account, how many times the same text went there. A line charged to a
+ * distribution of several cost centers is left to a person, because the suggestion carries one cost center at most.
  */
 final class ReclassificationProposer implements Proposer
 {
@@ -108,10 +109,13 @@ final class ReclassificationProposer implements Proposer
     }
 
     /**
+     * The newest lines when there are more than the cap, because the older ones were looked at by earlier runs and
+     * the ones that were suggested already are kept, so that a cap that cut the newest would never reach them.
+     *
      * @param list<int>|null $branchIds
      * @param list<int>      $accountIds
      *
-     * @return list<object>
+     * @return list<object> Oldest first.
      */
     private function subjectLines(DateTimeImmutable $today, ?array $branchIds, array $accountIds): array
     {
@@ -123,13 +127,14 @@ final class ReclassificationProposer implements Proposer
             ->where('j.status', JournalStatus::Posted->value)
             ->whereIn('j.source_type', self::SUBJECT_SOURCES)
             ->where('j.journal_date >=', $since)
-            ->where('j.journal_date <=', $today->format('Y-m-d'));
+            ->where('j.journal_date <=', $today->format('Y-m-d'))
+            ->where('NOT EXISTS (SELECT 1 FROM ' . $this->db->prefixTable('accounting_journal_line_distributions') . ' d WHERE d.line_id = l.line_id)', null, false);
 
         if ($branchIds !== null) {
             $builder->whereIn('j.branch_id', $branchIds);
         }
 
-        return $builder->orderBy('j.journal_id', 'ASC')->orderBy('l.line_no', 'ASC')->limit($this->subjectCap)->get()->getResult();
+        return array_reverse($builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->subjectCap)->get()->getResult());
     }
 
     /**
@@ -145,6 +150,7 @@ final class ReclassificationProposer implements Proposer
             ->join('accounting_journals j', 'j.journal_id = l.journal_id')
             ->join('accounting_accounts a', 'a.account_id = l.account_id')
             ->where('j.status', JournalStatus::Posted->value)
+            ->where('j.branch_id', (int) $subject->branch_id)
             ->whereIn('j.source_type', self::HISTORY_SOURCES)
             ->where('j.journal_id <', (int) $subject->journal_id)
             ->where('a.account_type', $type)

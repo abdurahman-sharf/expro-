@@ -108,7 +108,7 @@ final class AiIsolationTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_ai_findings'));
     }
 
-    public function testAnAgentThatIsOffWritesNothingWhateverIsAskedOfIt(): void
+    public function testAnyCall_RefusesAndWritesNothingWhileTheAgentIsOff(): void
     {
         $this->startAgent(false);
         $employee = $this->agentEmployee();
@@ -133,7 +133,7 @@ final class AiIsolationTest extends CIUnitTestCase
         $this->assertSame($before, $this->databaseFingerprint());
     }
 
-    public function testAJournalExistsOnlyForAProposalThatAPersonApproved(): void
+    public function testApprove_PostsAJournalOnlyForAProposalThatAPersonApproved(): void
     {
         $this->startAgent();
 
@@ -172,7 +172,7 @@ final class AiIsolationTest extends CIUnitTestCase
         $this->assertSame(0, (int) $orphans);
     }
 
-    public function testSwitchingTheAgentOffLeavesWhatItRecordedWhereItWasAndStopsTheRest(): void
+    public function testSetEnabled_KeepsWhatTheAgentRecordedAndStopsTheRestWhenSwitchedOff(): void
     {
         $this->startAgent();
 

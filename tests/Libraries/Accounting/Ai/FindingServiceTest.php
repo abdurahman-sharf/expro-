@@ -11,6 +11,7 @@ use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\Services;
 use Tests\Support\AiFixtureTrait;
 
 /**
@@ -112,6 +113,22 @@ final class FindingServiceTest extends CIUnitTestCase
         $this->assertStringContainsString('25000', $result['rows'][1]->message);
         $this->assertStringContainsString('000001', $result['rows'][1]->message);
         $this->assertCount(1, $result['rows'][1]->evidence_rows);
+    }
+
+    public function testSearch_PutsTheLabelOfTheSourceInTheMessageInTheLanguageOfTheReader(): void
+    {
+        $id = $this->finding('AI-REVERSAL-CHAIN');
+
+        $this->accountingDb()->table('accounting_ai_findings')->where('finding_id', $id)->update(['template_args' => json_encode(['source' => 'sale', 'document' => 5, 'reversals' => 3])]);
+
+        $this->assertSame('The journals of Sale 5 were reversed 3 times.', $this->service->find($id, $this->reader)->message);
+
+        Services::language()->setLocale('ar-EG');
+
+        $this->assertStringContainsString(lang('Accounting.source_sale'), $this->service->find($id, $this->reader)->message);
+        $this->assertStringNotContainsString('sale', $this->service->find($id, $this->reader)->message);
+
+        Services::language()->setLocale('en');
     }
 
     public function testSearch_FiltersByStatusRuleSeverityAndDate(): void

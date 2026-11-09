@@ -240,7 +240,7 @@ class AccountingAi extends AccountingController
 
     public function getSettings(): string
     {
-        $canManage = $this->can(AccountingGuard::SETTINGS_MANAGE);
+        $canManage = $this->canManage(AccountingGuard::SETTINGS_MANAGE);
 
         return view('accounting_ai/settings', [
             'enabled'    => $this->settings->isSwitchedOn(),

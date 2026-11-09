@@ -736,6 +736,49 @@ final class ProposalServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->aiJournals());
     }
 
+    public function testApprove_RefusesAProposalWhenTheBooksNowAskForACostCenterAndMarksItSuperseded(): void
+    {
+        $id = $this->service->create($this->proposalDraft(), $this->approver);
+        $this->setConfigValue(JournalSettings::CENTER_REQUIRED, '1');
+
+        $failure = $this->refused(fn () => $this->service->approve($id, $this->approver));
+        $row     = $this->proposalRow($id);
+
+        $this->assertSame(AccountingError::AiProposalStale, $failure->error);
+        $this->assertSame('superseded', $row->status);
+        $this->assertSame('line_rules_changed', $row->stale_reason);
+        $this->assertNull($row->dedupe_key);
+        $this->assertSame(0, $this->aiJournals());
+    }
+
+    public function testApprove_RefusesAProposalWhenTheBooksNowAskForADescriptionOnEveryLineAndMarksItSuperseded(): void
+    {
+        $draft = $this->proposalDraft('500.00', 'plain');
+        $lines = [new JournalLineDraft($this->rentExpense(), debit: '500.00', description: 'Rent'), new JournalLineDraft($this->cashAccount(), credit: '500.00')];
+        $id    = $this->service->create(new ProposalDraft($draft->kind, $draft->proposer, $draft->dedupeKey, $draft->date, $draft->branchId, $draft->description, $lines, $draft->evidence, $draft->templateArgs), $this->approver);
+
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $this->assertSame(AccountingError::AiProposalStale, $this->refused(fn () => $this->service->approve($id, $this->approver))->error);
+        $this->assertSame('line_rules_changed', $this->proposalRow($id)->stale_reason);
+        $this->assertSame(0, $this->aiJournals());
+    }
+
+    public function testApprove_PostsAProposalThatMeetsTheLineRulesTheBooksNowAsk(): void
+    {
+        $this->accountingDb()->table('accounting_cost_centers')->insert(['code' => 'CC1', 'name' => 'Shop', 'active' => 1]);
+        $center = (int) $this->accountingDb()->insertID();
+        $draft  = $this->proposalDraft('500.00', 'center-ok');
+        $lines  = [new JournalLineDraft($this->rentExpense(), debit: '500.00', description: 'Rent', costCenterId: $center), new JournalLineDraft($this->cashAccount(), credit: '500.00', description: 'Rent')];
+        $id     = $this->service->create(new ProposalDraft($draft->kind, $draft->proposer, $draft->dedupeKey, $draft->date, $draft->branchId, $draft->description, $lines, $draft->evidence, $draft->templateArgs), $this->approver);
+
+        $this->setConfigValue(JournalSettings::CENTER_REQUIRED, '1');
+        $this->setConfigValue('accounting_line_description_required', '1');
+
+        $this->assertGreaterThan(0, $this->service->approve($id, $this->approver));
+        $this->assertSame(1, $this->aiJournals());
+    }
+
     public function testApprove_RefusesAProposalWhoseSubjectJournalWasReversed(): void
     {
         $subject = $this->manualJournal('2026-10-05', $this->otherExpenses(), $this->cashAccount(), '300.00', 'Subject');

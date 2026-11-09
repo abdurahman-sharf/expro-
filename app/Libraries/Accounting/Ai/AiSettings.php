@@ -8,6 +8,8 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AuditLog;
 use App\Libraries\Accounting\JournalOrigin;
+use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
 use App\Models\Appconfig;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -59,13 +61,15 @@ final class AiSettings
     private Appconfig $config;
     private AuditLog $audit;
     private AccountingGuard $guard;
+    private BranchGuard $branches;
 
-    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null)
+    public function __construct(?BaseConnection $db = null, ?AccountingGuard $guard = null, ?BranchGuard $branches = null)
     {
-        $this->db     = $db ?? Database::connect();
-        $this->config = model(Appconfig::class);
-        $this->audit  = new AuditLog($this->db);
-        $this->guard  = $guard ?? new AccountingGuard();
+        $this->db       = $db ?? Database::connect();
+        $this->config   = model(Appconfig::class);
+        $this->audit    = new AuditLog($this->db);
+        $this->guard    = $guard ?? new AccountingGuard();
+        $this->branches = $branches ?? new BranchGuard($this->db);
     }
 
     /**
@@ -93,15 +97,16 @@ final class AiSettings
     }
 
     /**
-     * Turning it on needs the permission to change the accounting settings. Turning it off is the kill
-     * switch, so whoever may use the agent screens may do it too.
+     * Turning it on needs the permission to change the accounting settings and every branch, as the switch
+     * is the company's. Turning it off is the kill switch, so whoever may use the agent screens may do it
+     * too, from any branch.
      *
-     * @throws AccountingException
+     * @throws AccountingException|BranchException
      */
     public function setEnabled(bool $enabled, ?int $employeeId): void
     {
         if ($enabled) {
-            $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);
+            $this->requireManage($employeeId);
         } elseif (! $this->guard->has(AccountingGuard::SETTINGS_MANAGE, $employeeId) && ! $this->guard->has(AccountingGuard::AI_USE, $employeeId)) {
             $this->guard->require(AccountingGuard::AI_USE, $employeeId);
         }
@@ -159,11 +164,11 @@ final class AiSettings
     /**
      * @param array<string, mixed> $input A threshold that is not given stays as it is.
      *
-     * @throws AccountingException
+     * @throws AccountingException|BranchException
      */
     public function update(array $input, ?int $employeeId): void
     {
-        $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);
+        $this->requireManage($employeeId);
 
         $before  = $this->thresholds();
         $changes = [];
@@ -201,6 +206,15 @@ final class AiSettings
             'before' => array_intersect_key($before, $changes),
             'after'  => $changes,
         ]);
+    }
+
+    /**
+     * @throws AccountingException|BranchException
+     */
+    private function requireManage(?int $employeeId): void
+    {
+        $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);
+        $this->branches->requireCompanyScope($employeeId);
     }
 
     private function normalized(string $name, string $value): ?string

@@ -1,4 +1,7 @@
 <?php
+
+use App\Libraries\Accounting\Ai\EvidenceLabels;
+
 /**
  * @var list<array<string, scalar|null>> $rows
  * @var bool                             $canViewJournals
@@ -39,7 +42,7 @@
                                     <?php if ($key === 'journal_id' && $canViewJournals): ?>
                                         <a href="<?= esc(base_url('accounting_journals/view/' . (int) $value), 'attr') ?>"><bdi dir="ltr">#<?= (int) $value ?></bdi></a>
                                     <?php else: ?>
-                                        <bdi dir="ltr"><?= esc((string) $value) ?></bdi>
+                                        <bdi dir="ltr"><?= esc(EvidenceLabels::value((string) $key, (string) $value)) ?></bdi>
                                     <?php endif; ?>
                                 </span>
                             <?php endforeach; ?>

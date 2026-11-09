@@ -60,13 +60,31 @@ final class ReclassificationProposerTest extends CIUnitTestCase
         return $this->accountIdByCode('5204');
     }
 
-    private function history(string $text, int $account, int $times, string $startDate = '2026-09-01'): void
+    private function history(string $text, int $account, int $times, string $startDate = '2026-09-01', ?int $branchId = null): void
     {
         for ($index = 0; $index < $times; $index++) {
             $date = date('Y-m-d', strtotime($startDate . ' +' . $index . ' days'));
 
-            $this->manualJournal($date, $account, $this->cashAccount(), '100.00', $text);
+            $this->manualJournal($date, $account, $this->cashAccount(), '100.00', $text, null, $branchId);
         }
+    }
+
+    private function distributedSubject(string $text, string $amount = '250.00'): int
+    {
+        $db = $this->accountingDb();
+        $db->table('accounting_cost_centers')->insert(['code' => 'CCA', 'name' => 'Alpha', 'active' => 1]);
+        $first = (int) $db->insertID();
+        $db->table('accounting_cost_centers')->insert(['code' => 'CCB', 'name' => 'Beta', 'active' => 1]);
+        $second = (int) $db->insertID();
+
+        return (new JournalService())->postNew([
+            'date'        => '2026-10-20',
+            'description' => $text,
+            'lines'       => [
+                ['account_id' => $this->otherExpenses(), 'debit' => $amount, 'credit' => '', 'description' => '', 'distribution' => [['cost_center_id' => $first, 'percent' => '60'], ['cost_center_id' => $second, 'percent' => '40']]],
+                ['account_id' => $this->cashAccount(), 'debit' => '', 'credit' => $amount, 'description' => ''],
+            ],
+        ], null);
     }
 
     public function testPropose_SuggestsMovingTheAmountToTheAccountTheSameTextWentToBefore(): void
@@ -335,7 +353,7 @@ final class ReclassificationProposerTest extends CIUnitTestCase
     {
         $branch = $this->createBranch();
 
-        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->history('Gulf Cleaning', $this->maintenance(), 3, '2026-09-01', $branch);
         $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning', null, $branch);
 
         $this->assertSame($branch, $this->proposer->propose($this->today, null)[0]->branchId);
@@ -471,6 +489,80 @@ final class ReclassificationProposerTest extends CIUnitTestCase
 
         $this->assertCount(2, $this->proposer->propose($this->today, null));
         $this->assertCount(1, (new ReclassificationProposer(null, null, 1))->propose($this->today, null));
+    }
+
+    public function testPropose_KeepsTheNewestSubjectsWhenThereAreMoreThanItIsAllowedToLookAt(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->history('Power bill', $this->electricityExpense(), 3, '2026-09-10');
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+        $this->manualJournal('2026-10-21', $this->otherExpenses(), $this->cashAccount(), '80.00', 'Power bill');
+
+        $drafts = (new ReclassificationProposer(null, null, 1))->propose($this->today, null);
+
+        $this->assertSame('Power bill', $drafts[0]->templateArgs['text']);
+    }
+
+    public function testPropose_GivesTheSuggestionsOldestFirstWhateverTheCap(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->history('Power bill', $this->electricityExpense(), 3, '2026-09-10');
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+        $this->manualJournal('2026-10-21', $this->otherExpenses(), $this->cashAccount(), '80.00', 'Power bill');
+
+        $this->assertSame(['Gulf Cleaning', 'Power bill'], array_map(static fn ($draft): string => $draft->templateArgs['text'], $this->proposer->propose($this->today, null)));
+    }
+
+    public function testPropose_CountsOnlyTheHistoryOfTheBranchOfTheSubject(): void
+    {
+        $branch = $this->createBranch();
+
+        $this->history('Gulf Cleaning', $this->maintenance(), 3, '2026-09-01', $branch);
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_ShowsOnlyTheJournalsOfTheBranchOfTheSubjectAsEvidence(): void
+    {
+        $branch = $this->createBranch();
+
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->history('Gulf Cleaning', $this->electricityExpense(), 3, '2026-09-10', $branch);
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+
+        $drafts = $this->proposer->propose($this->today, null);
+
+        $this->assertCount(1, $drafts);
+
+        $history = array_values(array_filter($drafts[0]->evidence, static fn (array $row): bool => $row['type'] === 'history'));
+
+        $this->assertCount(1, $history);
+        $this->assertSame(3, $history[0]['uses']);
+
+        $branchOfEvidence = array_unique(array_map(fn (array $row): int => (int) $this->accountingDb()->table('accounting_journals')->where('journal_id', $row['journal_id'])->get()->getRow()->branch_id, $drafts[0]->evidence));
+
+        $this->assertSame([1], array_values($branchOfEvidence));
+    }
+
+    public function testPropose_LeavesALineChargedToADistributionOfCostCentersToAPerson(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->distributedSubject('Gulf Cleaning');
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_StillSuggestsForAnotherLineWhenOneLineIsChargedToADistribution(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->distributedSubject('Power bill');
+        $this->manualJournal('2026-10-21', $this->otherExpenses(), $this->cashAccount(), '90.00', 'Gulf Cleaning');
+
+        $drafts = $this->proposer->propose($this->today, null);
+
+        $this->assertCount(1, $drafts);
+        $this->assertSame('90.0000', $drafts[0]->templateArgs['amount']);
     }
 
     public function testPropose_GivesTheSameSuggestionsEveryTime(): void

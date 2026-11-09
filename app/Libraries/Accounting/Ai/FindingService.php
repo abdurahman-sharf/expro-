@@ -237,9 +237,14 @@ final class FindingService
     private function prepared(object $row): object
     {
         $evidence = json_decode((string) $row->evidence, true);
+        $args     = ProposalText::argsOf($row->template_args);
+
+        if (isset($args['source'])) {
+            $args['source'] = EvidenceLabels::value('source', (string) $args['source']);
+        }
 
         $row->evidence_rows = is_array($evidence) ? $evidence : [];
-        $row->message       = ProposalText::fill('finding', self::templateOf((string) $row->rule_code), ProposalText::argsOf($row->template_args), (string) $row->rule_code);
+        $row->message       = ProposalText::fill('finding', self::templateOf((string) $row->rule_code), $args, (string) $row->rule_code);
 
         return $row;
     }
