@@ -1,5 +1,6 @@
 <?php
 
+use App\Libraries\Integrations\PaymentMethods;
 use App\Models\Employee;
 use Config\OSPOS;
 
@@ -304,7 +305,7 @@ function get_payment_options(): array
     $payments[lang('Sales.bank_transfer')] = lang('Sales.bank_transfer');
     $payments[lang('Sales.wallet')]        = lang('Sales.wallet');
 
-    return $payments;
+    return (new PaymentMethods())->offered($payments);
 }
 
 /**

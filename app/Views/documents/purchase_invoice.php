@@ -13,6 +13,7 @@ $absolute        = $profile['absolute'];
 $figure          = static fn (mixed $amount): string => documentFigure($absolute, $amount);
 $terms           = documentTerms('purchase_invoice', $config);
 $itemExtraFields = $receiving['item_printed_fields'] ?? [];
+$secondLanguage  = documentTranslations('supplier', $receiving['supplier_id'] ?? null, array_map(static fn (array $item): int => (int) ($item['item_id'] ?? 0), array_values($receiving['cart'])));
 $discount        = (string) ($receiving['invoiceDiscountAmount'] ?? '0');
 $tax             = (string) ($receiving['tax_total'] ?? '0');
 $grand           = (string) ($receiving['total_with_tax'] ?? $receiving['total'] ?? '0');
@@ -62,6 +63,9 @@ $hasTax          = bccomp($tax, '0', 8) !== 0;
                     <br><?= lang('Receivings.supplier_commercial_registry') ?>: <?= documentIsolate((string) $receiving['supplier_commercial_registry']) ?>
                 <?php endif; ?>
             </div>
+            <?php if ($secondLanguage['party'] !== null): ?>
+                <div class="doc-party-body doc-second-language" dir="auto"><?= esc($secondLanguage['party']['name']) ?><?= $secondLanguage['party']['note'] !== '' ? '<br>' . esc($secondLanguage['party']['note']) : '' ?></div>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 
@@ -83,6 +87,9 @@ $hasTax          = bccomp($tax, '0', 8) !== 0;
                     <td class="doc-col-no"><?= $lineNumber ?></td>
                     <td class="<?= $alignStart ?>">
                         <div class="doc-item-name"><?= esc(trim($item['name'] . ' ' . ($item['attribute_values'] ?? ''))) ?></div>
+                        <?php if (isset($secondLanguage['items'][(int) ($item['item_id'] ?? 0)])): ?>
+                            <div class="doc-item-name doc-second-language" dir="auto"><?= esc($secondLanguage['items'][(int) $item['item_id']]) ?></div>
+                        <?php endif; ?>
                         <?php if (! empty($item['serialnumber'])): ?>
                             <div class="doc-item-note"><?= lang('Sales.serial') ?>: <?= documentIsolate((string) $item['serialnumber']) ?></div>
                         <?php endif; ?>

@@ -927,6 +927,7 @@ class Receivings extends Secure_Controller
             );
 
         $data['purchase_type']       = $type->value;
+        $data['supplier_id']         = ($info['supplier_id'] ?? null) === null ? null : (int) $info['supplier_id'];
         $data['item_printed_fields'] = (new CustomFields())->printableFor('item', array_map(static fn (array $line): int => (int) $line['item_id'], array_values($data['cart'])));
         $data['paid']                = $settled['paid'];
         $data['due']                 = $settled['due'];

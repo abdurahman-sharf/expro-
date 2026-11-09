@@ -35,6 +35,7 @@ use App\Libraries\Documents\VoucherDocuments;
 use App\Libraries\HeaderCharges;
 use App\Libraries\InvoiceDiscount;
 use App\Libraries\InvoiceDiscountProblem;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -1347,6 +1348,12 @@ class Sales extends Secure_Controller
 
         if (!is_string($paymentType) || $paymentType === '') {
             $data['error'] = lang('Sales.must_enter_numeric');
+
+            return $this->reload($data);
+        }
+
+        if (!(new PaymentMethods())->isOffered($paymentType)) {
+            $data['error'] = lang('Integrations.error_payment_method_disabled', [$paymentType]);
 
             return $this->reload($data);
         }

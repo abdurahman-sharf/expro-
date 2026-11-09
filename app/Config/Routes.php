@@ -332,6 +332,39 @@ $routes->group('custom_fields', static function (RouteCollection $routes): void 
     $routes->post('status/(:num)/(:num)', 'Custom_fields::postStatus/$1/$2');
 });
 
+$routes->group('integrations', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Integrations::getIndex');
+    $routes->post('options', 'Integrations::postOptions');
+    $routes->get('payment_methods', 'Integrations::getPaymentMethods');
+    $routes->post('payment_methods', 'Integrations::postPaymentMethods');
+    $routes->get('translations', 'Integrations::getTranslations');
+    $routes->post('translations/save', 'Integrations::postTranslationSave');
+    $routes->post('translations/delete/(:num)', 'Integrations::postTranslationDelete/$1');
+    $routes->get('rules', 'Integrations::getRules');
+    $routes->post('rules/save', 'Integrations::postRuleSave');
+    $routes->post('rules/save/(:num)', 'Integrations::postRuleSave/$1');
+    $routes->post('rules/active/(:num)/(:num)', 'Integrations::postRuleActive/$1/$2');
+    $routes->post('rules/delete/(:num)', 'Integrations::postRuleDelete/$1');
+});
+
+$routes->group('api_keys', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Api_keys::getIndex');
+    $routes->post('create', 'Api_keys::postCreate');
+    $routes->post('revoke/(:num)', 'Api_keys::postRevoke/$1');
+});
+
+$routes->group('notifications', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Notifications::getIndex');
+    $routes->post('read/(:num)', 'Notifications::postRead/$1');
+    $routes->post('read_all', 'Notifications::postReadAll');
+});
+
+$routes->group('api/v1', static function (RouteCollection $routes): void {
+    $routes->get('ping', 'Api\V1\Resources::ping');
+    $routes->get('customers/balances', 'Api\V1\Resources::customerBalances');
+    $routes->get('documents/sales', 'Api\V1\Resources::salesDocuments');
+});
+
 $routes->group('price_lists', static function (RouteCollection $routes): void {
     $routes->get('/', 'Price_lists::getIndex');
     $routes->get('search', 'Price_lists::getSearch');
