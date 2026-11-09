@@ -29,8 +29,10 @@ final class Notifications
      */
     public function visible(int $personId, bool $unreadOnly, int $limit, int $offset): array
     {
-        $reads = $this->db->prefixTable('notification_reads');
-        $rows  = $this->scoped($personId, $unreadOnly)
+        $total  = $this->scoped($personId, $unreadOnly)->countAllResults();
+        $unread = $this->unreadCount($personId);
+        $reads  = $this->db->prefixTable('notification_reads');
+        $rows   = $this->scoped($personId, $unreadOnly)
             ->select("n.notification_id, n.subject_key, n.branch_id, n.params, n.created_at, r.kind, r.name AS rule_name, b.code AS branch_code, EXISTS (SELECT 1 FROM {$reads} x WHERE x.notification_id = n.notification_id AND x.person_id = " . (int) $personId . ') AS is_read', false)
             ->join('branches b', 'b.branch_id = n.branch_id', 'left')
             ->orderBy('n.notification_id', 'DESC')
@@ -38,7 +40,7 @@ final class Notifications
             ->get()
             ->getResult();
 
-        return ['total' => $this->scoped($personId, $unreadOnly)->countAllResults(), 'unread' => $this->unreadCount($personId), 'rows' => $rows];
+        return ['total' => $total, 'unread' => $unread, 'rows' => $rows];
     }
 
     public function unreadCount(int $personId): int
@@ -88,14 +90,17 @@ final class Notifications
         return lang($kind->noticeKey(), array_map('strval', $params));
     }
 
+    /**
+     * The builder is made after the branches of the employee are known, because every query that runs
+     * forgets the table aliases a builder was started with.
+     */
     private function scoped(int $personId, bool $unreadOnly = false): BaseBuilder
     {
+        $allowed = $this->branches->allowedBranchIds($personId);
         $builder = $this->db->table('notifications n')
             ->join('notification_rules r', 'r.rule_id = n.rule_id')
             ->where(['n.company_id' => CompanyContext::id(), 'r.active' => 1])
             ->where('n.resolved_at IS NULL', null, false);
-
-        $allowed = $this->branches->allowedBranchIds($personId);
 
         if ($allowed !== null) {
             $allowed === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('n.branch_id', $allowed);
