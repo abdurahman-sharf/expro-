@@ -119,6 +119,17 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertNull($this->documents()->payment($this->customerId, $due));
     }
 
+    public function testPayments_LeavesOutWhatWasLeftDue(): void
+    {
+        $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '60.00'), $this->payment(lang('Sales.due'), '40.00')]);
+        $cash    = (int) $this->accountingDb()->table('sales_payments')->where(['sale_id' => $invoice, 'payment_type' => lang('Sales.cash')])->get()->getRow()->payment_id;
+
+        $payments = $this->documents()->payments($this->customerId, 1);
+
+        $this->assertSame(1, $payments['total']);
+        $this->assertSame([$cash], array_column($payments['rows'], 'payment_id'));
+    }
+
     public function testLists_HoldTheDocumentsOfTheCustomerAloneAndCountThem(): void
     {
         $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '60.00')]);

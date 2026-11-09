@@ -2,6 +2,7 @@
 
 namespace Tests\Controllers;
 
+use App\Controllers\Portal;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Portal\PortalAccounts;
 use App\Libraries\Portal\PortalLoginGuard;
@@ -122,6 +123,20 @@ final class PortalControllerTest extends CIUnitTestCase
     private function body(string $path): string
     {
         return $this->get($path)->getBody();
+    }
+
+    /**
+     * @param array<string, string> $get
+     */
+    private function controllerOf(string $method, array $get = []): Portal
+    {
+        $request = service('incomingrequest', null, false)->setMethod($method);
+        $request->setGlobal('get', $get);
+
+        $controller = new Portal();
+        $controller->initController($request, service('response'), service('logger'));
+
+        return $controller;
     }
 
     public function testGetStatement_ShowsTheBalanceTheOpenInvoicesWithTheirDueDatesAndTheAging(): void
@@ -703,6 +718,42 @@ final class PortalControllerTest extends CIUnitTestCase
         $this->expectException(PageNotFoundException::class);
 
         $this->get('/portal/postLogin?username=omar&password=' . self::PORTAL_PASSWORD);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function postMethods(): array
+    {
+        return [
+            'the sign-in'                 => ['postLogin'],
+            'the sign-out'                => ['postLogout'],
+            'the change of the password'  => ['postPassword'],
+        ];
+    }
+
+    #[DataProvider('postMethods')]
+    public function testPostMethod_RefusesARequestThatIsNotAPostEvenWhenARouteReachesIt(string $method): void
+    {
+        $_SESSION = $this->portalSessionOf($this->account);
+
+        try {
+            $this->controllerOf('GET', ['username' => 'omar', 'password' => self::PORTAL_PASSWORD])->{$method}();
+            $this->fail('A request that is not a post was taken for one.');
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertSame($this->customerId, $_SESSION[PortalSession::KEY_CUSTOMER]);
+    }
+
+    public function testGetStatement_RefusesASessionWithoutACustomerWhateverNumberTheRequestCarries(): void
+    {
+        $_SESSION = [];
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->controllerOf('GET', ['customer_id' => (string) $this->customerId])->getStatement();
     }
 
     public function testGetPassword_ShowsTheFormAndSaysItIsRequiredWhileThePasswordIsTemporary(): void

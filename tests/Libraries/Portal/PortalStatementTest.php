@@ -115,6 +115,19 @@ final class PortalStatementTest extends CIUnitTestCase
         $this->assertSame('30.00 SAR', $statement['credits'][0]['amount']);
     }
 
+    public function testOf_LeavesOutCreditThatWasSpentOnAnInvoice(): void
+    {
+        $paid = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '100.00')]);
+        $this->creditNoteOf($paid, '30.00');
+        $this->invoiceOf('50.00');
+
+        $statement = $this->statement();
+
+        $this->assertSame([], $statement['credits']);
+        $this->assertSame('0.00 SAR', $statement['credit']);
+        $this->assertSame('20.00 SAR', $statement['open']);
+    }
+
     public function testOf_ShowsNothingOfAnotherCustomer(): void
     {
         $this->invoiceOf('555.00', $this->other);

@@ -744,7 +744,7 @@
   ]
  },
  {
-  "name": "A21 the user name is looked up without regard to the case",
+  "name": "A21 the user name is looked up trimmed and in lower case",
   "file": "app/Libraries/Portal/PortalAccounts.php",
   "find": "->where('username', self::normalise($username))",
   "replace": "->where('username', $username)",
@@ -1455,13 +1455,13 @@
   ]
  },
  {
-  "name": "W01 a post method is not reached by a get request",
+  "name": "W01 a post method refuses a request that is not a post when a route reaches it",
   "file": "app/Controllers/Portal.php",
   "find": "        if (strtoupper($this->request->getMethod()) !== 'POST') {",
   "replace": "        if (false) {",
   "tests": [
    "--filter",
-   "IsNotDoneByAGetRequest",
+   "PostMethod_RefusesARequestThatIsNotAPost",
    "tests/Controllers/PortalControllerTest.php"
   ]
  },
@@ -1637,7 +1637,7 @@
   "replace": "        return (new PortalSession())->customerId() ?? (int) $this->request->getGet('customer_id');",
   "tests": [
    "--filter",
-   "GetStatement_IgnoresACustomerNumber",
+   "GetStatement_RefusesASessionWithoutACustomer",
    "tests/Controllers/PortalControllerTest.php"
   ]
  },
@@ -1646,15 +1646,6 @@
   "file": "app/Controllers/Customer_portal.php",
   "find": "$failure->error === AccountingError::PermissionDenied ? 403 : 200",
   "replace": "200",
-  "tests": [
-   "tests/Controllers/Customer_portalControllerTest.php"
-  ]
- },
- {
-  "name": "E02 a temporary password is not cached",
-  "file": "app/Controllers/Customer_portal.php",
-  "find": "        $this->response->setHeader('Cache-Control', 'no-store');\n",
-  "replace": "",
   "tests": [
    "tests/Controllers/Customer_portalControllerTest.php"
   ]

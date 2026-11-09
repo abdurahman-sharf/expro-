@@ -171,6 +171,18 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertSame(AccountingError::PortalCustomerUnknown, $this->refusalOf(fn () => $this->accounts()->create($this->customer, 'ahmed', $this->manager)));
     }
 
+    public function testFindByUsername_FindsTheAccountWhateverTheSpacesAroundTheNameAndItsCase(): void
+    {
+        $made = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
+
+        foreach (['ahmed', 'AHMED', '  Ahmed', "\tahmed  "] as $typed) {
+            $this->assertSame($made['account_id'], (int) $this->accounts()->findByUsername($typed)?->account_id, $typed);
+        }
+
+        $this->assertNull($this->accounts()->findByUsername('ahmed2'));
+        $this->assertNull($this->accounts()->findByUsername(''));
+    }
+
     public function testCheck_OpensTheAccountWithTheRightPasswordAndSaysWhyItDoesNotOtherwise(): void
     {
         $made = $this->accounts()->create($this->customer, 'ahmed', $this->manager);

@@ -77,6 +77,11 @@ final class CustomerPortalMigrationTest extends CIUnitTestCase
 
     public function testUp_RegistersThePermissionUnderTheCustomersModuleAndGrantsItToNobody(): void
     {
+        $this->accountingDb()->table('grants')->where('permission_id', AccountingGuard::PORTAL_MANAGE)->delete();
+        $this->accountingDb()->table('permissions')->where('permission_id', AccountingGuard::PORTAL_MANAGE)->delete();
+
+        (new CustomerPortalMigration())->up();
+
         $row = $this->accountingDb()->table('permissions')->where('permission_id', AccountingGuard::PORTAL_MANAGE)->get()->getRow();
 
         $this->assertSame('customers', $row->module_id);
@@ -85,6 +90,10 @@ final class CustomerPortalMigrationTest extends CIUnitTestCase
 
     public function testUp_AddsThePortalSettingOffAndDoesNotSwitchItOffAgainWhenRunAfterItWasOn(): void
     {
+        $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->delete();
+
+        (new CustomerPortalMigration())->up();
+
         $this->assertSame('0', $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->get()->getRow()->value);
 
         $this->switchPortal(true);

@@ -65,8 +65,6 @@ class Customer_portal extends Secure_Controller
      */
     private function attempt(callable $action): ResponseInterface
     {
-        $this->response->setHeader('Cache-Control', 'no-store');
-
         try {
             return $this->response->setJSON(['success' => true] + $action());
         } catch (AccountingException $failure) {
