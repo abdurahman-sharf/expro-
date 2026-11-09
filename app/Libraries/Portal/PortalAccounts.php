@@ -129,16 +129,12 @@ final class PortalAccounts
             throw new AccountingException(AccountingError::PortalAccountExists, 'The customer already has a portal account.');
         }
 
-        if ($this->findByUsername($username) !== null) {
-            throw new AccountingException(AccountingError::PortalUsernameTaken, 'The user name belongs to another account.');
-        }
-
         $temporary = PortalPasswords::temporary();
 
         $this->db->transStart();
 
         try {
-            $this->db->table('portal_accounts')->insert([
+            $inserted = $this->db->table('portal_accounts')->insert([
                 'customer_id'          => $customerId,
                 'username'             => $username,
                 'password_hash'        => PortalPasswords::hash($temporary),
@@ -147,6 +143,10 @@ final class PortalAccounts
                 'created_by'           => $employeeId,
             ]);
         } catch (DatabaseException) {
+            $inserted = false;
+        }
+
+        if ($inserted === false) {
             $this->db->transComplete();
 
             throw new AccountingException(AccountingError::PortalUsernameTaken, 'The user name belongs to another account.');

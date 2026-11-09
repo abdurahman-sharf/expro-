@@ -343,4 +343,24 @@ final class PortalGuardTest extends CIUnitTestCase
 
         $this->assertStringContainsString('portal/login', (string) $this->visit('POST', 'portal/logout')->getRedirectUrl());
     }
+
+    public function testAfter_AsksTheBrowserAndEveryCacheOnTheWayToKeepNoCopyOfAPageOfThePortal(): void
+    {
+        $this->asCustomer();
+
+        $response = $this->get('/portal/statement');
+
+        $this->assertStringContainsString('no-store', $response->response()->getHeaderLine('Cache-Control'));
+        $this->assertStringContainsString('private', $response->response()->getHeaderLine('Cache-Control'));
+        $this->assertSame('no-cache', $response->response()->getHeaderLine('Pragma'));
+    }
+
+    public function testAfter_DoesNotTouchTheCachingOfThePagesOfTheEmployees(): void
+    {
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers']), 'menu_group' => 'office']);
+
+        $response = $this->get('/customers');
+
+        $this->assertStringNotContainsString('no-store', $response->response()->getHeaderLine('Cache-Control'));
+    }
 }

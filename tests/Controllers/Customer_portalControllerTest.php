@@ -4,6 +4,7 @@ namespace Tests\Controllers;
 
 use App\Libraries\Portal\PortalAccounts;
 use App\Libraries\Portal\PortalPasswords;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -216,6 +217,10 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $tables   = array_map(static fn (string $table): string => $db->prefixTable($table), ['accounting_journals', 'accounting_journal_lines', 'accounting_accounts', 'sales', 'sales_payments', 'customer_credit_applications']);
         $checksum = static fn (): array => array_column($db->query('CHECKSUM TABLE `' . implode('`, `', $tables) . '`')->getResultArray(), 'Checksum', 'Table');
         $before   = $checksum();
+        $sent     = 0;
+        Events::on('email', static function () use (&$sent): void {
+            $sent++;
+        });
         $this->actAs($manager);
 
         $made = $this->post_('create/' . $this->customer, ['username' => 'ahmed']);
@@ -224,7 +229,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->post_('enabled', ['enabled' => '1']);
 
         $this->assertSame($before, $checksum());
-        $this->assertSame(0, $db->tableExists($db->prefixTable('outbound_messages'), false) ? $this->countRows('outbound_messages') : 0);
+        $this->assertSame(0, $sent);
     }
 
     public function testEveryActionIsWrittenToTheAuditLogWithoutAnyPassword(): void

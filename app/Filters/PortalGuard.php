@@ -59,6 +59,7 @@ final class PortalGuard implements FilterInterface
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
     {
+        return $response->setHeader('Cache-Control', 'no-store, private')->setHeader('Pragma', 'no-cache');
     }
 
     private function liveAccount(PortalSession $session): ?object

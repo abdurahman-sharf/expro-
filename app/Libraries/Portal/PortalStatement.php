@@ -40,7 +40,7 @@ final class PortalStatement
         }
 
         $position = (new CustomerLedger($this->db))->position($customerId);
-        $labels   = $this->invoiceNumbers($customerId);
+        $labels   = $this->invoiceNumbers(array_values(array_filter(array_map(static fn ($invoice): int => $invoice->saleId, $position->invoices), static fn (int $saleId): bool => $saleId > 0)));
         $invoices = [];
 
         foreach ($position->invoices as $invoice) {
@@ -94,13 +94,19 @@ final class PortalStatement
     }
 
     /**
+     * @param list<int> $saleIds The sales the ledger of the customer holds.
+     *
      * @return array<int, string>
      */
-    private function invoiceNumbers(int $customerId): array
+    private function invoiceNumbers(array $saleIds): array
     {
         $numbers = [];
 
-        foreach ($this->db->table('sales')->select('sale_id, invoice_number')->where('customer_id', $customerId)->where('sale_status', COMPLETED)->get()->getResult() as $sale) {
+        if ($saleIds === []) {
+            return $numbers;
+        }
+
+        foreach ($this->db->table('sales')->select('sale_id, invoice_number')->whereIn('sale_id', $saleIds)->get()->getResult() as $sale) {
             $numbers[(int) $sale->sale_id] = (string) ($sale->invoice_number ?: 'POS ' . (int) $sale->sale_id);
         }
 

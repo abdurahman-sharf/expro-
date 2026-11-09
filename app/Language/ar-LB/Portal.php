@@ -29,6 +29,7 @@ return [
     'item'                      => 'الصنف',
     'kind'                      => 'النوع',
     'login_title'               => 'تسجيل الدخول',
+    'manage_address'            => 'عنوان البوابة',
     'manage_create'             => 'إنشاء حساب بوابة',
     'manage_created'            => 'أُنشئ حساب البوابة.',
     'manage_disable'            => 'تعطيل الحساب',

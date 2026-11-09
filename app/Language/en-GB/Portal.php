@@ -29,6 +29,7 @@ return [
     'item'                      => 'Item',
     'kind'                      => 'Kind',
     'login_title'               => 'Sign in',
+    'manage_address'            => 'Address of the portal',
     'manage_create'             => 'Create portal account',
     'manage_created'            => 'The portal account was created.',
     'manage_disable'            => 'Disable the account',

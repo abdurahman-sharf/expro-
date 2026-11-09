@@ -223,4 +223,17 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertSame('Hind Saad', $this->documents()->customerName($this->other));
         $this->assertSame('', $this->documents()->customerName(987654));
     }
+
+    public function testLists_ShowTheDocumentsOfEveryBranchThatNamesTheCustomer(): void
+    {
+        $second = $this->createBranch('B2', 'Second branch');
+        $first  = $this->invoiceOf('100.00');
+        $remote = $this->invoiceInBranch($second, '200.00');
+
+        $rows = $this->documents()->invoices($this->customerId, 1)['rows'];
+
+        $this->assertEqualsCanonicalizing([$first, $remote], array_column($rows, 'sale_id'));
+        $this->assertNotNull($this->documents()->invoice($this->customerId, $remote));
+        $this->assertNull($this->documents()->invoice($this->other, $remote));
+    }
 }

@@ -7,6 +7,7 @@
 ?>
 <div class="portal-panel" id="portal_panel" data-token-name="<?= esc(csrf_token(), 'attr') ?>" data-token="<?= esc(csrf_hash(), 'attr') ?>">
     <p class="text-secondary"><?= esc(lang('Portal.manage_note')) ?></p>
+    <p><?= esc(lang('Portal.manage_address')) ?>: <bdi dir="ltr"><?= esc(site_url('portal/login')) ?></bdi></p>
 
     <div class="form-check mb-3">
         <input type="checkbox" class="form-check-input" id="portal_enabled" <?= $enabled ? 'checked' : '' ?>>

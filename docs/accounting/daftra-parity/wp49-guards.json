@@ -1,0 +1,1707 @@
+[
+ {
+  "name": "G01 contact needs a first name",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "        if ($contact['first_name'] === '') {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G02 contact e-mail address must be valid",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "if ($contact['email'] !== '' && filter_var($contact['email'], FILTER_VALIDATE_EMAIL) === false) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G03 contact phone and mobile hold digits and separators only",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "if ($contact[$field] !== '' && preg_match(self::PHONE_PATTERN, $contact[$field]) !== 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G04 contact field length limits",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "if (mb_strlen($contact[$field]) > $max) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G05 at most fifty contacts",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "if (count($kept) > self::MAX_ROWS) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G06 a contact number must belong to the party",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "if ($unlike !== []) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G07 e-mail address kept in lower case",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "        $contact['email'] = mb_strtolower($contact['email']);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G08 a contact belongs to a customer or a supplier only",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "            default => throw new InvalidArgumentException(\"A contact belongs to a customer or a supplier, not to '{$kind}'.\"),",
+  "replace": "            default => $kind,",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G09 contacts scrambled with a scrambled customer",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "        if ($scramble) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G10 no audit entry for a party without contacts",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "        if ($held > 0) {",
+  "replace": "        if (true) {",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G11 a form without the panel leaves the list alone",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "if (($post[self::MARKER] ?? '') !== '1') {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G12 a contact the list no longer names is hidden",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "            if ($removed !== []) {",
+  "replace": "            if (false) {",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G13 contacts are read by the kind of the party",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "->where(['party_kind' => $this->kind($kind), 'party_id' => $partyId, 'deleted' => 0])",
+  "replace": "->where(['party_id' => $partyId, 'deleted' => 0])",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G14 hidden contacts are not listed",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "->where(['party_kind' => $this->kind($kind), 'party_id' => $partyId, 'deleted' => 0])",
+  "replace": "->where(['party_kind' => $this->kind($kind), 'party_id' => $partyId])",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G15 an unchanged contact is not rewritten or audited",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "if ($this->differs($current[$contact['contact_id']], $values)) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G16 hiding a party hides the contacts of that party only",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "        $this->db->table('party_contacts')->where(['party_kind' => $kind, 'party_id' => $partyId])->update(['deleted' => 1]);",
+  "replace": "        $this->db->table('party_contacts')->update(['deleted' => 1]);",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G17 scrambling touches the contacts of that party only",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "$this->db->table('party_contacts')->where(['party_kind' => $kind, 'party_id' => $partyId])->set('first_name', 'contact_id', false)",
+  "replace": "$this->db->table('party_contacts')->set('first_name', 'contact_id', false)",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G18 an empty row is dropped",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "            if (implode('', array_map(static fn (string $field): string => $contact[$field], self::TEXTS)) !== '') {",
+  "replace": "            if (true) {",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "G19 customer contacts are checked before the customer is saved",
+  "file": "app/Controllers/Customers.php",
+  "find": "$contactRows = $contactRows === null ? null : $contacts->prepare(PartyContacts::CUSTOMER, $isNew ? null : (int) $customerId, $contactRows);",
+  "replace": "$contactRows = $contactRows;",
+  "tests": [
+   "--filter",
+   "Contact|Import|Portal|PostDelete",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G20 an unknown customer has no contact list",
+  "file": "app/Controllers/Customers.php",
+  "find": "        if (! $this->customer->exists($customerId)) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Contact|Import|Portal|PostDelete",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G21 an imported contact is validated",
+  "file": "app/Controllers/Customers.php",
+  "find": "        (new PartyContacts())->validate([$row]);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Contact|Import|Portal|PostDelete",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G22 the portal tab needs the permission",
+  "file": "app/Controllers/Customers.php",
+  "find": "$data['portal'] = $customerId != NEW_ENTRY && $this->employee->has_grant(AccountingGuard::PORTAL_MANAGE, $this->viewerId())",
+  "replace": "$data['portal'] = $customerId != NEW_ENTRY",
+  "tests": [
+   "--filter",
+   "Contact|Import|Portal|PostDelete",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G23 the portal tab is for an existing customer",
+  "file": "app/Controllers/Customers.php",
+  "find": "$data['portal'] = $customerId != NEW_ENTRY && ",
+  "replace": "$data['portal'] = ",
+  "tests": [
+   "--filter",
+   "Contact|Import|Portal|PostDelete",
+   "tests/Controllers/CustomersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G24 supplier contacts are checked before the supplier is saved",
+  "file": "app/Controllers/Suppliers.php",
+  "find": "$contactRows = $contactRows === null ? null : $contacts->prepare(PartyContacts::SUPPLIER, $current === null ? null : (int) $supplierId, $contactRows);",
+  "replace": "$contactRows = $contactRows;",
+  "tests": [
+   "tests/Controllers/SuppliersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G25 an unknown supplier has no contact list",
+  "file": "app/Controllers/Suppliers.php",
+  "find": "        if (! $this->supplier->exists($supplierId)) {\n            throw PageNotFoundException::forPageNotFound();\n        }",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/SuppliersControllerTest.php"
+  ]
+ },
+ {
+  "name": "G26 deleting a customer hides the contacts",
+  "file": "app/Models/Customer.php",
+  "find": "            (new PartyContacts($this->db))->hideWithParty(PartyContacts::CUSTOMER, (int) $customer_id, (bool) $config['enforce_privacy'], (int) session()->get('person_id') ?: null);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Delete",
+   "tests/Models/CustomerTest.php"
+  ]
+ },
+ {
+  "name": "G27 deleting a customer list hides the contacts",
+  "file": "app/Models/Customer.php",
+  "find": "                (new PartyContacts($this->db))->hideWithParty(PartyContacts::CUSTOMER, (int) $personId, false, (int) session()->get('person_id') ?: null);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Delete",
+   "tests/Models/CustomerTest.php"
+  ]
+ },
+ {
+  "name": "G28 deleting a customer closes the portal account",
+  "file": "app/Models/Customer.php",
+  "find": "            (new PortalAccounts($this->db))->closeForCustomer((int) $customer_id, (bool) $config['enforce_privacy'], (int) session()->get('person_id') ?: null);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Delete",
+   "tests/Models/CustomerTest.php"
+  ]
+ },
+ {
+  "name": "G29 deleting a customer list closes the portal accounts",
+  "file": "app/Models/Customer.php",
+  "find": "                (new PortalAccounts($this->db))->closeForCustomer((int) $personId, false, (int) session()->get('person_id') ?: null);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Delete",
+   "tests/Models/CustomerTest.php"
+  ]
+ },
+ {
+  "name": "G30 deleting a supplier hides the contacts",
+  "file": "app/Models/Supplier.php",
+  "find": "            (new PartyContacts($this->db))->hideWithParty(PartyContacts::SUPPLIER, (int) $supplier_id, false, (int) session()->get('person_id') ?: null);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Delete",
+   "tests/Models/SupplierTest.php"
+  ]
+ },
+ {
+  "name": "G31 deleting a supplier list hides the contacts",
+  "file": "app/Models/Supplier.php",
+  "find": "                (new PartyContacts($this->db))->hideWithParty(PartyContacts::SUPPLIER, (int) $personId, false, (int) session()->get('person_id') ?: null);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "Delete",
+   "tests/Models/SupplierTest.php"
+  ]
+ },
+ {
+  "name": "G32 contact kind is customer or supplier",
+  "file": "app/Database/Migrations/20273700000000_PartyContacts.php",
+  "find": "                CONSTRAINT `{$table}_kind` CHECK (`party_kind` IN ('customer', 'supplier')),\n",
+  "replace": "",
+  "tests": [
+   "tests/Database/PartyContactsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G33 contact hidden flag is 0 or 1",
+  "file": "app/Database/Migrations/20273700000000_PartyContacts.php",
+  "find": ",\n                CONSTRAINT `{$table}_deleted` CHECK (`deleted` IN (0, 1))",
+  "replace": "",
+  "tests": [
+   "tests/Database/PartyContactsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G34 the contacts migration refuses to drop stored contacts",
+  "file": "app/Database/Migrations/20273700000000_PartyContacts.php",
+  "find": "if ($this->hasTable('party_contacts') && $this->db->table('party_contacts')->countAllResults() > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Database/PartyContactsMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G35 one portal account for each customer",
+  "file": "app/Database/Migrations/20273700000001_CustomerPortal.php",
+  "find": "                UNIQUE KEY `{$accounts}_customer` (`customer_id`),\n",
+  "replace": "",
+  "tests": [
+   "tests/Database/CustomerPortalMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G36 one customer for each portal user name",
+  "file": "app/Database/Migrations/20273700000001_CustomerPortal.php",
+  "find": "                UNIQUE KEY `{$accounts}_username` (`username`),\n",
+  "replace": "",
+  "tests": [
+   "tests/Database/CustomerPortalMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G37 a portal account belongs to a customer that exists",
+  "file": "app/Database/Migrations/20273700000001_CustomerPortal.php",
+  "find": "                CONSTRAINT `{$accounts}_fk_customer` FOREIGN KEY (`customer_id`) REFERENCES `{$customers}` (`person_id`) ON DELETE RESTRICT,\n",
+  "replace": "",
+  "tests": [
+   "tests/Database/CustomerPortalMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G38 portal account status is active or disabled",
+  "file": "app/Database/Migrations/20273700000001_CustomerPortal.php",
+  "find": "                CONSTRAINT `{$accounts}_status` CHECK (`status` IN ('active', 'disabled')),\n",
+  "replace": "",
+  "tests": [
+   "tests/Database/CustomerPortalMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G39 the portal setting is added off",
+  "file": "app/Database/Migrations/20273700000001_CustomerPortal.php",
+  "find": "['key' => self::SETTING, 'value' => '0']",
+  "replace": "['key' => self::SETTING, 'value' => '1']",
+  "tests": [
+   "tests/Database/CustomerPortalMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G40 the portal migration refuses to drop accounts",
+  "file": "app/Database/Migrations/20273700000001_CustomerPortal.php",
+  "find": "if ($this->hasTable('portal_accounts') && $this->db->table('portal_accounts')->countAllResults() > 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Database/CustomerPortalMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G41 the portal permission is granted to nobody by the migration",
+  "file": "app/Database/Migrations/20273700000001_CustomerPortal.php",
+  "find": "$this->db->table('permissions')->ignore(true)->insert(['permission_id' => self::PERMISSION, 'module_id' => 'customers']);",
+  "replace": "$this->db->table('permissions')->ignore(true)->insert(['permission_id' => self::PERMISSION, 'module_id' => 'customers']);\n        $this->db->table('grants')->ignore(true)->insert(['permission_id' => self::PERMISSION, 'person_id' => 1, 'menu_group' => 'home']);",
+  "tests": [
+   "tests/Database/CustomerPortalMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G42 the portal permission is sensitive",
+  "file": "app/Libraries/Accounting/AccountingGuard.php",
+  "find": "        self::CURRENCIES_MANAGE,\n        self::PORTAL_MANAGE,\n    ];",
+  "replace": "        self::CURRENCIES_MANAGE,\n    ];",
+  "tests": [
+   "tests/Libraries/Accounting/SensitivePermissionsTest.php"
+  ]
+ },
+ {
+  "name": "G43 the portal permission has a label in the list of the holders",
+  "file": "app/Controllers/AccountingSetup.php",
+  "find": "        AccountingGuard::PORTAL_MANAGE      => 'Customers.manage',\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "ListsEverySensitivePermission",
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "P01 a new password has at least ten characters",
+  "file": "app/Libraries/Portal/PortalPasswords.php",
+  "find": "$refused = mb_strlen($password) < self::MIN_LENGTH",
+  "replace": "$refused = false",
+  "tests": [
+   "tests/Libraries/Portal/PortalPasswordsTest.php"
+  ]
+ },
+ {
+  "name": "P02 a new password has at most seventy-two bytes",
+  "file": "app/Libraries/Portal/PortalPasswords.php",
+  "find": "            || strlen($password) > self::MAX_BYTES\n",
+  "replace": "            || false\n",
+  "tests": [
+   "tests/Libraries/Portal/PortalPasswordsTest.php"
+  ]
+ },
+ {
+  "name": "P03 a new password differs from the user name",
+  "file": "app/Libraries/Portal/PortalPasswords.php",
+  "find": "            || mb_strtolower($password) === mb_strtolower($username)\n",
+  "replace": "            || false\n",
+  "tests": [
+   "tests/Libraries/Portal/PortalPasswordsTest.php"
+  ]
+ },
+ {
+  "name": "P04 a new password differs from the current one",
+  "file": "app/Libraries/Portal/PortalPasswords.php",
+  "find": "            || ($current !== null && $password === $current);",
+  "replace": "            || false;",
+  "tests": [
+   "tests/Libraries/Portal/PortalPasswordsTest.php"
+  ]
+ },
+ {
+  "name": "P05 passwords are stored as hashes",
+  "file": "app/Libraries/Portal/PortalPasswords.php",
+  "find": "        return password_hash($password, PASSWORD_DEFAULT);\n    }\n\n    public static function verify",
+  "replace": "        return $password;\n    }\n\n    public static function verify",
+  "tests": [
+   "tests/Libraries/Portal/PortalPasswordsTest.php"
+  ]
+ },
+ {
+  "name": "P06 a password is verified against its hash",
+  "file": "app/Libraries/Portal/PortalPasswords.php",
+  "find": "        return password_verify($password, $hash);",
+  "replace": "        return true;",
+  "tests": [
+   "tests/Libraries/Portal/PortalPasswordsTest.php"
+  ]
+ },
+ {
+  "name": "P07 an old hash is upgraded",
+  "file": "app/Libraries/Portal/PortalPasswords.php",
+  "find": "        return password_needs_rehash($hash, PASSWORD_DEFAULT);",
+  "replace": "        return false;",
+  "tests": [
+   "tests/Libraries/Portal/PortalPasswordsTest.php"
+  ]
+ },
+ {
+  "name": "P08 the absent hash matches no password",
+  "file": "app/Libraries/Portal/PortalPasswords.php",
+  "find": "self::$absent ??= password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);",
+  "replace": "self::$absent ??= password_hash('', PASSWORD_DEFAULT);",
+  "tests": [
+   "tests/Libraries/Portal/PortalPasswordsTest.php"
+  ]
+ },
+ {
+  "name": "L01 five failures lock a user name",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "$locked = $failures >= $threshold;",
+  "replace": "$locked = $failures > $threshold;",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php"
+  ]
+ },
+ {
+  "name": "L02 every lock lasts twice as long as the one before",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "self::BASE_LOCK_SECONDS * (2 ** $lockouts)",
+  "replace": "self::BASE_LOCK_SECONDS",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php"
+  ]
+ },
+ {
+  "name": "L03 a lock lasts a day at most",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "$now + min(self::MAX_LOCK_SECONDS, self::BASE_LOCK_SECONDS * (2 ** $lockouts))",
+  "replace": "$now + self::BASE_LOCK_SECONDS * (2 ** $lockouts)",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php"
+  ]
+ },
+ {
+  "name": "L04 failures older than a day are forgotten",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "$forgotten = strtotime((string) $row->last_failure_at) < $now - self::WINDOW_SECONDS;",
+  "replace": "$forgotten = false;",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php"
+  ]
+ },
+ {
+  "name": "L05 a lock that ran out lets the key through",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "return $until !== null && $until > ($now ?? time()) ? $until : null;",
+  "replace": "return $until;",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php"
+  ]
+ },
+ {
+  "name": "L06 the count starts again after a lock",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "            $lockouts++;\n            $failures = 0;",
+  "replace": "            $lockouts++;",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php"
+  ]
+ },
+ {
+  "name": "L07 the user name key ignores the case",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "'user|' . mb_strtolower(trim($username))",
+  "replace": "'user|' . $username",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php"
+  ]
+ },
+ {
+  "name": "L08 a success clears the failures",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "        $this->db->table('portal_login_failures')->where('failure_key', $key)->delete();",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php"
+  ]
+ },
+ {
+  "name": "L09 failures older than a day do not carry the lock count",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "            $lockouts  = (int) $row->lockouts;",
+  "replace": "            $lockouts  = 0;",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php"
+  ]
+ },
+ {
+  "name": "A01 the system cannot manage portal accounts",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "if ($employeeId === null || ! $this->guard->has(AccountingGuard::PORTAL_MANAGE, $employeeId)) {",
+  "replace": "if (! $this->guard->has(AccountingGuard::PORTAL_MANAGE, $employeeId)) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A02 managing portal accounts needs the permission",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "if ($employeeId === null || ! $this->guard->has(AccountingGuard::PORTAL_MANAGE, $employeeId)) {",
+  "replace": "if ($employeeId === null) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A03 a user name follows the rules",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "if (preg_match(self::USERNAME_PATTERN, $username) !== 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A04 an account is for a customer that exists",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "        if (! $this->customerIsLive($customerId)) {\n            throw new AccountingException(AccountingError::PortalCustomerUnknown",
+  "replace": "        if (false) {\n            throw new AccountingException(AccountingError::PortalCustomerUnknown",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A05 one account for each customer",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "if ($this->forCustomer($customerId) !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A06 a user name belongs to one account",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "AccountingError::PortalUsernameTaken, 'The user name belongs to another account.');",
+  "replace": "AccountingError::PortalAccountExists, 'The user name belongs to another account.');",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A07 a reset ends the sessions of the account",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "            'credential_version'   => (int) $account->credential_version + 1,\n        ]);\n        (new PortalLoginGuard",
+  "replace": "        ]);\n        (new PortalLoginGuard",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A08 a reset lifts the lock of the user name",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "        (new PortalLoginGuard($this->db))->clear(PortalLoginGuard::userKey((string) $account->username));\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A09 a status that is already set is not written again",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "        if (($account->status === 'active') === $active) {\n            return;\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A10 disabling an account ends its sessions",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "            'status'             => $active ? 'active' : 'disabled',\n            'credential_version' => (int) $account->credential_version + 1,\n        ]);\n        $this->audit->write(self::ENTITY, $accountId, $active",
+  "replace": "            'status'             => $active ? 'active' : 'disabled',\n        ]);\n        $this->audit->write(self::ENTITY, $accountId, $active",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A11 the current password must be right to change it",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "if (! PortalPasswords::verify($current, (string) $account->password_hash)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A12 the new password must follow the rules",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "        PortalPasswords::check($new, (string) $account->username, $current);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A13 changing the password ends the other sessions",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "            'credential_version'   => $version,\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A14 a session of a changed version is not live",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": " || (int) $account->credential_version !== $credentialVersion",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A15 a session of a disabled account is not live",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "$account === null || $account->status !== 'active' || (int)",
+  "replace": "$account === null || (int)",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A16 a session of a deleted customer is not live",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": " || ! $this->customerIsLive((int) $account->customer_id)) {\n            return null;",
+  "replace": ") {\n            return null;",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A17 a wrong password opens nothing",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "if (! PortalPasswords::verify($password, (string) $account->password_hash)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A18 a disabled account opens nothing",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "        if ($account->status !== 'active') {\n            return [null, 'disabled'];",
+  "replace": "        if (false) {\n            return [null, 'disabled'];",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A19 the account of a deleted customer opens nothing",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "        if (! $this->customerIsLive((int) $account->customer_id)) {\n            return [null, 'customer_deleted'];",
+  "replace": "        if (false) {\n            return [null, 'customer_deleted'];",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A20 a temporary password runs out",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "if ((int) $account->must_change === 1 && $account->temporary_expires_at !== null && strtotime((string) $account->temporary_expires_at) < ($now ?? time())) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A21 the user name is looked up without regard to the case",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "->where('username', self::normalise($username))",
+  "replace": "->where('username', $username)",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A22 an account closed with its customer is scrambled when privacy is enforced",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "'username'           => $scramble ? 'deleted-' . (int) $account->account_id : $account->username,",
+  "replace": "'username'           => $account->username,",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A23 an old hash is upgraded at sign in",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "if (PortalPasswords::needsRehash((string) $account->password_hash)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "A24 closing a customer account ends its sessions",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "            'status'             => 'disabled',\n            'credential_version' => (int) $account->credential_version + 1,",
+  "replace": "            'status'             => 'disabled',",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "B01 a locked name or address is refused before the password",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "if ($this->guard->lockedUntil($userKey, $now) !== null || $this->guard->lockedUntil($addressKey, $now) !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "B02 a locked name is refused",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "if ($this->guard->lockedUntil($userKey, $now) !== null || ",
+  "replace": "if (",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "B03 a locked address is refused",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": " || $this->guard->lockedUntil($addressKey, $now) !== null) {",
+  "replace": ") {",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "B04 a success clears the failures of the name",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "        $this->guard->clear($userKey);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "B05 a success does not clear the failures of the address",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "        $this->guard->clear($userKey);\n",
+  "replace": "        $this->guard->clear($userKey);\n        $this->guard->clear($addressKey);\n",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "B06 a success is recorded",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "        $this->accounts->recordLogin($account, $password);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "B07 a success is audited",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "'portal_login_succeeded'",
+  "replace": "'portal_login_x'",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "B08 a failure is audited",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "'portal_login_failed'",
+  "replace": "'portal_login_x'",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "B09 a lock is audited",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "'portal_login_locked'",
+  "replace": "'portal_login_x'",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "B10 a lock is audited once",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "        if ($nameLocked || $addressLocked) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "B11 a failure counts for the name",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "$nameLocked    = $this->guard->recordFailure($userKey, PortalLoginGuard::USER_THRESHOLD, $now);",
+  "replace": "$nameLocked    = false;",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "B12 a failure counts for the address",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "$addressLocked = $this->guard->recordFailure($addressKey, PortalLoginGuard::ADDRESS_THRESHOLD, $now);",
+  "replace": "$addressLocked = false;",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "B13 the audit entry keeps a short user name",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "mb_substr(PortalAccounts::normalise($username), 0, self::NAME_MAX)",
+  "replace": "PortalAccounts::normalise($username)",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "S01 the system cannot switch the portal",
+  "file": "app/Libraries/Portal/PortalSettings.php",
+  "find": "if ($employeeId === null || ! $this->guard->has(AccountingGuard::PORTAL_MANAGE, $employeeId)) {",
+  "replace": "if (! $this->guard->has(AccountingGuard::PORTAL_MANAGE, $employeeId)) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalSettingsTest.php"
+  ]
+ },
+ {
+  "name": "S02 switching the portal needs the permission",
+  "file": "app/Libraries/Portal/PortalSettings.php",
+  "find": "if ($employeeId === null || ! $this->guard->has(AccountingGuard::PORTAL_MANAGE, $employeeId)) {",
+  "replace": "if ($employeeId === null) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalSettingsTest.php"
+  ]
+ },
+ {
+  "name": "S03 only the value one switches the portal on",
+  "file": "app/Libraries/Portal/PortalSettings.php",
+  "find": "return $this->config->get_value(self::KEY, '0') === '1';",
+  "replace": "return $this->config->get_value(self::KEY, '0') !== '0';",
+  "tests": [
+   "tests/Libraries/Portal/PortalSettingsTest.php"
+  ]
+ },
+ {
+  "name": "S04 a missing setting is off",
+  "file": "app/Libraries/Portal/PortalSettings.php",
+  "find": "return $this->config->get_value(self::KEY, '0') === '1';",
+  "replace": "return $this->config->get_value(self::KEY, '1') === '1';",
+  "tests": [
+   "tests/Libraries/Portal/PortalSettingsTest.php"
+  ]
+ },
+ {
+  "name": "S05 a switch that is already as asked is not written",
+  "file": "app/Libraries/Portal/PortalSettings.php",
+  "find": "        if ($this->isEnabled() === $enabled) {\n            return;\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalSettingsTest.php"
+  ]
+ },
+ {
+  "name": "N01 signing in renews the identifier",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "        $this->regenerate();\n        $this->wipe();\n        $this->session->set([",
+  "replace": "        $this->wipe();\n        $this->session->set([",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N02 signing in clears what the session held",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "        $this->regenerate();\n        $this->wipe();\n        $this->session->set([",
+  "replace": "        $this->regenerate();\n        $this->session->set([",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N03 signing out renews the identifier",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "        $this->wipe();\n        $this->regenerate();\n    }",
+  "replace": "        $this->wipe();\n    }",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N04 signing out clears the session",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "        $this->wipe();\n        $this->regenerate();\n    }",
+  "replace": "        $this->regenerate();\n    }",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N05 a password change renews the identifier",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "    public function renew(int $credentialVersion): void\n    {\n        $this->regenerate();",
+  "replace": "    public function renew(int $credentialVersion): void\n    {",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N06 the customer is a whole number above zero",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "        $id = $this->session->get(self::KEY_CUSTOMER);\n\n        return is_int($id) && $id > 0 ? $id : null;",
+  "replace": "        $id = $this->session->get(self::KEY_CUSTOMER);\n\n        return $id;",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N07 the account is a whole number above zero",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "        $id = $this->session->get(self::KEY_ACCOUNT);\n\n        return is_int($id) && $id > 0 ? $id : null;",
+  "replace": "        $id = $this->session->get(self::KEY_ACCOUNT);\n\n        return $id;",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N08 a session holds a portal customer",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "return $this->session->get(self::KEY_CUSTOMER) !== null || $this->session->get(self::KEY_ACCOUNT) !== null;",
+  "replace": "return $this->session->get(self::KEY_CUSTOMER) !== null;",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N09 a session holds a portal account",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "return $this->session->get(self::KEY_CUSTOMER) !== null || $this->session->get(self::KEY_ACCOUNT) !== null;",
+  "replace": "return $this->session->get(self::KEY_ACCOUNT) !== null;",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N10 a session holds an employee",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "return $this->session->get(self::KEY_EMPLOYEE) !== null;",
+  "replace": "return false;",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N11 half an hour of idleness ends a session",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "return $now - $active > self::IDLE_SECONDS || $now - $started > self::MAX_SECONDS;",
+  "replace": "return $now - $started > self::MAX_SECONDS;",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N12 eight hours end a session that is used",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "return $now - $active > self::IDLE_SECONDS || $now - $started > self::MAX_SECONDS;",
+  "replace": "return $now - $active > self::IDLE_SECONDS;",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N13 the engine renews the identifier when a session is open",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "        if (($this->isActive)()) {\n            $this->session->regenerate(true);\n        }",
+  "replace": "        if (false) {\n            $this->session->regenerate(true);\n        }",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N14 a renewal is announced",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "        Events::trigger(self::REGENERATED);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "N15 touching a session moves the activity time",
+  "file": "app/Libraries/Portal/PortalSession.php",
+  "find": "        $this->session->set(self::KEY_ACTIVE, $now ?? time());",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalSessionTest.php"
+  ]
+ },
+ {
+  "name": "R01 the portal cookie has its own name",
+  "file": "app/Libraries/Portal/PortalRealm.php",
+  "find": "        $session->cookieName = self::COOKIE;\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalRealmTest.php"
+  ]
+ },
+ {
+  "name": "R02 the portal session is short",
+  "file": "app/Libraries/Portal/PortalRealm.php",
+  "find": "        $session->expiration = self::SESSION_SECONDS;\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalRealmTest.php"
+  ]
+ },
+ {
+  "name": "R03 the portal cookie is strict",
+  "file": "app/Libraries/Portal/PortalRealm.php",
+  "find": "        $cookie->samesite    = CookieValue::SAMESITE_STRICT;\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalRealmTest.php"
+  ]
+ },
+ {
+  "name": "R04 the portal cookie is secure on a secure request",
+  "file": "app/Libraries/Portal/PortalRealm.php",
+  "find": "        $cookie->secure      = $cookie->secure || $secure;",
+  "replace": "        $cookie->secure      = $cookie->secure;",
+  "tests": [
+   "tests/Libraries/Portal/PortalRealmTest.php"
+  ]
+ },
+ {
+  "name": "R05 the pages of the portal are the portal",
+  "file": "app/Libraries/Portal/PortalRealm.php",
+  "find": "|| str_starts_with($path, self::PREFIX . '/')",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalRealmTest.php"
+  ]
+ },
+ {
+  "name": "R06 the realm applies to the portal only",
+  "file": "app/Libraries/Portal/PortalRealm.php",
+  "find": "        if (! self::isPortalPath($path)) {\n            return;\n        }\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalRealmTest.php"
+  ]
+ },
+ {
+  "name": "R07 the session configuration takes the realm",
+  "file": "app/Config/Session.php",
+  "find": "        PortalRealm::apply($this, config(Cookie::class), PortalRealm::currentPath(), PortalRealm::currentIsSecure());\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalRealmTest.php"
+  ]
+ },
+ {
+  "name": "F01 the portal guard stands before every portal route",
+  "file": "app/Config/Filters.php",
+  "find": "        'portalguard' => ['before' => ['portal', 'portal/*']],\n",
+  "replace": "",
+  "tests": [
+   "tests/Config/FiltersTest.php"
+  ]
+ },
+ {
+  "name": "F02 the token filter stands before every portal route",
+  "file": "app/Config/Filters.php",
+  "find": "        'csrf'        => ['before' => ['portal', 'portal/*']],\n",
+  "replace": "",
+  "tests": [
+   "tests/Config/FiltersTest.php"
+  ]
+ },
+ {
+  "name": "F03 the employee filter spares the portal",
+  "file": "app/Config/Filters.php",
+  "find": "'isLoggedIn' => ['except' => ['login|migrate', 'portal', 'portal/*']],",
+  "replace": "'isLoggedIn' => ['except' => 'login|migrate'],",
+  "tests": [
+   "tests/Config/FiltersTest.php"
+  ]
+ },
+ {
+  "name": "F04 the global token filter spares the portal once",
+  "file": "app/Config/Filters.php",
+  "find": "'csrf' => ['except' => ['login|migrate', 'portal', 'portal/*']],",
+  "replace": "'csrf' => ['except' => 'login|migrate'],",
+  "tests": [
+   "tests/Config/FiltersTest.php"
+  ]
+ },
+ {
+  "name": "F05 the employee filter refuses a session that holds a customer",
+  "file": "app/Filters/IsLoggedIn.php",
+  "find": " || (new PortalSession())->holdsPortal()",
+  "replace": "",
+  "tests": [
+   "tests/Filters/IsLoggedInTest.php"
+  ]
+ },
+ {
+  "name": "H01 the portal is a page that does not exist while it is off",
+  "file": "app/Filters/PortalGuard.php",
+  "find": "if (! (new PortalSettings())->isEnabled()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H02 an employee session is refused",
+  "file": "app/Filters/PortalGuard.php",
+  "find": "        if ($session->holdsEmployee()) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H03 the sign-in page is open",
+  "file": "app/Filters/PortalGuard.php",
+  "find": "private const OPEN_PATHS   = ['portal/login'];",
+  "replace": "private const OPEN_PATHS   = [];",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H04 nothing opens without a customer who is signed in",
+  "file": "app/Filters/PortalGuard.php",
+  "find": "        if ($account === null) {\n            $session->end();",
+  "replace": "        if (false) {\n            $session->end();",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H05 a temporary password must be changed first",
+  "file": "app/Filters/PortalGuard.php",
+  "find": "if ((int) $account->must_change === 1 && ! in_array($path, self::CHANGE_PATHS, true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H06 the change page and the sign-out stay open to a customer who must change the password",
+  "file": "app/Filters/PortalGuard.php",
+  "find": "private const CHANGE_PATHS = ['portal/password', 'portal/logout'];",
+  "replace": "private const CHANGE_PATHS = ['portal/password'];",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H07 a session that is used keeps its activity time",
+  "file": "app/Filters/PortalGuard.php",
+  "find": "        $session->touch();\n",
+  "replace": "",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H08 an idle or old session ends",
+  "file": "app/Filters/PortalGuard.php",
+  "find": " || $session->expired()) {",
+  "replace": ") {",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H09 the customer of the session is the customer of the account",
+  "file": "app/Filters/PortalGuard.php",
+  "find": "return $account !== null && (int) $account->customer_id === $session->customerId() ? $account : null;",
+  "replace": "return $account;",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H10 a session without a customer ends",
+  "file": "app/Filters/PortalGuard.php",
+  "find": " || $session->customerId() === null",
+  "replace": "",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H11 a session without an account ends",
+  "file": "app/Filters/PortalGuard.php",
+  "find": "if ($accountId === null || ",
+  "replace": "if (",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H12 an ended session is cleared",
+  "file": "app/Filters/PortalGuard.php",
+  "find": "            $session->end();\n\n            return $this->toSignIn($request);",
+  "replace": "            return $this->toSignIn($request);",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H13 an ajax request is answered with a status",
+  "file": "app/Filters/PortalGuard.php",
+  "find": "        if ($request->isAJAX()) {",
+  "replace": "        if (false) {",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "H14 no page of the portal is cached",
+  "file": "app/Filters/PortalGuard.php",
+  "find": "        return $response->setHeader('Cache-Control', 'no-store, private')->setHeader('Pragma', 'no-cache');",
+  "replace": "        return $response;",
+  "tests": [
+   "tests/Filters/PortalGuardTest.php"
+  ]
+ },
+ {
+  "name": "D01 the documents are of the customer",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "            ->where('s.customer_id', $customerId)\n            ->where('s.sale_status', COMPLETED)\n            ->whereIn('s.sale_type', $types);",
+  "replace": "            ->where('s.sale_status', COMPLETED)\n            ->whereIn('s.sale_type', $types);",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D02 the payments are of the customer",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "            ->join('sales s', 's.sale_id = p.sale_id')\n            ->where('s.customer_id', $customerId)\n",
+  "replace": "            ->join('sales s', 's.sale_id = p.sale_id')\n",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D03 only completed sales are shown",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "            ->where('s.sale_status', COMPLETED)\n            ->whereIn('s.sale_type', $types);",
+  "replace": "            ->whereIn('s.sale_type', $types);",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D04 only the kinds of document asked for are shown",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "            ->whereIn('s.sale_type', $types);",
+  "replace": "            ;",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D05 a payment of a completed sale only",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "            ->where('s.sale_status', COMPLETED)\n            ->where('p.cash_adjustment', 0)",
+  "replace": "            ->where('p.cash_adjustment', 0)",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D06 a rounding of cash is no payment",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "            ->where('p.cash_adjustment', 0)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D07 a payment that is not completed is not shown",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "            ->where('p.payment_status', PaymentStatus::Completed->value)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D08 what was left due is no payment",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "            ->whereNotIn('p.payment_type', PaymentType::Due->labels());",
+  "replace": "            ->where('1 = 1', null, false);",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D09 an invoice is found by its number",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "$this->sales($customerId, [SALE_TYPE_POS, SALE_TYPE_INVOICE])->where('s.sale_id', $saleId)->get()->getRow();",
+  "replace": "$this->sales($customerId, [SALE_TYPE_POS, SALE_TYPE_INVOICE])->get()->getRow();",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D10 a credit note is found by its number",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "$this->sales($customerId, [SALE_TYPE_RETURN])->where('s.sale_id', $saleId)->get()->getRow();",
+  "replace": "$this->sales($customerId, [SALE_TYPE_RETURN])->get()->getRow();",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D11 the invoice a credit note names is the customer's own",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "->where(['sale_id' => (int) $sale->return_of_sale_id, 'customer_id' => $customerId])",
+  "replace": "->where(['sale_id' => (int) $sale->return_of_sale_id])",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D12 a payment must be the customer's own",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "if ($this->receipts($customerId)->where('p.payment_id', $paymentId)->countAllResults() !== 1) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D13 the receipt hides the treasury and the employee",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "array_values(array_filter($voucher->rows, static fn (array $row): bool => ! in_array($row[0], $hidden, true))),",
+  "replace": "$voucher->rows,",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D14 the payments of one invoice are the customer's own",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "foreach ($this->receipts($customerId)->where('p.sale_id', (int) $sale->sale_id)",
+  "replace": "foreach ($this->receipts(0)->where('p.sale_id', (int) $sale->sale_id)",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D15 a page holds twenty-five rows",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "    public const PAGE_SIZE = 25;",
+  "replace": "    public const PAGE_SIZE = 1000;",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "D16 a bad page number is the first page",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "return (max(1, $page) - 1) * self::PAGE_SIZE;",
+  "replace": "return ($page - 1) * self::PAGE_SIZE;",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "T01 no statement while accounting is off",
+  "file": "app/Libraries/Portal/PortalStatement.php",
+  "find": "if (! (new AccountingSettings($this->db))->isEnabled()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalStatementTest.php"
+  ]
+ },
+ {
+  "name": "T02 an invoice that is paid is not listed as open",
+  "file": "app/Libraries/Portal/PortalStatement.php",
+  "find": "            if (bccomp($invoice->open(), '0', 4) <= 0) {\n                continue;\n            }",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalStatementTest.php"
+  ]
+ },
+ {
+  "name": "T03 credit that is spent is not listed",
+  "file": "app/Libraries/Portal/PortalStatement.php",
+  "find": "            if (bccomp($source->available(), '0', 4) <= 0) {\n                continue;\n            }",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalStatementTest.php"
+  ]
+ },
+ {
+  "name": "W01 a post method is not reached by a get request",
+  "file": "app/Controllers/Portal.php",
+  "find": "        if (strtoupper($this->request->getMethod()) !== 'POST') {",
+  "replace": "        if (false) {",
+  "tests": [
+   "--filter",
+   "IsNotDoneByAGetRequest",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W02 a refused sign-in is a refusal and a lock is too many attempts",
+  "file": "app/Controllers/Portal.php",
+  "find": "->setStatusCode($locked ? 429 : 401)",
+  "replace": "->setStatusCode(200)",
+  "tests": [
+   "--filter",
+   "PostLogin",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W03 a customer who is signed in does not see the sign-in page",
+  "file": "app/Controllers/Portal.php",
+  "find": "    public function getLogin(): RedirectResponse|string\n    {\n        if ((new PortalSession())->customerId() !== null) {\n            return redirect()->to(site_url('portal/statement'));\n        }\n",
+  "replace": "    public function getLogin(): RedirectResponse|string\n    {\n",
+  "tests": [
+   "--filter",
+   "GetLogin",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W04 the sign-in opens a session of the customer of the account",
+  "file": "app/Controllers/Portal.php",
+  "find": "            $session->begin($result->account);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "PostLogin",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W05 the password change takes the account of the session",
+  "file": "app/Controllers/Portal.php",
+  "find": "$accountId = $session->accountId() ?? throw PageNotFoundException::forPageNotFound();",
+  "replace": "$accountId = (int) $this->request->getPost('account_id');",
+  "tests": [
+   "--filter",
+   "PostPassword",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W06 the confirmation must match",
+  "file": "app/Controllers/Portal.php",
+  "find": "            if ($new !== $this->text('confirm_password')) {",
+  "replace": "            if (false) {",
+  "tests": [
+   "--filter",
+   "PostPassword",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W07 the session is renewed after a password change",
+  "file": "app/Controllers/Portal.php",
+  "find": "        $session->renew($version);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "PostPassword",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W08 a field that is not text is no text",
+  "file": "app/Controllers/Portal.php",
+  "find": "        return is_string($value) ? $value : '';",
+  "replace": "        return (string) $value;",
+  "tests": [
+   "--filter",
+   "TakesTheNameAndPassword",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W09 the statement is of the customer of the session",
+  "file": "app/Controllers/Portal.php",
+  "find": "(new PortalStatement())->of($this->customerId())",
+  "replace": "(new PortalStatement())->of((int) $this->request->getGet('customer_id'))",
+  "tests": [
+   "--filter",
+   "GetStatement",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W10 the invoices are of the customer of the session",
+  "file": "app/Controllers/Portal.php",
+  "find": "(new PortalDocuments())->invoices($this->customerId(), $page)",
+  "replace": "(new PortalDocuments())->invoices((int) ($this->request->getGet('customer_id') ?: $this->customerId()), $page)",
+  "tests": [
+   "--filter",
+   "GetInvoices",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W11 an invoice that is not the customer's is not found",
+  "file": "app/Controllers/Portal.php",
+  "find": "    public function getInvoice(int $saleId): string\n    {\n        $documents = new PortalDocuments();\n        $doc       = $documents->invoice($this->customerId(), $saleId) ?? throw PageNotFoundException::forPageNotFound();",
+  "replace": "    public function getInvoice(int $saleId): string\n    {\n        $documents = new PortalDocuments();\n        $doc       = $documents->invoice($this->customerId(), $saleId) ?? [];",
+  "tests": [
+   "--filter",
+   "GetDocument",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W12 the file of an invoice that is not the customer's is not found",
+  "file": "app/Controllers/Portal.php",
+  "find": "    public function getInvoicePdf(int $saleId): ResponseInterface\n    {\n        $documents = new PortalDocuments();\n        $doc       = $documents->invoice($this->customerId(), $saleId) ?? throw PageNotFoundException::forPageNotFound();",
+  "replace": "    public function getInvoicePdf(int $saleId): ResponseInterface\n    {\n        $documents = new PortalDocuments();\n        $doc       = $documents->invoice($this->customerId(), $saleId) ?? [];",
+  "tests": [
+   "--filter",
+   "GetDocument",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W13 a credit note that is not the customer's is not found",
+  "file": "app/Controllers/Portal.php",
+  "find": "    public function getCreditNote(int $saleId): string\n    {\n        $documents = new PortalDocuments();\n        $doc       = $documents->creditNote($this->customerId(), $saleId) ?? throw PageNotFoundException::forPageNotFound();",
+  "replace": "    public function getCreditNote(int $saleId): string\n    {\n        $documents = new PortalDocuments();\n        $doc       = $documents->creditNote($this->customerId(), $saleId) ?? [];",
+  "tests": [
+   "--filter",
+   "GetDocument",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W14 the file of a credit note that is not the customer's is not found",
+  "file": "app/Controllers/Portal.php",
+  "find": "    public function getCreditNotePdf(int $saleId): ResponseInterface\n    {\n        $documents = new PortalDocuments();\n        $doc       = $documents->creditNote($this->customerId(), $saleId) ?? throw PageNotFoundException::forPageNotFound();",
+  "replace": "    public function getCreditNotePdf(int $saleId): ResponseInterface\n    {\n        $documents = new PortalDocuments();\n        $doc       = $documents->creditNote($this->customerId(), $saleId) ?? [];",
+  "tests": [
+   "--filter",
+   "GetDocument",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W15 a payment that is not the customer's is not found",
+  "file": "app/Controllers/Portal.php",
+  "find": "    public function getPayment(int $paymentId): string\n    {\n        $voucher = (new PortalDocuments())->payment($this->customerId(), $paymentId) ?? throw PageNotFoundException::forPageNotFound();",
+  "replace": "    public function getPayment(int $paymentId): string\n    {\n        $voucher = (new PortalDocuments())->payment($this->customerId(), $paymentId) ?? null;",
+  "tests": [
+   "--filter",
+   "GetDocument",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W16 the receipt file of a payment that is not the customer's is not found",
+  "file": "app/Controllers/Portal.php",
+  "find": "    public function getPaymentPdf(int $paymentId): ResponseInterface\n    {\n        $voucher = (new PortalDocuments())->payment($this->customerId(), $paymentId) ?? throw PageNotFoundException::forPageNotFound();",
+  "replace": "    public function getPaymentPdf(int $paymentId): ResponseInterface\n    {\n        $voucher = (new PortalDocuments())->payment($this->customerId(), $paymentId) ?? null;",
+  "tests": [
+   "--filter",
+   "GetDocument",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "W17 the customer of a page comes from the session",
+  "file": "app/Controllers/Portal.php",
+  "find": "        return (new PortalSession())->customerId() ?? throw PageNotFoundException::forPageNotFound();",
+  "replace": "        return (new PortalSession())->customerId() ?? (int) $this->request->getGet('customer_id');",
+  "tests": [
+   "--filter",
+   "GetStatement_IgnoresACustomerNumber",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "E01 a refusal for a missing permission is a forbidden status",
+  "file": "app/Controllers/Customer_portal.php",
+  "find": "$failure->error === AccountingError::PermissionDenied ? 403 : 200",
+  "replace": "200",
+  "tests": [
+   "tests/Controllers/Customer_portalControllerTest.php"
+  ]
+ },
+ {
+  "name": "E02 a temporary password is not cached",
+  "file": "app/Controllers/Customer_portal.php",
+  "find": "        $this->response->setHeader('Cache-Control', 'no-store');\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/Customer_portalControllerTest.php"
+  ]
+ },
+ {
+  "name": "E03 only the value one switches the portal on",
+  "file": "app/Controllers/Customer_portal.php",
+  "find": "$this->request->getPost('enabled') === '1'",
+  "replace": "$this->request->getPost('enabled') !== null",
+  "tests": [
+   "tests/Controllers/Customer_portalControllerTest.php"
+  ]
+ },
+ {
+  "name": "E04 only the value one enables an account",
+  "file": "app/Controllers/Customer_portal.php",
+  "find": "$this->request->getPost('active') === '1'",
+  "replace": "$this->request->getPost('active') !== null",
+  "tests": [
+   "tests/Controllers/Customer_portalControllerTest.php"
+  ]
+ }
+]

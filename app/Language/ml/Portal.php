@@ -29,6 +29,7 @@ return [
     'item'                      => '',
     'kind'                      => '',
     'login_title'               => '',
+    'manage_address'            => '',
     'manage_create'             => '',
     'manage_created'            => '',
     'manage_disable'            => '',
