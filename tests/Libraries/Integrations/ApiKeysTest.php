@@ -102,12 +102,15 @@ class ApiKeysTest extends CIUnitTestCase
 
         for ($i = 0; $i < 12; $i++) {
             $made       = $this->made(['name' => 'Key ' . $i]);
-            $secrets[]  = $made['secret'];
+            $secrets[]  = explode('_', $made['secret'])[2];
             $prefixes[] = $made['key']->prefix;
         }
 
-        $this->assertCount(12, array_unique($secrets));
+        $hashes = array_column(Database::connect()->table('api_keys')->select('secret_hash')->get()->getResultArray(), 'secret_hash');
+
+        $this->assertCount(12, array_unique($secrets), 'Every key has a secret of its own.');
         $this->assertCount(12, array_unique($prefixes));
+        $this->assertCount(12, array_unique($hashes));
     }
 
     public function testCreate_StoresTheScopesTheBranchTheRateAndTheLastDay(): void

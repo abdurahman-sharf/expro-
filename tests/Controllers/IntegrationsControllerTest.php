@@ -11,6 +11,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
+use Config\Services;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\IntegrationFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -46,6 +47,7 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         parent::setUp();
 
+        Services::resetSingle('response');
         $this->wipeIntegration();
     }
 
@@ -125,14 +127,14 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::MANAGE, IntegrationAccess::API_KEYS]);
 
-        $this->get('/integrations')->assertRedirect();
+        $this->get('/integrations')->assertRedirectTo('no_access/' . IntegrationAccess::CONFIG);
     }
 
     public function testGetIndex_RedirectsAnEmployeeWhoHoldsTheConfigurationGrantButNotTheModule(): void
     {
         $this->actAsWith([IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
 
-        $this->get('/integrations')->assertRedirect();
+        $this->get('/integrations')->assertRedirectTo('no_access/' . IntegrationAccess::MODULE . '/');
     }
 
     public function testGetIndex_ShowsAStatusOnlyToAnEmployeeWhoHoldsTheModuleAndTheConfigurationGrantAlone(): void
@@ -202,7 +204,7 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::MANAGE]);
 
-        $this->post('/integrations/options', ['payment_methods' => '1'])->assertRedirect();
+        $this->post('/integrations/options', ['payment_methods' => '1'])->assertRedirectTo('no_access/' . IntegrationAccess::CONFIG);
         $this->assertFalse((new IntegrationOptions())->paymentMethodsCustom());
     }
 
@@ -238,7 +240,7 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::API_KEYS]);
 
-        $this->get('/integrations/payment_methods')->assertRedirect();
+        $this->get('/integrations/payment_methods')->assertRedirectTo('no_access/' . IntegrationAccess::MANAGE);
     }
 
     public function testPostPaymentMethods_SavesWhatTheFormSendsAndRefusesWhatItMustNot(): void
@@ -265,7 +267,10 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::API_KEYS]);
 
-        $this->post('/integrations/payment_methods', ['enabled' => ['debit' => '0']])->assertRedirect();
+        $body = $this->postJson('/integrations/payment_methods', ['enabled' => ['debit' => '0']]);
+
+        $this->assertFalse($body['success']);
+        $this->assertSame(lang('Integrations.error_permission_denied'), $body['message']);
         $this->assertSame(0, Database::connect()->table('payment_methods')->countAllResults());
     }
 
@@ -315,7 +320,7 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG]);
 
-        $this->get('/integrations/translations')->assertRedirect();
+        $this->get('/integrations/translations')->assertRedirectTo('no_access/' . IntegrationAccess::MANAGE);
     }
 
     public function testPostTranslationSave_KeepsTheNameInTheSecondLanguageOfTheShopAndDeleteRemovesIt(): void
@@ -352,7 +357,10 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG]);
 
-        $this->post('/integrations/translations/save', ['kind' => 'item', 'key' => '1', 'name' => 'x'])->assertRedirect();
+        $body = $this->postJson('/integrations/translations/save', ['kind' => 'item', 'key' => '1', 'name' => 'x']);
+
+        $this->assertFalse($body['success']);
+        $this->assertSame(lang('Integrations.error_permission_denied'), $body['message']);
         $this->assertSame(0, Database::connect()->table('entity_translations')->countAllResults());
     }
 
@@ -373,7 +381,7 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG]);
 
-        $this->get('/integrations/rules')->assertRedirect();
+        $this->get('/integrations/rules')->assertRedirectTo('no_access/' . IntegrationAccess::MANAGE);
     }
 
     public function testPostRuleSave_MakesAndChangesARuleAndSwitchesItAndDeletesIt(): void
@@ -408,7 +416,10 @@ class IntegrationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG]);
 
-        $this->post('/integrations/rules/save', ['kind' => 'low_stock', 'name' => 'Low'])->assertRedirect();
+        $body = $this->postJson('/integrations/rules/save', ['kind' => 'low_stock', 'name' => 'Low']);
+
+        $this->assertFalse($body['success']);
+        $this->assertSame(lang('Integrations.error_permission_denied'), $body['message']);
         $this->assertSame(0, Database::connect()->table('notification_rules')->countAllResults());
     }
 }

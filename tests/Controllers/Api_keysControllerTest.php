@@ -8,6 +8,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
+use Config\Services;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\IntegrationFixtureTrait;
 
@@ -37,6 +38,7 @@ class Api_keysControllerTest extends CIUnitTestCase
     {
         parent::setUp();
 
+        Services::resetSingle('response');
         $this->wipeIntegration();
     }
 
@@ -90,28 +92,28 @@ class Api_keysControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
 
-        $this->get('/api_keys')->assertRedirect();
+        $this->get('/api_keys')->assertRedirectTo('no_access/' . IntegrationAccess::API_KEYS);
     }
 
     public function testGetIndex_RedirectsAHolderOfTheSensitivePermissionWithoutTheConfigurationGrant(): void
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::API_KEYS]);
 
-        $this->get('/api_keys')->assertRedirect();
+        $this->get('/api_keys')->assertRedirectTo('no_access/' . IntegrationAccess::CONFIG);
     }
 
     public function testGetIndex_RedirectsAHolderOfTheSensitivePermissionWhoWorksInOneBranchOnly(): void
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::API_KEYS], [$this->createBranch('B2')]);
 
-        $this->get('/api_keys')->assertRedirect();
+        $this->get('/api_keys')->assertRedirectTo('no_access/' . IntegrationAccess::API_KEYS);
     }
 
     public function testGetIndex_RedirectsAHolderOfEverythingExceptTheModule(): void
     {
         $this->actAsWith([IntegrationAccess::CONFIG, IntegrationAccess::API_KEYS]);
 
-        $this->get('/api_keys')->assertRedirect();
+        $this->get('/api_keys')->assertRedirectTo('no_access/' . IntegrationAccess::MODULE . '/');
     }
 
     public function testPostCreate_AnswersWithTheWholeKeyOnceAndStoresOnlyItsHash(): void
@@ -172,7 +174,7 @@ class Api_keysControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
 
-        $this->post('/api_keys/create', ['name' => 'Sneaky', 'scopes' => ['read:customers']])->assertRedirect();
+        $this->post('/api_keys/create', ['name' => 'Sneaky', 'scopes' => ['read:customers']])->assertRedirectTo('no_access/' . IntegrationAccess::API_KEYS);
         $this->assertSame(0, Database::connect()->table('api_keys')->countAllResults());
     }
 
@@ -215,7 +217,7 @@ class Api_keysControllerTest extends CIUnitTestCase
 
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
 
-        $this->post('/api_keys/revoke/' . $key->id)->assertRedirect();
+        $this->post('/api_keys/revoke/' . $key->id)->assertRedirectTo('no_access/' . IntegrationAccess::API_KEYS);
         $this->assertFalse((new ApiKeys())->find($key->id)->revoked);
     }
 }

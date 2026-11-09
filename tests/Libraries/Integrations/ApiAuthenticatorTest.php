@@ -141,6 +141,27 @@ class ApiAuthenticatorTest extends CIUnitTestCase
         $this->assertNull($this->keys->find($key['id'])->lastUsedAt);
     }
 
+    public function testAuthenticate_RefusesTheKeyOfAnotherCompanyAsUnknown(): void
+    {
+        $db = Database::connect();
+        $db->table('companies')->insert(['name' => 'Another company']);
+
+        $companyId = (int) $db->insertID();
+        $secret    = bin2hex(random_bytes(32));
+
+        try {
+            $db->table('api_keys')->insert(['company_id' => $companyId, 'key_prefix' => 'a1b2c3d4', 'secret_hash' => hash('sha256', $secret), 'name' => 'Theirs', 'scopes' => 'read:customers']);
+
+            $result = $this->authenticator->authenticate('exk_a1b2c3d4_' . $secret, '203.0.113.5');
+
+            $this->assertFalse($result->succeeded());
+            $this->assertSame(ApiFailure::Unknown, $result->failure);
+        } finally {
+            $db->table('api_keys')->where('company_id', $companyId)->delete();
+            $db->table('companies')->where('company_id', $companyId)->delete();
+        }
+    }
+
     public function testAuthenticate_RefusesARevokedKeyAtOnce(): void
     {
         $key = $this->makeKey();

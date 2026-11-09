@@ -10,6 +10,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Test\TestResponse;
 use Config\Database;
+use Config\Services;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\IntegrationFixtureTrait;
 
@@ -42,6 +43,7 @@ class ApiAuthTest extends CIUnitTestCase
     {
         parent::setUp();
 
+        Services::resetSingle('response');
         $this->wipeIntegration();
         $this->keys = new ApiKeys();
     }

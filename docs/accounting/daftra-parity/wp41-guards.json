@@ -638,7 +638,7 @@
     "name": "AK06 making a key is audited",
     "file": "app/Libraries/Integrations/ApiKeys.php",
     "find": "$this->audit->write('api_key', $keyId, 'api_key_created', $employeeId, JournalOrigin::User, [",
-    "replace": "(function (): void {})(",
+    "replace": "(static fn (...$unaudited): bool => true)('api_key', $keyId, 'api_key_created', $employeeId, JournalOrigin::User, [",
     "tests": [
       "tests/Libraries/Integrations/ApiKeysTest.php"
     ],
@@ -1042,7 +1042,7 @@
     "name": "AF08 the response to an API call is not kept",
     "file": "app/Filters/ApiAuth.php",
     "find": "return $response->setHeader('Cache-Control', 'no-store');",
-    "replace": "return $response;",
+    "replace": "return $response->removeHeader('Cache-Control');",
     "tests": [
       "tests/Filters/ApiAuthTest.php"
     ],
@@ -1706,7 +1706,7 @@
     "name": "KC02 the answer that holds the secret is not kept",
     "file": "app/Controllers/Api_keys.php",
     "find": "$this->response->setHeader('Cache-Control', 'no-store');",
-    "replace": "",
+    "replace": "$this->response->removeHeader('Cache-Control');",
     "tests": [
       "tests/Controllers/Api_keysControllerTest.php"
     ],

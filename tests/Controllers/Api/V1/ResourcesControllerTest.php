@@ -10,6 +10,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
+use Config\Services;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\IntegrationFixtureTrait;
@@ -45,6 +46,7 @@ class ResourcesControllerTest extends CIUnitTestCase
     {
         parent::setUp();
 
+        Services::resetSingle('response');
         $this->wipeIntegration();
         $this->startSelling();
         $this->switchIntegrationOn(IntegrationOptions::API);

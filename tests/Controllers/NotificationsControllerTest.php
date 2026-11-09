@@ -9,6 +9,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
+use Config\Services;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\IntegrationFixtureTrait;
 
@@ -40,6 +41,7 @@ class NotificationsControllerTest extends CIUnitTestCase
     {
         parent::setUp();
 
+        Services::resetSingle('response');
         $this->wipeIntegration();
         $this->ruleId = (new NotificationRules())->create('low_stock', 'Low stock', null, null);
     }
@@ -101,7 +103,7 @@ class NotificationsControllerTest extends CIUnitTestCase
     {
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG, IntegrationAccess::MANAGE]);
 
-        $this->get('/notifications')->assertRedirect();
+        $this->get('/notifications')->assertRedirectTo('no_access/' . IntegrationAccess::NOTIFICATIONS_MODULE . '/');
     }
 
     public function testGetIndex_ShowsNoBannerWhileTheRulesAreOn(): void
@@ -202,7 +204,7 @@ class NotificationsControllerTest extends CIUnitTestCase
 
         $this->actAsWith([IntegrationAccess::MODULE, IntegrationAccess::CONFIG]);
 
-        $this->post('/notifications/read/' . $id)->assertRedirect();
+        $this->post('/notifications/read/' . $id)->assertRedirectTo('no_access/' . IntegrationAccess::NOTIFICATIONS_MODULE . '/');
         $this->assertSame(0, Database::connect()->table('notification_reads')->countAllResults());
     }
 }

@@ -2,6 +2,9 @@
 
 namespace Tests\Libraries\Integrations;
 
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\CustomerAdvances;
+use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Integrations\IntegrationOptions;
 use App\Libraries\Integrations\NotificationEvaluator;
@@ -219,9 +222,15 @@ class NotificationEvaluatorTest extends CIUnitTestCase
     {
         $this->rules->create('invoice_overdue', 'Late', '1', null);
 
-        $invoice = $this->invoiceDated('100.00', $this->daysAgo(10));
+        $invoice    = $this->invoiceDated('100.00', $this->daysAgo(10));
+        $customerId = (int) Database::connect()->table('sales')->select('customer_id')->where('sale_id', $invoice)->get()->getRow()->customer_id;
+        $clerk      = $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::TREASURIES_MANAGE]);
 
-        $this->addPayment($invoice, '150.00');
+        (new CustomerAdvances())->receive($customerId, '300.00', date('Y-m-d'), 'Cash', null, '', '', $clerk);
+        Database::connect()->table('customer_credit_applications')->where('customer_id', $customerId)->update(['released_at' => date('Y-m-d H:i:s')]);
+
+        $this->assertSame('100.0000', (new CustomerLedger())->position($customerId)->invoices[0]->open(), 'the invoice is open and late while the credit is not spent on it');
+
         $this->evaluator->run();
 
         $this->assertSame([], $this->open('invoice:'));
