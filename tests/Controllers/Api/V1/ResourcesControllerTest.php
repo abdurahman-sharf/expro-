@@ -2,6 +2,8 @@
 
 namespace Tests\Controllers\Api\V1;
 
+use App\Controllers\Api\V1\Resources;
+use App\Libraries\Integrations\ApiContext;
 use App\Libraries\Integrations\ApiKeys;
 use App\Libraries\Integrations\IntegrationOptions;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -72,6 +74,21 @@ class ResourcesControllerTest extends CIUnitTestCase
         $response = $this->withHeaders(['Authorization' => 'Bearer ' . $secret])->get('api/v1/' . $path . ($query === [] ? '' : '?' . http_build_query($query)));
 
         return [$response->response()->getStatusCode(), json_decode($response->getJSON(), true)];
+    }
+
+    public function testEveryRead_RefusesACallThatReachesItWithoutAKeyThatPassedTheFilter(): void
+    {
+        $controller = new Resources();
+
+        $controller->initController(service('request'), service('response'), service('logger'));
+        ApiContext::clear();
+
+        foreach (['ping', 'customerBalances', 'salesDocuments'] as $method) {
+            $response = $controller->{$method}();
+
+            $this->assertSame(401, $response->getStatusCode(), $method);
+            $this->assertSame('unauthorized', json_decode((string) $response->getBody(), true)['error'], $method);
+        }
     }
 
     public function testPing_NamesTheKeyItsScopesItsBranchAndItsRate(): void

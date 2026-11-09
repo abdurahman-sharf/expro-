@@ -178,6 +178,7 @@ class PaymentMethodsTest extends CIUnitTestCase
         $this->methods->save(['wallet' => ['name' => '   ']], null);
 
         $this->assertNull($this->wallet()->customName);
+        $this->assertNull(Database::connect()->table('payment_methods')->where('method_code', 'wallet')->get()->getRow()->display_name, 'A cleared name is stored as nothing, not as an empty text.');
         $this->assertSame($this->wallet()->defaultName, $this->wallet()->shownAs());
     }
 

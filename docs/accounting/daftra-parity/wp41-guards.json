@@ -1,0 +1,1908 @@
+[
+  {
+    "name": "IA01 managing the integrations needs the permission to manage",
+    "file": "app/Libraries/Integrations/IntegrationAccess.php",
+    "find": "return $employeeId === null || $this->employee->has_grant(self::MANAGE, $employeeId);",
+    "replace": "return true;",
+    "tests": [
+      "tests/Libraries/Integrations/IntegrationOptionsTest.php",
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IA02 managing keys needs the sensitive permission",
+    "file": "app/Libraries/Integrations/IntegrationAccess.php",
+    "find": "return $employeeId === null || ($this->employee->has_grant(self::API_KEYS, $employeeId) && $this->branches->isUnrestricted($employeeId));",
+    "replace": "return $employeeId === null || $this->branches->isUnrestricted($employeeId);",
+    "tests": [
+      "tests/Controllers/IntegrationsControllerTest.php",
+      "tests/Controllers/Api_keysControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IA03 managing keys needs every branch",
+    "file": "app/Libraries/Integrations/IntegrationAccess.php",
+    "find": "return $employeeId === null || ($this->employee->has_grant(self::API_KEYS, $employeeId) && $this->branches->isUnrestricted($employeeId));",
+    "replace": "return $employeeId === null || $this->employee->has_grant(self::API_KEYS, $employeeId);",
+    "tests": [
+      "tests/Controllers/IntegrationsControllerTest.php",
+      "tests/Controllers/Api_keysControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IA04 a change of the integrations is refused without the permission",
+    "file": "app/Libraries/Integrations/IntegrationAccess.php",
+    "find": "if (! $this->mayManage($employeeId)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/IntegrationOptionsTest.php",
+      "tests/Libraries/Integrations/PaymentMethodsTest.php",
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IA05 a key is made or revoked only with the sensitive permission",
+    "file": "app/Libraries/Integrations/IntegrationAccess.php",
+    "find": "if ($employeeId !== null && ! $this->employee->has_grant(self::API_KEYS, $employeeId)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IA06 a key is made or revoked only by someone who works in every branch",
+    "file": "app/Libraries/Integrations/IntegrationAccess.php",
+    "find": "$this->branches->requireCompanyScope($employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IA07 the configuration screens need their grant",
+    "file": "app/Libraries/Integrations/IntegrationAccess.php",
+    "find": "return $employeeId === null || $this->employee->has_module_grant(self::CONFIG, $employeeId);",
+    "replace": "return true;",
+    "tests": [
+      "tests/Controllers/IntegrationsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IO01 a second language is a language of the application",
+    "file": "app/Libraries/Integrations/IntegrationOptions.php",
+    "find": "if ($code !== '' && ! in_array($code, self::locales(), true)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/IntegrationOptionsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IO02 a second language that is on needs a language",
+    "file": "app/Libraries/Integrations/IntegrationOptions.php",
+    "find": "if (($after['second_language'] || $after['second_language_print']) && $after['second_language_code'] === '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/IntegrationOptionsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IO03 the API switch needs the permission to manage keys",
+    "file": "app/Libraries/Integrations/IntegrationOptions.php",
+    "find": "$this->access->requireKeys($employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/IntegrationOptionsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IO04 the other switches need the permission to manage",
+    "file": "app/Libraries/Integrations/IntegrationOptions.php",
+    "find": "$this->access->requireManage($employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/IntegrationOptionsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IO05 a switch that does not change writes nothing",
+    "file": "app/Libraries/Integrations/IntegrationOptions.php",
+    "find": "if ($changes === []) {\n            return;\n        }",
+    "replace": "if (false) {\n            return;\n        }",
+    "tests": [
+      "tests/Libraries/Integrations/IntegrationOptionsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IO06 a change of the switches is audited",
+    "file": "app/Libraries/Integrations/IntegrationOptions.php",
+    "find": "$this->audit->write('integration', null, 'integration_options_updated', $employeeId, JournalOrigin::User, ['before' => array_intersect_key($before, $changes), 'after' => $changes]);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/IntegrationOptionsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IO07 the second language is on only with a language chosen",
+    "file": "app/Libraries/Integrations/IntegrationOptions.php",
+    "find": "return $this->flag(self::SECOND_LANGUAGE) && $this->secondLanguageCode() !== '';",
+    "replace": "return $this->flag(self::SECOND_LANGUAGE);",
+    "tests": [
+      "tests/Libraries/Integrations/IntegrationOptionsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IO08 documents print the second language only while it is on",
+    "file": "app/Libraries/Integrations/IntegrationOptions.php",
+    "find": "return $this->secondLanguageEnabled() && $this->flag(self::SECOND_LANGUAGE_PRINT);",
+    "replace": "return $this->flag(self::SECOND_LANGUAGE_PRINT);",
+    "tests": [
+      "tests/Libraries/Integrations/IntegrationOptionsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IO09 a stored language that is no longer a language of the application counts for none",
+    "file": "app/Libraries/Integrations/IntegrationOptions.php",
+    "find": "return in_array($code, self::locales(), true) ? $code : '';",
+    "replace": "return $code;",
+    "tests": [
+      "tests/Libraries/Integrations/IntegrationOptionsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IO10 every switch is off until it is turned on",
+    "file": "app/Libraries/Integrations/IntegrationOptions.php",
+    "find": "return $this->config->get_value($key, '0') === '1';",
+    "replace": "return $this->config->get_value($key, '1') === '1';",
+    "tests": [
+      "tests/Libraries/Integrations/IntegrationOptionsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM01 the register offers the options untouched while the switch is off",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "if (! $this->options->paymentMethodsCustom()) {\n            return $options;",
+    "replace": "if (false) {\n            return $options;",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM02 a switched-off way of payment is not offered",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "if ($method->enabled) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM03 a way of payment is offered under the name chosen",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "$offered[$key] = $method->customName ?? $label;",
+    "replace": "$offered[$key] = $label;",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM04 a switched-off way is taken at the register only while the switch is on",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "if (! $this->options->paymentMethodsCustom()) {\n            return true;",
+    "replace": "if (true) {\n            return true;",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM05 a switched-off way is refused by name",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "if (! $this->isOffered($paymentType)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM06 a change of the ways of payment needs the permission to manage",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "$this->access->requireManage($employeeId);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM07 a way this screen does not manage is refused",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "if ($type === null || ! isset($current[$type->value])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM08 cash cannot be switched off",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "if (! $enabled && ! $method->mayBeSwitchedOff) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM09 a way that does not change is not written",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "if ($changes === []) {\n            return;\n        }",
+    "replace": "if (false) {\n            return;\n        }",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM10 no two ways are shown under one name",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "$this->assertNamesDistinct($current, $changes);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM11 the names of credit sale, gift cards and reward points are taken",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "foreach ([PaymentType::Due, PaymentType::Giftcard, PaymentType::Rewards] as $type) {",
+    "replace": "foreach ([] as $type) {",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM12 two names that differ only in case are one name",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "$key  = mb_strtolower($name);",
+    "replace": "$key  = $name;",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM13 a name is at most sixty characters",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "if (mb_strlen($name) > self::MAX_NAME ||",
+    "replace": "if (false ||",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM14 a name holds no markup and no control character",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "preg_match('/[\\p{C}<>]/u', $name) === 1",
+    "replace": "false",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM15 a name holds no colon",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "str_contains($name, ':')",
+    "replace": "false",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM16 the blanks of a name are squeezed",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "$name = trim(preg_replace('/\\s+/u', ' ', (string) $value) ?? '');",
+    "replace": "$name = trim((string) $value);",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM17 a blank name goes back to the standard one",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "if ($name === '') {\n            return null;",
+    "replace": "if (false) {\n            return null;",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "PM18 a change of the ways of payment is audited",
+    "file": "app/Libraries/Integrations/PaymentMethods.php",
+    "find": "$this->audit->write('payment_methods', null, 'payment_methods_updated', $employeeId, JournalOrigin::User, ['before' => $before, 'after' => $changes]);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/PaymentMethodsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET01 saving a name needs the permission to manage",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "$this->access->requireManage($employeeId);\n\n        $kind ",
+    "replace": "\n\n        $kind ",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET02 deleting a name needs the permission to manage",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "$this->access->requireManage($employeeId);\n\n        $this->transactional(function () use ($translationId",
+    "replace": "\n\n        $this->transactional(function () use ($translationId",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET03 only four kinds of record have a second-language name",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "TranslationKind::tryFrom($kind) ?? throw new IntegrationException(IntegrationError::TranslationKind, \"{$kind} is not a kind of record with a second-language name.\", ['name' => $kind]);",
+    "replace": "TranslationKind::tryFrom($kind) ?? TranslationKind::Item;",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET04 only a customer and a supplier have an address note",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "if ($note !== '' && ! $kind->takesAddressNote()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET05 the same name saved again writes and audits nothing",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "if ($existing->name === $name && $existing->addressNote === $note) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET06 a name that does not exist cannot be deleted",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "if ($row === null) {\n                throw new IntegrationException(IntegrationError::TranslationNotFound",
+    "replace": "if (false) {\n                throw new IntegrationException(IntegrationError::TranslationNotFound",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET07 a new name is audited",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "$this->audit->write('entity_translation', $id, 'entity_translation_saved', $employeeId, JournalOrigin::User, ['kind' => $kind->value, 'key' => $key, 'language' => $language, 'before' => null, 'after' => ['name' => $name, 'address_note' => $note]]);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET08 a changed name is audited with what it was",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "$this->audit->write('entity_translation', $existing->id, 'entity_translation_saved', $employeeId, JournalOrigin::User, ['kind' => $kind->value, 'key' => $key, 'language' => $language, 'before' => ['name' => $existing->name, 'address_note' => $existing->addressNote], 'after' => ['name' => $name, 'address_note' => $note]]);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET09 a deleted name is audited",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "$this->audit->write('entity_translation', $translationId, 'entity_translation_deleted', $employeeId, JournalOrigin::User, ['kind' => $row->entity_kind, 'key' => $row->entity_key, 'language' => $row->language, 'before' => ['name' => $row->name, 'address_note' => $row->address_note]]);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET10 the record must exist",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "if (! $found) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET11 a deleted customer has no second-language name",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "'c.deleted' => 0",
+    "replace": "'c.deleted >=' => 0",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET12 a deleted supplier has no second-language name",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "'s.deleted' => 0",
+    "replace": "'s.deleted >=' => 0",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET13 a deleted item has no second-language name",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "->where(['item_id' => (int) $key, 'deleted' => 0])",
+    "replace": "->where(['item_id' => (int) $key])",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET14 a category is one a live item carries",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "->where(['category' => $key, 'deleted' => 0])",
+    "replace": "->where(['category' => $key])",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET15 a second language is a language of the application",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "if (! in_array($language, IntegrationOptions::locales(), true)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET16 a name is needed",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "if ($text === '' || mb_strlen($text) > $max ||",
+    "replace": "if (mb_strlen($text) > $max ||",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET17 a name is at most 255 characters",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "|| mb_strlen($text) > $max ||",
+    "replace": "|| false ||",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET18 a name holds no control character",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "preg_match('/[\\p{Cc}\\p{Cf}]/u', $text) === 1",
+    "replace": "false",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET19 a document is given nothing while the switch to print is off",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "if (! $this->options->secondLanguagePrint()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET20 the item names of a document are of the second language only",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "['company_id' => CompanyContext::id(), 'entity_kind' => TranslationKind::Item->value, 'language' => $language]",
+    "replace": "['company_id' => CompanyContext::id(), 'entity_kind' => TranslationKind::Item->value]",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET21 the party name of a document is of the second language",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "$row = $this->row($partyKind, (string) $partyId, $language);",
+    "replace": "$row = $this->row($partyKind, (string) $partyId, 'de-DE');",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET22 a supplier is not found by a customer number",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "$row = $this->row($partyKind, (string) $partyId, $language);",
+    "replace": "$row = $this->row(TranslationKind::Customer, (string) $partyId, $language);",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "ET23 the list is filtered by kind",
+    "file": "app/Libraries/Integrations/EntityTranslations.php",
+    "find": "if ($kind !== null) {\n            $builder->where('entity_kind', $kind->value);",
+    "replace": "if (false) {\n            $builder->where('entity_kind', $kind->value);",
+    "tests": [
+      "tests/Libraries/Integrations/EntityTranslationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK01 making a key needs the sensitive permission and every branch",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "$this->access->requireKeys($employeeId);\n\n        $name ",
+    "replace": "\n\n        $name ",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK02 revoking a key needs the sensitive permission and every branch",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "$this->access->requireKeys($employeeId);\n\n        $this->transactional(function () use ($keyId",
+    "replace": "\n\n        $this->transactional(function () use ($keyId",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK03 only the hash of the secret is stored",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "'secret_hash' => self::hashOf($secret),",
+    "replace": "'secret_hash' => $secret,",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK04 every key has a secret of its own",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "$secret = bin2hex(random_bytes(32));",
+    "replace": "$secret = str_repeat('a', 64);",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK05 the audit of a key never holds the secret",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "'prefix'     => $prefix,\n                'name'       => $name,",
+    "replace": "'prefix'     => $prefix,\n                'secret'     => $secret,\n                'name'       => $name,",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK06 making a key is audited",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "$this->audit->write('api_key', $keyId, 'api_key_created', $employeeId, JournalOrigin::User, [",
+    "replace": "(function (): void {})(",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK07 a key that is revoked cannot be revoked again",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "if ((int) $row->revoked === 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK08 a key that does not exist cannot be revoked",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "if ($row === null) {\n                throw new IntegrationException(IntegrationError::ApiKeyNotFound",
+    "replace": "if (false) {\n                throw new IntegrationException(IntegrationError::ApiKeyNotFound",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK09 revoking a key is audited",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "$this->audit->write('api_key', $keyId, 'api_key_revoked', $employeeId, JournalOrigin::User, ['prefix' => (string) $row->key_prefix, 'name' => (string) $row->name], $row->branch_id === null ? null : (int) $row->branch_id);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK10 a key needs a name",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "if ($name === '' || mb_strlen($name) > self::MAX_NAME ||",
+    "replace": "if (mb_strlen($name) > self::MAX_NAME ||",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK11 the name of a key is short",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "|| mb_strlen($name) > self::MAX_NAME ||",
+    "replace": "|| false ||",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK12 the name of a key holds no control character",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "preg_match('/\\p{C}/u', $name) === 1",
+    "replace": "false",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK13 a scope is one of the scopes of the API",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "ApiScope::tryFrom($text) ?? throw new IntegrationException(IntegrationError::ApiKeyScopes, \"{$text} is not a scope of the API.\", ['name' => $text]);",
+    "replace": "ApiScope::tryFrom($text) ?? ApiScope::ReadCustomers;",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK14 a key has at least one scope",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "if ($found === []) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK15 a key is limited to a branch that is active",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "'company_id' => CompanyContext::id(), 'active' => 1])->countAllResults() > 0;",
+    "replace": "'company_id' => CompanyContext::id()])->countAllResults() > 0;",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK16 a key is limited to a branch that exists",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "$found    = $branchId !== false &&",
+    "replace": "$found    = true ||",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK17 a key has at least one call a minute",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "$rate < 1 ||",
+    "replace": "false ||",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK18 a key has at most the calls a minute the limit gives",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "$rate > self::MAX_RATE",
+    "replace": "false",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK19 the last day of a key has not passed",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "|| $day->format('Y-m-d') < date('Y-m-d')) {",
+    "replace": ") {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK20 the last day of a key is a whole day",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "return $day->format('Y-m-d') . ' 23:59:59';",
+    "replace": "return $day->format('Y-m-d') . ' 00:00:00';",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php",
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AK21 a key is expired only after its last moment",
+    "file": "app/Libraries/Integrations/ApiKey.php",
+    "find": "return $this->expiresAt !== null && $this->expiresAt < $now;",
+    "replace": "return $this->expiresAt !== null && $this->expiresAt <= $now;",
+    "tests": [
+      "tests/Libraries/Integrations/ApiKeysTest.php",
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA01 a call without a key is refused as missing",
+    "file": "app/Libraries/Integrations/ApiAuthenticator.php",
+    "find": "if ($presented === '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA02 a text that is no key is refused as malformed",
+    "file": "app/Libraries/Integrations/ApiAuthenticator.php",
+    "find": "if (preg_match(ApiKeys::KEY_FORMAT, $presented, $parts) !== 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA03 the secret is checked against its hash",
+    "file": "app/Libraries/Integrations/ApiAuthenticator.php",
+    "find": "if (! hash_equals((string) $row->secret_hash, ApiKeys::hashOf($secret))) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA04 a revoked key is refused",
+    "file": "app/Libraries/Integrations/ApiAuthenticator.php",
+    "find": "if ($key->revoked) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA05 an expired key is refused",
+    "file": "app/Libraries/Integrations/ApiAuthenticator.php",
+    "find": "if ($key->isExpired(date('Y-m-d H:i:s', $this->limiter->now()))) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA06 a key is held to its calls a minute",
+    "file": "app/Libraries/Integrations/ApiAuthenticator.php",
+    "find": "> $key->rateLimit) {",
+    "replace": "> 1000000) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA07 the last use of a key is written",
+    "file": "app/Libraries/Integrations/ApiAuthenticator.php",
+    "find": "$this->keys->touch($key->id, date('Y-m-d H:i:s', $this->limiter->now()));",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA08 the first failures of an address are audited one by one",
+    "file": "app/Libraries/Integrations/ApiAuthenticator.php",
+    "find": "if ($hits <= self::FAILURES_AUDITED) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA09 a failure past the limit is audited once as throttled",
+    "file": "app/Libraries/Integrations/ApiAuthenticator.php",
+    "find": "} elseif ($hits === self::FAILURES_AUDITED + 1) {",
+    "replace": "} elseif (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA10 the limit of audited failures is twenty",
+    "file": "app/Libraries/Integrations/ApiAuthenticator.php",
+    "find": "if ($hits <= self::FAILURES_AUDITED) {",
+    "replace": "if ($hits < self::FAILURES_AUDITED) {",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA11 the failures of each address are counted on their own",
+    "file": "app/Libraries/Integrations/ApiAuthenticator.php",
+    "find": "'fail:' . substr(hash('sha256', $address), 0, 32)",
+    "replace": "'fail:all'",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA12 neither log nor audit holds the secret of a key",
+    "file": "app/Libraries/Integrations/ApiAuthenticator.php",
+    "find": "[, $prefix, $secret] = $parts;",
+    "replace": "[$prefix, , $secret] = $parts;",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AA13 a key is found by its prefix in the books of the company",
+    "file": "app/Libraries/Integrations/ApiKeys.php",
+    "find": "->where(['company_id' => CompanyContext::id(), 'key_prefix' => $prefix])",
+    "replace": "->where(['key_prefix' => $prefix])",
+    "tests": [
+      "tests/Libraries/Integrations/ApiAuthenticatorTest.php",
+      "tests/Libraries/Integrations/ApiKeysTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RL01 the calls are counted in windows of a minute",
+    "file": "app/Libraries/Integrations/ApiRateLimiter.php",
+    "find": "return intdiv($time, self::WINDOW_SECONDS) * self::WINDOW_SECONDS;",
+    "replace": "return intdiv($time, 3600) * 3600;",
+    "tests": [
+      "tests/Libraries/Integrations/ApiRateLimiterTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RL02 each bucket counts on its own",
+    "file": "app/Libraries/Integrations/ApiRateLimiter.php",
+    "find": "->where(['bucket' => $bucket, 'window_start' => $this->windowOf($this->now())])",
+    "replace": "->where(['window_start' => $this->windowOf($this->now())])",
+    "tests": [
+      "tests/Libraries/Integrations/ApiRateLimiterTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RL03 a window older than an hour is forgotten",
+    "file": "app/Libraries/Integrations/ApiRateLimiter.php",
+    "find": "->where('window_start <', $now - self::KEEP_SECONDS)->delete();",
+    "replace": "->where('window_start <', 0)->delete();",
+    "tests": [
+      "tests/Libraries/Integrations/ApiRateLimiterTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RL04 a caller is told how long to wait",
+    "file": "app/Libraries/Integrations/ApiRateLimiter.php",
+    "find": "return max(1, $this->windowOf($now) + self::WINDOW_SECONDS - $now);",
+    "replace": "return 1;",
+    "tests": [
+      "tests/Libraries/Integrations/ApiRateLimiterTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AF01 every address under api is a page that does not exist while the API is off",
+    "file": "app/Filters/ApiAuth.php",
+    "find": "if (! (new IntegrationOptions())->apiEnabled()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Filters/ApiAuthTest.php",
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AF02 a call that does not pass is refused with the challenge",
+    "file": "app/Filters/ApiAuth.php",
+    "find": "if ($result->succeeded()) {",
+    "replace": "if (true) {",
+    "tests": [
+      "tests/Filters/ApiAuthTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AF03 a key is never taken from the address",
+    "file": "app/Filters/ApiAuth.php",
+    "find": "$header = trim($request->getHeaderLine('X-Api-Key'));",
+    "replace": "$header = trim((string) $request->getGet('api_key'));",
+    "tests": [
+      "tests/Filters/ApiAuthTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AF04 a key over its calls is told to come back",
+    "file": "app/Filters/ApiAuth.php",
+    "find": "if ($result->failure === ApiFailure::RateLimited) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Filters/ApiAuthTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AF05 an API call is never sent to the login page",
+    "file": "app/Config/Filters.php",
+    "find": "'isLoggedIn' => ['except' => ['login|migrate', 'api/*']],",
+    "replace": "'isLoggedIn' => ['except' => ['login|migrate']],",
+    "tests": [
+      "tests/Filters/ApiAuthTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AF06 the filter stands in front of every address under api",
+    "file": "app/Config/Filters.php",
+    "find": "'apiauth'  => ['before' => ['api/*'], 'after' => ['api/*']],",
+    "replace": "",
+    "tests": [
+      "tests/Filters/ApiAuthTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AF07 no address of the API takes a write",
+    "file": "app/Config/Routes.php",
+    "find": "$routes->get('ping', 'Api\\V1\\Resources::ping');",
+    "replace": "$routes->add('ping', 'Api\\V1\\Resources::ping');",
+    "tests": [
+      "tests/Filters/ApiAuthTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "AF08 the response to an API call is not kept",
+    "file": "app/Filters/ApiAuth.php",
+    "find": "return $response->setHeader('Cache-Control', 'no-store');",
+    "replace": "return $response;",
+    "tests": [
+      "tests/Filters/ApiAuthTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS01 what customers owe needs the scope to read customers",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "if (! $key->allows(ApiScope::ReadCustomers)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS02 sales documents need the scope to read documents",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "if (! $key->allows(ApiScope::ReadDocuments)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS03 what customers owe is not given to a key limited to a branch",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "if ($key->branchId !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS04 balances are conflict while accounting is off",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "if (! (new AccountingSettings())->isEnabled()) {\n            return $this->refuse(ResponseInterface::HTTP_CONFLICT, 'accounting_disabled', 'The balances",
+    "replace": "if (false) {\n            return $this->refuse(ResponseInterface::HTTP_CONFLICT, 'accounting_disabled', 'The balances",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS05 documents are conflict while accounting is off",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "if (! (new AccountingSettings())->isEnabled()) {\n            return $this->refuse(ResponseInterface::HTTP_CONFLICT, 'accounting_disabled', 'The documents",
+    "replace": "if (false) {\n            return $this->refuse(ResponseInterface::HTTP_CONFLICT, 'accounting_disabled', 'The documents",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS06 a read that reaches the controller without a key is refused",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "if ($key === null) {\n            return $this->unauthorized();\n        }",
+    "replace": "if (false) {\n            return $this->unauthorized();\n        }",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "RS07 a page has at least one row",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "(int) $limit < 1 ||",
+    "replace": "false ||",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS08 a page has at most two hundred rows",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "|| (int) $limit > self::MAX_LIMIT)",
+    "replace": "|| false)",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS09 an offset is a number",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "(! is_string($offset) || ! ctype_digit($offset))",
+    "replace": "false",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS10 the end day is a day",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "if (! $this->isDay($to)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS11 the start day is a day that does not follow the end",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "if (! $this->isDay($from) || $from > $to) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS12 a call reads at most a year",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "->days >= self::MAX_DAYS) {",
+    "replace": "->days >= 100000) {",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS13 a kind is one of the sales documents",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "return $found === null || $found === DocumentKind::DebitNote ? $this->invalid('kind') : [$found];",
+    "replace": "return $found === null ? $this->invalid('kind') : [$found];",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS14 a customer is a number",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "(! is_string($customerId) || ! ctype_digit($customerId) || (int) $customerId < 1)",
+    "replace": "false",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS15 a key limited to a branch reads that branch alone",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "$scope     = ReportScope::resolve(null, $key->branchId === null ? null : [$key->branchId]);",
+    "replace": "$scope     = ReportScope::resolve(null, null);",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS16 a document row gives nothing of the books inside",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "'overdue_days'  => $document->figures?->daysOverdue($today),",
+    "replace": "'overdue_days'  => $document->figures?->daysOverdue($today),\n            'ledger_total'  => $document->ledgerTotal,",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RS17 a document row says what was credited",
+    "file": "app/Controllers/Api/V1/Resources.php",
+    "find": "'credited'      => $document->figures?->applied,",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/Api/V1/ResourcesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR01 making a rule needs the permission to manage",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "$this->access->requireManage($employeeId);\n\n        $kind ",
+    "replace": "\n\n        $kind ",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR02 changing a rule needs the permission to manage",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "$this->access->requireManage($employeeId);\n\n        $rule      = $this->find($ruleId) ?? throw new IntegrationException(IntegrationError::RuleNotFound, \"The rule {$ruleId} does not exist.\", ['id' => $ruleId]);\n        $name ",
+    "replace": "\n\n        $rule      = $this->find($ruleId) ?? throw new IntegrationException(IntegrationError::RuleNotFound, \"The rule {$ruleId} does not exist.\", ['id' => $ruleId]);\n        $name ",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR03 switching a rule needs the permission to manage",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "$this->access->requireManage($employeeId);\n\n        $rule = $this->find($ruleId)",
+    "replace": "\n\n        $rule = $this->find($ruleId)",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR04 deleting a rule needs the permission to manage",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "$this->access->requireManage($employeeId);\n\n        $this->transactional(",
+    "replace": "\n\n        $this->transactional(",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR05 a rule is of a kind the engine knows",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "NotificationRuleKind::tryFrom($kind) ?? throw new IntegrationException(IntegrationError::RuleKind, \"{$kind} is not a kind of rule.\", ['name' => $kind]);",
+    "replace": "NotificationRuleKind::tryFrom($kind) ?? NotificationRuleKind::LowStock;",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR06 a rule has a name no other rule has",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "if ($builder->countAllResults() > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR07 only the kinds that count days keep days",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "if (! $kind->takesThreshold()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR08 the days of a rule are at least the lowest of its kind",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "$days < $kind->lowest() ||",
+    "replace": "false ||",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR09 the days of a rule are at most the highest of its kind",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "|| $days > $kind->highest()",
+    "replace": "|| false",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR10 a rule has a short plain name",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "if ($name === '' || mb_strlen($name) > self::MAX_NAME || preg_match('/\\p{C}/u', $name) === 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR11 a rule that made notifications is kept",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "if ($this->db->table('notifications')->where('rule_id', $ruleId)->countAllResults() > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR12 a rule that does not change is not written",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "if ($name === $rule->name && $threshold === $rule->threshold) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR13 a rule that stays as it is is not switched",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "if ($rule->active === $active) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR14 a rule that does not exist cannot be changed, switched or deleted",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "?? throw new IntegrationException(IntegrationError::RuleNotFound, \"The rule {$ruleId} does not exist.\", ['id' => $ruleId]);",
+    "replace": "?? new NotificationRule(0, NotificationRuleKind::LowStock, '', null, true);",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "NR15 making a rule is audited",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "$this->audit->write('notification_rule', $ruleId, 'notification_rule_created', $employeeId, JournalOrigin::User, ['kind' => $kind->value, 'name' => $name, 'threshold' => $threshold]);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR16 changing a rule is audited with what it was",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "$this->audit->write('notification_rule', $ruleId, 'notification_rule_updated', $employeeId, JournalOrigin::User, ['before' => ['name' => $rule->name, 'threshold' => $rule->threshold], 'after' => ['name' => $name, 'threshold' => $threshold]]);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR17 switching a rule is audited",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "$this->audit->write('notification_rule', $ruleId, $active ? 'notification_rule_activated' : 'notification_rule_deactivated', $employeeId, JournalOrigin::User, ['name' => $rule->name]);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NR18 deleting a rule is audited",
+    "file": "app/Libraries/Integrations/NotificationRules.php",
+    "find": "$this->audit->write('notification_rule', $ruleId, 'notification_rule_deleted', $employeeId, JournalOrigin::User, ['kind' => $rule->kind->value, 'name' => $rule->name, 'threshold' => $rule->threshold]);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationRulesTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE01 nothing is looked at while the rules are off",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "if (! $this->options->notificationsEnabled()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php",
+      "tests/Commands/NotificationsEvaluateTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE02 a rule that is switched off raises nothing",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "$subjects = $rule->active ? $this->subjects($rule, $today) : [];",
+    "replace": "$subjects = $this->subjects($rule, $today);",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE03 an invoice is raised once it is overdue by the days of the rule",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "$invoice->daysOverdue($today) >= $days",
+    "replace": "$invoice->daysOverdue($today) > $days",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE04 an invoice that is not overdue is not raised",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "$invoice->daysOverdue($today) >= $days",
+    "replace": "$invoice->daysOverdue($today) >= 0",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE05 a customer who holds more credit than they owe is skipped",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "if (bccomp((string) $customer->balance, '0', 4) <= 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE06 a subject that has an open notification gets no second one",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "$this->db->table('notifications')->ignore(true)->insert([",
+    "replace": "$this->db->table('notifications')->insert([",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE07 the notification of a subject that no longer matches is closed",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "if (! isset($current[(string) $open->subject_key])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE08 a closed notification frees its subject to be raised again",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "['resolved_at' => $now, 'open_key' => null]",
+    "replace": "['resolved_at' => $now]",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE09 an item is low at or under its reorder level",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "->where('q.quantity <= i.reorder_level', null, false)",
+    "replace": "->where('q.quantity < i.reorder_level', null, false)",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE10 a deleted item is never low",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "->where(['i.deleted' => 0, 'i.stock_type' => 0, 'l.deleted' => 0])",
+    "replace": "->where(['i.stock_type' => 0, 'l.deleted' => 0])",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE11 an item without stock is never low",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "->where(['i.deleted' => 0, 'i.stock_type' => 0, 'l.deleted' => 0])",
+    "replace": "->where(['i.deleted' => 0, 'l.deleted' => 0])",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE12 a cheque that has come to an end is not raised",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "->whereIn('c.status', ['received', 'deposited', 'issued', 'delivered'])",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE13 a deleted cheque is not raised",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "->where(['c.company_id' => CompanyContext::id(), 'c.deleted' => 0])",
+    "replace": "->where(['c.company_id' => CompanyContext::id()])",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE14 a cheque is raised within the days of the rule",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "->where('c.due_date <=', $until)",
+    "replace": "->where('c.due_date <', $until)",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NE15 the days of a cheque rule count forward",
+    "file": "app/Libraries/Integrations/NotificationEvaluator.php",
+    "find": "$until = date('Y-m-d', strtotime($today . \" +{$days} days\"));",
+    "replace": "$until = date('Y-m-d', strtotime($today . ' +0 days'));",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NT01 only open notifications are shown",
+    "file": "app/Libraries/Integrations/Notifications.php",
+    "find": "->where('n.resolved_at IS NULL', null, false);",
+    "replace": ";",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NT02 only the notifications of a rule that is on are shown",
+    "file": "app/Libraries/Integrations/Notifications.php",
+    "find": "'r.active' => 1",
+    "replace": "'r.active >=' => 0",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NT03 an employee sees the notifications of their branches only",
+    "file": "app/Libraries/Integrations/Notifications.php",
+    "find": "if ($allowed !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationsTest.php",
+      "tests/Controllers/NotificationsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NT04 an employee who works nowhere sees nothing",
+    "file": "app/Libraries/Integrations/Notifications.php",
+    "find": "$allowed === [] ? $builder->where('1 = 0', null, false) :",
+    "replace": "false ? $builder->where('1 = 0', null, false) :",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NT05 the unread ones can be asked for alone",
+    "file": "app/Libraries/Integrations/Notifications.php",
+    "find": "if ($unreadOnly) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NT06 a notification the employee does not see cannot be marked read",
+    "file": "app/Libraries/Integrations/Notifications.php",
+    "find": "if ($this->scoped($personId)->where('n.notification_id', $notificationId)->countAllResults() === 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationsTest.php",
+      "tests/Controllers/NotificationsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NT07 reading twice keeps one reading",
+    "file": "app/Libraries/Integrations/Notifications.php",
+    "find": "$this->db->table('notification_reads')->ignore(true)->insert(['notification_id' => $notificationId, 'person_id' => $personId]);",
+    "replace": "$this->db->table('notification_reads')->insert(['notification_id' => $notificationId, 'person_id' => $personId]);",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "NT08 a reading belongs to the employee who read",
+    "file": "app/Libraries/Integrations/Notifications.php",
+    "find": "x.person_id = ' . (int) $personId . ')', null, false);",
+    "replace": "x.person_id >= 0)', null, false);",
+    "tests": [
+      "tests/Libraries/Integrations/NotificationsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IC01 the screens of the integrations need the grant of the configuration screens",
+    "file": "app/Controllers/IntegrationController.php",
+    "find": "if ($needsConfig && ! $this->access->holdsConfig($this->employeeId())) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/IntegrationsControllerTest.php",
+      "tests/Controllers/Api_keysControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IC02 the screens that change settings need the permission to manage",
+    "file": "app/Controllers/IntegrationController.php",
+    "find": "if (! $this->access->mayManage($this->employeeId())) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/IntegrationsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IC03 a refusal of the integrations is said in words",
+    "file": "app/Controllers/IntegrationController.php",
+    "find": "return $this->response->setJSON(['success' => false, 'message' => IntegrationMessage::of($exception), 'id' => NEW_ENTRY]);",
+    "replace": "return $this->response->setJSON(['success' => false, 'message' => '', 'id' => NEW_ENTRY]);",
+    "tests": [
+      "tests/Controllers/IntegrationsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IN01 the hub shows the keys card to the holder of the sensitive permission only",
+    "file": "app/Controllers/Integrations.php",
+    "find": "'canKeys'   => $this->access->mayManageKeys($this->employeeId()),",
+    "replace": "'canKeys'   => true,",
+    "tests": [
+      "tests/Controllers/IntegrationsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IN02 the hub shows the other cards to the managers only",
+    "file": "app/Controllers/Integrations.php",
+    "find": "'canManage' => $this->access->mayManage($this->employeeId()),",
+    "replace": "'canManage' => true,",
+    "tests": [
+      "tests/Controllers/IntegrationsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "IN03 the translations screen takes the second language of the shop",
+    "file": "app/Controllers/Integrations.php",
+    "find": "$this->postedText('language') !== '' ? $this->postedText('language') : $language,",
+    "replace": "$this->postedText('language') !== '' ? $this->postedText('language') : 'de-DE',",
+    "tests": [
+      "tests/Controllers/IntegrationsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "KC01 the keys screen needs the sensitive permission and every branch",
+    "file": "app/Controllers/Api_keys.php",
+    "find": "if (! $this->access->mayManageKeys($this->employeeId())) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/Api_keysControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "KC02 the answer that holds the secret is not kept",
+    "file": "app/Controllers/Api_keys.php",
+    "find": "$this->response->setHeader('Cache-Control', 'no-store');",
+    "replace": "",
+    "tests": [
+      "tests/Controllers/Api_keysControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SR01 the register refuses a payment method that is switched off",
+    "file": "app/Controllers/Sales.php",
+    "find": "if (!(new PaymentMethods())->isOffered($paymentType)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testPostAddPayment_|testGetIndex_OffersThePaymentMethods",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SR02 the completion of a purchase refuses a payment method that is switched off",
+    "file": "app/Controllers/Receivings.php",
+    "find": "if (is_string($data['payment_type']) && ! (new PaymentMethods())->isOffered($data['payment_type'])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testPostComplete_RefusesAPaymentMethod|testPostComplete_StillTakesAPaymentMethod",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SR03 the payment methods the register offers are the ones set",
+    "file": "app/Helpers/locale_helper.php",
+    "find": "return (new PaymentMethods())->offered($payments);",
+    "replace": "return $payments;",
+    "tests": [
+      "--filter",
+      "testGetIndex_OffersThePaymentMethods",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SR04 the payment methods a purchase offers are the ones set",
+    "file": "app/Models/Receiving.php",
+    "find": "return (new PaymentMethods())->offered([",
+    "replace": "return ([",
+    "tests": [
+      "--filter",
+      "testGetPaymentOptions_",
+      "tests/Models/ReceivingTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SR05 a document prints the second-language names of its customer",
+    "file": "app/Helpers/document_helper.php",
+    "find": "is_numeric($partyId) && (int) $partyId > 0 ? (int) $partyId : null",
+    "replace": "null",
+    "tests": [
+      "--filter",
+      "testGetPrint_PrintsTheSecondLanguage|testGetPrint_EscapesTheSecondLanguage",
+      "tests/Controllers/SalesControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SR06 a purchase invoice prints the second-language names of its supplier",
+    "file": "app/Controllers/Receivings.php",
+    "find": "$data['supplier_id']         = ($info['supplier_id'] ?? null) === null ? null : (int) $info['supplier_id'];",
+    "replace": "$data['supplier_id']         = null;",
+    "tests": [
+      "--filter",
+      "testGetPrint_PrintsTheSecondLanguageNamesOfTheSupplier",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "SP01 the permission to manage API keys is sensitive",
+    "file": "app/Libraries/Accounting/AccountingGuard.php",
+    "find": "        self::API_KEYS_MANAGE,\n    ];",
+    "replace": "    ];",
+    "tests": [
+      "tests/Libraries/Accounting/SensitivePermissionsTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "MG01 the migration can run again: every table is created only when missing",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "CREATE TABLE IF NOT EXISTS",
+    "replace": "CREATE TABLE",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "MG02 the migration can run again: a module is registered only when missing",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "$this->db->table('modules')->ignore(true)->insert([",
+    "replace": "$this->db->table('modules')->insert([",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "MG03 the migration can run again: a permission is registered only when missing",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "$this->db->table('permissions')->ignore(true)->insertBatch(",
+    "replace": "$this->db->table('permissions')->insertBatch(",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "MG04 the migration is taken down only while no key, name, rule or method is entered",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "if ($this->hasTable($table) && $this->db->table($table)->countAllResults() > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "MG05 a payment method is one of the seven the screen manages",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "CONSTRAINT `{$methods}_code` CHECK (`method_code` IN ('cash', 'debit', 'credit', 'check', 'bank_transfer', 'upi', 'wallet')),",
+    "replace": "",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "MG06 a second-language name is of one of the four kinds",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "CONSTRAINT `{$texts}_kind` CHECK (`entity_kind` IN ('customer', 'supplier', 'item', 'category'))",
+    "replace": "CONSTRAINT `{$texts}_kind` CHECK (1 = 1)",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "MG07 a record has one name in one language",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "UNIQUE KEY `{$texts}_entity` (`company_id`, `entity_kind`, `entity_key`, `language`),",
+    "replace": "KEY `{$texts}_entity` (`company_id`, `entity_kind`, `entity_key`, `language`),",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "MG08 a key prefix is held by one key",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "UNIQUE KEY `{$keys}_prefix` (`key_prefix`),",
+    "replace": "KEY `{$keys}_prefix` (`key_prefix`),",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "MG09 the calls a minute of a key are within the range",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "CONSTRAINT `{$keys}_rate` CHECK (`rate_limit` BETWEEN 1 AND 6000),",
+    "replace": "",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "MG10 a subject has one open notification for a rule",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "UNIQUE KEY `{$notices}_open` (`rule_id`, `open_key`),",
+    "replace": "KEY `{$notices}_open` (`rule_id`, `open_key`),",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php",
+      "tests/Libraries/Integrations/NotificationEvaluatorTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "MG11 a rule that made notifications cannot be deleted from under them",
+    "file": "app/Database/Migrations/20273800000000_IntegrationSettingsTables.php",
+    "find": "CONSTRAINT `{$notices}_fk_rule` FOREIGN KEY (`rule_id`) REFERENCES `{$rules}` (`rule_id`) ON DELETE RESTRICT,",
+    "replace": "",
+    "tests": [
+      "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": false
+  }
+]
