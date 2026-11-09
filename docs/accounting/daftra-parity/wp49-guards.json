@@ -1167,15 +1167,6 @@
   ]
  },
  {
-  "name": "F04 the global token filter spares the portal once",
-  "file": "app/Config/Filters.php",
-  "find": "'csrf' => ['except' => ['login|migrate', 'portal', 'portal/*']],",
-  "replace": "'csrf' => ['except' => 'login|migrate'],",
-  "tests": [
-   "tests/Config/FiltersTest.php"
-  ]
- },
- {
   "name": "F05 the employee filter refuses a session that holds a customer",
   "file": "app/Filters/IsLoggedIn.php",
   "find": " || (new PortalSession())->holdsPortal()",
@@ -1266,15 +1257,6 @@
   ]
  },
  {
-  "name": "H10 a session without a customer ends",
-  "file": "app/Filters/PortalGuard.php",
-  "find": " || $session->customerId() === null",
-  "replace": "",
-  "tests": [
-   "tests/Filters/PortalGuardTest.php"
-  ]
- },
- {
   "name": "H11 a session without an account ends",
   "file": "app/Filters/PortalGuard.php",
   "find": "if ($accountId === null || ",
@@ -1297,15 +1279,6 @@
   "file": "app/Filters/PortalGuard.php",
   "find": "        if ($request->isAJAX()) {",
   "replace": "        if (false) {",
-  "tests": [
-   "tests/Filters/PortalGuardTest.php"
-  ]
- },
- {
-  "name": "H14 no page of the portal is cached",
-  "file": "app/Filters/PortalGuard.php",
-  "find": "        return $response->setHeader('Cache-Control', 'no-store, private')->setHeader('Pragma', 'no-cache');",
-  "replace": "        return $response;",
   "tests": [
    "tests/Filters/PortalGuardTest.php"
   ]

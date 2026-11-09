@@ -62,7 +62,7 @@ final class PortalDocumentsTest extends CIUnitTestCase
         return (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->payment_id;
     }
 
-    public function testInvoiceFindsAnInvoiceOfTheCustomerAndNotOneOfAnotherCustomer(): void
+    public function testInvoice_FindsAnInvoiceOfTheCustomerAndNotOneOfAnotherCustomer(): void
     {
         $mine   = $this->invoiceOf('100.00');
         $theirs = $this->invoiceOf('200.00', $this->other);
@@ -73,7 +73,7 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertSame($theirs, $this->documents()->invoice($this->other, $theirs)['sale_id']);
     }
 
-    public function testInvoiceFindsNothingForANumberThatIsNoSaleAndForADraftAndAQuote(): void
+    public function testInvoice_FindsNothingForANumberThatIsNoSaleAndForADraftAndAQuote(): void
     {
         $draft = $this->draftInvoice(null, $this->customerId);
         $quote = $this->quote(null, null, $this->customerId);
@@ -83,7 +83,7 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertNull($this->documents()->invoice($this->customerId, $quote));
     }
 
-    public function testInvoiceFindsNothingForAReturnAndCreditNoteFindsNothingForAnInvoice(): void
+    public function testInvoice_FindsNothingForAReturnAndCreditNoteFindsNothingForAnInvoice(): void
     {
         $invoice = $this->invoiceOf('100.00');
         $note    = $this->creditNoteOf($invoice, '30.00');
@@ -93,7 +93,7 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertSame($note, $this->documents()->creditNote($this->customerId, $note)['sale_id']);
     }
 
-    public function testCreditNoteFindsACreditNoteOfTheCustomerAndNotOneOfAnotherCustomer(): void
+    public function testCreditNote_FindsACreditNoteOfTheCustomerAndNotOneOfAnotherCustomer(): void
     {
         $foreign = $this->creditNoteOf($this->invoiceOf('100.00', $this->other), '30.00', $this->other);
 
@@ -101,7 +101,7 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertNotNull($this->documents()->creditNote($this->other, $foreign));
     }
 
-    public function testPaymentFindsAPaymentOfTheCustomerAndNotOneOfAnotherCustomer(): void
+    public function testPayment_FindsAPaymentOfTheCustomerAndNotOneOfAnotherCustomer(): void
     {
         $mine   = $this->paymentOf($this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '60.00')]));
         $theirs = $this->paymentOf($this->invoiceOf('100.00', $this->other, [$this->payment(lang('Sales.cash'), '40.00')]));
@@ -112,14 +112,14 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertNull($this->documents()->payment($this->other, $mine));
     }
 
-    public function testPaymentFindsNothingForWhatWasLeftDue(): void
+    public function testPayment_FindsNothingForWhatWasLeftDue(): void
     {
         $due = $this->paymentOf($this->invoiceOf('100.00', null, [$this->payment(lang('Sales.due'), '100.00')]));
 
         $this->assertNull($this->documents()->payment($this->customerId, $due));
     }
 
-    public function testListsHoldTheDocumentsOfTheCustomerAloneAndCountThem(): void
+    public function testLists_HoldTheDocumentsOfTheCustomerAloneAndCountThem(): void
     {
         $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '60.00')]);
         $this->invoiceOf('100.00');
@@ -134,7 +134,7 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertCount(2, $this->documents()->invoices($this->customerId, 1)['rows']);
     }
 
-    public function testInvoicesPageTwentyFiveAtATimeNewestFirstAndAnEmptyPageBeyondTheLast(): void
+    public function testInvoices_PageTwentyFiveAtATimeNewestFirstAndAnEmptyPageBeyondTheLast(): void
     {
         $ids = [];
 
@@ -154,7 +154,7 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertCount(PortalDocuments::PAGE_SIZE, $this->documents()->invoices($this->customerId, -3)['rows']);
     }
 
-    public function testInvoiceCarriesTheLinesTheFiguresAndThePaymentsAndNothingOfTheCost(): void
+    public function testInvoice_CarriesTheLinesTheFiguresAndThePaymentsAndNothingOfTheCost(): void
     {
         $cycle   = $this->referenceInvoice();
         $invoice = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '800.00')]);
@@ -174,7 +174,7 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertSame([], array_intersect(['cost', 'cost_price', 'item_cost_price', 'margin', 'profit', 'journal', 'employee', 'treasury'], array_keys($document)));
     }
 
-    public function testInvoiceShowsNoPaidOrRemainingFiguresWhileAccountingIsOff(): void
+    public function testInvoice_ShowsNoPaidOrRemainingFiguresWhileAccountingIsOff(): void
     {
         $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '40.00')]);
         $this->setConfigValue('accounting_enabled', '0');
@@ -186,7 +186,7 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertSame('100.00 SAR', $document['total']);
     }
 
-    public function testCreditNoteShowsTheAmountsAsPositiveFiguresAndTheInvoiceItCameFrom(): void
+    public function testCreditNote_ShowsTheAmountsAsPositiveFiguresAndTheInvoiceItCameFrom(): void
     {
         $invoice = $this->invoiceOf('100.00');
         $note    = $this->creditNoteOf($invoice, '30.00');
@@ -198,7 +198,7 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertSame('1', $document['lines'][0]['quantity']);
     }
 
-    public function testCreditNoteHidesTheInvoiceNumberWhenTheInvoiceBelongsToAnotherCustomer(): void
+    public function testCreditNote_HidesTheInvoiceNumberWhenTheInvoiceBelongsToAnotherCustomer(): void
     {
         $foreign = $this->invoiceOf('100.00', $this->other);
         $note    = $this->creditNoteOf($foreign, '30.00');
@@ -206,7 +206,7 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertNull($this->documents()->creditNote($this->customerId, $note)['origin']);
     }
 
-    public function testPaymentShowsNeitherTheTreasuryNorTheEmployeeWhoTookIt(): void
+    public function testPayment_ShowsNeitherTheTreasuryNorTheEmployeeWhoTookIt(): void
     {
         $payment = $this->paymentOf($this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '60.00')]));
 
@@ -217,7 +217,7 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertContains(lang('Documents.method'), $labels);
     }
 
-    public function testCustomerNameIsTheNameOfTheCustomerGiven(): void
+    public function testCustomerName_IsTheNameOfTheCustomerGiven(): void
     {
         $this->assertSame('Omar Khaled', $this->documents()->customerName($this->customerId));
         $this->assertSame('Hind Saad', $this->documents()->customerName($this->other));
@@ -235,5 +235,23 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertEqualsCanonicalizing([$first, $remote], array_column($rows, 'sale_id'));
         $this->assertNotNull($this->documents()->invoice($this->customerId, $remote));
         $this->assertNull($this->documents()->invoice($this->other, $remote));
+    }
+
+    public function testPayments_LeavesOutARoundingOfCashAPaymentThatIsNotCompletedAndThePaymentsOfASaleThatIsNotCompleted(): void
+    {
+        $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '10.00'), $this->payment(lang('Sales.cash'), '20.00'), $this->payment(lang('Sales.cash'), '30.00')]);
+        $ids     = array_map('intval', array_column($this->accountingDb()->table('sales_payments')->where('sale_id', $invoice)->orderBy('payment_id', 'ASC')->get()->getResultArray(), 'payment_id'));
+
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $ids[0])->update(['cash_adjustment' => 1]);
+        $this->accountingDb()->table('sales_payments')->where('payment_id', $ids[1])->update(['payment_status' => 'draft']);
+
+        $this->assertSame([$ids[2]], array_column($this->documents()->payments($this->customerId, 1)['rows'], 'payment_id'));
+        $this->assertNull($this->documents()->payment($this->customerId, $ids[0]));
+        $this->assertNull($this->documents()->payment($this->customerId, $ids[1]));
+
+        $this->accountingDb()->table('sales')->where('sale_id', $invoice)->update(['sale_status' => CANCELED]);
+
+        $this->assertSame(0, $this->documents()->payments($this->customerId, 1)['total']);
+        $this->assertNull($this->documents()->payment($this->customerId, $ids[2]));
     }
 }

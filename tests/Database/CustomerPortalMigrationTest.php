@@ -68,14 +68,14 @@ final class CustomerPortalMigrationTest extends CIUnitTestCase
         return ['customer_id' => $customerId, 'username' => $username, 'password_hash' => password_hash('x', PASSWORD_DEFAULT)];
     }
 
-    public function testUpCreatesTheTablesWithTheColumnsOfAnAccountAndOfTheLedgerOfFailures(): void
+    public function testUp_CreatesTheTablesWithTheColumnsOfAnAccountAndOfTheLedgerOfFailures(): void
     {
         $this->assertSame(['account_id', 'customer_id', 'username', 'password_hash', 'must_change', 'temporary_expires_at', 'credential_version', 'status', 'last_login_at', 'password_changed_at', 'created_by', 'created_at', 'updated_at'], $this->columns('portal_accounts'));
         $this->assertSame(['failure_key', 'failures', 'lockouts', 'locked_until', 'last_failure_at'], $this->columns('portal_login_failures'));
         $this->assertSame(0, $this->countRows('portal_accounts'));
     }
 
-    public function testUpRegistersThePermissionUnderTheCustomersModuleAndGrantsItToNobody(): void
+    public function testUp_RegistersThePermissionUnderTheCustomersModuleAndGrantsItToNobody(): void
     {
         $row = $this->accountingDb()->table('permissions')->where('permission_id', AccountingGuard::PORTAL_MANAGE)->get()->getRow();
 
@@ -83,7 +83,7 @@ final class CustomerPortalMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->accountingDb()->table('grants')->where('permission_id', AccountingGuard::PORTAL_MANAGE)->countAllResults());
     }
 
-    public function testUpAddsThePortalSettingOffAndDoesNotSwitchItOffAgainWhenRunAfterItWasOn(): void
+    public function testUp_AddsThePortalSettingOffAndDoesNotSwitchItOffAgainWhenRunAfterItWasOn(): void
     {
         $this->assertSame('0', $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->get()->getRow()->value);
 
@@ -93,7 +93,7 @@ final class CustomerPortalMigrationTest extends CIUnitTestCase
         $this->assertSame('1', $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->get()->getRow()->value);
     }
 
-    public function testUpCanRunAgainAndKeepsTheAccountsAndTheGrantsThatAreThere(): void
+    public function testUp_CanRunAgainAndKeepsTheAccountsAndTheGrantsThatAreThere(): void
     {
         $holder   = $this->employeeWithGrants([AccountingGuard::PORTAL_MANAGE]);
         $customer = $this->insertCustomer();
@@ -107,7 +107,7 @@ final class CustomerPortalMigrationTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('permissions')->where('permission_id', AccountingGuard::PORTAL_MANAGE)->countAllResults());
     }
 
-    public function testUpAllowsOneAccountForEachCustomerAndOneCustomerForEachUserName(): void
+    public function testUp_AllowsOneAccountForEachCustomerAndOneCustomerForEachUserName(): void
     {
         $first  = $this->insertCustomer();
         $second = $this->insertCustomer('Hind', 'Saad');
@@ -125,7 +125,7 @@ final class CustomerPortalMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('portal_accounts')->insert($this->account($second));
     }
 
-    public function testUpRejectsAnAccountForAPartyThatIsNotACustomerAndAStatusOutsideTheTwo(): void
+    public function testUp_RejectsAnAccountForAPartyThatIsNotACustomerAndAStatusOutsideTheTwo(): void
     {
         try {
             $this->accountingDb()->table('portal_accounts')->insert($this->account(987654));
@@ -141,7 +141,7 @@ final class CustomerPortalMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('portal_accounts')->insert($this->account($customer) + ['status' => 'suspended']);
     }
 
-    public function testUpKeepsACustomerThatHasAnAccountFromBeingRemovedFromUnderIt(): void
+    public function testUp_KeepsACustomerThatHasAnAccountFromBeingRemovedFromUnderIt(): void
     {
         $customer = $this->insertCustomer();
         $this->accountingDb()->table('portal_accounts')->insert($this->account($customer));
@@ -151,7 +151,7 @@ final class CustomerPortalMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('customers')->where('person_id', $customer)->delete();
     }
 
-    public function testUpChangesNoRowOfTheBooksOrOfTheParties(): void
+    public function testUp_ChangesNoRowOfTheBooksOrOfTheParties(): void
     {
         $db       = $this->accountingDb();
         $tables   = array_map(static fn (string $table): string => $db->prefixTable($table), ['accounting_journals', 'accounting_journal_lines', 'accounting_accounts', 'customers', 'people', 'sales', 'sales_payments']);
@@ -163,7 +163,7 @@ final class CustomerPortalMigrationTest extends CIUnitTestCase
         $this->assertSame($before, $checksum());
     }
 
-    public function testDownRefusesWhileAccountsExistAndRemovesTablesPermissionAndSettingWhenNone(): void
+    public function testDown_RefusesWhileAccountsExistAndRemovesTablesPermissionAndSettingWhenNone(): void
     {
         $customer = $this->insertCustomer();
         $this->accountingDb()->table('portal_accounts')->insert($this->account($customer));

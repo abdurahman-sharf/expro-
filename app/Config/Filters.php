@@ -82,7 +82,7 @@ class Filters extends BaseFilters
         'before' => [
             'honeypot',
             'isLoggedIn' => ['except' => ['login|migrate', 'portal', 'portal/*']],
-            'csrf' => ['except' => ['login|migrate', 'portal', 'portal/*']],
+            'csrf' => ['except' => 'login|migrate'],
             'invalidchars',
         ],
         'after' => [

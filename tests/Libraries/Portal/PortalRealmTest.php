@@ -27,7 +27,7 @@ final class PortalRealmTest extends CIUnitTestCase
     }
 
     #[DataProvider('provideIsPortalPath_RecognisesThePrefixOfThePortalOnly')]
-    public function testIsPortalPathRecognisesThePrefixOfThePortalOnly(string $path, bool $expected): void
+    public function testIsPortalPath_RecognisesThePrefixOfThePortalOnly(string $path, bool $expected): void
     {
         $this->assertSame($expected, PortalRealm::isPortalPath($path));
     }
@@ -51,7 +51,7 @@ final class PortalRealmTest extends CIUnitTestCase
         ];
     }
 
-    public function testApplyGivesThePortalACookieOfItsOwnNameAShortLifeAndAStrictSecureCookie(): void
+    public function testApply_GivesThePortalACookieOfItsOwnNameAShortLifeAndAStrictSecureCookie(): void
     {
         $session          = new Session();
         $cookie           = new Cookie();
@@ -66,7 +66,7 @@ final class PortalRealmTest extends CIUnitTestCase
         $this->assertTrue($cookie->secure);
     }
 
-    public function testApplyDoesNotMarkTheCookieSecureOnAPlainRequestUnlessTheConfigurationAsksForIt(): void
+    public function testApply_DoesNotMarkTheCookieSecureOnAPlainRequestUnlessTheConfigurationAsksForIt(): void
     {
         $cookie         = new Cookie();
         $cookie->secure = false;
@@ -79,7 +79,7 @@ final class PortalRealmTest extends CIUnitTestCase
         $this->assertTrue($cookie->secure);
     }
 
-    public function testApplyLeavesTheSessionOfTheEmployeesAsItIs(): void
+    public function testApply_LeavesTheSessionOfTheEmployeesAsItIs(): void
     {
         $session = new Session();
         $cookie  = new Cookie();
@@ -93,12 +93,12 @@ final class PortalRealmTest extends CIUnitTestCase
         $this->assertNotSame(PortalRealm::COOKIE, $session->cookieName);
     }
 
-    public function testTheCookieOfThePortalHasANameOtherThanTheOneOfTheEmployees(): void
+    public function testApply_GivesThePortalACookieNameOtherThanTheOneOfTheEmployees(): void
     {
         $this->assertNotSame((new Session())->cookieName, PortalRealm::COOKIE);
     }
 
-    public function testConfigSessionTakesTheRealmOfThePortalWhenTheRequestIsForAPageOfThePortal(): void
+    public function testConfigSession_TakesTheRealmOfThePortalWhenTheRequestIsForAPageOfThePortal(): void
     {
         $config = config(App::class);
         Services::injectMock('request', new IncomingRequest($config, new SiteURI($config, 'portal/statement'), null, new UserAgent()));
@@ -107,7 +107,7 @@ final class PortalRealmTest extends CIUnitTestCase
         $this->assertSame(PortalRealm::COOKIE, (new Session())->cookieName);
     }
 
-    public function testConfigSessionKeepsTheEmployeeCookieWhenTheRequestIsForAnotherPage(): void
+    public function testConfigSession_KeepsTheEmployeeCookieWhenTheRequestIsForAnotherPage(): void
     {
         $config = config(App::class);
         Services::injectMock('request', new IncomingRequest($config, new SiteURI($config, 'customers'), null, new UserAgent()));

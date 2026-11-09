@@ -69,7 +69,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         return json_decode($this->post('/customer_portal/' . $path, $form)->getJSON(), true);
     }
 
-    public function testPostCreateMakesTheAccountAndShowsTheTemporaryPasswordOnceWithoutKeepingIt(): void
+    public function testPostCreate_MakesTheAccountAndShowsTheTemporaryPasswordOnceWithoutKeepingIt(): void
     {
         $this->actAs($this->portalManager());
 
@@ -86,7 +86,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString($answer['temporary_password'], json_encode($this->accountingDb()->table('accounting_audit_log')->get()->getResultArray()));
     }
 
-    public function testPostCreateIsRefusedForAnEmployeeWithoutThePermissionAndMakesNothing(): void
+    public function testPostCreate_IsRefusedForAnEmployeeWithoutThePermissionAndMakesNothing(): void
     {
         $this->actAs($this->employeeWithGrants(['customers']));
 
@@ -97,7 +97,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('portal_accounts'));
     }
 
-    public function testPostCreateIsRefusedForAnEmployeeWithNoRightToTheCustomers(): void
+    public function testPostCreate_IsRefusedForAnEmployeeWithNoRightToTheCustomers(): void
     {
         $this->actAs($this->employeeWithGrants([]));
 
@@ -107,7 +107,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('portal_accounts'));
     }
 
-    public function testPostCreateSaysWhyWhenTheUserNameIsBadTheCustomerHasAnAccountOrTheNameIsTaken(): void
+    public function testPostCreate_SaysWhyWhenTheUserNameIsBadTheCustomerHasAnAccountOrTheNameIsTaken(): void
     {
         $this->actAs($this->portalManager());
         $other = $this->insertCustomer('Hind', 'Saad');
@@ -119,7 +119,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('portal_accounts'));
     }
 
-    public function testPostCreateIsRefusedForACustomerThatWasDeleted(): void
+    public function testPostCreate_IsRefusedForACustomerThatWasDeleted(): void
     {
         $this->actAs($this->portalManager());
         $this->accountingDb()->table('customers')->where('person_id', $this->customer)->update(['deleted' => 1]);
@@ -128,7 +128,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('portal_accounts'));
     }
 
-    public function testPostResetGivesANewTemporaryPasswordThatMustBeChangedAndEndsTheOldOne(): void
+    public function testPostReset_GivesANewTemporaryPasswordThatMustBeChangedAndEndsTheOldOne(): void
     {
         $manager = $this->portalManager();
         $account = $this->portalAccountOf($this->customer);
@@ -142,7 +142,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertSame('1', (string) (new PortalAccounts())->find($account['account_id'])->must_change);
     }
 
-    public function testPostResetIsRefusedWithoutThePermission(): void
+    public function testPostReset_IsRefusedWithoutThePermission(): void
     {
         $account = $this->portalAccountOf($this->customer);
         $this->actAs($this->employeeWithGrants(['customers']));
@@ -153,14 +153,14 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertNotNull((new PortalAccounts())->check('ahmed', self::PORTAL_PASSWORD)[0]);
     }
 
-    public function testPostResetSaysTheAccountDoesNotExistForANumberThatIsNoAccount(): void
+    public function testPostReset_SaysTheAccountDoesNotExistForANumberThatIsNoAccount(): void
     {
         $this->actAs($this->portalManager());
 
         $this->assertFalse($this->post_('reset/987654')['success']);
     }
 
-    public function testPostStatusDisablesAndEnablesTheAccount(): void
+    public function testPostStatus_DisablesAndEnablesTheAccount(): void
     {
         $account = $this->portalAccountOf($this->customer);
         $this->actAs($this->portalManager());
@@ -172,7 +172,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertSame('active', (new PortalAccounts())->find($account['account_id'])->status);
     }
 
-    public function testPostStatusIsRefusedWithoutThePermission(): void
+    public function testPostStatus_IsRefusedWithoutThePermission(): void
     {
         $account = $this->portalAccountOf($this->customer);
         $this->actAs($this->employeeWithGrants(['customers']));
@@ -181,7 +181,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertSame('active', (new PortalAccounts())->find($account['account_id'])->status);
     }
 
-    public function testPostEnabledSwitchesThePortalOnAndOff(): void
+    public function testPostEnabled_SwitchesThePortalOnAndOff(): void
     {
         $this->actAs($this->portalManager());
 
@@ -192,7 +192,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertSame('0', $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->get()->getRow()->value);
     }
 
-    public function testPostEnabledIsRefusedWithoutThePermissionAndLeavesThePortalOff(): void
+    public function testPostEnabled_IsRefusedWithoutThePermissionAndLeavesThePortalOff(): void
     {
         $this->actAs($this->employeeWithGrants(['customers', 'config']));
 
@@ -200,7 +200,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertSame('0', $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->get()->getRow()->value);
     }
 
-    public function testPostEnabledTreatsAnythingButOneAsOff(): void
+    public function testPostEnabled_TreatsAnythingButOneAsOff(): void
     {
         $this->actAs($this->portalManager());
         $this->switchPortal(true);
@@ -210,7 +210,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertSame('0', $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->get()->getRow()->value);
     }
 
-    public function testEveryActionChangesNoJournalAndNoBalanceAndSendsNoMessage(): void
+    public function testEveryAction_ChangesNoJournalAndNoBalanceAndSendsNoMessage(): void
     {
         $manager  = $this->portalManager();
         $db       = $this->accountingDb();
@@ -232,7 +232,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->assertSame(0, $sent);
     }
 
-    public function testEveryActionIsWrittenToTheAuditLogWithoutAnyPassword(): void
+    public function testEveryAction_IsWrittenToTheAuditLogWithoutAnyPassword(): void
     {
         $this->actAs($this->portalManager());
 

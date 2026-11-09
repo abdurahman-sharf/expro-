@@ -23,7 +23,7 @@ final class PortalPasswordsTest extends CIUnitTestCase
         return null;
     }
 
-    public function testHashKeepsOnlyAHashThatTheAlgorithmOfTheEmployeeLoginMakes(): void
+    public function testHash_KeepsOnlyAHashThatTheAlgorithmOfTheEmployeeLoginMakes(): void
     {
         $hash = PortalPasswords::hash('Correct-Horse-9');
 
@@ -34,25 +34,25 @@ final class PortalPasswordsTest extends CIUnitTestCase
         $this->assertFalse(PortalPasswords::verify('Correct-Horse-8', $hash));
     }
 
-    public function testHashMakesAnotherHashEveryTimeForTheSamePassword(): void
+    public function testHash_MakesAnotherHashEveryTimeForTheSamePassword(): void
     {
         $this->assertNotSame(PortalPasswords::hash('Correct-Horse-9'), PortalPasswords::hash('Correct-Horse-9'));
     }
 
-    public function testNeedsRehashIsFalseForAFreshHashAndTrueForAHashOfALowerCost(): void
+    public function testNeedsRehash_IsFalseForAFreshHashAndTrueForAHashOfALowerCost(): void
     {
         $this->assertFalse(PortalPasswords::needsRehash(PortalPasswords::hash('Correct-Horse-9')));
         $this->assertTrue(PortalPasswords::needsRehash(password_hash('Correct-Horse-9', PASSWORD_BCRYPT, ['cost' => 4])));
     }
 
-    public function testAbsentIsAHashThatNoPasswordMatches(): void
+    public function testAbsent_IsAHashThatNoPasswordMatches(): void
     {
         $this->assertSame(PortalPasswords::absent(), PortalPasswords::absent());
         $this->assertFalse(PortalPasswords::verify('', PortalPasswords::absent()));
         $this->assertFalse(PortalPasswords::verify('password', PortalPasswords::absent()));
     }
 
-    public function testTemporaryMakesALongPasswordOfUnambiguousCharactersThatIsNotRepeated(): void
+    public function testTemporary_MakesALongPasswordOfUnambiguousCharactersThatIsNotRepeated(): void
     {
         $seen = [];
 
@@ -67,35 +67,35 @@ final class PortalPasswordsTest extends CIUnitTestCase
         $this->assertCount(30, $seen);
     }
 
-    public function testTemporaryMeetsTheRulesOfAPasswordTheCustomerChooses(): void
+    public function testTemporary_MeetsTheRulesOfAPasswordTheCustomerChooses(): void
     {
         $this->assertNull($this->refusalOf(PortalPasswords::temporary()));
     }
 
-    public function testCheckAcceptsTenCharactersAndRejectsNine(): void
+    public function testCheck_AcceptsTenCharactersAndRejectsNine(): void
     {
         $this->assertNull($this->refusalOf(str_repeat('a', PortalPasswords::MIN_LENGTH)));
         $this->assertSame(AccountingError::PortalPasswordInvalid, $this->refusalOf(str_repeat('a', PortalPasswords::MIN_LENGTH - 1)));
     }
 
-    public function testCheckAcceptsSeventyTwoBytesAndRejectsSeventyThree(): void
+    public function testCheck_AcceptsSeventyTwoBytesAndRejectsSeventyThree(): void
     {
         $this->assertNull($this->refusalOf(str_repeat('a', PortalPasswords::MAX_BYTES)));
         $this->assertSame(AccountingError::PortalPasswordInvalid, $this->refusalOf(str_repeat('a', PortalPasswords::MAX_BYTES + 1)));
     }
 
-    public function testCheckCountsTheBytesOfAnArabicPasswordForTheLimitOfTheHash(): void
+    public function testCheck_CountsTheBytesOfAnArabicPasswordForTheLimitOfTheHash(): void
     {
         $this->assertNull($this->refusalOf(str_repeat('م', 36)));
         $this->assertSame(AccountingError::PortalPasswordInvalid, $this->refusalOf(str_repeat('م', 37)));
     }
 
-    public function testCheckRejectsAPasswordThatIsTheUserNameInAnyCase(): void
+    public function testCheck_RejectsAPasswordThatIsTheUserNameInAnyCase(): void
     {
         $this->assertSame(AccountingError::PortalPasswordInvalid, $this->refusalOf('Ahmed-Customer', 'ahmed-customer'));
     }
 
-    public function testCheckRejectsAPasswordThatIsTheCurrentOne(): void
+    public function testCheck_RejectsAPasswordThatIsTheCurrentOne(): void
     {
         $this->assertSame(AccountingError::PortalPasswordInvalid, $this->refusalOf('Correct-Horse-9', 'ahmed', 'Correct-Horse-9'));
         $this->assertNull($this->refusalOf('Correct-Horse-8', 'ahmed', 'Correct-Horse-9'));

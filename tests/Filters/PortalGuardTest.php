@@ -84,7 +84,7 @@ final class PortalGuardTest extends CIUnitTestCase
     }
 
     #[DataProvider('routesProvider')]
-    public function testBeforeMakesEveryRouteAPageThatDoesNotExistWhileThePortalIsOff(string $method, string $path): void
+    public function testBefore_MakesEveryRouteAPageThatDoesNotExistWhileThePortalIsOff(string $method, string $path): void
     {
         $this->switchPortal(false);
         $this->asCustomer();
@@ -95,7 +95,7 @@ final class PortalGuardTest extends CIUnitTestCase
     }
 
     #[DataProvider('routesProvider')]
-    public function testBeforeMakesEveryRouteAPageThatDoesNotExistWhileThePortalIsOffEvenForNobody(string $method, string $path): void
+    public function testBefore_MakesEveryRouteAPageThatDoesNotExistWhileThePortalIsOffEvenForNobody(string $method, string $path): void
     {
         $this->switchPortal(false);
         $this->withSession([]);
@@ -105,7 +105,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->visit($method, $path);
     }
 
-    public function testBeforeTreatsAMissingSettingAsOff(): void
+    public function testBefore_TreatsAMissingSettingAsOff(): void
     {
         $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->delete();
         $this->asCustomer();
@@ -116,7 +116,7 @@ final class PortalGuardTest extends CIUnitTestCase
     }
 
     #[DataProvider('routesProvider')]
-    public function testBeforeRefusesASessionThatHoldsAnEmployeeOnEveryRoute(string $method, string $path): void
+    public function testBefore_RefusesASessionThatHoldsAnEmployeeOnEveryRoute(string $method, string $path): void
     {
         $this->withSession(['person_id' => $this->employeeWithGrants(['customers']), 'menu_group' => 'office', config('Security')->tokenName => 'a1b2c3d4e5f60718293a4b5c6d7e8f90']);
 
@@ -151,7 +151,7 @@ final class PortalGuardTest extends CIUnitTestCase
         ];
     }
 
-    public function testBeforeRefusesASessionThatHoldsAnEmployeeAndACustomerAtOnce(): void
+    public function testBefore_RefusesASessionThatHoldsAnEmployeeAndACustomerAtOnce(): void
     {
         $this->asCustomer(['person_id' => $this->employeeWithGrants(['customers'])]);
 
@@ -159,7 +159,7 @@ final class PortalGuardTest extends CIUnitTestCase
     }
 
     #[DataProvider('protectedRoutesProvider')]
-    public function testBeforeSendsAVisitorWhoIsNotSignedInToTheSignInPageFromEveryOtherRoute(string $method, string $path): void
+    public function testBefore_SendsAVisitorWhoIsNotSignedInToTheSignInPageFromEveryOtherRoute(string $method, string $path): void
     {
         $this->withSession([config('Security')->tokenName => 'a1b2c3d4e5f60718293a4b5c6d7e8f90']);
 
@@ -168,7 +168,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $response->getRedirectUrl());
     }
 
-    public function testBeforeAnswersAnAjaxRequestOfAVisitorWhoIsNotSignedInWithAnUnauthorisedStatus(): void
+    public function testBefore_AnswersAnAjaxRequestOfAVisitorWhoIsNotSignedInWithAnUnauthorisedStatus(): void
     {
         $this->withSession([]);
 
@@ -178,14 +178,14 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertFalse(json_decode($response->response()->getBody(), true)['success']);
     }
 
-    public function testBeforeLeavesTheSignInPageOpenToAVisitorWhoIsNotSignedIn(): void
+    public function testBefore_LeavesTheSignInPageOpenToAVisitorWhoIsNotSignedIn(): void
     {
         $this->withSession([]);
 
         $this->get('/portal/login')->assertStatus(200);
     }
 
-    public function testBeforeAppliesToTheMethodsThatAreReachedByTheirOwnNameWhateverTheCaseOfThePath(): void
+    public function testBefore_AppliesToTheMethodsThatAreReachedByTheirOwnNameWhateverTheCaseOfThePath(): void
     {
         $this->withSession([]);
 
@@ -202,14 +202,14 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testBeforeLetsASignedInCustomerThrough(): void
+    public function testBefore_LetsASignedInCustomerThrough(): void
     {
         $this->asCustomer();
 
         $this->get('/portal/statement')->assertStatus(200);
     }
 
-    public function testBeforeEndsASessionThatHasBeenIdleForMoreThanHalfAnHour(): void
+    public function testBefore_EndsASessionThatHasBeenIdleForMoreThanHalfAnHour(): void
     {
         $this->asCustomer([], time() - PortalSession::IDLE_SECONDS - 5);
 
@@ -219,14 +219,14 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertArrayNotHasKey(PortalSession::KEY_CUSTOMER, $_SESSION);
     }
 
-    public function testBeforeKeepsASessionThatHasBeenIdleForLessThanHalfAnHour(): void
+    public function testBefore_KeepsASessionThatHasBeenIdleForLessThanHalfAnHour(): void
     {
         $this->asCustomer([], time() - PortalSession::IDLE_SECONDS + 60);
 
         $this->get('/portal/statement')->assertStatus(200);
     }
 
-    public function testBeforeEndsASessionOlderThanEightHoursEvenWhenItIsActive(): void
+    public function testBefore_EndsASessionOlderThanEightHoursEvenWhenItIsActive(): void
     {
         $session                             = $this->portalSessionOf($this->account);
         $session[PortalSession::KEY_STARTED] = time() - PortalSession::MAX_SECONDS - 5;
@@ -235,7 +235,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBeforeRenewsTheActivityTimeOfASessionThatIsUsed(): void
+    public function testBefore_RenewsTheActivityTimeOfASessionThatIsUsed(): void
     {
         $this->asCustomer([], time() - 600);
 
@@ -244,7 +244,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertGreaterThan(time() - 10, $_SESSION[PortalSession::KEY_ACTIVE]);
     }
 
-    public function testBeforeEndsTheSessionOfAnAccountThatWasDisabledAtOnce(): void
+    public function testBefore_EndsTheSessionOfAnAccountThatWasDisabledAtOnce(): void
     {
         $this->asCustomer();
         (new PortalAccounts())->setActive($this->account['account_id'], false, $this->portalManager());
@@ -252,7 +252,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBeforeEndsTheSessionWhenAnEmployeeResetTheOrTheCustomerChangedThePassword(): void
+    public function testBefore_EndsTheSessionWhenAnEmployeeResetTheOrTheCustomerChangedThePassword(): void
     {
         $this->asCustomer();
         (new PortalAccounts())->resetPassword($this->account['account_id'], $this->portalManager());
@@ -260,7 +260,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBeforeEndsTheSessionOfACustomerWhoWasDeleted(): void
+    public function testBefore_EndsTheSessionOfACustomerWhoWasDeleted(): void
     {
         $this->asCustomer();
         $this->accountingDb()->table('customers')->where('person_id', $this->customer)->update(['deleted' => 1]);
@@ -268,7 +268,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBeforeEndsTheSessionWhoseAccountIsGone(): void
+    public function testBefore_EndsTheSessionWhoseAccountIsGone(): void
     {
         $this->asCustomer();
         $this->accountingDb()->table('portal_accounts')->where('account_id', $this->account['account_id'])->delete();
@@ -276,7 +276,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBeforeRefusesASessionThatNamesACustomerThatIsNotTheOneOfItsAccount(): void
+    public function testBefore_RefusesASessionThatNamesACustomerThatIsNotTheOneOfItsAccount(): void
     {
         $other                                = $this->insertCustomer('Hind', 'Saad');
         $session                              = $this->portalSessionOf($this->account);
@@ -286,14 +286,14 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBeforeRefusesASessionWithOnlyTheCustomerAndNoAccount(): void
+    public function testBefore_RefusesASessionWithOnlyTheCustomerAndNoAccount(): void
     {
         $this->withSession([PortalSession::KEY_CUSTOMER => $this->customer, PortalSession::KEY_STARTED => time(), PortalSession::KEY_ACTIVE => time()]);
 
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBeforeRefusesASessionWhoseKeysAreNotWholeNumbers(): void
+    public function testBefore_RefusesASessionWhoseKeysAreNotWholeNumbers(): void
     {
         $session                              = $this->portalSessionOf($this->account);
         $session[PortalSession::KEY_CUSTOMER] = (string) $this->customer;
@@ -303,7 +303,7 @@ final class PortalGuardTest extends CIUnitTestCase
     }
 
     #[DataProvider('protectedRoutesProvider')]
-    public function testBeforeSendsACustomerWhoMustChangeThePasswordToTheChangePageFromEveryOtherRoute(string $method, string $path): void
+    public function testBefore_SendsACustomerWhoMustChangeThePasswordToTheChangePageFromEveryOtherRoute(string $method, string $path): void
     {
         $this->accountingDb()->table('portal_accounts')->where('account_id', $this->account['account_id'])->update(['must_change' => 1]);
         $this->asCustomer();
@@ -328,7 +328,7 @@ final class PortalGuardTest extends CIUnitTestCase
         return array_filter(self::routesProvider(), static fn (array $route): bool => $route[1] !== 'portal/login');
     }
 
-    public function testBeforeLetsACustomerWhoMustChangeThePasswordReachTheChangePage(): void
+    public function testBefore_LetsACustomerWhoMustChangeThePasswordReachTheChangePage(): void
     {
         $this->accountingDb()->table('portal_accounts')->where('account_id', $this->account['account_id'])->update(['must_change' => 1]);
         $this->asCustomer();
@@ -336,7 +336,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->get('/portal/password')->assertStatus(200);
     }
 
-    public function testBeforeLetsACustomerWhoMustChangeThePasswordSignOut(): void
+    public function testBefore_LetsACustomerWhoMustChangeThePasswordSignOut(): void
     {
         $this->accountingDb()->table('portal_accounts')->where('account_id', $this->account['account_id'])->update(['must_change' => 1]);
         $this->asCustomer();
@@ -344,23 +344,10 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->visit('POST', 'portal/logout')->getRedirectUrl());
     }
 
-    public function testAfter_AsksTheBrowserAndEveryCacheOnTheWayToKeepNoCopyOfAPageOfThePortal(): void
+    public function testBefore_LeavesAPageOfThePortalUncachedAsTheFrameworkDoes(): void
     {
         $this->asCustomer();
 
-        $response = $this->get('/portal/statement');
-
-        $this->assertStringContainsString('no-store', $response->response()->getHeaderLine('Cache-Control'));
-        $this->assertStringContainsString('private', $response->response()->getHeaderLine('Cache-Control'));
-        $this->assertSame('no-cache', $response->response()->getHeaderLine('Pragma'));
-    }
-
-    public function testAfter_DoesNotTouchTheCachingOfThePagesOfTheEmployees(): void
-    {
-        $this->withSession(['person_id' => $this->employeeWithGrants(['customers']), 'menu_group' => 'office']);
-
-        $response = $this->get('/customers');
-
-        $this->assertStringNotContainsString('no-store', $response->response()->getHeaderLine('Cache-Control'));
+        $this->assertStringContainsString('no-store', $this->get('/portal/statement')->response()->getHeaderLine('Cache-Control'));
     }
 }

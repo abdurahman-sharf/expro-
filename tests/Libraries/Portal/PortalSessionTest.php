@@ -59,7 +59,7 @@ final class PortalSessionTest extends CIUnitTestCase
         return (object) ['customer_id' => (string) $customer, 'account_id' => (string) $account, 'credential_version' => (string) $version];
     }
 
-    public function testBeginRenewsTheIdentifierOnceAndKeepsOnlyTheKeysOfTheCustomer(): void
+    public function testBegin_RenewsTheIdentifierOnceAndKeepsOnlyTheKeysOfTheCustomer(): void
     {
         $_SESSION = ['planted' => 'by an attacker', 'person_id' => 9, 'cart' => [1, 2]];
 
@@ -70,7 +70,7 @@ final class PortalSessionTest extends CIUnitTestCase
         $this->assertSame([5, 7, 3, self::NOW, self::NOW], array_values($_SESSION));
     }
 
-    public function testBeginReadsTheNumbersAsWholeNumbers(): void
+    public function testBegin_ReadsTheNumbersAsWholeNumbers(): void
     {
         $this->session()->begin($this->account(), self::NOW);
 
@@ -78,7 +78,7 @@ final class PortalSessionTest extends CIUnitTestCase
         $this->assertSame([5, 7, 3], [$session->customerId(), $session->accountId(), $session->credentialVersion()]);
     }
 
-    public function testBeginDoesNotAskTheEngineToRenewWhenNoSessionIsOpenButStillSaysItRenewed(): void
+    public function testBegin_DoesNotAskTheEngineToRenewWhenNoSessionIsOpenButStillSaysItRenewed(): void
     {
         $seen = 0;
         Events::on(PortalSession::REGENERATED, static function () use (&$seen): void {
@@ -91,7 +91,7 @@ final class PortalSessionTest extends CIUnitTestCase
         $this->assertSame(1, $seen);
     }
 
-    public function testEndClearsEveryKeyAndRenewsTheIdentifier(): void
+    public function testEnd_ClearsEveryKeyAndRenewsTheIdentifier(): void
     {
         $this->session()->begin($this->account(), self::NOW);
         $this->regenerations = 0;
@@ -104,7 +104,7 @@ final class PortalSessionTest extends CIUnitTestCase
         $this->assertNull($this->session()->customerId());
     }
 
-    public function testRenewChangesTheIdentifierAndTheVersionAndKeepsTheCustomer(): void
+    public function testRenew_ChangesTheIdentifierAndTheVersionAndKeepsTheCustomer(): void
     {
         $this->session()->begin($this->account(), self::NOW);
         $this->regenerations = 0;
@@ -116,7 +116,7 @@ final class PortalSessionTest extends CIUnitTestCase
         $this->assertSame(5, $this->session()->customerId());
     }
 
-    public function testCustomerIdIsNullForAnEmptySessionAndForValuesThatAreNotWholeNumbersAbove0(): void
+    public function testCustomerId_IsNullForAnEmptySessionAndForValuesThatAreNotWholeNumbersAbove0(): void
     {
         $this->assertNull($this->session()->customerId());
 
@@ -126,7 +126,7 @@ final class PortalSessionTest extends CIUnitTestCase
         }
     }
 
-    public function testAccountIdIsNullForAnEmptySessionAndForValuesThatAreNotWholeNumbersAbove0(): void
+    public function testAccountId_IsNullForAnEmptySessionAndForValuesThatAreNotWholeNumbersAbove0(): void
     {
         $this->assertNull($this->session()->accountId());
 
@@ -136,7 +136,7 @@ final class PortalSessionTest extends CIUnitTestCase
         }
     }
 
-    public function testHoldsPortalIsTrueForTheCustomerOrTheAccountAndFalseForAnEmployeeSession(): void
+    public function testHoldsPortal_IsTrueForTheCustomerOrTheAccountAndFalseForAnEmployeeSession(): void
     {
         $this->assertFalse($this->session()->holdsPortal());
 
@@ -150,7 +150,7 @@ final class PortalSessionTest extends CIUnitTestCase
         $this->assertTrue($this->session()->holdsPortal());
     }
 
-    public function testHoldsEmployeeIsTrueOnlyWhenTheKeyOfTheEmployeeIsThere(): void
+    public function testHoldsEmployee_IsTrueOnlyWhenTheKeyOfTheEmployeeIsThere(): void
     {
         $this->assertFalse($this->session()->holdsEmployee());
 
@@ -161,21 +161,21 @@ final class PortalSessionTest extends CIUnitTestCase
         $this->assertTrue($this->session()->holdsEmployee());
     }
 
-    public function testExpiredIsFalseWhileTheSessionIsActiveAndNotOld(): void
+    public function testExpired_IsFalseWhileTheSessionIsActiveAndNotOld(): void
     {
         $this->session()->begin($this->account(), self::NOW);
 
         $this->assertFalse($this->session()->expired(self::NOW + PortalSession::IDLE_SECONDS));
     }
 
-    public function testExpiredIsTrueOneSecondAfterHalfAnHourOfIdleness(): void
+    public function testExpired_IsTrueOneSecondAfterHalfAnHourOfIdleness(): void
     {
         $this->session()->begin($this->account(), self::NOW);
 
         $this->assertTrue($this->session()->expired(self::NOW + PortalSession::IDLE_SECONDS + 1));
     }
 
-    public function testExpiredIsTrueOneSecondAfterEightHoursEvenForASessionThatIsUsed(): void
+    public function testExpired_IsTrueOneSecondAfterEightHoursEvenForASessionThatIsUsed(): void
     {
         $this->session()->begin($this->account(), self::NOW);
 
@@ -189,12 +189,12 @@ final class PortalSessionTest extends CIUnitTestCase
         $this->assertTrue($this->session()->expired(self::NOW + PortalSession::MAX_SECONDS + 1));
     }
 
-    public function testExpiredIsTrueForASessionThatNeverBegan(): void
+    public function testExpired_IsTrueForASessionThatNeverBegan(): void
     {
         $this->assertTrue($this->session()->expired(self::NOW));
     }
 
-    public function testTouchMovesTheActivityTimeForwardWithoutChangingTheStart(): void
+    public function testTouch_MovesTheActivityTimeForwardWithoutChangingTheStart(): void
     {
         $this->session()->begin($this->account(), self::NOW);
 

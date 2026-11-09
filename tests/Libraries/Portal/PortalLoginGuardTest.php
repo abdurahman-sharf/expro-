@@ -52,7 +52,7 @@ final class PortalLoginGuardTest extends CIUnitTestCase
         return $locked;
     }
 
-    public function testUserKeyIsTheSameForTheNameInAnyCaseAndNeverTheNameItself(): void
+    public function testUserKey_IsTheSameForTheNameInAnyCaseAndNeverTheNameItself(): void
     {
         $key = PortalLoginGuard::userKey('Ahmed');
 
@@ -63,7 +63,7 @@ final class PortalLoginGuardTest extends CIUnitTestCase
         $this->assertNotSame(PortalLoginGuard::userKey('10.0.0.1'), PortalLoginGuard::addressKey('10.0.0.1'));
     }
 
-    public function testRecordFailureLocksOnTheFifthFailureOfAUserNameAndNotBefore(): void
+    public function testRecordFailure_LocksOnTheFifthFailureOfAUserNameAndNotBefore(): void
     {
         $key = PortalLoginGuard::userKey('ahmed');
 
@@ -74,7 +74,7 @@ final class PortalLoginGuardTest extends CIUnitTestCase
         $this->assertSame(self::NOW + PortalLoginGuard::BASE_LOCK_SECONDS, $this->guard()->lockedUntil($key, self::NOW));
     }
 
-    public function testLockedUntilReleasesTheKeyWhenTheLockHasRunOut(): void
+    public function testLockedUntil_ReleasesTheKeyWhenTheLockHasRunOut(): void
     {
         $key = PortalLoginGuard::userKey('ahmed');
         $this->failTimes($key, PortalLoginGuard::USER_THRESHOLD, PortalLoginGuard::USER_THRESHOLD, self::NOW);
@@ -83,7 +83,7 @@ final class PortalLoginGuardTest extends CIUnitTestCase
         $this->assertNull($this->guard()->lockedUntil($key, self::NOW + PortalLoginGuard::BASE_LOCK_SECONDS));
     }
 
-    public function testRecordFailureDoublesEachLockUpToADay(): void
+    public function testRecordFailure_DoublesEachLockUpToADay(): void
     {
         $key  = PortalLoginGuard::userKey('ahmed');
         $now  = self::NOW;
@@ -99,7 +99,7 @@ final class PortalLoginGuardTest extends CIUnitTestCase
         $this->assertSame([900, 1800, 3600, 7200, 14400, 28800, 57600, 86400], $seen);
     }
 
-    public function testRecordFailureForgetsFailuresOlderThanADay(): void
+    public function testRecordFailure_ForgetsFailuresOlderThanADay(): void
     {
         $key = PortalLoginGuard::userKey('ahmed');
         $this->failTimes($key, PortalLoginGuard::USER_THRESHOLD - 1, PortalLoginGuard::USER_THRESHOLD, self::NOW);
@@ -107,7 +107,7 @@ final class PortalLoginGuardTest extends CIUnitTestCase
         $this->assertFalse($this->guard()->recordFailure($key, PortalLoginGuard::USER_THRESHOLD, self::NOW + PortalLoginGuard::WINDOW_SECONDS + 1));
     }
 
-    public function testRecordFailureKeepsFailuresOfLessThanADayTogether(): void
+    public function testRecordFailure_KeepsFailuresOfLessThanADayTogether(): void
     {
         $key = PortalLoginGuard::userKey('ahmed');
         $this->failTimes($key, PortalLoginGuard::USER_THRESHOLD - 1, PortalLoginGuard::USER_THRESHOLD, self::NOW);
@@ -115,7 +115,7 @@ final class PortalLoginGuardTest extends CIUnitTestCase
         $this->assertTrue($this->guard()->recordFailure($key, PortalLoginGuard::USER_THRESHOLD, self::NOW + PortalLoginGuard::WINDOW_SECONDS - 1));
     }
 
-    public function testRecordFailureCountsTheKeysApart(): void
+    public function testRecordFailure_CountsTheKeysApart(): void
     {
         $this->failTimes(PortalLoginGuard::userKey('ahmed'), PortalLoginGuard::USER_THRESHOLD, PortalLoginGuard::USER_THRESHOLD, self::NOW);
 
@@ -123,7 +123,7 @@ final class PortalLoginGuardTest extends CIUnitTestCase
         $this->assertFalse($this->guard()->recordFailure(PortalLoginGuard::userKey('sara'), PortalLoginGuard::USER_THRESHOLD, self::NOW));
     }
 
-    public function testClearLiftsTheLockAndTheCount(): void
+    public function testClear_LiftsTheLockAndTheCount(): void
     {
         $key = PortalLoginGuard::userKey('ahmed');
         $this->failTimes($key, PortalLoginGuard::USER_THRESHOLD, PortalLoginGuard::USER_THRESHOLD, self::NOW);
@@ -135,7 +135,7 @@ final class PortalLoginGuardTest extends CIUnitTestCase
         $this->assertFalse($this->failTimes($key, PortalLoginGuard::USER_THRESHOLD - 1, PortalLoginGuard::USER_THRESHOLD, self::NOW));
     }
 
-    public function testRecordFailureLocksAnAddressOnlyAtTheHigherThreshold(): void
+    public function testRecordFailure_LocksAnAddressOnlyAtTheHigherThreshold(): void
     {
         $key = PortalLoginGuard::addressKey('10.0.0.9');
 

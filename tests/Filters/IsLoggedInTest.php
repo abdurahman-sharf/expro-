@@ -65,21 +65,21 @@ final class IsLoggedInTest extends CIUnitTestCase
         return [PortalSession::KEY_CUSTOMER => 5, PortalSession::KEY_ACCOUNT => 7, PortalSession::KEY_VERSION => 1];
     }
 
-    public function testBeforeLetsAnEmployeeWhoIsSignedInThrough(): void
+    public function testBefore_LetsAnEmployeeWhoIsSignedInThrough(): void
     {
         $_SESSION = ['person_id' => $this->createEmployee()];
 
         $this->assertNull((new IsLoggedIn())->before($this->request()));
     }
 
-    public function testBeforeSendsAVisitorWhoIsNotSignedInToTheEmployeeSignIn(): void
+    public function testBefore_SendsAVisitorWhoIsNotSignedInToTheEmployeeSignIn(): void
     {
         $this->expectException(RedirectException::class);
 
         (new IsLoggedIn())->before($this->request());
     }
 
-    public function testBeforeNeverTakesTheSessionOfACustomerForAnEmployee(): void
+    public function testBefore_NeverTakesTheSessionOfACustomerForAnEmployee(): void
     {
         $_SESSION = $this->portalKeys();
 
@@ -88,7 +88,7 @@ final class IsLoggedInTest extends CIUnitTestCase
         (new IsLoggedIn())->before($this->request());
     }
 
-    public function testBeforeRefusesASessionThatHoldsAnEmployeeAndACustomerAtOnce(): void
+    public function testBefore_RefusesASessionThatHoldsAnEmployeeAndACustomerAtOnce(): void
     {
         $_SESSION = ['person_id' => $this->createEmployee()] + $this->portalKeys();
 
@@ -97,7 +97,7 @@ final class IsLoggedInTest extends CIUnitTestCase
         (new IsLoggedIn())->before($this->request());
     }
 
-    public function testBeforeAnswersAnAjaxRequestWithTheSessionOfACustomerWithAnUnauthorisedStatus(): void
+    public function testBefore_AnswersAnAjaxRequestWithTheSessionOfACustomerWithAnUnauthorisedStatus(): void
     {
         $_SESSION = ['person_id' => $this->createEmployee()] + $this->portalKeys();
 

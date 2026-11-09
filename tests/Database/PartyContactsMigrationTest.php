@@ -53,7 +53,7 @@ final class PartyContactsMigrationTest extends CIUnitTestCase
         return ['party_kind' => $kind, 'party_id' => 1, 'first_name' => 'Sara'];
     }
 
-    public function testUpCreatesTheTableWithTheColumnsOfAContactAndNoRows(): void
+    public function testUp_CreatesTheTableWithTheColumnsOfAContactAndNoRows(): void
     {
         $columns = array_column($this->accountingDb()->query('SELECT COLUMN_NAME AS name FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION', [$this->accountingDb()->prefixTable('party_contacts')])->getResultArray(), 'name');
 
@@ -61,7 +61,7 @@ final class PartyContactsMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('party_contacts'));
     }
 
-    public function testUpCanRunAgainAndKeepsTheContactsThatAreThere(): void
+    public function testUp_CanRunAgainAndKeepsTheContactsThatAreThere(): void
     {
         $this->accountingDb()->table('party_contacts')->insert($this->contact());
 
@@ -71,14 +71,14 @@ final class PartyContactsMigrationTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('party_contacts'));
     }
 
-    public function testUpRejectsAContactOfAKindThatIsNeitherCustomerNorSupplier(): void
+    public function testUp_RejectsAContactOfAKindThatIsNeitherCustomerNorSupplier(): void
     {
         $this->expectException(DatabaseException::class);
 
         $this->accountingDb()->table('party_contacts')->insert($this->contact('employee'));
     }
 
-    public function testUpAcceptsTheContactsOfACustomerAndOfASupplier(): void
+    public function testUp_AcceptsTheContactsOfACustomerAndOfASupplier(): void
     {
         $this->accountingDb()->table('party_contacts')->insert($this->contact('customer'));
         $this->accountingDb()->table('party_contacts')->insert($this->contact('supplier'));
@@ -86,14 +86,14 @@ final class PartyContactsMigrationTest extends CIUnitTestCase
         $this->assertSame(2, $this->countRows('party_contacts'));
     }
 
-    public function testUpRejectsAHiddenFlagThatIsNeitherZeroNorOne(): void
+    public function testUp_RejectsAHiddenFlagThatIsNeitherZeroNorOne(): void
     {
         $this->expectException(DatabaseException::class);
 
         $this->accountingDb()->table('party_contacts')->insert($this->contact() + ['deleted' => 2]);
     }
 
-    public function testUpChangesNoRowOfTheBooksOrOfTheParties(): void
+    public function testUp_ChangesNoRowOfTheBooksOrOfTheParties(): void
     {
         $db       = $this->accountingDb();
         $tables   = array_map(static fn (string $table): string => $db->prefixTable($table), ['accounting_journals', 'accounting_journal_lines', 'accounting_accounts', 'customers', 'suppliers', 'people', 'sales', 'sales_payments']);
@@ -105,7 +105,7 @@ final class PartyContactsMigrationTest extends CIUnitTestCase
         $this->assertSame($before, $checksum());
     }
 
-    public function testDownRefusesWhileContactsAreStoredAndDropsTheTableWhenNone(): void
+    public function testDown_RefusesWhileContactsAreStoredAndDropsTheTableWhenNone(): void
     {
         $this->accountingDb()->table('party_contacts')->insert($this->contact());
 

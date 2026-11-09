@@ -73,14 +73,14 @@ class FiltersTest extends CIUnitTestCase
     }
 
     #[DataProvider('portalRoutes')]
-    public function testInitialize_PutsTheGuardOfThePortalThenTheTokenFilterOnceBeforeEveryRouteOfThePortal(string $route): void
+    public function testInitialize_PutsTheTokenFilterThenTheGuardOfThePortalOnceBeforeEveryRouteOfThePortal(string $route): void
     {
         $filters = new Filters($this->productionConfig(), $this->postRequest(), service('response'));
         $filters->initialize($route);
 
         $before = $filters->getFilters()['before'];
 
-        $this->assertSame(['portalguard', 'csrf'], array_values(array_filter($before, static fn (string $name): bool => in_array($name, ['portalguard', 'csrf'], true))), $route);
+        $this->assertSame(['csrf', 'portalguard'], array_values(array_filter($before, static fn (string $name): bool => in_array($name, ['portalguard', 'csrf'], true))), $route);
         $this->assertNotContains('isLoggedIn', $before, $route);
     }
 
@@ -91,8 +91,7 @@ class FiltersTest extends CIUnitTestCase
         $filters = new Filters($config, $this->postRequest(), service('response'));
         $filters->initialize($route);
 
-        $this->assertContains('portalguard', $filters->getFilters()['before'], $route);
-        $this->assertContains('csrf', $filters->getFilters()['before'], $route);
+        $this->assertSame(['portalguard', 'csrf'], array_values(array_filter($filters->getFilters()['before'], static fn (string $name): bool => in_array($name, ['portalguard', 'csrf'], true))), $route);
     }
 
     public function testInitialize_KeepsTheEmployeeFilterAndTheTokenFilterOnTheRoutesOfTheEmployees(): void

@@ -52,7 +52,7 @@ final class PortalSettingsTest extends CIUnitTestCase
         return null;
     }
 
-    public function testIsEnabledIsFalseUntilSomeoneSwitchesThePortalOn(): void
+    public function testIsEnabled_IsFalseUntilSomeoneSwitchesThePortalOn(): void
     {
         $this->accountingDb()->table('app_config')->where('key', PortalSettings::KEY)->delete();
 
@@ -68,7 +68,7 @@ final class PortalSettingsTest extends CIUnitTestCase
         $this->assertTrue((new PortalSettings())->isEnabled());
     }
 
-    public function testSetEnabledSwitchesThePortalOnAndOffAndWritesAnAuditEntryOfEach(): void
+    public function testSetEnabled_SwitchesThePortalOnAndOffAndWritesAnAuditEntryOfEach(): void
     {
         $manager = $this->portalManager();
         $setting = new PortalSettings();
@@ -85,14 +85,14 @@ final class PortalSettingsTest extends CIUnitTestCase
         $this->assertSame((string) $manager, (string) $audit[0]['employee_id']);
     }
 
-    public function testSetEnabledWritesNothingWhenTheSwitchIsAlreadyAsAsked(): void
+    public function testSetEnabled_WritesNothingWhenTheSwitchIsAlreadyAsAsked(): void
     {
         (new PortalSettings())->setEnabled(false, $this->portalManager());
 
         $this->assertCount(0, $this->portalAudit('portal_setting_changed'));
     }
 
-    public function testSetEnabledRequiresThePermissionToManageThePortal(): void
+    public function testSetEnabled_RequiresThePermissionToManageThePortal(): void
     {
         $clerk = $this->employeeWithGrants(['customers', 'config']);
 
@@ -100,7 +100,7 @@ final class PortalSettingsTest extends CIUnitTestCase
         $this->assertFalse((new PortalSettings())->isEnabled());
     }
 
-    public function testSetEnabledRefusesTheSystemAsTheAuthor(): void
+    public function testSetEnabled_RefusesTheSystemAsTheAuthor(): void
     {
         $this->assertSame(AccountingError::PermissionDenied, $this->refusalOf(static fn () => (new PortalSettings())->setEnabled(true, null)));
         $this->assertFalse((new PortalSettings())->isEnabled());

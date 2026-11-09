@@ -60,7 +60,7 @@ final class PortalStatementTest extends CIUnitTestCase
         return (new PortalStatement())->of($customerId ?? $this->customerId, date('Y-m-d'));
     }
 
-    public function testOfTiesTheBalanceTheOpenAmountAndTheAgingToTheLedgerOfTheCustomer(): void
+    public function testOf_TiesTheBalanceTheOpenAmountAndTheAgingToTheLedgerOfTheCustomer(): void
     {
         $this->invoiceDated('300.00', $this->daysAgo(45), 30);
         $this->invoiceDated('120.00', $this->daysAgo(2), 30);
@@ -76,7 +76,7 @@ final class PortalStatementTest extends CIUnitTestCase
         $this->assertSame('120.00 SAR', $statement['aging']['today'] === '0.00 SAR' ? $statement['aging']['1-30'] : $statement['aging']['today']);
     }
 
-    public function testOfListsTheOpenInvoicesWithTheirDueDatesAndHowLateTheyAre(): void
+    public function testOf_ListsTheOpenInvoicesWithTheirDueDatesAndHowLateTheyAre(): void
     {
         $late = $this->invoiceDated('300.00', $this->daysAgo(45), 30);
         $this->invoiceDated('120.00', $this->daysAgo(2), 30);
@@ -91,7 +91,7 @@ final class PortalStatementTest extends CIUnitTestCase
         $this->assertSame('POS ' . $late, $rows[0]['label']);
     }
 
-    public function testOfLeavesOutAnInvoiceThatIsPaidInFull(): void
+    public function testOf_LeavesOutAnInvoiceThatIsPaidInFull(): void
     {
         $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '100.00')]);
         $open = $this->invoiceOf('40.00');
@@ -102,7 +102,7 @@ final class PortalStatementTest extends CIUnitTestCase
         $this->assertSame('40.00 SAR', $this->statement()['open']);
     }
 
-    public function testOfShowsTheCreditTheCustomerHolds(): void
+    public function testOf_ShowsTheCreditTheCustomerHolds(): void
     {
         $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '100.00')]);
         $this->creditNoteOf($invoice, '30.00');
@@ -115,7 +115,7 @@ final class PortalStatementTest extends CIUnitTestCase
         $this->assertSame('30.00 SAR', $statement['credits'][0]['amount']);
     }
 
-    public function testOfShowsNothingOfAnotherCustomer(): void
+    public function testOf_ShowsNothingOfAnotherCustomer(): void
     {
         $this->invoiceOf('555.00', $this->other);
         $this->invoiceOf('10.00');
@@ -127,7 +127,7 @@ final class PortalStatementTest extends CIUnitTestCase
         $this->assertSame('555.00 SAR', $this->statement($this->other)['balance']);
     }
 
-    public function testOfIsAnEmptyStatementForACustomerWhoNeverBought(): void
+    public function testOf_IsAnEmptyStatementForACustomerWhoNeverBought(): void
     {
         $statement = $this->statement($this->insertCustomer('Nobody', 'Yet'));
 
@@ -137,7 +137,7 @@ final class PortalStatementTest extends CIUnitTestCase
         $this->assertSame([], $statement['credits']);
     }
 
-    public function testOfSaysItIsNotAvailableWhileAccountingIsOff(): void
+    public function testOf_SaysItIsNotAvailableWhileAccountingIsOff(): void
     {
         $this->invoiceOf('100.00');
         $this->setConfigValue('accounting_enabled', '0');
@@ -149,7 +149,7 @@ final class PortalStatementTest extends CIUnitTestCase
         $this->assertSame('', $statement['balance']);
     }
 
-    public function testOfNamesAnOpeningBalanceAndADebitNoteAndGivesThemNoLinkToADocument(): void
+    public function testOf_NamesAnOpeningBalanceAndADebitNoteAndGivesThemNoLinkToADocument(): void
     {
         $this->setConfigValue('accounting_customer_opening', '1');
         $this->setConfigValue('accounting_debit_note', '1');

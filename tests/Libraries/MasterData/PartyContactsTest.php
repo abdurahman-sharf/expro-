@@ -86,7 +86,7 @@ final class PartyContactsTest extends CIUnitTestCase
         return $this->accountingDb()->table('accounting_audit_log')->where(['action' => $action, 'entity_id' => $partyId])->countAllResults();
     }
 
-    public function testValidateAcceptsAFullRowAndLowercasesTheEmailAddress(): void
+    public function testValidate_AcceptsAFullRowAndLowercasesTheEmailAddress(): void
     {
         $valid = $this->contacts()->validate([$this->row(['email' => 'Sara@Example.COM'])]);
 
@@ -94,28 +94,28 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame(['Sara', 'Nasser', '011 123 4567', '+966 50 123 4567', 'Buyer', 'Call after 9'], [$valid[0]['first_name'], $valid[0]['last_name'], $valid[0]['phone'], $valid[0]['mobile'], $valid[0]['position'], $valid[0]['note']]);
     }
 
-    public function testValidateAcceptsARowWithAFirstNameAlone(): void
+    public function testValidate_AcceptsARowWithAFirstNameAlone(): void
     {
         $valid = $this->contacts()->validate([['first_name' => 'Sara']]);
 
         $this->assertSame(['Sara', '', '', '', '', '', ''], [$valid[0]['first_name'], $valid[0]['last_name'], $valid[0]['email'], $valid[0]['phone'], $valid[0]['mobile'], $valid[0]['position'], $valid[0]['note']]);
     }
 
-    public function testValidateDropsARowWithNothingInIt(): void
+    public function testValidate_DropsARowWithNothingInIt(): void
     {
         $valid = $this->contacts()->validate([['first_name' => '  ', 'last_name' => '', 'email' => ''], $this->row()]);
 
         $this->assertCount(1, $valid);
     }
 
-    public function testValidateRejectsARowWithoutAFirstName(): void
+    public function testValidate_RejectsARowWithoutAFirstName(): void
     {
         $this->assertSame(AccountingError::ContactNameRequired, $this->refusalOf(fn () => $this->contacts()->validate([$this->row(['first_name' => ''])])));
         $this->assertSame(AccountingError::ContactNameRequired, $this->refusalOf(fn () => $this->contacts()->validate([['email' => 'sara@example.com']])));
     }
 
     #[DataProvider('provideValidate_RejectsAnEmailAddressThatIsNotValid')]
-    public function testValidateRejectsAnEmailAddressThatIsNotValid(string $email): void
+    public function testValidate_RejectsAnEmailAddressThatIsNotValid(string $email): void
     {
         $this->assertSame(AccountingError::ContactEmailInvalid, $this->refusalOf(fn () => $this->contacts()->validate([$this->row(['email' => $email])])));
     }
@@ -129,7 +129,7 @@ final class PartyContactsTest extends CIUnitTestCase
     }
 
     #[DataProvider('provideValidate_RejectsAPhoneOrMobileNumberWithAnythingButDigitsAndSeparators')]
-    public function testValidateRejectsAPhoneOrMobileNumberWithAnythingButDigitsAndSeparators(string $number): void
+    public function testValidate_RejectsAPhoneOrMobileNumberWithAnythingButDigitsAndSeparators(string $number): void
     {
         $this->assertSame(AccountingError::ContactPhoneInvalid, $this->refusalOf(fn () => $this->contacts()->validate([$this->row(['phone' => $number])])));
         $this->assertSame(AccountingError::ContactPhoneInvalid, $this->refusalOf(fn () => $this->contacts()->validate([$this->row(['mobile' => $number])])));
@@ -144,7 +144,7 @@ final class PartyContactsTest extends CIUnitTestCase
     }
 
     #[DataProvider('provideValidate_AcceptsTheLongestValueOfAFieldAndRejectsOneCharacterMore')]
-    public function testValidateAcceptsTheLongestValueOfAFieldAndRejectsOneCharacterMore(string $field, int $max): void
+    public function testValidate_AcceptsTheLongestValueOfAFieldAndRejectsOneCharacterMore(string $field, int $max): void
     {
         $filler  = in_array($field, ['phone', 'mobile'], true) ? '1' : 'a';
         $longest = $field === 'email' ? 'a@' . implode('.', [str_repeat('d', 63), str_repeat('d', 63), str_repeat('d', 63), str_repeat('d', $max - 194)]) : str_repeat($filler, $max);
@@ -167,7 +167,7 @@ final class PartyContactsTest extends CIUnitTestCase
         return $cases;
     }
 
-    public function testValidateAcceptsFiftyRowsAndRejectsFiftyOne(): void
+    public function testValidate_AcceptsFiftyRowsAndRejectsFiftyOne(): void
     {
         $rows = array_map(fn (int $index): array => $this->row(['first_name' => 'Contact ' . $index]), range(1, PartyContacts::MAX_ROWS));
 
@@ -175,32 +175,32 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame(AccountingError::ContactsTooMany, $this->refusalOf(fn () => $this->contacts()->validate([...$rows, $this->row(['first_name' => 'One more'])])));
     }
 
-    public function testValidateCountsTheLengthOfAnArabicNameInCharactersNotBytes(): void
+    public function testValidate_CountsTheLengthOfAnArabicNameInCharactersNotBytes(): void
     {
         $this->assertCount(1, $this->contacts()->validate([$this->row(['first_name' => str_repeat('م', 100)])]));
     }
 
-    public function testValidateKeepsAMarkupNameAsTextForTheViewToEscape(): void
+    public function testValidate_KeepsAMarkupNameAsTextForTheViewToEscape(): void
     {
         $valid = $this->contacts()->validate([$this->row(['first_name' => '<script>alert(1)</script>'])]);
 
         $this->assertSame('<script>alert(1)</script>', $valid[0]['first_name']);
     }
 
-    public function testFromRequestReturnsNullWithoutTheMarkerSoAnOlderFormLeavesTheListAlone(): void
+    public function testFromRequest_ReturnsNullWithoutTheMarkerSoAnOlderFormLeavesTheListAlone(): void
     {
         $this->assertNull(PartyContacts::fromRequest(['first_name' => 'Omar']));
         $this->assertNull(PartyContacts::fromRequest([PartyContacts::MARKER => '0', PartyContacts::FIELD => [$this->row()]]));
     }
 
-    public function testFromRequestReadsTheRowsOfAFormThatCarriesTheMarker(): void
+    public function testFromRequest_ReadsTheRowsOfAFormThatCarriesTheMarker(): void
     {
         $this->assertSame([$this->row()], PartyContacts::fromRequest([PartyContacts::MARKER => '1', PartyContacts::FIELD => [$this->row(), 'junk']]));
         $this->assertSame([], PartyContacts::fromRequest([PartyContacts::MARKER => '1']));
         $this->assertSame([], PartyContacts::fromRequest([PartyContacts::MARKER => '1', PartyContacts::FIELD => 'junk']));
     }
 
-    public function testReplaceStoresTheRowsInTheOrderGivenAndWritesOneAuditEntry(): void
+    public function testReplace_StoresTheRowsInTheOrderGivenAndWritesOneAuditEntry(): void
     {
         $customerId = $this->insertCustomer();
         $result     = $this->contacts()->replace(PartyContacts::CUSTOMER, $customerId, [$this->row(['first_name' => 'First']), $this->row(['first_name' => 'Second'])], 1);
@@ -211,7 +211,7 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame(1, $this->auditCount('party_contacts_changed', $customerId));
     }
 
-    public function testReplaceUpdatesAContactByItsNumberAndHidesTheOnesTheListNoLongerNames(): void
+    public function testReplace_UpdatesAContactByItsNumberAndHidesTheOnesTheListNoLongerNames(): void
     {
         $customerId = $this->insertCustomer();
         $this->contacts()->replace(PartyContacts::CUSTOMER, $customerId, [$this->row(['first_name' => 'Keep']), $this->row(['first_name' => 'Drop'])], 1);
@@ -225,7 +225,7 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame(2, $this->auditCount('party_contacts_changed', $customerId));
     }
 
-    public function testReplaceWritesNoAuditEntryWhenNothingChanged(): void
+    public function testReplace_WritesNoAuditEntryWhenNothingChanged(): void
     {
         $customerId = $this->insertCustomer();
         $this->contacts()->replace(PartyContacts::CUSTOMER, $customerId, [$this->row()], 1);
@@ -237,7 +237,7 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame(1, $this->auditCount('party_contacts_changed', $customerId));
     }
 
-    public function testReplaceEmptiesTheListWhenNoRowIsGiven(): void
+    public function testReplace_EmptiesTheListWhenNoRowIsGiven(): void
     {
         $customerId = $this->insertCustomer();
         $this->contacts()->replace(PartyContacts::CUSTOMER, $customerId, [$this->row()], 1);
@@ -248,7 +248,7 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertCount(1, $this->stored($customerId, true));
     }
 
-    public function testReplaceWritesNothingWhenOneRowIsRefused(): void
+    public function testReplace_WritesNothingWhenOneRowIsRefused(): void
     {
         $customerId = $this->insertCustomer();
         $this->contacts()->replace(PartyContacts::CUSTOMER, $customerId, [$this->row(['first_name' => 'Original'])], 1);
@@ -261,7 +261,7 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame(1, $this->auditCount('party_contacts_changed', $customerId));
     }
 
-    public function testReplaceRejectsAContactNumberThatBelongsToAnotherParty(): void
+    public function testReplace_RejectsAContactNumberThatBelongsToAnotherParty(): void
     {
         $first  = $this->insertCustomer();
         $second = $this->insertCustomer('Hind', 'Saad');
@@ -275,7 +275,7 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame([], $this->stored($second));
     }
 
-    public function testReplaceRejectsAContactNumberOfAHiddenContact(): void
+    public function testReplace_RejectsAContactNumberOfAHiddenContact(): void
     {
         $customerId = $this->insertCustomer();
         $this->contacts()->replace(PartyContacts::CUSTOMER, $customerId, [$this->row()], 1);
@@ -287,13 +287,13 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame(AccountingError::ContactUnknown, $refusal);
     }
 
-    public function testPrepareRejectsAContactNumberForAPartyThatIsNew(): void
+    public function testPrepare_RejectsAContactNumberForAPartyThatIsNew(): void
     {
         $this->assertSame(AccountingError::ContactUnknown, $this->refusalOf(fn () => $this->contacts()->prepare(PartyContacts::CUSTOMER, null, [['contact_id' => 5] + $this->row()])));
         $this->assertCount(1, $this->contacts()->prepare(PartyContacts::CUSTOMER, null, [$this->row()]));
     }
 
-    public function testReplaceKeepsTheContactsOfACustomerAndOfASupplierApart(): void
+    public function testReplace_KeepsTheContactsOfACustomerAndOfASupplierApart(): void
     {
         $customerId = $this->insertCustomer();
         $supplierId = $this->insertSupplier();
@@ -306,7 +306,7 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame([], $this->contacts()->forParty(PartyContacts::CUSTOMER, $supplierId));
     }
 
-    public function testReplaceChangesNoJournalAndNoBalance(): void
+    public function testReplace_ChangesNoJournalAndNoBalance(): void
     {
         $db         = $this->accountingDb();
         $customerId = $this->insertCustomer();
@@ -321,7 +321,7 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame($before, $checksum());
     }
 
-    public function testHideWithPartyHidesTheContactsAndKeepsTheirRows(): void
+    public function testHideWithParty_HidesTheContactsAndKeepsTheirRows(): void
     {
         $customerId = $this->insertCustomer();
         $this->contacts()->replace(PartyContacts::CUSTOMER, $customerId, [$this->row(['first_name' => 'One']), $this->row(['first_name' => 'Two'])], 1);
@@ -333,7 +333,7 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame(1, $this->auditCount('party_contacts_hidden', $customerId));
     }
 
-    public function testHideWithPartyWritesNoAuditEntryForAPartyWithNoContacts(): void
+    public function testHideWithParty_WritesNoAuditEntryForAPartyWithNoContacts(): void
     {
         $customerId = $this->insertCustomer();
 
@@ -341,7 +341,7 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame(0, $this->auditCount('party_contacts_hidden', $customerId));
     }
 
-    public function testHideWithPartyScramblesThePersonalDataWhenTheShopScramblesDeletedCustomers(): void
+    public function testHideWithParty_ScramblesThePersonalDataWhenTheShopScramblesDeletedCustomers(): void
     {
         $customerId = $this->insertCustomer();
         $this->contacts()->replace(PartyContacts::CUSTOMER, $customerId, [$this->row()], 1);
@@ -353,7 +353,7 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame([(string) $contactId, '', '', '', '', '', ''], [$row['first_name'], $row['last_name'], $row['email'], $row['phone'], $row['mobile'], $row['position'], $row['note']]);
     }
 
-    public function testHideWithPartyLeavesTheContactsOfAnotherPartyAlone(): void
+    public function testHideWithParty_LeavesTheContactsOfAnotherPartyAlone(): void
     {
         $first  = $this->insertCustomer();
         $second = $this->insertCustomer('Hind', 'Saad');
@@ -365,14 +365,14 @@ final class PartyContactsTest extends CIUnitTestCase
         $this->assertSame(['Safe'], array_column($this->contacts()->forParty(PartyContacts::CUSTOMER, $second), 'first_name'));
     }
 
-    public function testForPartyRejectsAKindThatIsNeitherCustomerNorSupplier(): void
+    public function testForParty_RejectsAKindThatIsNeitherCustomerNorSupplier(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
         $this->contacts()->forParty('employee', 1);
     }
 
-    public function testReplaceRejectsAKindThatIsNeitherCustomerNorSupplier(): void
+    public function testReplace_RejectsAKindThatIsNeitherCustomerNorSupplier(): void
     {
         $this->expectException(InvalidArgumentException::class);
 

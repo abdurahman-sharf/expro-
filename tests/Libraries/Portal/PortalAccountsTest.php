@@ -76,7 +76,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         return $this->accountingDb()->table('portal_accounts')->where('account_id', $accountId)->get()->getRow();
     }
 
-    public function testCreateStoresTheHashOfTheTemporaryPasswordAndNeverThePasswordItself(): void
+    public function testCreate_StoresTheHashOfTheTemporaryPasswordAndNeverThePasswordItself(): void
     {
         $made = $this->accounts()->create($this->customer, 'Ahmed', $this->manager);
         $row  = $this->row($made['account_id']);
@@ -90,7 +90,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertNotNull($row->temporary_expires_at);
     }
 
-    public function testCreateLeavesTheTemporaryPasswordInNoRowOfTheDatabase(): void
+    public function testCreate_LeavesTheTemporaryPasswordInNoRowOfTheDatabase(): void
     {
         $made = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
 
@@ -98,7 +98,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertStringNotContainsString($made['temporary_password'], json_encode($this->accountingDb()->table('accounting_audit_log')->get()->getResultArray()));
     }
 
-    public function testCreateWritesOneAuditEntryWithTheCustomerAndTheUserNameButNoPassword(): void
+    public function testCreate_WritesOneAuditEntryWithTheCustomerAndTheUserNameButNoPassword(): void
     {
         $made  = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
         $audit = $this->portalAudit('portal_account_created');
@@ -108,7 +108,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertSame(['customer_id' => $this->customer, 'username' => 'ahmed'], json_decode($audit[0]['details'], true));
     }
 
-    public function testCreateRequiresThePermissionToManageThePortal(): void
+    public function testCreate_RequiresThePermissionToManageThePortal(): void
     {
         $clerk = $this->employeeWithGrants(['customers']);
 
@@ -116,13 +116,13 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('portal_accounts'));
     }
 
-    public function testCreateRefusesTheSystemAsTheAuthor(): void
+    public function testCreate_RefusesTheSystemAsTheAuthor(): void
     {
         $this->assertSame(AccountingError::PermissionDenied, $this->refusalOf(fn () => $this->accounts()->create($this->customer, 'ahmed', null)));
         $this->assertSame(0, $this->countRows('portal_accounts'));
     }
 
-    public function testCreateIsNotGrantedToAnAdministratorByHavingEveryOtherPermission(): void
+    public function testCreate_IsNotGrantedToAnAdministratorByHavingEveryOtherPermission(): void
     {
         $holder = $this->employeeWithGrants(array_values(array_diff(AccountingGuard::SENSITIVE, [AccountingGuard::PORTAL_MANAGE])));
 
@@ -130,7 +130,7 @@ final class PortalAccountsTest extends CIUnitTestCase
     }
 
     #[DataProvider('provideCreate_RejectsAUserNameOutsideTheRules')]
-    public function testCreateRejectsAUserNameOutsideTheRules(string $username): void
+    public function testCreate_RejectsAUserNameOutsideTheRules(string $username): void
     {
         $this->assertSame(AccountingError::PortalUsernameInvalid, $this->refusalOf(fn () => $this->accounts()->create($this->customer, $username, $this->manager)));
     }
@@ -143,7 +143,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         return ['two characters' => ['ab'], 'a space' => ['ah med'], 'a slash' => ['ahmed/admin'], 'markup' => ['<b>ahmed</b>'], 'fifty-one characters' => [str_repeat('a', 51)], 'arabic letters' => ['أحمد'], 'empty' => ['']];
     }
 
-    public function testCreateAcceptsAUserNameOfThreeAndOfFiftyCharactersWithTheAllowedSymbols(): void
+    public function testCreate_AcceptsAUserNameOfThreeAndOfFiftyCharactersWithTheAllowedSymbols(): void
     {
         $this->assertGreaterThan(0, $this->accounts()->create($this->customer, 'a.b', $this->manager)['account_id']);
 
@@ -152,7 +152,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $this->accounts()->create($other, str_repeat('a', 46) . '@x-y', $this->manager)['account_id']);
     }
 
-    public function testCreateRejectsASecondAccountForTheSameCustomerAndAUserNameAnotherAccountHas(): void
+    public function testCreate_RejectsASecondAccountForTheSameCustomerAndAUserNameAnotherAccountHas(): void
     {
         $this->accounts()->create($this->customer, 'ahmed', $this->manager);
         $other = $this->insertCustomer('Hind', 'Saad');
@@ -162,7 +162,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertSame(1, $this->countRows('portal_accounts'));
     }
 
-    public function testCreateRejectsACustomerThatDoesNotExistOrWasDeleted(): void
+    public function testCreate_RejectsACustomerThatDoesNotExistOrWasDeleted(): void
     {
         $this->assertSame(AccountingError::PortalCustomerUnknown, $this->refusalOf(fn () => $this->accounts()->create(987654, 'ahmed', $this->manager)));
 
@@ -171,7 +171,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertSame(AccountingError::PortalCustomerUnknown, $this->refusalOf(fn () => $this->accounts()->create($this->customer, 'ahmed', $this->manager)));
     }
 
-    public function testCheckOpensTheAccountWithTheRightPasswordAndSaysWhyItDoesNotOtherwise(): void
+    public function testCheck_OpensTheAccountWithTheRightPasswordAndSaysWhyItDoesNotOtherwise(): void
     {
         $made = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
 
@@ -180,7 +180,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertSame([null, 'unknown_user'], $this->accounts()->check('nobody', $made['temporary_password']));
     }
 
-    public function testCheckRefusesADisabledAccountAndTheAccountOfADeletedCustomer(): void
+    public function testCheck_RefusesADisabledAccountAndTheAccountOfADeletedCustomer(): void
     {
         $made = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
 
@@ -192,7 +192,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertSame([null, 'customer_deleted'], $this->accounts()->check('ahmed', $made['temporary_password']));
     }
 
-    public function testCheckRefusesATemporaryPasswordAfterItsWeekAndAcceptsItBefore(): void
+    public function testCheck_RefusesATemporaryPasswordAfterItsWeekAndAcceptsItBefore(): void
     {
         $made    = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
         $expires = strtotime((string) $this->row($made['account_id'])->temporary_expires_at);
@@ -202,7 +202,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertEqualsWithDelta(PortalAccounts::TEMPORARY_SECONDS, $expires - time(), 5);
     }
 
-    public function testResetPasswordMakesANewTemporaryPasswordAndEndsTheOldOneAndTheSessions(): void
+    public function testResetPassword_MakesANewTemporaryPasswordAndEndsTheOldOneAndTheSessions(): void
     {
         $made    = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
         $version = (int) $this->row($made['account_id'])->credential_version;
@@ -220,7 +220,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertCount(1, $this->portalAudit('portal_password_reset'));
     }
 
-    public function testResetPasswordLiftsTheLockOnTheUserName(): void
+    public function testResetPassword_LiftsTheLockOnTheUserName(): void
     {
         $made = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
         $key  = PortalLoginGuard::userKey('ahmed');
@@ -236,7 +236,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertNull((new PortalLoginGuard())->lockedUntil($key));
     }
 
-    public function testResetPasswordRequiresThePermissionAndAnAccountThatExists(): void
+    public function testResetPassword_RequiresThePermissionAndAnAccountThatExists(): void
     {
         $made  = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
         $clerk = $this->employeeWithGrants(['customers']);
@@ -247,7 +247,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertCount(0, $this->portalAudit('portal_password_reset'));
     }
 
-    public function testSetActiveDisablesAndEnablesAndEndsTheSessionsWhenItDisables(): void
+    public function testSetActive_DisablesAndEnablesAndEndsTheSessionsWhenItDisables(): void
     {
         $made    = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
         $version = (int) $this->row($made['account_id'])->credential_version;
@@ -255,6 +255,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->accounts()->setActive($made['account_id'], false, $this->manager);
 
         $this->assertSame('disabled', $this->row($made['account_id'])->status);
+        $this->assertSame($version + 1, (int) $this->row($made['account_id'])->credential_version);
         $this->assertNull($this->accounts()->live($made['account_id'], $version + 1));
 
         $this->accounts()->setActive($made['account_id'], true, $this->manager);
@@ -264,7 +265,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertCount(1, $this->portalAudit('portal_account_enabled'));
     }
 
-    public function testSetActiveWritesNothingWhenTheStatusIsAlreadyTheOneAsked(): void
+    public function testSetActive_WritesNothingWhenTheStatusIsAlreadyTheOneAsked(): void
     {
         $made = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
 
@@ -274,7 +275,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertSame('1', (string) $this->row($made['account_id'])->credential_version);
     }
 
-    public function testSetActiveRequiresThePermission(): void
+    public function testSetActive_RequiresThePermission(): void
     {
         $made  = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
         $clerk = $this->employeeWithGrants(['customers']);
@@ -283,13 +284,14 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertSame('active', $this->row($made['account_id'])->status);
     }
 
-    public function testChangePasswordStoresTheNewHashClearsTheForcedChangeAndEndsTheOtherSessions(): void
+    public function testChangePassword_StoresTheNewHashClearsTheForcedChangeAndEndsTheOtherSessions(): void
     {
         $made    = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
         $version = $this->accounts()->changePassword($made['account_id'], $made['temporary_password'], 'A-New-Password-7');
         $row     = $this->row($made['account_id']);
 
         $this->assertSame(2, $version);
+        $this->assertSame(2, (int) $row->credential_version);
         $this->assertSame('0', (string) $row->must_change);
         $this->assertNull($row->temporary_expires_at);
         $this->assertNotNull($row->password_changed_at);
@@ -300,7 +302,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertCount(1, $this->portalAudit('portal_password_changed'));
     }
 
-    public function testChangePasswordRejectsAWrongCurrentPasswordAndAWeakNewOne(): void
+    public function testChangePassword_RejectsAWrongCurrentPasswordAndAWeakNewOne(): void
     {
         $made = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
 
@@ -311,7 +313,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertSame('1', (string) $this->row($made['account_id'])->must_change);
     }
 
-    public function testLiveAcceptsTheVersionOfTheSessionAndRejectsAnotherOrADisabledAccountOrADeletedCustomer(): void
+    public function testLive_AcceptsTheVersionOfTheSessionAndRejectsAnotherOrADisabledAccountOrADeletedCustomer(): void
     {
         $made = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
 
@@ -319,12 +321,16 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertNull($this->accounts()->live($made['account_id'], 2));
         $this->assertNull($this->accounts()->live(987654, 1));
 
+        $this->accountingDb()->table('portal_accounts')->where('account_id', $made['account_id'])->update(['status' => 'disabled']);
+        $this->assertNull($this->accounts()->live($made['account_id'], 1), 'A disabled account has no live session even at the version of the session');
+        $this->accountingDb()->table('portal_accounts')->where('account_id', $made['account_id'])->update(['status' => 'active']);
+
         $this->accountingDb()->table('customers')->where('person_id', $this->customer)->update(['deleted' => 1]);
 
         $this->assertNull($this->accounts()->live($made['account_id'], 1));
     }
 
-    public function testCloseForCustomerDisablesTheAccountEndsItsSessionsAndRecordsIt(): void
+    public function testCloseForCustomer_DisablesTheAccountEndsItsSessionsAndRecordsIt(): void
     {
         $made = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
 
@@ -335,7 +341,7 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertCount(1, $this->portalAudit('portal_account_disabled'));
     }
 
-    public function testCloseForCustomerScramblesTheUserNameWhenTheShopScramblesDeletedCustomers(): void
+    public function testCloseForCustomer_ScramblesTheUserNameWhenTheShopScramblesDeletedCustomers(): void
     {
         $made = $this->accounts()->create($this->customer, 'ahmed@example.com', $this->manager);
 
@@ -344,14 +350,14 @@ final class PortalAccountsTest extends CIUnitTestCase
         $this->assertSame('deleted-' . $made['account_id'], $this->row($made['account_id'])->username);
     }
 
-    public function testCloseForCustomerDoesNothingForACustomerWithoutAnAccount(): void
+    public function testCloseForCustomer_DoesNothingForACustomerWithoutAnAccount(): void
     {
         $this->accounts()->closeForCustomer($this->customer, false, $this->manager);
 
         $this->assertCount(0, $this->portalAudit('portal_account_disabled'));
     }
 
-    public function testRecordLoginStoresTheTimeAndUpgradesAnOldHash(): void
+    public function testRecordLogin_StoresTheTimeAndUpgradesAnOldHash(): void
     {
         $made = $this->accounts()->create($this->customer, 'ahmed', $this->manager);
         $this->accountingDb()->table('portal_accounts')->where('account_id', $made['account_id'])->update(['password_hash' => password_hash('Correct-Horse-9', PASSWORD_BCRYPT, ['cost' => 4])]);
