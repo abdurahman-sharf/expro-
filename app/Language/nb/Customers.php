@@ -90,6 +90,7 @@ return [
     'opening_owes_us'               => '',
     'opening_side'                  => '',
     'opening_we_owe'                => '',
+    'portal_manage'                 => '',
     'price_list'                    => '',
     'price_list_none'               => '',
     'pricing_and_credit'            => '',

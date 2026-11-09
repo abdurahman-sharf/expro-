@@ -26,6 +26,7 @@
  * @var array<int, string> $employeeOptions
  * @var array<string, mixed> $masterData
  * @var list<object> $contacts
+ * @var array{enabled: bool, account: object|null, customerId: int}|null $portal
  */
 
 $masterData        ??= null;
@@ -45,6 +46,11 @@ $creditPeriodShown ??= false;
         <li class="nav-item" role="presentation">
             <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="customer_contacts" href="#customer_contacts"><?= lang('Customers.contacts') ?></a>
         </li>
+        <?php if (!empty($portal)) { ?>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="customer_portal" href="#customer_portal"><?= lang('Portal.manage_tab') ?></a>
+            </li>
+        <?php } ?>
         <?php if (!empty($stats)) { ?>
             <li class="nav-item" role="presentation">
                 <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="customer_stats_info" href="#customer_stats_info"><?= lang('Customers.stats_info') ?></a>
@@ -354,6 +360,12 @@ $creditPeriodShown ??= false;
                 <?= view('people/contacts_panel', ['contacts' => $contacts ?? []]) ?>
             </fieldset>
         </div>
+
+        <?php if (!empty($portal)) { ?>
+            <div class="tab-pane fade" id="customer_portal" role="tabpanel">
+                <?= view('customer_portal/panel', $portal) ?>
+            </div>
+        <?php } ?>
 
         <?php if (!empty($stats)) { ?>
             <div class="tab-pane" id="customer_stats_info" role="tabpanel">

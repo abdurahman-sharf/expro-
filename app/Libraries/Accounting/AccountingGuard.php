@@ -40,6 +40,7 @@ final class AccountingGuard
     public const ROLES_MANAGE        = 'acc_roles_manage';
     public const BANK_RECONCILE      = 'acc_bank_reconcile';
     public const CURRENCIES_MANAGE   = 'acc_currencies_manage';
+    public const PORTAL_MANAGE       = 'customers_portal_manage';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them
@@ -65,6 +66,7 @@ final class AccountingGuard
         self::BACKFILL_MANAGE,
         self::ROLES_MANAGE,
         self::CURRENCIES_MANAGE,
+        self::PORTAL_MANAGE,
     ];
 
     private Employee $employee;

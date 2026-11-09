@@ -23,6 +23,8 @@ use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Portal\PortalAccounts;
+use App\Libraries\Portal\PortalSettings;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Models\Customer;
 use App\Models\Customer_rewards;
@@ -300,6 +302,10 @@ class Customers extends Persons
         $data = [...$data, ...$this->pricingFormData($info), ...$this->masterDataFormData($info)];
 
         $data['contacts'] = $customerId == NEW_ENTRY ? [] : (new PartyContacts())->forParty(PartyContacts::CUSTOMER, (int) $customerId);
+
+        $data['portal'] = $customerId != NEW_ENTRY && $this->employee->has_grant(AccountingGuard::PORTAL_MANAGE, $this->viewerId())
+            ? ['enabled' => (new PortalSettings())->isEnabled(), 'account' => (new PortalAccounts())->forCustomer((int) $customerId), 'customerId' => (int) $customerId]
+            : null;
 
         $data['use_destination_based_tax'] = $this->config['use_destination_based_tax'];
         $data['opening_offered']           = $customerId == NEW_ENTRY && $this->openingOffered();

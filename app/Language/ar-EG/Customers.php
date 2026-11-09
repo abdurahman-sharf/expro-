@@ -90,6 +90,7 @@ return [
     'opening_owes_us'               => 'العميل مدين لنا',
     'opening_side'                  => 'الجهة',
     'opening_we_owe'                => 'نحن مدينون للعميل',
+    'portal_manage'                 => 'إدارة بوابة العملاء (الحسابات وكلمات المرور والتشغيل)',
     'price_list'                    => 'قائمة الأسعار',
     'price_list_none'               => 'بلا (أسعار الأصناف)',
     'pricing_and_credit'            => 'الأسعار والائتمان',

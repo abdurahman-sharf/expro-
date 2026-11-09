@@ -2,6 +2,7 @@
 
 namespace Config;
 
+use App\Filters\PortalGuard;
 use App\Filters\ReportExport;
 use App\Filters\Throttle;
 use CodeIgniter\Config\Filters as BaseFilters;
@@ -40,6 +41,7 @@ class Filters extends BaseFilters
         'isLoggedIn'    => IsLoggedIn::class,
         'throttle'      => Throttle::class,
         'reportexport'  => ReportExport::class,
+        'portalguard'   => PortalGuard::class,
     ];
 
     /**
@@ -79,8 +81,8 @@ class Filters extends BaseFilters
     public array $globals = [
         'before' => [
             'honeypot',
-            'isLoggedIn' => ['except' => 'login|migrate'],
-            'csrf' => ['except' => 'login|migrate'],
+            'isLoggedIn' => ['except' => ['login|migrate', 'portal', 'portal/*']],
+            'csrf' => ['except' => ['login|migrate', 'portal', 'portal/*']],
             'invalidchars',
         ],
         'after' => [
@@ -115,7 +117,9 @@ class Filters extends BaseFilters
      * @var array<string, array<string, list<string>>>
      */
     public array $filters = [
-        'throttle' => ['before' => ['login', 'migrate']],
+        'throttle'    => ['before' => ['login', 'migrate']],
+        'portalguard' => ['before' => ['portal', 'portal/*']],
+        'csrf'        => ['before' => ['portal', 'portal/*']],
     ];
 
     /**

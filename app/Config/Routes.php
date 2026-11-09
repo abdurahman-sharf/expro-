@@ -614,3 +614,29 @@ $routes->group('accounting_journals', static function (RouteCollection $routes) 
     $routes->post('attach/(:num)', 'AccountingJournals::postAttach/$1');
     $routes->post('delete_attachment/(:num)', 'AccountingJournals::postDeleteAttachment/$1');
 });
+
+$routes->group('portal', static function (RouteCollection $routes): void {
+    $routes->get('/', 'Portal::getIndex');
+    $routes->get('login', 'Portal::getLogin');
+    $routes->post('login', 'Portal::postLogin');
+    $routes->post('logout', 'Portal::postLogout');
+    $routes->get('password', 'Portal::getPassword');
+    $routes->post('password', 'Portal::postPassword');
+    $routes->get('statement', 'Portal::getStatement');
+    $routes->get('invoices', 'Portal::getInvoices');
+    $routes->get('credit_notes', 'Portal::getCreditNotes');
+    $routes->get('payments', 'Portal::getPayments');
+    $routes->get('invoice/(:num)', 'Portal::getInvoice/$1');
+    $routes->get('invoice/(:num)/pdf', 'Portal::getInvoicePdf/$1');
+    $routes->get('credit_note/(:num)', 'Portal::getCreditNote/$1');
+    $routes->get('credit_note/(:num)/pdf', 'Portal::getCreditNotePdf/$1');
+    $routes->get('payment/(:num)', 'Portal::getPayment/$1');
+    $routes->get('payment/(:num)/pdf', 'Portal::getPaymentPdf/$1');
+});
+
+$routes->group('customer_portal', static function (RouteCollection $routes): void {
+    $routes->post('create/(:num)', 'Customer_portal::postCreate/$1');
+    $routes->post('reset/(:num)', 'Customer_portal::postReset/$1');
+    $routes->post('status/(:num)', 'Customer_portal::postStatus/$1');
+    $routes->post('enabled', 'Customer_portal::postEnabled');
+});

@@ -90,6 +90,7 @@ return [
     'opening_owes_us'               => 'The customer owes us',
     'opening_side'                  => 'Owed by',
     'opening_we_owe'                => 'We owe the customer',
+    'portal_manage'                 => 'Manage the customer portal (accounts, passwords, switch)',
     'price_list'                    => 'Price list',
     'price_list_none'               => 'None (item prices)',
     'pricing_and_credit'            => 'Prices and credit',

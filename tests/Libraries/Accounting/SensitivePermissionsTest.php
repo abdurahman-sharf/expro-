@@ -100,6 +100,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
                 AccountingGuard::BACKFILL_MANAGE,
                 AccountingGuard::ROLES_MANAGE,
                 AccountingGuard::CURRENCIES_MANAGE,
+                AccountingGuard::PORTAL_MANAGE,
             ],
             AccountingGuard::SENSITIVE,
         );
