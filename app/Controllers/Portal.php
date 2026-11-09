@@ -50,7 +50,7 @@ class Portal extends BaseController
             return redirect()->to(site_url('portal/statement'));
         }
 
-        $result = (new PortalLogin())->attempt((string) $this->request->getPost('username'), (string) $this->request->getPost('password'), $this->request->getIPAddress());
+        $result = (new PortalLogin())->attempt($this->text('username'), $this->text('password'), $this->request->getIPAddress());
 
         if ($result->outcome === PortalLoginOutcome::Success) {
             $session->begin($result->account);
@@ -85,14 +85,14 @@ class Portal extends BaseController
 
         $session   = new PortalSession();
         $accountId = $session->accountId() ?? throw PageNotFoundException::forPageNotFound();
-        $new       = (string) $this->request->getPost('new_password');
+        $new       = $this->text('new_password');
 
         try {
-            if ($new !== (string) $this->request->getPost('confirm_password')) {
+            if ($new !== $this->text('confirm_password')) {
                 return $this->response->setStatusCode(422)->setBody(view('portal/password', ['signedIn' => true, 'forced' => $this->mustChange(), 'error' => lang('Portal.password_mismatch')]));
             }
 
-            $version = (new PortalAccounts())->changePassword($accountId, (string) $this->request->getPost('current_password'), $new);
+            $version = (new PortalAccounts())->changePassword($accountId, $this->text('current_password'), $new);
         } catch (AccountingException $failure) {
             return $this->response->setStatusCode(422)->setBody(view('portal/password', ['signedIn' => true, 'forced' => $this->mustChange(), 'error' => AccountingMessage::of($failure)]));
         }
@@ -184,6 +184,13 @@ class Portal extends BaseController
         $accountId = (new PortalSession())->accountId();
 
         return $accountId !== null && (int) ((new PortalAccounts())->find($accountId)->must_change ?? 0) === 1;
+    }
+
+    private function text(string $field): string
+    {
+        $value = $this->request->getPost($field);
+
+        return is_string($value) ? $value : '';
     }
 
     private function page(): int

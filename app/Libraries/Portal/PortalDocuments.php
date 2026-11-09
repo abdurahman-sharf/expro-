@@ -16,6 +16,7 @@ use App\Libraries\Documents\VoucherDocument;
 use App\Libraries\Documents\VoucherDocuments;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use Closure;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -46,7 +47,7 @@ final class PortalDocuments
      */
     public function invoices(int $customerId, int $page): array
     {
-        $found    = $this->page($this->sales($customerId, [SALE_TYPE_POS, SALE_TYPE_INVOICE]), $page);
+        $found    = $this->page(fn (): BaseBuilder => $this->sales($customerId, [SALE_TYPE_POS, SALE_TYPE_INVOICE]), $page);
         $position = $this->position($customerId);
         $rows     = [];
 
@@ -73,7 +74,7 @@ final class PortalDocuments
      */
     public function creditNotes(int $customerId, int $page): array
     {
-        $found = $this->page($this->sales($customerId, [SALE_TYPE_RETURN]), $page);
+        $found = $this->page(fn (): BaseBuilder => $this->sales($customerId, [SALE_TYPE_RETURN]), $page);
         $rows  = [];
 
         foreach ($found['rows'] as $sale) {
@@ -97,11 +98,10 @@ final class PortalDocuments
      */
     public function payments(int $customerId, int $page): array
     {
-        $builder = $this->receipts($customerId);
-        $total   = (clone $builder)->countAllResults();
-        $rows    = [];
+        $total = $this->receipts($customerId)->countAllResults();
+        $rows  = [];
 
-        foreach ($builder->select('p.payment_id, p.payment_time, p.payment_type, p.payment_amount, p.cash_refund, p.reference_code, p.currency_code AS payment_currency, s.sale_id, s.invoice_number, s.currency_code')->orderBy('p.payment_time', 'DESC')->orderBy('p.payment_id', 'DESC')->limit(self::PAGE_SIZE, $this->offset($page))->get()->getResult() as $payment) {
+        foreach ($this->receipts($customerId)->select('p.payment_id, p.payment_time, p.payment_type, p.payment_amount, p.cash_refund, p.reference_code, p.currency_code AS payment_currency, s.sale_id, s.invoice_number, s.currency_code')->orderBy('p.payment_time', 'DESC')->orderBy('p.payment_id', 'DESC')->limit(self::PAGE_SIZE, $this->offset($page))->get()->getResult() as $payment) {
             $rows[] = [
                 'payment_id' => (int) $payment->payment_id,
                 'number'     => $this->numbering->label(DocumentType::CustomerPayment, 'sales_payments', (int) $payment->payment_id),
@@ -226,12 +226,17 @@ final class PortalDocuments
     }
 
     /**
+     * The query is made twice, once to count and once to read a page, because counting a builder takes the
+     * names of its tables from the connection.
+     *
+     * @param Closure(): BaseBuilder $builder
+     *
      * @return array{total: int, rows: list<object>}
      */
-    private function page(BaseBuilder $builder, int $page): array
+    private function page(Closure $builder, int $page): array
     {
-        $total = (clone $builder)->countAllResults();
-        $rows  = $builder->orderBy('COALESCE(s.invoice_date, DATE(s.sale_time))', 'DESC', false)->orderBy('s.sale_id', 'DESC')->limit(self::PAGE_SIZE, $this->offset($page))->get()->getResult();
+        $total = $builder()->countAllResults();
+        $rows  = $builder()->orderBy('COALESCE(s.invoice_date, DATE(s.sale_time))', 'DESC', false)->orderBy('s.sale_id', 'DESC')->limit(self::PAGE_SIZE, $this->offset($page))->get()->getResult();
 
         return ['total' => $total, 'rows' => $rows];
     }

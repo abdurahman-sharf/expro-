@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Portal\PortalAccounts;
 use App\Libraries\Portal\PortalPasswords;
 use App\Libraries\Portal\PortalSession;
+use Config\Services;
 
 /**
  * What a test needs to work with the customer portal: an employee who may manage it, the switch, an account
@@ -61,6 +62,15 @@ trait PortalFixtureTrait
             PortalSession::KEY_STARTED  => $now,
             PortalSession::KEY_ACTIVE   => $now,
         ];
+    }
+
+    /**
+     * The token filter reads its token from the session when the service is first made, and the service lives
+     * as long as the process, so a test that posts starts from a service made afresh.
+     */
+    protected function freshSecurity(): void
+    {
+        Services::resetSingle('security');
     }
 
     protected function cleanPortal(): void
