@@ -25,6 +25,7 @@
  * @var array<string, string> $billingOptions
  * @var array<int, string> $employeeOptions
  * @var array<string, mixed> $masterData
+ * @var list<object> $contacts
  */
 
 $masterData        ??= null;
@@ -40,6 +41,9 @@ $creditPeriodShown ??= false;
     <ul class="nav nav-tabs nav-justified" role="tablist">
         <li class="nav-item" role="presentation">
             <a class="nav-link active" data-bs-toggle="tab" role="tab" aria-controls="customer_basic_info" href="#customer_basic_info"><?= lang('Customers.basic_information') ?></a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" data-bs-toggle="tab" role="tab" aria-controls="customer_contacts" href="#customer_contacts"><?= lang('Customers.contacts') ?></a>
         </li>
         <?php if (!empty($stats)) { ?>
             <li class="nav-item" role="presentation">
@@ -342,6 +346,12 @@ $creditPeriodShown ??= false;
                 </div>
 
                 <?= form_hidden('employee_id', $person_info->employee_id) ?>
+            </fieldset>
+        </div>
+
+        <div class="tab-pane fade" id="customer_contacts" role="tabpanel">
+            <fieldset>
+                <?= view('people/contacts_panel', ['contacts' => $contacts ?? []]) ?>
             </fieldset>
         </div>
 

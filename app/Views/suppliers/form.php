@@ -3,6 +3,7 @@
  * @var string $controller_name
  * @var object $person_info
  * @var array $categories
+ * @var list<object> $contacts
  */
 ?>
 
@@ -89,6 +90,11 @@
                     ]) ?>
                 </div>
             </div>
+        </div>
+
+        <div class="form-section">
+            <h3 class="form-section-title"><?= lang('Customers.contacts') ?></h3>
+            <?= view('people/contacts_panel', ['contacts' => $contacts ?? []]) ?>
         </div>
 
         <?= view('people/form_comments') ?>

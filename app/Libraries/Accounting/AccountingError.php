@@ -540,4 +540,18 @@ enum AccountingError: string
     case UnitBarcodeInvalid       = 'unit_barcode_invalid';
     case UnitTemplateUnitsInvalid = 'unit_template_units_invalid';
     case UnitNameRepeated         = 'unit_name_repeated';
+    case ContactNameRequired      = 'contact_name_required';
+    case ContactEmailInvalid      = 'contact_email_invalid';
+    case ContactPhoneInvalid      = 'contact_phone_invalid';
+    case ContactFieldTooLong      = 'contact_field_too_long';
+    case ContactsTooMany          = 'contacts_too_many';
+    case ContactUnknown           = 'contact_unknown';
+    case ContactsNotSaved         = 'contacts_not_saved';
+    case PortalUsernameInvalid    = 'portal_username_invalid';
+    case PortalUsernameTaken      = 'portal_username_taken';
+    case PortalCustomerUnknown    = 'portal_customer_unknown';
+    case PortalAccountExists      = 'portal_account_exists';
+    case PortalAccountUnknown     = 'portal_account_unknown';
+    case PortalPasswordInvalid    = 'portal_password_invalid';
+    case PortalPasswordWrong      = 'portal_password_wrong';
 }

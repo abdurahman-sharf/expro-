@@ -24,6 +24,7 @@ use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\MasterData\PartyContacts;
 use App\Libraries\Organization\BranchService;
 use App\Libraries\Pricing\SalesControlSettings;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -130,6 +131,7 @@ class AccountingReceivables extends AccountingController
             'can_manage'      => $this->can(AccountingGuard::RECEIVABLES_MANAGE),
             'can_refund'      => $this->can(AccountingGuard::RECEIVABLES_REFUND),
             'creditTerms'     => $this->creditTermsShown($customerId),
+            'contacts'        => (new PartyContacts())->forParty(PartyContacts::CUSTOMER, $customerId),
             'amount'          => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'date'            => fn (string $value): string => $this->formatDate($value),
             'debit_note_of'   => static fn (int $key): string => (new SalesDebitNotes())->numberOf((int) SalesDebitNotes::idOfKey($key)),

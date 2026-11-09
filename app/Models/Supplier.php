@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\MasterData\PartyContacts;
 use CodeIgniter\Database\ResultInterface;
 
 /**
@@ -149,6 +150,7 @@ class Supplier extends Person
 
         if ($result) {
             (new EntityAccountService())->syncDeleted(EntityAccountService::SUPPLIER, (int) $supplier_id);
+            (new PartyContacts($this->db))->hideWithParty(PartyContacts::SUPPLIER, (int) $supplier_id, false, (int) session()->get('person_id') ?: null);
         }
 
         return $result;
@@ -167,6 +169,7 @@ class Supplier extends Person
         if ($result) {
             foreach ($person_ids as $personId) {
                 (new EntityAccountService())->syncDeleted(EntityAccountService::SUPPLIER, (int) $personId);
+                (new PartyContacts($this->db))->hideWithParty(PartyContacts::SUPPLIER, (int) $personId, false, (int) session()->get('person_id') ?: null);
             }
         }
 

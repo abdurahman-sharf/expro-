@@ -5,8 +5,10 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\MasterData\CustomerFields;
+use App\Libraries\MasterData\PartyContacts;
 use App\Libraries\MasterData\PartyLengths;
 use App\Models\Supplier;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Services;
 
@@ -107,6 +109,7 @@ class Suppliers extends Persons
         }
         $data['person_info'] = $info;
         $data['categories'] = $this->supplier->get_categories();
+        $data['contacts']   = $supplier_id == NEW_ENTRY ? [] : (new PartyContacts())->forParty(PartyContacts::SUPPLIER, (int) $supplier_id);
 
         return view("suppliers/form", $data);
     }
@@ -170,19 +173,38 @@ class Suppliers extends Persons
             $supplierData['commercial_registry'] = mb_substr(trim((string) $this->request->getPost('commercial_registry', FILTER_SANITIZE_FULL_SPECIAL_CHARS)), 0, 64);
         }
 
+        $contacts    = new PartyContacts();
+        $contactRows = PartyContacts::fromRequest($this->request->getPost());
+
+        try {
+            $contactRows = $contactRows === null ? null : $contacts->prepare(PartyContacts::SUPPLIER, $current === null ? null : (int) $supplierId, $contactRows);
+        } catch (AccountingException $failure) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($failure), 'id' => NEW_ENTRY]);
+        }
+
         if ($this->supplier->save_supplier($personData, $supplierData, $supplierId)) {
+            $contactNote = '';
+
+            if ($contactRows !== null) {
+                try {
+                    $contacts->replace(PartyContacts::SUPPLIER, (int) ($supplierData['person_id'] ?? $supplierId), $contactRows, (int) $this->employee->get_logged_in_employee_info()->person_id);
+                } catch (AccountingException $failure) {
+                    $contactNote = ' ' . AccountingMessage::of($failure);
+                }
+            }
+
             // New supplier
             if ($supplierId == NEW_ENTRY) {
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Suppliers.successful_adding') . ' ' . $supplierData['company_name'],
+                    'message' => lang('Suppliers.successful_adding') . ' ' . $supplierData['company_name'] . $contactNote,
                     'id'      => $supplierData['person_id']
                 ]);
             } else { // Existing supplier
 
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Suppliers.successful_updating') . ' ' . $supplierData['company_name'],
+                    'message' => lang('Suppliers.successful_updating') . ' ' . $supplierData['company_name'] . $contactNote,
                     'id'      => $supplierId
                 ]);
             }
@@ -193,6 +215,29 @@ class Suppliers extends Persons
                 'id'      => NEW_ENTRY
             ]);
         }
+    }
+
+    /**
+     * The contacts of a supplier as a list.
+     *
+     * @noinspection PhpUnused
+     */
+    public function getContacts(int $supplierId): ResponseInterface
+    {
+        if (! $this->supplier->exists($supplierId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return $this->response->setJSON(['contacts' => array_map(static fn (object $contact): array => [
+            'contact_id' => (int) $contact->contact_id,
+            'first_name' => $contact->first_name,
+            'last_name'  => $contact->last_name,
+            'email'      => $contact->email,
+            'phone'      => $contact->phone,
+            'mobile'     => $contact->mobile,
+            'position'   => $contact->position,
+            'note'       => $contact->note,
+        ], (new PartyContacts())->forParty(PartyContacts::SUPPLIER, $supplierId))]);
     }
 
     /**
