@@ -119,7 +119,7 @@
 | الملف | النتيجة |
 |---|---|
 | `tests/Libraries/EInvoicing` (19 ملفًا: كل ما فيها) | كلها OK؛ منها: `EInvoiceServiceTest` (56 tests, 719 assertions) و`EInvoiceBuilderTest` (35, 210) و`EInvoiceChoicesTest` (11, 89) و`EInvoiceExceptionTest` (6, 28) و`EInvoiceReadinessTest` (17, 54) و`CustomerPartiesTest` (17, 82) و`EInvoiceSettingsTest` (19, 267) و`EInvoicePanelTest` (8, 54) و`EInvoiceRulesTest` (22, 29) و`UblInvoiceXmlTest` (17, 21) و`KeyPathTest` (15, 17) |
-| `tests/Controllers/AccountingEInvoicingControllerTest.php` | OK (41 tests, 327 assertions) |
+| `tests/Controllers/AccountingEInvoicingControllerTest.php` | OK (41 tests, 328 assertions) |
 | `tests/Database/EInvoicingMigrationTest.php` | OK (11 tests, 56 assertions) |
 | `tests/Controllers/CustomersControllerTest.php` | OK (110 tests, 530 assertions) |
 | `tests/helpers/NavigationHelperTest.php` | OK (20 tests, 38 assertions) |
@@ -201,7 +201,7 @@
 
 كل حارس يُعطَّل وحده بنص يُستبدل في ملف الإنتاج، وتُشغَّل ملفات الاختبار المسمّاة، **ويُرجع الملف دائمًا** (`tools/dev/guard_mutations.py` والقائمة `docs/accounting/daftra-parity/wp46-guards.json`). المكتشَف: فشلت الاختبارات.
 
-**129 حارسًا:** 129 DETECTED.
+**174 حارسًا: 174 DETECTED** (129 من التنفيذ الأول، و45 أُضيفت في مرحلة الإصلاح، بعد تصحيح أربع طفرات قديمة تغيّر نص الكود تحتها: `S18` و`CP12` و`X02` و`X03`). أُعيد تشغيل القائمة كلها في مرحلة الإصلاح: **كل الحراس مكتشَفة، ولا طفرة `INVALID`**.
 
 | # | الحارس | الملف | الاختبارات | النتيجة |
 |---|---|---|---|---|
@@ -335,7 +335,59 @@
 | N02 | the panel says when the books moved | `app/Libraries/EInvoicing/EInvoicePanel.php` | `EInvoicePanelTest` | **DETECTED** |
 | N03 | nothing is shown while the layer is off | `app/Libraries/EInvoicing/EInvoicePanel.php` | `EInvoicePanelTest` | **DETECTED** |
 
+**حراس مرحلة الإصلاح بعد المراجعة** (رموزها تبدأ بـ`Z`؛ بعض طفراتها تُشغّل اختبارات مختارة بـ`--filter` لسرعة التشغيل، والقائمة الكاملة بمرشحاتها في `wp46-guards.json`):
+
+| # | الحارس | الملف | الاختبارات | النتيجة |
+|---|---|---|---|---|
+| ZF01 | issuing the sale of another employee is refused to someone who sees their own records only | `app/Libraries/EInvoicing/EInvoiceService.php` | `EInvoiceServiceTest` | **DETECTED** |
+| ZF02 | issuing the debit note of another employee is refused to someone who sees their own records only | `app/Libraries/EInvoicing/EInvoiceService.php` | `EInvoiceServiceTest` | **DETECTED** |
+| ZF03 | the file of the document of another employee is refused to someone who sees their own records only | `app/Libraries/EInvoicing/EInvoiceService.php` | `EInvoiceServiceTest` | **DETECTED** |
+| ZF04 | the list of documents is cut to the records of someone who sees their own records only | `app/Libraries/EInvoicing/EInvoiceService.php` | `EInvoiceServiceTest` | **DETECTED** |
+| ZF05 | a debit note refers only to a document of a branch the employee works in | `app/Libraries/EInvoicing/EInvoiceService.php` | `EInvoiceServiceTest` | **DETECTED** |
+| ZF06 | a debit note refers only to a document out of the records the employee may see | `app/Libraries/EInvoicing/EInvoiceService.php` | `EInvoiceServiceTest` | **DETECTED** |
+| ZF07 | a debit note refers only to a document of its own customer | `app/Libraries/EInvoicing/EInvoiceService.php` | `EInvoiceServiceTest` | **DETECTED** |
+| ZF08 | the list of documents starts at the offset of its page | `app/Libraries/EInvoicing/EInvoiceService.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZT01 | issuing never touches the payments of the sale | `app/Libraries/EInvoicing/EInvoiceService.php` | `EInvoiceServiceTest` | **DETECTED** |
+| ZT02 | issuing never touches the stock movements of the sale | `app/Libraries/EInvoicing/EInvoiceService.php` | `EInvoiceServiceTest` | **DETECTED** |
+| ZT03 | issuing never touches the number of the invoice | `app/Libraries/EInvoicing/EInvoiceService.php` | `EInvoiceServiceTest` | **DETECTED** |
+| ZT04 | issuing never touches the stock books of the sale | `app/Libraries/EInvoicing/EInvoiceService.php` | `EInvoiceServiceTest` | **DETECTED** |
+| ZCP13 | a write the database refused is not said to be saved | `app/Libraries/EInvoicing/CustomerParties.php` | `CustomerPartiesTest` | **DETECTED** |
+| ZCP14 | a street is no longer than its column | `app/Libraries/EInvoicing/CustomerParties.php` | `CustomerPartiesTest` | **DETECTED** |
+| ZCP15 | an identification number is no longer than its column | `app/Libraries/EInvoicing/CustomerParties.php` | `CustomerPartiesTest` | **DETECTED** |
+| ZCP16 | the fields of the address are no longer than their columns | `app/Libraries/EInvoicing/CustomerParties.php` | `CustomerPartiesTest` | **DETECTED** |
+| ZCP17 | a postal code is no longer than its column | `app/Libraries/EInvoicing/CustomerParties.php` | `CustomerPartiesTest` | **DETECTED** |
+| ZE01 | the name of a field or of a figure is said in the language of the reader | `app/Libraries/EInvoicing/EInvoiceException.php` | `EInvoiceExceptionTest` | **DETECTED** |
+| ZE02 | a value of a field that is not too long is left as it was typed | `app/Libraries/EInvoicing/EInvoiceException.php` | `EInvoiceExceptionTest` | **DETECTED** |
+| ZE03 | the prefix of a field of the settings is read | `app/Libraries/EInvoicing/EInvoiceException.php` | `EInvoiceExceptionTest` | **DETECTED** |
+| ZRD1 | a customer with an invalid tax number is listed although it has an identification | `app/Libraries/EInvoicing/EInvoiceReadiness.php` | `EInvoiceReadinessTest` | **DETECTED** |
+| ZRD2 | a tax number is read trimmed, as the document reads it | `app/Libraries/EInvoicing/EInvoiceReadiness.php` | `EInvoiceReadinessTest` | **DETECTED** |
+| ZCU1 | a customer whose identification was not saved is told so | `app/Controllers/Customers.php` | `CustomersControllerTest` | **DETECTED** |
+| ZV01 | the paths of the key and of the certificate are not shown to who may not manage the settings | `app/Views/accounting_einvoicing/manage.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZV02 | each check says in words whether it is ready, a warning or not ready | `app/Views/accounting_einvoicing/manage.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZV03 | the detail of a check is said in words and not as a code | `app/Views/accounting_einvoicing/manage.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZV04 | a key that cannot be used is not reported as documents issued unsigned | `app/Views/accounting_einvoicing/manage.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZV05 | the form of a debit note says when no note waits | `app/Views/accounting_einvoicing/manage.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZP01 | the pager offers the next page | `app/Views/accounting_einvoicing/pager.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZP02 | the pager offers the previous page | `app/Views/accounting_einvoicing/pager.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZP03 | the pager shows only when the list does not fit one page | `app/Views/accounting_einvoicing/pager.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZP04 | an offset out of range falls back to a page of the list | `app/Controllers/AccountingEInvoicing.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZP05 | a negative offset is read as the first page | `app/Controllers/AccountingEInvoicing.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZR01 | the status line is on the receipt | `app/Views/sales/receipt.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZR02 | the status line is on the tax invoice | `app/Views/sales/tax_invoice.php` | `AccountingEInvoicingControllerTest` | **DETECTED** |
+| ZN04 | electronic invoicing is in the accounting group of the sidebar | `app/Helpers/navigation_helper.php` | `NavigationHelperTest` | **DETECTED** |
+| ZC01 | a debit note that has its document is not offered again | `app/Libraries/EInvoicing/EInvoiceChoices.php` | `EInvoiceChoicesTest` | **DETECTED** |
+| ZC02 | a debit note that was taken back is not offered | `app/Libraries/EInvoicing/EInvoiceChoices.php` | `EInvoiceChoicesTest` | **DETECTED** |
+| ZC03 | the debit notes offered are those of the branches the employee works in | `app/Libraries/EInvoicing/EInvoiceChoices.php` | `EInvoiceChoicesTest` | **DETECTED** |
+| ZC04 | the debit notes offered are those the employee made when they see their own records only | `app/Libraries/EInvoicing/EInvoiceChoices.php` | `EInvoiceChoicesTest` | **DETECTED** |
+| ZC05 | the documents offered are those of the customers of the notes | `app/Libraries/EInvoicing/EInvoiceChoices.php` | `EInvoiceChoicesTest` | **DETECTED** |
+| ZC06 | the documents offered are those of the branches the employee works in | `app/Libraries/EInvoicing/EInvoiceChoices.php` | `EInvoiceChoicesTest` | **DETECTED** |
+| ZC07 | the documents offered are those of the records the employee may see | `app/Libraries/EInvoicing/EInvoiceChoices.php` | `EInvoiceChoicesTest` | **DETECTED** |
+| ZC08 | a debit note is named by its number when the series is on | `app/Libraries/EInvoicing/EInvoiceChoices.php` | `EInvoiceChoicesTest` | **DETECTED** |
+| ZC09 | a customer that is a company is named by its company | `app/Libraries/EInvoicing/EInvoiceChoices.php` | `EInvoiceChoicesTest` | **DETECTED** |
+
 **ما كشفته أول جولة وأُصلح:** من 130 حارسًا لم يُكتشف أربعة في الجولة الأولى: `B16` (ضريبة المستند مقابل ضريبة البيع حين يتطابق الإجمالي) و`S15` (ربط الإشعار المدين بقيده) و`CP11` (فعل التدقيق «updated» لم يكن الاختبار يتحقق منه): أُضيف لكل منها اختبار يفشل بدونه (`testFromSale_RefusesATaxTheBooksDoNotHoldEvenWhenTheTotalTies` و`testIssueDebitNote_RefusesANoteWhoseTaxTheJournalOfTheNoteDoesNotHoldAndStoresNothing` وشرط الفعل في `testSave_AuditsWhatWasReplacedAndWhatItBecame`)، **وأُعيد تشغيل الثلاثة فاكتُشفت كلها**. **ورابعها `X05` (ترويسة `nosniff` في تنزيل XML) طفرة مكافئة:** المرشح العام `secureheaders` في `app/Config/Filters.php` يضيف الترويسة نفسها إلى كل استجابة، فتعطيل سطر المتحكم لا يغيّر شيئًا يُرى، **فحُذف من القائمة** (والسطر باقٍ حتى لا يعتمد التنزيل على المرشح العام) ولا يُعدّ حارسًا مثبتًا.
+
+**ما كشفته جولة مرحلة الإصلاح وأُصلح:** من الحراس الخمسة والأربعين الجدد لم يُكتشف واحد في الجولة الأولى: `ZP05` (قراءة الإزاحة السالبة كأول صفحة): الاختبار كان يجرّب `-5` وحده وهي تُقرَّب إلى صفر بالقسمة الصحيحة حتى بلا الحارس؛ أُضيف `-60` (يصير `-50` بلا الحارس فيفشل الاستعلام) **فاكتُشف**. **واستُبدلت حمايتان مكرّرتان لمسارَي المفتاح** (التفريغ في المتحكم وإخفاء الحقلين في القالب) بحارس واحد في القالب، لأن الطفرة المنفردة على أيٍّ منهما كانت مكافئة.
 
 ## 8. تحديثات الوثائق المشتركة للمُدمِج
 
