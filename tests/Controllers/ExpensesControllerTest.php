@@ -5,6 +5,8 @@ namespace Tests\Controllers;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Integrations\IntegrationOptions;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
@@ -19,6 +21,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
+use Tests\Support\IntegrationFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 
 /**
@@ -36,6 +39,7 @@ class ExpensesControllerTest extends CIUnitTestCase
     use DatabaseFingerprintTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
+    use IntegrationFixtureTrait;
     use RoleFixtureTrait;
 
     protected $migrate     = true;
@@ -60,6 +64,7 @@ class ExpensesControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->wipeIntegration();
         $this->stopExpenses();
         $this->clearNumbering();
 
@@ -1167,5 +1172,77 @@ class ExpensesControllerTest extends CIUnitTestCase
         $this->actAsWith();
 
         $this->get('/expenses/view/' . $id)->assertSee('expense_voucher_link');
+    }
+
+    private function expenseWithWalletPayment(): int
+    {
+        $data = [
+            'date'                => date('Y-m-d H:i:s'),
+            'amount'              => '25.00',
+            'tax_amount'          => '0.00',
+            'payment_type'        => 'Wallet',
+            'expense_category_id' => $this->category(),
+            'description'         => 'Paid by wallet',
+            'employee_id'         => 1,
+            'deleted'             => 0,
+        ];
+
+        $this->assertTrue(model(Expense::class)->save_value($data));
+
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->actAsWith();
+
+        return (int) $data['expense_id'];
+    }
+
+    public function testGetView_KeepsThePaymentMethodThatWasSwitchedOffSelectedOnItsOwnExpenseOnly(): void
+    {
+        $expenseId = $this->expenseWithWalletPayment();
+
+        $edit = $this->selectOf($this->get('/expenses/view/' . $expenseId)->getBody(), 'payment_type');
+        $new  = $this->selectOf($this->get('/expenses/view/-1')->getBody(), 'payment_type');
+
+        $this->assertMatchesRegularExpression('#<option value="' . preg_quote('Wallet', '#') . '"[^>]*selected#', $edit, 'The expense keeps the method it was paid with.');
+        $this->assertStringNotContainsString('value="' . 'Wallet' . '"', $new, 'A new expense is not offered the method that is off.');
+    }
+
+    public function testPostSave_SavesAnExpenseThatCarriesASwitchedOffMethodWithTheMethodItHad(): void
+    {
+        $expenseId = $this->expenseWithWalletPayment();
+
+        $result = $this->save($this->form(['payment_type' => 'Wallet', 'description' => 'only the description']), $expenseId);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Wallet', $this->savedRow($expenseId)->payment_type);
+    }
+
+    public function testPostSave_RefusesAnExpenseChangedToAMethodThatIsSwitchedOff(): void
+    {
+        $expenseId = $this->expense();
+
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->actAsWith();
+
+        $result = $this->save($this->form(['payment_type' => 'Wallet']), $expenseId);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('The payment method Wallet is switched off.', $result['message']);
+        $this->assertSame('Cash', $this->savedRow($expenseId)->payment_type);
+    }
+
+    public function testPostSave_RefusesANewExpenseWithAMethodThatIsSwitchedOff(): void
+    {
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->actAsWith();
+        $before = $this->countRows('expenses');
+
+        $result = $this->save($this->form(['payment_type' => 'Wallet']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('The payment method Wallet is switched off.', $result['message']);
+        $this->assertSame($before, $this->countRows('expenses'));
     }
 }

@@ -97,7 +97,7 @@ final class RecurringSchedules
         $this->guard->require($kind->managePermission(), $employeeId);
 
         $today ??= date('Y-m-d');
-        $data = ScheduleInput::normalise($kind, $input, $this->db, $this->branches, $employeeId, $today, false, $this->ownerOf($scheduleId));
+        $data = ScheduleInput::normalise($kind, $input, $this->db, $this->branches, $employeeId, $today, false, $this->ownerOf($scheduleId), $this->storedPaymentOf($scheduleId));
 
         $this->transactional(function () use ($scheduleId, $kind, $data, $employeeId, $today): void {
             $row = $this->lock($scheduleId, $employeeId);
@@ -304,6 +304,13 @@ final class RecurringSchedules
         }
 
         return RecurringKind::from((string) $row->kind);
+    }
+
+    private function storedPaymentOf(int $scheduleId): ?string
+    {
+        $row = $this->db->table('recurring_schedules')->select('payment_type')->where('schedule_id', $scheduleId)->get()->getRow();
+
+        return $row === null || $row->payment_type === null ? null : (string) $row->payment_type;
     }
 
     private function ownerOf(int $scheduleId): ?int

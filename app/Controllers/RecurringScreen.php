@@ -7,7 +7,6 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\TreasuryService;
-use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Recurring\RecurrenceTerms;
 use App\Libraries\Recurring\RecurringGenerator;
 use App\Libraries\Recurring\RecurringKind;
@@ -138,12 +137,6 @@ abstract class RecurringScreen extends DocumentScreen
             $input = array_intersect_key(is_array($post) ? $post : [], array_flip(self::FIELDS));
             $kind  = $this->kind();
 
-            $refusal = $this->paymentRefusal($input, $scheduleId);
-
-            if ($refusal !== null) {
-                return ['success' => false, 'message' => $refusal, 'id' => $scheduleId];
-            }
-
             if ($scheduleId === NEW_ENTRY) {
                 $scheduleId = $this->schedules->create($kind, $input, $this->employeeId());
                 $message    = lang('Recurring.successful_adding');
@@ -218,20 +211,6 @@ abstract class RecurringScreen extends DocumentScreen
         }
 
         return $options;
-    }
-
-    private function paymentRefusal(array $input, int $scheduleId): ?string
-    {
-        $type = PaymentType::tryFrom((string) ($input['payment_type'] ?? ''));
-
-        if ($this->kind() !== RecurringKind::Expense || $type === null) {
-            return null;
-        }
-
-        $stored     = $scheduleId === NEW_ENTRY ? null : $this->schedules->find($scheduleId, $this->employeeId());
-        $storedType = $stored === null ? null : PaymentType::tryFrom((string) $stored->payment_type);
-
-        return (new PaymentMethods())->refusal(lang($type->languageKey()), $storedType === null ? null : lang($storedType->languageKey()));
     }
 
     private function paymentName(string $stored): string

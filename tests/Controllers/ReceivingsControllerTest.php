@@ -4183,6 +4183,66 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertCount(2, $ids);
     }
 
+    private function purchaseWithWalletPayment(): array
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $payment  = $this->payPurchase($purchase, '100.00', lang('Sales.wallet'));
+
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->loginAs($this->buyer());
+
+        return [$purchase, $payment];
+    }
+
+    public function testGetEdit_KeepsThePaymentMethodThatWasSwitchedOffSelectedOnItsOwnRowOnly(): void
+    {
+        [$purchase] = $this->purchaseWithWalletPayment();
+
+        $body = $this->get('/receivings/edit/' . $purchase)->getBody();
+
+        $this->assertMatchesRegularExpression('#<option value="' . preg_quote(lang('Sales.wallet'), '#') . '"[^>]*selected#', $this->selectOf($body, 'payment_type_0'), 'The payment keeps the method it was made with.');
+        $this->assertStringNotContainsString('value="' . lang('Sales.wallet') . '"', $this->selectOf($body, 'payment_type_new'), 'A new payment is not offered the method that is off.');
+    }
+
+    public function testPostSave_SavesThePaymentThatCarriesASwitchedOffMethodWithTheMethodItHad(): void
+    {
+        [$purchase, $payment] = $this->purchaseWithWalletPayment();
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([[$payment, lang('Sales.wallet'), '100.00', 'completed']]), 'only the comment')));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Sales.wallet'), $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->get()->getRow()->payment_type);
+        $this->assertSame('400.00', $this->owed());
+    }
+
+    public function testPostSave_RefusesAPaymentChangedToAMethodThatIsSwitchedOff(): void
+    {
+        $purchase = $this->purchaseOf('500.00');
+        $payment  = $this->payPurchase($purchase, '100.00', lang('Sales.cash'));
+
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->loginAs($this->buyer());
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([[$payment, lang('Sales.wallet'), '100.00', 'completed']]))));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Integrations.error_payment_method_disabled', [lang('Sales.wallet')]), $result['message']);
+        $this->assertSame(lang('Sales.cash'), $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->get()->getRow()->payment_type);
+    }
+
+    public function testPostSave_RefusesANewPaymentWithAMethodThatIsSwitchedOff(): void
+    {
+        [$purchase, $payment] = $this->purchaseWithWalletPayment();
+
+        $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([[$payment, lang('Sales.wallet'), '100.00', 'completed']], lang('Sales.wallet'), '50.00'))));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Integrations.error_payment_method_disabled', [lang('Sales.wallet')]), $result['message']);
+        $this->assertSame(1, $this->countRows('receivings_payments'), 'No payment was added.');
+    }
+
     public function testGetPrint_PrintsTheSecondLanguageNamesOfTheSupplierAndTheItemsOnlyWhenTheSettingSaysSo(): void
     {
         $item      = $this->item('0.00');

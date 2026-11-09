@@ -2,6 +2,8 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Integrations\IntegrationOptions;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Recurring\RecurrenceTerms;
 use App\Libraries\Recurring\RecurringGenerator;
 use App\Libraries\Recurring\RecurringKind;
@@ -15,6 +17,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
+use Tests\Support\IntegrationFixtureTrait;
 
 /**
  * The screens of the recurring expenses: the list, the form with the nine frequencies, the page of a
@@ -28,6 +31,7 @@ class Recurring_expensesControllerTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
+    use IntegrationFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -56,6 +60,7 @@ class Recurring_expensesControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->wipeIntegration();
         $this->releaseOpenTransactions();
         $this->clearSchedules();
         $this->accountingDb()->table('accounting_audit_log')->whereIn('entity_type', ['recurring_invoice', 'recurring_expense'])->delete();
@@ -351,5 +356,64 @@ class Recurring_expensesControllerTest extends CIUnitTestCase
         $this->expectException(PageNotFoundException::class);
 
         $this->get('/' . $url);
+    }
+
+    private function switchMethodsOn(array $changes): void
+    {
+        (new PaymentMethods())->save($changes, null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+    }
+
+    public function testGetForm_KeepsTheMethodThatWasSwitchedOffSelectedOnItsOwnScheduleOnly(): void
+    {
+        $scheduleId = $this->schedule(['payment_type' => 'bank_transfer']);
+        $this->switchMethodsOn(['bank_transfer' => ['enabled' => '0']]);
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $edit = $this->get('/recurring_expenses/edit/' . $scheduleId)->getBody();
+        $new  = $this->get('/recurring_expenses/add')->getBody();
+
+        $this->assertStringContainsString('<option value="bank_transfer" selected>', $edit, 'The schedule keeps the method it was made with.');
+        $this->assertStringNotContainsString('<option value="bank_transfer"', $new, 'A new schedule is not offered the method that is off.');
+    }
+
+    public function testGetForm_ShowsARenamedMethodUnderItsNameAndSendsItsType(): void
+    {
+        $this->switchMethodsOn(['bank_transfer' => ['name' => 'Wire']]);
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $body = $this->get('/recurring_expenses/add')->getBody();
+
+        $this->assertStringContainsString('<option value="bank_transfer">Wire</option>', $body);
+    }
+
+    public function testPostSave_SavesAScheduleThatCarriesASwitchedOffMethodWithTheMethodItHad(): void
+    {
+        $scheduleId = $this->schedule(['payment_type' => 'bank_transfer']);
+        $this->switchMethodsOn(['bank_transfer' => ['enabled' => '0']]);
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $result = $this->postJson('/recurring_expenses/save/' . $scheduleId, $this->input(['payment_type' => 'bank_transfer', 'amount' => '260.00']));
+
+        $row = $this->accountingDb()->table('recurring_schedules')->where('schedule_id', $scheduleId)->get()->getRow();
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertSame(['bank_transfer', '260.00'], [$row->payment_type, $row->amount]);
+    }
+
+    public function testPostSave_RefusesAScheduleChangedToAMethodThatIsSwitchedOffAndANewOne(): void
+    {
+        $scheduleId = $this->schedule(['payment_type' => 'cash']);
+        $this->switchMethodsOn(['bank_transfer' => ['enabled' => '0']]);
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+        $before = $this->countRows('recurring_schedules');
+
+        $changed = $this->postJson('/recurring_expenses/save/' . $scheduleId, $this->input(['payment_type' => 'bank_transfer']));
+        $made    = $this->postJson('/recurring_expenses/save', $this->input(['payment_type' => 'bank_transfer']));
+
+        $this->assertFalse($changed['success']);
+        $this->assertFalse($made['success']);
+        $this->assertSame('cash', $this->accountingDb()->table('recurring_schedules')->where('schedule_id', $scheduleId)->get()->getRow()->payment_type);
+        $this->assertSame($before, $this->countRows('recurring_schedules'));
     }
 }

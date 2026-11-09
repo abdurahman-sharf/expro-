@@ -9612,13 +9612,6 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         return $saleId;
     }
 
-    private function selectOf(string $body, string $name): string
-    {
-        $this->assertSame(1, preg_match('#<select name="' . preg_quote($name, '#') . '".*?</select>#s', $body, $found), $name . ' is not on the form.');
-
-        return $found[0];
-    }
-
     /**
      * @return array<string, string>
      */

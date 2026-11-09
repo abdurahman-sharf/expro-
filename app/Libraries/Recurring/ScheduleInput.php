@@ -31,7 +31,7 @@ final class ScheduleInput
      *
      * @throws AccountingException|BranchException
      */
-    public static function normalise(RecurringKind $kind, array $input, BaseConnection $db, BranchGuard $branches, ?int $employeeId, string $today, bool $isNew, ?int $ownerId = null): array
+    public static function normalise(RecurringKind $kind, array $input, BaseConnection $db, BranchGuard $branches, ?int $employeeId, string $today, bool $isNew, ?int $ownerId = null, ?string $storedPayment = null): array
     {
         $ownerId ??= $employeeId;
 
@@ -71,7 +71,7 @@ final class ScheduleInput
             [$template, $lines] = self::invoice($input, $db, $branches, $employeeId, $ownerId);
             $reminders          = self::reminders($input['reminders'] ?? []);
         } else {
-            $template = self::expense($input, $db, $branches, $employeeId, $ownerId);
+            $template = self::expense($input, $db, $branches, $employeeId, $ownerId, $storedPayment);
         }
 
         return [
@@ -130,7 +130,7 @@ final class ScheduleInput
      *
      * @throws AccountingException|BranchException
      */
-    private static function expense(array $input, BaseConnection $db, BranchGuard $branches, ?int $employeeId, ?int $ownerId): array
+    private static function expense(array $input, BaseConnection $db, BranchGuard $branches, ?int $employeeId, ?int $ownerId, ?string $storedPayment): array
     {
         $invalid    = static fn (string $why): AccountingException => new AccountingException(AccountingError::RecurringExpenseInvalid, $why);
         $categoryId = (int) ($input['expense_category_id'] ?? 0);
@@ -146,7 +146,7 @@ final class ScheduleInput
             throw $invalid('The amount is above zero and the tax is not more than the amount.');
         }
 
-        $payment = self::paymentKey($input['payment_type'] ?? null);
+        $payment = self::paymentKey($input['payment_type'] ?? null, $storedPayment);
 
         if ($payment === null) {
             throw $invalid('The way of payment is not one of the list.');
@@ -237,10 +237,11 @@ final class ScheduleInput
         return $rows;
     }
 
-    private static function paymentKey(mixed $typed): ?string
+    private static function paymentKey(mixed $typed, ?string $storedPayment): ?string
     {
         $text    = is_string($typed) ? trim($typed) : '';
-        $options = get_payment_options();
+        $kept    = PaymentType::tryFrom((string) $storedPayment);
+        $options = get_payment_options($kept === null ? [] : [lang($kept->languageKey())]);
         $type    = PaymentType::tryFrom($text) ?? (array_key_exists($text, $options) ? PaymentType::fromLabel($text) : null);
 
         return $type !== null && array_key_exists(lang($type->languageKey()), $options) ? $type->value : null;
