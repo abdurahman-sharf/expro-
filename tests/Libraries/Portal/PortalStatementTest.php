@@ -72,8 +72,15 @@ final class PortalStatementTest extends CIUnitTestCase
         $this->assertSame('420.00 SAR', $statement['balance']);
         $this->assertSame('0.00 SAR', $statement['credit']);
         $this->assertSame('300.00 SAR', $statement['overdue']);
-        $this->assertSame(array_keys($position->aging(date('Y-m-d'))), array_keys($statement['aging']));
-        $this->assertSame('120.00 SAR', $statement['aging']['today'] === '0.00 SAR' ? $statement['aging']['1-30'] : $statement['aging']['today']);
+
+        $ledger = [];
+
+        foreach ($position->aging(date('Y-m-d')) as $bucket => $amount) {
+            $ledger[$bucket] = bcadd($amount, '0', 2) . ' SAR';
+        }
+
+        $this->assertSame($ledger, $statement['aging']);
+        $this->assertSame(['300.00 SAR', '120.00 SAR'], [$statement['aging']['31-60'], $statement['aging']['1-30']]);
     }
 
     public function testOf_ListsTheOpenInvoicesWithTheirDueDatesAndHowLateTheyAre(): void

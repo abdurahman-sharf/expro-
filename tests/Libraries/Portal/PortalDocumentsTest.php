@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Portal;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Portal\PortalDocuments;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -264,5 +265,102 @@ final class PortalDocumentsTest extends CIUnitTestCase
 
         $this->assertSame(0, $this->documents()->payments($this->customerId, 1)['total']);
         $this->assertNull($this->documents()->payment($this->customerId, $ids[2]));
+    }
+
+    private function dollarsAt(string $rate): void
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => $rate, 'effective_date' => $this->daysAgo(30)]);
+        $this->sales->useCurrency('USD');
+    }
+
+    public function testInvoices_ShowsTheTotalOfAnInvoiceInDollarsInDollarsAndInTheBaseBesideWhatIsOpen(): void
+    {
+        $this->dollarsAt('3.75');
+        $this->invoiceOf('100.00');
+
+        $row = $this->documents()->invoices($this->customerId, 1)['rows'][0];
+
+        $this->assertSame(['100.00 USD', '375.00 SAR', '375.00 SAR'], [$row['total'], $row['total_base'], $row['open']]);
+    }
+
+    public function testInvoice_ShowsTheTotalOfAnInvoiceInDollarsInDollarsAndInTheBaseBesideWhatWasSettledAndWhatIsOpen(): void
+    {
+        $this->dollarsAt('3.75');
+        $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '40.00')]);
+
+        $doc = $this->documents()->invoice($this->customerId, $invoice);
+
+        $this->assertSame(['100.00 USD', '375.00 SAR', '150.00 SAR', '225.00 SAR'], [$doc['total'], $doc['total_base'], $doc['settled'], $doc['open']]);
+        $this->assertSame('40.00 USD', $doc['payments'][0]['amount']);
+    }
+
+    public function testInvoices_LeavesTheBaseTotalOutForAnInvoiceInTheBaseCurrency(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+
+        $this->assertNull($this->documents()->invoices($this->customerId, 1)['rows'][0]['total_base']);
+        $this->assertNull($this->documents()->invoice($this->customerId, $invoice)['total_base']);
+    }
+
+    public function testInvoices_LeavesTheBaseTotalOutWhileAccountingIsOff(): void
+    {
+        $this->dollarsAt('3.75');
+        $invoice = $this->invoiceOf('100.00');
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $row = $this->documents()->invoices($this->customerId, 1)['rows'][0];
+
+        $this->assertSame(['100.00 USD', null, null], [$row['total'], $row['total_base'], $row['open']]);
+        $this->assertNull($this->documents()->invoice($this->customerId, $invoice)['total_base']);
+    }
+
+    public function testCreditNote_HasNoBaseTotalBecauseItIsReadFromNoLedgerFigure(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $note    = $this->creditNoteOf($invoice, '30.00');
+
+        $this->assertNull($this->documents()->creditNote($this->customerId, $note)['total_base']);
+    }
+
+    public function testClampPage_KeepsAPageNumberBetweenTheFirstPageAndTheLastOneThatCanBeAsked(): void
+    {
+        $this->assertSame([1, 1, 1, 7, PortalDocuments::MAX_PAGE, PortalDocuments::MAX_PAGE], array_map(PortalDocuments::clampPage(...), [PHP_INT_MIN, -4, 0, 7, PortalDocuments::MAX_PAGE + 1, PHP_INT_MAX]));
+    }
+
+    public function testInvoices_AnswersAnEmptyPageForAPageNumberTooBigForAnOffset(): void
+    {
+        $this->invoiceOf('100.00');
+
+        $found = $this->documents()->invoices($this->customerId, PHP_INT_MAX);
+
+        $this->assertSame([1, []], [$found['total'], $found['rows']]);
+    }
+
+    public function testCreditNotes_AnswersAnEmptyPageForAPageNumberTooBigForAnOffset(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $this->creditNoteOf($invoice, '30.00');
+
+        $found = $this->documents()->creditNotes($this->customerId, PHP_INT_MAX);
+
+        $this->assertSame([1, []], [$found['total'], $found['rows']]);
+    }
+
+    public function testPayments_AnswersAnEmptyPageForAPageNumberTooBigForAnOffset(): void
+    {
+        $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '10.00')]);
+
+        $found = $this->documents()->payments($this->customerId, PHP_INT_MAX);
+
+        $this->assertSame([1, []], [$found['total'], $found['rows']]);
+    }
+
+    public function testInvoices_ReadsTheFirstPageForAPageNumberBelowOne(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+
+        $this->assertSame([$invoice], array_column($this->documents()->invoices($this->customerId, -3)['rows'], 'sale_id'));
     }
 }

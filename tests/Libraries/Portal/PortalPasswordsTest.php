@@ -4,6 +4,7 @@ namespace Tests\Libraries\Portal;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Portal\PortalPasswords;
 use CodeIgniter\Test\CIUnitTestCase;
 
@@ -99,5 +100,27 @@ final class PortalPasswordsTest extends CIUnitTestCase
     {
         $this->assertSame(AccountingError::PortalPasswordInvalid, $this->refusalOf('Correct-Horse-9', 'ahmed', 'Correct-Horse-9'));
         $this->assertNull($this->refusalOf('Correct-Horse-8', 'ahmed', 'Correct-Horse-9'));
+    }
+
+    public function testCheck_SaysInItsMessageThatTheUpperLimitIsInBytesAndGivesBothLimits(): void
+    {
+        try {
+            PortalPasswords::check('short', 'ahmed', null);
+            $this->fail('No refusal');
+        } catch (AccountingException $failure) {
+            $message = AccountingMessage::of($failure);
+        }
+
+        $this->assertSame(lang('Accounting.error_portal_password_invalid', [(string) PortalPasswords::MAX_BYTES, (string) PortalPasswords::MIN_LENGTH]), $message);
+        $this->assertStringContainsString(PortalPasswords::MIN_LENGTH . ' characters', $message);
+        $this->assertStringContainsString(PortalPasswords::MAX_BYTES . ' bytes', $message);
+    }
+
+    public function testCheck_SaysInTheHintOfThePasswordFormThatTheUpperLimitIsInBytes(): void
+    {
+        $hint = lang('Portal.password_hint', [PortalPasswords::MIN_LENGTH, PortalPasswords::MAX_BYTES]);
+
+        $this->assertStringContainsString(PortalPasswords::MIN_LENGTH . ' characters', $hint);
+        $this->assertStringContainsString(PortalPasswords::MAX_BYTES . ' bytes', $hint);
     }
 }

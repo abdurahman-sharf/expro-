@@ -3,9 +3,14 @@
 namespace Tests\Controllers;
 
 use App\Controllers\Portal;
+use App\Libraries\Accounting\AgingBuckets;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Portal\PortalAccounts;
+use App\Libraries\Portal\PortalDocuments;
+use App\Libraries\Portal\PortalLogin;
 use App\Libraries\Portal\PortalLoginGuard;
+use App\Libraries\Portal\PortalLoginOutcome;
 use App\Libraries\Portal\PortalSession;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -14,6 +19,8 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
+use DOMDocument;
+use DOMXPath;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -158,31 +165,145 @@ final class PortalControllerTest extends CIUnitTestCase
         $this->assertSame($this->position()->open(), '420.0000');
     }
 
-    public function testGetStatement_TiesToTheLedgerOfTheCustomerForBalanceOpenAndCredit(): void
+    private function xpath(string $html): DOMXPath
     {
-        $first = $this->invoiceOf('100.00');
-        $this->creditNoteOf($first, '30.00');
-        $this->invoiceOf('40.00');
+        $document = new DOMDocument();
+        $document->loadHTML('<?xml encoding="utf-8"?>' . $html, LIBXML_NOERROR);
+
+        return new DOMXPath($document);
+    }
+
+    /**
+     * @return array<string, string> The text of each term of the summary of the statement and of the figure under it.
+     */
+    private function summaryOf(string $html): array
+    {
+        $summary = [];
+
+        foreach ($this->xpath($html)->query('//dl[@id="portal_summary"]/dt') as $term) {
+            $summary[trim($term->textContent)] = trim($term->nextElementSibling->textContent);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return list<list<string>> The cells of each row of the body of a table of the page.
+     */
+    private function rowsOf(string $html, string $tableId): array
+    {
+        $rows = [];
+
+        foreach ($this->xpath($html)->query('//table[@id="' . $tableId . '"]/tbody/tr') as $row) {
+            $cells = [];
+
+            foreach ($row->getElementsByTagName('td') as $cell) {
+                $cells[] = trim((string) preg_replace('/\s+/', ' ', $cell->textContent));
+            }
+
+            $rows[] = $cells;
+        }
+
+        return $rows;
+    }
+
+    private function overdueScenario(): int
+    {
+        $overdue = $this->invoiceDated('300.00', $this->daysAgo(45), 30);
+        $this->invoiceDated('120.00', $this->daysAgo(2), 30);
+        $this->invoiceOf('10.00', null, [$this->payment(lang('Sales.cash'), '60.00')]);
+
+        return $overdue;
+    }
+
+    private function creditScenario(): void
+    {
+        $this->invoiceOf('10.00', null, [$this->payment(lang('Sales.cash'), '60.00')]);
+    }
+
+    public function testGetStatement_ShowsEachFigureUnderItsOwnLabelAndTiesItToTheLedgerWhileInvoicesAreOpen(): void
+    {
+        $this->overdueScenario();
         $this->asCustomer();
 
         $position = $this->position();
-        $html     = $this->body('/portal/statement');
+        $summary  = $this->summaryOf($this->body('/portal/statement'));
 
-        $this->assertStringContainsString('<bdi dir="ltr">110.00 SAR</bdi>', $html);
-        $this->assertSame('110.0000', $position->accountBalance);
-        $this->assertStringContainsString(lang('Portal.balance'), $html);
+        $this->assertSame([
+            lang('Portal.balance')     => '370.00 SAR',
+            lang('Portal.open_amount') => '370.00 SAR',
+            lang('Portal.overdue')     => '250.00 SAR',
+            lang('Portal.credit')      => '0.00 SAR',
+        ], $summary);
+        $this->assertSame(['370.00', '370.00', '0.00'], [bcadd($position->accountBalance, '0', 2), bcadd($position->open(), '0', 2), bcadd($position->credit(), '0', 2)]);
+        $this->assertSame('250.00', bcadd($position->overdue(date('Y-m-d')), '0', 2));
     }
 
-    public function testGetStatement_ListsCreditTheCustomerHolds(): void
+    public function testGetStatement_ShowsEachFigureUnderItsOwnLabelAndTiesItToTheLedgerWhileCreditIsHeld(): void
     {
-        $invoice = $this->invoiceOf('100.00');
-        $this->creditNoteOf($invoice, '100.00');
-        $this->invoiceOf('10.00', null, [$this->payment(lang('Sales.cash'), '60.00')]);
+        $this->creditScenario();
         $this->asCustomer();
 
-        $html = $this->body('/portal/statement');
+        $position = $this->position();
+        $summary  = $this->summaryOf($this->body('/portal/statement'));
 
-        $this->assertStringContainsString('id="portal_credits"', $html);
+        $this->assertSame([
+            lang('Portal.balance')     => '-50.00 SAR',
+            lang('Portal.open_amount') => '0.00 SAR',
+            lang('Portal.overdue')     => '0.00 SAR',
+            lang('Portal.credit')      => '50.00 SAR',
+        ], $summary);
+        $this->assertSame(['-50.00', '0.00', '50.00'], [bcadd($position->accountBalance, '0', 2), bcadd($position->open(), '0', 2), bcadd($position->credit(), '0', 2)]);
+    }
+
+    public function testGetStatement_ShowsEachAgingFigureUnderItsOwnHeading(): void
+    {
+        $this->overdueScenario();
+        $this->asCustomer();
+
+        $xpath    = $this->xpath($this->body('/portal/statement'));
+        $headings = [];
+        $cells    = [];
+
+        foreach ($xpath->query('//table[@id="portal_aging"]/thead/tr/th') as $heading) {
+            $headings[] = trim($heading->textContent);
+        }
+
+        foreach ($xpath->query('//table[@id="portal_aging"]/tbody/tr/td') as $cell) {
+            $cells[] = trim($cell->textContent);
+        }
+
+        $ledger   = $this->position()->aging(date('Y-m-d'));
+        $expected = [];
+
+        foreach (AgingBuckets::KEYS as $bucket) {
+            $expected[lang('Accounting_receivables.' . AgingBuckets::LANGUAGE_KEYS[$bucket])] = bcadd($ledger[$bucket], '0', 2) . ' SAR';
+        }
+
+        $this->assertSame($expected, array_combine($headings, $cells));
+        $this->assertSame('250.00 SAR', $expected[lang('Accounting_receivables.age_31_60')]);
+        $this->assertSame('120.00 SAR', $expected[lang('Accounting_receivables.age_1_30')]);
+    }
+
+    public function testGetStatement_ListsEachOpenInvoiceWithItsDueDateAndItsFiguresInTheirColumns(): void
+    {
+        $invoice = $this->invoiceDated('300.00', $this->daysAgo(45), 30, null, [$this->payment(lang('Sales.cash'), '100.00')]);
+        $this->asCustomer();
+
+        $rows = $this->rowsOf($this->body('/portal/statement'), 'portal_open_invoices');
+
+        $this->assertSame([['POS ' . $invoice, to_date(strtotime($this->daysAgo(45))), to_date(strtotime($this->daysAgo(45) . ' +30 days')), '300.00 SAR', '100.00 SAR', '200.00 SAR', '15']], $rows);
+    }
+
+    public function testGetStatement_ListsEachCreditTheCustomerHoldsWithItsKindAndAmount(): void
+    {
+        $this->creditScenario();
+        $this->asCustomer();
+
+        $rows = $this->rowsOf($this->body('/portal/statement'), 'portal_credits');
+
+        $this->assertCount(1, $rows);
+        $this->assertSame([lang('Portal.credit_excess'), '50.00 SAR'], [$rows[0][0], $rows[0][2]]);
     }
 
     public function testGetStatement_SaysItIsNotAvailableWhileAccountingIsOff(): void
@@ -288,23 +409,81 @@ final class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Portal.no_rows'), $this->body('/portal/payments'));
     }
 
-    #[DataProvider('provideGetPage_TreatsABadPageNumberAsTheFirstPage')]
-    public function testGetPage_TreatsABadPageNumberAsTheFirstPage(string $page): void
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function provideBadPageNumbers(): iterable
     {
-        $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '10.00')]);
+        return ['zero' => ['0'], 'negative' => ['-4'], 'letters' => ['abc'], 'empty' => [''], 'fraction' => ['1.9']];
+    }
+
+    #[DataProvider('provideBadPageNumbers')]
+    public function testGetInvoices_TreatsABadPageNumberAsTheFirstPage(string $page): void
+    {
+        for ($index = 0; $index < 26; $index++) {
+            $this->invoiceOf('1.00');
+        }
+
         $this->asCustomer();
 
-        foreach (['0', '-4', 'abc', '1'] as $number) {
-            $this->get('/portal/' . $page . '?page=' . $number)->assertStatus(200);
-        }
+        $html = $this->body('/portal/invoices?page=' . $page);
+
+        $this->assertSame(25, substr_count($html, 'portal/invoice/'));
+        $this->assertStringContainsString(lang('Portal.page_of', [1, 2]), $html);
     }
 
     /**
      * @return array<string, array{0: string}>
      */
-    public static function provideGetPage_TreatsABadPageNumberAsTheFirstPage(): iterable
+    public static function provideListPaths(): iterable
     {
-        return ['statement' => ['statement'], 'invoices' => ['invoices'], 'credit notes' => ['credit_notes'], 'payments' => ['payments']];
+        return ['invoices' => ['invoices'], 'credit notes' => ['credit_notes'], 'payments' => ['payments']];
+    }
+
+    #[DataProvider('provideListPaths')]
+    public function testGetPage_AnswersAnEmptyPageForAPageNumberTooBigForAnInteger(string $path): void
+    {
+        $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '10.00')]);
+        $this->creditNoteOf($invoice, '20.00');
+        $this->asCustomer();
+
+        $response = $this->get('/portal/' . $path . '?page=99999999999999999999');
+
+        $this->assertSame(200, $response->response()->getStatusCode());
+        $this->assertStringContainsString(lang('Portal.no_rows'), $response->getBody());
+    }
+
+    public function testGetInvoices_ShowsTheLargestPageThatCanBeAskedForAPageNumberBeyondIt(): void
+    {
+        for ($index = 0; $index < 26; $index++) {
+            $this->invoiceOf('1.00');
+        }
+
+        $this->asCustomer();
+
+        $html = $this->body('/portal/invoices?page=99999999999999999999');
+
+        $this->assertStringContainsString(lang('Portal.page_of', [PortalDocuments::MAX_PAGE, 2]), $html);
+        $this->assertStringContainsString('page=' . (PortalDocuments::MAX_PAGE - 1), $html);
+    }
+
+    public function testGetInvoices_ShowsTheBaseTotalBesideTheRemainingAmountOfAnInvoiceInDollars(): void
+    {
+        $currencies = new Currencies();
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => $this->daysAgo(30)]);
+        $this->sales->useCurrency('USD');
+        $invoice = $this->invoiceOf('100.00');
+        $this->asCustomer();
+
+        $list = $this->rowsOf($this->body('/portal/invoices'), 'portal_invoices');
+        $page = $this->body('/portal/invoice/' . $invoice);
+
+        $this->assertStringContainsString('100.00 USD', $list[0][3]);
+        $this->assertStringContainsString(lang('Portal.total_base') . ': 375.00 SAR', $list[0][3]);
+        $this->assertSame('375.00 SAR', $list[0][4]);
+        $this->assertStringContainsString('doc-base-total', $page);
+        $this->assertStringContainsString('375.00 SAR', $page);
     }
 
     public function testGetInvoices_PagesTwentyFiveToAPageAndSaysWhichPageItIs(): void
@@ -800,6 +979,25 @@ final class PortalControllerTest extends CIUnitTestCase
         $this->assertSame([422, 422, 422], [$mismatch->response()->getStatusCode(), $wrong->response()->getStatusCode(), $weak->response()->getStatusCode()]);
         $this->assertStringContainsString(lang('Portal.password_mismatch'), $mismatch->getBody());
         $this->assertSame($hash, (new PortalAccounts())->find($this->account['account_id'])->password_hash);
+    }
+
+    public function testPostPassword_LocksAfterFiveWrongCurrentPasswordsAndRefusesTheRightOneWithTooManyAttempts(): void
+    {
+        $this->asCustomer();
+        $hash = (new PortalAccounts())->find($this->account['account_id'])->password_hash;
+
+        for ($index = 0; $index < PortalLoginGuard::USER_THRESHOLD; $index++) {
+            $wrong = $this->post('/portal/password', $this->withToken(['current_password' => 'guess ' . $index, 'new_password' => self::NEW_PASSWORD, 'confirm_password' => self::NEW_PASSWORD]));
+            $this->assertSame(422, $wrong->response()->getStatusCode());
+        }
+
+        $locked = $this->post('/portal/password', $this->withToken(['current_password' => self::PORTAL_PASSWORD, 'new_password' => self::NEW_PASSWORD, 'confirm_password' => self::NEW_PASSWORD]));
+
+        $this->assertSame(429, $locked->response()->getStatusCode());
+        $this->assertStringContainsString(lang('Accounting.error_portal_locked'), $locked->getBody());
+        $this->assertSame($hash, (new PortalAccounts())->find($this->account['account_id'])->password_hash);
+        $this->assertSame(PortalLoginOutcome::Locked, (new PortalLogin())->attempt('omar', self::PORTAL_PASSWORD, '10.1.1.1')->outcome);
+        $this->assertCount(PortalLoginGuard::USER_THRESHOLD, $this->portalAudit('portal_password_change_failed'));
     }
 
     public function testPostPassword_RefusesAPostWithoutTheToken(): void

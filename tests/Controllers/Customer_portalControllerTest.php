@@ -60,11 +60,11 @@ final class Customer_portalControllerTest extends CIUnitTestCase
     }
 
     /**
-     * @param array<string, string> $form
+     * @param array<string, mixed> $form
      *
      * @return array<string, mixed>
      */
-    private function post_(string $path, array $form = []): array
+    private function postTo(string $path, array $form = []): array
     {
         return json_decode($this->post('/customer_portal/' . $path, $form)->getJSON(), true);
     }
@@ -112,11 +112,22 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->actAs($this->portalManager());
         $other = $this->insertCustomer('Hind', 'Saad');
 
-        $this->assertFalse($this->post_('create/' . $this->customer, ['username' => 'a b'])['success']);
-        $this->assertTrue($this->post_('create/' . $this->customer, ['username' => 'ahmed'])['success']);
-        $this->assertFalse($this->post_('create/' . $this->customer, ['username' => 'another'])['success']);
-        $this->assertFalse($this->post_('create/' . $other, ['username' => 'AHMED'])['success']);
+        $this->assertFalse($this->postTo('create/' . $this->customer, ['username' => 'a b'])['success']);
+        $this->assertTrue($this->postTo('create/' . $this->customer, ['username' => 'ahmed'])['success']);
+        $this->assertFalse($this->postTo('create/' . $this->customer, ['username' => 'another'])['success']);
+        $this->assertFalse($this->postTo('create/' . $other, ['username' => 'AHMED'])['success']);
         $this->assertSame(1, $this->countRows('portal_accounts'));
+    }
+
+    public function testPostCreate_RefusesAUserNameThatIsNotTextWithAnAnswerAndMakesNothing(): void
+    {
+        $this->actAs($this->portalManager());
+
+        $answer = $this->postTo('create/' . $this->customer, ['username' => ['ahmed']]);
+
+        $this->assertFalse($answer['success']);
+        $this->assertStringContainsString(lang('Accounting.error_portal_username_invalid'), $answer['message']);
+        $this->assertSame(0, $this->countRows('portal_accounts'));
     }
 
     public function testPostCreate_IsRefusedForACustomerThatWasDeleted(): void
@@ -124,7 +135,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->actAs($this->portalManager());
         $this->accountingDb()->table('customers')->where('person_id', $this->customer)->update(['deleted' => 1]);
 
-        $this->assertFalse($this->post_('create/' . $this->customer, ['username' => 'ahmed'])['success']);
+        $this->assertFalse($this->postTo('create/' . $this->customer, ['username' => 'ahmed'])['success']);
         $this->assertSame(0, $this->countRows('portal_accounts'));
     }
 
@@ -134,7 +145,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $account = $this->portalAccountOf($this->customer);
         $this->actAs($manager);
 
-        $answer = $this->post_('reset/' . $account['account_id']);
+        $answer = $this->postTo('reset/' . $account['account_id']);
 
         $this->assertTrue($answer['success']);
         $this->assertSame([null, 'wrong_password'], (new PortalAccounts())->check('ahmed', self::PORTAL_PASSWORD));
@@ -157,7 +168,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
     {
         $this->actAs($this->portalManager());
 
-        $this->assertFalse($this->post_('reset/987654')['success']);
+        $this->assertFalse($this->postTo('reset/987654')['success']);
     }
 
     public function testPostStatus_DisablesAndEnablesTheAccount(): void
@@ -165,10 +176,10 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $account = $this->portalAccountOf($this->customer);
         $this->actAs($this->portalManager());
 
-        $this->assertTrue($this->post_('status/' . $account['account_id'], ['active' => '0'])['success']);
+        $this->assertTrue($this->postTo('status/' . $account['account_id'], ['active' => '0'])['success']);
         $this->assertSame('disabled', (new PortalAccounts())->find($account['account_id'])->status);
 
-        $this->assertTrue($this->post_('status/' . $account['account_id'], ['active' => '1'])['success']);
+        $this->assertTrue($this->postTo('status/' . $account['account_id'], ['active' => '1'])['success']);
         $this->assertSame('active', (new PortalAccounts())->find($account['account_id'])->status);
     }
 
@@ -185,10 +196,10 @@ final class Customer_portalControllerTest extends CIUnitTestCase
     {
         $this->actAs($this->portalManager());
 
-        $this->assertTrue($this->post_('enabled', ['enabled' => '1'])['success']);
+        $this->assertTrue($this->postTo('enabled', ['enabled' => '1'])['success']);
         $this->assertSame('1', $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->get()->getRow()->value);
 
-        $this->assertTrue($this->post_('enabled', ['enabled' => '0'])['success']);
+        $this->assertTrue($this->postTo('enabled', ['enabled' => '0'])['success']);
         $this->assertSame('0', $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->get()->getRow()->value);
     }
 
@@ -205,7 +216,7 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         $this->actAs($this->portalManager());
         $this->switchPortal(true);
 
-        $this->post_('enabled', ['enabled' => 'true']);
+        $this->postTo('enabled', ['enabled' => 'true']);
 
         $this->assertSame('0', $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->get()->getRow()->value);
     }
@@ -223,10 +234,10 @@ final class Customer_portalControllerTest extends CIUnitTestCase
         });
         $this->actAs($manager);
 
-        $made = $this->post_('create/' . $this->customer, ['username' => 'ahmed']);
-        $this->post_('reset/' . $made['account_id']);
-        $this->post_('status/' . $made['account_id'], ['active' => '0']);
-        $this->post_('enabled', ['enabled' => '1']);
+        $made = $this->postTo('create/' . $this->customer, ['username' => 'ahmed']);
+        $this->postTo('reset/' . $made['account_id']);
+        $this->postTo('status/' . $made['account_id'], ['active' => '0']);
+        $this->postTo('enabled', ['enabled' => '1']);
 
         $this->assertSame($before, $checksum());
         $this->assertSame(0, $sent);
@@ -236,11 +247,11 @@ final class Customer_portalControllerTest extends CIUnitTestCase
     {
         $this->actAs($this->portalManager());
 
-        $made  = $this->post_('create/' . $this->customer, ['username' => 'ahmed']);
-        $reset = $this->post_('reset/' . $made['account_id']);
-        $this->post_('status/' . $made['account_id'], ['active' => '0']);
-        $this->post_('status/' . $made['account_id'], ['active' => '1']);
-        $this->post_('enabled', ['enabled' => '1']);
+        $made  = $this->postTo('create/' . $this->customer, ['username' => 'ahmed']);
+        $reset = $this->postTo('reset/' . $made['account_id']);
+        $this->postTo('status/' . $made['account_id'], ['active' => '0']);
+        $this->postTo('status/' . $made['account_id'], ['active' => '1']);
+        $this->postTo('enabled', ['enabled' => '1']);
 
         $log = json_encode($this->accountingDb()->table('accounting_audit_log')->get()->getResultArray());
 

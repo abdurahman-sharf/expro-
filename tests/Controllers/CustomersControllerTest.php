@@ -1831,7 +1831,7 @@ class CustomersControllerTest extends CIUnitTestCase
         $result = $this->saveWithContacts([$this->contactRow(), $this->contactRow(['email' => 'not an address'])]);
 
         $this->assertFalse($result['success']);
-        $this->assertStringContainsString('2', $result['message']);
+        $this->assertSame(lang('Accounting.error_contact_email_invalid', ['2']), $result['message']);
         $this->assertSame($before, $this->accountingDb()->table('customers')->countAllResults());
         $this->assertSame(0, $this->accountingDb()->table('party_contacts')->countAllResults());
     }
@@ -1864,7 +1864,8 @@ class CustomersControllerTest extends CIUnitTestCase
         $result = $this->saveWithContacts([$this->contactRow(['note' => str_repeat('n', 501)])]);
 
         $this->assertFalse($result['success']);
-        $this->assertStringContainsString('500', $result['message']);
+        $this->assertSame(lang('Accounting.error_contact_field_too_long', ['1', '500', lang('Customers.contact_note')]), $result['message']);
+        $this->assertStringContainsString(lang('Customers.contact_note'), $result['message']);
     }
 
     public function testPostSave_ChangesNoJournalAndNoBalanceWhenContactsAreSaved(): void

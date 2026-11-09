@@ -143,6 +143,45 @@ final class PartyContactsTest extends CIUnitTestCase
         return ['letters' => ['call me'], 'a script' => ['<b>1</b>'], 'a semicolon' => ['123;456']];
     }
 
+    #[DataProvider('provideValidate_TurnsArabicIndicAndPersianDigitsOfANumberIntoTheDigitsOfTheBooks')]
+    public function testValidate_TurnsArabicIndicAndPersianDigitsOfANumberIntoTheDigitsOfTheBooks(string $typed, string $stored): void
+    {
+        $valid = $this->contacts()->validate([$this->row(['phone' => $typed, 'mobile' => $typed])]);
+
+        $this->assertSame([$stored, $stored], [$valid[0]['phone'], $valid[0]['mobile']]);
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function provideValidate_TurnsArabicIndicAndPersianDigitsOfANumberIntoTheDigitsOfTheBooks(): iterable
+    {
+        return [
+            'Arabic-Indic digits'           => ['٠١٢٣٤٥٦٧٨٩', '0123456789'],
+            'Persian digits'                => ['۰۱۲۳۴۵۶۷۸۹', '0123456789'],
+            'separators between the digits' => ['+٩٦٦ ٥٠ (١٢٣)-٤٥٦٧', '+966 50 (123)-4567'],
+            'both kinds and Latin digits'   => ['٠۱2', '012'],
+        ];
+    }
+
+    public function testValidate_RefusesALetterAmongArabicIndicDigitsAndLeavesTheOtherFieldsAsTyped(): void
+    {
+        $this->assertSame(AccountingError::ContactPhoneInvalid, $this->refusalOf(fn () => $this->contacts()->validate([$this->row(['phone' => '٠١٢ab'])])));
+
+        $valid = $this->contacts()->validate([$this->row(['position' => 'الطابق ٣', 'note' => 'غرفة ٤٢'])]);
+
+        $this->assertSame(['الطابق ٣', 'غرفة ٤٢'], [$valid[0]['position'], $valid[0]['note']]);
+    }
+
+    public function testReplace_StoresTheDigitsOfAPhoneTypedInArabicIndicDigitsAsLatinDigits(): void
+    {
+        $customerId = $this->insertCustomer();
+
+        $this->contacts()->replace(PartyContacts::CUSTOMER, $customerId, [$this->row(['phone' => '٠١١ ١٢٣', 'mobile' => '۰۵۰'])], 1);
+
+        $this->assertSame(['011 123', '050'], [$this->stored($customerId)[0]['phone'], $this->stored($customerId)[0]['mobile']]);
+    }
+
     #[DataProvider('provideValidate_AcceptsTheLongestValueOfAFieldAndRejectsOneCharacterMore')]
     public function testValidate_AcceptsTheLongestValueOfAFieldAndRejectsOneCharacterMore(string $field, int $max): void
     {

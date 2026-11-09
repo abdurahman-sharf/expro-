@@ -185,21 +185,31 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->get('/portal/login')->assertStatus(200);
     }
 
-    public function testBefore_AppliesToTheMethodsThatAreReachedByTheirOwnNameWhateverTheCaseOfThePath(): void
+    #[DataProvider('provideUnroutedPaths')]
+    public function testBefore_IsNeverMetByAPathTheRouterRefusesWhateverItsSpellingBecauseNoControllerIsReachedByIt(string $path): void
     {
         $this->withSession([]);
 
-        foreach (['/portal/getStatement', '/Portal/getStatement', '/PORTAL/getInvoices', '/portal/postLogout'] as $path) {
-            try {
-                $response = $this->get($path);
-            } catch (PageNotFoundException) {
-                continue;
-            }
+        $this->expectException(PageNotFoundException::class);
 
-            $this->assertStringContainsString('portal/login', (string) $response->getRedirectUrl(), $path);
-        }
+        $this->get($path);
+    }
 
-        $this->addToAssertionCount(1);
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function provideUnroutedPaths(): iterable
+    {
+        return [
+            'a method by its own name'             => ['/portal/getStatement'],
+            'a method by its own name in capitals' => ['/PORTAL/getInvoices'],
+            'a post method by its own name'        => ['/portal/postLogout'],
+            'the controller in capitals'           => ['/PORTAL/statement'],
+            'the controller with a capital'        => ['/Portal/statement'],
+            'the method in capitals'               => ['/portal/STATEMENT'],
+            'a document with a capital'            => ['/Portal/invoice/1'],
+            'a list with a capital'                => ['/portal/Invoices'],
+        ];
     }
 
     public function testBefore_LetsASignedInCustomerThrough(): void
