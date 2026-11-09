@@ -3158,13 +3158,13 @@
   ]
  },
  {
-  "name": "GZ62 markup is escaped in the units the form of an asset carries in its script",
+  "name": "GZ62 the units the form of an asset carries in its script cannot open a script inside it",
   "file": "app/Views/accounting_assets/form.php",
   "find": "JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;",
   "replace": "JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;",
   "tests": [
    "--filter",
-   "Escapes",
+   "KeepsTheUnitsOfTheAssetFromOpeningAScriptInsideTheScript",
    "tests/Controllers/AccountingAssetsControllerTest.php"
   ]
  },

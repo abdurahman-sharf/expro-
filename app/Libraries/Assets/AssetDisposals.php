@@ -271,12 +271,11 @@ final class AssetDisposals
                 $cost        = bcadd((string) $asset->cost, '0', self::SCALE);
                 $accumulated = $this->figures->accumulated($asset, null, true);
                 $book        = bcsub($cost, $accumulated, self::SCALE);
+                $difference  = $sale ? bcsub($money, $book, self::SCALE) : bcsub('0', $book, self::SCALE);
 
                 if ($asset->funding === 'none') {
                     $this->assertBooksHold($asset, $cost, $accumulated, $date);
                 }
-
-                $difference  = $sale ? bcsub($money, $book, self::SCALE) : bcsub('0', $book, self::SCALE);
 
                 $this->db->table('asset_operations')->insert([
                     'company_id'          => CompanyContext::id(),

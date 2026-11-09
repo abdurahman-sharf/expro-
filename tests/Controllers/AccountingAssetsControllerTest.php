@@ -931,15 +931,15 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testGetForm_KeepsTheUnitsOfTheAssetFromClosingTheScriptThatCarriesThem(): void
+    public function testGetForm_KeepsTheUnitsOfTheAssetFromOpeningAScriptInsideTheScriptThatCarriesThem(): void
     {
-        $assetId = $this->enterAsset(['track_units' => '1', 'quantity' => '1', 'units' => [['serial_number' => '</script><b id="broken">']]]);
+        $assetId = $this->enterAsset(['track_units' => '1', 'quantity' => '1', 'units' => [['serial_number' => '<!--<script>']]]);
         $this->manager();
 
         $body = (string) $this->get('/accounting_assets/form/' . $assetId)->response()->getBody();
 
-        $this->assertStringNotContainsString('</script><b id="broken">', $body);
-        $this->assertStringContainsString('\\u003C\\/script\\u003E', $body);
+        $this->assertStringNotContainsString('<!--<script>', $body, 'it would put the parser in a state where the script is never closed');
+        $this->assertStringContainsString('\\u003C!--\\u003Cscript\\u003E', $body);
     }
 
     public function testGetCategories_EscapesMarkupInTheNameOfACategory(): void
