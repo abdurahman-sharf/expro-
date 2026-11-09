@@ -9,6 +9,7 @@ use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -266,6 +267,30 @@ final class RecurringEntryProposerTest extends CIUnitTestCase
 
         $this->assertCount(1, $this->proposer->propose($this->today, null));
         $this->assertSame([], (new RecurringEntryProposer(null, null, 2))->propose($this->today, null));
+    }
+
+    public function testPropose_ReadsOnlyTheRowsFromTheFirstDayOfTheFirstMonthOfTheWindow(): void
+    {
+        $reads    = [];
+        $listener = static function ($query) use (&$reads): void {
+            $sql = (string) $query->getQuery();
+
+            if (str_contains($sql, 'accounting_journal_lines') && str_contains($sql, 'journal_date')) {
+                $reads[] = $sql;
+            }
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $this->proposer->propose($this->today, null);
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        $this->assertCount(1, $reads);
+        $this->assertStringContainsString(">= '2026-08-01'", $reads[0]);
+        $this->assertStringContainsString("<= '2026-11-25'", $reads[0]);
     }
 
     public function testPropose_NeverTakesTheCurrentMonthForAbsentBecauseTheCapLeftItsRowsOut(): void
