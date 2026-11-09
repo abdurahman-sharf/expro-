@@ -49,6 +49,8 @@ class Api_keys extends IntegrationController
                 'expires_on' => $this->postedText('expires_on'),
             ], $this->employeeId());
 
+            $this->response->setHeader('Cache-Control', 'no-store');
+
             return ['success' => true, 'message' => lang('Integrations.key_created'), 'id' => $made['key']->id, 'secret' => $made['secret'], 'prefix' => $made['key']->prefix];
         });
     }

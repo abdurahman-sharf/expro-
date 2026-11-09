@@ -153,7 +153,8 @@ class Resources extends BaseController
             'tax'           => $document->tax,
             'total'         => $document->total,
             'due_date'      => $document->figures?->dueDate,
-            'paid'          => $document->figures?->settled(),
+            'paid'          => $document->figures?->paid,
+            'credited'      => $document->figures?->applied,
             'open'          => $document->figures?->open(),
             'overdue_days'  => $document->figures?->daysOverdue($today),
         ];
@@ -197,7 +198,7 @@ class Resources extends BaseController
             return $this->invalid('from');
         }
 
-        if ((new DateTimeImmutable($from))->diff(new DateTimeImmutable($to))->days > self::MAX_DAYS) {
+        if ((new DateTimeImmutable($from))->diff(new DateTimeImmutable($to))->days >= self::MAX_DAYS) {
             return $this->refuse(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY, 'range_too_long', 'A call reads at most ' . self::MAX_DAYS . ' days.');
         }
 
