@@ -7,6 +7,7 @@ use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\MasterData\PartyContacts;
 use App\Libraries\MasterData\CustomerStatus;
 use App\Libraries\MasterData\CustomerType;
 use App\Libraries\MasterData\LookupKind;
@@ -16,6 +17,7 @@ use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Models\Price_list;
 use App\Models\Sale;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -66,6 +68,8 @@ class CustomersControllerTest extends CIUnitTestCase
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
+        $db->query('DELETE FROM ' . $db->prefixTable('party_contacts'));
+        $db->table('accounting_audit_log')->whereIn('action', ['party_contacts_changed', 'party_contacts_hidden'])->delete();
 
         $this->setConfigValue('accounting_enabled', '0');
         $this->setConfigValue('accounting_customer_opening', '0');
@@ -1720,7 +1724,8 @@ class CustomersControllerTest extends CIUnitTestCase
         $header   = str_getcsv(strtok($template, "\n") ?: '');
 
         $this->assertSame(self::IMPORT_BASE_HEADERS[0], $header[0]);
-        $this->assertSame(['Classification', 'Status', 'Assigned Employee', 'Area', 'Country Code', 'Type', 'Government Entity', 'Billing Method'], array_slice($header, 18));
+        $this->assertSame(['Classification', 'Status', 'Assigned Employee', 'Area', 'Country Code', 'Type', 'Government Entity', 'Billing Method'], array_slice($header, 18, 8));
+        $this->assertSame(['Contact First Name', 'Contact Last Name', 'Contact Email', 'Contact Phone', 'Contact Mobile'], array_slice($header, 26));
         $this->assertSame(['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone Number', 'Address 1', 'Address2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount_Type', 'Taxable'], array_slice($header, 0, 18));
     }
 
@@ -1745,5 +1750,219 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertTrue($this->save(['city' => $long, 'comments' => 'edited'], (int) $created['id'])['success']);
         $this->assertFalse($this->save(['city' => $long . 'x'], (int) $created['id'])['success']);
         $this->assertSame($long, $this->accountingDb()->table('people')->where('person_id', $created['id'])->get()->getRow()->city);
+    }
+
+    // ========== The contact list of a customer ==========
+
+    /**
+     * @param array<string, string> $more
+     *
+     * @return array<string, string>
+     */
+    private function contactRow(array $more = []): array
+    {
+        return $more + ['contact_id' => '', 'first_name' => 'Sara', 'last_name' => 'Nasser', 'email' => 'sara@example.com', 'phone' => '011 123 4567', 'mobile' => '+966 50 123 4567', 'position' => 'Buyer', 'note' => ''];
+    }
+
+    /**
+     * @param list<array<string, string>> $rows
+     *
+     * @return array<string, mixed>
+     */
+    private function saveWithContacts(array $rows, int $customerId = NEW_ENTRY): array
+    {
+        return $this->save([PartyContacts::MARKER => '1', PartyContacts::FIELD => $rows], $customerId);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function contactsOf(int $customerId, bool $withHidden = false): array
+    {
+        $builder = $this->accountingDb()->table('party_contacts')->where(['party_kind' => 'customer', 'party_id' => $customerId])->orderBy('contact_id', 'ASC');
+
+        if (! $withHidden) {
+            $builder->where('deleted', 0);
+        }
+
+        return $builder->get()->getResultArray();
+    }
+
+    public function testPostSave_StoresTheContactRowsOfACustomerInTheOrderOfTheForm(): void
+    {
+        $result = $this->saveWithContacts([$this->contactRow(['first_name' => 'First']), $this->contactRow(['first_name' => 'Second', 'email' => 'SECOND@Example.com'])]);
+
+        $this->assertTrue($result['success']);
+        $contacts = $this->contactsOf((int) $result['id']);
+        $this->assertSame(['First', 'Second'], array_column($contacts, 'first_name'));
+        $this->assertSame('second@example.com', $contacts[1]['email']);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer', 'entity_id' => $result['id'], 'action' => 'party_contacts_changed'])->countAllResults());
+    }
+
+    public function testPostSave_LeavesTheContactsAloneWhenTheFormDoesNotCarryThePanel(): void
+    {
+        $created = $this->saveWithContacts([$this->contactRow()]);
+
+        $this->assertTrue($this->save(['comments' => 'edited by an older form'], (int) $created['id'])['success']);
+
+        $this->assertCount(1, $this->contactsOf((int) $created['id']));
+    }
+
+    public function testPostSave_HidesTheContactTheFormNoLongerListsAndKeepsItsRow(): void
+    {
+        $created = $this->saveWithContacts([$this->contactRow(['first_name' => 'Keep']), $this->contactRow(['first_name' => 'Drop'])]);
+        $id      = (int) $created['id'];
+        $keep    = $this->contactsOf($id)[0]['contact_id'];
+
+        $this->assertTrue($this->saveWithContacts([$this->contactRow(['contact_id' => (string) $keep, 'first_name' => 'Kept'])], $id)['success']);
+
+        $this->assertSame(['Kept'], array_column($this->contactsOf($id), 'first_name'));
+        $this->assertCount(2, $this->contactsOf($id, true));
+    }
+
+    public function testPostSave_RejectsAnInvalidContactEmailAndSavesNeitherTheCustomerNorTheContacts(): void
+    {
+        $before = $this->accountingDb()->table('customers')->countAllResults();
+
+        $result = $this->saveWithContacts([$this->contactRow(), $this->contactRow(['email' => 'not an address'])]);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('2', $result['message']);
+        $this->assertSame($before, $this->accountingDb()->table('customers')->countAllResults());
+        $this->assertSame(0, $this->accountingDb()->table('party_contacts')->countAllResults());
+    }
+
+    public function testPostSave_RejectsAContactWithoutAFirstNameAndKeepsTheCustomerAsItWas(): void
+    {
+        $created = $this->save(['comments' => 'before']);
+
+        $result = $this->save([PartyContacts::MARKER => '1', PartyContacts::FIELD => [$this->contactRow(['first_name' => ''])], 'comments' => 'after'], (int) $created['id']);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('before', $this->accountingDb()->table('people')->where('person_id', $created['id'])->get()->getRow()->comments);
+    }
+
+    public function testPostSave_RejectsAContactNumberThatBelongsToAnotherCustomer(): void
+    {
+        $first  = $this->saveWithContacts([$this->contactRow(['first_name' => 'Of the first'])]);
+        $second = $this->save();
+        $foreign = $this->contactsOf((int) $first['id'])[0]['contact_id'];
+
+        $result = $this->saveWithContacts([$this->contactRow(['contact_id' => (string) $foreign, 'first_name' => 'Hijacked'])], (int) $second['id']);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(['Of the first'], array_column($this->contactsOf((int) $first['id']), 'first_name'));
+        $this->assertSame([], $this->contactsOf((int) $second['id']));
+    }
+
+    public function testPostSave_RejectsAContactFieldOverItsLimitAndNamesTheField(): void
+    {
+        $result = $this->saveWithContacts([$this->contactRow(['note' => str_repeat('n', 501)])]);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('500', $result['message']);
+    }
+
+    public function testPostSave_ChangesNoJournalAndNoBalanceWhenContactsAreSaved(): void
+    {
+        $created = $this->save();
+        $db      = $this->accountingDb();
+        $tables  = array_map(static fn (string $table): string => $db->prefixTable($table), ['accounting_journals', 'accounting_journal_lines', 'accounting_accounts', 'sales', 'sales_payments']);
+        $sum     = static fn (): array => array_column($db->query('CHECKSUM TABLE `' . implode('`, `', $tables) . '`')->getResultArray(), 'Checksum', 'Table');
+        $before  = $sum();
+
+        $this->assertTrue($this->saveWithContacts([$this->contactRow()], (int) $created['id'])['success']);
+
+        $this->assertSame($before, $sum());
+    }
+
+    public function testPostDelete_HidesTheContactsWithTheCustomerAndKeepsTheirRows(): void
+    {
+        $created = $this->saveWithContacts([$this->contactRow(['first_name' => 'One']), $this->contactRow(['first_name' => 'Two'])]);
+        $id      = (int) $created['id'];
+
+        $deleted = json_decode($this->post('/customers/delete', ['ids' => [(string) $id]])->getJSON(), true);
+
+        $this->assertTrue($deleted['success']);
+        $this->assertSame([], $this->contactsOf($id));
+        $this->assertSame(['One', 'Two'], array_column($this->contactsOf($id, true), 'first_name'));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer', 'entity_id' => $id, 'action' => 'party_contacts_hidden'])->countAllResults());
+    }
+
+    public function testPostDelete_LeavesTheContactsOfAnotherCustomerAlone(): void
+    {
+        $gone = $this->saveWithContacts([$this->contactRow()]);
+        $kept = $this->saveWithContacts([$this->contactRow(['first_name' => 'Safe'])]);
+
+        $this->post('/customers/delete', ['ids' => [(string) $gone['id']]]);
+
+        $this->assertSame(['Safe'], array_column($this->contactsOf((int) $kept['id']), 'first_name'));
+    }
+
+    public function testGetView_ShowsTheContactPanelWithTheValuesEscaped(): void
+    {
+        $created = $this->saveWithContacts([$this->contactRow(['first_name' => '<script>alert(1)</script>', 'note' => '"><img src=x>'])]);
+
+        $html = $this->get('/customers/view/' . $created['id'])->getBody();
+
+        $this->assertStringContainsString('id="contacts_panel"', $html);
+        $this->assertStringContainsString('name="contacts_present"', $html);
+        $this->assertStringContainsString('value="&lt;script&gt;alert(1)&lt;/script&gt;"', $html);
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
+        $this->assertStringNotContainsString('"><img src=x>', $html);
+    }
+
+    public function testGetView_OffersTheContactPanelWithNoRowsForANewCustomer(): void
+    {
+        $html = $this->get('/customers/view/' . NEW_ENTRY)->getBody();
+
+        $this->assertStringContainsString('id="contacts_panel"', $html);
+        $this->assertStringNotContainsString('class="contact-row"', str_replace('<template id="contact_template">', '', explode('<template id="contact_template">', $html)[0]));
+    }
+
+    public function testGetContacts_ListsTheContactsOfACustomer(): void
+    {
+        $created = $this->saveWithContacts([$this->contactRow(['first_name' => 'Listed'])]);
+
+        $list = json_decode($this->get('/customers/contacts/' . $created['id'])->getJSON(), true);
+
+        $this->assertSame(['Listed'], array_column($list['contacts'], 'first_name'));
+    }
+
+    public function testGetContacts_ReturnsNotFoundForAnUnknownCustomer(): void
+    {
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/customers/contacts/987654');
+    }
+
+    public function testPostImportCsvFile_ImportsTheContactOfARowAfterTheMasterDataColumns(): void
+    {
+        $imported = $this->importWithExtraCells([['', '', '', '', '', '', '', '', 'Sara', 'Nasser', 'Sara@Example.com', '011 123 4567', '0500000000']]);
+        $row      = $this->customerByEmail($imported['emails'][0]);
+
+        $this->assertTrue($imported['result']['success']);
+        $contacts = $this->contactsOf((int) $row['person_id']);
+        $this->assertSame(['Sara', 'Nasser', 'sara@example.com', '011 123 4567', '0500000000'], [$contacts[0]['first_name'], $contacts[0]['last_name'], $contacts[0]['email'], $contacts[0]['phone'], $contacts[0]['mobile']]);
+    }
+
+    public function testPostImportCsvFile_ImportsARowWithoutContactColumnsWithNoContact(): void
+    {
+        $imported = $this->importWithExtraCells([['', '', '', '', '', '', '', '']]);
+
+        $this->assertTrue($imported['result']['success']);
+        $this->assertSame([], $this->contactsOf((int) $this->customerByEmail($imported['emails'][0])['person_id']));
+    }
+
+    public function testPostImportCsvFile_RejectsARowWhoseContactEmailIsNotValidAndStillImportsTheGoodRow(): void
+    {
+        $imported = $this->importWithExtraCells([
+            ['', '', '', '', '', '', '', '', 'Sara', '', 'not an address', '', ''],
+            ['', '', '', '', '', '', '', '', 'Hind', '', 'hind@example.com', '', ''],
+        ]);
+
+        $this->assertFalse($imported['result']['success']);
+        $this->assertNull($this->customerByEmail($imported['emails'][0]));
+        $this->assertNotNull($this->customerByEmail($imported['emails'][1]));
     }
 }

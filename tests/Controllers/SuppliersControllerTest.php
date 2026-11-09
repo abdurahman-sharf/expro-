@@ -2,6 +2,8 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\MasterData\PartyContacts;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -53,6 +55,9 @@ class SuppliersControllerTest extends CIUnitTestCase
         }
 
         $this->supplierIds = [];
+
+        $this->accountingDb()->query('DELETE FROM ' . $this->accountingDb()->prefixTable('party_contacts'));
+        $this->accountingDb()->table('accounting_audit_log')->whereIn('action', ['party_contacts_changed', 'party_contacts_hidden'])->delete();
 
         parent::tearDown();
     }
@@ -266,5 +271,110 @@ class SuppliersControllerTest extends CIUnitTestCase
         $this->assertTrue($kept['success']);
         $this->assertFalse($changed['success']);
         $this->assertSame($long, $this->accountingDb()->table('people')->where('person_id', $supplierId)->get()->getRow()->city);
+    }
+
+    // ========== The contact list of a supplier ==========
+
+    /**
+     * @param array<string, string> $more
+     *
+     * @return array<string, string>
+     */
+    private function contactRow(array $more = []): array
+    {
+        return $more + ['contact_id' => '', 'first_name' => 'Khaled', 'last_name' => 'Saad', 'email' => 'khaled@example.com', 'phone' => '011 123 4567', 'mobile' => '0500000000', 'position' => 'Sales', 'note' => ''];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function contactsOf(int $supplierId, bool $withHidden = false): array
+    {
+        $builder = $this->accountingDb()->table('party_contacts')->where(['party_kind' => 'supplier', 'party_id' => $supplierId])->orderBy('contact_id', 'ASC');
+
+        if (! $withHidden) {
+            $builder->where('deleted', 0);
+        }
+
+        return $builder->get()->getResultArray();
+    }
+
+    public function testPostSave_StoresTheContactRowsOfASupplier(): void
+    {
+        $supplierId = $this->saveSupplier($this->form([PartyContacts::MARKER => '1', PartyContacts::FIELD => [$this->contactRow(['first_name' => 'First']), $this->contactRow(['first_name' => 'Second'])]]));
+
+        $this->assertSame(['First', 'Second'], array_column($this->contactsOf($supplierId), 'first_name'));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'supplier', 'entity_id' => $supplierId, 'action' => 'party_contacts_changed'])->countAllResults());
+    }
+
+    public function testPostSave_LeavesTheContactsAloneWhenTheFormDoesNotCarryThePanel(): void
+    {
+        $supplierId = $this->saveSupplier($this->form([PartyContacts::MARKER => '1', PartyContacts::FIELD => [$this->contactRow()]]));
+
+        $this->saveSupplier($this->form(['comments' => 'older form']), $supplierId);
+
+        $this->assertCount(1, $this->contactsOf($supplierId));
+    }
+
+    public function testPostSave_RejectsAnInvalidContactEmailAndSavesNothing(): void
+    {
+        $before = $this->accountingDb()->table('suppliers')->countAllResults();
+
+        $result = json_decode($this->post('/suppliers/save/' . NEW_ENTRY, $this->form([PartyContacts::MARKER => '1', PartyContacts::FIELD => [$this->contactRow(['email' => 'nope'])]]))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame($before, $this->accountingDb()->table('suppliers')->countAllResults());
+        $this->assertSame(0, $this->accountingDb()->table('party_contacts')->countAllResults());
+    }
+
+    public function testPostSave_RejectsAContactNumberThatBelongsToAnotherSupplier(): void
+    {
+        $first   = $this->saveSupplier($this->form([PartyContacts::MARKER => '1', PartyContacts::FIELD => [$this->contactRow(['first_name' => 'Of the first'])]]));
+        $second  = $this->saveSupplier($this->form());
+        $foreign = $this->contactsOf($first)[0]['contact_id'];
+
+        $result = json_decode($this->post('/suppliers/save/' . $second, $this->form([PartyContacts::MARKER => '1', PartyContacts::FIELD => [$this->contactRow(['contact_id' => (string) $foreign, 'first_name' => 'Hijacked'])]]))->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(['Of the first'], array_column($this->contactsOf($first), 'first_name'));
+    }
+
+    public function testPostDelete_HidesTheContactsWithTheSupplierAndKeepsTheirRows(): void
+    {
+        $supplierId = $this->saveSupplier($this->form([PartyContacts::MARKER => '1', PartyContacts::FIELD => [$this->contactRow(['first_name' => 'One']), $this->contactRow(['first_name' => 'Two'])]]));
+
+        $deleted = json_decode($this->post('/suppliers/delete', ['ids' => [(string) $supplierId]])->getJSON(), true);
+
+        $this->assertTrue($deleted['success']);
+        $this->assertSame([], $this->contactsOf($supplierId));
+        $this->assertSame(['One', 'Two'], array_column($this->contactsOf($supplierId, true), 'first_name'));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'supplier', 'entity_id' => $supplierId, 'action' => 'party_contacts_hidden'])->countAllResults());
+    }
+
+    public function testGetView_ShowsTheContactPanelWithTheValuesEscaped(): void
+    {
+        $supplierId = $this->saveSupplier($this->form([PartyContacts::MARKER => '1', PartyContacts::FIELD => [$this->contactRow(['first_name' => '<script>x()</script>'])]]));
+
+        $html = $this->get('/suppliers/view/' . $supplierId)->getBody();
+
+        $this->assertStringContainsString('id="contacts_panel"', $html);
+        $this->assertStringContainsString('value="&lt;script&gt;x()&lt;/script&gt;"', $html);
+        $this->assertStringNotContainsString('<script>x()</script>', $html);
+    }
+
+    public function testGetContacts_ListsTheContactsOfASupplier(): void
+    {
+        $supplierId = $this->saveSupplier($this->form([PartyContacts::MARKER => '1', PartyContacts::FIELD => [$this->contactRow(['first_name' => 'Listed'])]]));
+
+        $list = json_decode($this->get('/suppliers/contacts/' . $supplierId)->getJSON(), true);
+
+        $this->assertSame(['Listed'], array_column($list['contacts'], 'first_name'));
+    }
+
+    public function testGetContacts_ReturnsNotFoundForAnUnknownSupplier(): void
+    {
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/suppliers/contacts/987654');
     }
 }

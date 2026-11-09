@@ -9,6 +9,7 @@ use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\MasterData\PartyContacts;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -66,6 +67,8 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
+        $db->query('DELETE FROM ' . $db->prefixTable('party_contacts'));
+        $db->table('accounting_audit_log')->whereIn('action', ['party_contacts_changed', 'party_contacts_hidden'])->delete();
 
         parent::tearDown();
     }
@@ -252,6 +255,22 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_payables.agrees_yes'));
         $response->assertSee(lang('Sales.invoice_paid'));
         $response->assertSee(lang('Sales.invoice_returned_full'));
+    }
+
+    public function testGetSupplier_ShowsTheContactsOfTheSupplierInTheHeaderWithTheValuesEscaped(): void
+    {
+        $this->purchaseOf('100.00');
+        (new PartyContacts())->replace(PartyContacts::SUPPLIER, $this->supplierId, [
+            ['first_name' => '<i>Khaled</i>', 'last_name' => 'Saad', 'email' => 'khaled@example.com', 'mobile' => '0500000000', 'position' => 'Sales'],
+        ], 1);
+        $this->viewer();
+
+        $body = $this->get('/accounting_payables/supplier/' . $this->supplierId)->getBody();
+
+        $this->assertStringContainsString('party-contacts', $body);
+        $this->assertStringContainsString('&lt;i&gt;Khaled&lt;/i&gt;', $body);
+        $this->assertStringNotContainsString('<i>Khaled</i>', $body);
+        $this->assertStringContainsString('khaled@example.com', $body);
     }
 
     public function testGetSupplier_ShowsAChequeAsCreditOfItsOwnKindWithALinkToTheCheque(): void
