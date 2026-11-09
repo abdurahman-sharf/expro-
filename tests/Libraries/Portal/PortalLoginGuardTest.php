@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Portal;
 
 use App\Libraries\Portal\PortalLoginGuard;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -141,5 +142,53 @@ final class PortalLoginGuardTest extends CIUnitTestCase
 
         $this->assertFalse($this->failTimes($key, PortalLoginGuard::ADDRESS_THRESHOLD - 1, PortalLoginGuard::ADDRESS_THRESHOLD, self::NOW));
         $this->assertTrue($this->guard()->recordFailure($key, PortalLoginGuard::ADDRESS_THRESHOLD, self::NOW));
+    }
+
+    public function testTakeTurn_GivesTheTurnOnAKeyToOneConnectionAtATimeAndToTheNextOneWhenItEnds(): void
+    {
+        $key   = PortalLoginGuard::userKey('ahmed');
+        $first = new PortalLoginGuard(null, 0);
+        $other = new PortalLoginGuard(Database::connect('tests', false), 0);
+
+        try {
+            $this->assertTrue($first->takeTurn($key));
+            $this->assertFalse($other->takeTurn($key));
+
+            $first->endTurn($key);
+
+            $this->assertTrue($other->takeTurn($key));
+        } finally {
+            $first->endTurn($key);
+            $other->endTurn($key);
+        }
+    }
+
+    public function testTakeTurn_KeepsTheTurnsOfDifferentKeysApart(): void
+    {
+        $first = new PortalLoginGuard(null, 0);
+        $other = new PortalLoginGuard(Database::connect('tests', false), 0);
+        $mine  = PortalLoginGuard::userKey('ahmed');
+        $yours = PortalLoginGuard::userKey('sara');
+
+        try {
+            $this->assertTrue($first->takeTurn($mine));
+            $this->assertTrue($other->takeTurn($yours));
+        } finally {
+            $first->endTurn($mine);
+            $other->endTurn($yours);
+        }
+    }
+
+    public function testTurnName_IsTheSameForTheSameKeyAndDiffersForAnotherKeyAndAnotherDatabaseAndFitsTheLimitOfALockName(): void
+    {
+        $key   = PortalLoginGuard::userKey('ahmed');
+        $other = $this->createStub(BaseConnection::class);
+        $other->method('getDatabase')->willReturn('another_shop');
+
+        $this->assertSame($this->guard()->turnName($key), $this->guard()->turnName($key));
+        $this->assertNotSame($this->guard()->turnName($key), $this->guard()->turnName(PortalLoginGuard::userKey('sara')));
+        $this->assertNotSame($this->guard()->turnName($key), (new PortalLoginGuard($other))->turnName($key));
+        $this->assertLessThanOrEqual(64, strlen($this->guard()->turnName($key)));
+        $this->assertStringNotContainsString($key, $this->guard()->turnName($key));
     }
 }

@@ -746,8 +746,8 @@
  {
   "name": "A21 the user name is looked up trimmed and in lower case",
   "file": "app/Libraries/Portal/PortalAccounts.php",
-  "find": "->where('username', self::normalise($username))",
-  "replace": "->where('username', $username)",
+  "find": "        $name    = self::normalise($username);\n",
+  "replace": "        $name    = $username;\n",
   "tests": [
    "tests/Libraries/Portal/PortalAccountsTest.php"
   ]
@@ -782,8 +782,8 @@
  {
   "name": "B01 a locked name or address is refused before the password",
   "file": "app/Libraries/Portal/PortalLogin.php",
-  "find": "if ($this->guard->lockedUntil($userKey, $now) !== null || $this->guard->lockedUntil($addressKey, $now) !== null) {",
-  "replace": "if (false) {",
+  "find": "if ($this->guard->lockedUntil($userKey, $now) !== null || $this->guard->lockedUntil($addressKey, $now) !== null) {\n            return new PortalLoginResult",
+  "replace": "if (false) {\n            return new PortalLoginResult",
   "tests": [
    "tests/Libraries/Portal/PortalLoginTest.php"
   ]
@@ -791,8 +791,8 @@
  {
   "name": "B02 a locked name is refused",
   "file": "app/Libraries/Portal/PortalLogin.php",
-  "find": "if ($this->guard->lockedUntil($userKey, $now) !== null || ",
-  "replace": "if (",
+  "find": "if ($this->guard->lockedUntil($userKey, $now) !== null || $this->guard->lockedUntil($addressKey, $now) !== null) {\n            return new PortalLoginResult",
+  "replace": "if ($this->guard->lockedUntil($addressKey, $now) !== null) {\n            return new PortalLoginResult",
   "tests": [
    "tests/Libraries/Portal/PortalLoginTest.php"
   ]
@@ -800,8 +800,8 @@
  {
   "name": "B03 a locked address is refused",
   "file": "app/Libraries/Portal/PortalLogin.php",
-  "find": " || $this->guard->lockedUntil($addressKey, $now) !== null) {",
-  "replace": ") {",
+  "find": "if ($this->guard->lockedUntil($userKey, $now) !== null || $this->guard->lockedUntil($addressKey, $now) !== null) {\n            return new PortalLoginResult",
+  "replace": "if ($this->guard->lockedUntil($userKey, $now) !== null) {\n            return new PortalLoginResult",
   "tests": [
    "tests/Libraries/Portal/PortalLoginTest.php"
   ]
@@ -809,8 +809,8 @@
  {
   "name": "B04 a success clears the failures of the name",
   "file": "app/Libraries/Portal/PortalLogin.php",
-  "find": "        $this->guard->clear($userKey);\n",
-  "replace": "",
+  "find": "        $this->guard->clear($userKey);\n        $this->accounts->recordLogin",
+  "replace": "        $this->accounts->recordLogin",
   "tests": [
    "tests/Libraries/Portal/PortalLoginTest.php"
   ]
@@ -818,8 +818,8 @@
  {
   "name": "B05 a success does not clear the failures of the address",
   "file": "app/Libraries/Portal/PortalLogin.php",
-  "find": "        $this->guard->clear($userKey);\n",
-  "replace": "        $this->guard->clear($userKey);\n        $this->guard->clear($addressKey);\n",
+  "find": "        $this->guard->clear($userKey);\n        $this->accounts->recordLogin",
+  "replace": "        $this->guard->clear($userKey);\n        $this->guard->clear($addressKey);\n        $this->accounts->recordLogin",
   "tests": [
    "tests/Libraries/Portal/PortalLoginTest.php"
   ]
@@ -883,15 +883,6 @@
   "file": "app/Libraries/Portal/PortalLogin.php",
   "find": "$addressLocked = $this->guard->recordFailure($addressKey, PortalLoginGuard::ADDRESS_THRESHOLD, $now);",
   "replace": "$addressLocked = false;",
-  "tests": [
-   "tests/Libraries/Portal/PortalLoginTest.php"
-  ]
- },
- {
-  "name": "B13 the audit entry keeps a short user name",
-  "file": "app/Libraries/Portal/PortalLogin.php",
-  "find": "mb_substr(PortalAccounts::normalise($username), 0, self::NAME_MAX)",
-  "replace": "PortalAccounts::normalise($username)",
   "tests": [
    "tests/Libraries/Portal/PortalLoginTest.php"
   ]
@@ -1151,7 +1142,7 @@
  {
   "name": "F02 the token filter stands before every portal route",
   "file": "app/Config/Filters.php",
-  "find": "        'csrf'        => ['before' => ['portal', 'portal/*']],\n",
+  "find": "        'csrf' => ['before' => ['portal', 'portal/*']],\n",
   "replace": "",
   "tests": [
    "tests/Config/FiltersTest.php"
@@ -1421,8 +1412,8 @@
  {
   "name": "D16 a bad page number is the first page",
   "file": "app/Libraries/Portal/PortalDocuments.php",
-  "find": "return (max(1, $page) - 1) * self::PAGE_SIZE;",
-  "replace": "return ($page - 1) * self::PAGE_SIZE;",
+  "find": "(self::clampPage($page) - 1) * self::PAGE_SIZE",
+  "replace": "($page - 1) * self::PAGE_SIZE",
   "tests": [
    "tests/Libraries/Portal/PortalDocumentsTest.php"
   ]
@@ -1666,6 +1657,354 @@
   "replace": "$this->request->getPost('active') !== null",
   "tests": [
    "tests/Controllers/Customer_portalControllerTest.php"
+  ]
+ },
+ {
+  "name": "X01 a user name opens an account only by the spelling it was made with",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "return $account !== null && $account->username === $name ? $account : null;",
+  "replace": "return $account;",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php",
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X02 a sign-in that cannot have its turn is refused",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "if (! $this->guard->takeTurn($userKey)) {\n            return new PortalLoginResult(PortalLoginOutcome::Locked);",
+  "replace": "if (false) {\n            return new PortalLoginResult(PortalLoginOutcome::Locked);",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X03 a sign-in gives its turn back",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "PortalLoginGuard::addressKey($address), $now);\n        } finally {\n            $this->guard->endTurn($userKey);\n        }\n    }\n\n    /**\n     * @throws AccountingException\n     */\n    public function changePassword",
+  "replace": "PortalLoginGuard::addressKey($address), $now);\n        } finally {\n        }\n    }\n\n    /**\n     * @throws AccountingException\n     */\n    public function changePassword",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X04 a change of the password that cannot have its turn is refused",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "if (! $this->guard->takeTurn($userKey)) {\n            throw new AccountingException(AccountingError::PortalLocked, 'Too many failed attempts.');",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::PortalLocked, 'Too many failed attempts.');",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X05 a change of the password gives its turn back",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "return $this->change($account, $current, $new, $address, $userKey, PortalLoginGuard::addressKey($address), $now);\n        } finally {\n            $this->guard->endTurn($userKey);",
+  "replace": "return $this->change($account, $current, $new, $address, $userKey, PortalLoginGuard::addressKey($address), $now);\n        } finally {",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X06 a change of the password is refused while a lock stands",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "if ($this->guard->lockedUntil($userKey, $now) !== null || $this->guard->lockedUntil($addressKey, $now) !== null) {\n            throw new AccountingException",
+  "replace": "if (false) {\n            throw new AccountingException",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X07 a change of the password is refused while the name is locked",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "if ($this->guard->lockedUntil($userKey, $now) !== null || $this->guard->lockedUntil($addressKey, $now) !== null) {\n            throw new AccountingException",
+  "replace": "if ($this->guard->lockedUntil($addressKey, $now) !== null) {\n            throw new AccountingException",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X08 a change of the password is refused while the address is locked",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "if ($this->guard->lockedUntil($userKey, $now) !== null || $this->guard->lockedUntil($addressKey, $now) !== null) {\n            throw new AccountingException",
+  "replace": "if ($this->guard->lockedUntil($userKey, $now) !== null) {\n            throw new AccountingException",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X09 a wrong current password is counted",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "if ($failure->error === AccountingError::PortalPasswordWrong) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X10 only a wrong current password is counted",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "if ($failure->error === AccountingError::PortalPasswordWrong) {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X11 a change of the password clears the failures of the name",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "        $this->guard->clear($userKey);\n\n        return $version;",
+  "replace": "        return $version;",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X12 a wrong current password has an audit action of its own",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "$this->audit->write(PortalAccounts::ENTITY, $known === null ? null : (int) $known->account_id, $action,",
+  "replace": "$this->audit->write(PortalAccounts::ENTITY, $known === null ? null : (int) $known->account_id, 'portal_login_failed',",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X13 the reference of a name in the audit is the same for the same name",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "'name_ref' => substr($userKey, 0, self::REFERENCE_LENGTH),",
+  "replace": "'name_ref' => bin2hex(random_bytes(8)),",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X14 the reference of a name in the audit is short",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "'name_ref' => substr($userKey, 0, self::REFERENCE_LENGTH),",
+  "replace": "'name_ref' => $userKey,",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X15 the audit of an account made keeps no user name",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "'portal_account_created', $employeeId, JournalOrigin::User, ['customer_id' => $customerId]);",
+  "replace": "'portal_account_created', $employeeId, JournalOrigin::User, ['customer_id' => $customerId, 'username' => $username]);",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "X16 a turn is given to one connection at a time",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "return $row !== null && (int) $row->taken === 1;",
+  "replace": "return true;",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php",
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X17 the name of a turn holds the database",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "sha1($this->db->getDatabase() . '|' . $key)",
+  "replace": "sha1($key)",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php"
+  ]
+ },
+ {
+  "name": "X18 the name of a turn fits a lock name and hides the key",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "'portal_' . substr(sha1($this->db->getDatabase() . '|' . $key), 0, 40)",
+  "replace": "'portal_' . $key",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php"
+  ]
+ },
+ {
+  "name": "X19 a turn that ends is given back",
+  "file": "app/Libraries/Portal/PortalLoginGuard.php",
+  "find": "        $this->db->query('SELECT RELEASE_LOCK(?)', [$this->turnName($key)]);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginGuardTest.php",
+   "tests/Libraries/Portal/PortalLoginTest.php"
+  ]
+ },
+ {
+  "name": "X20 the change of the password goes through the counted path",
+  "file": "app/Controllers/Portal.php",
+  "find": "(new PortalLogin())->changePassword($accountId, $this->text('current_password'), $new, $this->request->getIPAddress());",
+  "replace": "(new PortalAccounts())->changePassword($accountId, $this->text('current_password'), $new);",
+  "tests": [
+   "--filter",
+   "PostPassword",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "X21 a locked change of the password is too many attempts",
+  "file": "app/Controllers/Portal.php",
+  "find": "$failure->error === AccountingError::PortalLocked ? 429 : 422",
+  "replace": "422",
+  "tests": [
+   "--filter",
+   "PostPassword",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "X22 a page number has an upper limit",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "return min(self::MAX_PAGE, max(1, $page));",
+  "replace": "return max(1, $page);",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "X23 a page number has a lower limit",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "return min(self::MAX_PAGE, max(1, $page));",
+  "replace": "return min(self::MAX_PAGE, $page);",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "X24 the page of the controller is clamped",
+  "file": "app/Controllers/Portal.php",
+  "find": "return PortalDocuments::clampPage((int) $this->request->getGet('page'));",
+  "replace": "return max(1, (int) $this->request->getGet('page'));",
+  "tests": [
+   "--filter",
+   "GetInvoices|GetPage",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "X25 no base total without a ledger figure",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "if ($figures === null || $currency === null || $currency === (new Currencies($this->db))->baseCode()) {",
+  "replace": "if ($currency === null || $currency === (new Currencies($this->db))->baseCode()) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "X26 no base total for a document without a currency",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "if ($figures === null || $currency === null || $currency === (new Currencies($this->db))->baseCode()) {",
+  "replace": "if ($figures === null || $currency === (new Currencies($this->db))->baseCode()) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "X27 no base total for a document in the base currency",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "if ($figures === null || $currency === null || $currency === (new Currencies($this->db))->baseCode()) {",
+  "replace": "if ($figures === null || $currency === null) {",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "X28 the base total is the total of the ledger",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "return $this->money($figures->total, null);",
+  "replace": "return $this->money($figures->open(), null);",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "X29 the list carries the base total",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "'total_base' => $this->totalInBase($figures, $sale->currency_code),\n                'open'",
+  "replace": "'total_base' => null,\n                'open'",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "X30 the page of an invoice carries the base total",
+  "file": "app/Libraries/Portal/PortalDocuments.php",
+  "find": "'total_base' => $this->totalInBase($figures, $sale->currency_code),\n            'settled'",
+  "replace": "'total_base' => null,\n            'settled'",
+  "tests": [
+   "tests/Libraries/Portal/PortalDocumentsTest.php"
+  ]
+ },
+ {
+  "name": "X31 the list shows the base total",
+  "file": "app/Views/portal/invoices.php",
+  "find": "<?php if ($row['total_base'] !== null) : ?>",
+  "replace": "<?php if (false) : ?>",
+  "tests": [
+   "--filter",
+   "ShowsTheBaseTotal",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "X32 the page of an invoice shows the base total",
+  "file": "app/Views/portal/document_body.php",
+  "find": "<?php if ($doc['total_base'] !== null) : ?>",
+  "replace": "<?php if (false) : ?>",
+  "tests": [
+   "--filter",
+   "ShowsTheBaseTotal",
+   "tests/Controllers/PortalControllerTest.php"
+  ]
+ },
+ {
+  "name": "X33 Arabic-Indic and Persian digits of a number become Latin digits",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "strtr($text, self::DIGITS)",
+  "replace": "$text",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "X34 only the digits of a number are turned",
+  "file": "app/Libraries/MasterData/PartyContacts.php",
+  "find": "in_array($field, self::NUMBERS, true) ? strtr($text, self::DIGITS) : $text",
+  "replace": "strtr($text, self::DIGITS)",
+  "tests": [
+   "tests/Libraries/MasterData/PartyContactsTest.php"
+  ]
+ },
+ {
+  "name": "X35 a user name that is not text is no user name",
+  "file": "app/Controllers/Customer_portal.php",
+  "find": "return is_string($value) ? $value : '';",
+  "replace": "return (string) $value;",
+  "tests": [
+   "--filter",
+   "RefusesAUserNameThatIsNotText",
+   "tests/Controllers/Customer_portalControllerTest.php"
+  ]
+ },
+ {
+  "name": "X36 a reset gives the new temporary password a fresh week",
+  "file": "app/Libraries/Portal/PortalAccounts.php",
+  "find": "'temporary_expires_at' => date('Y-m-d H:i:s', time() + self::TEMPORARY_SECONDS),\n            'credential_version'",
+  "replace": "'credential_version'",
+  "tests": [
+   "tests/Libraries/Portal/PortalAccountsTest.php"
+  ]
+ },
+ {
+  "name": "X37 a wrong current password is refused by its own audit action",
+  "file": "app/Libraries/Portal/PortalLogin.php",
+  "find": "'portal_password_change_failed'",
+  "replace": "'portal_login_failed'",
+  "tests": [
+   "tests/Libraries/Portal/PortalLoginTest.php"
   ]
  }
 ]

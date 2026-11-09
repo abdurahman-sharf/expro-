@@ -304,6 +304,15 @@ final class PortalDocumentsTest extends CIUnitTestCase
         $this->assertNull($this->documents()->invoice($this->customerId, $invoice)['total_base']);
     }
 
+    public function testInvoices_LeavesTheBaseTotalOutForAnInvoiceThatNamesTheBaseCurrencyItself(): void
+    {
+        $invoice = $this->invoiceOf('100.00');
+        $this->accountingDb()->table('sales')->where('sale_id', $invoice)->update(['currency_code' => 'SAR']);
+
+        $this->assertNull($this->documents()->invoices($this->customerId, 1)['rows'][0]['total_base']);
+        $this->assertNull($this->documents()->invoice($this->customerId, $invoice)['total_base']);
+    }
+
     public function testInvoices_LeavesTheBaseTotalOutWhileAccountingIsOff(): void
     {
         $this->dollarsAt('3.75');
