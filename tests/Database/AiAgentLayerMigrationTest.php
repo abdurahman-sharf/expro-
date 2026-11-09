@@ -63,6 +63,16 @@ final class AiAgentLayerMigrationTest extends CIUnitTestCase
         return (int) $this->accountingDb()->insertID();
     }
 
+    /**
+     * @param array<string, mixed> $values
+     */
+    private function finding(array $values = []): int
+    {
+        $this->accountingDb()->table('accounting_ai_findings')->insert($values + ['rule_code' => 'AI-ROUND', 'severity' => 'low', 'finding_key' => hash('sha256', uniqid('', true)), 'subject_type' => 'journal', 'evidence' => '[]']);
+
+        return (int) $this->accountingDb()->insertID();
+    }
+
     public function testUp_GivesTheProposalsTableTheColumnsOfAProposal(): void
     {
         foreach (['title', 'rationale', 'template_args', 'proposer', 'proposal_date', 'fingerprint', 'dedupe_key', 'expires_at', 'reject_reason', 'stale_reason'] as $column) {
@@ -147,6 +157,22 @@ final class AiAgentLayerMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('accounting_ai_proposals')->insert(['kind' => 'recurring', 'payload' => '{}', 'dedupe_key' => str_repeat('a', 64)]);
     }
 
+    public function testUp_KeepsOneFindingForAKey(): void
+    {
+        $this->finding(['finding_key' => str_repeat('b', 64)]);
+
+        $this->expectException(DatabaseException::class);
+
+        $this->finding(['finding_key' => str_repeat('b', 64)]);
+    }
+
+    public function testUp_RefusesAFindingOfAStatusOfNoneOfTheThreeEvenWhenItIsDecided(): void
+    {
+        $this->expectException(DatabaseException::class);
+
+        $this->finding(['status' => 'weird', 'decided_by' => 1, 'decided_at' => '2026-10-01 10:00:00', 'decision_reason' => 'Looked at']);
+    }
+
     public function testUp_RegistersTheModuleAndTheTwoPermissionsAndGrantsThemToNobody(): void
     {
         $this->assertSame(1, $this->accountingDb()->table('modules')->where('module_id', 'accounting_ai')->countAllResults());
@@ -160,6 +186,10 @@ final class AiAgentLayerMigrationTest extends CIUnitTestCase
 
     public function testUp_WritesTheSwitchAsOff(): void
     {
+        $this->accountingDb()->table('app_config')->where('key', 'accounting_ai_enabled')->delete();
+
+        (new AiAgentLayer())->up();
+
         $this->assertSame('0', $this->accountingDb()->table('app_config')->where('key', 'accounting_ai_enabled')->get()->getRow()->value);
     }
 

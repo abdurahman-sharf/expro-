@@ -77,6 +77,15 @@ final class AccountingAiProposeTest extends CIUnitTestCase
         $this->assertSame(0, (int) $this->accountingDb()->table('accounting_journals')->where('source_type', ProposalService::SOURCE)->countAllResults());
     }
 
+    public function testRun_TakesTheDayGivenAsTodayAndNotTheDayItRuns(): void
+    {
+        [$exit, $output] = $this->propose(['date' => '2026-12-25']);
+
+        $this->assertSame(0, $exit);
+        $this->assertStringContainsString('RESULT: 0 made, 0 standing already, 0 refused, 0 expired.', $output);
+        $this->assertSame(0, $this->countRows('accounting_ai_proposals'));
+    }
+
     public function testRun_MakesNothingNewWhenItIsRunAgain(): void
     {
         $this->propose();

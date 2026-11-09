@@ -88,13 +88,9 @@ final class ReclassificationProposer implements Proposer
 
         foreach ([RoutingKey::ExpensesDefault, RoutingKey::RevenuesDefault] as $key) {
             try {
-                $id = $resolver->accountFor($key);
+                $ids[] = (int) $resolver->accountFor($key);
             } catch (PostingException) {
                 continue;
-            }
-
-            if ($id !== null) {
-                $ids[] = $id;
             }
         }
 

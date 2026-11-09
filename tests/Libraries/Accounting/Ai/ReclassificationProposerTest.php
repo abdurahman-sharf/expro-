@@ -8,6 +8,7 @@ use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\RoutingKey;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -218,17 +219,126 @@ final class ReclassificationProposerTest extends CIUnitTestCase
         $this->assertSame([], $this->proposer->propose($this->today, null));
     }
 
-    public function testPropose_LooksOnlyAtJournalsOfTheLookbackAndOnlyAtOnesBeforeTheSubject(): void
+    public function testPropose_LooksOnlyAtHistoryThatCameBeforeTheSubject(): void
     {
         $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
         $this->history('Gulf Cleaning', $this->maintenance(), 3, '2026-10-21');
 
         $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
 
-        $this->history('Gulf Cleaning', $this->maintenance(), 3, '2026-09-01');
-        $this->setThreshold('lookback_days', '3');
+    public function testPropose_LooksOnlyAtSubjectsOfTheLookback(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+
+        $this->assertCount(1, $this->proposer->propose($this->today, null));
+
+        $this->setThreshold('lookback_days', '5');
+
+        $this->assertCount(1, $this->proposer->propose($this->today, null));
+
+        $this->setThreshold('lookback_days', '4');
 
         $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_SuggestsNothingForASubjectThatWasReversed(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $subject = $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+
+        (new JournalService())->reverse($subject, '2026-10-21', 'Wrong', null);
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_IgnoresHistoryThatIsNeitherOfManualJournalsNorOfTheAgent(): void
+    {
+        foreach (['2026-09-01', '2026-09-02', '2026-09-03'] as $index => $date) {
+            (new PostingService())->post(new JournalDraft(
+                date: $date,
+                lines: [new JournalLineDraft($this->maintenance(), debit: '100.00', description: 'Gulf Cleaning'), new JournalLineDraft($this->cashAccount(), credit: '100.00')],
+                sourceType: 'expense',
+                sourceId: 300 + $index,
+                description: 'Gulf Cleaning',
+                branchId: 1,
+            ));
+        }
+
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_SuggestsNothingWhenTheBooksRouteNeitherDefaultAccount(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+        $this->accountingDb()->table('accounting_routing')->whereIn('routing_key', [RoutingKey::ExpensesDefault->value, RoutingKey::RevenuesDefault->value])->delete();
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_SuggestsForTheExpenseDefaultWhenTheRevenueDefaultIsNotRouted(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::RevenuesDefault->value)->delete();
+
+        $this->assertCount(1, $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_SuggestsForTheRevenueDefaultWhenTheExpenseDefaultIsNotRouted(): void
+    {
+        $otherRevenue = $this->accountIdByCode('4201');
+        $capital      = $this->accountIdByCode('4202');
+
+        for ($index = 0; $index < 2; $index++) {
+            $this->manualJournal('2026-09-0' . ($index + 1), $this->cashAccount(), $capital, '100.00', 'Scrap sale');
+        }
+
+        $this->manualJournal('2026-10-20', $this->cashAccount(), $otherRevenue, '300.00', 'Scrap sale');
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::ExpensesDefault->value)->delete();
+
+        $this->assertCount(1, $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_CutsTheTextOfTheLineToTwoHundredCharacters(): void
+    {
+        $text = str_repeat('a', 250);
+
+        $this->history($text, $this->maintenance(), 3);
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', $text);
+
+        $lines = $this->proposer->propose($this->today, null)[0]->lines;
+
+        $this->assertSame(200, mb_strlen((string) $lines[0]->description));
+        $this->assertSame(200, mb_strlen((string) $lines[1]->description));
+    }
+
+    public function testPropose_RoundsTheShareOfTheAccountMostUsed(): void
+    {
+        $this->history('Gulf Cleaning', $this->maintenance(), 2);
+        $this->history('Gulf Cleaning', $this->electricityExpense(), 1, '2026-09-10');
+        $this->setThreshold('reclass_min_share', '60');
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning');
+
+        $draft = $this->proposer->propose($this->today, null)[0];
+
+        $this->assertSame(67, $draft->templateArgs['share']);
+        $this->assertSame(67, $draft->evidence[1]['share']);
+        $this->assertSame(33, $draft->evidence[2]['share']);
+    }
+
+    public function testPropose_PutsTheSuggestionInTheBranchOfTheSubject(): void
+    {
+        $branch = $this->createBranch();
+
+        $this->history('Gulf Cleaning', $this->maintenance(), 3);
+        $this->manualJournal('2026-10-20', $this->otherExpenses(), $this->cashAccount(), '250.00', 'Gulf Cleaning', null, $branch);
+
+        $this->assertSame($branch, $this->proposer->propose($this->today, null)[0]->branchId);
     }
 
     public function testPropose_IgnoresJournalsThatAreNotManual(): void

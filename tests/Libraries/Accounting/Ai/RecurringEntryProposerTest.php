@@ -190,7 +190,7 @@ final class RecurringEntryProposerTest extends CIUnitTestCase
 
         (new PostingService())->post(new JournalDraft(
             date: '2026-10-05',
-            lines: [new JournalLineDraft($this->rentExpense(), debit: '1000.00', description: 'Office rent'), new JournalLineDraft($this->electricityExpense(), debit: '1000.00', description: 'Office rent'), new JournalLineDraft($this->cashAccount(), credit: '2000.00', description: 'Office rent')],
+            lines: [new JournalLineDraft($this->rentExpense(), debit: '2000.00', description: 'Office rent'), new JournalLineDraft($this->electricityExpense(), debit: '50.00', description: 'Office rent'), new JournalLineDraft($this->cashAccount(), credit: '2050.00', description: 'Office rent')],
             sourceType: 'manual',
             description: 'Office rent',
             branchId: 1,
@@ -358,5 +358,195 @@ final class RecurringEntryProposerTest extends CIUnitTestCase
         $this->assertCount(1, $december);
         $this->assertSame('2000.0000', $december[0]->lines[0]->debit);
         $this->assertSame('Office rent', $december[0]->lines[0]->description);
+    }
+
+    public function testPropose_SuggestsNothingWhenTheLastJournalTouchesTheAccountOfASupplier(): void
+    {
+        $supplier = $this->insertSupplier();
+        $entities = new EntityAccountService();
+        $entities->fill();
+
+        $this->rent(['2026-08-05', '2026-09-05']);
+        $this->manualJournal('2026-10-05', $this->rentExpense(), (int) $entities->accountFor('supplier', $supplier), '2000.00', 'Office rent');
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_SuggestsNothingWhenTheLastJournalTouchesTheAccountOfAStockLocation(): void
+    {
+        $location = $this->insertStockLocation();
+        $entities = new EntityAccountService();
+        $entities->fill();
+
+        $this->rent(['2026-08-05', '2026-09-05']);
+        $this->manualJournal('2026-10-05', $this->rentExpense(), (int) $entities->accountFor('stock_location', $location), '2000.00', 'Office rent');
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+    }
+
+    public function testPropose_RepeatsAJournalWhoseOtherLineIsAnExpenseCredit(): void
+    {
+        $this->rent(['2026-08-05', '2026-09-05']);
+        (new PostingService())->post(new JournalDraft(
+            date: '2026-10-05',
+            lines: [new JournalLineDraft($this->rentExpense(), debit: '2100.00', description: 'Office rent'), new JournalLineDraft($this->cashAccount(), credit: '2000.00', description: 'Office rent'), new JournalLineDraft($this->electricityExpense(), credit: '100.00', description: 'Office rent')],
+            sourceType: 'manual',
+            description: 'Office rent',
+            branchId: 1,
+        ));
+
+        $drafts = $this->proposer->propose($this->today, null);
+
+        $this->assertCount(1, $drafts);
+        $this->assertCount(3, $drafts[0]->lines);
+    }
+
+    public function testPropose_WaitsForTheLastDayOfAMonthEvenWhenAnEarlierDayWasPostedLast(): void
+    {
+        $this->rent(['2026-08-05', '2026-09-05']);
+        $this->rent(['2026-10-20'], '2100.00');
+        $this->rent(['2026-10-05'], '2000.00');
+
+        $this->assertSame([], $this->proposer->propose(new DateTimeImmutable('2026-11-19'), null));
+
+        $drafts = $this->proposer->propose(new DateTimeImmutable('2026-11-20'), null);
+
+        $this->assertCount(1, $drafts);
+        $this->assertSame('2000.0000', $drafts[0]->lines[0]->debit);
+    }
+
+    public function testPropose_TakesTheLastJournalOfAMonthAsTheOneToRepeat(): void
+    {
+        $this->rent(['2026-08-05', '2026-09-05']);
+        $this->rent(['2026-10-05'], '2000.00');
+        $this->rent(['2026-10-06'], '2100.00');
+
+        $draft = $this->proposer->propose($this->today, null)[0];
+
+        $this->assertSame('2100.0000', $draft->lines[0]->debit);
+        $this->assertSame('2100.0000', $draft->evidence[2]['amount']);
+    }
+
+    public function testPropose_CountsOnlyTheRowsOfTheMonthsItLooksAt(): void
+    {
+        $this->rent(['2026-01-05']);
+        $this->rent(['2026-08-05', '2026-09-05', '2026-10-05']);
+
+        $this->assertCount(1, (new RecurringEntryProposer(null, null, 3))->propose($this->today, null));
+    }
+
+    public function testPropose_IgnoresAJournalDatedAfterToday(): void
+    {
+        $this->rent(['2026-08-05', '2026-09-05', '2026-10-05', '2026-11-07']);
+
+        $this->assertCount(1, $this->proposer->propose(new DateTimeImmutable('2026-11-06'), null));
+    }
+
+    public function testPropose_CutsTheTextOfTheExpenseToTwoHundredCharacters(): void
+    {
+        $this->rent(['2026-08-05', '2026-09-05', '2026-10-05'], '2000.00', str_repeat('a', 250));
+
+        $lines = $this->proposer->propose($this->today, null)[0]->lines;
+
+        $this->assertSame(200, mb_strlen((string) $lines[0]->description));
+    }
+
+    public function testPropose_NamesAnExpenseThatHasNoTextByItsAccount(): void
+    {
+        foreach (['2026-08-05', '2026-09-05', '2026-10-05'] as $index => $date) {
+            (new PostingService())->post(new JournalDraft(
+                date: $date,
+                lines: [new JournalLineDraft($this->rentExpense(), debit: '2000.00'), new JournalLineDraft($this->cashAccount(), credit: '2000.00')],
+                sourceType: 'expense',
+                sourceId: 400 + $index,
+                description: 'Expense #' . (400 + $index),
+                branchId: 1,
+            ));
+        }
+
+        $draft = $this->proposer->propose($this->today, null)[0];
+
+        $this->assertStringContainsString('Recurring expense 5201', $draft->description);
+    }
+
+    public function testPropose_CountsAnExpenseThatTheAgentMadeFromAnExpenseDocumentAsItsMonth(): void
+    {
+        foreach (['2026-08-05', '2026-09-05', '2026-10-05'] as $index => $date) {
+            (new PostingService())->post(new JournalDraft(
+                date: $date,
+                lines: [new JournalLineDraft($this->rentExpense(), debit: '2000.00'), new JournalLineDraft($this->cashAccount(), credit: '2000.00')],
+                sourceType: 'expense',
+                sourceId: 500 + $index,
+                description: 'Expense #' . (500 + $index),
+                branchId: 1,
+            ));
+        }
+
+        $approver = $this->agentEmployee();
+        $service  = new ProposalService();
+        $service->approve($service->create($this->proposer->propose($this->today, null)[0], $approver), $approver);
+
+        $this->assertSame([], $this->proposer->propose($this->today, null));
+        $this->assertCount(1, $this->proposer->propose(new DateTimeImmutable('2026-12-25'), null));
+    }
+
+    public function testPropose_CarriesTheCostCenterOfTheLinesToTheRepeatedJournal(): void
+    {
+        $db = $this->accountingDb();
+        $db->table('accounting_cost_centers')->insert(['code' => 'CC1', 'name' => 'Shop', 'active' => 1]);
+        $center = (int) $db->insertID();
+
+        $this->rent(['2026-08-05', '2026-09-05']);
+        (new JournalService())->postNew([
+            'date'        => '2026-10-05',
+            'description' => 'Office rent',
+            'lines'       => [
+                ['account_id' => $this->rentExpense(), 'debit' => '2000.00', 'credit' => '', 'description' => '', 'cost_center_id' => $center],
+                ['account_id' => $this->cashAccount(), 'debit' => '', 'credit' => '2000.00', 'description' => ''],
+            ],
+        ], null);
+
+        $lines = $this->proposer->propose($this->today, null)[0]->lines;
+
+        $this->assertSame($center, $lines[0]->costCenterId);
+        $this->assertNull($lines[1]->costCenterId);
+    }
+
+    public function testPropose_PutsTheTextOfTheExpenseOnlyOnTheLinesThatHaveNone(): void
+    {
+        $this->rent(['2026-08-05', '2026-09-05']);
+        (new JournalService())->postNew([
+            'date'        => '2026-10-05',
+            'description' => 'Office rent',
+            'lines'       => [
+                ['account_id' => $this->rentExpense(), 'debit' => '2000.00', 'credit' => '', 'description' => ''],
+                ['account_id' => $this->cashAccount(), 'debit' => '', 'credit' => '2000.00', 'description' => 'Paid by cheque'],
+            ],
+        ], null);
+
+        $lines = $this->proposer->propose($this->today, null)[0]->lines;
+
+        $this->assertSame('Office rent', $lines[0]->description);
+        $this->assertSame('Paid by cheque', $lines[1]->description);
+    }
+
+    public function testPropose_KeepsEveryCombinationOfBranchAccountAndTextApartInTheGroupsAndTheKeys(): void
+    {
+        $months = ['2026-08-05', '2026-09-05', '2026-10-05'];
+        $branch = $this->createBranch();
+
+        $this->rent($months, '2000.00', 'Office rent');
+        $this->rent($months, '300.00', 'Warehouse rent');
+        $this->rent($months, '90.00', 'Office rent', $this->electricityExpense());
+
+        foreach ($months as $date) {
+            $this->manualJournal($date, $this->rentExpense(), $this->cashAccount(), '2000.00', 'Office rent', null, $branch);
+        }
+
+        $drafts = $this->proposer->propose($this->today, null);
+
+        $this->assertCount(4, $drafts);
+        $this->assertCount(4, array_unique(array_map(static fn ($draft): string => $draft->dedupeKey, $drafts)));
+        $this->assertContains($branch, array_map(static fn ($draft): ?int => $draft->branchId, $drafts));
     }
 }

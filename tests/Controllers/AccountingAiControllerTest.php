@@ -225,15 +225,23 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         $one = $this->proposal('one', 1, 'recurring');
         $two = $this->proposal('two', 1, 'reclassify');
 
-        $page = $this->get('/accounting_ai?status=zzstatus&kind=ZZ%20kind&from=zzday&to=zzday');
+        for ($index = 0; $index < 25; $index++) {
+            $this->proposal('many-' . $index);
+        }
+
+        $page = $this->get('/accounting_ai?status=zzstatus&kind=ZZ%20kind&from=zzday&to=zzday&offset=0');
 
         $page->assertStatus(200);
-        $page->assertSee('id="ai_proposal_' . $one . '"');
-        $page->assertSee('id="ai_proposal_' . $two . '"');
+        $page->assertSee(lang('Accounting_ai.next'));
 
         foreach (['zzstatus', 'ZZ kind', 'zzday'] as $junk) {
             $page->assertDontSee($junk);
         }
+
+        $second = $this->get('/accounting_ai?status=zzstatus&kind=ZZ%20kind&from=zzday&to=zzday&offset=25');
+
+        $second->assertSee('id="ai_proposal_' . $one . '"');
+        $second->assertSee('id="ai_proposal_' . $two . '"');
     }
 
     public function testGetIndex_KeepsTheDaysThatAreDaysInTheForm(): void
@@ -408,7 +416,7 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         }
 
         $this->assertStringContainsString('name="' . csrf_token() . '"', $html);
-        $this->assertStringContainsString('name="confirm"', $html);
+        $this->assertStringContainsString('<input type="checkbox" class="form-check-input" name="confirm" id="confirm" value="1">', $html);
         $this->assertStringContainsString('accounting_ai/approve/' . $id, $html);
     }
 
@@ -796,6 +804,17 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         foreach (array_keys(AiSettings::THRESHOLDS) as $name) {
             $page->assertSee('id="t_' . $name . '"');
         }
+    }
+
+    public function testGetSettings_SaysTheAgentIsOffAndOffersNoSwitchOffWhileTheSwitchIsOff(): void
+    {
+        $this->actAsWith(['accounting_ai', AccountingGuard::SETTINGS_MANAGE]);
+        $this->setConfigValue('accounting_ai_enabled', '0');
+
+        $page = $this->get('/accounting_ai/settings');
+
+        $this->assertStringContainsString('<p class="alert alert-warning" id="ai_state" role="status">' . lang('Accounting_ai.state_off') . '</p>', $page->getBody());
+        $page->assertDontSee('id="ai_disable"');
     }
 
     public function testGetSettings_ShowsTheThresholdsReadOnlyAndTheKillSwitchToWhoUsesTheAgent(): void

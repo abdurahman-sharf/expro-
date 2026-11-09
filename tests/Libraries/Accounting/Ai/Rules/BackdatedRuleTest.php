@@ -6,6 +6,7 @@ use App\Libraries\Accounting\Ai\Finding;
 use App\Libraries\Accounting\Ai\Rules\BackdatedRule;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
+use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -104,6 +105,15 @@ final class BackdatedRuleTest extends CIUnitTestCase
     {
         $this->backdated('2026-09-10', '2026-11-02 10:00:00');
         $this->backdated('2026-10-05', '2026-10-30 10:00:00');
+        $this->closedAt('2026-09-30', '2026-11-01 09:00:00');
+
+        $this->assertSame([], $this->rule->detect($this->ruleContext()));
+    }
+
+    public function testDetect_FlagsNothingForABackdatedJournalThatWasReversed(): void
+    {
+        $journal = $this->backdated('2026-09-10', '2026-10-30 10:00:00');
+        (new JournalService())->reverse($journal, '2026-10-31', 'Wrong', null);
         $this->closedAt('2026-09-30', '2026-11-01 09:00:00');
 
         $this->assertSame([], $this->rule->detect($this->ruleContext()));

@@ -174,6 +174,19 @@ final class BalanceJumpRuleTest extends CIUnitTestCase
         $this->assertSame([], $this->rule->detect($this->ruleContext()));
     }
 
+    public function testDetect_ShowsAJournalThatWasReversedAmongTheMovementsOfTheDays(): void
+    {
+        $reversed = $this->owes('2026-10-20', '6000.00');
+        (new JournalService())->reverse($reversed, '2026-10-21', 'Wrong', null);
+        $this->owes('2026-10-22', '7000.00');
+
+        $findings = $this->rule->detect($this->ruleContext());
+
+        $this->assertCount(1, $findings);
+        $this->assertSame('7000.0000', $findings[0]->templateArgs['increase']);
+        $this->assertContains($reversed, array_column($findings[0]->evidence, 'journal_id'));
+    }
+
     public function testDetect_ShowsTheLargestMovementsOfTheDaysFirstAndNoMoreThanTen(): void
     {
         $this->owes('2026-09-01', '1000.00');
@@ -232,6 +245,37 @@ final class BalanceJumpRuleTest extends CIUnitTestCase
 
         $this->assertCount(1, $findings);
         $this->assertSame($branch, $findings[0]->branchId);
+    }
+
+    public function testDetect_ShowsNoMovementDatedAfterTodayAsEvidence(): void
+    {
+        $inside = $this->owes('2026-10-20', '6000.00');
+        $later  = $this->owes('2026-11-09', '500.00');
+
+        $findings = $this->rule->detect($this->ruleContext());
+
+        $this->assertCount(1, $findings);
+        $this->assertSame([$inside], array_column(array_slice($findings[0]->evidence, 1), 'journal_id'));
+        $this->assertNotContains($later, array_column($findings[0]->evidence, 'journal_id'));
+    }
+
+    public function testDetect_CountsWhatWasPostedOnTheDayTheDaysBeginAsWhatWasOwedBefore(): void
+    {
+        $this->owes('2026-10-09', '10000.00');
+        $this->owes('2026-10-20', '6000.00');
+
+        $this->assertSame([], $this->rule->detect($this->ruleContext()));
+    }
+
+    public function testDetect_KeysTheFindingByTheLastJournalOfTheDaysAndNotOfTheBooks(): void
+    {
+        $last = $this->owes('2026-10-20', '15000.00');
+        $this->owes('2026-09-01', '10000.00');
+
+        $findings = $this->rule->detect($this->ruleContext());
+
+        $this->assertCount(1, $findings);
+        $this->assertSame($this->customer . '|1|' . $last, $findings[0]->key);
     }
 
     public function testDetect_UsesTheDaysOfTheSettingAsTheLookback(): void
