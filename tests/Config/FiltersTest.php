@@ -56,6 +56,57 @@ class FiltersTest extends CIUnitTestCase
         $this->assertContains('csrf', $filters->getFilters()['before'], $route);
     }
 
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function portalRoutes(): array
+    {
+        return [
+            'the portal itself'        => ['portal'],
+            'the sign-in'              => ['portal/login'],
+            'the statement'            => ['portal/statement'],
+            'an invoice'               => ['portal/invoice/5'],
+            'the file of an invoice'   => ['portal/invoice/5/pdf'],
+            'a method reached by name' => ['portal/getStatement'],
+            'the same in capitals'     => ['Portal/Statement'],
+        ];
+    }
+
+    #[DataProvider('portalRoutes')]
+    public function testInitialize_PutsTheGuardOfThePortalThenTheTokenFilterOnceBeforeEveryRouteOfThePortal(string $route): void
+    {
+        $filters = new Filters($this->productionConfig(), $this->postRequest(), service('response'));
+        $filters->initialize($route);
+
+        $before = $filters->getFilters()['before'];
+
+        $this->assertSame(['portalguard', 'csrf'], array_values(array_filter($before, static fn (string $name): bool => in_array($name, ['portalguard', 'csrf'], true))), $route);
+        $this->assertNotContains('isLoggedIn', $before, $route);
+    }
+
+    #[DataProvider('portalRoutes')]
+    public function testInitialize_RunsTheGuardOfThePortalBeforeTheTokenFilterUnderTest(string $route): void
+    {
+        $config  = new FiltersConfig();
+        $filters = new Filters($config, $this->postRequest(), service('response'));
+        $filters->initialize($route);
+
+        $this->assertContains('portalguard', $filters->getFilters()['before'], $route);
+        $this->assertContains('csrf', $filters->getFilters()['before'], $route);
+    }
+
+    public function testInitialize_KeepsTheEmployeeFilterAndTheTokenFilterOnTheRoutesOfTheEmployees(): void
+    {
+        foreach (['customers', 'customers/save/5', 'sales/complete', 'accounting_receivables', 'portalist/x', 'reports/summary_sales'] as $route) {
+            $filters = new Filters($this->productionConfig(), $this->postRequest(), service('response'));
+            $filters->initialize($route);
+
+            $this->assertContains('isLoggedIn', $filters->getFilters()['before'], $route);
+            $this->assertContains('csrf', $filters->getFilters()['before'], $route);
+            $this->assertNotContains('portalguard', $filters->getFilters()['before'], $route);
+        }
+    }
+
     public function testInitialize_LeavesTheTokenFilterOutOfTheRoutesItIsMeantToSpare(): void
     {
         $filters = new Filters($this->productionConfig(), $this->postRequest(), service('response'));

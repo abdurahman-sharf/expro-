@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
+use App\Libraries\Portal\PortalAccounts;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\MasterData\PartyContacts;
 use App\Libraries\MasterData\CustomerStatus;
@@ -69,6 +70,9 @@ class CustomersControllerTest extends CIUnitTestCase
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
         $db->query('DELETE FROM ' . $db->prefixTable('party_contacts'));
+        $db->query('DELETE FROM ' . $db->prefixTable('portal_accounts'));
+        $db->table('accounting_audit_log')->whereIn('entity_type', ['portal_account', 'portal_setting'])->delete();
+        $db->table('grants')->where('permission_id', AccountingGuard::PORTAL_MANAGE)->delete();
         $db->table('accounting_audit_log')->whereIn('action', ['party_contacts_changed', 'party_contacts_hidden'])->delete();
 
         $this->setConfigValue('accounting_enabled', '0');
@@ -1964,5 +1968,63 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertFalse($imported['result']['success']);
         $this->assertNull($this->customerByEmail($imported['emails'][0]));
         $this->assertNotNull($this->customerByEmail($imported['emails'][1]));
+    }
+
+    // ========== The portal tab of the customer form ==========
+
+    public function testGetView_ShowsThePortalTabToAnEmployeeWhoHoldsThePermissionToManageIt(): void
+    {
+        $created = $this->save();
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers', AccountingGuard::PORTAL_MANAGE]), 'menu_group' => 'office']);
+
+        $html = $this->get('/customers/view/' . $created['id'])->getBody();
+
+        $this->assertStringContainsString('id="customer_portal"', $html);
+        $this->assertStringContainsString('id="portal_panel"', $html);
+        $this->assertStringContainsString('customer_portal/create/' . $created['id'], $html);
+    }
+
+    public function testGetView_ShowsNoPortalTabToAnEmployeeWithoutThePermissionAndNoneForANewCustomer(): void
+    {
+        $created = $this->save();
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers']), 'menu_group' => 'office']);
+
+        $this->assertStringNotContainsString('id="customer_portal"', $this->get('/customers/view/' . $created['id'])->getBody());
+
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers', AccountingGuard::PORTAL_MANAGE]), 'menu_group' => 'office']);
+
+        $this->assertStringNotContainsString('id="customer_portal"', $this->get('/customers/view/' . NEW_ENTRY)->getBody());
+    }
+
+    public function testGetView_ShowsTheStateOfTheAccountOfTheCustomerWithTheUserNameEscaped(): void
+    {
+        $created = $this->save();
+        $manager = $this->employeeWithGrants(['customers', AccountingGuard::PORTAL_MANAGE]);
+        (new PortalAccounts())->create((int) $created['id'], 'ahmed', $manager);
+        $this->withSession(['person_id' => $manager, 'menu_group' => 'office']);
+
+        $html = $this->get('/customers/view/' . $created['id'])->getBody();
+
+        $this->assertStringContainsString('id="portal_account"', $html);
+        $this->assertStringContainsString('ahmed', $html);
+        $this->assertStringContainsString('id="portal_reset"', $html);
+        $this->assertStringNotContainsString('id="portal_create"', $html);
+        $this->assertStringContainsString(lang('Portal.manage_must_change'), $html);
+    }
+
+    public function testPostDelete_DisablesThePortalAccountOfTheCustomerAndEndsItsSessions(): void
+    {
+        $created = $this->save();
+        $id      = (int) $created['id'];
+        $manager = $this->employeeWithGrants(['customers', AccountingGuard::PORTAL_MANAGE]);
+        $account = (new PortalAccounts())->create($id, 'ahmed', $manager);
+        $version = (int) (new PortalAccounts())->find($account['account_id'])->credential_version;
+
+        $this->post('/customers/delete', ['ids' => [(string) $id]]);
+
+        $row = (new PortalAccounts())->find($account['account_id']);
+        $this->assertSame('disabled', $row->status);
+        $this->assertNull((new PortalAccounts())->live($account['account_id'], $version + 1));
+        $this->assertSame([null, 'disabled'], (new PortalAccounts())->check('ahmed', $account['temporary_password']));
     }
 }

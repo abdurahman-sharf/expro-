@@ -1,7 +1,7 @@
 <?php
 /**
  * @var array{total: int, rows: list<array<string, mixed>>} $found
- * @var int $page
+ * @var int                                                 $page
  */
 ?>
 <?= $this->extend('portal/layout') ?>

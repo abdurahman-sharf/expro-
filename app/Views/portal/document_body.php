@@ -4,7 +4,6 @@
  * @var string               $context
  * @var string               $customerName
  */
-
 $config     = documentConfig();
 $rtl        = isRtl();
 $alignEnd   = $rtl ? 'al-l' : 'al-r';

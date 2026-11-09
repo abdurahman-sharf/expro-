@@ -452,6 +452,24 @@ class EmployeeTest extends CIUnitTestCase
         }
     }
 
+    public function testHasModuleGrant_KeepsTheCustomersModuleOpenToAnEmployeeWhoHoldsOnlyTheModuleWhenThePortalPermissionIsRegistered(): void
+    {
+        $model    = model(Employee::class);
+        $employee = $this->createEmployee(grants: [['permission_id' => 'customers', 'menu_group' => 'home']]);
+
+        $this->assertSame(1, db_connect()->table('permissions')->where('permission_id', 'portal_manage')->countAllResults());
+        $this->assertTrue($model->has_module_grant('customers', $employee));
+        $this->assertTrue($model->has_subpermissions('customers'), 'No permission of the portal begins with the id of the customers module, so a holder of the module alone keeps it');
+    }
+
+    public function testHasModuleGrant_DoesNotOpenTheCustomersModuleToTheHolderOfThePortalPermissionAlone(): void
+    {
+        $model    = model(Employee::class);
+        $employee = $this->createEmployee(grants: [['permission_id' => 'portal_manage', 'menu_group' => 'home']]);
+
+        $this->assertFalse($model->has_module_grant('customers', $employee));
+    }
+
     public function testHasModuleGrant_CountsTheGrantsTheRolesGive(): void
     {
         $model    = model(Employee::class);

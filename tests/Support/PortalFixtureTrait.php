@@ -53,7 +53,7 @@ trait PortalFixtureTrait
     protected function portalSessionOf(array $account, ?int $now = null): array
     {
         $now ??= time();
-        $row  = (new PortalAccounts())->find($account['account_id']);
+        $row = (new PortalAccounts())->find($account['account_id']);
 
         return [
             PortalSession::KEY_CUSTOMER => $account['customer_id'],
@@ -80,6 +80,7 @@ trait PortalFixtureTrait
         $db->query('DELETE FROM ' . $db->prefixTable('portal_accounts'));
         $db->query('DELETE FROM ' . $db->prefixTable('portal_login_failures'));
         $db->table('accounting_audit_log')->whereIn('entity_type', ['portal_account', 'portal_setting'])->delete();
+        $db->table('grants')->where('permission_id', AccountingGuard::PORTAL_MANAGE)->delete();
         $this->switchPortal(false);
     }
 

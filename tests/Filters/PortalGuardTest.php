@@ -8,6 +8,7 @@ use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
+use CodeIgniter\Test\TestResponse;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
@@ -19,6 +20,8 @@ use Tests\Support\PortalFixtureTrait;
  * exist, the refusal of an employee, the sign-in that every page but the sign-in page needs, the end of a
  * session that is idle, old, of a disabled account, of a changed password or of a deleted customer, and the
  * page that must be visited before any other while the password is a temporary one.
+ *
+ * @internal
  */
 final class PortalGuardTest extends CIUnitTestCase
 {
@@ -31,11 +34,12 @@ final class PortalGuardTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
-
+    protected $namespace;
     private int $customer;
 
-    /** @var array{account_id: int, username: string, customer_id: int} */
+    /**
+     * @var array{account_id: int, username: string, customer_id: int}
+     */
     private array $account;
 
     public static function setUpBeforeClass(): void
@@ -64,10 +68,68 @@ final class PortalGuardTest extends CIUnitTestCase
         parent::tearDown();
     }
 
+    private function visit(string $method, string $path): TestResponse
+    {
+        $token = config('Security')->tokenName;
+
+        return $method === 'POST' ? $this->post('/' . $path, [$token => 'a1b2c3d4e5f60718293a4b5c6d7e8f90']) : $this->get('/' . $path);
+    }
+
+    /**
+     * @param array<string, mixed> $more
+     */
+    private function asCustomer(array $more = [], ?int $now = null): void
+    {
+        $this->withSession($this->portalSessionOf($this->account, $now) + [config('Security')->tokenName => 'a1b2c3d4e5f60718293a4b5c6d7e8f90'] + $more);
+    }
+
+    #[DataProvider('routesProvider')]
+    public function testBeforeMakesEveryRouteAPageThatDoesNotExistWhileThePortalIsOff(string $method, string $path): void
+    {
+        $this->switchPortal(false);
+        $this->asCustomer();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->visit($method, $path);
+    }
+
+    #[DataProvider('routesProvider')]
+    public function testBeforeMakesEveryRouteAPageThatDoesNotExistWhileThePortalIsOffEvenForNobody(string $method, string $path): void
+    {
+        $this->switchPortal(false);
+        $this->withSession([]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->visit($method, $path);
+    }
+
+    public function testBeforeTreatsAMissingSettingAsOff(): void
+    {
+        $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->delete();
+        $this->asCustomer();
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/portal/statement');
+    }
+
+    #[DataProvider('routesProvider')]
+    public function testBeforeRefusesASessionThatHoldsAnEmployeeOnEveryRoute(string $method, string $path): void
+    {
+        $this->withSession(['person_id' => $this->employeeWithGrants(['customers']), 'menu_group' => 'office', config('Security')->tokenName => 'a1b2c3d4e5f60718293a4b5c6d7e8f90']);
+
+        $response = $this->visit($method, $path);
+
+        $this->assertSame(403, $response->response()->getStatusCode());
+        $this->assertStringContainsString(lang('Portal.refused_employee'), $response->response()->getBody());
+    }
+
     /**
      * @return array<string, array{0: string, 1: string}>
      */
-    public static function routesProvider(): array
+    public static function routesProvider(): iterable
     {
         return [
             'index GET'            => ['GET', 'portal'],
@@ -89,73 +151,7 @@ final class PortalGuardTest extends CIUnitTestCase
         ];
     }
 
-    /**
-     * @return array<string, array{0: string, 1: string}>
-     */
-    public static function protectedRoutesProvider(): array
-    {
-        return array_filter(self::routesProvider(), static fn (array $route): bool => $route[1] !== 'portal/login');
-    }
-
-    private function visit(string $method, string $path): \CodeIgniter\Test\TestResponse
-    {
-        $token = config('Security')->tokenName;
-
-        return $method === 'POST' ? $this->post('/' . $path, [$token => 'a1b2c3d4e5f60718293a4b5c6d7e8f90']) : $this->get('/' . $path);
-    }
-
-    /**
-     * @param array<string, mixed> $more
-     */
-    private function asCustomer(array $more = [], ?int $now = null): void
-    {
-        $this->withSession($this->portalSessionOf($this->account, $now) + [config('Security')->tokenName => 'a1b2c3d4e5f60718293a4b5c6d7e8f90'] + $more);
-    }
-
-    #[DataProvider('routesProvider')]
-    public function testBefore_MakesEveryRouteAPageThatDoesNotExistWhileThePortalIsOff(string $method, string $path): void
-    {
-        $this->switchPortal(false);
-        $this->asCustomer();
-
-        $this->expectException(PageNotFoundException::class);
-
-        $this->visit($method, $path);
-    }
-
-    #[DataProvider('routesProvider')]
-    public function testBefore_MakesEveryRouteAPageThatDoesNotExistWhileThePortalIsOffEvenForNobody(string $method, string $path): void
-    {
-        $this->switchPortal(false);
-        $this->withSession([]);
-
-        $this->expectException(PageNotFoundException::class);
-
-        $this->visit($method, $path);
-    }
-
-    public function testBefore_TreatsAMissingSettingAsOff(): void
-    {
-        $this->accountingDb()->table('app_config')->where('key', 'portal_enabled')->delete();
-        $this->asCustomer();
-
-        $this->expectException(PageNotFoundException::class);
-
-        $this->get('/portal/statement');
-    }
-
-    #[DataProvider('routesProvider')]
-    public function testBefore_RefusesASessionThatHoldsAnEmployeeOnEveryRoute(string $method, string $path): void
-    {
-        $this->withSession(['person_id' => $this->employeeWithGrants(['customers']), 'menu_group' => 'office', config('Security')->tokenName => 'a1b2c3d4e5f60718293a4b5c6d7e8f90']);
-
-        $response = $this->visit($method, $path);
-
-        $this->assertSame(403, $response->response()->getStatusCode());
-        $this->assertStringContainsString(lang('Portal.refused_employee'), $response->response()->getBody());
-    }
-
-    public function testBefore_RefusesASessionThatHoldsAnEmployeeAndACustomerAtOnce(): void
+    public function testBeforeRefusesASessionThatHoldsAnEmployeeAndACustomerAtOnce(): void
     {
         $this->asCustomer(['person_id' => $this->employeeWithGrants(['customers'])]);
 
@@ -163,7 +159,7 @@ final class PortalGuardTest extends CIUnitTestCase
     }
 
     #[DataProvider('protectedRoutesProvider')]
-    public function testBefore_SendsAVisitorWhoIsNotSignedInToTheSignInPageFromEveryOtherRoute(string $method, string $path): void
+    public function testBeforeSendsAVisitorWhoIsNotSignedInToTheSignInPageFromEveryOtherRoute(string $method, string $path): void
     {
         $this->withSession([config('Security')->tokenName => 'a1b2c3d4e5f60718293a4b5c6d7e8f90']);
 
@@ -172,7 +168,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $response->getRedirectUrl());
     }
 
-    public function testBefore_AnswersAnAjaxRequestOfAVisitorWhoIsNotSignedInWithAnUnauthorisedStatus(): void
+    public function testBeforeAnswersAnAjaxRequestOfAVisitorWhoIsNotSignedInWithAnUnauthorisedStatus(): void
     {
         $this->withSession([]);
 
@@ -182,14 +178,14 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertFalse(json_decode($response->response()->getBody(), true)['success']);
     }
 
-    public function testBefore_LeavesTheSignInPageOpenToAVisitorWhoIsNotSignedIn(): void
+    public function testBeforeLeavesTheSignInPageOpenToAVisitorWhoIsNotSignedIn(): void
     {
         $this->withSession([]);
 
         $this->get('/portal/login')->assertStatus(200);
     }
 
-    public function testBefore_AppliesToTheMethodsThatAreReachedByTheirOwnNameWhateverTheCaseOfThePath(): void
+    public function testBeforeAppliesToTheMethodsThatAreReachedByTheirOwnNameWhateverTheCaseOfThePath(): void
     {
         $this->withSession([]);
 
@@ -206,14 +202,14 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->addToAssertionCount(1);
     }
 
-    public function testBefore_LetsASignedInCustomerThrough(): void
+    public function testBeforeLetsASignedInCustomerThrough(): void
     {
         $this->asCustomer();
 
         $this->get('/portal/statement')->assertStatus(200);
     }
 
-    public function testBefore_EndsASessionThatHasBeenIdleForMoreThanHalfAnHour(): void
+    public function testBeforeEndsASessionThatHasBeenIdleForMoreThanHalfAnHour(): void
     {
         $this->asCustomer([], time() - PortalSession::IDLE_SECONDS - 5);
 
@@ -223,14 +219,14 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertArrayNotHasKey(PortalSession::KEY_CUSTOMER, $_SESSION);
     }
 
-    public function testBefore_KeepsASessionThatHasBeenIdleForLessThanHalfAnHour(): void
+    public function testBeforeKeepsASessionThatHasBeenIdleForLessThanHalfAnHour(): void
     {
         $this->asCustomer([], time() - PortalSession::IDLE_SECONDS + 60);
 
         $this->get('/portal/statement')->assertStatus(200);
     }
 
-    public function testBefore_EndsASessionOlderThanEightHoursEvenWhenItIsActive(): void
+    public function testBeforeEndsASessionOlderThanEightHoursEvenWhenItIsActive(): void
     {
         $session                             = $this->portalSessionOf($this->account);
         $session[PortalSession::KEY_STARTED] = time() - PortalSession::MAX_SECONDS - 5;
@@ -239,7 +235,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBefore_RenewsTheActivityTimeOfASessionThatIsUsed(): void
+    public function testBeforeRenewsTheActivityTimeOfASessionThatIsUsed(): void
     {
         $this->asCustomer([], time() - 600);
 
@@ -248,7 +244,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertGreaterThan(time() - 10, $_SESSION[PortalSession::KEY_ACTIVE]);
     }
 
-    public function testBefore_EndsTheSessionOfAnAccountThatWasDisabledAtOnce(): void
+    public function testBeforeEndsTheSessionOfAnAccountThatWasDisabledAtOnce(): void
     {
         $this->asCustomer();
         (new PortalAccounts())->setActive($this->account['account_id'], false, $this->portalManager());
@@ -256,7 +252,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBefore_EndsTheSessionWhenAnEmployeeResetTheOrTheCustomerChangedThePassword(): void
+    public function testBeforeEndsTheSessionWhenAnEmployeeResetTheOrTheCustomerChangedThePassword(): void
     {
         $this->asCustomer();
         (new PortalAccounts())->resetPassword($this->account['account_id'], $this->portalManager());
@@ -264,7 +260,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBefore_EndsTheSessionOfACustomerWhoWasDeleted(): void
+    public function testBeforeEndsTheSessionOfACustomerWhoWasDeleted(): void
     {
         $this->asCustomer();
         $this->accountingDb()->table('customers')->where('person_id', $this->customer)->update(['deleted' => 1]);
@@ -272,7 +268,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBefore_EndsTheSessionWhoseAccountIsGone(): void
+    public function testBeforeEndsTheSessionWhoseAccountIsGone(): void
     {
         $this->asCustomer();
         $this->accountingDb()->table('portal_accounts')->where('account_id', $this->account['account_id'])->delete();
@@ -280,26 +276,26 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBefore_RefusesASessionThatNamesACustomerThatIsNotTheOneOfItsAccount(): void
+    public function testBeforeRefusesASessionThatNamesACustomerThatIsNotTheOneOfItsAccount(): void
     {
-        $other                              = $this->insertCustomer('Hind', 'Saad');
-        $session                            = $this->portalSessionOf($this->account);
+        $other                                = $this->insertCustomer('Hind', 'Saad');
+        $session                              = $this->portalSessionOf($this->account);
         $session[PortalSession::KEY_CUSTOMER] = $other;
         $this->withSession($session);
 
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBefore_RefusesASessionWithOnlyTheCustomerAndNoAccount(): void
+    public function testBeforeRefusesASessionWithOnlyTheCustomerAndNoAccount(): void
     {
         $this->withSession([PortalSession::KEY_CUSTOMER => $this->customer, PortalSession::KEY_STARTED => time(), PortalSession::KEY_ACTIVE => time()]);
 
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testBefore_RefusesASessionWhoseKeysAreNotWholeNumbers(): void
+    public function testBeforeRefusesASessionWhoseKeysAreNotWholeNumbers(): void
     {
-        $session                            = $this->portalSessionOf($this->account);
+        $session                              = $this->portalSessionOf($this->account);
         $session[PortalSession::KEY_CUSTOMER] = (string) $this->customer;
         $this->withSession($session);
 
@@ -307,7 +303,7 @@ final class PortalGuardTest extends CIUnitTestCase
     }
 
     #[DataProvider('protectedRoutesProvider')]
-    public function testBefore_SendsACustomerWhoMustChangeThePasswordToTheChangePageFromEveryOtherRoute(string $method, string $path): void
+    public function testBeforeSendsACustomerWhoMustChangeThePasswordToTheChangePageFromEveryOtherRoute(string $method, string $path): void
     {
         $this->accountingDb()->table('portal_accounts')->where('account_id', $this->account['account_id'])->update(['must_change' => 1]);
         $this->asCustomer();
@@ -324,7 +320,15 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/password', (string) $response->getRedirectUrl());
     }
 
-    public function testBefore_LetsACustomerWhoMustChangeThePasswordReachTheChangePage(): void
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function protectedRoutesProvider(): iterable
+    {
+        return array_filter(self::routesProvider(), static fn (array $route): bool => $route[1] !== 'portal/login');
+    }
+
+    public function testBeforeLetsACustomerWhoMustChangeThePasswordReachTheChangePage(): void
     {
         $this->accountingDb()->table('portal_accounts')->where('account_id', $this->account['account_id'])->update(['must_change' => 1]);
         $this->asCustomer();
@@ -332,7 +336,7 @@ final class PortalGuardTest extends CIUnitTestCase
         $this->get('/portal/password')->assertStatus(200);
     }
 
-    public function testBefore_LetsACustomerWhoMustChangeThePasswordSignOut(): void
+    public function testBeforeLetsACustomerWhoMustChangeThePasswordSignOut(): void
     {
         $this->accountingDb()->table('portal_accounts')->where('account_id', $this->account['account_id'])->update(['must_change' => 1]);
         $this->asCustomer();

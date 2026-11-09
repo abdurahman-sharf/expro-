@@ -14,8 +14,8 @@ use Config\Session;
  */
 final class PortalRealm
 {
-    public const PREFIX         = 'portal';
-    public const COOKIE         = 'ospos_portal_session';
+    public const PREFIX          = 'portal';
+    public const COOKIE          = 'ospos_portal_session';
     public const SESSION_SECONDS = 1800;
 
     public static function isPortalPath(string $path): bool

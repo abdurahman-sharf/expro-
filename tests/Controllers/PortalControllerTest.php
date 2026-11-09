@@ -24,8 +24,10 @@ use Tests\Support\SaleAccountingFixtureTrait;
  * The portal of the customers: what each page shows, that every page is bound to the customer of the session
  * whatever the request says, that a number that is not a document of that customer is a page that does not
  * exist, and the sign-in, the sign-out and the change of the password with the token that every post needs.
+ *
+ * @internal
  */
-class PortalControllerTest extends CIUnitTestCase
+final class PortalControllerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use FeatureTestTrait;
@@ -35,20 +37,24 @@ class PortalControllerTest extends CIUnitTestCase
     use SaleAccountingFixtureTrait;
     use PortalFixtureTrait;
 
-    private const TOKEN         = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
-    private const SECRET_COST   = '41.3377';
-    private const OTHER_COST    = '77.7713';
-    private const NEW_PASSWORD  = 'Another-Pass-42';
+    private const TOKEN        = 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90';
+    private const SECRET_COST  = '41.3377';
+    private const OTHER_COST   = '77.7713';
+    private const NEW_PASSWORD = 'Another-Pass-42';
 
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
+    protected $namespace;
 
-    /** @var array{account_id: int, username: string, customer_id: int} */
+    /**
+     * @var array{account_id: int, username: string, customer_id: int}
+     */
     private array $account;
 
-    /** @var array{account_id: int, username: string, customer_id: int} */
+    /**
+     * @var array{account_id: int, username: string, customer_id: int}
+     */
     private array $otherAccount;
 
     private int $other;
@@ -118,7 +124,7 @@ class PortalControllerTest extends CIUnitTestCase
         return $this->get($path)->getBody();
     }
 
-    public function testGetStatement_ShowsTheBalanceTheOpenInvoicesWithTheirDueDatesAndTheAging(): void
+    public function testGetStatementShowsTheBalanceTheOpenInvoicesWithTheirDueDatesAndTheAging(): void
     {
         $invoice = $this->invoiceDated('300.00', $this->daysAgo(45), 30);
         $this->invoiceDated('120.00', $this->daysAgo(2), 30);
@@ -137,7 +143,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertSame($this->position()->open(), '420.0000');
     }
 
-    public function testGetStatement_TiesToTheLedgerOfTheCustomerForBalanceOpenAndCredit(): void
+    public function testGetStatementTiesToTheLedgerOfTheCustomerForBalanceOpenAndCredit(): void
     {
         $first = $this->invoiceOf('100.00');
         $this->creditNoteOf($first, '30.00');
@@ -152,7 +158,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Portal.balance'), $html);
     }
 
-    public function testGetStatement_ListsCreditTheCustomerHolds(): void
+    public function testGetStatementListsCreditTheCustomerHolds(): void
     {
         $invoice = $this->invoiceOf('100.00');
         $this->creditNoteOf($invoice, '100.00');
@@ -164,7 +170,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('id="portal_credits"', $html);
     }
 
-    public function testGetStatement_SaysItIsNotAvailableWhileAccountingIsOff(): void
+    public function testGetStatementSaysItIsNotAvailableWhileAccountingIsOff(): void
     {
         $this->invoiceOf('100.00');
         $this->setConfigValue('accounting_enabled', '0');
@@ -176,7 +182,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('id="portal_open_invoices"', $html);
     }
 
-    public function testGetStatement_IgnoresACustomerNumberInTheRequest(): void
+    public function testGetStatementIgnoresACustomerNumberInTheRequest(): void
     {
         $this->invoiceOf('100.00');
         $this->invoiceOf('555.00', $this->other);
@@ -188,7 +194,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('555.00', $html);
     }
 
-    public function testGetInvoices_ListsTheInvoicesOfTheCustomerOnly(): void
+    public function testGetInvoicesListsTheInvoicesOfTheCustomerOnly(): void
     {
         $mine = $this->invoiceOf('100.00');
         $this->invoiceOf('555.00', $this->other);
@@ -202,7 +208,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('Hind', $html);
     }
 
-    public function testGetInvoices_LeavesOutWhatIsNotAnIssuedInvoiceOfTheCustomer(): void
+    public function testGetInvoicesLeavesOutWhatIsNotAnIssuedInvoiceOfTheCustomer(): void
     {
         $draft = $this->draftInvoice(null, $this->customerId);
         $quote = $this->quote(null, null, $this->customerId);
@@ -215,7 +221,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Portal.no_rows'), $html);
     }
 
-    public function testGetCreditNotes_ListsTheCreditNotesAndRefundInvoicesOfTheCustomerOnly(): void
+    public function testGetCreditNotesListsTheCreditNotesAndRefundInvoicesOfTheCustomerOnly(): void
     {
         $invoice = $this->invoiceOf('100.00');
         $note    = $this->creditNoteOf($invoice, '30.00');
@@ -234,7 +240,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang(ReturnDocument::RefundInvoice->languageKey()), $html);
     }
 
-    public function testGetPayments_ListsTheMoneyTheCustomerPaidAndNotWhatAnotherCustomerPaid(): void
+    public function testGetPaymentsListsTheMoneyTheCustomerPaidAndNotWhatAnotherCustomerPaid(): void
     {
         $mine = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '60.00')]);
         $this->invoiceOf('300.00', $this->other, [$this->payment(lang('Sales.cash'), '222.00')]);
@@ -247,7 +253,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('222.00', $html);
     }
 
-    public function testGetPayments_LeavesOutWhatWasLeftDueAndTheRoundingOfCash(): void
+    public function testGetPaymentsLeavesOutWhatWasLeftDueAndTheRoundingOfCash(): void
     {
         $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.due'), '100.00')]);
         $this->asCustomer();
@@ -255,16 +261,8 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Portal.no_rows'), $this->body('/portal/payments'));
     }
 
-    /**
-     * @return array<string, array{0: string}>
-     */
-    public static function pagesProvider(): array
-    {
-        return ['statement' => ['statement'], 'invoices' => ['invoices'], 'credit notes' => ['credit_notes'], 'payments' => ['payments']];
-    }
-
-    #[DataProvider('pagesProvider')]
-    public function testGetPage_TreatsABadPageNumberAsTheFirstPage(string $page): void
+    #[DataProvider('provideGetPage_TreatsABadPageNumberAsTheFirstPage')]
+    public function testGetPageTreatsABadPageNumberAsTheFirstPage(string $page): void
     {
         $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '10.00')]);
         $this->asCustomer();
@@ -274,7 +272,15 @@ class PortalControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testGetInvoices_PagesTwentyFiveToAPageAndSaysWhichPageItIs(): void
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function provideGetPage_TreatsABadPageNumberAsTheFirstPage(): iterable
+    {
+        return ['statement' => ['statement'], 'invoices' => ['invoices'], 'credit notes' => ['credit_notes'], 'payments' => ['payments']];
+    }
+
+    public function testGetInvoicesPagesTwentyFiveToAPageAndSaysWhichPageItIs(): void
     {
         for ($index = 0; $index < 26; $index++) {
             $this->invoiceOf('1.00');
@@ -290,7 +296,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Portal.page_of', [2, 2]), $second);
     }
 
-    public function testGetInvoice_ShowsTheLinesTheTaxTheTotalAndWhatWasPaid(): void
+    public function testGetInvoiceShowsTheLinesTheTaxTheTotalAndWhatWasPaid(): void
     {
         $cycle   = $this->referenceInvoice();
         $invoice = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '800.00')]);
@@ -309,7 +315,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/invoice/' . $invoice . '/pdf', $html);
     }
 
-    public function testGetInvoicePdf_ReturnsAPdfFile(): void
+    public function testGetInvoicePdfReturnsAPdfFile(): void
     {
         $invoice = $this->costlyInvoice();
         $this->asCustomer();
@@ -321,7 +327,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('inline', $response->response()->getHeaderLine('Content-Disposition'));
     }
 
-    public function testGetCreditNote_ShowsTheNoteWithTheInvoiceItCameFrom(): void
+    public function testGetCreditNoteShowsTheNoteWithTheInvoiceItCameFrom(): void
     {
         $invoice = $this->invoiceOf('100.00');
         $note    = $this->creditNoteOf($invoice, '30.00');
@@ -335,7 +341,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/credit_note/' . $note . '/pdf', $html);
     }
 
-    public function testGetCreditNotePdf_ReturnsAPdfFile(): void
+    public function testGetCreditNotePdfReturnsAPdfFile(): void
     {
         $note = $this->creditNoteOf($this->invoiceOf('100.00'), '30.00');
         $this->asCustomer();
@@ -343,7 +349,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringStartsWith('%PDF', $this->get('/portal/credit_note/' . $note . '/pdf')->response()->getBody());
     }
 
-    public function testGetPayment_ShowsTheReceiptWithoutTheTreasuryAndTheEmployeeWhoTookIt(): void
+    public function testGetPaymentShowsTheReceiptWithoutTheTreasuryAndTheEmployeeWhoTookIt(): void
     {
         $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '60.00')]);
         $payment = (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $invoice)->get()->getRow()->payment_id;
@@ -361,28 +367,13 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/payment/' . $payment . '/pdf', $html);
     }
 
-    public function testGetPaymentPdf_ReturnsAPdfFile(): void
+    public function testGetPaymentPdfReturnsAPdfFile(): void
     {
         $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '60.00')]);
         $payment = (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $invoice)->get()->getRow()->payment_id;
         $this->asCustomer();
 
         $this->assertStringStartsWith('%PDF', $this->get('/portal/payment/' . $payment . '/pdf')->response()->getBody());
-    }
-
-    /**
-     * @return array<string, array{0: string, 1: string}>
-     */
-    public static function documentRoutesProvider(): array
-    {
-        return [
-            'an invoice'         => ['invoice', ''],
-            'an invoice file'    => ['invoice', '/pdf'],
-            'a credit note'      => ['credit_note', ''],
-            'a credit note file' => ['credit_note', '/pdf'],
-            'a payment'          => ['payment', ''],
-            'a payment file'     => ['payment', '/pdf'],
-        ];
     }
 
     /**
@@ -400,7 +391,7 @@ class PortalControllerTest extends CIUnitTestCase
     }
 
     #[DataProvider('documentRoutesProvider')]
-    public function testGetDocument_ReturnsNotFoundForTheNumberOfAnotherCustomersDocument(string $kind, string $suffix): void
+    public function testGetDocumentReturnsNotFoundForTheNumberOfAnotherCustomersDocument(string $kind, string $suffix): void
     {
         $number = $this->foreignNumber($kind);
         $this->asCustomer();
@@ -411,7 +402,7 @@ class PortalControllerTest extends CIUnitTestCase
     }
 
     #[DataProvider('documentRoutesProvider')]
-    public function testGetDocument_ReturnsNotFoundForANumberThatIsNoDocumentAtAll(string $kind, string $suffix): void
+    public function testGetDocumentReturnsNotFoundForANumberThatIsNoDocumentAtAll(string $kind, string $suffix): void
     {
         $this->asCustomer();
 
@@ -421,7 +412,7 @@ class PortalControllerTest extends CIUnitTestCase
     }
 
     #[DataProvider('documentRoutesProvider')]
-    public function testGetDocument_OpensTheSameNumberForItsOwnerAndNotForTheCustomerWhoGuessedIt(string $kind, string $suffix): void
+    public function testGetDocumentOpensTheSameNumberForItsOwnerAndNotForTheCustomerWhoGuessedIt(string $kind, string $suffix): void
     {
         $number = $this->foreignNumber($kind);
 
@@ -435,7 +426,22 @@ class PortalControllerTest extends CIUnitTestCase
         $this->get('/portal/' . $kind . '/' . $number . $suffix);
     }
 
-    public function testGetInvoice_ReturnsNotFoundForTheNumberOfADocumentOfAnotherKindOfTheSameCustomer(): void
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function documentRoutesProvider(): iterable
+    {
+        return [
+            'an invoice'         => ['invoice', ''],
+            'an invoice file'    => ['invoice', '/pdf'],
+            'a credit note'      => ['credit_note', ''],
+            'a credit note file' => ['credit_note', '/pdf'],
+            'a payment'          => ['payment', ''],
+            'a payment file'     => ['payment', '/pdf'],
+        ];
+    }
+
+    public function testGetInvoiceReturnsNotFoundForTheNumberOfADocumentOfAnotherKindOfTheSameCustomer(): void
     {
         $invoice = $this->invoiceOf('100.00');
         $note    = $this->creditNoteOf($invoice, '30.00');
@@ -448,7 +454,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->get('/portal/invoice/' . $note);
     }
 
-    public function testGetCreditNote_ReturnsNotFoundForTheNumberOfAnInvoice(): void
+    public function testGetCreditNoteReturnsNotFoundForTheNumberOfAnInvoice(): void
     {
         $invoice = $this->invoiceOf('100.00');
         $this->asCustomer();
@@ -458,7 +464,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->get('/portal/credit_note/' . $invoice);
     }
 
-    public function testGetInvoice_ReturnsNotFoundForADraftAndForAQuoteOfTheCustomer(): void
+    public function testGetInvoiceReturnsNotFoundForADraftAndForAQuoteOfTheCustomer(): void
     {
         $draft = $this->draftInvoice(null, $this->customerId);
         $this->asCustomer();
@@ -468,7 +474,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->get('/portal/invoice/' . $draft);
     }
 
-    public function testGetInvoice_ReturnsNotFoundForAQuoteOfTheCustomer(): void
+    public function testGetInvoiceReturnsNotFoundForAQuoteOfTheCustomer(): void
     {
         $quote = $this->quote(null, null, $this->customerId);
         $this->asCustomer();
@@ -478,7 +484,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->get('/portal/invoice/' . $quote);
     }
 
-    public function testGetInvoice_ReturnsNotFoundForTheInvoiceOfACustomerWhoseAccountIsThisOneAfterTheNumberWasRead(): void
+    public function testGetInvoiceReturnsNotFoundForTheInvoiceOfACustomerWhoseAccountIsThisOneAfterTheNumberWasRead(): void
     {
         $foreign = $this->invoiceOf('90.00', $this->other);
         $this->asCustomer();
@@ -488,7 +494,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->get('/portal/invoice/' . $foreign . '?customer_id=' . $this->other);
     }
 
-    public function testGetPages_ShowNoCostNoMarginNoOtherPartyAndNoJournalData(): void
+    public function testGetPagesShowNoCostNoMarginNoOtherPartyAndNoJournalData(): void
     {
         $invoice = $this->costlyInvoice();
         $this->costlyInvoice($this->other, self::OTHER_COST);
@@ -513,7 +519,7 @@ class PortalControllerTest extends CIUnitTestCase
         }
     }
 
-    public function testGetPages_EscapeWhatTheShopTypedForTheCustomerTheItemsAndThePaymentMethods(): void
+    public function testGetPagesEscapeWhatTheShopTypedForTheCustomerTheItemsAndThePaymentMethods(): void
     {
         $invoice = $this->costlyInvoice();
         $this->accountingDb()->table('people')->where('person_id', $this->customerId)->update(['first_name' => '<script>alert(1)</script>', 'last_name' => '"><img src=x>']);
@@ -534,7 +540,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $this->body('/portal/invoice/' . $invoice));
     }
 
-    public function testGetLogin_ShowsTheFormWithAFieldForTheToken(): void
+    public function testGetLoginShowsTheFormWithAFieldForTheToken(): void
     {
         $this->withSession([$this->tokenName() => self::TOKEN]);
 
@@ -545,14 +551,14 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('type="password"', $html);
     }
 
-    public function testGetLogin_SendsASignedInCustomerToTheStatement(): void
+    public function testGetLoginSendsASignedInCustomerToTheStatement(): void
     {
         $this->asCustomer();
 
         $this->assertStringContainsString('portal/statement', (string) $this->get('/portal/login')->getRedirectUrl());
     }
 
-    public function testPostLogin_OpensASessionOfTheCustomerRenewsTheIdentifierAndClearsWhatWasInTheSession(): void
+    public function testPostLoginOpensASessionOfTheCustomerRenewsTheIdentifierAndClearsWhatWasInTheSession(): void
     {
         $renewed = 0;
         Events::on(PortalSession::REGENERATED, static function () use (&$renewed): void {
@@ -571,7 +577,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertCount(1, $this->portalAudit('portal_login_succeeded'));
     }
 
-    public function testPostLogin_AnswersAWrongPasswordAndAnUnknownNameWithTheSameRefusalAndOpensNothing(): void
+    public function testPostLoginAnswersAWrongPasswordAndAnUnknownNameWithTheSameRefusalAndOpensNothing(): void
     {
         $this->withSession([$this->tokenName() => self::TOKEN]);
 
@@ -590,7 +596,7 @@ class PortalControllerTest extends CIUnitTestCase
         return trim((string) preg_replace('/\s+/', ' ', strip_tags($html)));
     }
 
-    public function testPostLogin_LocksTheUserNameAfterRepeatedFailuresAndRefusesTheRightPasswordWithTooManyAttempts(): void
+    public function testPostLoginLocksTheUserNameAfterRepeatedFailuresAndRefusesTheRightPasswordWithTooManyAttempts(): void
     {
         $this->withSession([$this->tokenName() => self::TOKEN]);
 
@@ -605,7 +611,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertArrayNotHasKey(PortalSession::KEY_CUSTOMER, $_SESSION);
     }
 
-    public function testPostLogin_DoesNotSignInAnAccountThatWasDisabled(): void
+    public function testPostLoginDoesNotSignInAnAccountThatWasDisabled(): void
     {
         $this->withSession([$this->tokenName() => self::TOKEN]);
         (new PortalAccounts())->setActive($this->account['account_id'], false, $this->portalManager());
@@ -613,7 +619,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertSame(401, $this->post('/portal/login', $this->withToken(['username' => 'omar', 'password' => self::PORTAL_PASSWORD]))->response()->getStatusCode());
     }
 
-    public function testPostLogin_TakesTheNameAndPasswordFromTheFormOnlyAndRefusesAnArrayInTheirPlace(): void
+    public function testPostLoginTakesTheNameAndPasswordFromTheFormOnlyAndRefusesAnArrayInTheirPlace(): void
     {
         $this->withSession([$this->tokenName() => self::TOKEN]);
 
@@ -622,7 +628,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertSame(401, $response->response()->getStatusCode());
     }
 
-    public function testPostLogin_RefusesAPostWithoutTheTokenAndWithAWrongToken(): void
+    public function testPostLoginRefusesAPostWithoutTheTokenAndWithAWrongToken(): void
     {
         $this->withSession([$this->tokenName() => self::TOKEN]);
 
@@ -640,7 +646,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->post('/portal/login', [$this->tokenName() => 'f' . substr(self::TOKEN, 1), 'username' => 'omar', 'password' => self::PORTAL_PASSWORD]);
     }
 
-    public function testPostLogout_EndsTheSessionAndTheNextPageSendsTheCustomerToTheSignIn(): void
+    public function testPostLogoutEndsTheSessionAndTheNextPageSendsTheCustomerToTheSignIn(): void
     {
         $this->asCustomer();
 
@@ -655,7 +661,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('portal/login', (string) $this->get('/portal/statement')->getRedirectUrl());
     }
 
-    public function testPostLogout_RefusesAPostWithoutTheToken(): void
+    public function testPostLogoutRefusesAPostWithoutTheToken(): void
     {
         $this->asCustomer();
 
@@ -664,7 +670,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->post('/portal/logout');
     }
 
-    public function testPostLogout_IsNotDoneByAGetRequestToTheSameMethod(): void
+    public function testPostLogoutIsNotDoneByAGetRequestToTheSameMethod(): void
     {
         $this->asCustomer();
 
@@ -678,7 +684,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertSame($this->customerId, $_SESSION[PortalSession::KEY_CUSTOMER]);
     }
 
-    public function testPostLogin_IsNotDoneByAGetRequestToTheSameMethod(): void
+    public function testPostLoginIsNotDoneByAGetRequestToTheSameMethod(): void
     {
         $this->withSession([$this->tokenName() => self::TOKEN]);
 
@@ -687,7 +693,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->get('/portal/postLogin?username=omar&password=' . self::PORTAL_PASSWORD);
     }
 
-    public function testGetPassword_ShowsTheFormAndSaysItIsRequiredWhileThePasswordIsTemporary(): void
+    public function testGetPasswordShowsTheFormAndSaysItIsRequiredWhileThePasswordIsTemporary(): void
     {
         $this->accountingDb()->table('portal_accounts')->where('account_id', $this->account['account_id'])->update(['must_change' => 1]);
         $this->asCustomer();
@@ -698,7 +704,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('id="portal_forced"', $html);
     }
 
-    public function testPostPassword_ChangesThePasswordRenewsTheSessionAndEndsTheOldVersion(): void
+    public function testPostPasswordChangesThePasswordRenewsTheSessionAndEndsTheOldVersion(): void
     {
         $renewed = 0;
         Events::on(PortalSession::REGENERATED, static function () use (&$renewed): void {
@@ -719,7 +725,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertNotNull((new PortalAccounts())->check('omar', self::NEW_PASSWORD)[0]);
     }
 
-    public function testPostPassword_RejectsADifferentConfirmationAWrongCurrentPasswordAndAWeakNewOneAndChangesNothing(): void
+    public function testPostPasswordRejectsADifferentConfirmationAWrongCurrentPasswordAndAWeakNewOneAndChangesNothing(): void
     {
         $this->asCustomer();
         $hash = (new PortalAccounts())->find($this->account['account_id'])->password_hash;
@@ -733,7 +739,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertSame($hash, (new PortalAccounts())->find($this->account['account_id'])->password_hash);
     }
 
-    public function testPostPassword_RefusesAPostWithoutTheToken(): void
+    public function testPostPasswordRefusesAPostWithoutTheToken(): void
     {
         $this->asCustomer();
 
@@ -742,7 +748,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->post('/portal/password', ['current_password' => self::PORTAL_PASSWORD, 'new_password' => self::NEW_PASSWORD, 'confirm_password' => self::NEW_PASSWORD]);
     }
 
-    public function testPostPassword_ChangesTheAccountOfTheSessionAndNotOneNamedInTheRequest(): void
+    public function testPostPasswordChangesTheAccountOfTheSessionAndNotOneNamedInTheRequest(): void
     {
         $this->asCustomer();
         $hash = (new PortalAccounts())->find($this->otherAccount['account_id'])->password_hash;
@@ -753,7 +759,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertNotNull((new PortalAccounts())->check('omar', self::NEW_PASSWORD)[0]);
     }
 
-    public function testPostPassword_IsNotDoneByAGetRequestToTheSameMethod(): void
+    public function testPostPasswordIsNotDoneByAGetRequestToTheSameMethod(): void
     {
         $this->asCustomer();
 
@@ -762,14 +768,14 @@ class PortalControllerTest extends CIUnitTestCase
         $this->get('/portal/postPassword?current_password=' . self::PORTAL_PASSWORD . '&new_password=' . self::NEW_PASSWORD . '&confirm_password=' . self::NEW_PASSWORD);
     }
 
-    public function testGetIndex_SendsASignedInCustomerToTheStatement(): void
+    public function testGetIndexSendsASignedInCustomerToTheStatement(): void
     {
         $this->asCustomer();
 
         $this->assertStringContainsString('portal/statement', (string) $this->get('/portal')->getRedirectUrl());
     }
 
-    public function testGetPages_ChangeNoJournalAndNoBalance(): void
+    public function testGetPagesChangeNoJournalAndNoBalance(): void
     {
         $invoice = $this->costlyInvoice();
         $this->asCustomer();
@@ -786,7 +792,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertSame($before, $checksum());
     }
 
-    public function testGetInvoice_AgreesWithTheInvoiceTheLedgerCarriesForTheCustomer(): void
+    public function testGetInvoiceAgreesWithTheInvoiceTheLedgerCarriesForTheCustomer(): void
     {
         $invoice = $this->invoiceOf('250.00', null, [$this->payment(lang('Sales.cash'), '100.00')]);
         $this->asCustomer();
@@ -800,7 +806,7 @@ class PortalControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('150.00 SAR', $html);
     }
 
-    public function testGetPages_ReadTheCustomerFromTheSessionOfThePortalAndNotFromAnEmployeeKeyOfIt(): void
+    public function testGetPagesReadTheCustomerFromTheSessionOfThePortalAndNotFromAnEmployeeKeyOfIt(): void
     {
         $this->asCustomer(null, ['employee_id' => $this->employeeId, 'customer_id' => $this->other]);
         $this->invoiceOf('555.00', $this->other);

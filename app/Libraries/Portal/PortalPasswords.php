@@ -15,8 +15,7 @@ final class PortalPasswords
     public const MIN_LENGTH       = 10;
     public const MAX_BYTES        = 72;
     public const TEMPORARY_LENGTH = 14;
-
-    private const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    private const ALPHABET        = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
 
     private static ?string $absent = null;
 

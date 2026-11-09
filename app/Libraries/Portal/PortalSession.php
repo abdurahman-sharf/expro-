@@ -92,7 +92,7 @@ final class PortalSession
 
     public function expired(?int $now = null): bool
     {
-        $now    ??= time();
+        $now ??= time();
         $started = (int) $this->session->get(self::KEY_STARTED);
         $active  = (int) $this->session->get(self::KEY_ACTIVE);
 

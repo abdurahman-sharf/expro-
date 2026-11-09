@@ -31,7 +31,7 @@ class Portal extends BaseController
         return redirect()->to(site_url('portal/statement'));
     }
 
-    public function getLogin(): string|RedirectResponse
+    public function getLogin(): RedirectResponse|string
     {
         if ((new PortalSession())->customerId() !== null) {
             return redirect()->to(site_url('portal/statement'));
@@ -40,7 +40,7 @@ class Portal extends BaseController
         return view('portal/login', ['signedIn' => false]);
     }
 
-    public function postLogin(): ResponseInterface|RedirectResponse
+    public function postLogin(): RedirectResponse|ResponseInterface
     {
         $this->requirePost();
 
@@ -79,7 +79,7 @@ class Portal extends BaseController
         return view('portal/password', ['signedIn' => true, 'forced' => $this->mustChange()]);
     }
 
-    public function postPassword(): ResponseInterface|RedirectResponse
+    public function postPassword(): RedirectResponse|ResponseInterface
     {
         $this->requirePost();
 

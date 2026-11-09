@@ -23,15 +23,17 @@ final class PortalLoginTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use PortalFixtureTrait;
 
+    private const NOW     = 1_800_000_000;
+    private const ADDRESS = '10.1.2.3';
+
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
     protected $namespace;
 
-    private const NOW     = 1_800_000_000;
-    private const ADDRESS = '10.1.2.3';
-
-    /** @var array{account_id: int, username: string, customer_id: int} */
+    /**
+     * @var array{account_id: int, username: string, customer_id: int}
+     */
     private array $account;
 
     public static function setUpBeforeClass(): void
@@ -67,7 +69,7 @@ final class PortalLoginTest extends CIUnitTestCase
         }
     }
 
-    public function testAttempt_OpensTheAccountWithTheRightPasswordAndRecordsTheSignIn(): void
+    public function testAttemptOpensTheAccountWithTheRightPasswordAndRecordsTheSignIn(): void
     {
         $result = (new PortalLogin())->attempt('Ahmed', self::PORTAL_PASSWORD, self::ADDRESS, self::NOW);
 
@@ -76,7 +78,7 @@ final class PortalLoginTest extends CIUnitTestCase
         $this->assertNotNull((new PortalAccounts())->find($this->account['account_id'])->last_login_at);
     }
 
-    public function testAttempt_WritesAnAuditEntryOfASuccessWithTheAddressAndNoPassword(): void
+    public function testAttemptWritesAnAuditEntryOfASuccessWithTheAddressAndNoPassword(): void
     {
         $this->attempt(self::PORTAL_PASSWORD);
         $audit = $this->portalAudit('portal_login_succeeded');
@@ -86,7 +88,7 @@ final class PortalLoginTest extends CIUnitTestCase
         $this->assertStringNotContainsString(self::PORTAL_PASSWORD, json_encode($this->accountingDb()->table('accounting_audit_log')->get()->getResultArray()));
     }
 
-    public function testAttempt_AnswersAWrongPasswordAnUnknownNameAndADisabledAccountTheSameWay(): void
+    public function testAttemptAnswersAWrongPasswordAnUnknownNameAndADisabledAccountTheSameWay(): void
     {
         (new PortalAccounts())->setActive($this->insertedAccount('sara'), false, $this->portalManager());
 
@@ -100,7 +102,7 @@ final class PortalLoginTest extends CIUnitTestCase
         return $this->portalAccountOf($this->insertCustomer('Sara', 'Nasser'), $username)['account_id'];
     }
 
-    public function testAttempt_WritesAnAuditEntryOfEachFailureWithTheReasonAndNeverThePassword(): void
+    public function testAttemptWritesAnAuditEntryOfEachFailureWithTheReasonAndNeverThePassword(): void
     {
         $this->attempt('a wrong guess');
         $this->attempt('another guess', 'nobody');
@@ -114,14 +116,14 @@ final class PortalLoginTest extends CIUnitTestCase
         $this->assertStringNotContainsString('another guess', json_encode($audit));
     }
 
-    public function testAttempt_CutsALongUserNameInTheAuditEntryToFiftyCharacters(): void
+    public function testAttemptCutsALongUserNameInTheAuditEntryToFiftyCharacters(): void
     {
         $this->attempt('x', str_repeat('a', 300));
 
         $this->assertSame(50, strlen(json_decode($this->portalAudit('portal_login_failed')[0]['details'], true)['username']));
     }
 
-    public function testAttempt_LocksTheUserNameAfterFiveFailuresAndRefusesTheRightPasswordWhileItLocks(): void
+    public function testAttemptLocksTheUserNameAfterFiveFailuresAndRefusesTheRightPasswordWhileItLocks(): void
     {
         $this->failures(PortalLoginGuard::USER_THRESHOLD);
 
@@ -129,14 +131,14 @@ final class PortalLoginTest extends CIUnitTestCase
         $this->assertSame(PortalLoginOutcome::Locked, $this->attempt(self::PORTAL_PASSWORD, 'ahmed', '10.9.9.9'));
     }
 
-    public function testAttempt_LetsTheRightPasswordInOnTheFourthTryAfterThreeFailures(): void
+    public function testAttemptLetsTheRightPasswordInOnTheFourthTryAfterThreeFailures(): void
     {
         $this->failures(PortalLoginGuard::USER_THRESHOLD - 1);
 
         $this->assertSame(PortalLoginOutcome::Success, $this->attempt(self::PORTAL_PASSWORD));
     }
 
-    public function testAttempt_AdmitsTheCustomerAgainWhenTheFirstLockOfFifteenMinutesHasRunOut(): void
+    public function testAttemptAdmitsTheCustomerAgainWhenTheFirstLockOfFifteenMinutesHasRunOut(): void
     {
         $this->failures(PortalLoginGuard::USER_THRESHOLD);
 
@@ -144,14 +146,14 @@ final class PortalLoginTest extends CIUnitTestCase
         $this->assertSame(PortalLoginOutcome::Success, $this->attempt(self::PORTAL_PASSWORD, 'ahmed', self::ADDRESS, self::NOW + PortalLoginGuard::BASE_LOCK_SECONDS));
     }
 
-    public function testAttempt_LocksAUserNameThatNoAccountHasInTheSameWay(): void
+    public function testAttemptLocksAUserNameThatNoAccountHasInTheSameWay(): void
     {
         $this->failures(PortalLoginGuard::USER_THRESHOLD, 'ghost');
 
         $this->assertSame(PortalLoginOutcome::Locked, $this->attempt('anything', 'ghost'));
     }
 
-    public function testAttempt_LocksAnAddressAfterTwentyFailuresAcrossDifferentNames(): void
+    public function testAttemptLocksAnAddressAfterTwentyFailuresAcrossDifferentNames(): void
     {
         for ($index = 0; $index < PortalLoginGuard::ADDRESS_THRESHOLD; $index++) {
             $this->attempt('wrong', 'guess' . $index, '10.7.7.7');
@@ -161,7 +163,7 @@ final class PortalLoginTest extends CIUnitTestCase
         $this->assertSame(PortalLoginOutcome::Success, $this->attempt(self::PORTAL_PASSWORD, 'ahmed', '10.8.8.8'));
     }
 
-    public function testAttempt_ClearsTheFailuresOfTheNameOnASuccessButNotThoseOfTheAddress(): void
+    public function testAttemptClearsTheFailuresOfTheNameOnASuccessButNotThoseOfTheAddress(): void
     {
         $this->failures(PortalLoginGuard::USER_THRESHOLD - 1);
         $this->attempt(self::PORTAL_PASSWORD);
@@ -173,7 +175,7 @@ final class PortalLoginTest extends CIUnitTestCase
         $this->assertSame(PortalLoginGuard::USER_THRESHOLD * 2 - 2, (int) $this->accountingDb()->table('portal_login_failures')->where('failure_key', PortalLoginGuard::addressKey(self::ADDRESS))->get()->getRow()->failures);
     }
 
-    public function testAttempt_WritesOneAuditEntryWhenALockBeginsAndNoneForTheRefusedAttemptsAfterIt(): void
+    public function testAttemptWritesOneAuditEntryWhenALockBeginsAndNoneForTheRefusedAttemptsAfterIt(): void
     {
         $this->failures(PortalLoginGuard::USER_THRESHOLD);
         $this->attempt('after the lock');
@@ -184,7 +186,7 @@ final class PortalLoginTest extends CIUnitTestCase
         $this->assertSame('username', json_decode($this->portalAudit('portal_login_locked')[0]['details'], true)['by']);
     }
 
-    public function testAttempt_DoesNotLookAtThePasswordOfALockedName(): void
+    public function testAttemptDoesNotLookAtThePasswordOfALockedName(): void
     {
         $this->failures(PortalLoginGuard::USER_THRESHOLD);
         $before = $this->countRows('accounting_audit_log');

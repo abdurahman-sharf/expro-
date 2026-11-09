@@ -6,7 +6,6 @@ use Config\OSPOS;
  * @var string|null $title
  * @var bool|null   $signedIn
  */
-
 $settings = config(OSPOS::class)->settings;
 $signedIn ??= false;
 $menu = [

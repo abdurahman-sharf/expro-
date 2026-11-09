@@ -3,9 +3,8 @@
 namespace App\Libraries\Portal;
 
 use App\Libraries\Accounting\AccountingSettings;
-use App\Libraries\Accounting\AgingBuckets;
-use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CreditSource;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\SalesDebitNotes;
@@ -34,7 +33,7 @@ final class PortalStatement
     public function of(int $customerId, ?string $today = null): array
     {
         $today ??= date('Y-m-d');
-        $empty   = ['available' => false, 'as_of' => to_date(strtotime($today)), 'balance' => '', 'open' => '', 'credit' => '', 'overdue' => '', 'aging' => [], 'invoices' => [], 'credits' => []];
+        $empty = ['available' => false, 'as_of' => to_date(strtotime($today)), 'balance' => '', 'open' => '', 'credit' => '', 'overdue' => '', 'aging' => [], 'invoices' => [], 'credits' => []];
 
         if (! (new AccountingSettings($this->db))->isEnabled()) {
             return $empty;

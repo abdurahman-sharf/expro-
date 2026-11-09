@@ -17,7 +17,7 @@ use RuntimeException;
 class CustomerPortal extends Migration
 {
     private const TABLE_OPTIONS = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci';
-    private const PERMISSION    = 'customers_portal_manage';
+    private const PERMISSION    = 'portal_manage';
     private const SETTING       = 'portal_enabled';
 
     public function up(): void
