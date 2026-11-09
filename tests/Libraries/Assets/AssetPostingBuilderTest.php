@@ -8,7 +8,6 @@ use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingResolver;
-use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Assets\AssetPostingBuilder;
 use App\Libraries\Assets\AssetSources;
 use App\Libraries\Assets\DepreciationPeriod;
@@ -178,13 +177,14 @@ final class AssetPostingBuilderTest extends CIUnitTestCase
         $this->assertSame('Fixed asset 000007 Office desk', $user->description);
     }
 
-    public function testAcquisition_RefusesTheRoutingOfWhatIsOwedWhenItWasCancelled(): void
+    public function testAcquisition_RefusesTheAccountOfWhatIsOwedWhenItWasSwitchedOff(): void
     {
-        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::AssetPayable->value)->update(['routing_type' => RoutingType::Cancelled->value]);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->accountId('other_payables'))->update(['active' => 0]);
 
         $failure = $this->failureOf(fn () => $this->builder->acquisition($this->asset(['funding' => 'payable', 'treasury_id' => null]), '2026-01-01', 1, $this->assetClerk));
 
-        $this->assertSame(PostingError::RoutingRowCancelled, $failure->error);
+        $this->assertSame(PostingError::RoutingAccountUnusable, $failure->error);
+        $this->assertSame(RoutingKey::AssetPayable->value, $failure->context['routing_key']);
     }
 
     public function testDepreciation_DebitsTheExpenseAndCreditsTheAccumulatedDepreciationOfEachAssetOfTheBranch(): void
@@ -250,13 +250,24 @@ final class AssetPostingBuilderTest extends CIUnitTestCase
         $this->assertSame([$this->treasuryAccount($this->assetTreasury), $this->accountId('fixed_assets')], array_map(static fn (JournalLineDraft $line): int => $line->accountId, $draft->lines));
     }
 
-    public function testSale_RefusesTheRoutingOfTheGainWhenItWasCancelled(): void
+    public function testSale_RefusesTheAccountOfTheGainWhenItWasSwitchedOff(): void
     {
-        $this->accountingDb()->table('accounting_routing')->where('routing_key', RoutingKey::AssetGain->value)->update(['routing_type' => RoutingType::Cancelled->value]);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->accountId('asset_gain'))->update(['active' => 0]);
 
         $failure = $this->failureOf(fn () => $this->builder->sale($this->asset(), '2026-05-10', '10000.0000', $this->assetTreasury, '3000.0000', 55, $this->assetClerk));
 
-        $this->assertSame(PostingError::RoutingRowCancelled, $failure->error);
+        $this->assertSame(PostingError::RoutingAccountUnusable, $failure->error);
+        $this->assertSame(RoutingKey::AssetGain->value, $failure->context['routing_key']);
+    }
+
+    public function testSale_RefusesTheAccountOfTheLossWhenItWasSwitchedOff(): void
+    {
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $this->accountId('asset_loss'))->update(['active' => 0]);
+
+        $failure = $this->failureOf(fn () => $this->builder->sale($this->asset(), '2026-05-10', '8000.0000', $this->assetTreasury, '3000.0000', 55, $this->assetClerk));
+
+        $this->assertSame(PostingError::RoutingAccountUnusable, $failure->error);
+        $this->assertSame(RoutingKey::AssetLoss->value, $failure->context['routing_key']);
     }
 
     public function testWriteOff_TakesTheCostAndTheDepreciationOutAndLosesTheBookValue(): void

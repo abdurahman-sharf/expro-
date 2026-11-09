@@ -668,19 +668,31 @@ final class AssetDisposalsTest extends CIUnitTestCase
         $this->assertSame(AssetStatus::WrittenOff->value, $this->asset($assetId)->status);
     }
 
-    public function testSell_CountsAJournalThatWasTakenBackAsNotThereForAnAssetEnteredAsAlreadyInTheBooks(): void
+    public function testSell_CountsAJournalThatWasTakenBackWithItsMirrorForAnAssetEnteredAsAlreadyInTheBooks(): void
     {
         $this->setConfigValue('accounting_start_date', '2026-01-01');
         $assetId = $this->enterAsset(['funding' => 'none', 'treasury_id' => '']);
+        $posting = new PostingService();
 
-        $posted = (new PostingService())->post($this->draftWithLines([
+        $posting->post($this->draftWithLines([
             new JournalLineDraft($this->accountId('fixed_assets'), debit: '12000'),
             new JournalLineDraft($this->accountId('opening_balance'), credit: '12000'),
         ], '2026-01-01'));
 
-        (new JournalService())->reverseAutomatic($posted->journalId, '2026-01-10', 'Entered twice', null);
+        $twice = $posting->post(new JournalDraft(
+            date: '2026-01-01',
+            lines: [new JournalLineDraft($this->accountId('fixed_assets'), debit: '12000'), new JournalLineDraft($this->accountId('opening_balance'), credit: '12000')],
+            sourceType: 'sale',
+            sourceId: 2,
+            employeeId: 1,
+            currencyCode: 'SAR',
+        ));
 
-        $this->assertRefused(AccountingError::AssetNotInBooks, fn () => $this->disposals->writeOff($assetId, ['date' => '2026-01-20'], $this->assetClerk));
+        (new JournalService())->reverseAutomatic($twice->journalId, '2026-01-10', 'Entered twice', null);
+
+        $operationId = $this->disposals->writeOff($assetId, ['date' => '2026-01-20'], $this->assetClerk);
+
+        $this->assertSame('active', $this->operation($operationId)->status, 'the entry that was taken back and its mirror cancel out, and the first one is enough');
     }
 
     public function testWriteOff_ReadsTheUsageOfMonthsBeforeTheDisposalUnderAShareLock(): void

@@ -164,7 +164,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testAssetsTable_RefusesTwoLiveAssetsWithOneCodeButLetsADeletedOneGoFree(): void
+    public function testUp_CreatesAnAssetsTableThatRejectsTwoLiveAssetsWithOneCodeButLetsADeletedOneGoFree(): void
     {
         $this->startAssets();
         $first = $this->enterAsset(['code' => 'DESK']);
@@ -178,7 +178,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('assets')->insert([...(array) $this->accountingDb()->table('assets')->where('code', 'DESK')->where('deleted', 0)->get()->getRow(), 'asset_id' => null, 'code_slot' => null]);
     }
 
-    public function testAssetAccounts_OpensTheLeafAccountsInAChartThatHasNoneAndRoutesThem(): void
+    public function testUpOfAssetAccounts_OpensTheLeafAccountsInAChartThatHasNoneAndRoutesThem(): void
     {
         $this->chartBefore();
 
@@ -207,7 +207,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->assertSame((string) $this->accountId('other_payables'), $this->routedTo('assets.payable'), 'what is owed for an asset goes to the account of other payables');
     }
 
-    public function testAssetAccounts_AdoptsTheAccountOfCapitalGainsAndLossesAsTheGainOnADisposal(): void
+    public function testUpOfAssetAccounts_AdoptsTheAccountOfCapitalGainsAndLossesAsTheGainOnADisposal(): void
     {
         $this->chartBefore();
 
@@ -219,7 +219,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->assertSame((string) $legacy, $this->routedTo('assets.gain'));
     }
 
-    public function testAssetAccounts_DoesNotAdoptThatAccountWhenItIsKeptForAnotherPurpose(): void
+    public function testUpOfAssetAccounts_DoesNotAdoptThatAccountWhenItIsKeptForAnotherPurpose(): void
     {
         $this->chartBefore();
 
@@ -231,7 +231,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->assertSame('kept_by_the_owner', $this->accountingDb()->table('accounting_accounts')->where('code', '4202')->get()->getRow()->system_key);
     }
 
-    public function testAssetAccounts_TakesTheNextFreeCodeWhenTheFirstOneIsTaken(): void
+    public function testUpOfAssetAccounts_TakesTheNextFreeCodeWhenTheFirstOneIsTaken(): void
     {
         $this->chartBefore();
         $this->customAccount('111', '111006', 'Taken by the owner');
@@ -242,7 +242,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->assertSame('Taken by the owner', $this->accountingDb()->table('accounting_accounts')->where('code', '111006')->get()->getRow()->name);
     }
 
-    public function testAssetAccounts_LeavesOutAnAccountWhoseParentGroupIsMissingFromTheChart(): void
+    public function testUpOfAssetAccounts_LeavesOutAnAccountWhoseParentGroupIsMissingFromTheChart(): void
     {
         $this->chartBefore();
 
@@ -256,7 +256,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->assertNotNull($this->accountOf('fixed_assets'));
     }
 
-    public function testAssetAccounts_KeepsTheRoutingTheOwnerChose(): void
+    public function testUpOfAssetAccounts_KeepsTheRoutingTheOwnerChose(): void
     {
         $this->chartBefore();
 
@@ -269,7 +269,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->assertSame((string) $owned, $this->routedTo('assets.cost'));
     }
 
-    public function testAssetAccounts_DoesNotTouchAChartThatIsNotInstalledYet(): void
+    public function testUpOfAssetAccounts_DoesNotTouchAChartThatIsNotInstalledYet(): void
     {
         $db = $this->accountingDb();
         $db->query('SET FOREIGN_KEY_CHECKS = 0');
@@ -283,7 +283,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_routing'));
     }
 
-    public function testAssetAccounts_TakenDownKeepsTheAccountsAnAssetNamesAndFreesTheOthers(): void
+    public function testDownOfAssetAccounts_KeepsTheAccountsAnAssetNamesAndFreesTheOthers(): void
     {
         $this->startAssets();
         $this->enterAsset();
@@ -299,7 +299,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->assertNull($this->routedTo('assets.payable'));
     }
 
-    public function testAssetAccounts_TakenDownKeepsTheAccountsACategoryNames(): void
+    public function testDownOfAssetAccounts_KeepsTheAccountsACategoryNames(): void
     {
         $this->startAssets();
         $this->categories->save(['name' => 'Furniture', 'expense_account_id' => $this->accountId('depreciation_expense')], $this->assetClerk);
@@ -360,7 +360,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
      * @param array<string, mixed> $change
      */
     #[DataProvider('refusedRowProvider')]
-    public function testTables_RefuseARowTheCodeShouldNeverWrite(string $table, array $change): void
+    public function testUp_CreatesTablesThatRejectARowTheCodeShouldNeverWrite(string $table, array $change): void
     {
         $this->startAssets();
         $assetId = $this->enterAsset(['units' => [['serial_number' => 'S-1']]]);
@@ -372,7 +372,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table($table)->where('asset_id', $assetId)->update($change);
     }
 
-    public function testTables_RefuseALineOfNothingAndADisposalOfAKindThatIsNone(): void
+    public function testUp_CreatesTablesThatRejectALineOfNothingAndADisposalOfAKindThatIsNone(): void
     {
         $this->startAssets();
         $assetId = $this->enterAsset();
@@ -396,7 +396,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         }
     }
 
-    public function testTables_RefuseADisposalWithNegativeProceeds(): void
+    public function testUp_CreatesTablesThatRejectADisposalWithNegativeProceeds(): void
     {
         $this->startAssets();
 
@@ -407,7 +407,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('asset_operations')->insert(['company_id' => 1, 'branch_id' => 1, 'asset_id' => $assetId, 'kind' => 'sale', 'operation_date' => '2026-03-01', 'proceeds' => '-1', 'cost_removed' => '1', 'accumulated_removed' => '0', 'result_amount' => '0', 'previous_status' => 'active', 'status' => 'active', 'active_key' => 1]);
     }
 
-    public function testTables_RefuseTwoRunsOfOneBranchAndMonthWithTheSameNumber(): void
+    public function testUp_CreatesTablesThatRejectTwoRunsOfOneBranchAndMonthWithTheSameNumber(): void
     {
         $this->startAssets();
 
@@ -420,7 +420,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('asset_depreciation_runs')->insert($run);
     }
 
-    public function testTables_RefuseTwoCategoriesOfOneCompanyWithTheSameName(): void
+    public function testUp_CreatesTablesThatRejectTwoCategoriesOfOneCompanyWithTheSameName(): void
     {
         $this->startAssets();
 
@@ -431,7 +431,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $this->accountingDb()->table('asset_categories')->insert(['company_id' => 1, 'name' => 'Furniture']);
     }
 
-    public function testTables_RefuseALineOfDepreciationWhoseKeyIsNeitherOneNorNothing(): void
+    public function testUp_CreatesTablesThatRejectALineOfDepreciationWhoseKeyIsNeitherOneNorNothing(): void
     {
         $this->startAssets();
 
@@ -447,7 +447,7 @@ final class FixedAssetsMigrationTest extends CIUnitTestCase
         $db->table('asset_depreciations')->insert(['company_id' => 1, 'branch_id' => 1, 'asset_id' => $assetId, 'run_id' => $runId, 'period_start' => '2026-02-01', 'amount' => '10', 'active_key' => 2]);
     }
 
-    public function testAssetAccounts_TakenDownKeepsTheAccountsAJournalLineNames(): void
+    public function testDownOfAssetAccounts_KeepsTheAccountsAJournalLineNames(): void
     {
         $this->startAssets();
         $this->enterAsset();

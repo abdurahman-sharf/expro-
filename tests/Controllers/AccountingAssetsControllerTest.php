@@ -274,6 +274,19 @@ final class AccountingAssetsControllerTest extends CIUnitTestCase
         }
     }
 
+    public function testGetForm_OffersTheMethodAndTheLifeOfTheCategoriesAndNamesTheHintOfTheFirstDepreciationDate(): void
+    {
+        $this->categories->save(['name' => 'Vehicles', 'method' => 'declining', 'life_months' => '60'], $this->assetClerk);
+        $this->manager();
+
+        $response = $this->get('/accounting_assets/form');
+
+        $response->assertSee('data-method="declining" data-life="60"');
+        $response->assertSee('id="first_date_hint"');
+        $response->assertSee('aria-describedby="first_date_hint"');
+        $this->assertStringNotContainsString('placeholder', (string) preg_replace('/.*?(<input[^>]*first_depreciation_date[^>]*>).*/s', '$1', $response->getBody()));
+    }
+
     public function testGetForm_ShowsTheValuesOfTheAssetBeingEdited(): void
     {
         $assetId = $this->enterAsset(['code' => 'DESK', 'units' => [['serial_number' => 'S-77']]]);

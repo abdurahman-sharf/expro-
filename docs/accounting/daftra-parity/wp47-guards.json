@@ -74,7 +74,7 @@
  {
   "name": "GA09 changing an asset to an opening one needs the opening permission",
   "file": "app/Libraries/Assets/AssetRegister.php",
-  "find": "if ($changed !== [] && $row['funding'] === 'opening') {",
+  "find": "if ($changed !== [] && ($row['funding'] === 'opening' || $asset->funding === 'opening')) {",
   "replace": "if (false) {",
   "tests": [
    "--filter",
@@ -2059,11 +2059,11 @@
  {
   "name": "GK06 the form of a category needs the permission to manage the register",
   "file": "app/Controllers/AccountingAssets.php",
-  "find": "    public function getCategoryForm(int $categoryId = NEW_ENTRY): string\n    {\n        $this->requireManage();\n",
+  "find": "    public function getCategoryForm(int $categoryId = NEW_ENTRY): string\n    {\n        if (! $this->canManage(AccountingGuard::ASSETS_MANAGE)) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n",
   "replace": "    public function getCategoryForm(int $categoryId = NEW_ENTRY): string\n    {\n",
   "tests": [
    "--filter",
-   "testCategories_AreNotChangedByWhoMayOnlyRead",
+   "testPostSaveCategory_RejectsAnEmployeeWithoutThePermissionToChangeTheRegister",
    "tests/Controllers/AccountingAssetsControllerTest.php"
   ]
  },
@@ -2276,7 +2276,7 @@
   "replace": "KEY `{$table}_number`",
   "tests": [
    "--filter",
-   "testTables_RefuseTwoRunsOfOneBranchAndMonthWithTheSameNumber",
+   "testUp_CreatesTablesThatRejectTwoRunsOfOneBranchAndMonthWithTheSameNumber",
    "tests/Libraries/Assets/DepreciationRunTest.php",
    "tests/Database/FixedAssetsMigrationTest.php"
   ]
@@ -2318,7 +2318,7 @@
   "replace": "KEY `{$table}_name` (`company_id`, `name`),",
   "tests": [
    "--filter",
-   "testTables_RefuseTwoCategoriesOfOneCompanyWithTheSameName",
+   "testUp_CreatesTablesThatRejectTwoCategoriesOfOneCompanyWithTheSameName",
    "tests/Libraries/Assets/AssetCategoriesTest.php",
    "tests/Database/FixedAssetsMigrationTest.php"
   ]
@@ -2384,7 +2384,7 @@
   "replace": "CHECK (1 = 1)",
   "tests": [
    "--filter",
-   "testTables_RefuseADisposalWithNegativeProceeds",
+   "testUp_CreatesTablesThatRejectADisposalWithNegativeProceeds",
    "tests/Database/FixedAssetsMigrationTest.php"
   ]
  },
@@ -2413,7 +2413,7 @@
   "replace": "CHECK (1 = 1)",
   "tests": [
    "--filter",
-   "testTables_RefuseALineOfDepreciationWhoseKeyIsNeitherOneNorNothing",
+   "testUp_CreatesTablesThatRejectALineOfDepreciationWhoseKeyIsNeitherOneNorNothing",
    "tests/Database/FixedAssetsMigrationTest.php"
   ]
  },
@@ -2435,7 +2435,7 @@
   "replace": "if (false) {",
   "tests": [
    "--filter",
-   "testAssetAccounts_TakenDownKeepsTheAccountsAJournalLineNames",
+   "testDownOfAssetAccounts_KeepsTheAccountsAJournalLineNames",
    "tests/Database/FixedAssetsMigrationTest.php"
   ]
  },
@@ -2502,6 +2502,736 @@
   "tests": [
    "tests/Libraries/Numbering/DocumentTypeTest.php",
    "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GZ01 taking a sale back needs the right to withdraw from the treasury it paid into",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "            $this->scopes->assertMayReverse((int) $operation->journal_id, $employeeId);\n\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testReverse_RefusesATreasuryTheEmployeeMayNotTakeMoneyOutOf",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ02 deleting an opening asset needs the permission to manage opening balances",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "                if ($asset->funding === 'opening') {\n                    $this->guard->require(AccountingGuard::OPENING_MANAGE, $employeeId);\n                }\n\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testDelete_RequiresTheOpeningPermissionToTakeAnOpeningAssetOut",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GZ03 moving an asset off an opening balance needs the permission to manage opening balances",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "($row['funding'] === 'opening' || $asset->funding === 'opening')",
+  "replace": "$row['funding'] === 'opening'",
+  "tests": [
+   "--filter",
+   "testUpdate_RequiresTheOpeningPermissionToChangeTheTermsOfAnOpeningAsset",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GZ04 an inactive branch with due assets blocks the preview",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "        if ($blocker === null && $lines !== [] && (int) $branch->active === 0) {\n            $blocker = new AccountingException(AccountingError::AssetBranchInactive, \"Branch {$branch->code} is inactive.\", ['name' => (string) $branch->code]);\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testPreview_BlocksABranchThatIsSwitchedOff|testApprove_RefusesTheRunOfTheCompanyByName",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GZ05 an inactive branch with nothing due does not block",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$blocker === null && $lines !== [] && (int) $branch->active === 0",
+  "replace": "$blocker === null && (int) $branch->active === 0",
+  "tests": [
+   "--filter",
+   "testPreview_AsksNothingOfASwitchedOffBranch",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GZ06 a closed period is named before an inactive branch",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$blocker === null && $lines !== [] && (int) $branch->active === 0",
+  "replace": "$lines !== [] && (int) $branch->active === 0",
+  "tests": [
+   "--filter",
+   "testPreview_NamesTheClosedPeriodBeforeASwitchedOffBranch",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GZ07 entering an asset takes the branch lock before writing it",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "                $this->holdBranches([$branchId]);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testCreate_TakesTheBranchLockBeforeItWritesTheAsset",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GZ08 changing an asset takes the branch locks before locking it",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "                $this->holdBranches($hold);\n\n                $asset = $this->lock($assetId, $employeeId);\n\n                if (AssetStatus::from((string) $asset->status)->isDisposed()) {\n                    throw new AccountingException(AccountingError::AssetStatusInvalid, 'An asset that was sold or written off is not changed.'",
+  "replace": "                $asset = $this->lock($assetId, $employeeId);\n\n                if (AssetStatus::from((string) $asset->status)->isDisposed()) {\n                    throw new AccountingException(AccountingError::AssetStatusInvalid, 'An asset that was sold or written off is not changed.'",
+  "tests": [
+   "--filter",
+   "testUpdate_TakesTheBranchLockBeforeItLocksTheAsset",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GZ09 moving an asset locks the branches in the order of their numbers",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "->orderBy('branch_id', 'ASC')->get()->getResult();\n\n        return array_map(static fn (object $row): int => (int) $row->branch_id, $found);",
+  "replace": "->orderBy('branch_id', 'DESC')->get()->getResult();\n\n        return array_map(static fn (object $row): int => (int) $row->branch_id, $found);",
+  "tests": [
+   "--filter",
+   "testUpdate_TakesTheLocksOfBothBranchesInTheOrderOfTheirNumbers",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GZ10 switching an asset on or off takes the branch lock before locking it",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "            $this->holdBranches($hold);\n\n            $asset   = $this->lock($assetId, $employeeId);\n            $current = AssetStatus::from((string) $asset->status);",
+  "replace": "            $asset   = $this->lock($assetId, $employeeId);\n            $current = AssetStatus::from((string) $asset->status);",
+  "tests": [
+   "--filter",
+   "testSetActive_TakesTheBranchLockBeforeItLocksTheAsset",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GZ11 deleting an asset takes the branch lock before locking it",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "                $this->holdBranches([(int) $known->branch_id]);\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testDelete_TakesTheBranchLockBeforeItLocksTheAsset",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GZ12 recording usage takes the branch lock before locking the asset",
+  "file": "app/Libraries/Assets/AssetRegister.php",
+  "find": "            $this->holdBranches($hold);\n\n            $asset = $this->lock($assetId, $employeeId);\n\n            if ($asset->method !== AssetMethod::Units->value",
+  "replace": "            $asset = $this->lock($assetId, $employeeId);\n\n            if ($asset->method !== AssetMethod::Units->value",
+  "tests": [
+   "--filter",
+   "testRecordUsage_TakesTheBranchLockBeforeItLocksTheAsset",
+   "tests/Libraries/Assets/AssetRegisterTest.php"
+  ]
+ },
+ {
+  "name": "GZ13 selling or writing off takes the branch lock before locking the asset",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "                $this->locks->shareForPosting((int) $known->branch_id);\n\n                $assets = $this->db->prefixTable('assets');",
+  "replace": "                $assets = $this->db->prefixTable('assets');",
+  "tests": [
+   "--filter",
+   "testSell_TakesTheBranchLockBeforeItLocksTheAsset|testWriteOff_TakesTheBranchLockBeforeItLocksTheAsset",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ14 taking a disposal back takes the branch lock before locking the disposal",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "            $this->locks->shareForPosting((int) $known->branch_id);\n\n            $table     = $this->db->prefixTable('asset_operations');",
+  "replace": "            $table     = $this->db->prefixTable('asset_operations');",
+  "tests": [
+   "--filter",
+   "testReverse_TakesTheBranchLockBeforeItLocksTheAsset",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ15 the units of a month are read under a share lock when the run is planned under locks",
+  "file": "app/Libraries/Assets/AssetFigures.php",
+  "find": "$sql   = \"SELECT units FROM {$table} WHERE asset_id = ? AND period_start = ?\" . ($lock ? ' LOCK IN SHARE MODE' : '');",
+  "replace": "$sql   = \"SELECT units FROM {$table} WHERE asset_id = ? AND period_start = ?\";",
+  "tests": [
+   "--filter",
+   "ReadsTheUsageAsItIsCommittedNow|TakesTheUsageOfAnAssetUnderAShareLock",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GZ16 the amount due reads the usage under the lock the plan holds",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$amount = $this->figures->due($asset, $period, $posted, $locked);",
+  "replace": "$amount = $this->figures->due($asset, $period, $posted);",
+  "tests": [
+   "--filter",
+   "ReadsTheUsageAsItIsCommittedNow",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GZ17 the units of the line read the usage under the lock the plan holds",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$this->figures->usage((int) $asset->asset_id, $period, $locked)",
+  "replace": "$this->figures->usage((int) $asset->asset_id, $period)",
+  "tests": [
+   "--filter",
+   "TakesTheUsageOfAnAssetUnderAShareLock",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GZ18 the months not run are read under the lock the plan holds",
+  "file": "app/Libraries/Assets/DepreciationRun.php",
+  "find": "$this->figures->missed($asset, $period, $posted, $locked)",
+  "replace": "$this->figures->missed($asset, $period, $posted)",
+  "tests": [
+   "--filter",
+   "TakesTheUsageOfAnAssetUnderAShareLock",
+   "tests/Libraries/Assets/DepreciationRunTest.php"
+  ]
+ },
+ {
+  "name": "GZ19 the months before a disposal are read under a share lock",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "DepreciationPeriod::containing($date), $standing, true);",
+  "replace": "DepreciationPeriod::containing($date), $standing);",
+  "tests": [
+   "--filter",
+   "testWriteOff_ReadsTheUsageOfMonthsBeforeTheDisposalUnderAShareLock",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ20 changing a category needs every branch",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n\n        $row = $this->normalize($input, $categoryId);",
+  "replace": "        $row = $this->normalize($input, $categoryId);",
+  "tests": [
+   "--filter",
+   "testSave_RefusesWhoDoesNotWorkInEveryBranch",
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GZ21 switching a category on or off needs every branch",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n\n        $this->transactional(function () use ($categoryId, $active, $employeeId): void {",
+  "replace": "        $this->transactional(function () use ($categoryId, $active, $employeeId): void {",
+  "tests": [
+   "--filter",
+   "testSave_RefusesWhoDoesNotWorkInEveryBranch",
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GZ22 deleting a category needs every branch",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n\n        $this->transactional(function () use ($categoryId, $employeeId): void {",
+  "replace": "        $this->transactional(function () use ($categoryId, $employeeId): void {",
+  "tests": [
+   "--filter",
+   "testSave_RefusesWhoDoesNotWorkInEveryBranch",
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GZ23 the list of categories is offered for change only to who works in every branch",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "            'categories' => $this->categories->all(),\n            'canManage'  => $this->canManage(AccountingGuard::ASSETS_MANAGE),",
+  "replace": "            'categories' => $this->categories->all(),\n            'canManage'  => $this->can(AccountingGuard::ASSETS_MANAGE),",
+  "tests": [
+   "--filter",
+   "testPostSaveCategory_RejectsAnEmployeeWhoDoesNotWorkInEveryBranch",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ24 the form of a category is shown only to who works in every branch",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "    public function getCategoryForm(int $categoryId = NEW_ENTRY): string\n    {\n        if (! $this->canManage(AccountingGuard::ASSETS_MANAGE)) {",
+  "replace": "    public function getCategoryForm(int $categoryId = NEW_ENTRY): string\n    {\n        if (! $this->can(AccountingGuard::ASSETS_MANAGE)) {",
+  "tests": [
+   "--filter",
+   "testGetCategoryForm_IsNotFoundForAnEmployeeWhoDoesNotWorkInEveryBranch",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ25 an asset entered as already in the books is checked against the books when it is disposed of",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "                if ($asset->funding === 'none') {\n                    $this->assertBooksHold($asset, $cost, $accumulated, $date);\n                }\n\n",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "AlreadyInTheBooks",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ26 only an asset entered as already in the books is checked",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if ($asset->funding === 'none') {\n                    $this->assertBooksHold(",
+  "replace": "if ($asset->funding !== 'none') {\n                    $this->assertBooksHold(",
+  "tests": [
+   "--filter",
+   "AlreadyInTheBooks|testSell_AsksNoProofOfTheBooks",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ27 a cost account that holds exactly the cost is enough",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if (bccomp($held, $cost, self::SCALE) < 0) {",
+  "replace": "if (bccomp($held, $cost, self::SCALE) <= 0) {",
+  "tests": [
+   "--filter",
+   "testSell_TakesAnAssetEnteredAsAlreadyInTheBooksOutWhenTheBooksHoldIt",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ28 a cost account that holds less than the cost refuses",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if (bccomp($held, $cost, self::SCALE) < 0) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testSell_RefusesAnAssetEnteredAsAlreadyInTheBooksWhenTheBooksDoNotHoldItsCost",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ29 the accumulated depreciation account is checked too",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "        if ($asset->accumulated_account_id === null || bccomp($accumulated, '0', self::SCALE) <= 0) {\n            return;\n        }",
+  "replace": "        return;",
+  "tests": [
+   "--filter",
+   "testSell_RefusesAnAssetEnteredAsAlreadyInTheBooksWhenOnlyItsAccumulatedDepreciationIsMissing",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ30 an accumulated depreciation account that holds exactly the figure is enough",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "if (bccomp($held, $accumulated, self::SCALE) < 0) {",
+  "replace": "if (bccomp($held, $accumulated, self::SCALE) <= 0) {",
+  "tests": [
+   "--filter",
+   "testSell_TakesAnAssetEnteredAsAlreadyInTheBooksOutWhenTheBooksHoldIt",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ31 the books are read for the branch of the asset",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "WHERE j.company_id = ? AND j.branch_id = ? AND j.status IN (?, ?) AND j.journal_date <= ? AND l.account_id = ?\",\n            [CompanyContext::id(), $branchId, JournalStatus::Posted->value, JournalStatus::Reversed->value, $date, $accountId],",
+  "replace": "WHERE j.company_id = ? AND j.status IN (?, ?) AND j.journal_date <= ? AND l.account_id = ?\",\n            [CompanyContext::id(), JournalStatus::Posted->value, JournalStatus::Reversed->value, $date, $accountId],",
+  "tests": [
+   "--filter",
+   "testSell_RefusesAnAssetEnteredAsAlreadyInTheBooksWhenTheBooksHoldItInAnotherBranchOnly",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ32 the books are read through the day of the disposal",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "j.journal_date <= ? AND l.account_id = ?\"",
+  "replace": "j.journal_date <= DATE_ADD(?, INTERVAL 5 YEAR) AND l.account_id = ?\"",
+  "tests": [
+   "--filter",
+   "testSell_RefusesAnAssetEnteredAsAlreadyInTheBooksWhenTheBooksHoldItOnlyFromALaterDay",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ33 a journal taken back counts with its mirror",
+  "file": "app/Libraries/Assets/AssetDisposals.php",
+  "find": "j.status IN (?, ?) AND j.journal_date <= ? AND l.account_id = ?\",\n            [CompanyContext::id(), $branchId, JournalStatus::Posted->value, JournalStatus::Reversed->value,",
+  "replace": "j.status IN (?, ?) AND j.journal_date <= ? AND l.account_id = ?\",\n            [CompanyContext::id(), $branchId, JournalStatus::Posted->value, JournalStatus::Posted->value,",
+  "tests": [
+   "--filter",
+   "testSell_CountsAJournalThatWasTakenBackWithItsMirror",
+   "tests/Libraries/Assets/AssetDisposalsTest.php"
+  ]
+ },
+ {
+  "name": "GZ34 a new asset starts from the method of its category",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "$this->orDefault($input['method'] ?? '', (string) $starts?->method)",
+  "replace": "$this->orDefault($input['method'] ?? '', '')",
+  "tests": [
+   "--filter",
+   "testPrepare_StartsANewAssetFromTheMethodAndTheLifeOfItsCategory",
+   "tests/Libraries/Assets/AssetInputTest.php"
+  ]
+ },
+ {
+  "name": "GZ35 a new asset starts from the life of its category",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "?? ($starts?->life_months === null ? null : (int) $starts->life_months);",
+  "replace": "?? null;",
+  "tests": [
+   "--filter",
+   "testPrepare_StartsANewAssetFromTheMethodAndTheLifeOfItsCategory",
+   "tests/Libraries/Assets/AssetInputTest.php"
+  ]
+ },
+ {
+  "name": "GZ36 an asset that is changed does not start from its category again",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "$starts    = $existing === null ? $category : null;",
+  "replace": "$starts    = $category;",
+  "tests": [
+   "--filter",
+   "testPrepare_StartsNoExistingAssetFromItsCategory",
+   "tests/Libraries/Assets/AssetInputTest.php"
+  ]
+ },
+ {
+  "name": "GZ37 the method of the form wins over that of the category",
+  "file": "app/Libraries/Assets/AssetInput.php",
+  "find": "return $text === '' ? $default : $text;",
+  "replace": "return $default !== '' ? $default : $text;",
+  "tests": [
+   "--filter",
+   "testPrepare_KeepsTheMethodAndTheLifeTheFormGivesOverThoseOfTheCategory",
+   "tests/Libraries/Assets/AssetInputTest.php"
+  ]
+ },
+ {
+  "name": "GZ38 the form of an asset offers the method and the life of each category",
+  "file": "app/Views/accounting_assets/form.php",
+  "find": " data-method=\"<?= esc((string) $category->method, 'attr') ?>\" data-life=\"<?= (int) $category->life_months ?>\"",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingAssetsControllerTest.php",
+   "--filter",
+   "OffersTheMethodAndTheLifeOfTheCategories"
+  ]
+ },
+ {
+  "name": "GZ39 the delete button is offered only for a category no asset names, deleted ones included",
+  "file": "app/Views/accounting_assets/categories.php",
+  "find": "(int) $category->referenced_count === 0",
+  "replace": "(int) $category->asset_count === 0",
+  "tests": [
+   "tests/Controllers/AccountingAssetsControllerTest.php",
+   "--filter",
+   "OffersTheDeleteOnlyForACategory"
+  ]
+ },
+ {
+  "name": "GZ40 the categories count every asset that names them, deleted ones included",
+  "file": "app/Libraries/Assets/AssetCategories.php",
+  "find": " r WHERE r.category_id = c.category_id) AS referenced_count",
+  "replace": " r WHERE r.category_id = c.category_id AND r.deleted = 0) AS referenced_count",
+  "tests": [
+   "--filter",
+   "testAll_CountsADeletedAsset",
+   "tests/Libraries/Assets/AssetCategoriesTest.php"
+  ]
+ },
+ {
+  "name": "GZ41 a value that is not text is refused in words and not with an error: the reason of taking a disposal back",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "$this->disposals->reverse($operationId, $this->postedText('reason'), $this->employeeId());",
+  "replace": "$this->disposals->reverse($operationId, (string) $this->request->getPost('reason'), $this->employeeId());",
+  "tests": [
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ42 a value that is not text is refused in words and not with an error: the reason of taking a run back",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "$this->depreciation->reverse($runId, $this->postedText('reason'), $this->employeeId());",
+  "replace": "$this->depreciation->reverse($runId, (string) $this->request->getPost('reason'), $this->employeeId());",
+  "tests": [
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ43 a value that is not text is refused in words and not with an error: the month of a usage",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "$this->register->recordUsage($assetId, trim($this->postedText('month')), trim($this->postedText('units')), $this->employeeId());",
+  "replace": "$this->register->recordUsage($assetId, trim((string) $this->request->getPost('month')), trim($this->postedText('units')), $this->employeeId());",
+  "tests": [
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ44 a value that is not text is refused in words and not with an error: the units of a usage",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "$this->register->recordUsage($assetId, trim($this->postedText('month')), trim($this->postedText('units')), $this->employeeId());",
+  "replace": "$this->register->recordUsage($assetId, trim($this->postedText('month')), trim((string) $this->request->getPost('units')), $this->employeeId());",
+  "tests": [
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ45 a value that is not text is refused in words and not with an error: the date of a disposal",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "$input = ['date' => trim($this->postedText('date')), 'note' => $this->postedText('note')];",
+  "replace": "$input = ['date' => trim((string) $this->request->getPost('date')), 'note' => $this->postedText('note')];",
+  "tests": [
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ46 a value that is not text is refused in words and not with an error: the proceeds of a sale",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "'proceeds' => trim($this->postedText('proceeds'))",
+  "replace": "'proceeds' => trim((string) $this->request->getPost('proceeds'))",
+  "tests": [
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ47 a value that is not text is refused in words and not with an error: the name of a category",
+  "file": "app/Controllers/AccountingAssets.php",
+  "find": "'name'                   => $this->postedText('name'),",
+  "replace": "'name'                   => (string) $this->request->getPost('name'),",
+  "tests": [
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ48 the holder of the permission to depreciate is listed by name on the settings screen",
+  "file": "app/Controllers/AccountingSetup.php",
+  "find": "        AccountingGuard::ASSETS_DEPRECIATE  => 'Accounting_assets.assets_depreciate',\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ49 the migration that opens the accounts of fixed assets is classified as data",
+  "file": "app/Libraries/Accounting/Readiness/MigrationChecks.php",
+  "find": "        'AssetAccounts'                    => [self::DATA,",
+  "replace": "        'AssetAccountsX'                    => [self::DATA,",
+  "tests": [
+   "tests/Libraries/Accounting/Readiness/MigrationChecksTest.php"
+  ]
+ },
+ {
+  "name": "GZ50 markup is escaped in the name of an asset in the list",
+  "file": "app/Views/accounting_assets/index.php",
+  "find": "<?= esc($row->name) ?>",
+  "replace": "<?= $row->name ?>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ51 markup is escaped in the name of a category in the filter",
+  "file": "app/Views/accounting_assets/index.php",
+  "find": "<?= esc($category->name) ?></option>",
+  "replace": "<?= $category->name ?></option>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ52 markup is escaped in the name of an asset in its page",
+  "file": "app/Views/accounting_assets/detail.php",
+  "find": "<?= esc($asset->name) ?> <span",
+  "replace": "<?= $asset->name ?> <span",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ53 markup is escaped in the name of the category in the page of an asset",
+  "file": "app/Views/accounting_assets/detail.php",
+  "find": "<?= esc((string) $asset->category_name) ?>",
+  "replace": "<?= (string) $asset->category_name ?>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ54 markup is escaped in the description of an asset",
+  "file": "app/Views/accounting_assets/detail.php",
+  "find": "<?= esc((string) $asset->description) ?>",
+  "replace": "<?= (string) $asset->description ?>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ55 markup is escaped in the serial number of a unit",
+  "file": "app/Views/accounting_assets/detail.php",
+  "find": "<?= esc((string) $unit->serial_number) ?>",
+  "replace": "<?= (string) $unit->serial_number ?>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ56 markup is escaped in the barcode of a unit",
+  "file": "app/Views/accounting_assets/detail.php",
+  "find": "<?= esc((string) $unit->barcode) ?>",
+  "replace": "<?= (string) $unit->barcode ?>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ57 markup is escaped in the place of a unit",
+  "file": "app/Views/accounting_assets/detail.php",
+  "find": "<?= esc((string) $unit->physical_location) ?>",
+  "replace": "<?= (string) $unit->physical_location ?>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ58 markup is escaped in the name of an asset in its form",
+  "file": "app/Views/accounting_assets/form.php",
+  "find": "value=\"<?= esc($value('name'), 'attr') ?>\"",
+  "replace": "value=\"<?= $value('name') ?>\"",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ59 markup is escaped in the description of an asset in its form",
+  "file": "app/Views/accounting_assets/form.php",
+  "find": "rows=\"2\" maxlength=\"1000\"><?= esc($value('description')) ?></textarea>",
+  "replace": "rows=\"2\" maxlength=\"1000\"><?= $value('description') ?></textarea>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ60 markup is escaped in the reference of a purchase in the form of an asset",
+  "file": "app/Views/accounting_assets/form.php",
+  "find": "value=\"<?= esc($value('purchase_reference'), 'attr') ?>\"",
+  "replace": "value=\"<?= $value('purchase_reference') ?>\"",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ61 markup is escaped in the name of a category in the form of an asset",
+  "file": "app/Views/accounting_assets/form.php",
+  "find": "<?= esc($category->name) ?></option>",
+  "replace": "<?= $category->name ?></option>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ62 markup is escaped in the units the form of an asset carries in its script",
+  "file": "app/Views/accounting_assets/form.php",
+  "find": "JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;",
+  "replace": "JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ63 markup is escaped in the name of a category in the list",
+  "file": "app/Views/accounting_assets/categories.php",
+  "find": "<?= esc($category->name) ?><?= (int) $category->active",
+  "replace": "<?= $category->name ?><?= (int) $category->active",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ64 markup is escaped in the name of a category in its form",
+  "file": "app/Views/accounting_assets/category_form.php",
+  "find": "value=\"<?= esc($value('name'), 'attr') ?>\"",
+  "replace": "value=\"<?= $value('name') ?>\"",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ65 markup is escaped in the code and the name of an asset of the preview",
+  "file": "app/Views/accounting_assets/depreciation.php",
+  "find": "<?= esc($line->asset->name) ?>",
+  "replace": "<?= $line->asset->name ?>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ66 markup is escaped in the name of a branch of the preview",
+  "file": "app/Views/accounting_assets/depreciation.php",
+  "find": "<?= esc($plan->name) ?>",
+  "replace": "<?= $plan->name ?>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ67 markup is escaped in the unit of an asset in the form of its usage",
+  "file": "app/Views/accounting_assets/usage_form.php",
+  "find": "<?= esc(lang('Accounting_assets.usage_summary', [$asset->code, (string) $asset->unit_name])) ?>",
+  "replace": "<?= lang('Accounting_assets.usage_summary', [$asset->code, (string) $asset->unit_name]) ?>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
+  ]
+ },
+ {
+  "name": "GZ68 markup is escaped in the name of a treasury in the form of a sale",
+  "file": "app/Views/accounting_assets/dispose_form.php",
+  "find": "<?= esc($treasury->name) ?></option>",
+  "replace": "<?= $treasury->name ?></option>",
+  "tests": [
+   "--filter",
+   "Escapes",
+   "tests/Controllers/AccountingAssetsControllerTest.php"
   ]
  }
 ]
