@@ -8,6 +8,7 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountLedger;
 use App\Libraries\Accounting\Bank\BankMatches;
+use App\Libraries\Accounting\Bank\BankReconciliation;
 use App\Libraries\Accounting\Bank\BankSuggestions;
 use App\Libraries\Accounting\Bank\ImportResult;
 use App\Libraries\Accounting\Bank\StatementMapping;
@@ -22,10 +23,15 @@ use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\Services;
+use ReflectionClass;
+use ReflectionMethod;
+use ReflectionParameter;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\BankFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 
 /**
  * The reconciliation of a bank account, end to end through the real services: the statements imported
@@ -40,6 +46,7 @@ class BankReconciliationTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use BankFixtureTrait;
     use DatabaseFingerprintTrait;
+    use ParityCaseTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -1418,5 +1425,252 @@ class BankReconciliationTest extends CIUnitTestCase
         $this->assertSame([1, 1], [$overlap->imported, $overlap->duplicates]);
         $this->assertSame([1, 2], [$this->lineCount(), $this->lineCount($second)]);
         $this->assertSame(1, $this->accountingDb()->table('bank_statements')->where('treasury_id', $this->bankId)->countAllResults());
+    }
+
+    /**
+     * The file of a case as the importer reads it. The fixture writes the dates as day and month and the
+     * importer takes a date only with a four-digit year, so the year of the observation is added.
+     *
+     * @param array{columns: list<string>, rows: list<array{date: string, amount: string, side: string}>} $file
+     */
+    private function observedFile(array $file): string
+    {
+        $lines = [implode(',', $file['columns'])];
+
+        foreach ($file['rows'] as $row) {
+            $lines[] = implode(',', [$row['date'] . '/2026', '', $row['side'] === 'deposit' ? $row['amount'] : '', $row['side'] === 'withdrawal' ? $row['amount'] : '', '']);
+        }
+
+        return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     */
+    private function importObservedFile(array $case): ImportResult
+    {
+        return $this->importStatement($this->observedFile($case['inputs']['file']), name: 'observed.csv');
+    }
+
+    /**
+     * @return list<int> The ids of the lines of the bank account in the order of the file.
+     */
+    private function lineIds(): array
+    {
+        return array_map(static fn (object $row): int => (int) $row->line_id, $this->bank->lines($this->bankId, $this->bankClerk)['rows']);
+    }
+
+    /**
+     * The status each line of the bank account shows, in the words of the language in use: the state the
+     * line falls under when the lines are filtered by state.
+     *
+     * @return array<int, string>
+     */
+    private function rowStatuses(): array
+    {
+        $statuses = [];
+
+        foreach (['unmatched', 'matched'] as $state) {
+            foreach ($this->bank->lines($this->bankId, $this->bankClerk, $state)['rows'] as $row) {
+                $statuses[(int) $row->line_id] = lang('Accounting_bank.state_' . $state);
+            }
+        }
+
+        ksort($statuses);
+
+        return $statuses;
+    }
+
+    private function inArabic(callable $action): mixed
+    {
+        $language = Services::language();
+        $previous = $language->getLocale();
+        $language->setLocale('ar-EG');
+
+        try {
+            return $action();
+        } finally {
+            $language->setLocale($previous);
+        }
+    }
+
+    /**
+     * @return array{int, int} The journals and the lines of journals in the books.
+     */
+    private function journalCounts(): array
+    {
+        return [$this->countRows('accounting_journals'), $this->countRows('accounting_journal_lines')];
+    }
+
+    public function testLines_GivesARowOneOfTwoStatusesInOtherWordsThanTheReferenceSystem(): void
+    {
+        $case = $this->referenceCase('T-63', 'bank_statement', 'import-a-bank-statement-and-match-its-rows', 'differs');
+
+        $asWritten = $this->refusal(fn () => $this->importStatement(str_replace('/2026', '', $this->observedFile($case['inputs']['file'])), name: 'as-written.csv'));
+
+        $this->assertInstanceOf(StatementRejected::class, $asWritten);
+        $this->assertSame(array_fill(0, 3, StatementRowError::DATE_INVALID), array_map(static fn (StatementRowError $error): string => $error->reason, $asWritten->errors));
+        $this->assertSame(0, $this->lineCount());
+
+        $result = $this->importObservedFile($case);
+        $rows   = $this->bank->lines($this->bankId, $this->bankClerk)['rows'];
+        $ids    = $this->lineIds();
+
+        $this->assertSame([3, 3], [$result->rowCount, $result->imported]);
+        $this->assertSame(
+            array_map(static fn (array $row): string => ($row['side'] === 'deposit' ? '' : '-') . $row['amount'], $case['inputs']['file']['rows']),
+            array_map(static fn (object $row): string => bcadd((string) $row->amount, '0', 2), $rows),
+        );
+        $this->assertSame(['2026-10-27', '2026-10-27', '2026-11-05'], array_column($rows, 'line_date'));
+
+        $afterImport = $this->inArabic(fn (): array => $this->rowStatuses());
+
+        $this->bank->match($this->bankId, $ids[2], [$this->bookLine('360.00', '2026-11-05')], $this->bankClerk);
+
+        $afterMatch = $this->inArabic(fn (): array => $this->rowStatuses());
+
+        $this->assertSame($ids, array_keys($afterImport));
+        $this->assertCount(1, array_unique($afterImport));
+        $this->assertSame($ids, array_keys($afterMatch));
+        $this->assertSame([$ids[2]], array_keys(array_diff($afterMatch, $afterImport)));
+        $this->assertSame(['Accounting_bank.state_unmatched', 'Accounting_bank.state_matched'], $case['expected']['detail']['language_keys']);
+        $this->assertSameAsFixture($case['expected'], ['row_statuses' => array_values(array_unique([...$afterImport, ...$afterMatch]))], 'statuses of a row');
+    }
+
+    public function testMatch_AcceptsRowsWhoseAmountEqualsTheJournalsChosenAndRejectsEveryOtherSum(): void
+    {
+        $case     = $this->referenceCase('T-63', 'bank_statement', 'a-row-is-matched-when-its-amount-equals-the-journals-chosen', 'exact');
+        $accepted = [];
+        $refused  = [];
+
+        foreach ($case['inputs']['probes'] as $number => $probe) {
+            $sign      = $probe['side'] === 'deposit' ? '' : '-';
+            $isDeposit = $probe['side'] === 'deposit';
+
+            $this->importStatement($this->statementText([['2026-10-27', 'Probe ' . $number, $isDeposit ? $probe['amount'] : '', $isDeposit ? '' : $probe['amount'], '']]), name: 'probe-' . $number . '.csv');
+
+            $journalLines = array_map(fn (string $amount): int => $this->bookLine($sign . $amount, '2026-10-27'), $probe['journals']);
+            $total        = array_reduce($probe['journals'], static fn (string $sum, string $amount): string => bcadd($sum, $amount, 4), '0');
+            $equal        = bccomp($total, $probe['amount'], 4) === 0;
+
+            try {
+                $this->bank->match($this->bankId, $this->statementLineId('Probe ' . $number), $journalLines, $this->bankClerk);
+                $accepted[$number] = true;
+            } catch (AccountingException $exception) {
+                $refused[$number] = $exception->error;
+            }
+
+            $this->assertSame($equal, isset($accepted[$number]), 'probe ' . $number);
+        }
+
+        $this->assertCount($case['expected']['detail']['accepted'], $accepted);
+        $this->assertCount($case['expected']['detail']['refused'], $refused);
+        $this->assertSame([AccountingError::BankMatchAmountMismatch], array_values(array_unique($refused, SORT_REGULAR)));
+        $this->assertSame('bank_match_amount_mismatch', $case['expected']['detail']['refused_with']);
+        $this->assertSame(count($accepted), $this->accountingDb()->table('bank_matches')->countAllResults());
+        $this->assertSameAsFixture($case['expected'], ['match_rule' => 'the amount of the row equals the amount of the journals chosen'], 'match rule');
+    }
+
+    public function testMatch_RejectsAnAmountThatDiffersWithTheWordsOfTheLanguageInUseWhereTheReferenceSystemUsesOthers(): void
+    {
+        $case = $this->referenceCase('T-63', 'bank_statement', 'a-row-is-refused-when-its-amount-differs-from-the-journals-chosen', 'differs');
+        $this->importObservedFile($case);
+        $row         = $this->lineIds()[1];
+        $journalLine = $this->bookLine('-' . $case['inputs']['journal']['amount'], '2026-10-27');
+
+        $refusal = $this->refusal(fn () => $this->bank->match($this->bankId, $row, [$journalLine], $this->bankClerk));
+        $message = $this->inArabic(static fn (): string => AccountingMessage::of($refusal));
+
+        $this->assertSame(AccountingError::BankMatchAmountMismatch, $refusal->error);
+        $this->assertSame($case['expected']['detail']['error'], $refusal->error->value);
+        $this->assertSame($case['expected']['detail']['language_key'], 'Accounting.error_' . $refusal->error->value);
+        $this->assertSame($case['expected']['detail']['difference'], $refusal->context['difference']);
+        $this->assertSame($case['expected']['detail']['matches_made'], $this->accountingDb()->table('bank_matches')->countAllResults());
+        $this->assertSameAsFixture($case['expected'], ['refusal_message' => $message], 'refusal of a different amount');
+    }
+
+    public function testImport_PostsNoJournalAndNeitherDoMatchUnmatchOrDeletingTheStatement(): void
+    {
+        $case        = $this->referenceCase('T-63', 'bank_statement', 'import-match-unmatch-and-delete-post-no-journal', 'exact');
+        $journalLine = $this->bookLine($case['inputs']['journal']['amount'], '2026-11-05');
+        $lastNumber  = (string) $this->accountingDb()->table('accounting_journals')->where('journal_id', $this->journalOfLine($journalLine))->get()->getRow()->number;
+        $before      = $this->journalCounts();
+        $afterStep   = [];
+
+        $result = $this->importObservedFile($case);
+        $row    = $this->lineIds()[2];
+
+        $afterStep['import'] = $this->journalCounts();
+
+        $matchId = $this->bank->match($this->bankId, $row, [$journalLine], $this->bankClerk);
+
+        $afterStep['match'] = $this->journalCounts();
+
+        $this->bank->unmatch($this->bankId, $matchId, $this->bankClerk);
+
+        $afterStep['unmatch'] = $this->journalCounts();
+
+        $this->bank->deleteStatement((int) $result->statementId, $this->bankClerk);
+
+        $afterStep['delete'] = $this->journalCounts();
+
+        $next = $this->bookLine('1.00', '2026-11-06');
+
+        $this->assertSame(['import', 'match', 'unmatch', 'delete'], array_keys($afterStep));
+        $this->assertSame(0, $this->lineCount());
+        $this->assertSame(sprintf('%06d', (int) $lastNumber + 1), $this->accountingDb()->table('accounting_journals')->where('journal_id', $this->journalOfLine($next))->get()->getRow()->number);
+        $this->assertSameAsFixture($case['expected'], ['import_match_unmatch_and_delete_post_a_journal' => array_filter($afterStep, static fn (array $counts): bool => $counts !== $before) !== []], 'journals posted by the statement');
+    }
+
+    public function testUnmatch_ReturnsAMatchedRowToNotMatchedAsTheReferenceSystemDoes(): void
+    {
+        $case = $this->referenceCase('T-63', 'bank_statement', 'a-matched-row-can-be-unmatched', 'exact');
+        $this->importObservedFile($case);
+        $row         = $this->lineIds()[2];
+        $journalLine = $this->bookLine($case['inputs']['journal']['amount'], '2026-11-05');
+        $matchId     = $this->bank->match($this->bankId, $row, [$journalLine], $this->bankClerk);
+
+        $this->assertSame([$row], array_map(static fn (object $line): int => (int) $line->line_id, $this->bank->lines($this->bankId, $this->bankClerk, 'matched')['rows']));
+
+        $possible = true;
+
+        try {
+            $this->bank->unmatch($this->bankId, $matchId, $this->bankClerk);
+        } catch (AccountingException) {
+            $possible = false;
+        }
+
+        $this->assertSame(0, $this->bank->lines($this->bankId, $this->bankClerk, 'matched')['total']);
+        $this->assertSame(3, $this->bank->lines($this->bankId, $this->bankClerk, 'unmatched')['total']);
+        $this->assertSame('not matched', $case['expected']['detail']['the_row_goes_back_to']);
+        $this->assertTrue($case['expected']['detail']['the_journal_is_free_to_be_matched_again']);
+        $this->assertGreaterThan($matchId, $this->bank->match($this->bankId, $row, [$journalLine], $this->bankClerk));
+        $this->assertSameAsFixture($case['expected'], ['unmatch_a_row' => $possible], 'unmatch of a row');
+    }
+
+    public function testDeleteStatement_TakesOutTheWholeStatementWhereTheReferenceSystemDeletesARowOnItsOwn(): void
+    {
+        $case   = $this->referenceCase('T-63', 'bank_statement', 'a-row-can-be-deleted-on-its-own', 'differs');
+        $result = $this->importObservedFile($case);
+
+        $rowDeleters = array_filter(
+            (new ReflectionClass(BankReconciliation::class))->getMethods(ReflectionMethod::IS_PUBLIC),
+            static fn (ReflectionMethod $method): bool => preg_match('/delete|remove/i', $method->getName()) === 1
+                && array_filter($method->getParameters(), static fn (ReflectionParameter $parameter): bool => stripos($parameter->getName(), 'line') !== false) !== [],
+        );
+
+        $matchId = $this->bank->match($this->bankId, $this->lineIds()[2], [$this->bookLine('360.00', '2026-11-05')], $this->bankClerk);
+        $refusal = $this->refusal(fn () => $this->bank->deleteStatement((int) $result->statementId, $this->bankClerk));
+
+        $this->assertSame($case['expected']['detail']['refused_with'], $refusal->error->value);
+        $this->assertSame(3, $this->lineCount());
+
+        $this->bank->unmatch($this->bankId, $matchId, $this->bankClerk);
+        $this->bank->deleteStatement((int) $result->statementId, $this->bankClerk);
+
+        $this->assertSame([], $this->lineIds());
+        $this->assertSame($case['expected']['detail']['rows_left_after_the_delete'], $this->lineCount());
+        $this->assertSame($case['expected']['detail']['the_file_can_be_imported_again'], $this->importObservedFile($case)->created());
+        $this->assertSameAsFixture($case['expected'], ['delete_a_row' => $rowDeleters !== []], 'delete of a row on its own');
     }
 }

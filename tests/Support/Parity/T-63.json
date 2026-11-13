@@ -1,6 +1,6 @@
 {
   "id": "T-63",
-  "title": "The bank statement of a bank account: a three-step import of a file of rows and a screen that matches a row to the journals of the bank account without posting or changing anything; this application has no statement import and no matching",
+  "title": "The bank statement of a bank account: a three-step import of a file of rows and a screen that matches a row to the journals of the bank account without posting or changing anything; built here with the same match rule and no journal posted, with other words for the statuses and the refusal, and with no delete of a row on its own",
   "recorded": "2026-10-28",
   "observation": {
     "batch": "b",
@@ -31,12 +31,10 @@
     {
       "id": "import-a-bank-statement-and-match-its-rows",
       "kind": "bank_statement",
-      "classification": "not_implemented",
-      "work_package": "WP29",
-      "reason": "There is no statement import, no statement row and no matching (WP29; the design there is that matching never edits a journal and an import is checksummed and idempotent).",
+      "classification": "differs",
+      "reason": "A row has two statuses here, as in the reference system, one not matched and one matched, and the rows are listed by that state. The words differ: the reference system writes «لم تطابق» and «تمت مطابقتها - قيد #…» (the matched one names the journal) where this application writes «غير مطابق» and «مطابق» and names no journal in the status. Nothing else about the statuses differs, and no decision records the words.",
       "evidence": [
-        "statement_tab",
-        "no_journal"
+        "statement_tab"
       ],
       "inputs": {
         "file": {
@@ -70,36 +68,316 @@
         "row_statuses": [
           "لم تطابق",
           "تمت مطابقتها"
-        ],
-        "match_rule": "the amount of the row equals the amount of the journals chosen",
-        "refusal_message": "قيمة العملية البنكية يجب أن تكون مساوية لقيمة عمليات النظام",
-        "import_match_unmatch_and_delete_post_a_journal": false,
-        "unmatch_and_delete_a_row": true
+        ]
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
+        "row_statuses": [
+          "غير مطابق",
+          "مطابق"
+        ],
+        "detail": {
+          "file_as_fed": "the standard mapping (comma, first row skipped, day first) with the dates written 27/10/2026, 27/10/2026 and 05/11/2026 because the importer reads a date only with a four-digit year, and with the description and reference cells empty",
+          "rows_after_the_import": 3,
+          "statuses_after_the_import": "all three not matched",
+          "language_keys": [
+            "Accounting_bank.state_unmatched",
+            "Accounting_bank.state_matched"
+          ],
+          "locale": "ar-EG"
+        }
+      }
+    },
+    {
+      "id": "a-row-is-matched-when-its-amount-equals-the-journals-chosen",
+      "kind": "bank_statement",
+      "classification": "exact",
+      "evidence": [
+        "statement_tab"
+      ],
+      "inputs": {
+        "probes": [
           {
-            "kind": "table",
-            "pattern": "bank_statement"
+            "side": "deposit",
+            "amount": "360.00",
+            "journals": [
+              "360.00"
+            ]
           },
           {
-            "kind": "table",
-            "pattern": "bank_transaction"
+            "side": "deposit",
+            "amount": "100.25",
+            "journals": [
+              "60.00",
+              "40.25"
+            ]
           },
           {
-            "kind": "table",
-            "pattern": "reconcil"
+            "side": "withdrawal",
+            "amount": "2.50",
+            "journals": [
+              "2.50"
+            ]
           },
           {
-            "kind": "route",
-            "pattern": "reconcil"
+            "side": "withdrawal",
+            "amount": "2.50",
+            "journals": [
+              "30.00"
+            ]
           },
           {
-            "kind": "route",
-            "pattern": "bankstatement"
+            "side": "deposit",
+            "amount": "100.00",
+            "journals": [
+              "99.99"
+            ]
+          },
+          {
+            "side": "deposit",
+            "amount": "100.00",
+            "journals": [
+              "100.01"
+            ]
+          },
+          {
+            "side": "deposit",
+            "amount": "100.00",
+            "journals": [
+              "60.00",
+              "40.01"
+            ]
           }
         ]
+      },
+      "reference": {
+        "match_rule": "the amount of the row equals the amount of the journals chosen"
+      },
+      "expected": {
+        "match_rule": "the amount of the row equals the amount of the journals chosen",
+        "detail": {
+          "accepted": 3,
+          "refused": 4,
+          "refused_with": "bank_match_amount_mismatch",
+          "journals_are_on_the_side_of_the_row": "a deposit is matched with debits of the bank account and a withdrawal with credits"
+        }
+      }
+    },
+    {
+      "id": "a-row-is-refused-when-its-amount-differs-from-the-journals-chosen",
+      "kind": "bank_statement",
+      "classification": "differs",
+      "reason": "The reference system refuses a row whose amount is not the amount of the journals chosen, and so does this application, but with other words: the reference system says that the amount of the bank operation must equal the amount of the system operations, and this application says that the lines chosen must add up to the statement line exactly and names the difference. No decision records the words.",
+      "evidence": [
+        "statement_tab"
+      ],
+      "inputs": {
+        "file": {
+          "columns": [
+            "التاريخ",
+            "الوصف",
+            "إيداع",
+            "سحب",
+            "الرقم المرجعي"
+          ],
+          "rows": [
+            {
+              "date": "27/10",
+              "amount": "100.00",
+              "side": "deposit"
+            },
+            {
+              "date": "27/10",
+              "amount": "2.50",
+              "side": "withdrawal"
+            },
+            {
+              "date": "05/11",
+              "amount": "360.00",
+              "side": "deposit"
+            }
+          ]
+        },
+        "row": "the second, a withdrawal of 2.50",
+        "journal": {
+          "side": "withdrawal",
+          "amount": "30.00"
+        }
+      },
+      "reference": {
+        "refusal_message": "قيمة العملية البنكية يجب أن تكون مساوية لقيمة عمليات النظام"
+      },
+      "expected": {
+        "refusal_message": "يجب أن يساوي مجموع السطور المختارة سطر الكشف تمامًا؛ والفرق 27.5000.",
+        "detail": {
+          "language_key": "Accounting.error_bank_match_amount_mismatch",
+          "error": "bank_match_amount_mismatch",
+          "difference": "27.5000",
+          "matches_made": 0,
+          "locale": "ar-EG"
+        }
+      }
+    },
+    {
+      "id": "import-match-unmatch-and-delete-post-no-journal",
+      "kind": "bank_statement",
+      "classification": "exact",
+      "evidence": [
+        "no_journal"
+      ],
+      "inputs": {
+        "file": {
+          "columns": [
+            "التاريخ",
+            "الوصف",
+            "إيداع",
+            "سحب",
+            "الرقم المرجعي"
+          ],
+          "rows": [
+            {
+              "date": "27/10",
+              "amount": "100.00",
+              "side": "deposit"
+            },
+            {
+              "date": "27/10",
+              "amount": "2.50",
+              "side": "withdrawal"
+            },
+            {
+              "date": "05/11",
+              "amount": "360.00",
+              "side": "deposit"
+            }
+          ]
+        },
+        "journal": {
+          "side": "deposit",
+          "amount": "360.00"
+        },
+        "steps": [
+          "import the file",
+          "match the row of 360.00 with the journal",
+          "unmatch it",
+          "delete the statement"
+        ]
+      },
+      "reference": {
+        "import_match_unmatch_and_delete_post_a_journal": false
+      },
+      "expected": {
+        "import_match_unmatch_and_delete_post_a_journal": false,
+        "detail": {
+          "journals_after_each_step": "the same number of journals and of journal lines as before the import",
+          "next_journal_number": "the number right after the last one",
+          "delete": "the delete of the statement, as no row is deleted on its own here"
+        }
+      }
+    },
+    {
+      "id": "a-matched-row-can-be-unmatched",
+      "kind": "bank_statement",
+      "classification": "exact",
+      "evidence": [
+        "statement_tab"
+      ],
+      "inputs": {
+        "file": {
+          "columns": [
+            "التاريخ",
+            "الوصف",
+            "إيداع",
+            "سحب",
+            "الرقم المرجعي"
+          ],
+          "rows": [
+            {
+              "date": "27/10",
+              "amount": "100.00",
+              "side": "deposit"
+            },
+            {
+              "date": "27/10",
+              "amount": "2.50",
+              "side": "withdrawal"
+            },
+            {
+              "date": "05/11",
+              "amount": "360.00",
+              "side": "deposit"
+            }
+          ]
+        },
+        "journal": {
+          "side": "deposit",
+          "amount": "360.00"
+        },
+        "steps": [
+          "match the row of 360.00 with the journal",
+          "unmatch it"
+        ]
+      },
+      "reference": {
+        "unmatch_and_delete_a_row": true,
+        "unmatch_a_row": true
+      },
+      "expected": {
+        "unmatch_a_row": true,
+        "detail": {
+          "the_row_goes_back_to": "not matched",
+          "the_journal_is_free_to_be_matched_again": true
+        }
+      }
+    },
+    {
+      "id": "a-row-can-be-deleted-on-its-own",
+      "kind": "bank_statement",
+      "classification": "differs",
+      "reason": "The reference system deletes one imported row from the menu of the row. Here no row is deleted on its own: a statement is deleted whole, with every row it brought in, and only when none of its rows is matched, so the matches are taken back first, and the file can then be imported again. E98 records the delete of a whole statement; no decision records leaving out the delete of one row on purpose.",
+      "evidence": [
+        "statement_tab"
+      ],
+      "inputs": {
+        "file": {
+          "columns": [
+            "التاريخ",
+            "الوصف",
+            "إيداع",
+            "سحب",
+            "الرقم المرجعي"
+          ],
+          "rows": [
+            {
+              "date": "27/10",
+              "amount": "100.00",
+              "side": "deposit"
+            },
+            {
+              "date": "27/10",
+              "amount": "2.50",
+              "side": "withdrawal"
+            },
+            {
+              "date": "05/11",
+              "amount": "360.00",
+              "side": "deposit"
+            }
+          ]
+        },
+        "row": "the second, a withdrawal of 2.50"
+      },
+      "reference": {
+        "unmatch_and_delete_a_row": true,
+        "delete_a_row": true
+      },
+      "expected": {
+        "delete_a_row": false,
+        "detail": {
+          "what_can_be_deleted": "a whole statement with every row it brought in, and only when none of its rows is matched",
+          "refused_with": "bank_statement_has_matches",
+          "rows_left_after_the_delete": 0,
+          "the_file_can_be_imported_again": true
+        }
       }
     }
   ]
