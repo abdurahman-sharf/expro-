@@ -1752,7 +1752,7 @@
     "name": "SR04 the payment methods a purchase offers are the ones set",
     "file": "app/Models/Receiving.php",
     "find": "return (new PaymentMethods())->offered([",
-    "replace": "return ([",
+    "replace": "return (static fn (array $options, array $keep): array => $options)([",
     "tests": [
       "--filter",
       "testGetPaymentOptions_",
