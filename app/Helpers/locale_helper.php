@@ -1,5 +1,6 @@
 <?php
 
+use App\Libraries\Integrations\PaymentMethods;
 use App\Models\Employee;
 use Config\OSPOS;
 
@@ -263,9 +264,12 @@ function get_timeformats(): array
 
 
 /**
- * Gets the payment options
+ * Gets the payment options, less the ways switched off on the payment methods screen. A form that edits a
+ * record already holding a way of payment names it in $keep, so that the way stays in that form.
+ *
+ * @param list<string> $keep The names the ways are stored under.
  */
-function get_payment_options(): array
+function get_payment_options(array $keep = []): array
 {
     $payments = [];
     $config = config(OSPOS::class)->settings;
@@ -304,7 +308,7 @@ function get_payment_options(): array
     $payments[lang('Sales.bank_transfer')] = lang('Sales.bank_transfer');
     $payments[lang('Sales.wallet')]        = lang('Sales.wallet');
 
-    return $payments;
+    return (new PaymentMethods())->offered($payments, $keep);
 }
 
 /**

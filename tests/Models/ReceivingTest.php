@@ -11,6 +11,8 @@ use App\Libraries\Accounting\ReceivingLineEdit;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Integrations\IntegrationOptions;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -1777,5 +1779,32 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertSame(1, (int) $first + (int) $second, 'of two receivings of 7 from an order of 10, one is saved and the other is refused');
         $this->assertSame($before + 1, $this->countRows('receivings'));
         $this->assertSame('7.000', $this->documentsOf(PurchaseDocumentKind::Order)->lines($orderId)[0]->received);
+    }
+
+    public function testGetPaymentOptions_OffersTheWaysAsTheyAreSetOnlyWhileTheSwitchOfCustomPaymentMethodsIsOn(): void
+    {
+        $db = Database::connect();
+
+        try {
+            (new PaymentMethods())->save(['wallet' => ['enabled' => '0'], 'bank_transfer' => ['name' => 'Wire']], null);
+
+            $standard = model(Receiving::class)->get_payment_options();
+
+            $this->assertArrayHasKey(lang('Sales.wallet'), $standard);
+            $this->assertSame(lang('Sales.bank_transfer'), $standard[lang('Sales.bank_transfer')]);
+
+            $this->setConfigValue(IntegrationOptions::PAYMENT_METHODS, '1');
+
+            $custom = model(Receiving::class)->get_payment_options();
+
+            $this->assertArrayNotHasKey(lang('Sales.wallet'), $custom);
+            $this->assertSame('Wire', $custom[lang('Sales.bank_transfer')]);
+            $this->assertSame(lang('Sales.due'), $custom[lang('Sales.due')]);
+            $this->assertSame(lang('Sales.cash'), $custom[lang('Sales.cash')]);
+        } finally {
+            $db->table('payment_methods')->truncate();
+            $db->table('app_config')->where('key', IntegrationOptions::PAYMENT_METHODS)->delete();
+            $db->table('accounting_audit_log')->where('entity_type', 'payment_methods')->delete();
+        }
     }
 }

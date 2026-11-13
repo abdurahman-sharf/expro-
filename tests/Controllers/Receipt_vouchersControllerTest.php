@@ -6,6 +6,8 @@ use App\Libraries\Accounting\RevenueCategories;
 use App\Libraries\Accounting\RevenuePostingBuilder;
 use App\Libraries\Accounting\RevenueVouchers;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Integrations\IntegrationOptions;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -17,6 +19,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
+use Tests\Support\IntegrationFixtureTrait;
 
 /**
  * The screens of receipt vouchers: who may open them, what the form asks (no supplier, the voucher
@@ -31,6 +34,7 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
     use DatabaseFingerprintTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
+    use IntegrationFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -58,6 +62,7 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->wipeIntegration();
         $this->releaseOpenTransactions();
         $this->stopExpenses();
 
@@ -562,5 +567,75 @@ class Receipt_vouchersControllerTest extends CIUnitTestCase
         $this->get('/receipt_vouchers/pdf/' . $id)->assertStatus(200);
 
         $this->assertDatabaseUnchanged($before, 'Printing a voucher changed a row.');
+    }
+
+    private function switchMethodsOn(array $changes): void
+    {
+        (new PaymentMethods())->save($changes, null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+    }
+
+    public function testGetView_ShowsARenamedMethodUnderItsNameAndSendsTheNameItIsStoredUnder(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+        $this->switchMethodsOn(['wallet' => ['name' => 'Pay by phone']]);
+
+        $select = $this->selectOf($this->get('/receipt_vouchers/view')->getBody(), 'payment_type');
+
+        $this->assertStringContainsString('<option value="Wallet">Pay by phone</option>', $select);
+        $this->assertStringNotContainsString('value="Pay by phone"', $select);
+    }
+
+    public function testPostSave_SavesAVoucherReceivedWithARenamedMethodUnderItsStoredName(): void
+    {
+        $this->actAsWith(['receipt_vouchers']);
+        $this->switchMethodsOn(['wallet' => ['name' => 'Pay by phone']]);
+
+        $result = $this->postJson('/receipt_vouchers/save', ['date' => $this->today, 'amount' => '100.00', 'tax_amount' => '0', 'payment_type' => 'Wallet', 'treasury_id' => $this->treasuryId, 'category_id' => 0, 'account_id' => 0, 'description' => 'Renamed way']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Wallet', $this->accountingDb()->table('revenues')->where('revenue_id', $result['id'])->get()->getRow()->payment_type);
+    }
+
+    public function testGetView_KeepsTheMethodThatWasSwitchedOffSelectedOnItsOwnVoucherOnly(): void
+    {
+        $id = $this->voucher(['payment_type' => 'Wallet']);
+        $this->actAsWith(['receipt_vouchers']);
+        $this->switchMethodsOn(['wallet' => ['enabled' => '0']]);
+
+        $edit = $this->selectOf($this->get('/receipt_vouchers/view/' . $id)->getBody(), 'payment_type');
+        $new  = $this->selectOf($this->get('/receipt_vouchers/view')->getBody(), 'payment_type');
+
+        $this->assertMatchesRegularExpression('#<option value="Wallet"[^>]*selected#', $edit, 'The voucher keeps the method it was received with.');
+        $this->assertStringNotContainsString('value="Wallet"', $new, 'A new voucher is not offered the method that is off.');
+    }
+
+    public function testPostSave_SavesAVoucherThatCarriesASwitchedOffMethodWithTheMethodItHad(): void
+    {
+        $id = $this->voucher(['payment_type' => 'Wallet']);
+        $this->actAsWith(['receipt_vouchers']);
+        $this->switchMethodsOn(['wallet' => ['enabled' => '0']]);
+
+        $result = $this->postJson('/receipt_vouchers/save/' . $id, ['date' => $this->today, 'amount' => '60.00', 'tax_amount' => '0', 'payment_type' => 'Wallet', 'treasury_id' => $this->treasuryId, 'description' => 'Smaller']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Wallet', $this->accountingDb()->table('revenues')->where('revenue_id', $id)->get()->getRow()->payment_type);
+    }
+
+    public function testPostSave_RefusesAVoucherChangedToAMethodThatIsSwitchedOffAndANewOne(): void
+    {
+        $id = $this->voucher();
+        $this->actAsWith(['receipt_vouchers']);
+        $this->switchMethodsOn(['wallet' => ['enabled' => '0']]);
+        $before = $this->accountingDb()->table('revenues')->countAllResults();
+        $words  = 'The payment method Wallet is switched off.';
+
+        $changed = $this->postJson('/receipt_vouchers/save/' . $id, ['date' => $this->today, 'amount' => '100.00', 'tax_amount' => '0', 'payment_type' => 'Wallet', 'treasury_id' => $this->treasuryId, 'description' => 'Moved']);
+        $made    = $this->postJson('/receipt_vouchers/save', ['date' => $this->today, 'amount' => '100.00', 'tax_amount' => '0', 'payment_type' => 'Wallet', 'treasury_id' => $this->treasuryId]);
+
+        $this->assertSame([false, $words], [$changed['success'], $changed['message']]);
+        $this->assertSame([false, $words], [$made['success'], $made['message']]);
+        $this->assertSame('Cash', $this->accountingDb()->table('revenues')->where('revenue_id', $id)->get()->getRow()->payment_type);
+        $this->assertSame($before, $this->accountingDb()->table('revenues')->countAllResults());
     }
 }

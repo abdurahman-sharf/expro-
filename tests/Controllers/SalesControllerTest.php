@@ -27,6 +27,9 @@ use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Documents\CustomFields;
 use App\Libraries\HeaderCharges;
+use App\Libraries\Integrations\EntityTranslations;
+use App\Libraries\Integrations\IntegrationOptions;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\ShippingTaxOption;
 use App\Libraries\Numbering\DocumentType;
@@ -49,6 +52,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\IntegrationFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\SaleFixtureTrait;
@@ -76,6 +80,7 @@ class SalesControllerTest extends CIUnitTestCase
     use DatabaseFingerprintTrait;
     use ItemFixtureTrait;
     use EmployeeFixtureTrait;
+    use IntegrationFixtureTrait;
     use RoleFixtureTrait;
     use SaleAccountingFixtureTrait;
     use SaleFixtureTrait;
@@ -114,6 +119,7 @@ class SalesControllerTest extends CIUnitTestCase
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
         $this->wipeCustomFields();
+        $this->wipeIntegration();
 
         $this->setConfigValue('accounting_customer_opening', '0');
         $this->resetSalesControls();
@@ -9622,5 +9628,239 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         foreach (['packing_slip', 'pick_list', 'shipping_label'] as $slip) {
             $this->assertStringContainsString('id="show_' . $slip . '_button"', $body, $slip);
         }
+    }
+
+    public function testGetIndex_OffersThePaymentMethodsAsTheyAreSetAndNothingChangesWhileTheSwitchIsOff(): void
+    {
+        $this->registerWithACart();
+        (new PaymentMethods())->save(['wallet' => ['name' => 'Pay by phone'], 'bank_transfer' => ['enabled' => '0']], null);
+
+        $off = $this->get('/sales')->getBody();
+
+        $this->assertStringContainsString('value="' . lang('Sales.bank_transfer') . '"', $off, 'The switch is off, so the register offers what it always offered.');
+        $this->assertStringNotContainsString('Pay by phone', $off);
+
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+
+        $on = $this->get('/sales')->getBody();
+
+        $this->assertStringNotContainsString('value="' . lang('Sales.bank_transfer') . '"', $on);
+        $this->assertStringContainsString('<option value="' . lang('Sales.wallet') . '"', $on);
+        $this->assertStringContainsString('Pay by phone', $on);
+        $this->assertStringContainsString('value="' . lang('Sales.cash') . '"', $on);
+        $this->assertStringContainsString('value="' . lang('Sales.due') . '"', $on);
+    }
+
+    private function saleWithWalletPayment(): int
+    {
+        $service = $this->item('0', false);
+        $this->startSelling();
+        $saleId = $this->save([$this->line($service, 0, '1', '230')], [], [$this->payment(lang('Sales.wallet'), '100.00')]);
+
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        return $saleId;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function editFormOfSale(int $saleId, int $paymentId, string $type, string $amount, array $more = []): array
+    {
+        return [
+            'date'               => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']),
+            'customer_id'        => (string) $this->customerId,
+            'employee_id'        => (string) $this->employeeId,
+            'comment'            => 'only the comment',
+            'number_of_payments' => '1',
+            'payment_id_0'       => (string) $paymentId,
+            'payment_type_0'     => $type,
+            'payment_amount_0'   => $amount,
+            'refund_type_0'      => lang('Sales.cash'),
+            'refund_amount_0'    => '0.00',
+            'payment_type_new'   => '--',
+            ...$more,
+        ];
+    }
+
+    public function testGetEdit_KeepsThePaymentMethodThatWasSwitchedOffSelectedOnItsOwnRowOnly(): void
+    {
+        $saleId = $this->saleWithWalletPayment();
+
+        $body = $this->get('/sales/edit/' . $saleId)->getBody();
+        $row  = $this->selectOf($body, 'payment_type_0');
+
+        $this->assertMatchesRegularExpression('#<option value="' . preg_quote(lang('Sales.wallet'), '#') . '"[^>]*selected#', $row, 'The payment keeps the method it was taken with.');
+        $this->assertStringNotContainsString('value="' . lang('Sales.wallet') . '"', $this->selectOf($body, 'payment_type_new'), 'A new payment is not offered the method that is off.');
+        $this->assertStringNotContainsString('value="' . lang('Sales.wallet') . '"', $this->selectOf($body, 'refund_type_0'), 'A refund is not offered it either.');
+    }
+
+    public function testPostSave_SavesThePaymentThatCarriesASwitchedOffMethodWithTheMethodItHad(): void
+    {
+        $saleId  = $this->saleWithWalletPayment();
+        $payment = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, $this->editFormOfSale($saleId, (int) $payment->payment_id, lang('Sales.wallet'), '100.00')));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(lang('Sales.wallet'), $this->accountingDb()->table('sales_payments')->where('payment_id', $payment->payment_id)->get()->getRow()->payment_type);
+    }
+
+    public function testPostSave_RefusesAPaymentChangedToAMethodThatIsSwitchedOff(): void
+    {
+        $service = $this->item('0', false);
+        $this->startSelling();
+        $saleId  = $this->save([$this->line($service, 0, '1', '230')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
+        $payment = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, $this->editFormOfSale($saleId, (int) $payment->payment_id, lang('Sales.wallet'), '100.00')));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Integrations.error_payment_method_disabled', [lang('Sales.wallet')]), $result['message']);
+        $this->assertSame(lang('Sales.cash'), $this->accountingDb()->table('sales_payments')->where('payment_id', $payment->payment_id)->get()->getRow()->payment_type);
+    }
+
+    public function testPostSave_RefusesANewPaymentWithAMethodThatIsSwitchedOff(): void
+    {
+        $saleId  = $this->saleWithWalletPayment();
+        $payment = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, $this->editFormOfSale($saleId, (int) $payment->payment_id, lang('Sales.wallet'), '100.00', ['payment_type_new' => lang('Sales.wallet'), 'payment_amount_new' => '50.00'])));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Integrations.error_payment_method_disabled', [lang('Sales.wallet')]), $result['message']);
+        $this->assertSame(1, $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->countAllResults(), 'No payment was added.');
+    }
+
+    public function testPostAddPayment_RefusesAPaymentMethodThatIsSwitchedOffAndAddsNothing(): void
+    {
+        $this->registerWithACart();
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+
+        $response = $this->post('/sales/addPayment', ['payment_type' => lang('Sales.wallet'), 'amount_tendered' => '40.00']);
+
+        $response->assertSee(lang('Integrations.error_payment_method_disabled', [lang('Sales.wallet')]));
+        $this->assertEmpty(Services::session()->get('sales_payments'));
+    }
+
+    public function testPostAddPayment_StillTakesTheMethodsThatAreOffered(): void
+    {
+        $this->registerWithACart();
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+
+        $this->post('/sales/addPayment', ['payment_type' => lang('Sales.cash'), 'amount_tendered' => '40.00']);
+
+        $payments = Services::session()->get('sales_payments');
+
+        $this->assertSame('40.00', bcadd((string) $payments[lang('Sales.cash')]['payment_amount'], '0', 2));
+    }
+
+    public function testPostAddPayment_TakesAMethodSwitchedOffWhileTheSwitchOfCustomMethodsIsOff(): void
+    {
+        $this->registerWithACart();
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+
+        $this->post('/sales/addPayment', ['payment_type' => lang('Sales.wallet'), 'amount_tendered' => '40.00']);
+
+        $this->assertArrayHasKey(lang('Sales.wallet'), Services::session()->get('sales_payments'));
+    }
+
+    public function testPostAddPayment_StoresARenamedMethodUnderItsOwnStoredNameSoRoutingAndReportsAreUnchanged(): void
+    {
+        $this->registerWithACart();
+        (new PaymentMethods())->save(['wallet' => ['name' => 'Pay by phone']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+
+        $this->post('/sales/addPayment', ['payment_type' => lang('Sales.wallet'), 'amount_tendered' => '40.00']);
+
+        $payments = Services::session()->get('sales_payments');
+
+        $this->assertSame([lang('Sales.wallet')], array_keys($payments));
+    }
+
+    public function testGetPrint_PrintsTheSecondLanguageNamesBesideTheFirstOnlyWhenTheSettingSaysSo(): void
+    {
+        $this->startSelling();
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, $this->customerId, true);
+        $names  = new EntityTranslations();
+
+        $names->save('customer', (string) $this->customerId, 'en', 'Omar Khaled Trading Est', 'Riyadh, King Fahd Road', null);
+        $names->save('item', (string) $cycle['cream'], 'en', 'Face cream of the house', '', null);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $silent = $this->get('/sales/print/' . $saleId . '/invoice')->getBody();
+
+        $this->assertStringNotContainsString('Omar Khaled Trading Est', $silent, 'The setting is off.');
+        $this->assertStringNotContainsString('Face cream of the house', $silent);
+
+        $this->useSecondLanguage('en', false);
+
+        $this->assertStringNotContainsString('Face cream of the house', $this->get('/sales/print/' . $saleId . '/invoice')->getBody(), 'The printing switch is off.');
+
+        $this->useSecondLanguage('en');
+
+        $printed = $this->get('/sales/print/' . $saleId . '/invoice')->getBody();
+
+        $this->assertStringContainsString('Omar Khaled Trading Est', $printed);
+        $this->assertStringContainsString('Riyadh, King Fahd Road', $printed);
+        $this->assertStringContainsString('Face cream of the house', $printed);
+        $this->assertSame(1, substr_count($printed, 'Face cream of the house'), 'Only the item that has a translation prints one.');
+        $this->assertStringContainsString('doc-second-language', $printed);
+    }
+
+    public function testGetPrint_PrintsTheSecondLanguageNameOfAnotherLanguageNotAtAll(): void
+    {
+        $this->startSelling();
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, $this->customerId, true);
+
+        (new EntityTranslations())->save('item', (string) $cycle['cream'], 'de-DE', 'Gesichtscreme', '', null);
+        $this->useSecondLanguage('en');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->assertStringNotContainsString('Gesichtscreme', $this->get('/sales/print/' . $saleId . '/invoice')->getBody());
+    }
+
+    public function testGetPrint_EscapesTheSecondLanguageNames(): void
+    {
+        $this->startSelling();
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, $this->customerId, true);
+
+        (new EntityTranslations())->save('customer', (string) $this->customerId, 'en', '<b>Bold</b> & co', '<i>note</i>', null);
+        $this->useSecondLanguage('en');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $printed = $this->get('/sales/print/' . $saleId . '/invoice')->getBody();
+
+        $this->assertStringNotContainsString('<b>Bold</b>', $printed);
+        $this->assertStringContainsString('&lt;b&gt;Bold&lt;/b&gt; &amp; co', $printed);
+        $this->assertStringContainsString('&lt;i&gt;note&lt;/i&gt;', $printed);
+    }
+
+    public function testGetPrint_ChangesNoRowWhenItPrintsTheSecondLanguage(): void
+    {
+        $this->startSelling();
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, $this->customerId, true);
+
+        (new EntityTranslations())->save('item', (string) $cycle['cream'], 'en', 'Face cream of the house', '', null);
+        $this->useSecondLanguage('en');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $before = $this->databaseFingerprint();
+
+        $this->get('/sales/print/' . $saleId . '/invoice')->assertStatus(200);
+
+        $this->assertDatabaseUnchanged($before, 'Printing the second language changed a row.');
     }
 }

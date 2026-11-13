@@ -107,6 +107,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
                 AccountingGuard::AI_USE,
                 AccountingGuard::AI_APPROVE,
                 AccountingGuard::PORTAL_MANAGE,
+                AccountingGuard::API_KEYS_MANAGE,
             ],
             AccountingGuard::SENSITIVE,
         );
@@ -243,6 +244,23 @@ class SensitivePermissionsTest extends CIUnitTestCase
 
         $this->assertSame([AccountingGuard::AI_USE, AccountingGuard::AI_APPROVE], $this->service->heldBy($approver));
         $this->assertSame([AccountingGuard::AI_USE, AccountingGuard::AI_APPROVE], $this->holdersById()[$approver]['permissions']);
+    }
+
+    public function testIsSensitive_NamesThePermissionToManageApiKeysSoOnlyAnAdministratorHandsItOut(): void
+    {
+        $this->assertSame('api_keys_manage', AccountingGuard::API_KEYS_MANAGE);
+        $this->assertTrue(SensitivePermissions::isSensitive(AccountingGuard::API_KEYS_MANAGE));
+        $this->assertSame(1, $this->accountingDb()->table('permissions')->where(['permission_id' => AccountingGuard::API_KEYS_MANAGE, 'module_id' => 'integrations'])->countAllResults(), 'The migration registers it');
+        $this->assertSame(0, $this->accountingDb()->table('grants')->where('permission_id', AccountingGuard::API_KEYS_MANAGE)->countAllResults(), 'The migration grants it to nobody');
+        $this->assertFalse(SensitivePermissions::isSensitive('acc_integrations_manage'), 'Managing payment methods and rules is not sensitive.');
+    }
+
+    public function testHeldBy_ListsThePermissionToManageApiKeysAmongWhatAnEmployeeHolds(): void
+    {
+        $holder = $this->employeeWithGrants([AccountingGuard::API_KEYS_MANAGE, 'integrations']);
+
+        $this->assertSame([AccountingGuard::API_KEYS_MANAGE], $this->service->heldBy($holder));
+        $this->assertSame([AccountingGuard::API_KEYS_MANAGE], $this->holdersById()[$holder]['permissions']);
     }
 
     public function testHeldBy_DoesNotCountWhatARoleGivesBecauseARoleNeverHoldsASensitivePermission(): void

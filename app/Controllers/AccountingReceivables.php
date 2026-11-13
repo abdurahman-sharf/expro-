@@ -431,13 +431,20 @@ class AccountingReceivables extends AccountingController
         $this->requireCompanyScope();
 
         return $this->attempt(function () use ($customerId): array {
+            $paymentType = trim((string) $this->request->getPost('payment_type'));
+            $refused     = $this->paymentMethodRefusal($paymentType);
+
+            if ($refused !== null) {
+                return $refused;
+            }
+
             $treasuryId = (int) $this->request->getPost('treasury_id');
 
             $id = $this->advances->receive(
                 $customerId,
                 trim((string) $this->request->getPost('amount')),
                 trim((string) $this->request->getPost('advance_date')),
-                trim((string) $this->request->getPost('payment_type')),
+                $paymentType,
                 $treasuryId > 0 ? $treasuryId : null,
                 (string) $this->request->getPost('reference_code'),
                 (string) $this->request->getPost('note'),
@@ -469,13 +476,20 @@ class AccountingReceivables extends AccountingController
         $this->requireCompanyScope();
 
         return $this->attempt(function () use ($customerId): array {
+            $paymentType = trim((string) $this->request->getPost('payment_type'));
+            $refused     = $this->paymentMethodRefusal($paymentType);
+
+            if ($refused !== null) {
+                return $refused;
+            }
+
             $treasuryId = (int) $this->request->getPost('treasury_id');
 
             $id = $this->refunds->refund(
                 $customerId,
                 trim((string) $this->request->getPost('amount')),
                 trim((string) $this->request->getPost('refund_date')),
-                trim((string) $this->request->getPost('payment_type')),
+                $paymentType,
                 $treasuryId > 0 ? $treasuryId : null,
                 (string) $this->request->getPost('reference_code'),
                 (string) $this->request->getPost('note'),

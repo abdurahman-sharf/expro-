@@ -153,6 +153,18 @@ final class PermissionCatalogTest extends CIUnitTestCase
         $this->assertFalse($permissions['sales_delete']['role_locked']);
     }
 
+    public function testModules_ListsTheIntegrationPermissionsWithTheirLabelsAndMarksOnlyTheApiKeysOneSensitive(): void
+    {
+        $permissions = $this->permissionsById();
+
+        $this->assertArrayHasKey(AccountingGuard::API_KEYS_MANAGE, $permissions);
+        $this->assertTrue($permissions[AccountingGuard::API_KEYS_MANAGE]['sensitive']);
+        $this->assertSame(lang('Integrations.keys_manage'), $permissions[AccountingGuard::API_KEYS_MANAGE]['label']);
+        $this->assertArrayHasKey('acc_integrations_manage', $permissions);
+        $this->assertFalse($permissions['acc_integrations_manage']['sensitive']);
+        $this->assertSame(lang('Integrations.integrations_manage'), $permissions['acc_integrations_manage']['label']);
+    }
+
     public function testModules_NeverListsTheBranchScopePermissions(): void
     {
         $permissions = $this->permissionsById();

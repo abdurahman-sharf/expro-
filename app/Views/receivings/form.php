@@ -12,6 +12,7 @@
  * @var list<object> $payments
  * @var array<string, string> $payment_statuses
  * @var array<string, string> $payment_options
+ * @var array<string, string> $row_payment_options
  * @var array<int, string> $treasury_options
  * @var array<int, string> $new_treasury_options
  * @var App\Libraries\Accounting\PurchaseFigures|null $payable
@@ -150,7 +151,7 @@
                     <?= form_label(lang('Receivings.payment') . ' #' . esc($paymentNumbers[(int) $row->payment_id] ?? (string) (int) $row->payment_id), 'payment_types_' . $i, ['class' => 'col-form-label col-3']) ?>
                     <div class="col-5">
                         <?= form_hidden('payment_id_' . $i, $row->payment_id) ?>
-                        <?= form_dropdown('payment_type_' . $i, $payment_options, $row->payment_type, ['id' => 'payment_types_' . $i, 'class' => 'form-select form-select-sm']) ?>
+                        <?= form_dropdown('payment_type_' . $i, $row_payment_options, $row->payment_type, ['id' => 'payment_types_' . $i, 'class' => 'form-select form-select-sm']) ?>
                     </div>
                     <div class="col-3">
                         <?= form_input(['name' => 'payment_amount_' . $i, 'value' => to_currency_no_money($row->payment_amount), 'id' => 'payment_amount_' . $i, 'class' => 'form-control form-control-sm', 'aria-label' => lang('Receivings.payment_amount'), 'inputmode' => 'decimal', 'dir' => 'ltr']) ?>

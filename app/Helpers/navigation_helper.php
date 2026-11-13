@@ -1,7 +1,7 @@
 <?php
 
 const NAVIGATION_GROUPS = [
-    'group_main'       => ['home'],
+    'group_main'       => ['home', 'notifications'],
     'group_sales'      => ['sales', 'customer_orders', 'recurring_invoices'],
     'group_purchases'  => ['purchase_requests', 'quotation_requests', 'supplier_quotations', 'purchase_orders', 'receivings', 'suppliers'],
     'group_inventory'  => ['items', 'item_kits', 'attributes', 'price_lists', 'stock_documents', 'stock_units'],
@@ -9,7 +9,7 @@ const NAVIGATION_GROUPS = [
     'group_finance'    => ['expenses', 'expenses_categories', 'recurring_expenses', 'receipt_vouchers', 'revenue_categories', 'cashups', 'taxes'],
     'group_accounting' => ['accounting_chart', 'accounting_journals', 'accounting_receivables', 'accounting_debit_notes', 'accounting_payables', 'accounting_cheques', 'accounting_assets', 'accounting_reports', 'accounting_cost_centers', 'accounting_currencies', 'accounting_periods', 'accounting_routing', 'accounting_einvoicing', 'accounting_ai', 'accounting_settings'],
     'group_analysis'   => ['reports'],
-    'group_admin'      => ['employees', 'roles', 'branches', 'custom_fields', 'config'],
+    'group_admin'      => ['employees', 'roles', 'branches', 'custom_fields', 'integrations', 'config'],
 ];
 
 const NAVIGATION_ICONS = [
@@ -59,6 +59,8 @@ const NAVIGATION_ICONS = [
     'roles'                   => 'bi-shield-check',
     'branches'                => 'bi-building',
     'custom_fields'           => 'bi-input-cursor-text',
+    'integrations'            => 'bi-plug',
+    'notifications'           => 'bi-bell',
     'config'                  => 'bi-gear',
 ];
 

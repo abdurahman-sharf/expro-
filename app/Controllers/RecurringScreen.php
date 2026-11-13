@@ -95,7 +95,7 @@ abstract class RecurringScreen extends DocumentScreen
             'frequency'      => $schedule === null ? self::DEFAULT_FREQUENCY : (RecurrenceTerms::of($schedule)->frequency() ?? self::DEFAULT_FREQUENCY),
             'locations'      => $kind === RecurringKind::Invoice ? $this->locationOptions() : [],
             'categories'     => $kind === RecurringKind::Expense ? $this->categoryOptions() : [],
-            'payments'       => $kind === RecurringKind::Expense ? $this->paymentOptions() : [],
+            'payments'       => $kind === RecurringKind::Expense ? $this->paymentOptions($schedule === null ? null : (string) $schedule->payment_type) : [],
             'suppliers'      => $kind === RecurringKind::Expense && $supplierPicker === null ? $this->supplierOptions() : [],
             'supplierPicker' => $supplierPicker,
             'supplierName'   => $supplierPicker['initial'][0]['label'] ?? '',
@@ -204,15 +204,16 @@ abstract class RecurringScreen extends DocumentScreen
     /**
      * @return array<string, string> The way of payment by its type and its name in the language in use.
      */
-    private function paymentOptions(): array
+    private function paymentOptions(?string $stored): array
     {
         $options = [];
+        $kept    = PaymentType::tryFrom((string) $stored);
 
-        foreach (array_keys(get_payment_options()) as $label) {
-            $type = PaymentType::fromLabel($label);
+        foreach (get_payment_options($kept === null ? [] : [lang($kept->languageKey())]) as $name => $shown) {
+            $type = PaymentType::fromLabel($name);
 
             if ($type !== null) {
-                $options[$type->value] = $label;
+                $options[$type->value] = $shown;
             }
         }
 

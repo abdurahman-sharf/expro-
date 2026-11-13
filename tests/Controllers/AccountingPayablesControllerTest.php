@@ -10,6 +10,8 @@ use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\MasterData\PartyContacts;
+use App\Libraries\Integrations\IntegrationOptions;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use CodeIgniter\Exceptions\PageNotFoundException;
@@ -20,6 +22,7 @@ use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\IntegrationFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
@@ -36,6 +39,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use ChequeFixtureTrait;
     use EmployeeFixtureTrait;
+    use IntegrationFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
@@ -61,6 +65,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->wipeIntegration();
         $this->stopBuying();
 
         $db = $this->accountingDb();
@@ -1916,5 +1921,41 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         $response->assertSee('id="aged_ledger_csv" href="' . site_url('accounting_payables/aged_ledger/csv') . '?to=2026-10-31&amp;period=15"');
         $response->assertSee('id="aged_ledger_csv_xlsx" href="' . site_url('accounting_payables/aged_ledger/xlsx') . '?to=2026-10-31&amp;period=15"');
         $response->assertSee('id="aged_ledger_csv_pdf" href="' . site_url('accounting_payables/aged_ledger/pdf') . '?to=2026-10-31&amp;period=15"');
+    }
+
+    private function switchWalletOff(): void
+    {
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+    }
+
+    public function testPostPayment_RefusesAPaymentMethodThatIsSwitchedOffAndPostsNothing(): void
+    {
+        $this->clerk();
+        $this->switchWalletOff();
+        $journals = $this->countRows('accounting_journals');
+
+        $result = $this->jsonOf($this->post('/accounting_payables/payment/' . $this->supplierId, ['amount' => '10', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Wallet']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('The payment method Wallet is switched off.', $result['message']);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+
+        $taken = $this->jsonOf($this->post('/accounting_payables/payment/' . $this->supplierId, ['amount' => '10', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash']));
+
+        $this->assertTrue($taken['success'], 'A method that is on is still taken.');
+    }
+
+    public function testPostRefund_RefusesAPaymentMethodThatIsSwitchedOffAndPostsNothing(): void
+    {
+        $this->clerk();
+        $this->switchWalletOff();
+        $journals = $this->countRows('accounting_journals');
+
+        $result = $this->jsonOf($this->post('/accounting_payables/refund/' . $this->supplierId, ['amount' => '80.00', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Wallet']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('The payment method Wallet is switched off.', $result['message']);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
     }
 }

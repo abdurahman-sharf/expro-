@@ -46,6 +46,7 @@ final class AccountingGuard
     public const AI_USE              = 'accounting_ai';
     public const AI_APPROVE          = 'acc_ai_approve';
     public const PORTAL_MANAGE       = 'portal_manage';
+    public const API_KEYS_MANAGE     = 'api_keys_manage';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them
@@ -76,6 +77,7 @@ final class AccountingGuard
         self::AI_USE,
         self::AI_APPROVE,
         self::PORTAL_MANAGE,
+        self::API_KEYS_MANAGE,
     ];
 
     private Employee $employee;

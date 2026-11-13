@@ -3,6 +3,8 @@
 use App\Libraries\Documents\DocumentQr;
 use App\Libraries\Documents\DocumentTerms;
 use App\Libraries\Documents\QrResult;
+use App\Libraries\Integrations\EntityTranslations;
+use App\Libraries\Integrations\TranslationKind;
 use Config\OSPOS;
 
 /**
@@ -213,6 +215,20 @@ function documentQr(string $type, array $sale, array $config): QrResult
 function documentTerms(string $type, array $config): string
 {
     return DocumentTerms::forType($type, $config);
+}
+
+/**
+ * The second-language names a document prints beside the first: those of its customer or supplier and of its
+ * items, and nothing at all while the setting to print them is off.
+ *
+ * @param 'customer'|'supplier' $partyKind
+ * @param list<int>             $itemIds
+ *
+ * @return array{party: array{name: string, note: string}|null, items: array<int, string>}
+ */
+function documentTranslations(string $partyKind, mixed $partyId, array $itemIds): array
+{
+    return (new EntityTranslations())->forDocument(TranslationKind::from($partyKind), is_numeric($partyId) && (int) $partyId > 0 ? (int) $partyId : null, $itemIds);
 }
 
 /**

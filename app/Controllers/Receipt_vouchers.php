@@ -91,7 +91,7 @@ class Receipt_vouchers extends AccountingController
             'categories'     => $categories,
             'accounts'       => $accounts,
             'treasuries'     => $usable,
-            'paymentOptions' => $this->paymentOptions(),
+            'paymentOptions' => $this->paymentOptions($voucher === null ? null : (string) $voucher->payment_type),
             'today'          => date('Y-m-d'),
         ]);
     }
@@ -131,11 +131,8 @@ class Receipt_vouchers extends AccountingController
     public function postSave(int $revenueId = NEW_ENTRY): ResponseInterface
     {
         return $this->attempt(function () use ($revenueId): array {
-            if ($revenueId !== NEW_ENTRY) {
-                $this->visible($revenueId);
-            }
-
-            $input = [
+            $stored = $revenueId === NEW_ENTRY ? null : (string) $this->visible($revenueId)->payment_type;
+            $input  = [
                 'date'         => trim((string) $this->request->getPost('date')),
                 'amount'       => trim((string) $this->request->getPost('amount')),
                 'tax_amount'   => trim((string) $this->request->getPost('tax_amount')),
@@ -145,6 +142,12 @@ class Receipt_vouchers extends AccountingController
                 'account_id'   => (int) $this->request->getPost('account_id'),
                 'description'  => (string) $this->request->getPost('description'),
             ];
+
+            $refused = $this->paymentMethodRefusal($input['payment_type'], $stored);
+
+            if ($refused !== null) {
+                return $refused;
+            }
 
             $id = $this->vouchers->save($input, $revenueId === NEW_ENTRY ? null : $revenueId, $this->employeeId());
 
@@ -209,15 +212,16 @@ class Receipt_vouchers extends AccountingController
     }
 
     /**
-     * The ways a voucher can be received: the ones that go into a treasury.
+     * The ways a voucher can be received: the ones that go into a treasury, each by the name it is stored
+     * under and with the name it is shown as, and the one a voucher already has when it was switched off since.
      *
      * @return array<string, string>
      */
-    private function paymentOptions(): array
+    private function paymentOptions(?string $stored): array
     {
         helper('locale');
 
-        return array_filter(get_payment_options(), static fn (string $label): bool => PaymentType::fromLabel($label)?->usesTreasury() === true, ARRAY_FILTER_USE_KEY);
+        return array_filter(get_payment_options($stored === null ? [] : [$stored]), static fn (string $name): bool => PaymentType::fromLabel($name)?->usesTreasury() === true, ARRAY_FILTER_USE_KEY);
     }
 
     /**

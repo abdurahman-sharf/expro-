@@ -21,6 +21,7 @@ $qr                  = $profile['showQr'] ? documentQr($type, $sale, $config) : 
 $terms               = documentTerms($type, $config);
 $extraFields         = $sale['printed_fields'] ?? [];
 $itemExtraFields     = $sale['item_printed_fields'] ?? [];
+$secondLanguage      = documentTranslations('customer', $sale['customer_id'] ?? null, array_map(static fn (array $item): int => (int) ($item['item_id'] ?? 0), $cart));
 
 foreach ($payments as $payment) {
     $onlyCheck           = $onlyCheck           || $payment['payment_type'] === lang('Sales.check');
@@ -76,6 +77,9 @@ $notes = array_filter([
         <div class="doc-party">
             <div class="doc-party-label"><?= esc($profile['partyLabel']) ?></div>
             <div class="doc-party-body"><?= nl2br(esc($sale['customer_info'])) ?></div>
+            <?php if ($secondLanguage['party'] !== null): ?>
+                <div class="doc-party-body doc-second-language" dir="auto"><?= esc($secondLanguage['party']['name']) ?><?= $secondLanguage['party']['note'] !== '' ? '<br>' . esc($secondLanguage['party']['note']) : '' ?></div>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 
@@ -110,6 +114,9 @@ $notes = array_filter([
                     <?php if ($profile['showHsn']): ?><td class="doc-col-num"><?= esc($item['hsn_code'] ?? '') ?></td><?php endif; ?>
                     <td class="<?= $alignStart ?>">
                         <div class="doc-item-name"><?= esc(trim($item['name'] . ' ' . ($item['attribute_values'] ?? ''))) ?></div>
+                        <?php if (isset($secondLanguage['items'][(int) ($item['item_id'] ?? 0)])): ?>
+                            <div class="doc-item-name doc-second-language" dir="auto"><?= esc($secondLanguage['items'][(int) $item['item_id']]) ?></div>
+                        <?php endif; ?>
                         <?php if (($item['is_serialized'] || $item['allow_alt_description']) && ! empty($item['description'])): ?>
                             <div class="doc-item-note"><?= esc($item['description']) ?></div>
                         <?php endif; ?>

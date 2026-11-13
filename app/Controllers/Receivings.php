@@ -25,6 +25,7 @@ use App\Libraries\Documents\PurchasePaidAmounts;
 use App\Libraries\Documents\RendersPdf;
 use App\Libraries\Documents\VoucherDocument;
 use App\Libraries\Documents\VoucherDocuments;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -492,6 +493,7 @@ class Receivings extends Secure_Controller
         $data['applications']           = [];
         $data['can_debit_note']         = false;
         $data['payment_options']        = $this->supplierPaymentOptions();
+        $data['row_payment_options']    = $this->supplierPaymentOptions(array_map(static fn (object $payment): string => (string) $payment->payment_type, $data['payments']));
         $data['paymentNumbers']         = (new DocumentNumbering())->numbers(DocumentType::SupplierPayment, 'receivings_payments', array_map(static fn (object $payment): int => (int) $payment->payment_id, $data['payments']));
         $data['paymentDates']           = [];
         $data['today']                  = date('Y-m-d');
@@ -635,6 +637,12 @@ class Receivings extends Secure_Controller
         $data['payment_type']         = $this->request->getPost('payment_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
         $data['show_stock_locations'] = $this->stock_location->show_locations('receivings');
         $data['stock_location']       = $this->receiving_lib->get_stock_source();
+
+        $refusal = is_string($data['payment_type']) ? (new PaymentMethods())->refusal($data['payment_type']) : null;
+
+        if ($refusal !== null) {
+            return $this->_reload(['error' => $refusal]);
+        }
 
         $data['invoiceDiscount']       = $this->receiving_lib->getInvoiceDiscount();
         $data['invoiceDiscountAmount'] = $this->receiving_lib->getInvoiceDiscountAmount();
@@ -927,6 +935,7 @@ class Receivings extends Secure_Controller
             );
 
         $data['purchase_type']       = $type->value;
+        $data['supplier_id']         = ($info['supplier_id'] ?? null) === null ? null : (int) $info['supplier_id'];
         $data['item_printed_fields'] = (new CustomFields())->printableFor('item', array_map(static fn (array $line): int => (int) $line['item_id'], array_values($data['cart'])));
         $data['paid']                = $settled['paid'];
         $data['due']                 = $settled['due'];
@@ -1047,6 +1056,17 @@ class Receivings extends Secure_Controller
         }
 
         $payments = $this->postedPayments((int) $current_employee_id);
+        $stored   = [];
+
+        foreach ($this->receiving->get_payments($receiving_id) as $payment) {
+            $stored[(int) $payment->payment_id] = (string) $payment->payment_type;
+        }
+
+        $refusal = (new PaymentMethods())->refusalOfPayments($payments, $stored);
+
+        if ($refusal !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $refusal, 'id' => $receiving_id]);
+        }
 
         if ($payments !== []) {
             $receiving_data['payments'] = $payments;
@@ -1390,9 +1410,9 @@ class Receivings extends Secure_Controller
      *
      * @return array<string, string>
      */
-    private function supplierPaymentOptions(): array
+    private function supplierPaymentOptions(array $keep = []): array
     {
-        $options = $this->receiving->get_payment_options();
+        $options = $this->receiving->get_payment_options($keep);
 
         unset($options[lang('Sales.due')]);
 

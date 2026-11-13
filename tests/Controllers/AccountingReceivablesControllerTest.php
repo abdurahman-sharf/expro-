@@ -14,6 +14,8 @@ use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\MasterData\PartyContacts;
+use App\Libraries\Integrations\IntegrationOptions;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
@@ -29,6 +31,7 @@ use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\IntegrationFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\CsvResponseTrait;
@@ -44,6 +47,7 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use ChequeFixtureTrait;
     use EmployeeFixtureTrait;
+    use IntegrationFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use CsvResponseTrait;
@@ -68,6 +72,7 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->wipeIntegration();
         $this->accountingDb()->table('document_numbers')->truncate();
         $this->accountingDb()->table('document_sequences')->truncate();
         $this->accountingDb()->table('giftcards')->where('giftcard_number', 7774321)->delete();
@@ -2620,5 +2625,45 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $response->assertSee('id="balances_csv" href="' . site_url('accounting_receivables/balances/csv') . '?from=2026-01-01&amp;to=2026-10-31&amp;empty=1"');
         $response->assertSee('id="balances_csv_xlsx" href="' . site_url('accounting_receivables/balances/xlsx') . '?from=2026-01-01&amp;to=2026-10-31&amp;empty=1"');
         $response->assertSee('id="balances_csv_pdf" href="' . site_url('accounting_receivables/balances/pdf') . '?from=2026-01-01&amp;to=2026-10-31&amp;empty=1"');
+    }
+
+    private function switchWalletOff(): void
+    {
+        (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+        $this->switchIntegrationOn(IntegrationOptions::PAYMENT_METHODS);
+    }
+
+    public function testPostAdvance_RefusesAPaymentMethodThatIsSwitchedOffAndPostsNothing(): void
+    {
+        $this->teller();
+        $this->switchWalletOff();
+        $journals = $this->countRows('accounting_journals');
+
+        $result = $this->bodyOf($this->post('/accounting_receivables/advance/' . $this->customerId, ['amount' => '120.00', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Wallet']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('The payment method Wallet is switched off.', $result['message']);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+
+        $taken = $this->bodyOf($this->post('/accounting_receivables/advance/' . $this->customerId, ['amount' => '120.00', 'advance_date' => date('Y-m-d'), 'payment_type' => 'Cash']));
+
+        $this->assertTrue($taken['success'], 'A method that is on is still taken.');
+    }
+
+    public function testPostRefund_RefusesAPaymentMethodThatIsSwitchedOffAndPostsNothing(): void
+    {
+        $teller = $this->teller();
+        $drawer = (new TreasuryService())->create(['name' => 'Refund drawer', 'kind' => 'cash'], $teller);
+
+        $this->advanceOf('200.00', $teller);
+        $this->switchWalletOff();
+        $journals = $this->countRows('accounting_journals');
+
+        $result = $this->bodyOf($this->post('/accounting_receivables/refund/' . $this->customerId, ['amount' => '80.00', 'refund_date' => date('Y-m-d'), 'payment_type' => 'Wallet', 'treasury_id' => $drawer]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('The payment method Wallet is switched off.', $result['message']);
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame('200.00', bcadd($this->position()->credit(), '0', 2));
     }
 }
