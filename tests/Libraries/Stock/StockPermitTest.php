@@ -26,6 +26,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\ShelfFixtureTrait;
@@ -44,6 +45,7 @@ class StockPermitTest extends CIUnitTestCase
     use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
     use PurchaseAccountingFixtureTrait;
     use SaleAccountingFixtureTrait;
     use ShelfFixtureTrait;
@@ -1401,6 +1403,76 @@ class StockPermitTest extends CIUnitTestCase
 
         $this->assertSame(['10.000', null], [$line->quantity, $line->unit_id]);
         $this->assertSame('10.000', $this->onHand($itemId));
+        $this->assertBooksTie();
+    }
+
+    private function itemAfterTheObservedPermits(int $permits): int
+    {
+        $itemId = $this->stocked('5', '100');
+
+        foreach (array_slice(['0', '150'], 0, $permits) as $cost) {
+            $this->add($itemId, '2', $cost);
+        }
+
+        return $itemId;
+    }
+
+    /**
+     * @param array{units: string, average: string} $before
+     */
+    private function assertShelfIs(int $itemId, array $before): void
+    {
+        $this->assertSame(bcadd($before['units'], '0', 3), $this->onHand($itemId));
+        $this->assertSame(0, bccomp($before['average'], $this->exactCostOf($itemId), 6));
+    }
+
+    public function testCreate_BringsAnAddPermitAtPrice0InWithoutAJournalAndLowersTheAverageAsTheReferenceSystemDoes(): void
+    {
+        $case   = $this->referenceCase('T-53', 'stock_permit_in_at_price_0', 'in-permit-at-price-0-posts-no-journal-and-lowers-the-average', 'exact');
+        $itemId = $this->itemAfterTheObservedPermits(0);
+
+        $this->assertShelfIs($itemId, $case['inputs']['before']);
+
+        $permitId = $this->add($itemId, $case['inputs']['permit']['units'], $case['inputs']['permit']['price']);
+        $journals = $this->journalsOfSource(StockPermitSources::PERMIT, $permitId);
+
+        $this->assertSameAsFixture($case['expected'], ['in_at_price_0' => ['journal' => $journals === [] ? 'none' : 'posted', 'average_after' => $this->exactCostOf($itemId)]], 'in-permit at price 0');
+        $this->assertSame(['quantity' => '7.000', 'value' => '500.00'], $this->stockOf($itemId), 'the units are in and the value of the stock does not move');
+        $this->assertBooksTie();
+    }
+
+    public function testCreate_PostsAnAddPermitAt150OnAccount2213AsTheReferenceSystemDoes(): void
+    {
+        $case   = $this->referenceCase('T-53', 'stock_permit_in_with_counter_account', 'in-permit-at-150-on-2213-debits-stock-and-credits-other-payables', 'exact');
+        $itemId = $this->itemAfterTheObservedPermits(1);
+        $permit = $case['inputs']['permit'];
+
+        $this->assertShelfIs($itemId, $case['inputs']['before']);
+
+        $permitId = $this->add($itemId, $permit['units'], $permit['price'], ['account_id' => $this->accountIdByCode($permit['counter_account'])]);
+        $journals = $this->journalsOfSource(StockPermitSources::PERMIT, $permitId);
+
+        $this->assertCount(1, $journals);
+        $this->assertSameAsFixture($case['expected'], ['in_at_150' => ['journals' => ['permit' => $this->roleLines((int) $journals[0]->journal_id, ['inventory' => $this->stockAccount(), 'other_payables' => $this->accountId('other_payables')], 2)]]], 'journal of the in-permit at 150');
+        $this->assertSame(['quantity' => '9.000', 'value' => '800.00'], $this->stockOf($itemId));
+        $this->assertSame('88.888889', $this->exactCostOf($itemId));
+        $this->assertBooksTie();
+    }
+
+    public function testCreate_PostsAnIssuePermitOf3UnitsAtTheAverageAgainstOtherReceivablesAsTheReferenceSystemDoes(): void
+    {
+        $case   = $this->referenceCase('T-53', 'stock_permit_out', 'out-permit-of-3-units-debits-other-receivables-at-the-average', 'exact');
+        $itemId = $this->itemAfterTheObservedPermits(2);
+
+        $this->assertShelfIs($itemId, $case['inputs']['before']);
+
+        $permitId = $this->issue($itemId, $case['inputs']['permit']['units']);
+        $journals = $this->journalsOfSource(StockPermitSources::PERMIT, $permitId);
+
+        $this->assertCount(1, $journals);
+        $this->assertSameAsFixture($case['expected'], ['out_of_3' => ['journals' => ['permit' => $this->roleLines((int) $journals[0]->journal_id, ['other_receivables' => $this->accountId('other_receivables'), 'inventory' => $this->stockAccount()], 2)]]], 'journal of the issue permit of 3 units');
+        $this->assertSame(['quantity' => '6.000', 'value' => '533.33'], $this->stockOf($itemId));
+        $this->assertSame('88.888889', $this->exactCostOf($itemId), 'the average does not move when units leave at the average');
         $this->assertBooksTie();
     }
 }

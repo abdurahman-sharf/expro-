@@ -140,28 +140,55 @@
       }
     },
     {
-      "id": "numbered-stock-permits-and-the-stocktake-document",
-      "kind": "stock_permit_documents",
-      "classification": "not_implemented",
-      "work_package": "WP27",
-      "reason": "There are no numbered permits and no stocktake document: stock changes are posted as adjustments of the inventory log without a document of their own (WP27 builds the permits and the stocktake). The reference system also lets an in-permit at price 0 lower the average without a journal, which an adjustment here cannot do.",
+      "id": "in-permit-at-price-0-posts-no-journal-and-lowers-the-average",
+      "kind": "stock_permit_in_at_price_0",
+      "classification": "exact",
       "evidence": [
-        "permits",
-        "stocktake_settlement"
+        "permits"
       ],
       "inputs": {
-        "permits": [
-          "in at price 0, no counter account",
-          "in at 150 on 2213",
-          "out of 3 units"
-        ],
-        "stocktake": "a count and its settlement"
+        "before": {
+          "units": "5",
+          "average": "100"
+        },
+        "permit": {
+          "units": "2",
+          "price": "0"
+        }
       },
       "reference": {
         "in_at_price_0": {
           "journal": "none",
           "average_after": "71.428571"
+        }
+      },
+      "expected": {
+        "in_at_price_0": {
+          "journal": "none",
+          "average_after": "71.428571"
+        }
+      }
+    },
+    {
+      "id": "in-permit-at-150-on-2213-debits-stock-and-credits-other-payables",
+      "kind": "stock_permit_in_with_counter_account",
+      "classification": "exact",
+      "reference_decimals": 2,
+      "evidence": [
+        "permits"
+      ],
+      "inputs": {
+        "before": {
+          "units": "7",
+          "average": "71.428571"
         },
+        "permit": {
+          "units": "2",
+          "price": "150",
+          "counter_account": "2213"
+        }
+      },
+      "reference": {
         "in_at_150": {
           "journals": {
             "permit": [
@@ -181,7 +208,45 @@
               }
             ]
           }
+        }
+      },
+      "expected": {
+        "in_at_150": {
+          "journals": {
+            "permit": [
+              {
+                "role": "inventory",
+                "debit": "300",
+                "credit": "0"
+              },
+              {
+                "role": "other_payables",
+                "debit": "0",
+                "credit": "300"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "out-permit-of-3-units-debits-other-receivables-at-the-average",
+      "kind": "stock_permit_out",
+      "classification": "exact",
+      "reference_decimals": 2,
+      "evidence": [
+        "permits"
+      ],
+      "inputs": {
+        "before": {
+          "units": "9",
+          "average": "88.888889"
         },
+        "permit": {
+          "units": "3"
+        }
+      },
+      "reference": {
         "out_of_3": {
           "journals": {
             "permit": [
@@ -201,30 +266,108 @@
               }
             ]
           }
-        },
-        "stocktake_settlement_makes_two_permits": true,
-        "undoing_it_removes_them_and_their_journals": true
+        }
       },
       "expected": {
-        "status": "not_implemented",
-        "absent": [
+        "out_of_3": {
+          "journals": {
+            "permit": [
+              {
+                "role": "other_receivables",
+                "debit": "266.67",
+                "credit": "0"
+              },
+              {
+                "role": "inventory",
+                "debit": "0",
+                "credit": "266.67"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "stocktake-settlement-makes-two-permits",
+      "kind": "stocktake_settlement",
+      "classification": "deliberate_difference",
+      "reason": "The stocktake is built (WP27). Approving a count here posts one journal of its own, dated the day of the approval, that holds the loss of the item that is short and the gain of the item that is over at the current average of the location, and it makes no stock permit; the reference system makes two automatic permits, one in and one out, each with a journal of its own. The amounts on the stock and cost of sales accounts are the same, the number of documents and journals is not. The executive decision taken under E47 (E111) is one journal and not two automatic permits, and the owner can overturn it.",
+      "reference_decimals": 2,
+      "evidence": [
+        "stocktake_settlement"
+      ],
+      "inputs": {
+        "short": {
+          "units": "2",
+          "average": "117.777778"
+        },
+        "over": {
+          "units": "2",
+          "average": "88.888889"
+        }
+      },
+      "reference": {
+        "stocktake_settlement_makes_two_permits": true,
+        "permits_made": 2,
+        "journals_posted": 2
+      },
+      "expected": {
+        "stocktake_settlement_makes_two_permits": false,
+        "permits_made": 0,
+        "journals_posted": 1,
+        "journal": [
           {
-            "kind": "table",
-            "pattern": "permit"
+            "role": "inventory",
+            "debit": "177.78",
+            "credit": "0"
           },
           {
-            "kind": "table",
-            "pattern": "stocktak"
+            "role": "cogs",
+            "debit": "0",
+            "credit": "177.78"
           },
           {
-            "kind": "route",
-            "pattern": "stocktak"
+            "role": "cogs",
+            "debit": "235.56",
+            "credit": "0"
           },
           {
-            "kind": "route",
-            "pattern": "permit"
+            "role": "inventory",
+            "debit": "0",
+            "credit": "235.56"
           }
         ]
+      }
+    },
+    {
+      "id": "undoing-a-stocktake-settlement-removes-the-permits-and-their-journals",
+      "kind": "stocktake_undo",
+      "classification": "deliberate_difference",
+      "reason": "Undoing a settlement here is the cancellation of the stocktake: it reverses the journal and the stock movements and puts the shelves back at the same average, and it keeps the stocktake with its lines, the journal marked as reversed and the journal that reverses it. The owner decided (E15, confirmed for the stock documents by E111) that a document with a journal is cancelled by a reversal and never deleted, so the books keep the original and its reversal. The reference system deletes the two permits and their two journals and puts the sheet back to a draft; here the stocktake ends cancelled.",
+      "evidence": [
+        "stocktake_settlement"
+      ],
+      "inputs": {
+        "short": {
+          "units": "2",
+          "average": "117.777778"
+        },
+        "over": {
+          "units": "2",
+          "average": "88.888889"
+        }
+      },
+      "reference": {
+        "undoing_it_removes_them_and_their_journals": true,
+        "journals_left": 0,
+        "stock_restored": true,
+        "sheet_after_undo": "draft"
+      },
+      "expected": {
+        "undoing_it_removes_them_and_their_journals": false,
+        "journals_left": 2,
+        "stock_restored": true,
+        "sheet_after_undo": "cancelled"
       }
     }
   ]

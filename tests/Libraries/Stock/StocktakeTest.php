@@ -23,6 +23,7 @@ use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\ParityCaseTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 use Tests\Support\ShelfFixtureTrait;
@@ -40,6 +41,7 @@ class StocktakeTest extends CIUnitTestCase
     use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use ParityCaseTrait;
     use PurchaseAccountingFixtureTrait;
     use SaleAccountingFixtureTrait;
     use ShelfFixtureTrait;
@@ -1308,5 +1310,114 @@ class StocktakeTest extends CIUnitTestCase
 
         $this->refusedWith(AccountingError::StockLocationDenied, fn () => $this->takes->cancel($stocktakeId, 'no', $this->keeper(null, [StockPermissions::STOCKTAKE_MANAGE])));
         $this->assertSame('counting', $this->takes->find($stocktakeId)->status);
+    }
+
+    /**
+     * @param list<array{string, string}> $lots The units and the price of each purchase.
+     */
+    private function boughtAt(array $lots): int
+    {
+        $itemId = $this->item('0.00');
+
+        foreach ($lots as [$units, $price]) {
+            $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($itemId, 0, $units, $price)]));
+        }
+
+        return $itemId;
+    }
+
+    /**
+     * @param array{short: array{units: string, average: string}, over: array{units: string, average: string}} $inputs
+     *
+     * @return array{short: int, over: int}
+     */
+    private function itemsOfTheObservedCount(array $inputs): array
+    {
+        $items = ['short' => $this->boughtAt([['10', '100'], ['8', '140']]), 'over' => $this->boughtAt([['5', '100'], ['4', '75']])];
+
+        foreach ($items as $name => $itemId) {
+            $this->assertSame($inputs[$name]['average'], $this->exactCostOf($itemId));
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array{short: int, over: int}                                                                     $items
+     * @param array{short: array{units: string, average: string}, over: array{units: string, average: string}} $inputs
+     */
+    private function settleTheObservedCount(array $items, array $inputs): int
+    {
+        $stocktakeId = $this->start([$items['short'], $items['over']]);
+
+        $this->countAll($stocktakeId, [
+            $items['short'] => bcsub($this->onHand($items['short']), $inputs['short']['units'], 3),
+            $items['over']  => bcadd($this->onHand($items['over']), $inputs['over']['units'], 3),
+        ]);
+        $this->takes->approve($stocktakeId, $this->keeperId);
+
+        return $stocktakeId;
+    }
+
+    /**
+     * @return array{string, array{quantity: string, value: string}, string}
+     */
+    private function shelfOf(int $itemId): array
+    {
+        return [$this->onHand($itemId), $this->stockOf($itemId), $this->exactCostOf($itemId)];
+    }
+
+    public function testApprove_PostsTheObservedCountAsOneJournalAndMakesNoPermitWhereTheReferenceSystemMakesTwo(): void
+    {
+        $case           = $this->referenceCase('T-53', 'stocktake_settlement', 'stocktake-settlement-makes-two-permits', 'deliberate_difference');
+        $items          = $this->itemsOfTheObservedCount($case['inputs']);
+        $permitsBefore  = $this->countRows('stock_permits');
+        $journalsBefore = $this->countRows('accounting_journals');
+
+        $stocktakeId = $this->settleTheObservedCount($items, $case['inputs']);
+
+        $permitsMade = $this->countRows('stock_permits') - $permitsBefore;
+        $journals    = $this->journalsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId);
+
+        $this->assertCount(1, $journals);
+        $this->assertSameAsFixture($case['expected'], [
+            'stocktake_settlement_makes_two_permits' => $permitsMade === 2,
+            'permits_made'                           => $permitsMade,
+            'journals_posted'                        => $this->countRows('accounting_journals') - $journalsBefore,
+            'journal'                                => $this->roleLines((int) $journals[0]->journal_id, ['cogs' => $this->accountId('cogs'), 'inventory' => $this->stockAccount()], 2),
+        ], 'settlement of the count');
+        $this->assertSame([$case['inputs']['short']['average'], $case['inputs']['over']['average']], [$this->exactCostOf($items['short']), $this->exactCostOf($items['over'])], 'the average of neither item moves');
+        $this->assertBooksTie();
+    }
+
+    public function testCancel_ReversesTheObservedSettlementAndKeepsItsJournalsWhereTheReferenceSystemRemovesThem(): void
+    {
+        $case           = $this->referenceCase('T-53', 'stocktake_undo', 'undoing-a-stocktake-settlement-removes-the-permits-and-their-journals', 'deliberate_difference');
+        $items          = $this->itemsOfTheObservedCount($case['inputs']);
+        $shelvesBefore  = [$this->shelfOf($items['short']), $this->shelfOf($items['over'])];
+        $permitsBefore  = $this->countRows('stock_permits');
+        $journalsBefore = $this->countRows('accounting_journals');
+
+        $stocktakeId = $this->settleTheObservedCount($items, $case['inputs']);
+
+        $this->takes->cancel($stocktakeId, 'the count is undone', $this->keeperId);
+
+        $permitsLeft  = $this->countRows('stock_permits') - $permitsBefore;
+        $journalsLeft = $this->countRows('accounting_journals') - $journalsBefore;
+
+        $this->assertSameAsFixture($case['expected'], [
+            'undoing_it_removes_them_and_their_journals' => $permitsLeft + $journalsLeft === 0,
+            'journals_left'                              => $journalsLeft,
+            'stock_restored'                             => [$this->shelfOf($items['short']), $this->shelfOf($items['over'])] === $shelvesBefore,
+            'sheet_after_undo'                           => $this->takes->find($stocktakeId)->status,
+        ], 'undo of the settlement');
+
+        $journal  = $this->journalsOfSource(StockPermitSources::STOCKTAKE, $stocktakeId)[0];
+        $reversal = $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $journal->journal_id)->get()->getRow();
+
+        $this->assertSame('reversed', $journal->status);
+        $this->assertNotNull($reversal);
+        $this->assertCount(2, $this->takes->lines($stocktakeId), 'the lines of the sheet stay');
+        $this->assertBooksTie();
     }
 }
