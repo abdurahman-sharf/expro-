@@ -537,6 +537,7 @@ final class report_helperTest extends CIUnitTestCase
             'accounting_treasuries/bank/([0-9]+)/report'  => 'The reconciliation statement of one bank account, opened from the account.',
             'accounting_periods/year_end'                 => 'The preview of a closing, opened from the tabs of the periods and approved there.',
             'accounting_journals/audit'                   => 'The audit log, opened from the journals under its own permission.',
+            'accounting_ai/findings'                      => 'The findings of the scan of the books, opened from the agent screen under its own permission.',
             'accounting_statements/cash_flow/settings'    => 'The settings of a report, not a report.',
             'accounting_reports/trial_balance'            => 'The same screen as accounting_reports.',
             'accounting_statements'                       => 'The same screen as the income statement.',

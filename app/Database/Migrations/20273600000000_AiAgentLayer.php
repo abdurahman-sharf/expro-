@@ -18,7 +18,7 @@ class AiAgentLayer extends Migration
 {
     private const TABLE_OPTIONS = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci';
     private const MODULE_ID     = 'accounting_ai';
-    private const MODULE_SORT   = 150;
+    private const MODULE_SORT   = 138;
     private const PERMISSIONS   = ['accounting_ai', 'acc_ai_approve'];
     private const SETTING       = 'accounting_ai_enabled';
     private const COLUMNS       = [

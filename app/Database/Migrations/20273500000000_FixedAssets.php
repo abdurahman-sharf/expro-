@@ -19,7 +19,7 @@ class FixedAssets extends Migration
 {
     private const TABLE_OPTIONS = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci';
     private const MODULE_ID     = 'accounting_assets';
-    private const MODULE_SORT   = 150;
+    private const MODULE_SORT   = 137;
     private const PERMISSIONS   = ['acc_assets_manage', 'acc_assets_depreciate'];
     private const TABLES        = ['asset_usage', 'asset_operations', 'asset_depreciations', 'asset_depreciation_runs', 'asset_units', 'assets', 'asset_categories'];
 

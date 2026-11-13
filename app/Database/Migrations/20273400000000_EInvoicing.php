@@ -19,7 +19,7 @@ class EInvoicing extends Migration
     private const TABLE_OPTIONS = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci';
     private const MODULE        = 'accounting_einvoicing';
     private const PERMISSION    = 'acc_einvoicing_manage';
-    private const SORT          = 135;
+    private const SORT          = 136;
     private const IDENTIFIERS   = "'CRN', 'MOM', 'MLS', 'SAG', '700', 'TIN', 'NAT', 'IQA', 'GCC', 'PAS', 'OTH'";
 
     public function up(): void
