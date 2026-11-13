@@ -4,6 +4,7 @@ namespace App\Libraries\Roles;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Documents\CustomFields;
+use App\Libraries\Integrations\IntegrationAccess;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -26,6 +27,8 @@ final class RoleGrants
         AccountingGuard::PERIODS_MANAGE,
         AccountingGuard::CHEQUES_MANAGE,
         AccountingGuard::DEBIT_NOTES_MANAGE,
+        AccountingGuard::ASSETS_MANAGE,
+        IntegrationAccess::MANAGE,
         CustomFields::PERMISSION,
     ];
     public const ALLOWED_ACCOUNTING = [

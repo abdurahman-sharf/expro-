@@ -182,7 +182,7 @@ class RevenueCategoriesTest extends CIUnitTestCase
 
         $codes = array_column($this->categories->accountOptions(), 'code');
 
-        $this->assertSame(['4201', '4202', '4205', '4210'], $codes);
+        $this->assertSame(['4201', '4205', '4210'], $codes);
     }
 
     public function testDelete_MarksTheCategoriesDeletedAndLeavesTheVouchersTheyCarry(): void

@@ -71,6 +71,7 @@ class AccountingMessageTest extends CIUnitTestCase
             'cheque'           => ['a cheque', 'الشيك'],
             'stock_permit'     => ['a stock permit', 'إذن المخزن'],
             'stocktake'        => ['a stocktake', 'الجرد'],
+            'asset'            => ['a fixed asset, its depreciation or its disposal', 'الأصل الثابت أو إهلاكه أو التصرف فيه'],
         ];
     }
 
@@ -79,7 +80,11 @@ class AccountingMessageTest extends CIUnitTestCase
         $names = self::documentSourceNames();
 
         foreach (JournalService::DOCUMENT_SOURCES as $source) {
-            $this->assertArrayHasKey(str_starts_with($source, 'cheque_') ? 'cheque' : $source, $names, $source . ' is a locked document source the message does not name');
+            $this->assertArrayHasKey(match (true) {
+                str_starts_with($source, 'cheque_') => 'cheque',
+                str_starts_with($source, 'asset') => 'asset',
+                default => $source,
+            }, $names, $source . ' is a locked document source the message does not name');
         }
 
         foreach (['en' => 0, 'en-GB' => 0, 'ar-EG' => 1, 'ar-LB' => 1] as $locale => $position) {
