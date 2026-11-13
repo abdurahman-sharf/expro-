@@ -21,6 +21,7 @@
  * @var Closure                                   $date
  * @var Closure                                   $debit_note_of
  * @var Closure                                   $debit_note_number
+ * @var list<object>                              $contacts
  */
 
 use App\Libraries\Accounting\AgingBuckets;
@@ -115,6 +116,8 @@ $sourceLink = static fn (string $type, int $sourceId): string => match ($type) {
             <dd class="col-sm-9" id="statement_credit_period"><?= $creditTerms['days'] > 0 ? esc(lang('Accounting_receivables.credit_days', [$creditTerms['days']])) : esc(lang('Accounting_receivables.credit_none')) ?></dd>
         <?php endif; ?>
     </dl>
+
+    <?= view('people/contacts_list', ['contacts' => $contacts ?? []]) ?>
 
     <form id="statement_day" class="print_hide mb-3 d-flex flex-wrap align-items-end gap-2" method="get" role="search">
         <div>

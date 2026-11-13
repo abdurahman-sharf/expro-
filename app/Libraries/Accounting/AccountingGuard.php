@@ -45,6 +45,7 @@ final class AccountingGuard
     public const ASSETS_DEPRECIATE   = 'acc_assets_depreciate';
     public const AI_USE              = 'accounting_ai';
     public const AI_APPROVE          = 'acc_ai_approve';
+    public const PORTAL_MANAGE       = 'portal_manage';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them
@@ -74,6 +75,7 @@ final class AccountingGuard
         self::ASSETS_DEPRECIATE,
         self::AI_USE,
         self::AI_APPROVE,
+        self::PORTAL_MANAGE,
     ];
 
     private Employee $employee;

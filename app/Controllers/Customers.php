@@ -21,17 +21,21 @@ use App\Libraries\MasterData\CustomerStatus;
 use App\Libraries\MasterData\CustomerType;
 use App\Libraries\MasterData\LookupKind;
 use App\Libraries\MasterData\NamedLookup;
+use App\Libraries\MasterData\PartyContacts;
 use App\Libraries\MasterData\PartyLengths;
 use App\Libraries\Mailchimp_lib;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Portal\PortalAccounts;
+use App\Libraries\Portal\PortalSettings;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Models\Customer;
 use App\Models\Customer_rewards;
 use App\Models\Price_list;
 use App\Models\Tax_code;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\DownloadResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Database;
@@ -42,6 +46,7 @@ use stdClass;
 class Customers extends Persons
 {
     private const IMPORT_BASE_COLUMNS = 18;
+    private const IMPORT_CONTACT_COLUMN = 26;
 
     private string $_list_id;
     private Mailchimp_lib $mailchimp_lib;
@@ -301,6 +306,12 @@ class Customers extends Persons
 
         $data = [...$data, ...$this->pricingFormData($info), ...$this->masterDataFormData($info), ...$this->eInvoiceFormData($info)];
 
+        $data['contacts'] = $customerId == NEW_ENTRY ? [] : (new PartyContacts())->forParty(PartyContacts::CUSTOMER, (int) $customerId);
+
+        $data['portal'] = $customerId != NEW_ENTRY && $this->employee->has_grant(AccountingGuard::PORTAL_MANAGE, $this->viewerId())
+            ? ['enabled' => (new PortalSettings())->isEnabled(), 'account' => (new PortalAccounts())->forCustomer((int) $customerId), 'customerId' => (int) $customerId]
+            : null;
+
         $data['use_destination_based_tax'] = $this->config['use_destination_based_tax'];
         $data['opening_offered']           = $customerId == NEW_ENTRY && $this->openingOffered();
         $data['opening_today']             = date('Y-m-d');
@@ -447,6 +458,15 @@ class Customers extends Persons
             return $this->response->setJSON(['success' => false, 'message' => $eInvoice['refusal'], 'id' => NEW_ENTRY]);
         }
 
+        $contacts    = new PartyContacts();
+        $contactRows = PartyContacts::fromRequest($this->request->getPost());
+
+        try {
+            $contactRows = $contactRows === null ? null : $contacts->prepare(PartyContacts::CUSTOMER, $isNew ? null : (int) $customerId, $contactRows);
+        } catch (AccountingException $failure) {
+            return $this->response->setJSON(['success' => false, 'message' => AccountingMessage::of($failure), 'id' => NEW_ENTRY]);
+        }
+
         if ($this->customer->save_customer($personData, $customerData, $customerId)) {
             if ($master !== []) {
                 (new CustomerFields())->audit((int) ($customerData['person_id'] ?? $customerId), $before, $master, $this->viewerId());
@@ -464,6 +484,14 @@ class Customers extends Persons
 
             $notSaved    = $this->saveCustomerPricing((int) ($customerData['person_id'] ?? $customerId));
             $pricingNote = $partyNote . ($notSaved === null ? '' : ' ' . lang('Customers.pricing_not_saved', [$notSaved]));
+
+            if ($contactRows !== null) {
+                try {
+                    $contacts->replace(PartyContacts::CUSTOMER, (int) ($customerData['person_id'] ?? $customerId), $contactRows, $this->viewerId());
+                } catch (AccountingException $failure) {
+                    $pricingNote .= ' ' . AccountingMessage::of($failure);
+                }
+            }
 
             // Save customer to Mailchimp selected list    // TODO: addOrUpdateMember should be refactored. Potentially pass an array or object instead of 6 parameters.
             $mailchimpStatus = $this->request->getPost('mailchimp_status');
@@ -772,6 +800,25 @@ class Customers extends Persons
         return null;
     }
 
+    /** @noinspection PhpUnused */
+    public function getContacts(int $customerId): ResponseInterface
+    {
+        if (! $this->customer->exists($customerId)) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+
+        return $this->response->setJSON(['contacts' => array_map(static fn (object $contact): array => [
+            'contact_id' => (int) $contact->contact_id,
+            'first_name' => $contact->first_name,
+            'last_name'  => $contact->last_name,
+            'email'      => $contact->email,
+            'phone'      => $contact->phone,
+            'mobile'     => $contact->mobile,
+            'position'   => $contact->position,
+            'note'       => $contact->note,
+        ], (new PartyContacts())->forParty(PartyContacts::CUSTOMER, $customerId))]);
+    }
+
     /**
      * Verifies if an email address already exists. Used in app/Views/customers/form.php
      *
@@ -888,6 +935,30 @@ class Customers extends Persons
     }
 
     /**
+     * The contact an import row adds after the eight columns of the master data: first name, last name,
+     * e-mail, phone and mobile. A row that stops before them, or leaves them all empty, adds no contact.
+     *
+     * @param list<string|null> $data
+     *
+     * @return array<string, string>
+     *
+     * @throws AccountingException
+     */
+    private function contactOfImportRow(array $data): array
+    {
+        $cell = static fn (int $offset): string => trim((string) ($data[self::IMPORT_CONTACT_COLUMN + $offset] ?? ''));
+        $row  = ['first_name' => $cell(0), 'last_name' => $cell(1), 'email' => $cell(2), 'phone' => $cell(3), 'mobile' => $cell(4)];
+
+        if (implode('', $row) === '') {
+            return [];
+        }
+
+        (new PartyContacts())->validate([$row]);
+
+        return $row;
+    }
+
+    /**
      * Customers import from csv spreadsheet
      *
      * @return DownloadResponse The template for Customer CSV imports is returned and download forced.
@@ -968,6 +1039,7 @@ class Customers extends Persons
                         ];
                         $accountNumber = $data[14];
                         $master        = [];
+                        $contactRow    = [];
 
                         // Don't duplicate people with same email
                         $invalidated = $this->customer->check_email_exists($email);
@@ -981,6 +1053,7 @@ class Customers extends Persons
                         try {
                             $master        = $this->masterDataOfImportRow($data, $email);
                             $customerData += $master;
+                            $contactRow    = $this->contactOfImportRow($data);
                         } catch (AccountingException $failure) {
                             $invalidated = true;
                             log_message('error', "Row $i was not imported: " . $failure->getMessage());
@@ -995,6 +1068,10 @@ class Customers extends Persons
                     } elseif ($this->customer->save_customer($personData, $customerData)) {
                         if ($master !== []) {
                             (new CustomerFields())->audit((int) $customerData['person_id'], null, $master, $this->viewerId());
+                        }
+
+                        if ($contactRow !== []) {
+                            (new PartyContacts())->replace(PartyContacts::CUSTOMER, (int) $customerData['person_id'], [$contactRow], $this->viewerId());
                         }
 
                         // Save customer to Mailchimp selected list

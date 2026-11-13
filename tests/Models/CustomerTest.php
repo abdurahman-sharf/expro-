@@ -2,9 +2,12 @@
 
 namespace Tests\Models;
 
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\MasterData\PartyContacts;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Portal\PortalAccounts;
 use App\Models\Customer;
 use App\Models\Item;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -12,11 +15,13 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\EmployeeFixtureTrait;
 
 class CustomerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use EmployeeFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -47,6 +52,9 @@ class CustomerTest extends CIUnitTestCase
         $this->accountingDb()->table('document_numbers')->truncate();
         $this->accountingDb()->table('document_sequences')->truncate();
         $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
+        $this->accountingDb()->query('DELETE FROM ' . $this->accountingDb()->prefixTable('party_contacts'));
+        $this->accountingDb()->query('DELETE FROM ' . $this->accountingDb()->prefixTable('portal_accounts'));
+        $this->accountingDb()->table('accounting_audit_log')->whereIn('entity_type', ['portal_account', 'customer'])->delete();
         $this->removeInsertedEntities();
         $this->setConfigValue('accounting_enabled', '0');
 
@@ -174,6 +182,93 @@ class CustomerTest extends CIUnitTestCase
         $this->assertSame('0', (string) $this->accountOf($first)->active);
         $this->assertSame('0', (string) $this->accountOf($second)->active);
         $this->assertSame('1', (string) $this->accountOf($kept)->active);
+    }
+
+    public function testDelete_HidesTheContactsOfTheCustomerAndKeepsTheirRows(): void
+    {
+        $customerId = $this->saveCustomer('Omar', 'Khaled');
+        config(OSPOS::class)->settings['enforce_privacy'] = false;
+        (new PartyContacts())->replace(PartyContacts::CUSTOMER, $customerId, [['first_name' => 'Sara', 'email' => 'sara@example.com']], 1);
+
+        model(Customer::class)->delete($customerId);
+
+        $this->assertSame([], (new PartyContacts())->forParty(PartyContacts::CUSTOMER, $customerId));
+        $row = $this->accountingDb()->table('party_contacts')->where('party_id', $customerId)->get()->getRow();
+        $this->assertSame(['Sara', 'sara@example.com', '1'], [$row->first_name, $row->email, (string) $row->deleted]);
+    }
+
+    public function testDelete_ScramblesTheContactsWhenPrivacyIsEnforced(): void
+    {
+        $customerId = $this->saveCustomer('Omar', 'Khaled');
+        config(OSPOS::class)->settings['enforce_privacy'] = true;
+        (new PartyContacts())->replace(PartyContacts::CUSTOMER, $customerId, [['first_name' => 'Sara', 'email' => 'sara@example.com', 'mobile' => '0500000000']], 1);
+
+        model(Customer::class)->delete($customerId);
+
+        $row = $this->accountingDb()->table('party_contacts')->where('party_id', $customerId)->get()->getRow();
+        $this->assertSame([(string) $row->contact_id, '', '', ''], [$row->first_name, $row->email, $row->mobile, $row->last_name]);
+    }
+
+    public function testDelete_KeepsTheContactsOfAnotherCustomer(): void
+    {
+        $gone = $this->saveCustomer('Omar', 'Khaled');
+        $kept = $this->saveCustomer('Hind', 'Saad');
+        config(OSPOS::class)->settings['enforce_privacy'] = false;
+        (new PartyContacts())->replace(PartyContacts::CUSTOMER, $gone, [['first_name' => 'Gone']], 1);
+        (new PartyContacts())->replace(PartyContacts::CUSTOMER, $kept, [['first_name' => 'Kept']], 1);
+
+        model(Customer::class)->delete($gone);
+
+        $this->assertSame(['Kept'], array_column((new PartyContacts())->forParty(PartyContacts::CUSTOMER, $kept), 'first_name'));
+    }
+
+    public function testDeleteList_HidesTheContactsOfEveryDeletedCustomerAndOfNoOther(): void
+    {
+        $first  = $this->saveCustomer('Omar', 'Khaled');
+        $second = $this->saveCustomer('Hind', 'Saad');
+        $kept   = $this->saveCustomer('Sara', 'Nasser');
+
+        foreach ([$first, $second, $kept] as $customerId) {
+            (new PartyContacts())->replace(PartyContacts::CUSTOMER, $customerId, [['first_name' => 'Contact of ' . $customerId]], 1);
+        }
+
+        model(Customer::class)->delete_list([$first, $second]);
+
+        $this->assertSame([], (new PartyContacts())->forParty(PartyContacts::CUSTOMER, $first));
+        $this->assertSame([], (new PartyContacts())->forParty(PartyContacts::CUSTOMER, $second));
+        $this->assertCount(1, (new PartyContacts())->forParty(PartyContacts::CUSTOMER, $kept));
+    }
+
+    public function testDelete_DisablesThePortalAccountAndScramblesItsUserNameWhenPrivacyIsEnforced(): void
+    {
+        $manager    = $this->employeeWithGrants([AccountingGuard::PORTAL_MANAGE]);
+        $customerId = $this->saveCustomer('Omar', 'Khaled');
+        config(OSPOS::class)->settings['enforce_privacy'] = true;
+        $made = (new PortalAccounts())->create($customerId, 'omar@example.com', $manager);
+
+        model(Customer::class)->delete($customerId);
+
+        $row = (new PortalAccounts())->find($made['account_id']);
+        $this->assertSame(['disabled', 'deleted-' . $made['account_id']], [$row->status, $row->username]);
+    }
+
+    public function testDeleteList_DisablesThePortalAccountOfEveryDeletedCustomer(): void
+    {
+        $manager = $this->employeeWithGrants([AccountingGuard::PORTAL_MANAGE]);
+        $first   = $this->saveCustomer('Omar', 'Khaled');
+        $second  = $this->saveCustomer('Hind', 'Saad');
+        $kept    = $this->saveCustomer('Sara', 'Nasser');
+        $ids     = [];
+
+        foreach (['omar' => $first, 'hind' => $second, 'sara' => $kept] as $name => $customerId) {
+            $ids[$customerId] = (new PortalAccounts())->create($customerId, $name, $manager)['account_id'];
+        }
+
+        model(Customer::class)->delete_list([$first, $second]);
+
+        $this->assertSame('disabled', (new PortalAccounts())->find($ids[$first])->status);
+        $this->assertSame('disabled', (new PortalAccounts())->find($ids[$second])->status);
+        $this->assertSame('active', (new PortalAccounts())->find($ids[$kept])->status);
     }
 
     public function testSaveCustomer_OpensTheAccountAgainForACustomerWhoComesBack(): void

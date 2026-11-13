@@ -13,6 +13,7 @@ use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\MasterData\PartyContacts;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchGuard;
@@ -70,6 +71,8 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $this->accountingDb()->table('document_numbers')->truncate();
         $this->accountingDb()->table('document_sequences')->truncate();
         $this->accountingDb()->table('giftcards')->where('giftcard_number', 7774321)->delete();
+        $this->accountingDb()->query('DELETE FROM ' . $this->accountingDb()->prefixTable('party_contacts'));
+        $this->accountingDb()->table('accounting_audit_log')->whereIn('action', ['party_contacts_changed', 'party_contacts_hidden'])->delete();
         $this->setConfigValue('accounting_customer_opening', '0');
 
         $this->stopSelling();
@@ -280,6 +283,38 @@ class AccountingReceivablesControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_receivables.agrees_yes'));
         $response->assertSee(lang('Sales.invoice_paid'));
         $response->assertSee(lang('Sales.invoice_returned_full'));
+    }
+
+    public function testGetCustomer_ShowsTheContactsOfTheCustomerInTheHeaderWithTheValuesEscaped(): void
+    {
+        $this->invoiceOf('100.00');
+        (new PartyContacts())->replace(PartyContacts::CUSTOMER, $this->customerId, [
+            ['first_name' => '<b>Sara</b>', 'last_name' => 'Nasser', 'email' => 'sara@example.com', 'phone' => '011 123 4567', 'mobile' => '0500000000', 'position' => 'Buyer'],
+            ['first_name' => 'Hind', 'position' => 'Accountant'],
+        ], 1);
+        $this->viewer();
+
+        $body = $this->get('/accounting_receivables/customer/' . $this->customerId)->getBody();
+
+        $this->assertStringContainsString('party-contacts', $body);
+        $this->assertStringContainsString('&lt;b&gt;Sara&lt;/b&gt;', $body);
+        $this->assertStringNotContainsString('<b>Sara</b>', $body);
+        $this->assertStringContainsString('sara@example.com', $body);
+        $this->assertStringContainsString('Accountant', $body);
+    }
+
+    public function testGetCustomer_ShowsNoContactSectionForACustomerWhoseContactsAreHiddenOrNone(): void
+    {
+        $this->invoiceOf('100.00');
+        $contacts = new PartyContacts();
+        $contacts->replace(PartyContacts::CUSTOMER, $this->customerId, [['first_name' => 'Gone']], 1);
+        $contacts->replace(PartyContacts::CUSTOMER, $this->customerId, [], 1);
+        $this->viewer();
+
+        $body = $this->get('/accounting_receivables/customer/' . $this->customerId)->getBody();
+
+        $this->assertStringNotContainsString('party-contacts', $body);
+        $this->assertStringNotContainsString('Gone', $body);
     }
 
     public function testGetCustomer_ShowsAChequeAsCreditOfItsOwnKindWithALinkToTheChequeAndWhatItSettled(): void

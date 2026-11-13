@@ -2,6 +2,7 @@
 
 namespace Config;
 
+use App\Libraries\Portal\PortalRealm;
 use CodeIgniter\Config\BaseConfig;
 use CodeIgniter\Session\Handlers\BaseHandler;
 use CodeIgniter\Session\Handlers\DatabaseHandler;
@@ -130,6 +131,8 @@ class Session extends BaseConfig
     public function __construct()
     {
         parent::__construct();
+
+        PortalRealm::apply($this, config(Cookie::class), PortalRealm::currentPath(), PortalRealm::currentIsSecure());
 
         if ($this->driver === DatabaseHandler::class) {
             try {

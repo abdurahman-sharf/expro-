@@ -106,6 +106,7 @@ class SensitivePermissionsTest extends CIUnitTestCase
                 AccountingGuard::ASSETS_DEPRECIATE,
                 AccountingGuard::AI_USE,
                 AccountingGuard::AI_APPROVE,
+                AccountingGuard::PORTAL_MANAGE,
             ],
             AccountingGuard::SENSITIVE,
         );

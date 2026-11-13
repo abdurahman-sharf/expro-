@@ -42,6 +42,7 @@ class AccountingSetup extends AccountingController
         AccountingGuard::ASSETS_DEPRECIATE  => 'Accounting_assets.assets_depreciate',
         AccountingGuard::AI_USE             => 'Accounting_ai.permission_use',
         AccountingGuard::AI_APPROVE         => 'Accounting_ai.permission_approve',
+        AccountingGuard::PORTAL_MANAGE      => 'Customers.manage',
     ];
 
     private AccountingSettings $settings;

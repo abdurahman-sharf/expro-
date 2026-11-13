@@ -4,8 +4,10 @@ namespace App\Models;
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\MasterData\PartyContacts;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
+use App\Libraries\Portal\PortalAccounts;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use Config\OSPOS;
@@ -354,6 +356,8 @@ class Customer extends Person
 
         if ($result) {
             (new EntityAccountService())->syncDeleted(EntityAccountService::CUSTOMER, (int) $customer_id, (bool) $config['enforce_privacy']);
+            (new PartyContacts($this->db))->hideWithParty(PartyContacts::CUSTOMER, (int) $customer_id, (bool) $config['enforce_privacy'], (int) session()->get('person_id') ?: null);
+            (new PortalAccounts($this->db))->closeForCustomer((int) $customer_id, (bool) $config['enforce_privacy'], (int) session()->get('person_id') ?: null);
         }
 
         return $result;
@@ -372,6 +376,8 @@ class Customer extends Person
         if ($result) {
             foreach ($person_ids as $personId) {
                 (new EntityAccountService())->syncDeleted(EntityAccountService::CUSTOMER, (int) $personId);
+                (new PartyContacts($this->db))->hideWithParty(PartyContacts::CUSTOMER, (int) $personId, false, (int) session()->get('person_id') ?: null);
+                (new PortalAccounts($this->db))->closeForCustomer((int) $personId, false, (int) session()->get('person_id') ?: null);
             }
         }
 

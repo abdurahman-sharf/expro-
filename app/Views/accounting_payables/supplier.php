@@ -14,6 +14,7 @@
  * @var bool              $can_refund
  * @var Closure           $amount
  * @var Closure           $date
+ * @var list<object>      $contacts
  */
 
 use App\Libraries\Accounting\AgingBuckets;
@@ -74,6 +75,8 @@ $chequeNumber = static fn (int $chequeId): string => (new DocumentNumbering())->
         <dt class="col-sm-3"><?= lang('Accounting_payables.overdue') ?></dt>
         <dd class="col-sm-9" id="statement_overdue"><?= $amount($position->overdue($today)) ?></dd>
     </dl>
+
+    <?= view('people/contacts_list', ['contacts' => $contacts ?? []]) ?>
 
     <form id="statement_day" class="print_hide mb-3 d-flex flex-wrap align-items-end gap-2" method="get" role="search">
         <div>

@@ -17,6 +17,7 @@ use App\Libraries\Accounting\SupplierPaymentList;
 use App\Libraries\Accounting\SupplierPosition;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\MasterData\PartyContacts;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Models\Receiving;
@@ -193,6 +194,7 @@ class AccountingPayables extends AccountingController
             'advances'      => $advances,
             'advance_kinds' => array_column($advances, 'kind', 'advance_id'),
             'refunds'       => $this->refunds->forParty($supplierId),
+            'contacts'      => (new PartyContacts())->forParty(PartyContacts::SUPPLIER, $supplierId),
             'can_manage'    => $this->can(AccountingGuard::PAYABLES_MANAGE),
             'can_refund'    => $this->can(AccountingGuard::PAYABLES_REFUND),
             'amount'        => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
