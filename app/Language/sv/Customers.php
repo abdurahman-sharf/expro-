@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Fast rabatt',
     'discount_percent'              => 'Procentrabatt',
     'discount_type'                 => 'Typ av rabatt',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'E-postadress finns redan i databasen.',
     'employee'                      => 'Anställd',
     'error_adding_updating'         => 'Kund tillägg eller uppdatering misslyckades.',

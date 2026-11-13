@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Korting (€)',
     'discount_percent'              => 'Korting (%)',
     'discount_type'                 => 'Type Korting',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'Emailadres is reeds aanwezig in de database.',
     'employee'                      => 'Werknemer',
     'error_adding_updating'         => 'Fout bij het toevoegen/bewerken van een klant.',

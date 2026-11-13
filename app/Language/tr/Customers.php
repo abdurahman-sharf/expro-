@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Sabit İndirim',
     'discount_percent'              => 'Yüzde İndirim',
     'discount_type'                 => 'İndirim Türü',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'E-posta Adresi zaten veri tabanında var.',
     'employee'                      => 'Personel',
     'error_adding_updating'         => 'Müşteri ekleme/güncelleme hatası.',

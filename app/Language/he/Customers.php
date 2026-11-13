@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'הנחה קבועה',
     'discount_percent'              => 'אחוז הנחה',
     'discount_type'                 => 'סוג הנחה',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'כתובת האימייל כבר קיימת במסד הנתונים.',
     'employee'                      => 'עובד',
     'error_adding_updating'         => 'הוספה או עדכון לקוח נכשלו.',

@@ -58,6 +58,8 @@ if (isset($error_message)) {
         model(Employee::class)->has_grant('reports_sales', session('person_id')) ? ['id' => 'show_takings_button', 'label' => lang('Sales.takings'), 'icon' => 'bi-card-list', 'href' => 'sales/manage'] : null
     ]))]) ?>
 
+<?= view('accounting_einvoicing/sale_panel', ['sale_id' => $sale_id_num]) ?>
+
 <?= view('sales/' . $template) ?>
 
 <?= view('partial/footer') ?>

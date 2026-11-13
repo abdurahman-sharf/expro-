@@ -7,6 +7,8 @@ use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\EInvoicing\CustomerParties;
+use App\Libraries\EInvoicing\EInvoiceSettings;
 use App\Libraries\MasterData\CustomerStatus;
 use App\Libraries\MasterData\CustomerType;
 use App\Libraries\MasterData\LookupKind;
@@ -16,12 +18,14 @@ use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Pricing\SalesControlSettings;
 use App\Models\Price_list;
 use App\Models\Sale;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
 use Config\OSPOS;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -66,6 +70,10 @@ class CustomersControllerTest extends CIUnitTestCase
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('accounting_audit_log')->where('entity_type', 'document_numbering')->delete();
+
+        $db->table('customer_einvoice_parties')->truncate();
+        $db->table('accounting_audit_log')->where('entity_type', 'customer_einvoice_party')->delete();
+        $db->table('app_config')->where('key', EInvoiceSettings::ENABLED)->delete();
 
         $this->setConfigValue('accounting_enabled', '0');
         $this->setConfigValue('accounting_customer_opening', '0');
@@ -1745,5 +1753,200 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertTrue($this->save(['city' => $long, 'comments' => 'edited'], (int) $created['id'])['success']);
         $this->assertFalse($this->save(['city' => $long . 'x'], (int) $created['id'])['success']);
         $this->assertSame($long, $this->accountingDb()->table('people')->where('person_id', $created['id'])->get()->getRow()->city);
+    }
+
+    private function switchEInvoicingOn(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(EInvoiceSettings::ENABLED, '1');
+    }
+
+    /**
+     * @param array<string, string> $extra
+     *
+     * @return array<string, string>
+     */
+    private function eInvoiceForm(array $extra = []): array
+    {
+        return ['einvoice_party' => '1', 'einvoice_identification_type' => 'CRN', 'einvoice_identification_number' => '1010010000', 'einvoice_street' => 'King Fahd Rd', 'einvoice_building_number' => '4321', 'einvoice_district' => 'Olaya', 'einvoice_city' => 'Riyadh', 'einvoice_postal_code' => '11564', 'einvoice_country_code' => 'SA', ...$extra];
+    }
+
+    public function testGetView_OffersTheElectronicInvoiceFieldsWithTheElevenIdentificationTypesWhileTheLayerIsOn(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $body = $this->get('/customers/view/-1')->response()->getBody();
+
+        foreach (['name="einvoice_party"', 'name="einvoice_identification_type"', 'name="einvoice_identification_number"', 'name="einvoice_street"', 'name="einvoice_building_number"', 'name="einvoice_district"', 'name="einvoice_city"', 'name="einvoice_postal_code"', 'name="einvoice_country_code"', 'name="is_government_entity"'] as $field) {
+            $this->assertStringContainsString($field, $body, $field);
+        }
+
+        foreach (['CRN', 'MOM', 'MLS', 'SAG', '700', 'TIN', 'NAT', 'IQA', 'GCC', 'PAS', 'OTH'] as $code) {
+            $this->assertStringContainsString('<option value="' . $code . '">', $body, $code);
+        }
+
+        $this->assertStringNotContainsString('id="einvoice_vat_warning"', $body);
+    }
+
+    public function testGetView_LeavesTheElectronicInvoiceSectionOutWhileTheLayerIsOff(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue(EInvoiceSettings::ENABLED, '0');
+
+        $this->assertStringNotContainsString('einvoice_party', $this->get('/customers/view/-1')->response()->getBody());
+    }
+
+    public function testGetView_ShowsWhatTheCustomerHoldsAndWarnsAboutATaxNumberThatIsNotValid(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $saved = $this->save($this->eInvoiceForm(['einvoice_identification_type' => 'NAT', 'einvoice_identification_number' => '1098765432']) + ['tax_id' => '12345']);
+
+        $body = $this->get('/customers/view/' . $saved['id'])->response()->getBody();
+
+        $this->assertTrue($saved['success']);
+        $this->assertMatchesRegularExpression('#<option value="NAT" selected>#', $body);
+        $this->assertStringContainsString('value="1098765432"', $body);
+        $this->assertStringContainsString('id="einvoice_vat_warning"', $body);
+    }
+
+    public function testPostSave_SavesTheIdentificationAndTheNationalAddressOfANewCustomerAndAuditsThem(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $result = $this->save($this->eInvoiceForm(['einvoice_additional_street' => 'Side St', 'einvoice_additional_number' => '8228']));
+
+        $this->assertTrue($result['success']);
+
+        $held = (new CustomerParties())->find((int) $result['id']);
+
+        $this->assertSame('CRN', $held['identification_type']);
+        $this->assertSame('1010010000', $held['identification_number']);
+        $this->assertSame('4321', $held['building_number']);
+        $this->assertSame('Olaya', $held['district']);
+        $this->assertSame('Side St', $held['additional_street']);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer_einvoice_party', 'entity_id' => $result['id'], 'action' => 'updated'])->countAllResults());
+    }
+
+    public function testPostSave_ChangesWhatACustomerHoldsAndWritesNothingWhenTheFormGivesTheSame(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $first  = $this->save($this->eInvoiceForm());
+        $id     = (int) $first['id'];
+        $this->save($this->eInvoiceForm(['einvoice_city' => 'Jeddah']), $id);
+        $this->save($this->eInvoiceForm(['einvoice_city' => 'Jeddah']), $id);
+
+        $this->assertSame('Jeddah', (new CustomerParties())->find($id)['city']);
+        $this->assertSame(2, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer_einvoice_party', 'entity_id' => $id])->countAllResults());
+    }
+
+    public function testPostSave_RefusesAnIdentificationWithoutItsSchemeAndSavesNoCustomer(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $before = $this->accountingDb()->table('customers')->countAllResults();
+        $result = $this->save($this->eInvoiceForm(['einvoice_identification_type' => '']));
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('The identification is not valid', $result['message']);
+        $this->assertSame($before, $this->accountingDb()->table('customers')->countAllResults());
+        $this->assertSame(0, $this->accountingDb()->table('customer_einvoice_parties')->countAllResults());
+    }
+
+    public function testPostSave_RefusesABuildingNumberOfTheWrongLengthAndAnUnknownScheme(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $this->assertFalse($this->save($this->eInvoiceForm(['einvoice_building_number' => '432']))['success']);
+        $this->assertFalse($this->save($this->eInvoiceForm(['einvoice_identification_type' => 'XXX']))['success']);
+        $this->assertFalse($this->save($this->eInvoiceForm(['einvoice_postal_code' => '1156']))['success']);
+        $this->assertSame(0, $this->accountingDb()->table('customer_einvoice_parties')->countAllResults());
+    }
+
+    public function testPostSave_RefusesAValueWiderThanItsColumnAndSavesNoCustomer(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $before = $this->accountingDb()->table('customers')->countAllResults();
+
+        foreach ([['einvoice_street' => str_repeat('x', 256)], ['einvoice_identification_number' => str_repeat('1', 61)], ['einvoice_country_code' => 'AE', 'einvoice_building_number' => str_repeat('9', 11)], ['einvoice_country_code' => 'AE', 'einvoice_postal_code' => 'P.O. Box 55']] as $values) {
+            $result = $this->save($this->eInvoiceForm($values));
+
+            $this->assertFalse($result['success'], json_encode($values));
+            $this->assertStringContainsString('is not valid', $result['message']);
+        }
+
+        $this->assertSame($before, $this->accountingDb()->table('customers')->countAllResults());
+        $this->assertSame(0, $this->accountingDb()->table('customer_einvoice_parties')->countAllResults());
+    }
+
+    public function testPostSave_KeepsAValueThatFillsItsColumnWhole(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $result = $this->save($this->eInvoiceForm(['einvoice_street' => str_repeat('x', 255), 'einvoice_country_code' => 'AE', 'einvoice_postal_code' => 'SW1A 1AA', 'einvoice_building_number' => str_repeat('9', 10)]));
+        $held   = (new CustomerParties())->find((int) $result['id']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(str_repeat('x', 255), $held['street']);
+        $this->assertSame('SW1A 1AA', $held['postal_code']);
+        $this->assertSame(str_repeat('9', 10), $held['building_number']);
+    }
+
+    public function testPostSave_SaysThatTheIdentificationWasNotSavedWhenTheDatabaseRefusesItAndStillGivesTheCustomer(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $db      = $this->accountingDb();
+        $table   = $db->prefixTable('customer_einvoice_parties');
+        $debug   = new ReflectionProperty(BaseConnection::class, 'DBDebug');
+        $trigger = $table . '_refuse';
+
+        $db->query("CREATE TRIGGER {$trigger} BEFORE INSERT ON {$table} FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'refused'");
+        $debug->setValue($db, false);
+
+        try {
+            $result = $this->save($this->eInvoiceForm());
+        } finally {
+            $debug->setValue($db, true);
+            $db->query("DROP TRIGGER IF EXISTS {$trigger}");
+        }
+
+        $this->assertTrue($result['success']);
+        $this->assertStringContainsString('were not saved; open the customer again and save them', $result['message']);
+        $this->assertSame(1, $db->table('customers')->where('person_id', $result['id'])->countAllResults());
+        $this->assertSame(0, $db->table('customer_einvoice_parties')->countAllResults());
+    }
+
+    public function testPostSave_LeavesWhatACustomerHoldsAloneWhenTheFormDoesNotCarryTheSection(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $first = $this->save($this->eInvoiceForm());
+        $this->save([], (int) $first['id']);
+
+        $this->assertSame('CRN', (new CustomerParties())->find((int) $first['id'])['identification_type']);
+    }
+
+    public function testPostSave_IgnoresTheElectronicInvoiceFieldsWhileTheLayerIsOff(): void
+    {
+        $this->setConfigValue(EInvoiceSettings::ENABLED, '0');
+
+        $result = $this->save($this->eInvoiceForm());
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(0, $this->accountingDb()->table('customer_einvoice_parties')->countAllResults());
+    }
+
+    public function testPostSave_KeepsTheTaxNumberAndTheGovernmentFlagWhereTheFormAlwaysKeptThem(): void
+    {
+        $this->switchEInvoicingOn();
+
+        $result = $this->save($this->eInvoiceForm(['master_data' => '1', 'is_government_entity' => '1']) + ['tax_id' => '311111111111113']);
+        $row    = $this->accountingDb()->table('customers')->where('person_id', $result['id'])->get()->getRow();
+
+        $this->assertSame('311111111111113', $row->tax_id);
+        $this->assertSame(1, (int) $row->is_government_entity);
     }
 }

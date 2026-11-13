@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Fester Rabatt',
     'discount_percent'              => 'Prozentualer Rabatt',
     'discount_type'                 => 'Rabattart',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'E-Mail Adresse ist bereits in der Datenbank vorhanden.',
     'employee'                      => 'Mitarbeiter',
     'error_adding_updating'         => 'Fehler beim Hinzufügen/Ändern.',

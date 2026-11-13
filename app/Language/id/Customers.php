@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Diskon Tetap',
     'discount_percent'              => 'Persentase Diskon',
     'discount_type'                 => 'Jenis Diskon',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'Alamat email telah digunakan.',
     'employee'                      => 'Karyawan',
     'error_adding_updating'         => 'Kesalahan ketika menambah atau memperbaharui pelanggan.',

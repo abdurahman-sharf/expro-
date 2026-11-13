@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Pevná Sleva',
     'discount_percent'              => 'Sleva Procent',
     'discount_type'                 => 'Typ Slevy',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'Emailová adresa již existuje v databázi.',
     'employee'                      => 'Zaměstnanec',
     'error_adding_updating'         => 'Chyba při vytváření nebo aktualizaci zákazníka.',

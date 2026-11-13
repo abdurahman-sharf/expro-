@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Fixed Discount',
     'discount_percent'              => 'Percentage Discount',
     'discount_type'                 => 'Discount Type',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'Email Address is already present in the database.',
     'employee'                      => 'Employee',
     'error_adding_updating'         => 'Employee add or update failed.',

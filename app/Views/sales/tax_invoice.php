@@ -66,6 +66,8 @@ if (isset($error_message)) {
         ['id' => 'show_takings_button', 'label' => lang('Sales.takings'), 'icon' => 'bi-card-list', 'href' => 'sales/manage']
     ]))]) ?>
 
+<?= view('accounting_einvoicing/sale_panel', ['sale_id' => $sale_id_num]) ?>
+
 <?= view('documents/document', ['type' => 'tax_invoice', 'context' => 'screen', 'sale' => get_defined_vars()]) ?>
 
 <?= view('partial/footer') ?>

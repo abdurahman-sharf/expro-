@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'داشکاندنی جێگیر',
     'discount_percent'              => 'داشکاندنی ڕێژەی سەدی',
     'discount_type'                 => 'جۆری داشکاندن',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'ناونیشانی ئیمەیڵ پێشتر لە بنکەدراوەدا هەیە.',
     'employee'                      => 'فەرمانبەر',
     'error_adding_updating'         => 'زیادکردن یان نوێکردنەوەی کڕیار سەرکەوتوو نەبوو.',

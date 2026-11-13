@@ -11,6 +11,8 @@ return [
     'accounting_currencies_desc'   => '',
     'accounting_debit_notes'       => '',
     'accounting_debit_notes_desc'  => '',
+    'accounting_einvoicing'        => '',
+    'accounting_einvoicing_desc'   => '',
     'accounting_journals'          => '',
     'accounting_journals_desc'     => '',
     'accounting_payables'          => '',

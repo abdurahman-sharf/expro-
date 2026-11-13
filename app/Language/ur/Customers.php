@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => '',
     'discount_percent'              => '',
     'discount_type'                 => '',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => '',
     'employee'                      => '',
     'error_adding_updating'         => '',

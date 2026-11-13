@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Reducere fixa',
     'discount_percent'              => 'Reducere procentuala',
     'discount_type'                 => 'Tip Reducere',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'Adresa de email exista deja in baza de date.',
     'employee'                      => 'Angajat',
     'error_adding_updating'         => 'Adugare sau actualizare Client esuata.',

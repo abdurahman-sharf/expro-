@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Fiksni popust',
     'discount_percent'              => 'Procenat popusta',
     'discount_type'                 => 'Vrsta popusta',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'E-mail adresa već postoji u bazi podataka.',
     'employee'                      => 'Zaposlenik',
     'error_adding_updating'         => 'Dodavanje ili ažuriranje kupca nije uspjelo.',

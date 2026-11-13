@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'حسم ثابت',
     'discount_percent'              => 'نسبة الحبم',
     'discount_type'                 => 'نوع الحسم',
+    'einvoice_not_saved'            => 'لم يُحفظ معرِّف العميل وعنوانه للفاتورة الإلكترونية؛ افتح العميل مرة أخرى واحفظهما.',
     'email_duplicate'               => 'البريد الالكتروني مكرر.',
     'employee'                      => 'الموظف',
     'error_adding_updating'         => 'خطاء فى إضافة أو تحديث العميل.',

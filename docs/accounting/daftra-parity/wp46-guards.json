@@ -1,0 +1,1619 @@
+[
+  {
+    "name": "B01 only a completed invoice or return becomes a document",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if ($sale->status !== COMPLETED || ! in_array($sale->saleType, [SALE_TYPE_INVOICE, SALE_TYPE_RETURN], true)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B02 a sale in a foreign currency is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if ($sale->currency !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B03 a sale with shipping or an adjustment in its header is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if ($sale->charges !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B04 a debit note that was taken back is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if ($row->status !== 'posted') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B05 a note without an issued original is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if ($original === null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B06 a note without a reason is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if ($reason === '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B07 a reason longer than the standard allows is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if (! EInvoiceRules::within($reason, EInvoiceRules::NOTE_MAX)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B08 a sale with no line to write is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if ($lines === []) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B09 a line that comes to less than nothing is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if (bccomp($goods, '0', 8) < 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B10 a line that is not its quantity times its price less its discount is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if (bccomp(bcsub(SaleAmounts::round(bcmul($quantity, $price, 8), 2), $allowance, 2), $net, 2) !== 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B11 a line with two taxes is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if (count($rows) > 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B12 a VAT rate with more than two decimals is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if (bccomp($rate, $percent, 4) !== 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B13 a line without tax needs the classification of the settings",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if ($values['exempt_category'] === '' || $values['exempt_reason_code'] === '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B14 the tax of a category must be its taxable amount times its rate",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if (bccomp(SaleAmounts::round(bcdiv(bcmul($bucket['taxable'], $rate, 8), '100', 8), 2), $taxAmount, 2) !== 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B15 the total of the document must be the total of the sale",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if (bccomp($rules['total'], $figures['total'], 2) !== 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B16 the tax of the document must be the tax of the sale",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if (bccomp($rules['tax'], SaleAmounts::round($figures['tax'], 2), 2) !== 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "B17 the total of a debit note document must be the total of the note",
+    "file": "app/Libraries/EInvoicing/EInvoiceBuilder.php",
+    "find": "if (bccomp($rules['total'], (string) $row->total, 2) !== 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P01 a company without a name is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "$vat    = $this->settings->sellerVatNumber();\n\n        if ($name === '') {",
+    "replace": "$vat    = $this->settings->sellerVatNumber();\n\n        if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P02 a seller tax number that is not fifteen digits beginning and ending with 3 is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "if (! EInvoiceRules::vatNumber($vat)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P03 a seller without an identification is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "if ($type === null || $values['seller_identification_number'] === '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P04 a seller address with a missing part is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "if ($values[$field] === '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P05 a buyer tax number that is not valid is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "if ($vat !== '' && ! EInvoiceRules::vatNumber($vat)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P06 a tax invoice to a buyer with no name is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "            if ($name === '') {\n                throw new EInvoiceException(EInvoiceError::BuyerNameMissing",
+    "replace": "            if (false) {\n                throw new EInvoiceException(EInvoiceError::BuyerNameMissing",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P07 a tax invoice to a buyer with neither a tax number nor an identification is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "if ($vat === '' && ($type === null || $stored['identification_number'] === '')) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P08 a tax invoice without a customer is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "            if ($subtype === EInvoiceSubtype::Standard) {\n                throw new EInvoiceException(EInvoiceError::StandardNeedsCustomer",
+    "replace": "            if (false) {\n                throw new EInvoiceException(EInvoiceError::StandardNeedsCustomer",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P09 a tax invoice to a buyer with an incomplete address is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "            if ($subtype === EInvoiceSubtype::Standard) {\n                throw new EInvoiceException(EInvoiceError::BuyerAddressIncomplete",
+    "replace": "            if (false) {\n                throw new EInvoiceException(EInvoiceError::BuyerAddressIncomplete",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P10 a Saudi buyer needs building number, postal code and district",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "if ($stored['country_code'] === 'SA') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P11 a tax number makes the customer a business",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "trim((string) $customer->tax_id) !== '' ||",
+    "replace": "false ||",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P12 a government entity is a business",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "(int) $customer->is_government_entity === 1 ||",
+    "replace": "false ||",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "P13 a customer entered as a company is a business",
+    "file": "app/Libraries/EInvoicing/EInvoiceParties.php",
+    "find": "(string) $customer->customer_type === 'commercial'\n",
+    "replace": "false\n",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceBuilderTest.php"
+    ]
+  },
+  {
+    "name": "J01 a document for a sale with no posted journal is refused",
+    "file": "app/Libraries/EInvoicing/JournalTie.php",
+    "find": "if ($figures === null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "J02 the total of the document must be what the books put on the customer",
+    "file": "app/Libraries/EInvoicing/JournalTie.php",
+    "find": "if (bccomp($figures['customer'], '0', SaleAmounts::SCALE) < 0 || bccomp(SaleAmounts::round($figures['customer'], 2), $taxInclusive, 2) !== 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "J03 the tax of the document must be the tax the books hold",
+    "file": "app/Libraries/EInvoicing/JournalTie.php",
+    "find": "if (bccomp(SaleAmounts::round($figures['tax'], 2), $taxAmount, 2) !== 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "J04 the amount without tax must be the revenue the books hold",
+    "file": "app/Libraries/EInvoicing/JournalTie.php",
+    "find": "if (bccomp($gap, self::ROUNDING, SaleAmounts::SCALE) > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "J05 the lines of tax are told apart from the lines of revenue",
+    "file": "app/Libraries/EInvoicing/JournalTie.php",
+    "find": "} elseif (in_array((int) $line->account_id, $taxes, true)) {",
+    "replace": "} elseif (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S01 issuing a document needs the permission",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $this->guard->require(AccountingGuard::EINVOICING_MANAGE, $employeeId);\n        $this->assertOn();\n\n        $sale = ",
+    "replace": "        $this->assertOn();\n\n        $sale = ",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S02 issuing a debit note document needs the permission",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $this->guard->require(AccountingGuard::EINVOICING_MANAGE, $employeeId);\n        $this->assertOn();\n\n        $note = ",
+    "replace": "        $this->assertOn();\n\n        $note = ",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S03 taking the file or submitting needs the permission",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $this->guard->require(AccountingGuard::EINVOICING_MANAGE, $employeeId);\n\n        $document = $this->find($documentId);",
+    "replace": "\n        $document = $this->find($documentId);",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S04 nothing is issued while accounting is off",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if (! (new AccountingSettings($this->db))->isEnabled()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S05 nothing is issued while the layer is off",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if (! $this->settings->isEnabled()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S06 a document is issued only for a branch the employee works in",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $this->branches->requireBranch((int) $sale->branch_id, $employeeId);\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S07 a debit note document is issued only for a branch the employee works in",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $this->branches->requireBranch((int) $note->branch_id, $employeeId);\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S08 a file is given only for a branch the employee works in",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $this->branches->requireBranch($document->branchId, $employeeId);\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S09 a sale is issued once",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "            if ($known !== null) {\n                return $known;\n            }\n\n            $original =",
+    "replace": "            $original =",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S10 a debit note is issued once",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "            if ($known !== null) {\n                return $known;\n            }\n\n            $referred =",
+    "replace": "            $referred =",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S11 the counter is locked before the next number is taken",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "WHERE company_id = ? FOR UPDATE\"",
+    "replace": "WHERE company_id = ?\"",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S12 a document carries the hash of the document before it",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "$counter['hash'] === '' ? InvoiceHash::FIRST : $counter['hash']",
+    "replace": "InvoiceHash::FIRST",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S13 the counter goes up by one",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "$icv     = $counter['icv'] + 1;",
+    "replace": "$icv     = $counter['icv'] + 2;",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S14 a document is held against the journal of its sale",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "            $this->tie->assertTies(self::SOURCE_SALE, $saleId, $document->taxInclusive, $document->taxAmount, $document->taxExclusive);\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S15 a debit note document is held against the journal of its note",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "            $this->tie->assertTies(self::SOURCE_NOTE, $debitNoteId, $document->taxInclusive, $document->taxAmount, $document->taxExclusive);\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S16 a credit note refers to the document of the invoice it takes back",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "(int) $sale->sale_type === SALE_TYPE_RETURN ? $this->originalOfSale($sale->return_of_sale_id) : null",
+    "replace": "null",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S17 a return whose invoice was never issued is refused",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($origin === null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S18 a debit note refers to an issued invoice or credit note, not to another debit note",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($referred === null || $referred->kind === EInvoiceKind::DebitNote ||",
+    "replace": "if ($referred === null ||",
+    "tests": [
+      "--filter",
+      "testIssueDebitNote_RefusesANoteThatRefersToNothing",
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S19 the counter keeps the hash of the last document",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "'last_hash' => $stamped->hash]",
+    "replace": "'last_hash' => '']",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S20 the transport is asked and what it says is recorded",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $this->db->table('einvoice_transport_log')->insert(['document_id' => $documentId, 'transport' => $this->transport->name(), 'status' => $result->status, 'note' => mb_substr($result->note, 0, 500)]);\n\n        return $issued;",
+    "replace": "        return $issued;",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S21 the issue of a document is audited",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "'einvoice_document', $documentId, 'issued',",
+    "replace": "'einvoice_document', $documentId, 'issued_disabled',",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S22 a key named without a certificate (or the reverse) is refused, never skipped",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($keyPath === '' && $cert === '') {",
+    "replace": "if ($keyPath === '' || $cert === '') {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S23 a submission is audited",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "'submission_recorded'",
+    "replace": "'submission_recorded_disabled'",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "S24 the documents listed are those of the branches the reader may see",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "            $builder->whereIn('branch_id', $branchIds);\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "E01 changing the settings needs the permission",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "        $this->guard->require(AccountingGuard::EINVOICING_MANAGE, $employeeId);\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E02 changing the settings needs every branch",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "        $this->branches->requireCompanyScope($employeeId);\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E03 the layer is turned on only while accounting is on",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "if ($enabled && ! (new AccountingSettings($this->db))->isEnabled()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E04 the path of a key or a certificate must be outside the application",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "KeyPath::check($values[$field]);",
+    "replace": "$values[$field];",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E05 the seller can use only the schemes the standard lets it use",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "if ($type !== '' && PartyIdentificationType::forSellerOrNull($type) === null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E06 an identification number holds letters and digits only",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "if ($values['seller_identification_number'] !== '' && ! EInvoiceRules::identificationNumber($values['seller_identification_number'])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E07 a building number has four digits",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "if ($values['seller_building_number'] !== '' && ! EInvoiceRules::buildingNumber($values['seller_building_number'])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E08 a postal code has five digits",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "if ($values['seller_postal_code'] !== '' && ! EInvoiceRules::postalCode($values['seller_postal_code'])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E09 an address field is not longer than the standard allows",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "if (! EInvoiceRules::within($values[$field], $limit)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E10 the additional number holds digits only",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "if ($values[$field] !== '' && preg_match('/^\\d{1,10}$/', $values[$field]) !== 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E11 the category of a line without tax is Z, E or O",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "if ($category !== '' && ! isset(self::EXEMPTION_CODES[$category])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E12 a reason is kept only with a category",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "if ($category === '' && ($code !== '' || $values['exempt_reason_text'] !== '')) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E13 the reason code belongs to the category",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "if ($category !== '' && ! in_array($code, self::EXEMPTION_CODES[$category], true)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E14 the reason text is not longer than the standard allows",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "if (! EInvoiceRules::within($values['exempt_reason_text'], EInvoiceRules::NOTE_MAX)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "E15 a change of the settings is audited",
+    "file": "app/Libraries/EInvoicing/EInvoiceSettings.php",
+    "find": "'settings_updated'",
+    "replace": "'settings_updated_disabled'",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceSettingsTest.php"
+    ]
+  },
+  {
+    "name": "K01 a path of a key must be absolute and have no byte of zero",
+    "file": "app/Libraries/EInvoicing/KeyPath.php",
+    "find": "if ($path === '' || str_contains($path, \"\\0\") || preg_match('#^(/|[A-Za-z]:[\\\\\\\\/])#', $path) !== 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/KeyPathTest.php"
+    ]
+  },
+  {
+    "name": "K02 a path inside the application directory is refused",
+    "file": "app/Libraries/EInvoicing/KeyPath.php",
+    "find": "if ($root !== false && ($resolved === $root || str_starts_with($resolved, rtrim($root, '/\\\\') . DIRECTORY_SEPARATOR))) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/KeyPathTest.php"
+    ]
+  },
+  {
+    "name": "K03 a link is followed before the path is judged",
+    "file": "app/Libraries/EInvoicing/KeyPath.php",
+    "find": "$resolved = self::resolve($path);",
+    "replace": "$resolved = $path;",
+    "tests": [
+      "tests/Libraries/EInvoicing/KeyPathTest.php"
+    ]
+  },
+  {
+    "name": "K04 a path that climbs out of a missing directory is refused",
+    "file": "app/Libraries/EInvoicing/KeyPath.php",
+    "find": "if (in_array('..', $segments, true) || in_array('.', $segments, true)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/KeyPathTest.php"
+    ]
+  },
+  {
+    "name": "K05 the application directory itself is refused",
+    "file": "app/Libraries/EInvoicing/KeyPath.php",
+    "find": "($resolved === $root || str_starts_with(",
+    "replace": "(false || str_starts_with(",
+    "tests": [
+      "tests/Libraries/EInvoicing/KeyPathTest.php"
+    ]
+  },
+  {
+    "name": "K06 a directory whose name only begins like a protected one is allowed",
+    "file": "app/Libraries/EInvoicing/KeyPath.php",
+    "find": "rtrim($root, '/\\\\') . DIRECTORY_SEPARATOR))) {",
+    "replace": "rtrim($root, '/\\\\')))) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/KeyPathTest.php"
+    ]
+  },
+  {
+    "name": "C01 the path of the key is judged",
+    "file": "app/Libraries/EInvoicing/StampKeys.php",
+    "find": "$keyFile         = KeyPath::check($keyPath, $protected);",
+    "replace": "$keyFile         = $keyPath;",
+    "tests": [
+      "tests/Libraries/EInvoicing/StampKeysTest.php"
+    ]
+  },
+  {
+    "name": "C02 the path of the certificate is judged",
+    "file": "app/Libraries/EInvoicing/StampKeys.php",
+    "find": "$certificateFile = KeyPath::check($certificatePath, $protected);",
+    "replace": "$certificateFile = $certificatePath;",
+    "tests": [
+      "tests/Libraries/EInvoicing/StampKeysTest.php"
+    ]
+  },
+  {
+    "name": "C03 an OpenSSL without the curve of the standard is refused",
+    "file": "app/Libraries/EInvoicing/StampKeys.php",
+    "find": "if (! self::curveAvailable($curves)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/StampKeysTest.php"
+    ]
+  },
+  {
+    "name": "C04 a key on another curve is refused",
+    "file": "app/Libraries/EInvoicing/StampKeys.php",
+    "find": "if (($details['type'] ?? null) !== OPENSSL_KEYTYPE_EC || ($details['ec']['curve_name'] ?? '') !== self::CURVE) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/StampKeysTest.php"
+    ]
+  },
+  {
+    "name": "C05 a certificate that is not the one of the key is refused",
+    "file": "app/Libraries/EInvoicing/StampKeys.php",
+    "find": "if (! openssl_x509_check_private_key($certificate, $key)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/StampKeysTest.php"
+    ]
+  },
+  {
+    "name": "C06 a key that cannot be read is refused",
+    "file": "app/Libraries/EInvoicing/StampKeys.php",
+    "find": "if ($key === false) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/StampKeysTest.php"
+    ]
+  },
+  {
+    "name": "C07 a certificate that cannot be read is refused",
+    "file": "app/Libraries/EInvoicing/StampKeys.php",
+    "find": "if ($certificate === false || ! openssl_x509_export($certificate, $normalized)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/StampKeysTest.php"
+    ]
+  },
+  {
+    "name": "D01 a stamped file must have the hash that was signed",
+    "file": "app/Libraries/EInvoicing/DocumentStamper.php",
+    "find": "if (InvoiceHash::of($final) !== $hash) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/DocumentStamperTest.php"
+    ]
+  },
+  {
+    "name": "D02 the signature of the certificate is in the code of a simplified invoice",
+    "file": "app/Libraries/EInvoicing/DocumentStamper.php",
+    "find": "$document->subtype === EInvoiceSubtype::Simplified ? $material->certificateSignatureDer : null",
+    "replace": "null",
+    "tests": [
+      "tests/Libraries/EInvoicing/DocumentStamperTest.php"
+    ]
+  },
+  {
+    "name": "H01 the extensions are left out of the hash",
+    "file": "app/Libraries/EInvoicing/InvoiceHash.php",
+    "find": "\"/*[local-name()='Invoice']//*[local-name()='UBLExtensions']\"",
+    "replace": "\"/nothing\"",
+    "tests": [
+      "tests/Libraries/EInvoicing/InvoiceHashTest.php"
+    ]
+  },
+  {
+    "name": "H02 the signature is left out of the hash",
+    "file": "app/Libraries/EInvoicing/InvoiceHash.php",
+    "find": "\"/*[local-name()='Invoice']//*[local-name()='Signature']\"",
+    "replace": "\"/nothing\"",
+    "tests": [
+      "tests/Libraries/EInvoicing/InvoiceHashTest.php"
+    ]
+  },
+  {
+    "name": "H03 the code is left out of the hash",
+    "file": "app/Libraries/EInvoicing/InvoiceHash.php",
+    "find": "\"/*[local-name()='Invoice']//*[local-name()='AdditionalDocumentReference'][cbc:ID[normalize-space(text()) = 'QR']]\"",
+    "replace": "\"/nothing\"",
+    "tests": [
+      "tests/Libraries/EInvoicing/InvoiceHashTest.php"
+    ]
+  },
+  {
+    "name": "H04 a file with an attribute of the xml namespace is refused",
+    "file": "app/Libraries/EInvoicing/InvoiceHash.php",
+    "find": "namespace-uri() = \"http://www.w3.org/XML/1998/namespace\"",
+    "replace": "namespace-uri() = \"http://nothing\"",
+    "tests": [
+      "tests/Libraries/EInvoicing/InvoiceHashTest.php"
+    ]
+  },
+  {
+    "name": "H05 a file that is not well formed is refused",
+    "file": "app/Libraries/EInvoicing/InvoiceHash.php",
+    "find": "if (! $loaded) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/InvoiceHashTest.php"
+    ]
+  },
+  {
+    "name": "CP01 an identification scheme must be one of the eleven",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if ($clean['identification_type'] !== '' && PartyIdentificationType::tryFrom($clean['identification_type']) === null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "CP02 an identification number holds letters and digits only",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if ($clean['identification_number'] !== '' && ! EInvoiceRules::identificationNumber($clean['identification_number'])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "CP03 a scheme needs its number",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if ($clean['identification_type'] !== '' && $clean['identification_number'] === '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "CP04 a number needs its scheme",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if ($clean['identification_type'] === '' && $clean['identification_number'] !== '') {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "CP05 a country code has two letters",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if (! EInvoiceRules::countryCode($clean['country_code'])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "CP06 a Saudi building number has four digits",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if ($clean['building_number'] !== '' && $clean['country_code'] === 'SA' && ! EInvoiceRules::buildingNumber($clean['building_number'])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "CP07 a Saudi postal code has five digits",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if ($clean['postal_code'] !== '' && $clean['country_code'] === 'SA' && ! EInvoiceRules::postalCode($clean['postal_code'])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "CP08 the additional number holds digits only",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if ($clean['additional_number'] !== '' && preg_match('/^\\d{1,10}$/', $clean['additional_number']) !== 1) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "CP09 an address field is not longer than the standard allows",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if (! EInvoiceRules::within($clean[$field], $limit)) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "CP10 fields that did not change are not written again",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if ($clean === $before) {\n            return false;\n        }\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "CP11 a change is audited",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "'customer_einvoice_party', $personId, 'updated'",
+    "replace": "'customer_einvoice_party', $personId, 'updated_disabled'",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "CP12 a customer whose fields are all emptied keeps no row",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "$written = $blank\n            ? $this->db->table('customer_einvoice_parties')->where('person_id', $personId)->delete()",
+    "replace": "$written = false\n            ? $this->db->table('customer_einvoice_parties')->where('person_id', $personId)->delete()",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "Q01 a code longer than seven hundred characters is refused",
+    "file": "app/Libraries/Documents/SimplifiedInvoiceQr.php",
+    "find": "if (strlen($text) > self::MAX_TEXT_LENGTH) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Documents/SimplifiedInvoiceQrTest.php"
+    ]
+  },
+  {
+    "name": "Q02 the signature of the certificate is written when it is given",
+    "file": "app/Libraries/Documents/SimplifiedInvoiceQr.php",
+    "find": "if ($certificateSignatureDer !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/Documents/SimplifiedInvoiceQrTest.php"
+    ]
+  },
+  {
+    "name": "Q03 the hash is written as bytes when the security standard is followed to the letter",
+    "file": "app/Libraries/Documents/SimplifiedInvoiceQr.php",
+    "find": "$hashAsBytes ? (string) base64_decode($hashBase64, true) : $hashBase64",
+    "replace": "$hashBase64",
+    "tests": [
+      "tests/Libraries/Documents/SimplifiedInvoiceQrTest.php"
+    ]
+  },
+  {
+    "name": "X01 the screens are not found while accounting is off",
+    "file": "app/Controllers/AccountingEInvoicing.php",
+    "find": "parent::__construct('accounting_einvoicing');",
+    "replace": "parent::__construct('accounting_einvoicing', false);",
+    "tests": [
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "X02 the settings form is offered to a manager of every branch only",
+    "file": "app/Controllers/AccountingEInvoicing.php",
+    "find": "$canManage   = $this->canManage(AccountingGuard::EINVOICING_MANAGE);",
+    "replace": "$canManage   = $this->can(AccountingGuard::EINVOICING_MANAGE);",
+    "tests": [
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "X03 the files are offered to who holds the permission only",
+    "file": "app/Controllers/AccountingEInvoicing.php",
+    "find": "$canDownload = $this->can(AccountingGuard::EINVOICING_MANAGE);",
+    "replace": "$canDownload = true;",
+    "tests": [
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "X04 the file is sent as an attachment",
+    "file": "app/Controllers/AccountingEInvoicing.php",
+    "find": "->setHeader('Content-Disposition', 'attachment; filename=\"' . $document->fileName($this->settings->sellerVatNumber()) . '\"')",
+    "replace": "->setHeader('X-Disposition', 'x')",
+    "tests": [
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "X06 the file is refused with not found when the service refuses",
+    "file": "app/Controllers/AccountingEInvoicing.php",
+    "find": "} catch (AccountingException|BranchException|EInvoiceException) {\n            throw PageNotFoundException::forPageNotFound();",
+    "replace": "} catch (AccountingException|BranchException|EInvoiceException) {\n            $document = null;",
+    "tests": [
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "Y01 the electronic invoice fields are read only while the layer is on",
+    "file": "app/Controllers/Customers.php",
+    "find": "if ($this->request->getPost('einvoice_party') !== '1' || ! (new EInvoiceSettings())->isEnabled()) {",
+    "replace": "if ($this->request->getPost('einvoice_party') !== '1') {",
+    "tests": [
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "Y02 a customer with identification the standard refuses is not saved",
+    "file": "app/Controllers/Customers.php",
+    "find": "if ($eInvoice['refusal'] !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "Y03 the identification of the form is saved with the customer",
+    "file": "app/Controllers/Customers.php",
+    "find": "if ($eInvoice['party'] !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "Y04 the section is offered only while the layer is on",
+    "file": "app/Controllers/Customers.php",
+    "find": "if (! (new EInvoiceSettings())->isEnabled()) {\n            return ['eInvoice' => null];",
+    "replace": "if (false) {\n            return ['eInvoice' => null];",
+    "tests": [
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "A01 the permission is sensitive",
+    "file": "app/Libraries/Accounting/AccountingGuard.php",
+    "find": "        self::EINVOICING_MANAGE,\n    ];",
+    "replace": "    ];",
+    "tests": [
+      "tests/Libraries/Accounting/SensitivePermissionsTest.php"
+    ]
+  },
+  {
+    "name": "M01 a credit note or a debit note must refer to a document",
+    "file": "app/Database/Migrations/20273400000000_EInvoicing.php",
+    "find": ",\n                CONSTRAINT `{$documents}_note_original` CHECK (`doc_kind` = 'invoice' OR `original_document_id` IS NOT NULL)",
+    "replace": "",
+    "tests": [
+      "tests/Database/EInvoicingMigrationTest.php"
+    ]
+  },
+  {
+    "name": "M02 two documents cannot have the same counter",
+    "file": "app/Database/Migrations/20273400000000_EInvoicing.php",
+    "find": "                UNIQUE KEY `{$documents}_icv` (`company_id`, `icv`),\n",
+    "replace": "",
+    "tests": [
+      "tests/Database/EInvoicingMigrationTest.php"
+    ]
+  },
+  {
+    "name": "M03 a sale or a note has one document",
+    "file": "app/Database/Migrations/20273400000000_EInvoicing.php",
+    "find": "                UNIQUE KEY `{$documents}_source` (`company_id`, `source_type`, `source_id`),\n",
+    "replace": "",
+    "tests": [
+      "tests/Database/EInvoicingMigrationTest.php"
+    ]
+  },
+  {
+    "name": "M04 two documents cannot have the same identifier",
+    "file": "app/Database/Migrations/20273400000000_EInvoicing.php",
+    "find": "                UNIQUE KEY `{$documents}_uuid` (`uuid`),\n",
+    "replace": "",
+    "tests": [
+      "tests/Database/EInvoicingMigrationTest.php"
+    ]
+  },
+  {
+    "name": "M05 an identification scheme is one of the eleven",
+    "file": "app/Database/Migrations/20273400000000_EInvoicing.php",
+    "find": ",\n                CONSTRAINT `{$parties}_identification` CHECK (`identification_type` IS NULL OR `identification_type` IN ({$codes}))",
+    "replace": "",
+    "tests": [
+      "tests/Database/EInvoicingMigrationTest.php"
+    ]
+  },
+  {
+    "name": "M06 an issued document cannot be deleted while another refers to it",
+    "file": "app/Database/Migrations/20273400000000_EInvoicing.php",
+    "find": "                CONSTRAINT `{$documents}_fk_original` FOREIGN KEY (`original_document_id`) REFERENCES `{$documents}` (`document_id`) ON DELETE RESTRICT,\n",
+    "replace": "",
+    "tests": [
+      "tests/Database/EInvoicingMigrationTest.php"
+    ]
+  },
+  {
+    "name": "M07 the migration refuses to drop documents that were issued",
+    "file": "app/Database/Migrations/20273400000000_EInvoicing.php",
+    "find": "if ($this->hasTable('einvoice_documents') && $this->db->table('einvoice_documents')->countAllResults() > 0) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Database/EInvoicingMigrationTest.php"
+    ]
+  },
+  {
+    "name": "N01 the panel offers to issue only to who may",
+    "file": "app/Libraries/EInvoicing/EInvoicePanel.php",
+    "find": "'can_issue'       => $canManage && $document === null,",
+    "replace": "'can_issue'       => $document === null,",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoicePanelTest.php"
+    ]
+  },
+  {
+    "name": "N02 the panel says when the books moved",
+    "file": "app/Libraries/EInvoicing/EInvoicePanel.php",
+    "find": "'in_sync'         => $document === null || $this->service->inSync($document),",
+    "replace": "'in_sync'         => true,",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoicePanelTest.php"
+    ]
+  },
+  {
+    "name": "N03 nothing is shown while the layer is off",
+    "file": "app/Libraries/EInvoicing/EInvoicePanel.php",
+    "find": "if (! $this->settings->isEnabled()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoicePanelTest.php"
+    ]
+  },
+  {
+    "name": "ZF01 issuing the sale of another employee is refused to someone who sees their own records only",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($sale === null || ! $this->scope->allows($employeeId, $sale->employee_id)) {",
+    "replace": "if ($sale === null) {",
+    "tests": [
+      "--filter",
+      "testIssueSale_RefusesTheSaleOfAnotherEmployee",
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF02 issuing the debit note of another employee is refused to someone who sees their own records only",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($note === null || ! $this->scope->allows($employeeId, $note->created_by)) {",
+    "replace": "if ($note === null) {",
+    "tests": [
+      "--filter",
+      "testIssueDebitNote_RefusesTheNoteOfAnotherEmployee",
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF03 the file of the document of another employee is refused to someone who sees their own records only",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($document === null || $this->outsideScope($document->sourceType, $document->sourceId, $employeeId)) {",
+    "replace": "if ($document === null) {",
+    "tests": [
+      "--filter",
+      "testXml_RefusesTheFileOfAnotherEmployee",
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF04 the list of documents is cut to the records of someone who sees their own records only",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($mine !== null) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testIssuedIn_ListsOnlyTheDocumentsOfTheirOwnRecords",
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF05 a debit note refers only to a document of a branch the employee works in",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "|| ! $this->branches->canAccess($referred->branchId, $employeeId)",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testIssueDebitNote_RefusesADocumentOfABranch",
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF06 a debit note refers only to a document out of the records the employee may see",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "|| $this->outsideScope($referred->sourceType, $referred->sourceId, $employeeId)) {",
+    "replace": ") {",
+    "tests": [
+      "--filter",
+      "testIssueDebitNote_RefusesADocumentOfAnotherEmployee",
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF07 a debit note refers only to a document of its own customer",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "if ($this->customerOf($referred->sourceType, $referred->sourceId) !== $customerId) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "testIssueDebitNote_RefusesADocumentOfAnotherCustomer|testIssueDebitNote_RefusesAnInvoiceOfTheCounter",
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZF08 the list of documents starts at the offset of its page",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "->limit($limit, $offset)",
+    "replace": "->limit($limit)",
+    "tests": [
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZT01 issuing never touches the payments of the sale",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $issued = $this->find($documentId);",
+    "replace": "        $this->db->table('sales_payments')->where('sale_id', $sourceId)->update(['payment_amount' => 1]);\n        $issued = $this->find($documentId);",
+    "tests": [
+      "--filter",
+      "testIssueSale_LeavesTheBooksOfTheSamePostings",
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZT02 issuing never touches the stock movements of the sale",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $issued = $this->find($documentId);",
+    "replace": "        $this->db->query('UPDATE ' . $this->db->prefixTable('inventory') . ' SET trans_inventory = trans_inventory + 1 WHERE trans_comment LIKE ?', ['POS ' . $sourceId . '%']);\n        $issued = $this->find($documentId);",
+    "tests": [
+      "--filter",
+      "testIssueSale_LeavesTheBooksOfTheSamePostings",
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZT03 issuing never touches the number of the invoice",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $issued = $this->find($documentId);",
+    "replace": "        $this->db->query('UPDATE ' . $this->db->prefixTable('sales') . \" SET invoice_number = CONCAT(IFNULL(invoice_number, ''), 'X') WHERE sale_id = ?\", [$sourceId]);\n        $issued = $this->find($documentId);",
+    "tests": [
+      "--filter",
+      "testIssueSale_LeavesTheBooksOfTheSamePostings",
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZT04 issuing never touches the stock books of the sale",
+    "file": "app/Libraries/EInvoicing/EInvoiceService.php",
+    "find": "        $issued = $this->find($documentId);",
+    "replace": "        $this->db->query('UPDATE ' . $this->db->prefixTable('accounting_stock_entries') . \" SET quantity = quantity + 1 WHERE source_type = 'sale' AND source_id = ?\", [$sourceId]);\n        $issued = $this->find($documentId);",
+    "tests": [
+      "--filter",
+      "testIssueSale_LeavesTheBooksOfTheSamePostings",
+      "tests/Libraries/EInvoicing/EInvoiceServiceTest.php"
+    ]
+  },
+  {
+    "name": "ZCP13 a write the database refused is not said to be saved",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if ($written === false) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "ZCP14 a street is no longer than its column",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "'street' => 255,",
+    "replace": "'street' => 1000,",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "ZCP15 an identification number is no longer than its column",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "if (! EInvoiceRules::within($clean['identification_number'], self::LIMITS['identification_number'])) {",
+    "replace": "if (false) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "ZCP16 the fields of the address are no longer than their columns",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "foreach (array_slice(self::LIMITS, 1) as $field => $limit) {",
+    "replace": "foreach ([] as $field => $limit) {",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "ZCP17 a postal code is no longer than its column",
+    "file": "app/Libraries/EInvoicing/CustomerParties.php",
+    "find": "'postal_code' => 10]",
+    "replace": "'postal_code' => 11]",
+    "tests": [
+      "tests/Libraries/EInvoicing/CustomerPartiesTest.php"
+    ]
+  },
+  {
+    "name": "ZE01 the name of a field or of a figure is said in the language of the reader",
+    "file": "app/Libraries/EInvoicing/EInvoiceException.php",
+    "find": "$arguments[] = in_array($name, $labelled, true) ? $this->word((string) $this->context[$name]) : (string) $this->context[$name];",
+    "replace": "$arguments[] = (string) $this->context[$name];",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceExceptionTest.php"
+    ]
+  },
+  {
+    "name": "ZE02 a value of a field that is not too long is left as it was typed",
+    "file": "app/Libraries/EInvoicing/EInvoiceException.php",
+    "find": "EInvoiceError::AddressInvalid, EInvoiceError::IdentificationInvalid => array_key_exists('expected', $this->context) ? ['field'] : [],",
+    "replace": "EInvoiceError::AddressInvalid, EInvoiceError::IdentificationInvalid => ['field'],",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceExceptionTest.php"
+    ]
+  },
+  {
+    "name": "ZE03 the prefix of a field of the settings is read",
+    "file": "app/Libraries/EInvoicing/EInvoiceException.php",
+    "find": "$word = str_starts_with($word, 'seller_') ? substr($word, 7) : $word;",
+    "replace": "$word = $word;",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceExceptionTest.php"
+    ]
+  },
+  {
+    "name": "ZRD1 a customer with an invalid tax number is listed although it has an identification",
+    "file": "app/Libraries/EInvoicing/EInvoiceReadiness.php",
+    "find": " AND (({$vat} <> '' AND {$vat} NOT REGEXP '^3[0-9]{13}3\\$') OR ({$vat} = '' AND (e.person_id IS NULL OR e.identification_type IS NULL OR e.identification_number = '')))",
+    "replace": " AND ({$vat} NOT REGEXP '^3[0-9]{13}3\\$' AND (e.person_id IS NULL OR e.identification_type IS NULL OR e.identification_number = ''))",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceReadinessTest.php"
+    ]
+  },
+  {
+    "name": "ZRD2 a tax number is read trimmed, as the document reads it",
+    "file": "app/Libraries/EInvoicing/EInvoiceReadiness.php",
+    "find": "$vat       = \"COALESCE(TRIM(c.tax_id), '')\";",
+    "replace": "$vat       = \"c.tax_id\";",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceReadinessTest.php"
+    ]
+  },
+  {
+    "name": "ZCU1 a customer whose identification was not saved is told so",
+    "file": "app/Controllers/Customers.php",
+    "find": "$partyNote = ' ' . lang('Customers.einvoice_not_saved');",
+    "replace": "$partyNote = '';",
+    "tests": [
+      "--filter",
+      "testPostSave_SaysThatTheIdentification",
+      "tests/Controllers/CustomersControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZV01 the paths of the key and of the certificate are not shown to who may not manage the settings",
+    "file": "app/Views/accounting_einvoicing/manage.php",
+    "find": "<?php if ($can_manage): ?>\n                    <div class=\"field span-all\">\n                        <label class=\"form-label\" for=\"key_path\">",
+    "replace": "<?php if (true): ?>\n                    <div class=\"field span-all\">\n                        <label class=\"form-label\" for=\"key_path\">",
+    "tests": [
+      "--filter",
+      "testGetIndex_ShowsThePathsOfTheKey",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZV02 each check says in words whether it is ready, a warning or not ready",
+    "file": "app/Views/accounting_einvoicing/manage.php",
+    "find": "<span class=\"visually-hidden\"><?= lang('Accounting_einvoicing.status_' . $check->status) ?>:</span>",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testGetIndex_SaysInWordsWhetherEachCheck",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZV03 the detail of a check is said in words and not as a code",
+    "file": "app/Views/accounting_einvoicing/manage.php",
+    "find": "return lang($key) === $key ? esc($check->detail) : lang($key);",
+    "replace": "return esc($check->detail);",
+    "tests": [
+      "--filter",
+      "testGetIndex_SaysTheNameOfTheTransport",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZV04 a key that cannot be used is not reported as documents issued unsigned",
+    "file": "app/Views/accounting_einvoicing/manage.php",
+    "find": "($check->id === 'signing' && $check->status === ReadinessCheck::FAIL ? '_failed' : '')",
+    "replace": "''",
+    "tests": [
+      "--filter",
+      "testGetIndex_SaysTheNameOfTheTransport",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZV05 the form of a debit note says when no note waits",
+    "file": "app/Views/accounting_einvoicing/manage.php",
+    "find": "<?php if ($notes === []): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "testGetIndex_SaysThatNoDebitNoteWaits",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZP01 the pager offers the next page",
+    "file": "app/Views/accounting_einvoicing/pager.php",
+    "find": "<?php if ($offset + $size < $total): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "testGetIndex_Pages",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZP02 the pager offers the previous page",
+    "file": "app/Views/accounting_einvoicing/pager.php",
+    "find": "<?php if ($offset > 0): ?>",
+    "replace": "<?php if (false): ?>",
+    "tests": [
+      "--filter",
+      "testGetIndex_Pages",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZP03 the pager shows only when the list does not fit one page",
+    "file": "app/Views/accounting_einvoicing/pager.php",
+    "find": "<?php if ($total > $size): ?>",
+    "replace": "<?php if (true): ?>",
+    "tests": [
+      "--filter",
+      "testGetIndex_ShowsNoPager",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZP04 an offset out of range falls back to a page of the list",
+    "file": "app/Controllers/AccountingEInvoicing.php",
+    "find": "return $offset < $total ? intdiv($offset, $size) * $size : max(0, intdiv($total - 1, $size) * $size);",
+    "replace": "return $offset;",
+    "tests": [
+      "--filter",
+      "testGetIndex_Pages",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZP05 a negative offset is read as the first page",
+    "file": "app/Controllers/AccountingEInvoicing.php",
+    "find": "$offset = max(0, (int) $this->request->getGet($name));",
+    "replace": "$offset = (int) $this->request->getGet($name);",
+    "tests": [
+      "--filter",
+      "testGetIndex_PagesTheIssuedDocuments",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZR01 the status line is on the receipt",
+    "file": "app/Views/sales/receipt.php",
+    "find": "<?= view('accounting_einvoicing/sale_panel', ['sale_id' => $sale_id_num]) ?>",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSalePanel_ShowsTheStatusOnTheReceiptPage",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZR02 the status line is on the tax invoice",
+    "file": "app/Views/sales/tax_invoice.php",
+    "find": "<?= view('accounting_einvoicing/sale_panel', ['sale_id' => $sale_id_num]) ?>",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "testSalePanel_ShowsTheStatusOnTheTaxInvoicePage",
+      "tests/Controllers/AccountingEInvoicingControllerTest.php"
+    ]
+  },
+  {
+    "name": "ZN04 electronic invoicing is in the accounting group of the sidebar",
+    "file": "app/Helpers/navigation_helper.php",
+    "find": "'accounting_routing', 'accounting_einvoicing', 'accounting_settings'",
+    "replace": "'accounting_routing', 'accounting_settings'",
+    "tests": [
+      "tests/helpers/NavigationHelperTest.php"
+    ]
+  },
+  {
+    "name": "ZC01 a debit note that has its document is not offered again",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "            ->where('d.document_id IS NULL', null, false)\n",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC02 a debit note that was taken back is not offered",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "['n.company_id' => CompanyContext::id(), 'n.status' => 'posted']",
+    "replace": "['n.company_id' => CompanyContext::id()]",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC03 the debit notes offered are those of the branches the employee works in",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "$builder->whereIn('n.branch_id', $allowed);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC04 the debit notes offered are those the employee made when they see their own records only",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "$builder->where('n.created_by', $mine);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC05 the documents offered are those of the customers of the notes",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "->whereIn('s.customer_id', array_values(array_unique($customerIds)))",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC06 the documents offered are those of the branches the employee works in",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "$builder->whereIn('d.branch_id', $allowed);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC07 the documents offered are those of the records the employee may see",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "$builder->where('s.employee_id', $mine);",
+    "replace": "",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC08 a debit note is named by its number when the series is on",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "$numbers[(int) $row->debit_note_id] ?? DocumentType::SalesDebitNote->fallback((int) $row->debit_note_id)",
+    "replace": "DocumentType::SalesDebitNote->fallback((int) $row->debit_note_id)",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  },
+  {
+    "name": "ZC09 a customer that is a company is named by its company",
+    "file": "app/Libraries/EInvoicing/EInvoiceChoices.php",
+    "find": "trim((string) $row->company_name) !== '' ? (string) $row->company_name : (string) $row->person_name",
+    "replace": "(string) $row->person_name",
+    "tests": [
+      "tests/Libraries/EInvoicing/EInvoiceChoicesTest.php"
+    ]
+  }
+]

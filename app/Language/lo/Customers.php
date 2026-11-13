@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => '',
     'discount_percent'              => '',
     'discount_type'                 => '',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'Email Address is already present in the database.',
     'employee'                      => '',
     'error_adding_updating'         => 'Customer add or update failed.',

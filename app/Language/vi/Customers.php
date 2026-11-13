@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Giảm giá cố định',
     'discount_percent'              => 'Phần trăm giảm giá',
     'discount_type'                 => 'Kiểu giảm giá',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'Địa chỉ thư điện tử đã sẵn có trong cơ sở dữ liệu rồi.',
     'employee'                      => 'Nhân viên',
     'error_adding_updating'         => 'Gặp lỗi khi cập nhật hay thêm khách hàng.',

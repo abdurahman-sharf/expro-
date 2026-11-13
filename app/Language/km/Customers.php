@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'បញ្ចុះតម្លៃជាសាច់ប្រាក់',
     'discount_percent'              => 'បញ្ចុះតម្លៃជាភាគរយ',
     'discount_type'                 => 'ប្រភេទបញ្ចុះតម្លៃ',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'អ៊ីមែលមានរួចហើយនៅក្នុងមូលដ្ឋានទិន្នន័យ',
     'employee'                      => 'បុគ្គលិក',
     'error_adding_updating'         => 'ការបន្ថែមឬការធ្វើ​ឲ្យ​ទាន់សម័យរបស់អតិថិជន បរាជ័យ',

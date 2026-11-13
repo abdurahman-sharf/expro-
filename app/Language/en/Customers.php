@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Fixed Discount',
     'discount_percent'              => 'Percentage Discount',
     'discount_type'                 => 'Discount Type',
+    'einvoice_not_saved'            => 'The electronic invoice identification and address of the customer were not saved; open the customer again and save them.',
     'email_duplicate'               => 'Email Address is already present in the database.',
     'employee'                      => 'Employee',
     'error_adding_updating'         => 'Customer add or update failed.',

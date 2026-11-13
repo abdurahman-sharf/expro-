@@ -11,6 +11,8 @@ return [
     'accounting_currencies_desc'   => 'عرض العملات وأسعارها وإدارتها.',
     'accounting_debit_notes'       => 'الإشعارات المدينة للمبيعات',
     'accounting_debit_notes_desc'  => 'زيادة ما يدين به العميل بلا فاتورة، وإلغاء الإشعار المدين.',
+    'accounting_einvoicing'        => 'الفوترة الإلكترونية',
+    'accounting_einvoicing_desc'   => 'طبقة المستندات المرشَّحة للفوترة الإلكترونية: الإعدادات والجاهزية والمستندات الصادرة وملفاتها.',
     'accounting_journals'          => 'القيود اليومية',
     'accounting_journals_desc'     => 'إنشاء القيود اليومية وترحيلها وعكسها.',
     'accounting_payables'          => 'أرصدة الموردين',

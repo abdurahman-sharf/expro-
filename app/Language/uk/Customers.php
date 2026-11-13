@@ -46,6 +46,7 @@ return [
     'discount_fixed'                => 'Фіксована знижка',
     'discount_percent'              => 'Відсоткова знижка',
     'discount_type'                 => 'Тип знижки',
+    'einvoice_not_saved'            => '',
     'email_duplicate'               => 'Така адреса електронної пошти вже існує в базі данних.',
     'employee'                      => 'Працівник',
     'error_adding_updating'         => 'Помилка при додаванні/оновленні клієнта.',

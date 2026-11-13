@@ -10,6 +10,11 @@ use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\EInvoicing\CustomerParties;
+use App\Libraries\EInvoicing\EInvoiceException;
+use App\Libraries\EInvoicing\EInvoiceRules;
+use App\Libraries\EInvoicing\EInvoiceSettings;
+use App\Libraries\EInvoicing\PartyIdentificationType;
 use App\Libraries\MasterData\BillingMethod;
 use App\Libraries\MasterData\CustomerFields;
 use App\Libraries\MasterData\CustomerStatus;
@@ -294,7 +299,7 @@ class Customers extends Persons
         $data['packages'] = $packages;
         $data['selected_package'] = $info->package_id;
 
-        $data = [...$data, ...$this->pricingFormData($info), ...$this->masterDataFormData($info)];
+        $data = [...$data, ...$this->pricingFormData($info), ...$this->masterDataFormData($info), ...$this->eInvoiceFormData($info)];
 
         $data['use_destination_based_tax'] = $this->config['use_destination_based_tax'];
         $data['opening_offered']           = $customerId == NEW_ENTRY && $this->openingOffered();
@@ -436,13 +441,29 @@ class Customers extends Persons
             return $this->response->setJSON(['success' => false, 'message' => $pricingRefusal, 'id' => NEW_ENTRY]);
         }
 
+        $eInvoice = $this->eInvoiceGiven();
+
+        if ($eInvoice['refusal'] !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $eInvoice['refusal'], 'id' => NEW_ENTRY]);
+        }
+
         if ($this->customer->save_customer($personData, $customerData, $customerId)) {
             if ($master !== []) {
                 (new CustomerFields())->audit((int) ($customerData['person_id'] ?? $customerId), $before, $master, $this->viewerId());
             }
 
+            $partyNote = '';
+
+            if ($eInvoice['party'] !== null) {
+                try {
+                    (new CustomerParties())->save((int) ($customerData['person_id'] ?? $customerId), $eInvoice['party'], $this->viewerId());
+                } catch (AccountingException) {
+                    $partyNote = ' ' . lang('Customers.einvoice_not_saved');
+                }
+            }
+
             $notSaved    = $this->saveCustomerPricing((int) ($customerData['person_id'] ?? $customerId));
-            $pricingNote = $notSaved === null ? '' : ' ' . lang('Customers.pricing_not_saved', [$notSaved]);
+            $pricingNote = $partyNote . ($notSaved === null ? '' : ' ' . lang('Customers.pricing_not_saved', [$notSaved]));
 
             // Save customer to Mailchimp selected list    // TODO: addOrUpdateMember should be refactored. Potentially pass an array or object instead of 6 parameters.
             $mailchimpStatus = $this->request->getPost('mailchimp_status');
@@ -477,6 +498,53 @@ class Customers extends Persons
                 'message' => lang('Customers.error_adding_updating') . ' ' . $firstName . ' ' . $lastName,
                 'id'      => NEW_ENTRY
             ]);
+        }
+    }
+
+    /**
+     * What the form of a customer shows for the electronic invoice, when that layer is on: the eleven
+     * identification types and what the customer holds, and whether the tax number is a valid one.
+     *
+     * @return array<string, mixed>
+     */
+    private function eInvoiceFormData(object $info): array
+    {
+        if (! (new EInvoiceSettings())->isEnabled()) {
+            return ['eInvoice' => null];
+        }
+
+        $personId = (int) ($info->person_id ?? 0);
+        $vat      = trim((string) ($info->tax_id ?? ''));
+
+        return ['eInvoice' => [
+            'types'       => array_map(static fn (PartyIdentificationType $type): array => ['code' => $type->value, 'label' => lang($type->languageKey())], PartyIdentificationType::cases()),
+            'party'       => $personId > 0 ? (new CustomerParties())->find($personId) : array_merge(array_fill_keys(CustomerParties::FIELDS, ''), ['country_code' => 'SA']),
+            'vat_invalid' => $vat !== '' && ! EInvoiceRules::vatNumber($vat),
+        ]];
+    }
+
+    /**
+     * The identification and the national address the form gave, checked before the customer is saved, or
+     * the reason they are refused. Null stands for a form that did not carry them.
+     *
+     * @return array{party: ?array<string, string>, refusal: ?string}
+     */
+    private function eInvoiceGiven(): array
+    {
+        if ($this->request->getPost('einvoice_party') !== '1' || ! (new EInvoiceSettings())->isEnabled()) {
+            return ['party' => null, 'refusal' => null];
+        }
+
+        $input = [];
+
+        foreach (CustomerParties::FIELDS as $field) {
+            $input[$field] = (string) $this->request->getPost('einvoice_' . $field);
+        }
+
+        try {
+            return ['party' => (new CustomerParties())->clean($input), 'refusal' => null];
+        } catch (EInvoiceException $failure) {
+            return ['party' => null, 'refusal' => $failure->describe()];
         }
     }
 

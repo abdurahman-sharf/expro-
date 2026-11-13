@@ -10,6 +10,8 @@ use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingType;
 use App\Libraries\Documents\CustomFieldType;
 use App\Libraries\Documents\DocumentError;
+use App\Libraries\EInvoicing\EInvoiceError;
+use App\Libraries\EInvoicing\PartyIdentificationType;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
@@ -190,6 +192,55 @@ class LanguageFilesTest extends CIUnitTestCase
         $this->assertNotSame('', $messages['debit_notes_manage'] ?? '', "{$locale} lacks the label of the permission acc_debit_notes_manage");
         $this->assertNotSame('', $module['accounting_debit_notes'] ?? '', $locale);
         $this->assertNotSame('', $module['accounting_debit_notes_desc'] ?? '', $locale);
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testAccountingEInvoicingFile_DefinesAMessageForEveryErrorAndNamesEveryIdentificationScheme(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_einvoicing.php";
+        $module   = include __DIR__ . "/../app/Language/{$locale}/Module.php";
+
+        foreach (EInvoiceError::cases() as $error) {
+            $this->assertNotSame('', $messages['error_' . $error->value] ?? '', "{$locale} lacks the message for {$error->value}");
+        }
+
+        foreach (PartyIdentificationType::cases() as $type) {
+            $this->assertNotSame('', $messages['identification_' . $type->value] ?? '', "{$locale} lacks the name of the scheme {$type->value}");
+        }
+
+        foreach (['einvoicing_manage', 'candidate_title', 'candidate_text', 'candidate_badge', 'state_not_generated', 'state_generated', 'state_signed', 'submission_not_submitted'] as $key) {
+            $this->assertNotSame('', $messages[$key] ?? '', "{$locale} lacks {$key}");
+        }
+
+        $this->assertNotSame('', $module['accounting_einvoicing'] ?? '', $locale);
+        $this->assertNotSame('', $module['accounting_einvoicing_desc'] ?? '', $locale);
+    }
+
+    #[DataProvider('translatedLocaleProvider')]
+    public function testAccountingEInvoicingFile_KeepsThePlaceholdersOfTheMessagesThatCarryThem(string $locale): void
+    {
+        $english = include __DIR__ . '/../app/Language/en/Accounting_einvoicing.php';
+        $other   = include __DIR__ . "/../app/Language/{$locale}/Accounting_einvoicing.php";
+
+        foreach ($english as $key => $text) {
+            preg_match_all('/\{\d+\}/', $text, $placeholders);
+
+            foreach ($placeholders[0] as $placeholder) {
+                $this->assertStringContainsString($placeholder, $other[$key], "{$locale} loses {$placeholder} in {$key}");
+            }
+        }
+    }
+
+    #[DataProvider('arabicLocaleProvider')]
+    public function testAccountingEInvoicingFile_IsTranslatedIntoArabicAndSaysItIsACandidate(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Accounting_einvoicing.php";
+
+        foreach ($messages as $key => $text) {
+            $this->assertMatchesRegularExpression('/\p{Arabic}/u', $text, "{$locale} leaves {$key} untranslated");
+        }
+
+        $this->assertStringContainsString('مرشَّحة', $messages['candidate_text']);
     }
 
     #[DataProvider('translatedLocaleProvider')]
