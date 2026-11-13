@@ -28,7 +28,7 @@
                     <td><bdi dir="ltr"><?= esc((string) $row['due_date']) ?></bdi></td>
                     <td class="text-end portal-amount">
                         <bdi dir="ltr"><?= esc($row['total']) ?></bdi>
-                        <?php if ($row['total_base'] !== null) : ?>
+                        <?php if (false) : ?>
                             <div class="small text-secondary portal-base-total"><?= esc(lang('Portal.total_base')) ?>: <bdi dir="ltr"><?= esc($row['total_base']) ?></bdi></div>
                         <?php endif; ?>
                     </td>
