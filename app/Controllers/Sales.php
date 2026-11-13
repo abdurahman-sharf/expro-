@@ -3384,8 +3384,8 @@ class Sales extends Secure_Controller
             $rowOptions[lang('Sales.cash_adjustment')]     = lang('Sales.cash_adjustment');
         }
 
-        $data['payment_options'] = $rowOptions;
-        $data['refund_options'] = $paymentOptions;
+        $data['payment_options']              = $rowOptions;
+        $data['refund_options']               = $paymentOptions;
         $data['reference_code_payment_types'] = get_reference_code_payment_types();
 
         // Set up a slightly modified list of payment types for new payment entry

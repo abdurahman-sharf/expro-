@@ -518,7 +518,7 @@ final class RoutingService
 
         $types = [];
 
-        foreach (array_keys(get_payment_options()) as $label) {
+        foreach (array_keys(configuredPaymentOptions()) as $label) {
             $type = PaymentType::fromLabel((string) $label);
 
             if ($type !== null) {

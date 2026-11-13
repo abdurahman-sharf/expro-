@@ -271,6 +271,16 @@ function get_timeformats(): array
  */
 function get_payment_options(array $keep = []): array
 {
+    return (new PaymentMethods())->offered(configuredPaymentOptions(), $keep);
+}
+
+/**
+ * The ways of payment the settings of the shop offer, whether or not the payment methods screen switched
+ * one off. What accounting must route is read from this list, because a way switched off keeps the payments
+ * already taken with it and the routing they are posted by.
+ */
+function configuredPaymentOptions(): array
+{
     $payments = [];
     $config = config(OSPOS::class)->settings;
 
@@ -308,7 +318,7 @@ function get_payment_options(array $keep = []): array
     $payments[lang('Sales.bank_transfer')] = lang('Sales.bank_transfer');
     $payments[lang('Sales.wallet')]        = lang('Sales.wallet');
 
-    return (new PaymentMethods())->offered($payments, $keep);
+    return $payments;
 }
 
 /**

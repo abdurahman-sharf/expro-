@@ -187,7 +187,7 @@
   {
     "name": "PM02 a switched-off way of payment is not offered",
     "file": "app/Libraries/Integrations/PaymentMethods.php",
-    "find": "if ($method->enabled) {",
+    "find": "if ($method->enabled || in_array($method->type, $kept, true)) {",
     "replace": "if (true) {",
     "tests": [
       "tests/Libraries/Integrations/PaymentMethodsTest.php"
@@ -1739,8 +1739,8 @@
   {
     "name": "SR03 the payment methods the register offers are the ones set",
     "file": "app/Helpers/locale_helper.php",
-    "find": "return (new PaymentMethods())->offered($payments);",
-    "replace": "return $payments;",
+    "find": "return (new PaymentMethods())->offered(configuredPaymentOptions(), $keep);",
+    "replace": "return configuredPaymentOptions();",
     "tests": [
       "--filter",
       "testGetIndex_OffersThePaymentMethods",
@@ -1752,7 +1752,7 @@
     "name": "SR04 the payment methods a purchase offers are the ones set",
     "file": "app/Models/Receiving.php",
     "find": "return (new PaymentMethods())->offered([",
-    "replace": "return ([",
+    "replace": "return (static fn (array $options, array $keep): array => $options)([",
     "tests": [
       "--filter",
       "testGetPaymentOptions_",
@@ -1992,8 +1992,8 @@
   {
     "name": "SR09 a refund of a sale is not offered a way that is off",
     "file": "app/Controllers/Sales.php",
-    "find": "$data['refund_options'] = $paymentOptions;",
-    "replace": "$data['refund_options'] = $rowOptions;",
+    "find": "$data['refund_options']               = $paymentOptions;",
+    "replace": "$data['refund_options']               = $rowOptions;",
     "tests": [
       "--filter",
       "testGetEdit_KeepsThePaymentMethodThatWasSwitchedOff|testPostSave_SavesThePaymentThatCarries|testPostSave_RefusesAPaymentChanged|testPostSave_RefusesANewPayment",
@@ -2076,7 +2076,7 @@
   {
     "name": "EX01 the form of an expense keeps the way it carries",
     "file": "app/Controllers/Expenses.php",
-    "find": "$expenseId == NEW_ENTRY ? [] : [(string) $data['expenses_info']->payment_type]",
+    "find": "$expenseId === NEW_ENTRY ? [] : [(string) $data['expenses_info']->payment_type]",
     "replace": "[]",
     "tests": [
       "--filter",
@@ -2395,6 +2395,18 @@
     "replace": "['integrations' => 140, 'notifications' => 161]",
     "tests": [
       "tests/Database/IntegrationSettingsTablesMigrationTest.php"
+    ],
+    "all": false
+  },
+  {
+    "name": "RT01 what accounting must route does not follow the payment methods the register switched off",
+    "file": "app/Libraries/Accounting/RoutingService.php",
+    "find": "foreach (array_keys(configuredPaymentOptions()) as $label) {",
+    "replace": "foreach (array_keys(get_payment_options()) as $label) {",
+    "tests": [
+      "--filter",
+      "testRequiredPaymentTypes_KeepsAWayTheRegisterSwitchedOff",
+      "tests/Libraries/Accounting/RoutingServiceTest.php"
     ],
     "all": false
   }
