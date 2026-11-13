@@ -915,6 +915,27 @@ class EmployeesControllerTest extends CIUnitTestCase
         }
     }
 
+    public function testGetView_MarksTheAgentModuleAndItsApprovalAsSensitiveAndLocksThemForANonAdministrator(): void
+    {
+        $this->loginAsNonAdmin($this->createNonAdminEmployee());
+
+        $html = $this->get('/employees/view/-1')->getBody();
+
+        foreach ([AccountingGuard::AI_USE, AccountingGuard::AI_APPROVE] as $permissionId) {
+            $this->assertMatchesRegularExpression('/<input[^>]*id="grant_' . $permissionId . '"[^>]*sensitive-permission[^>]*>/', $html, $permissionId);
+            $this->assertMatchesRegularExpression('/<input[^>]*id="grant_' . $permissionId . '"[^>]*data-locked="1"[^>]*>/', $html, $permissionId);
+        }
+
+        $this->loginAsAdmin();
+
+        $html = $this->get('/employees/view/-1')->getBody();
+
+        foreach ([AccountingGuard::AI_USE, AccountingGuard::AI_APPROVE] as $permissionId) {
+            $this->assertMatchesRegularExpression('/<input[^>]*id="grant_' . $permissionId . '"[^>]*sensitive-permission[^>]*>/', $html, $permissionId);
+            $this->assertDoesNotMatchRegularExpression('/<input[^>]*id="grant_' . $permissionId . '"[^>]*data-locked="1"[^>]*>/', $html, $permissionId);
+        }
+    }
+
     public function testGetView_ListsTheBankReconcilePermissionByNameAndDoesNotLockItBecauseItMovesNoMoney(): void
     {
         $this->loginAsNonAdmin($this->createNonAdminEmployee());
@@ -998,6 +1019,70 @@ class EmployeesControllerTest extends CIUnitTestCase
 
         $this->assertSame([], $this->auditedPermissions($target, 'permission_revoked'));
         $this->assertSame([], $this->auditedPermissions($target, 'permission_granted'));
+    }
+
+    public function testPostSave_LetsAnAdministratorGrantAndRemoveTheAgentPermissionsAndRecordsBoth(): void
+    {
+        $target = $this->createNonAdminEmployee();
+        $this->loginAsAdmin();
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('aion' . uniqid(), [
+            'grant_employees'                => 'employees',
+            'grant_' . AccountingGuard::AI_USE     => AccountingGuard::AI_USE,
+            'grant_' . AccountingGuard::AI_APPROVE => AccountingGuard::AI_APPROVE,
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue(model(Employee::class)->has_grant(AccountingGuard::AI_USE, $target));
+        $this->assertTrue(model(Employee::class)->has_grant(AccountingGuard::AI_APPROVE, $target));
+        $this->assertEqualsCanonicalizing([AccountingGuard::AI_USE, AccountingGuard::AI_APPROVE], $this->auditedPermissions($target, 'permission_granted'));
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('aioff' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertFalse(model(Employee::class)->has_grant(AccountingGuard::AI_USE, $target));
+        $this->assertFalse(model(Employee::class)->has_grant(AccountingGuard::AI_APPROVE, $target));
+        $this->assertEqualsCanonicalizing([AccountingGuard::AI_USE, AccountingGuard::AI_APPROVE], $this->auditedPermissions($target, 'permission_revoked'));
+    }
+
+    public function testPostSave_IgnoresTheAgentPermissionsTickedByAnEditorWhoIsNotAnAdministrator(): void
+    {
+        $editor = $this->createEmployee(grants: [
+            ['permission_id' => 'employees', 'menu_group' => 'office'],
+            ['permission_id' => AccountingGuard::AI_USE, 'menu_group' => 'office'],
+            ['permission_id' => AccountingGuard::AI_APPROVE, 'menu_group' => '--'],
+        ]);
+        $target = $this->createNonAdminEmployee();
+        $this->loginAsNonAdmin($editor);
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('noai' . uniqid(), [
+            'grant_employees'                      => 'employees',
+            'grant_' . AccountingGuard::AI_USE     => AccountingGuard::AI_USE,
+            'grant_' . AccountingGuard::AI_APPROVE => AccountingGuard::AI_APPROVE,
+        ]))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertFalse(model(Employee::class)->has_grant(AccountingGuard::AI_USE, $target));
+        $this->assertFalse(model(Employee::class)->has_grant(AccountingGuard::AI_APPROVE, $target));
+        $this->assertSame([], $this->auditedPermissions($target, 'permission_granted'));
+    }
+
+    public function testPostSave_KeepsTheAgentPermissionsOfAnEmployeeEditedByANonAdministrator(): void
+    {
+        $editor = $this->createNonAdminEmployee();
+        $target = $this->createEmployee(grants: [
+            ['permission_id' => 'employees', 'menu_group' => 'office'],
+            ['permission_id' => AccountingGuard::AI_USE, 'menu_group' => 'office'],
+            ['permission_id' => AccountingGuard::AI_APPROVE, 'menu_group' => '--'],
+        ]);
+        $this->loginAsNonAdmin($editor);
+
+        $result = json_decode($this->post('/employees/save/' . $target, $this->formFor('keepai' . uniqid(), ['grant_employees' => 'employees']))->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue(model(Employee::class)->has_grant(AccountingGuard::AI_USE, $target));
+        $this->assertTrue(model(Employee::class)->has_grant(AccountingGuard::AI_APPROVE, $target));
+        $this->assertSame([], $this->auditedPermissions($target, 'permission_revoked'));
     }
 
     private function rolesAdministratorLoggedIn(): int

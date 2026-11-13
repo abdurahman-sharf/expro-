@@ -134,14 +134,21 @@
                     <?php foreach ($all_modules as $module) { ?>
                         <section class="perm-module">
                             <div class="perm-head form-check form-switch">
-                                <?= form_checkbox([
+                                <?php
+                                $moduleAttributes = [
                                     'name'    => "grant_$module->module_id",
                                     'id'      => "grant_$module->module_id",
                                     'value'   => $module->module_id,
                                     'checked' => $module->grant == 1,
-                                    'class'   => 'form-check-input module-toggle',
+                                    'class'   => 'form-check-input module-toggle' . (in_array($module->module_id, $sensitive_permissions, true) ? ' sensitive-permission' : ''),
                                     'role'    => 'switch'
-                                ]) ?>
+                                ];
+
+                                if (in_array($module->module_id, $sensitive_permissions, true) && ! $is_admin) {
+                                    $moduleAttributes += ['disabled' => 'disabled', 'data-locked' => '1', 'title' => lang('Employees.sensitive_locked')];
+                                }
+                                ?>
+                                <?= form_checkbox($moduleAttributes) ?>
                                 <?= form_hidden("menu_group_$module->module_id", $module->menu_group) ?>
                                 <label class="form-check-label" for="grant_<?= esc($module->module_id) ?>">
                                     <span class="perm-title"><?= lang("Module.$module->module_id") ?></span>
@@ -341,7 +348,7 @@
         const $selectAll = $('#permission_select_all');
 
         const refreshSelectAll = function() {
-            const $toggles = $('#permission_list .module-toggle');
+            const $toggles = $('#permission_list .module-toggle').not('.sensitive-permission');
             const on = $toggles.filter(':checked').length;
             $selectAll.prop('checked', on === $toggles.length).prop('indeterminate', on > 0 && on < $toggles.length);
         };
@@ -367,7 +374,7 @@
 
         $selectAll.on('change', function() {
             const checked = $selectAll.is(':checked');
-            $('#permission_list .module-toggle').prop('checked', checked).trigger('change');
+            $('#permission_list .module-toggle').not('.sensitive-permission').prop('checked', checked).trigger('change');
             $('#permission_list .perm-subs input[type=checkbox]').not('.sensitive-permission').prop('checked', checked);
             refreshSelectAll();
         });

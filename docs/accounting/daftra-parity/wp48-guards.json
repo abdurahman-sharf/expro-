@@ -1,0 +1,3882 @@
+[
+ {
+  "name": "G01 settings: the agent works only while the books are on",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "return $this->isSwitchedOn() && (new AccountingSettings($this->db))->isEnabled();",
+  "replace": "return $this->isSwitchedOn();",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G02 settings: the switch is off where it was never written",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "get_value(self::ENABLED_KEY, '0') === '1'",
+  "replace": "get_value(self::ENABLED_KEY, '1') === '1'",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G03 settings: assertEnabled refuses with a named error",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "if (! $this->isEnabled()) {\n            throw new AccountingException(AccountingError::AiDisabled",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::AiDisabled",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G04 settings: turning the agent on needs the permission to change the settings",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "if ($enabled) {\n            $this->requireManage($employeeId);",
+  "replace": "if ($enabled) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G05 settings: turning it off needs the settings or the agent permission",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "} elseif (! $this->guard->has(AccountingGuard::SETTINGS_MANAGE, $employeeId) && ! $this->guard->has(AccountingGuard::AI_USE, $employeeId)) {",
+  "replace": "} elseif (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G06 settings: a switch that does not change is not written or audited",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "if ($this->isSwitchedOn() === $enabled) {\n            return;\n        }",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G07 settings: the audit of a switch names on or off",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "$enabled ? 'ai_enabled' : 'ai_disabled'",
+  "replace": "'ai_enabled'",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G08 settings: a stored value that is not valid gives the default",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "return $this->normalized($name, $stored) ?? (string) $this->normalized($name, $spec['default']);",
+  "replace": "return $stored;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G09 settings: updating needs the permission to change the settings",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "public function update(array $input, ?int $employeeId): void\n    {\n        $this->requireManage($employeeId);",
+  "replace": "public function update(array $input, ?int $employeeId): void\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G10 settings: a threshold that does not exist is refused",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "if (! is_string($name) || ! isset(self::THRESHOLDS[$name])) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G11 settings: a value that is not valid is refused",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "if ($value === null) {\n                throw new AccountingException(AccountingError::AiSettingInvalid, \"The value of {$name} is not valid.\"",
+  "replace": "if (false) {\n                throw new AccountingException(AccountingError::AiSettingInvalid, \"The value of {$name} is not valid.\"",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G12 settings: a whole number keeps its lower bound",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "(int) $value < $spec['min'] ||",
+  "replace": "false ||",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G13 settings: a whole number keeps its upper bound",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "|| (int) $value > $spec['max']",
+  "replace": "|| false",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G14 settings: an amount is above zero",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "bccomp($value, '0', 4) <= 0)",
+  "replace": "bccomp($value, '0', 4) < 0)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G15 settings: the night does not start and end at one hour",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "if (($changes['night_start'] ?? $before['night_start']) === ($changes['night_end'] ?? $before['night_end'])) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G16 settings: a change writes before and after in the audit log",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "'before' => array_intersect_key($before, $changes),",
+  "replace": "'before' => [],",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G17 settings: weekdays are zero to six",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "private const DAYS_PATTERN   = '/^[0-6](,[0-6]){0,6}$/';",
+  "replace": "private const DAYS_PATTERN   = '/^[0-9](,[0-9]){0,6}$/';",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G20 proposal: creating needs the master switch",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "public function create(ProposalDraft $draft, ?int $employeeId = null): int\n    {\n        $this->settings->assertEnabled();",
+  "replace": "public function create(ProposalDraft $draft, ?int $employeeId = null): int\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G21 proposal: creating needs the permission to use the agent",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$this->settings->assertEnabled();\n        $this->guard->require(AccountingGuard::AI_USE, $employeeId);\n\n        $this->assertShape($draft);",
+  "replace": "$this->settings->assertEnabled();\n\n        $this->assertShape($draft);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G22 proposal: the branch of the proposal is inside the scope of who creates it",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$this->branches->requireBranch($branchId, $employeeId);\n        $this->assertNotControlAccounts($lines);",
+  "replace": "$this->assertNotControlAccounts($lines);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G23 proposal: the agent does not touch a control account",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$this->assertNotControlAccounts($lines);\n        $this->assertLineRules($lines);",
+  "replace": "$this->assertLineRules($lines);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G24 proposal: the journals it rests on must stand",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$this->assertLineRules($lines);\n        $this->assertSubjectsStand($draft->subjectJournals);",
+  "replace": "$this->assertLineRules($lines);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G26 proposal: a kind is a word",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "preg_match(self::KIND_PATTERN, $draft->kind) !== 1\n            || ",
+  "replace": "false\n            || ",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G27 proposal: a proposer has a name",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "|| $draft->proposer === '' || mb_strlen($draft->proposer) > 64",
+  "replace": "|| mb_strlen($draft->proposer) > 64",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G28 proposal: a proposer name has a largest length",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "|| mb_strlen($draft->proposer) > 64",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G29 proposal: a proposal has a key",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "|| $draft->dedupeKey === ''\n",
+  "replace": "\n",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G30 proposal: a title has a largest length",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "|| mb_strlen($title) > self::TITLE_MAX",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G31 proposal: a text has a largest length",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "|| mb_strlen($draft->description) > self::TEXT_MAX",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G32 proposal: a proposal has evidence",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "|| $draft->evidence === []\n",
+  "replace": "\n",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G33 proposal: a proposal is in the base currency",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ($line->foreignAmount !== null || $line->currencyCode !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G34 proposal: a line has a description when the books ask",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ((new AccountingSettings($this->db))->lineDescriptionRequired()) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G35 proposal: income and expense lines carry a cost center when the books ask",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if (! (new JournalSettings($this->db))->costCenterRequired()) {\n            return;\n        }",
+  "replace": "return;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G36 proposal: only income and expense lines need the cost center",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "->whereIn('account_type', ['revenue', 'expense'])",
+  "replace": "->whereIn('account_type', ['revenue', 'expense', 'asset'])",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G37 proposal: control accounts are the three kinds of entity",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "private const CONTROL      = [EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION];",
+  "replace": "private const CONTROL      = [EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G38 proposal: the expiry comes from the setting",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "INTERVAL ' . $this->settings->int('proposal_expiry_days')",
+  "replace": "INTERVAL ' . 14",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G39 proposal: the proposal is written once for one key",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "' ON DUPLICATE KEY UPDATE proposal_id = proposal_id'",
+  "replace": "''",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G40 proposal: a duplicate is told by the rows it wrote",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ($this->db->affectedRows() === 0) {\n            throw new AccountingException(AccountingError::AiProposalDuplicate",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::AiProposalDuplicate",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G41 proposal: the creation is written to the audit log with the agent as origin",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$this->audit->write('ai_proposal', $id, 'proposal_created', $employeeId, JournalOrigin::Ai,",
+  "replace": "$this->audit->write('ai_proposal', $id, 'proposal_created', $employeeId, JournalOrigin::User,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G42 proposal: the fingerprint is that of the journal as proposed",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "'fingerprint'   => self::fingerprintOf($core),",
+  "replace": "'fingerprint'   => str_repeat('0', 64),",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G43 proposal: the snapshot keeps the accounts",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "'accounts' => self::hashRows($accounts),",
+  "replace": "'accounts' => 'x',",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G44 proposal: the snapshot keeps the branch",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "'branch'   => self::hashRows($branch),",
+  "replace": "'branch'   => 'x',",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G45 proposal: the snapshot keeps the journals it rests on",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "'subjects' => self::hashRows($standing),",
+  "replace": "'subjects' => 'x',",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G50 approve: needs the master switch",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "public function approve(int $proposalId, ?int $employeeId): int\n    {\n        $this->settings->assertEnabled();",
+  "replace": "public function approve(int $proposalId, ?int $employeeId): int\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G51 approve: only a person approves",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ($employeeId === null) {\n            throw new AccountingException(AccountingError::AiApproverRequired, 'A proposal is decided by a person.');",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::AiApproverRequired, 'A proposal is decided by a person.');",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G52 approve: needs the permission to approve",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$approver = $this->human($employeeId);\n\n        $this->guard->require(AccountingGuard::AI_APPROVE, $approver);\n        $this->guard->require(AccountingGuard::JOURNALS_POST, $approver);",
+  "replace": "$approver = $this->human($employeeId);\n\n        $this->guard->require(AccountingGuard::JOURNALS_POST, $approver);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G53 approve: needs the permission to post journals",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$this->guard->require(AccountingGuard::AI_APPROVE, $approver);\n        $this->guard->require(AccountingGuard::JOURNALS_POST, $approver);",
+  "replace": "$this->guard->require(AccountingGuard::AI_APPROVE, $approver);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G54 approve: a proposal of another branch is not found",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ($row === null || ! $this->branches->canAccess((int) $row->branch_id, $employeeId)) {\n            throw new AccountingException(AccountingError::AiProposalNotFound, \"Proposal {$proposalId} does not exist.\");\n        }\n\n        $payload",
+  "replace": "if ($row === null) {\n            throw new AccountingException(AccountingError::AiProposalNotFound, \"Proposal {$proposalId} does not exist.\");\n        }\n\n        $payload",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G55 approve: the period locks are taken before the proposal is locked",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "            (new PeriodLocks($this->db))->shareForPosting((int) $head->branch_id);\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G56 approve: a proposal decided already is refused",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ($row->status !== ProposalStatus::Proposed->value) {\n                throw new AccountingException(AccountingError::AiProposalDecided, 'The proposal was decided already.', ['status' => $row->status]);\n            }\n\n            if ((int) $row->is_expired === 1) {",
+  "replace": "if ($row->status === 'nonsense') {\n                throw new AccountingException(AccountingError::AiProposalDecided, 'The proposal was decided already.', ['status' => $row->status]);\n            }\n\n            if ((int) $row->is_expired === 1) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G57 approve: an expired proposal is not posted",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ((int) $row->is_expired === 1) {\n                $this->close",
+  "replace": "if (false) {\n                $this->close",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G58 approve: a proposal that was changed after it was checked is not posted",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if (! is_array($payload) || ! $this->intact($row, $payload)) {",
+  "replace": "if (! is_array($payload)) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G59 approve: a proposal the books left behind is superseded",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ($stale !== null) {\n                $this->close",
+  "replace": "if (false) {\n                $this->close",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G60 approve: the treasury scope of the approver is asked",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "            (new TreasuryScopes($this->db, $this->branches))->assertMayPost($journal->lines, $approver);\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G61 approve: a journal that exists already is not taken for the approval",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if (! $result->created) {\n                throw new AccountingException(AccountingError::AiProposalDecided, 'The proposal was posted already.');\n            }",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G62 approve: the journal is posted with the agent as origin",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "            origin: JournalOrigin::Ai,\n            employeeId: $employeeId,",
+  "replace": "            origin: JournalOrigin::User,\n            employeeId: $employeeId,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G63 approve: the decider and the journal are written to the proposal",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "'decided_by' => $approver,\n                'decided_at' => new RawSql('NOW()'),\n            ]);",
+  "replace": "'decided_at' => new RawSql('NOW()'),\n            ]);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G64 approve: the approval is written to the audit log as a person's",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "'proposal_approved', $approver, JournalOrigin::User,",
+  "replace": "'proposal_approved', $approver, JournalOrigin::Ai,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G65 approve: the staleness check compares the accounts",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "'accounts' => 'accounts_changed', 'branch' => 'branch_changed', 'subjects' => 'subject_changed'",
+  "replace": "'branch' => 'branch_changed', 'subjects' => 'subject_changed'",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G66 approve: the staleness check compares the branch",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "'accounts' => 'accounts_changed', 'branch' => 'branch_changed', 'subjects' => 'subject_changed'",
+  "replace": "'accounts' => 'accounts_changed', 'subjects' => 'subject_changed'",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G67 approve: the staleness check compares the journals it rests on",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "'accounts' => 'accounts_changed', 'branch' => 'branch_changed', 'subjects' => 'subject_changed'",
+  "replace": "'accounts' => 'accounts_changed', 'branch' => 'branch_changed'",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G68 approve: the staleness check runs the checks of a posted journal",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "            $this->posting->validate($journal);\n        } catch (PostingException $failure) {",
+  "replace": "            $journal->date;\n        } catch (PostingException $failure) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G70 reject: only a person rejects",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$decider = $this->human($employeeId);",
+  "replace": "$decider = (int) $employeeId;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G71 reject: needs the permission to approve",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$decider = $this->human($employeeId);\n\n        $this->guard->require(AccountingGuard::AI_APPROVE, $decider);",
+  "replace": "$decider = $this->human($employeeId);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G72 reject: needs a reason",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
+  "replace": "if (mb_strlen($reason) > self::REASON_MAX) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G73 reject: the reason has a largest length",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ($reason === '' || mb_strlen($reason) > self::REASON_MAX) {",
+  "replace": "if ($reason === '') {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G74 reject: a proposal outside the branch scope is not found",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$this->head($proposalId, $decider);\n\n        $this->transactional",
+  "replace": "$this->transactional",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G75 reject: a proposal decided already is refused",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ($row->status !== ProposalStatus::Proposed->value) {\n                throw new AccountingException(AccountingError::AiProposalDecided, 'The proposal was decided already.', ['status' => $row->status]);\n            }\n\n            $this->close($row, ProposalStatus::Rejected",
+  "replace": "$this->close($row, ProposalStatus::Rejected",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G76 close: a rejected proposal keeps the place of its key",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "'dedupe_key'    => $status === ProposalStatus::Rejected ? $row->dedupe_key : null,",
+  "replace": "'dedupe_key'    => null,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G77 close: the decider of a rejection is written",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "'decided_by'    => $status === ProposalStatus::Rejected ? $employeeId : null,",
+  "replace": "'decided_by'    => null,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G78 close: every decision is written to the audit log",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$this->audit->write('ai_proposal', (int) $row->proposal_id, $action,",
+  "replace": "$this->audit->write('ai_proposal', (int) $row->proposal_id, 'proposal_closed',",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G80 expire: only a proposal that is standing expires",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "WHERE status = ? AND expires_at < NOW() ORDER BY",
+  "replace": "WHERE status != ? AND expires_at < NOW() ORDER BY",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G81 expire: only a proposal past its time expires",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "AND expires_at < NOW() ORDER BY",
+  "replace": "AND expires_at > NOW() ORDER BY",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G82 approve: the time of a proposal is read as the database counts it",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "SELECT *, (expires_at < NOW()) AS is_expired",
+  "replace": "SELECT *, (expires_at > NOW()) AS is_expired",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G83 read: a proposal past its time is told as expired in the list",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "br.code AS branch_code, (p.expires_at < NOW()) AS is_expired', false)",
+  "replace": "br.code AS branch_code, (p.expires_at > NOW()) AS is_expired', false)",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G84 read: a proposal past its time is told as expired when it is shown",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "(p.expires_at < NOW()) AS is_expired\", false)",
+  "replace": "(p.expires_at > NOW()) AS is_expired\", false)",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G85 read: finding a proposal needs the permission to use the agent",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "public function find(int $proposalId, ?int $employeeId): object\n    {\n        $this->guard->require(AccountingGuard::AI_USE, $employeeId);",
+  "replace": "public function find(int $proposalId, ?int $employeeId): object\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G86 read: a proposal of another branch is not found",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ($row === null || ! $this->branches->canAccess((int) $row->branch_id, $employeeId)) {\n            throw new AccountingException(AccountingError::AiProposalNotFound, \"Proposal {$proposalId} does not exist.\");\n        }\n\n        $payload  =",
+  "replace": "if ($row === null) {\n            throw new AccountingException(AccountingError::AiProposalNotFound, \"Proposal {$proposalId} does not exist.\");\n        }\n\n        $payload  =",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G87 read: searching needs the permission to use the agent",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "public function search(array $filters, ?int $employeeId, int $limit = 25, int $offset = 0): array\n    {\n        $this->guard->require(AccountingGuard::AI_USE, $employeeId);",
+  "replace": "public function search(array $filters, ?int $employeeId, int $limit = 25, int $offset = 0): array\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G88 read: a search keeps to the branches of the reader",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$allowed === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('p.branch_id', $allowed);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G89 read: a reader of no branch sees nothing",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$allowed === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('p.branch_id', $allowed);",
+  "replace": "$allowed === [] ? null : $builder->whereIn('p.branch_id', $allowed);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G90 read: a search filters by status",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if (ProposalStatus::tryFrom($status) !== null) {\n            $builder->where('p.status', $status);",
+  "replace": "if (false) {\n            $builder->where('p.status', $status);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G91 read: a search filters by kind",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "if ($kind !== '') {\n            $builder->where('p.kind', $kind);",
+  "replace": "if (false) {\n            $builder->where('p.kind', $kind);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G92 read: a search filters by the first day",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "['from' => ['p.created_at >=', ' 00:00:00']",
+  "replace": "['from' => ['p.created_at >=', ' 99:00:00']",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G93 read: a search filters by the last day",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "'to' => ['p.created_at <=', ' 23:59:59']",
+  "replace": "'to' => ['p.created_at <=', ' 00:00:00']",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G94 read: the counts need the permission to use the agent",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "public function counts(?int $employeeId): array\n    {\n        $this->guard->require(AccountingGuard::AI_USE, $employeeId);",
+  "replace": "public function counts(?int $employeeId): array\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G95 read: the counts keep to the branches of the reader",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "$allowed === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn('branch_id', $allowed);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G100 findings: reading needs the permission to use the agent",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "public function search(array $filters, ?int $employeeId, int $limit = 25, int $offset = 0): array\n    {\n        $this->guard->require(AccountingGuard::AI_USE, $employeeId);",
+  "replace": "public function search(array $filters, ?int $employeeId, int $limit = 25, int $offset = 0): array\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G101 findings: a page has a largest size",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "limit(max(1, min($limit, self::PAGE_MAX)), max(0, $offset))",
+  "replace": "limit($limit, $offset)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G102 findings: the file has a largest size",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "while ($sent < self::EXPORT_MAX) {",
+  "replace": "while (true) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G103 findings: the file is read in pages that do not overlap",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "->where('f.finding_id <', $last)",
+  "replace": "->where('f.finding_id <=', $last)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G104 findings: the file needs the permission to use the agent",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "public function stream(array $filters, ?int $employeeId): Generator\n    {\n        $this->guard->require(AccountingGuard::AI_USE, $employeeId);",
+  "replace": "public function stream(array $filters, ?int $employeeId): Generator\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G105 findings: a finding of another branch is not found",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "$row = $this->filtered([], $employeeId)->where('f.finding_id', $findingId)->get()->getRow();",
+  "replace": "$row = $this->db->table('accounting_ai_findings f')->select('f.*')->where('f.finding_id', $findingId)->get()->getRow();",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G106 findings: finding one needs the permission to use the agent",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "public function find(int $findingId, ?int $employeeId): object\n    {\n        $this->guard->require(AccountingGuard::AI_USE, $employeeId);",
+  "replace": "public function find(int $findingId, ?int $employeeId): object\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G107 findings: the counts need the permission to use the agent",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "public function counts(?int $employeeId): array\n    {\n        $this->guard->require(AccountingGuard::AI_USE, $employeeId);",
+  "replace": "public function counts(?int $employeeId): array\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G108 findings: deciding needs the permission to use the agent",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "public function decide(int $findingId, string $decision, string $reason, ?int $employeeId): void\n    {\n        $this->guard->require(AccountingGuard::AI_USE, $employeeId);",
+  "replace": "public function decide(int $findingId, string $decision, string $reason, ?int $employeeId): void\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G109 findings: only a person decides",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "if ($employeeId === null) {\n            throw new AccountingException(AccountingError::AiApproverRequired, 'A finding is decided by a person.');",
+  "replace": "if (false) {\n            throw new AccountingException(AccountingError::AiApproverRequired, 'A finding is decided by a person.');",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G110 findings: a decision is one of the two",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "if (! in_array($decision, [self::DISMISSED, self::CONFIRMED], true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G111 findings: a decision has a reason",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "if ($reason === '' || mb_strlen($reason) > ProposalService::REASON_MAX) {",
+  "replace": "if (mb_strlen($reason) > ProposalService::REASON_MAX) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G112 findings: a reason has a largest length",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "if ($reason === '' || mb_strlen($reason) > ProposalService::REASON_MAX) {",
+  "replace": "if ($reason === '') {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G113 findings: a finding outside the branch scope is not decided",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "        $this->find($findingId, $employeeId);\n\n        $this->transactional",
+  "replace": "        $this->transactional",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G114 findings: a finding is decided once",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "if ($row->status !== self::OPEN) {\n                throw new AccountingException(AccountingError::AiFindingDecided",
+  "replace": "if (false) {\n                throw new AccountingException(AccountingError::AiFindingDecided",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G115 findings: the decider is written",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "'decided_by'      => $employeeId,",
+  "replace": "'decided_by'      => 1,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G116 findings: the reason is written",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "'decision_reason' => $reason,\n            ]);",
+  "replace": "'decision_reason' => 'x',\n            ]);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G117 findings: the decision is written to the audit log",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "$this->audit->write('ai_finding', $findingId, 'finding_' . $decision,",
+  "replace": "$this->audit->write('ai_finding', $findingId, 'finding_decided',",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G118 findings: a reader of some branches sees theirs and the company's",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "$builder->groupStart()->whereIn('f.branch_id', $allowed)->orWhere('f.branch_id IS NULL', null, false)->groupEnd();",
+  "replace": "$builder->whereIn('f.branch_id', $allowed);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G119 findings: a reader of no branch sees only the company's",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "$allowed === [] ? $builder->groupStart()->where('f.branch_id IS NULL', null, false)->groupEnd() :",
+  "replace": "$allowed === [] ? null :",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G120 findings: a filter by status",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "if (in_array($status, self::STATUSES, true)) {\n            $builder->where('f.status', $status);",
+  "replace": "if (false) {\n            $builder->where('f.status', $status);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G121 findings: a filter by severity",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "if (in_array($severity, self::SEVERITIES, true)) {\n            $builder->where('f.severity', $severity);",
+  "replace": "if (false) {\n            $builder->where('f.severity', $severity);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G122 findings: a filter by rule",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "if ($rule !== '') {\n            $builder->where('f.rule_code', $rule);",
+  "replace": "if (false) {\n            $builder->where('f.rule_code', $rule);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G123 findings: a filter by the first day",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "['from' => 'f.occurred_on >=',",
+  "replace": "['from' => 'f.occurred_on >',",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G124 findings: a filter by the last day",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "'to' => 'f.occurred_on <=']",
+  "replace": "'to' => 'f.occurred_on <']",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G130 scan: needs the master switch",
+  "file": "app/Libraries/Accounting/Ai/AnomalyScanner.php",
+  "find": "public function scan(?int $employeeId = null, ?DateTimeImmutable $today = null, ?string $since = null): ScanReport\n    {\n        $this->settings->assertEnabled();",
+  "replace": "public function scan(?int $employeeId = null, ?DateTimeImmutable $today = null, ?string $since = null): ScanReport\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AnomalyScannerTest.php"
+  ]
+ },
+ {
+  "name": "G131 scan: needs the permission to use the agent",
+  "file": "app/Libraries/Accounting/Ai/AnomalyScanner.php",
+  "find": "$this->settings->assertEnabled();\n        $this->guard->require(AccountingGuard::AI_USE, $employeeId);\n\n        $today",
+  "replace": "$this->settings->assertEnabled();\n\n        $today",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AnomalyScannerTest.php"
+  ]
+ },
+ {
+  "name": "G132 scan: the start is the lookback of the setting",
+  "file": "app/Libraries/Accounting/Ai/AnomalyScanner.php",
+  "find": "$today->modify('-' . $this->settings->int('lookback_days') . ' days')",
+  "replace": "$today->modify('-90 days')",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AnomalyScannerTest.php"
+  ]
+ },
+ {
+  "name": "G133 scan: the scan keeps to the branches of the employee",
+  "file": "app/Libraries/Accounting/Ai/AnomalyScanner.php",
+  "find": "$this->branches->allowedBranchIds($employeeId));",
+  "replace": "null);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AnomalyScannerTest.php"
+  ]
+ },
+ {
+  "name": "G134 scan: a finding is written once for one key",
+  "file": "app/Libraries/Accounting/Ai/AnomalyScanner.php",
+  "find": "' ON DUPLICATE KEY UPDATE finding_id = finding_id'",
+  "replace": "''",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AnomalyScannerTest.php"
+  ]
+ },
+ {
+  "name": "G135 scan: a finding that existed is told by the rows written",
+  "file": "app/Libraries/Accounting/Ai/AnomalyScanner.php",
+  "find": "return $this->db->affectedRows() === 1;",
+  "replace": "return true;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AnomalyScannerTest.php"
+  ]
+ },
+ {
+  "name": "G136 scan: the scan is written to the audit log with the figures",
+  "file": "app/Libraries/Accounting/Ai/AnomalyScanner.php",
+  "find": "'created'  => array_sum($created),",
+  "replace": "'created'  => 0,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AnomalyScannerTest.php"
+  ]
+ },
+ {
+  "name": "G137 scan: the key of a finding is made from the rule and the records",
+  "file": "app/Libraries/Accounting/Ai/AnomalyScanner.php",
+  "find": "$finding->digest(),",
+  "replace": "hash('sha256', $finding->rule),",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AnomalyScannerTest.php"
+  ]
+ },
+ {
+  "name": "G140 run: needs the master switch",
+  "file": "app/Libraries/Accounting/Ai/ProposalRunner.php",
+  "find": "public function run(?int $employeeId = null, ?DateTimeImmutable $today = null): ProposalRunReport\n    {\n        $this->settings->assertEnabled();",
+  "replace": "public function run(?int $employeeId = null, ?DateTimeImmutable $today = null): ProposalRunReport\n    {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G141 run: needs the permission to use the agent",
+  "file": "app/Libraries/Accounting/Ai/ProposalRunner.php",
+  "find": "$this->settings->assertEnabled();\n        $this->guard->require(AccountingGuard::AI_USE, $employeeId);\n\n        $today",
+  "replace": "$this->settings->assertEnabled();\n\n        $today",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G142 run: the proposals past their time expire first",
+  "file": "app/Libraries/Accounting/Ai/ProposalRunner.php",
+  "find": "$expired   = $this->proposals->expireDue();",
+  "replace": "$expired   = 0;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G143 run: the proposers keep to the branches of the employee",
+  "file": "app/Libraries/Accounting/Ai/ProposalRunner.php",
+  "find": "$branchIds = $this->branches->allowedBranchIds($employeeId);",
+  "replace": "$branchIds = null;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G144 run: a suggestion that stands already is counted and left alone",
+  "file": "app/Libraries/Accounting/Ai/ProposalRunner.php",
+  "find": "if ($failure->error === AccountingError::AiProposalDuplicate) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G145 run: the run stops at once when the switch is turned off",
+  "file": "app/Libraries/Accounting/Ai/ProposalRunner.php",
+  "find": "if ($failure->error === AccountingError::AiDisabled) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G146 run: a suggestion that a check refuses is listed",
+  "file": "app/Libraries/Accounting/Ai/ProposalRunner.php",
+  "find": "$refused[] = ['proposer' => $proposer->name(), 'key' => $draft->dedupeKey, 'reason' => AccountingMessage::of($failure)];\n                } catch (BranchException|PostingException $failure) {",
+  "replace": "} catch (BranchException|PostingException $failure) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G147 run: the run is written to the audit log",
+  "file": "app/Libraries/Accounting/Ai/ProposalRunner.php",
+  "find": "$this->audit->write('ai_run', null, 'proposers_run', $employeeId, JournalOrigin::Ai, [",
+  "replace": "$this->audit->write('ai_run', null, 'proposers_run', $employeeId, JournalOrigin::User, [",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalRunnerTest.php"
+  ]
+ },
+ {
+  "name": "G200 off hours: only manual journals are read",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "            ->whereIn('j.source_type', ['manual', ProposalService::SOURCE])\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G201 off hours: only journals in the books are read",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "            ->where('j.status', JournalStatus::Posted->value)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G202 off hours: the pattern is the last year",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "\n            ->where('j.posted_at >=', $context->today->modify('-' . self::YEAR . ' days')->format('Y-m-d'));",
+  "replace": ";",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G203 off hours: the scan keeps to the branches given",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "            $builder->whereIn('j.branch_id', $context->branchIds);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G204 off hours: a reader of no branch gets nothing",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "            if ($context->branchIds === []) {\n                return [];\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G205 off hours: a branch with too few journals has no pattern",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "if ($others < $history || $offLeft * 100 >= $threshold * $others) {",
+  "replace": "if ($offLeft * 100 >= $threshold * $others) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G206 off hours: a branch that often posts at those hours has no pattern to depart from",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "$offLeft * 100 >= $threshold * $others",
+  "replace": "$offLeft * 100 > $threshold * $others",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G207 off hours: only journals posted since the start of the scan",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "substr((string) $row->posted_at, 0, 10) < $context->since || ",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G208 off hours: only a journal posted outside working hours",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "|| ! $this->isOffHours((string) $row->posted_at, $hours)) {",
+  "replace": ") {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G209 off hours: a weekend day is off hours",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "if (in_array((int) $moment->format('w'), $hours['weekend'], true)) {\n            return true;\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G210 off hours: the night starts at its hour",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "($hour >= $start || $hour < $end)",
+  "replace": "($hour > $start || $hour < $end)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G211 off hours: the night ends before its hour",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "($hour >= $start || $hour < $end)",
+  "replace": "($hour >= $start || $hour <= $end)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G212 off hours: a night inside one day",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "($hour >= $start && $hour < $end)",
+  "replace": "($hour >= $start || $hour < $end)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G213 off hours: the journal itself is not part of its pattern",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "$others  = $totals[$branch] - 1;",
+  "replace": "$others  = $totals[$branch];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G214 off hours: the off-hours journal itself is not part of its pattern",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "$offLeft = $off[$branch] - 1;",
+  "replace": "$offLeft = $off[$branch];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G215 off hours: the severity is low",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "severity: Finding::LOW,",
+  "replace": "severity: Finding::HIGH,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G216 off hours: the finding is of the journal",
+  "file": "app/Libraries/Accounting/Ai/Rules/OffHoursRule.php",
+  "find": "key: (string) $row->journal_id,",
+  "replace": "key: 'x',",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/OffHoursRuleTest.php"
+  ]
+ },
+ {
+  "name": "G220 round: only manual journals are read",
+  "file": "app/Libraries/Accounting/Ai/Rules/RoundNumberRule.php",
+  "find": "            ->whereIn('j.source_type', ['manual', ProposalService::SOURCE])\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/RoundNumberRuleTest.php"
+  ]
+ },
+ {
+  "name": "G221 round: only journals in the books are read",
+  "file": "app/Libraries/Accounting/Ai/Rules/RoundNumberRule.php",
+  "find": "            ->where('j.status', JournalStatus::Posted->value)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/RoundNumberRuleTest.php"
+  ]
+ },
+ {
+  "name": "G222 round: only journals posted since the start of the scan",
+  "file": "app/Libraries/Accounting/Ai/Rules/RoundNumberRule.php",
+  "find": "'DATE(j.posted_at) >= '",
+  "replace": "'DATE(j.posted_at) > '",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/RoundNumberRuleTest.php"
+  ]
+ },
+ {
+  "name": "G223 round: the total reaches the threshold",
+  "file": "app/Libraries/Accounting/Ai/Rules/RoundNumberRule.php",
+  "find": "->where('j.total_debit >=', $minimum)",
+  "replace": "->where('j.total_debit >', $minimum)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/RoundNumberRuleTest.php"
+  ]
+ },
+ {
+  "name": "G224 round: the total is a multiple of the unit",
+  "file": "app/Libraries/Accounting/Ai/Rules/RoundNumberRule.php",
+  "find": ") = 0', null, false);",
+  "replace": ") != 0', null, false);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/RoundNumberRuleTest.php"
+  ]
+ },
+ {
+  "name": "G225 round: the scan keeps to the branches given",
+  "file": "app/Libraries/Accounting/Ai/Rules/RoundNumberRule.php",
+  "find": "            $builder->whereIn('j.branch_id', $context->branchIds);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/RoundNumberRuleTest.php"
+  ]
+ },
+ {
+  "name": "G226 round: a reader of no branch gets nothing",
+  "file": "app/Libraries/Accounting/Ai/Rules/RoundNumberRule.php",
+  "find": "            if ($context->branchIds === []) {\n                return [];\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/RoundNumberRuleTest.php"
+  ]
+ },
+ {
+  "name": "G227 round: the severity is low",
+  "file": "app/Libraries/Accounting/Ai/Rules/RoundNumberRule.php",
+  "find": "severity: Finding::LOW,",
+  "replace": "severity: Finding::HIGH,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/RoundNumberRuleTest.php"
+  ]
+ },
+ {
+  "name": "G230 duplicate: only keyed journals are read",
+  "file": "app/Libraries/Accounting/Ai/Rules/DuplicateRule.php",
+  "find": "            ->whereIn('j.source_type', ['manual', ProposalService::SOURCE, ExpensePostingBuilder::SOURCE, RevenuePostingBuilder::SOURCE])\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/DuplicateRuleTest.php"
+  ]
+ },
+ {
+  "name": "G231 duplicate: only journals in the books are read",
+  "file": "app/Libraries/Accounting/Ai/Rules/DuplicateRule.php",
+  "find": "            ->where('j.status', JournalStatus::Posted->value)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/DuplicateRuleTest.php"
+  ]
+ },
+ {
+  "name": "G232 duplicate: the days between the two",
+  "file": "app/Libraries/Accounting/Ai/Rules/DuplicateRule.php",
+  "find": "if ($gap > $days || ",
+  "replace": "if ($gap >= $days || ",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/DuplicateRuleTest.php"
+  ]
+ },
+ {
+  "name": "G233 duplicate: the later of the two is within the scan",
+  "file": "app/Libraries/Accounting/Ai/Rules/DuplicateRule.php",
+  "find": " || (string) $later->journal_date < $context->since) {",
+  "replace": ") {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/DuplicateRuleTest.php"
+  ]
+ },
+ {
+  "name": "G234 duplicate: a branch is kept apart",
+  "file": "app/Libraries/Accounting/Ai/Rules/DuplicateRule.php",
+  "find": "$groups[(int) $row->branch_id . '|' . ($shapes",
+  "replace": "$groups[($shapes",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/DuplicateRuleTest.php"
+  ]
+ },
+ {
+  "name": "G235 duplicate: the side of a line is part of its shape",
+  "file": "app/Libraries/Accounting/Ai/Rules/DuplicateRule.php",
+  "find": "($debit ? 'D' : 'C')",
+  "replace": "'D'",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/DuplicateRuleTest.php"
+  ]
+ },
+ {
+  "name": "G236 duplicate: the amount of a line is part of its shape",
+  "file": "app/Libraries/Accounting/Ai/Rules/DuplicateRule.php",
+  "find": "bcadd($debit ? (string) $line->debit : (string) $line->credit, '0', 4)",
+  "replace": "'0'",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/DuplicateRuleTest.php"
+  ]
+ },
+ {
+  "name": "G237 duplicate: the journals before the start count for the first pair",
+  "file": "app/Libraries/Accounting/Ai/Rules/DuplicateRule.php",
+  "find": "->modify('-' . $days . ' days')",
+  "replace": "->modify('-0 days')",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/DuplicateRuleTest.php"
+  ]
+ },
+ {
+  "name": "G238 duplicate: the scan keeps to the branches given",
+  "file": "app/Libraries/Accounting/Ai/Rules/DuplicateRule.php",
+  "find": "            $builder->whereIn('j.branch_id', $context->branchIds);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/DuplicateRuleTest.php"
+  ]
+ },
+ {
+  "name": "G239 duplicate: a reader of no branch gets nothing",
+  "file": "app/Libraries/Accounting/Ai/Rules/DuplicateRule.php",
+  "find": "            if ($context->branchIds === []) {\n                return [];\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/DuplicateRuleTest.php"
+  ]
+ },
+ {
+  "name": "G240 duplicate: the severity is medium",
+  "file": "app/Libraries/Accounting/Ai/Rules/DuplicateRule.php",
+  "find": "severity: Finding::MEDIUM,",
+  "replace": "severity: Finding::LOW,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/DuplicateRuleTest.php"
+  ]
+ },
+ {
+  "name": "G241 duplicate: the account is part of its shape",
+  "file": "app/Libraries/Accounting/Ai/Rules/DuplicateRule.php",
+  "find": "$line->account_id . ':' .",
+  "replace": "':' .",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/DuplicateRuleTest.php"
+  ]
+ },
+ {
+  "name": "G250 control: the account of a customer is a control account",
+  "file": "app/Libraries/Accounting/Ai/Rules/ControlAccountRule.php",
+  "find": "[EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION]",
+  "replace": "[EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION]",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ControlAccountRuleTest.php"
+  ]
+ },
+ {
+  "name": "G251 control: the account of a supplier is a control account",
+  "file": "app/Libraries/Accounting/Ai/Rules/ControlAccountRule.php",
+  "find": "[EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION]",
+  "replace": "[EntityAccountService::CUSTOMER, EntityAccountService::STOCK_LOCATION]",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ControlAccountRuleTest.php"
+  ]
+ },
+ {
+  "name": "G252 control: the account of a stock location is a control account",
+  "file": "app/Libraries/Accounting/Ai/Rules/ControlAccountRule.php",
+  "find": "[EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION]",
+  "replace": "[EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER]",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ControlAccountRuleTest.php"
+  ]
+ },
+ {
+  "name": "G253 control: only manual journals are read",
+  "file": "app/Libraries/Accounting/Ai/Rules/ControlAccountRule.php",
+  "find": "            ->whereIn('j.source_type', ['manual', ProposalService::SOURCE])\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ControlAccountRuleTest.php"
+  ]
+ },
+ {
+  "name": "G254 control: only journals in the books are read",
+  "file": "app/Libraries/Accounting/Ai/Rules/ControlAccountRule.php",
+  "find": "            ->where('j.status', JournalStatus::Posted->value)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ControlAccountRuleTest.php"
+  ]
+ },
+ {
+  "name": "G255 control: only journals posted since the start of the scan",
+  "file": "app/Libraries/Accounting/Ai/Rules/ControlAccountRule.php",
+  "find": "'DATE(j.posted_at) >= '",
+  "replace": "'DATE(j.posted_at) > '",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ControlAccountRuleTest.php"
+  ]
+ },
+ {
+  "name": "G256 control: the scan keeps to the branches given",
+  "file": "app/Libraries/Accounting/Ai/Rules/ControlAccountRule.php",
+  "find": "            $builder->whereIn('j.branch_id', $context->branchIds);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ControlAccountRuleTest.php"
+  ]
+ },
+ {
+  "name": "G257 control: a reader of no branch gets nothing",
+  "file": "app/Libraries/Accounting/Ai/Rules/ControlAccountRule.php",
+  "find": "            if ($context->branchIds === []) {\n                return [];\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ControlAccountRuleTest.php"
+  ]
+ },
+ {
+  "name": "G258 control: the severity is high",
+  "file": "app/Libraries/Accounting/Ai/Rules/ControlAccountRule.php",
+  "find": "severity: Finding::HIGH,",
+  "replace": "severity: Finding::LOW,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ControlAccountRuleTest.php"
+  ]
+ },
+ {
+  "name": "G260 chain: the least number of reversals",
+  "file": "app/Libraries/Accounting/Ai/Rules/ReversalChainRule.php",
+  "find": "->having('COUNT(r.journal_id) >= ' . $minimum, null, false)",
+  "replace": "->having('COUNT(r.journal_id) > ' . $minimum, null, false)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ReversalChainRuleTest.php"
+  ]
+ },
+ {
+  "name": "G261 chain: a journal with no document is not a chain",
+  "file": "app/Libraries/Accounting/Ai/Rules/ReversalChainRule.php",
+  "find": "            ->where('o.source_id IS NOT NULL', null, false)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ReversalChainRuleTest.php"
+  ]
+ },
+ {
+  "name": "G262 chain: the closing of a year is not a chain",
+  "file": "app/Libraries/Accounting/Ai/Rules/ReversalChainRule.php",
+  "find": "\n            ->where('o.entry_type !=', JournalEntryType::YearEnd->value);",
+  "replace": ";",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ReversalChainRuleTest.php"
+  ]
+ },
+ {
+  "name": "G263 chain: only chains reversed since the start of the scan",
+  "file": "app/Libraries/Accounting/Ai/Rules/ReversalChainRule.php",
+  "find": "->having('MAX(DATE(r.posted_at)) >= ' . $context->db->escape($context->since), null, false)",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ReversalChainRuleTest.php"
+  ]
+ },
+ {
+  "name": "G264 chain: the scan keeps to the branches given",
+  "file": "app/Libraries/Accounting/Ai/Rules/ReversalChainRule.php",
+  "find": "            $builder->whereIn('o.branch_id', $context->branchIds);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ReversalChainRuleTest.php"
+  ]
+ },
+ {
+  "name": "G265 chain: a reader of no branch gets nothing",
+  "file": "app/Libraries/Accounting/Ai/Rules/ReversalChainRule.php",
+  "find": "            if ($context->branchIds === []) {\n                return [];\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ReversalChainRuleTest.php"
+  ]
+ },
+ {
+  "name": "G266 chain: the reversals of one document are counted together",
+  "file": "app/Libraries/Accounting/Ai/Rules/ReversalChainRule.php",
+  "find": "->groupBy('o.source_type, o.source_id')",
+  "replace": "->groupBy('o.source_type')",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ReversalChainRuleTest.php"
+  ]
+ },
+ {
+  "name": "G267 chain: the evidence is the chain and no more than a page",
+  "file": "app/Libraries/Accounting/Ai/Rules/ReversalChainRule.php",
+  "find": "->limit(self::SHOWN)",
+  "replace": "->limit(1000)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ReversalChainRuleTest.php"
+  ]
+ },
+ {
+  "name": "G268 chain: a chain that grows is a new finding",
+  "file": "app/Libraries/Accounting/Ai/Rules/ReversalChainRule.php",
+  "find": "key: $row->source_type . '|' . (int) $row->source_id . '|' . (int) $row->reversals,",
+  "replace": "key: $row->source_type . '|' . (int) $row->source_id,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ReversalChainRuleTest.php"
+  ]
+ },
+ {
+  "name": "G269 chain: the severity is medium",
+  "file": "app/Libraries/Accounting/Ai/Rules/ReversalChainRule.php",
+  "find": "severity: Finding::MEDIUM,",
+  "replace": "severity: Finding::LOW,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/ReversalChainRuleTest.php"
+  ]
+ },
+ {
+  "name": "G270 backdated: only keyed journals are read",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": "            ->whereIn('j.source_type', ['manual', ProposalService::SOURCE, ExpensePostingBuilder::SOURCE, RevenuePostingBuilder::SOURCE])\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G271 backdated: only journals in the books are read",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": "            ->where('j.status', JournalStatus::Posted->value)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G272 backdated: posted before the closing was made",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": "            ->where('j.posted_at <= c.created_at', null, false)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G273 backdated: posted in the days just before the closing",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": "            ->where(\"j.posted_at >= DATE_SUB(c.created_at, INTERVAL {$window} DAY)\", null, false)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G274 backdated: dated well before the day it was posted",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": "            ->where(\"DATEDIFF(DATE(j.posted_at), j.journal_date) >= {$gap}\", null, false)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G275 backdated: dated inside the period that was closed",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": " AND j.journal_date <= c.date_to')",
+  "replace": "')",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G276 backdated: the closing of the company or of the branch of the journal",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": "(c.branch_id IS NULL OR c.branch_id = j.branch_id)",
+  "replace": "1 = 1",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G277 backdated: the closing of the branch of the journal and not only of the company",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": "(c.branch_id IS NULL OR c.branch_id = j.branch_id)",
+  "replace": "c.branch_id IS NULL",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G278 backdated: the closing of the company of the journal",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": "c.company_id = j.company_id AND ",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G279 backdated: only closings made since the start of the scan",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": "'DATE(c.created_at) >= '",
+  "replace": "'DATE(c.created_at) > '",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G280 backdated: the scan keeps to the branches given",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": "            $builder->whereIn('j.branch_id', $context->branchIds);",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G281 backdated: a reader of no branch gets nothing",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": "            if ($context->branchIds === []) {\n                return [];\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G282 backdated: the severity is high",
+  "file": "app/Libraries/Accounting/Ai/Rules/BackdatedRule.php",
+  "find": "severity: Finding::HIGH,",
+  "replace": "severity: Finding::LOW,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BackdatedRuleTest.php"
+  ]
+ },
+ {
+  "name": "G300 screens: the books must be on",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "parent::__construct('accounting_ai');",
+  "replace": "parent::__construct('accounting_ai', false);",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G301 screens: the module of the agent",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "parent::__construct('accounting_ai');",
+  "replace": "parent::__construct('home');",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G302 screens: approving asks for a confirmation",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "if ($this->request->getPost('confirm') !== '1') {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G303 screens: approving is offered to who may approve and post",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "&& $this->can(AccountingGuard::AI_APPROVE) && $this->can(AccountingGuard::JOURNALS_POST) && $enabled,",
+  "replace": "&& $this->can(AccountingGuard::AI_APPROVE) && $enabled,",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G304 screens: approving is offered only while the agent is on",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "&& $this->can(AccountingGuard::JOURNALS_POST) && $enabled,",
+  "replace": "&& $this->can(AccountingGuard::JOURNALS_POST),",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G305 screens: a decision is offered only on a proposal that stands",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "'canApprove'      => $standing && ",
+  "replace": "'canApprove'      => ",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G306 screens: rejecting is offered only on a proposal that stands",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "'canReject'       => $standing && ",
+  "replace": "'canReject'        => ",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G307 screens: rejecting is offered to who may approve",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "'canReject'       => $standing && $this->can(AccountingGuard::AI_APPROVE),",
+  "replace": "'canReject'        => $standing,",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G308 screens: the forms of a decision open only for a proposal that stands",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "if ($proposal->status !== ProposalStatus::Proposed->value || ! $this->can(AccountingGuard::AI_APPROVE)) {",
+  "replace": "if (! $this->can(AccountingGuard::AI_APPROVE)) {",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G309 screens: the forms of a decision open only for who may approve",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "if ($proposal->status !== ProposalStatus::Proposed->value || ! $this->can(AccountingGuard::AI_APPROVE)) {",
+  "replace": "if ($proposal->status !== ProposalStatus::Proposed->value) {",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G310 screens: the form of a finding opens only while it is open",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "if ($finding->status !== FindingService::OPEN) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G311 screens: a proposal outside the scope is not found",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "        } catch (AccountingException) {\n            throw PageNotFoundException::forPageNotFound();\n        }\n    }\n\n    private function decidableProposal",
+  "replace": "        } catch (AccountingException $failure) {\n            throw $failure;\n        }\n    }\n\n    private function decidableProposal",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G312 screens: the file keeps to the filters",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "foreach ($this->findings->stream($this->findingFilters(), $this->employeeId()) as $finding) {",
+  "replace": "foreach ($this->findings->stream([], $this->employeeId()) as $finding) {",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G313 screens: the filter of a rule is a rule code",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "'rule'     => preg_match('/^[A-Z][A-Z0-9-]{0,31}$/', $rule) === 1 ? $rule : '',",
+  "replace": "'rule'     => $rule,",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G314 screens: the filter of a status of a finding is one of three",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "'status'   => in_array($status, FindingService::STATUSES, true) ? $status : '',",
+  "replace": "'status'   => $status,",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G315 screens: the filter of a severity is one of three",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "'severity' => in_array($severity, FindingService::SEVERITIES, true) ? $severity : '',",
+  "replace": "'severity' => $severity,",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G316 screens: the filter of a status of a proposal is one of five",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "'status' => ProposalStatus::tryFrom($status) !== null ? $status : '',",
+  "replace": "'status' => $status,",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G317 screens: the filter of a kind is a word",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "'kind'   => preg_match('/^[a-z][a-z0-9_]{0,31}$/', $this->requestText('kind')) === 1 ? $this->requestText('kind') : '',",
+  "replace": "'kind'   => $this->requestText('kind'),",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G318 screens: a day filter is a day",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "return preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $value) === 1 ? $value : '';",
+  "replace": "return $value;",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G319 screens: the switch is on only when it is ticked",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "$this->settings->setEnabled($this->request->getPost('enabled') === '1', $this->employeeId());",
+  "replace": "$this->settings->setEnabled(true, $this->employeeId());",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G320 screens: the settings screen shows the switch as it stands, not the work of the books",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "'enabled'    => $this->settings->isSwitchedOn(),",
+  "replace": "'enabled'    => true,",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G321 screens: the thresholds are changed by who manages the settings",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "'canManage'  => $canManage,",
+  "replace": "'canManage'  => true,",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G322 screens: the file of findings neutralises what a spreadsheet would read as a formula",
+  "file": "app/Libraries/Accounting/ExportsCsv.php",
+  "find": "return \"'\" . $cell;",
+  "replace": "return $cell;",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G323 screens: the form of an approval carries the token",
+  "file": "app/Views/accounting_ai/approve_form.php",
+  "find": "<?= form_open('accounting_ai/approve/' . (int) $proposal->proposal_id, ['id' => 'ai_approve_form', 'class' => 'app-form']) ?>",
+  "replace": "<form method=\"post\" action=\"<?= esc(base_url('accounting_ai/approve/' . (int) $proposal->proposal_id), 'attr') ?>\" id=\"ai_approve_form\">",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G324 screens: the form of a rejection carries the token",
+  "file": "app/Views/accounting_ai/reject_form.php",
+  "find": "<?= form_open('accounting_ai/reject/' . (int) $proposal->proposal_id, ['id' => 'ai_reject_form', 'class' => 'app-form']) ?>",
+  "replace": "<form method=\"post\" action=\"<?= esc(base_url('accounting_ai/reject/' . (int) $proposal->proposal_id), 'attr') ?>\" id=\"ai_reject_form\">",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G325 screens: the form of a decision on a finding carries the token",
+  "file": "app/Views/accounting_ai/decide_form.php",
+  "find": "<?= form_open('accounting_ai/decide/' . (int) $finding->finding_id, ['id' => 'ai_decide_form', 'class' => 'app-form']) ?>",
+  "replace": "<form method=\"post\" action=\"<?= esc(base_url('accounting_ai/decide/' . (int) $finding->finding_id), 'attr') ?>\" id=\"ai_decide_form\">",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G326 screens: the approval asks for a confirmation in its form",
+  "file": "app/Views/accounting_ai/approve_form.php",
+  "find": "<input type=\"checkbox\" class=\"form-check-input\" name=\"confirm\" id=\"confirm\" value=\"1\">",
+  "replace": "<input type=\"hidden\" name=\"confirm\" value=\"1\">",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G330 scan command: a date that is not a day is refused with seven",
+  "file": "app/Commands/AccountingAiScan.php",
+  "find": "if (($since !== null && ! $this->isDay($since)) || ($date !== null && ! $this->isDay($date))) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Commands/AccountingAiScanTest.php"
+  ]
+ },
+ {
+  "name": "G331 scan command: a refusal of the books is exit one",
+  "file": "app/Commands/AccountingAiScan.php",
+  "find": "            return EXIT_ERROR;",
+  "replace": "            return EXIT_SUCCESS;",
+  "tests": [
+   "tests/Commands/AccountingAiScanTest.php"
+  ]
+ },
+ {
+  "name": "G332 scan command: the day given is taken for today",
+  "file": "app/Commands/AccountingAiScan.php",
+  "find": "$date === null ? null : new DateTimeImmutable($date), $since);",
+  "replace": "null, $since);",
+  "tests": [
+   "tests/Commands/AccountingAiScanTest.php"
+  ]
+ },
+ {
+  "name": "G333 propose command: a date that is not a day is refused with seven",
+  "file": "app/Commands/AccountingAiPropose.php",
+  "find": "if ($parsed === false || $parsed->format('Y-m-d') !== $date) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Commands/AccountingAiProposeTest.php"
+  ]
+ },
+ {
+  "name": "G334 propose command: a refusal of the books is exit one",
+  "file": "app/Commands/AccountingAiPropose.php",
+  "find": "            return EXIT_ERROR;\n        }\n\n        CLI::write('AI PROPOSERS');",
+  "replace": "            return EXIT_SUCCESS;\n        }\n\n        CLI::write('AI PROPOSERS');",
+  "tests": [
+   "tests/Commands/AccountingAiProposeTest.php"
+  ]
+ },
+ {
+  "name": "G335 propose command: a suggestion that failed the checks is exit one",
+  "file": "app/Commands/AccountingAiPropose.php",
+  "find": "return $report->refused === [] ? EXIT_SUCCESS : EXIT_ERROR;",
+  "replace": "return EXIT_SUCCESS;",
+  "tests": [
+   "tests/Commands/AccountingAiProposeTest.php"
+  ]
+ },
+ {
+  "name": "G336 propose command: the day given is taken for today",
+  "file": "app/Commands/AccountingAiPropose.php",
+  "find": "$date === null ? null : new DateTimeImmutable($date));",
+  "replace": "null);",
+  "tests": [
+   "tests/Commands/AccountingAiProposeTest.php"
+  ]
+ },
+ {
+  "name": "G337 switch command: a word it does not know is refused with seven",
+  "file": "app/Commands/AccountingAiSwitch.php",
+  "find": "if (! in_array($word, ['status', 'on', 'off'], true)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Commands/AccountingAiSwitchTest.php"
+  ]
+ },
+ {
+  "name": "G338 switch command: on and off are as asked",
+  "file": "app/Commands/AccountingAiSwitch.php",
+  "find": "$settings->setEnabled($word === 'on', null);",
+  "replace": "$settings->setEnabled(true, null);",
+  "tests": [
+   "tests/Commands/AccountingAiSwitchTest.php"
+  ]
+ },
+ {
+  "name": "G339 switch command: status changes nothing",
+  "file": "app/Commands/AccountingAiSwitch.php",
+  "find": "if ($word !== 'status') {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Commands/AccountingAiSwitchTest.php"
+  ]
+ },
+ {
+  "name": "G340 migration: a proposal is one of five statuses",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "CHECK (`status` IN ('proposed', 'approved', 'rejected', 'expired', 'superseded'))",
+  "replace": "CHECK (1 = 1)",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php",
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G341 migration: a proposal is approved exactly when it has a journal",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "CHECK ((`status` = 'approved') = (`journal_id` IS NOT NULL))",
+  "replace": "CHECK (1 = 1)",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G342 migration: one live proposal for one key",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "ADD UNIQUE KEY `{$proposals}_dedupe` (`dedupe_key`)",
+  "replace": "ADD KEY `{$proposals}_dedupe` (`dedupe_key`)",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G343 migration: a journal belongs to one proposal at most",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "ADD UNIQUE KEY `{$proposals}_journal_once` (`journal_id`)",
+  "replace": "ADD KEY `{$proposals}_journal_once` (`journal_id`)",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G344 migration: a proposal starts as proposed",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "ALTER COLUMN `status` SET DEFAULT 'proposed'\");\n        $this->db->query(\"UPDATE",
+  "replace": "ALTER COLUMN `status` SET DEFAULT 'pending'\");\n        $this->db->query(\"UPDATE",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G345 migration: a finding is kept once for one key",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "UNIQUE KEY `{$table}_key` (`finding_key`),",
+  "replace": "KEY `{$table}_key` (`finding_key`),",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G346 migration: a finding is open, dismissed or confirmed",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "CHECK (`status` IN ('open', 'dismissed', 'confirmed'))",
+  "replace": "CHECK (1 = 1)",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php",
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G347 migration: a finding is low, medium or high",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "CHECK (`severity` IN ('low', 'medium', 'high'))",
+  "replace": "CHECK (1 = 1)",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php",
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G348 migration: a finding is decided with who, when and why or not at all",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "CHECK ((`status` = 'open') = (`decided_by` IS NULL AND `decided_at` IS NULL AND `decision_reason` IS NULL))",
+  "replace": "CHECK (1 = 1)",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php",
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php"
+  ]
+ },
+ {
+  "name": "G349 migration: the switch is written as off",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "['key' => self::SETTING, 'value' => '0']",
+  "replace": "['key' => self::SETTING, 'value' => '1']",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G350 migration: going back is refused once the layer holds a record",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "if (\n            ($this->hasColumn('accounting_ai_proposals', 'title') && $this->db->table('accounting_ai_proposals')->countAllResults() > 0)",
+  "replace": "if (\n            ($this->hasColumn('accounting_ai_proposals', 'title') && false)",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G351 migration: the permission of the agent is registered for its module",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "private const PERMISSIONS   = ['accounting_ai', 'acc_ai_approve'];",
+  "replace": "private const PERMISSIONS   = ['accounting_ai'];",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G352 migration: the old status of a proposal is converted",
+  "file": "app/Database/Migrations/20273600000000_AiAgentLayer.php",
+  "find": "$this->db->query(\"UPDATE `{$proposals}` SET `status` = 'proposed' WHERE `status` = 'pending'\");",
+  "replace": "",
+  "tests": [
+   "tests/Database/AiAgentLayerMigrationTest.php"
+  ]
+ },
+ {
+  "name": "G360 permissions: the permission to use the agent is sensitive",
+  "file": "app/Libraries/Accounting/AccountingGuard.php",
+  "find": "        self::AI_USE,\n        self::AI_APPROVE,\n    ];",
+  "replace": "        self::AI_APPROVE,\n    ];",
+  "tests": [
+   "tests/Libraries/Accounting/SensitivePermissionsTest.php"
+  ]
+ },
+ {
+  "name": "G361 permissions: the permission to approve is sensitive",
+  "file": "app/Libraries/Accounting/AccountingGuard.php",
+  "find": "        self::AI_USE,\n        self::AI_APPROVE,\n    ];",
+  "replace": "        self::AI_USE,\n    ];",
+  "tests": [
+   "tests/Libraries/Accounting/SensitivePermissionsTest.php"
+  ]
+ },
+ {
+  "name": "G362 permissions: the employee form locks the agent module for who is not an administrator",
+  "file": "app/Views/employees/form.php",
+  "find": "if (in_array($module->module_id, $sensitive_permissions, true) && ! $is_admin) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Controllers/EmployeesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G363 permissions: the agent module is marked sensitive in the employee form",
+  "file": "app/Views/employees/form.php",
+  "find": "(in_array($module->module_id, $sensitive_permissions, true) ? ' sensitive-permission' : '')",
+  "replace": "''",
+  "tests": [
+   "tests/Controllers/EmployeesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G364 permissions: the settings screen names the permission to use the agent",
+  "file": "app/Controllers/AccountingSetup.php",
+  "find": "        AccountingGuard::AI_USE             => 'Accounting_ai.permission_use',\n",
+  "replace": "",
+  "tests": [
+   "tests/Controllers/AccountingSetupControllerTest.php"
+  ]
+ },
+ {
+  "name": "G400 reclassify: a reader of no branch gets nothing",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "        if ($branchIds === []) {\n            return [];\n        }\n\n        $others",
+  "replace": "        $others",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G401 reclassify: a book with no default account gets nothing",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "        if ($others === []) {\n            return [];\n        }\n\n        $drafts = [];",
+  "replace": "        $drafts = [];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G402 reclassify: only manual journals are the subject",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->whereIn('j.source_type', self::SUBJECT_SOURCES)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G403 reclassify: only posted journals are the subject",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->where('j.status', JournalStatus::Posted->value)\n            ->whereIn('j.source_type', self::SUBJECT_SOURCES)",
+  "replace": "            ->whereIn('j.source_type', self::SUBJECT_SOURCES)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G404 reclassify: only journals of the lookback are the subject",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->where('j.journal_date >=', $since)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G405 reclassify: a journal dated after today is not the subject",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "->where('j.journal_date <=', $today->format('Y-m-d'))",
+  "replace": "->where('j.journal_date >=', $since)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G406 reclassify: the subjects keep to the branches given",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            $builder->whereIn('j.branch_id', $branchIds);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G407 reclassify: the subjects are capped",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "->limit($this->subjectCap)",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G408 reclassify: the history of the agent counts too",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "private const HISTORY_SOURCES = ['manual', ProposalService::SOURCE];",
+  "replace": "private const HISTORY_SOURCES = ['manual'];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G409 reclassify: the history is of manual journals and of the agent only",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->whereIn('j.source_type', self::HISTORY_SOURCES)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G410 reclassify: the history is of posted journals only",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "->where('j.status', JournalStatus::Posted->value)\n            ->where('j.branch_id', (int) $subject->branch_id)",
+  "replace": "->where('j.branch_id', (int) $subject->branch_id)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G411 reclassify: the history is before the subject",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->where('j.journal_id <', (int) $subject->journal_id)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G412 reclassify: the history is of the same type of account",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->where('a.account_type', $type)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G413 reclassify: the history is of active accounts",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->where('a.active', 1)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G414 reclassify: the default accounts are not a place to move to",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->whereNotIn('a.account_id', $otherIds)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G415 reclassify: the history is of the same side",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->where($isDebit ? 'l.debit >' : 'l.credit >', 0)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G416 reclassify: the side of a revenue is the credit",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "->where($isDebit ? 'l.debit >' : 'l.credit >', 0)",
+  "replace": "->where('l.debit >', 0)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G417 reclassify: the history is of the same text",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->where(CounterpartText::sql('l', 'j') . ' = ' . $this->db->escape($text), null, false)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G418 reclassify: a journal with no text is left alone",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            if ($text === '') {\n                continue;\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G419 reclassify: the text of the line comes before the text of the journal",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "CounterpartText::normalize($subject->line_description !== null && trim((string) $subject->line_description) !== '' ? $subject->line_description : $subject->journal_description)",
+  "replace": "CounterpartText::normalize($subject->journal_description)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G420 reclassify: nothing is suggested when the text went nowhere else",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "        if ($table === []) {\n            return null;\n        }\n\n        $total",
+  "replace": "        $total",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G421 reclassify: the least number of earlier uses",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "$top['uses'] < $this->settings->int('reclass_min_count') || ",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G422 reclassify: the least number of earlier uses is reached at the number",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "$top['uses'] < $this->settings->int('reclass_min_count')",
+  "replace": "$top['uses'] <= $this->settings->int('reclass_min_count')",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G423 reclassify: the least share of the earlier uses",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": " || $this->settings->int('reclass_min_share') * $total > $top['uses'] * 100",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G424 reclassify: the least share is reached at the share",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "$this->settings->int('reclass_min_share') * $total > $top['uses'] * 100",
+  "replace": "$this->settings->int('reclass_min_share') * $total >= $top['uses'] * 100",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G425 reclassify: the most used account is the first",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->orderBy('uses', 'DESC')\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G426 reclassify: the cost center of the line goes to both lines",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "$center  = $subject->cost_center_id === null ? null : (int) $subject->cost_center_id;",
+  "replace": "$center  = null;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G427 reclassify: the text of a line is cut to fit",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "$label   = mb_substr((string) ($subject->line_description ?: $subject->journal_description), 0, 200);",
+  "replace": "$label   = (string) ($subject->line_description ?: $subject->journal_description);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G428 reclassify: the table shown is five rows",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "array_slice($table, 0, self::TABLE_TOP)",
+  "replace": "$table",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G429 reclassify: the share is rounded",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "$share   = (int) round($top['uses'] * 100 / $total);",
+  "replace": "$share   = (int) ($top['uses'] * 100 / $total);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G430 reclassify: a debit is moved by a credit to the other account",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "        $lines = $isDebit\n",
+  "replace": "        $lines = ! $isDebit\n",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G431 reclassify: the side of the subject of a debit",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "$isDebit = bccomp((string) $subject->debit, '0', 4) > 0;\n        $builder",
+  "replace": "$isDebit = bccomp((string) $subject->debit, '0', 4) < 0;\n        $builder",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G432 reclassify: the amount of a credit is the credit",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "$amount  = $isDebit ? (string) $subject->debit : (string) $subject->credit;",
+  "replace": "$amount  = (string) $subject->debit;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G433 reclassify: one suggestion for one line of a journal",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "dedupeKey: $subject->journal_id . '|' . $subject->line_no,",
+  "replace": "dedupeKey: (string) $subject->journal_id,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G434 reclassify: the suggestion is dated today",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            date: $today->format('Y-m-d'),",
+  "replace": "            date: $subject->journal_date,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G435 reclassify: the suggestion is in the branch of the subject",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            branchId: (int) $subject->branch_id,",
+  "replace": "            branchId: 1,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G436 reclassify: the subject journal is named for the staleness check",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            subjectJournals: [(int) $subject->journal_id],",
+  "replace": "            subjectJournals: [],",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G437 reclassify: the default of the revenues is a default account",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "foreach ([RoutingKey::ExpensesDefault, RoutingKey::RevenuesDefault] as $key) {",
+  "replace": "foreach ([RoutingKey::ExpensesDefault] as $key) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G438 reclassify: the default of the expenses is a default account",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "foreach ([RoutingKey::ExpensesDefault, RoutingKey::RevenuesDefault] as $key) {",
+  "replace": "foreach ([RoutingKey::RevenuesDefault] as $key) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G439 reclassify: a default that is not routed is skipped",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            } catch (PostingException) {\n                continue;\n            }",
+  "replace": "            } catch (PostingException $failure) {\n                throw $failure;\n            }",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G441 reclassify: no default account gives nothing to read",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "        if ($ids === []) {\n            return [];\n        }\n\n        $accounts = [];",
+  "replace": "        $accounts = [];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G450 recurring: a reader of no branch gets nothing",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "        if ($branchIds === []) {\n            return [];\n        }\n\n        $months",
+  "replace": "        $months",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G451 recurring: only expense accounts",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "            ->where('a.account_type', 'expense')\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G452 recurring: only the debits of an expense",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "            ->where('l.debit >', 0)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G453 recurring: only posted journals",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "            ->where('j.status', JournalStatus::Posted->value)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G454 recurring: the expense documents are read",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "private const SOURCES  = [JournalDraft::SOURCE_MANUAL, ProposalService::SOURCE, ExpensePostingBuilder::SOURCE];",
+  "replace": "private const SOURCES  = [JournalDraft::SOURCE_MANUAL, ProposalService::SOURCE];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G455 recurring: the journals of the agent are read",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "private const SOURCES  = [JournalDraft::SOURCE_MANUAL, ProposalService::SOURCE, ExpensePostingBuilder::SOURCE];",
+  "replace": "private const SOURCES  = [JournalDraft::SOURCE_MANUAL, ExpensePostingBuilder::SOURCE];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G456 recurring: only manual journals, the agent and expense documents are read",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "            ->whereIn('j.source_type', self::SOURCES)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G457 recurring: the window starts at the first month",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "            ->where('j.journal_date >=', $first->format('Y-m-d'))\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G458 recurring: a journal dated after today is not read",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "            ->where('j.journal_date <=', $today->format('Y-m-d'));",
+  "replace": "            ->where('j.journal_date >=', $first->format('Y-m-d'));",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G459 recurring: the rows are branch scoped",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "            $builder->whereIn('j.branch_id', $branchIds);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G460 recurring: the rows are capped",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "->limit($this->rowCap)",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G461 recurring: an expense document has no text",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "        if ($row->source_type === ExpensePostingBuilder::SOURCE) {\n            return '';\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G462 recurring: a journal of the agent has the text of its line",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "        if ($row->source_type === ProposalService::SOURCE) {\n            return CounterpartText::normalize($line);\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G463 recurring: a manual journal has the text of its line, else of itself",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "return CounterpartText::normalize($line !== '' ? $line : $row->journal_description);",
+  "replace": "return CounterpartText::normalize($line);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G464 recurring: an expense posted this month is not missing",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "        if (isset($group['occurrences'][$current->format('Y-m')])) {\n            return null;\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G465 recurring: each of the months is looked at",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "for ($back = 1; $back <= $months; $back++) {",
+  "replace": "for ($back = 1; $back < $months; $back++) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G466 recurring: a month with no expense is no pattern",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "            if ($rows === []) {\n                return null;\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G467 recurring: the last journal of a month is the one that was repeated",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "$latest = $rows[array_key_last($rows)];",
+  "replace": "$latest = $rows[array_key_first($rows)];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G468 recurring: the usual day is the last day of any journal of the month",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "                $lastDay = max($lastDay, (int) substr((string) $row->journal_date, 8, 2));",
+  "replace": "                $lastDay = max($lastDay, (int) substr((string) $latest->journal_date, 8, 2));",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G469 recurring: nothing before the usual day",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "        if ((int) $today->format('j') < min($lastDay, (int) $today->format('t'))) {\n            return null;\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G470 recurring: the usual day is reached on the day",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "if ((int) $today->format('j') < min($lastDay, (int) $today->format('t'))) {",
+  "replace": "if ((int) $today->format('j') <= min($lastDay, (int) $today->format('t'))) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G471 recurring: a usual day that this month lacks is its last day",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "if ((int) $today->format('j') < min($lastDay, (int) $today->format('t'))) {",
+  "replace": "if ((int) $today->format('j') < $lastDay) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G472 recurring: the amounts keep to the tolerance",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": ") > 0) {\n            return null;\n        }\n\n        $template",
+  "replace": ") > 0 && false) {\n            return null;\n        }\n\n        $template",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G473 recurring: the tolerance is reached at the tolerance",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "bcmul($largest, (string) $this->settings->int('recurring_tolerance'), self::AMOUNT_S), self::AMOUNT_S) > 0) {",
+  "replace": "bcmul($largest, (string) $this->settings->int('recurring_tolerance'), self::AMOUNT_S), self::AMOUNT_S) >= 0) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G474 recurring: the largest amount is the largest",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "bccomp($amount, $carry, self::AMOUNT_S) > 0 ? $amount : $carry, '0');",
+  "replace": "bccomp($amount, $carry, self::AMOUNT_S) < 0 ? $amount : $carry, '0');",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G475 recurring: the least amount is the least",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "bccomp($amount, $carry, self::AMOUNT_S) < 0 ? $amount : $carry, $largest);",
+  "replace": "bccomp($amount, $carry, self::AMOUNT_S) > 0 ? $amount : $carry, $largest);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G476 recurring: the journal repeated is that of the last month",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "$template = $seen[0];",
+  "replace": "$template = $seen[array_key_last($seen)];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G477 recurring: an expense without text is named by its account",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "$label    = $group['text'] !== '' ? mb_substr((string) ($template->line_description ?: $template->journal_description), 0, 200) : ProposalText::fill(",
+  "replace": "$label    = true ? mb_substr((string) ($template->line_description ?: $template->journal_description), 0, 200) : ProposalText::fill(",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G478 recurring: the text of a line is cut to fit",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "$label    = $group['text'] !== '' ? mb_substr((string) ($template->line_description ?: $template->journal_description), 0, 200) :",
+  "replace": "$label    = $group['text'] !== '' ? (string) ($template->line_description ?: $template->journal_description) :",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G479 recurring: a journal the agent may not repeat gives nothing",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "        if ($lines === null) {\n            return null;\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G480 recurring: the account of a customer is not repeated",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "[EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION]",
+  "replace": "[EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION]",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G481 recurring: the account of a supplier is not repeated",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "[EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION]",
+  "replace": "[EntityAccountService::CUSTOMER, EntityAccountService::STOCK_LOCATION]",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G482 recurring: the account of a stock location is not repeated",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "[EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER, EntityAccountService::STOCK_LOCATION]",
+  "replace": "[EntityAccountService::CUSTOMER, EntityAccountService::SUPPLIER]",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G483 recurring: a journal with two expense lines is not repeated",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "        if ($expenseLines > 1) {\n            return null;\n        }",
+  "replace": "        if ($expenseLines > 2) {\n            return null;\n        }",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G484 recurring: only a debit on an expense account is an expense line",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "if ($row->account_type === 'expense' && bccomp((string) $row->debit, '0', self::AMOUNT_S) > 0) {",
+  "replace": "if ($row->account_type === 'expense') {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G485 recurring: the cost center of a line is repeated",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "            costCenterId: $row->cost_center_id === null ? null : (int) $row->cost_center_id,\n        ), $rows);",
+  "replace": "            costCenterId: null,\n        ), $rows);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G486 recurring: the text of the expense goes on the lines that have none",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "description: $label !== null && trim((string) $row->description) === '' ? $label : $row->description,",
+  "replace": "description: $row->description,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G487 recurring: a line that has a text keeps it",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "description: $label !== null && trim((string) $row->description) === '' ? $label : $row->description,",
+  "replace": "description: $label !== null ? $label : $row->description,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G488 recurring: the months seen are the evidence",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "foreach (array_reverse($seen) as $row) {",
+  "replace": "foreach ([] as $row) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G489 recurring: the evidence is the oldest month first",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "foreach (array_reverse($seen) as $row) {",
+  "replace": "foreach ($seen as $row) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G490 recurring: the month that is missing is evidence",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "        $evidence[] = ['type' => 'absent', 'month' => $current->format('Y-m'), 'account' => $account->code, 'found' => 0];\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G491 recurring: one suggestion for one month",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": " . '|' . $current->format('Y-m'),\n            date:",
+  "replace": ",\n            date:",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G492 recurring: one suggestion for one text",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "hash('sha256', $group['text'])",
+  "replace": "hash('sha256', '')",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G493 recurring: one suggestion for one account",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "dedupeKey: $group['branch_id'] . '|' . $group['account_id'] . '|'",
+  "replace": "dedupeKey: $group['branch_id'] . '|'",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G494 recurring: one suggestion for one branch",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "dedupeKey: $group['branch_id'] . '|' . $group['account_id']",
+  "replace": "dedupeKey: '0|' . $group['account_id']",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G495 recurring: an expense is of one branch",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "$key  = (int) $row->branch_id . '|' . (int) $row->account_id . '|' . $text;",
+  "replace": "$key  = (int) $row->account_id . '|' . $text;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G496 recurring: an expense is of one account",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "$key  = (int) $row->branch_id . '|' . (int) $row->account_id . '|' . $text;",
+  "replace": "$key  = (int) $row->branch_id . '|' . $text;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G497 recurring: an expense is of one text",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "$key  = (int) $row->branch_id . '|' . (int) $row->account_id . '|' . $text;",
+  "replace": "$key  = (int) $row->branch_id . '|' . (int) $row->account_id;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G498 recurring: the suggestion is dated today",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "            date: $today->format('Y-m-d'),",
+  "replace": "            date: $template->journal_date,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G499 recurring: the suggestion is in the branch of the expense",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "            branchId: $group['branch_id'],",
+  "replace": "            branchId: 1,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G500 recurring: the journal repeated is named for the staleness check",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "            subjectJournals: [(int) $template->journal_id],",
+  "replace": "            subjectJournals: [],",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G510 jump: only the accounts of customers",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "            ->where('a.entity_type', EntityAccountService::CUSTOMER)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G511 jump: a journal that was reversed still counts with its reversal",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])\n            ->where('j.journal_date <=', $today);",
+  "replace": "->whereIn('j.status', [JournalStatus::Posted->value])\n            ->where('j.journal_date <=', $today);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G512 jump: the movements shown include a journal that was reversed",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "->whereIn('j.status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])\n            ->where('j.journal_date >', $before)",
+  "replace": "->whereIn('j.status', [JournalStatus::Posted->value])\n            ->where('j.journal_date >', $before)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G513 jump: a journal dated after today is not read",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "            ->where('j.journal_date <=', $today);\n\n        if ($context->branchIds !== null) {",
+  "replace": "            ->where('j.journal_date >', '0000-00-00');\n\n        if ($context->branchIds !== null) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G514 jump: a reader of no branch gets nothing",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "            if ($context->branchIds === []) {\n                return [];\n            }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G515 jump: the scan keeps to the branches given",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "            $builder->whereIn('j.branch_id', $context->branchIds);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G516 jump: a customer in credit counts from zero",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": " - GREATEST(SUM(CASE WHEN j.journal_date <= {$quoted} THEN {$net} ELSE 0 END), 0) >= ",
+  "replace": " - SUM(CASE WHEN j.journal_date <= {$quoted} THEN {$net} ELSE 0 END) >= ",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G517 jump: the rise reaches the amount at the amount",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": ", 0) >= \" . $context->db->escape($minimum)",
+  "replace": ", 0) > \" . $context->db->escape($minimum)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G518 jump: the rise has the least amount",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": ", 0) >= \" . $context->db->escape($minimum)",
+  "replace": ", 0) >= 0\"",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G519 jump: the rise reaches the percent at the percent",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "bcmul($prior, $percent, self::SCALE), self::SCALE) < 0) {",
+  "replace": "bcmul($prior, $percent, self::SCALE), self::SCALE) <= 0) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G520 jump: the rise has the least percent",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "bcmul($prior, $percent, self::SCALE), self::SCALE) < 0) {",
+  "replace": "bcmul($prior, $percent, self::SCALE), self::SCALE) < 0 && false) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G521 jump: what was owed before is not below zero",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "$prior    = bccomp((string) $row->prior, '0', self::SCALE) > 0 ? bcadd((string) $row->prior, '0', self::SCALE) : '0.0000';",
+  "replace": "$prior    = bcadd((string) $row->prior, '0', self::SCALE);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G522 jump: the movements shown are ten",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "            ->limit(self::SHOWN)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G523 jump: the largest movements come first",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "            ->orderBy('SUM(l.debit)', 'DESC', false)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G524 jump: the movements shown are of the branch",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "            ->where('j.branch_id', $branchId)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G525 jump: the movements shown are of the days",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "            ->where('j.journal_date >', $before)\n            ->where('j.journal_date <=', $today)",
+  "replace": "            ->where('j.journal_date <=', $today)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G526 jump: the movements shown are not after today",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "            ->where('j.journal_date >', $before)\n            ->where('j.journal_date <=', $today)",
+  "replace": "            ->where('j.journal_date >', $before)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G527 jump: a movement of the day before the window is before it",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "SUM(CASE WHEN j.journal_date <= {$quoted} THEN {$net} ELSE 0 END) AS prior",
+  "replace": "SUM(CASE WHEN j.journal_date < {$quoted} THEN {$net} ELSE 0 END) AS prior",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G528 jump: the last journal of the days",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "MAX(CASE WHEN j.journal_date > {$quoted} THEN j.journal_id END) AS last_journal_id",
+  "replace": "MAX(j.journal_id) AS last_journal_id",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G529 jump: a customer who moves again is a new finding",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "key: (int) $row->customer_id . '|' . (int) $row->branch_id . '|' . (int) $row->last_journal_id,",
+  "replace": "key: (int) $row->customer_id . '|' . (int) $row->branch_id,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G530 jump: one finding for one branch of a customer",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "key: (int) $row->customer_id . '|' . (int) $row->branch_id . '|' . (int) $row->last_journal_id,",
+  "replace": "key: (int) $row->customer_id . '|' . (int) $row->last_journal_id,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G531 jump: the severity is medium",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "severity: Finding::MEDIUM,",
+  "replace": "severity: Finding::HIGH,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G532 jump: the finding is of the customer",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "subjectType: 'customer',",
+  "replace": "subjectType: 'journal',",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G533 jump: the finding is of the branch",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "branchId: (int) $row->branch_id,\n                subjectType",
+  "replace": "branchId: null,\n                subjectType",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G534 jump: the finding is of the day of the scan",
+  "file": "app/Libraries/Accounting/Ai/Rules/BalanceJumpRule.php",
+  "find": "occurredOn: $today,",
+  "replace": "occurredOn: $before,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/Rules/BalanceJumpRuleTest.php"
+  ]
+ },
+ {
+  "name": "G540 text: the spaces are made equal",
+  "file": "app/Libraries/Accounting/Ai/CounterpartText.php",
+  "find": "$collapsed = preg_replace('/\\s+/u', ' ', trim((string) $text));",
+  "replace": "$collapsed = trim((string) $text);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/CounterpartTextTest.php"
+  ]
+ },
+ {
+  "name": "G541 text: the case is made equal",
+  "file": "app/Libraries/Accounting/Ai/CounterpartText.php",
+  "find": "return mb_substr(mb_strtolower(trim((string) $collapsed)), 0, self::MAX);",
+  "replace": "return mb_substr(trim((string) $collapsed), 0, self::MAX);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/CounterpartTextTest.php"
+  ]
+ },
+ {
+  "name": "G542 text: the text is cut to a length",
+  "file": "app/Libraries/Accounting/Ai/CounterpartText.php",
+  "find": "return mb_substr(mb_strtolower(trim((string) $collapsed)), 0, self::MAX);",
+  "replace": "return mb_strtolower(trim((string) $collapsed));",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/CounterpartTextTest.php"
+  ]
+ },
+ {
+  "name": "G543 text: the ends are trimmed after the cut",
+  "file": "app/Libraries/Accounting/Ai/CounterpartText.php",
+  "find": "return mb_substr(mb_strtolower(trim((string) $collapsed)), 0, self::MAX);",
+  "replace": "return mb_substr(mb_strtolower((string) $collapsed), 0, self::MAX);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/CounterpartTextTest.php"
+  ]
+ },
+ {
+  "name": "G544 text: the database makes the spaces equal",
+  "file": "app/Libraries/Accounting/Ai/CounterpartText.php",
+  "find": "TRIM(REGEXP_REPLACE(COALESCE(NULLIF(TRIM({$lineAlias}.description), ''), {$journalAlias}.description, ''), '[[:space:]]+', ' '))",
+  "replace": "TRIM(COALESCE(NULLIF(TRIM({$lineAlias}.description), ''), {$journalAlias}.description, ''))",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/CounterpartTextTest.php"
+  ]
+ },
+ {
+  "name": "G545 text: the database makes the case equal",
+  "file": "app/Libraries/Accounting/Ai/CounterpartText.php",
+  "find": "return \"LOWER(LEFT(TRIM(",
+  "replace": "return \"(LEFT(TRIM(",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/CounterpartTextTest.php"
+  ]
+ },
+ {
+  "name": "G546 text: the database takes the text of the journal when the line has none",
+  "file": "app/Libraries/Accounting/Ai/CounterpartText.php",
+  "find": "COALESCE(NULLIF(TRIM({$lineAlias}.description), ''), {$journalAlias}.description, '')",
+  "replace": "COALESCE({$lineAlias}.description, {$journalAlias}.description, '')",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/CounterpartTextTest.php"
+  ]
+ },
+ {
+  "name": "G547 text: the database cuts the text to the same length",
+  "file": "app/Libraries/Accounting/Ai/CounterpartText.php",
+  "find": "' ')), \" . self::MAX . '))';",
+  "replace": "' ')), \" . (self::MAX + 1) . '))';",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/CounterpartTextTest.php"
+  ]
+ },
+ {
+  "name": "G550 words: a template that exists gives the words",
+  "file": "app/Libraries/Accounting/Ai/ProposalText.php",
+  "find": "        if ($line !== $key) {\n            return $line;\n        }\n\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalTextTest.php"
+  ]
+ },
+ {
+  "name": "G551 words: a kind with no template shows what was stored",
+  "file": "app/Libraries/Accounting/Ai/ProposalText.php",
+  "find": "return $stored !== '' ? $stored : $kind;",
+  "replace": "return $kind;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalTextTest.php"
+  ]
+ },
+ {
+  "name": "G552 words: a kind with nothing stored shows its code",
+  "file": "app/Libraries/Accounting/Ai/ProposalText.php",
+  "find": "return $stored !== '' ? $stored : $kind;",
+  "replace": "return $stored;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalTextTest.php"
+  ]
+ },
+ {
+  "name": "G553 words: the template is of the part and the kind",
+  "file": "app/Libraries/Accounting/Ai/ProposalText.php",
+  "find": "$key  = 'Accounting_ai.' . $part . '_' . $kind;",
+  "replace": "$key  = 'Accounting_ai.' . $kind;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalTextTest.php"
+  ]
+ },
+ {
+  "name": "G554 words: the figures that are not text or numbers are left out",
+  "file": "app/Libraries/Accounting/Ai/ProposalText.php",
+  "find": "return is_array($decoded) ? array_filter($decoded, 'is_scalar') : [];",
+  "replace": "return is_array($decoded) ? $decoded : [];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalTextTest.php"
+  ]
+ },
+ {
+  "name": "G560 evidence: the automatic series has its own number",
+  "file": "app/Libraries/Accounting/Ai/EvidenceRows.php",
+  "find": "return $series === 'auto' && $number !== '' ? 'A-' . $number : $number;",
+  "replace": "return $number;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceRowsTest.php"
+  ]
+ },
+ {
+  "name": "G561 evidence: a number that is empty stays empty",
+  "file": "app/Libraries/Accounting/Ai/EvidenceRows.php",
+  "find": "return $series === 'auto' && $number !== '' ? 'A-' . $number : $number;",
+  "replace": "return $series === 'auto' ? 'A-' . $number : $number;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceRowsTest.php"
+  ]
+ },
+ {
+  "name": "G562 evidence: only the automatic series has the prefix",
+  "file": "app/Libraries/Accounting/Ai/EvidenceRows.php",
+  "find": "return $series === 'auto' && $number !== '' ? 'A-' . $number : $number;",
+  "replace": "return $number !== '' ? 'A-' . $number : $number;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceRowsTest.php"
+  ]
+ },
+ {
+  "name": "G563 evidence: a cell with no value is not written",
+  "file": "app/Libraries/Accounting/Ai/EvidenceRows.php",
+  "find": "if ($value !== null && $value !== '') {",
+  "replace": "if (true) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceRowsTest.php"
+  ]
+ },
+ {
+  "name": "G564 evidence: a cell that is not empty but zero is written",
+  "file": "app/Libraries/Accounting/Ai/EvidenceRows.php",
+  "find": "if ($value !== null && $value !== '') {",
+  "replace": "if ($value) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceRowsTest.php"
+  ]
+ },
+ {
+  "name": "G565 evidence: the row of a journal names the journal",
+  "file": "app/Libraries/Accounting/Ai/EvidenceRows.php",
+  "find": "'journal_id' => (int) $row->journal_id,",
+  "replace": "'journal_id' => 0,",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceRowsTest.php"
+  ]
+ },
+ {
+  "name": "G566 evidence: the rows are joined by a bar",
+  "file": "app/Libraries/Accounting/Ai/EvidenceRows.php",
+  "find": "return implode(' | ', array_map(",
+  "replace": "return implode(', ', array_map(",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceRowsTest.php"
+  ]
+ },
+ {
+  "name": "G567 settings: turning the agent on needs every branch, as the switch is the company's",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "if ($enabled) {\n            $this->requireManage($employeeId);",
+  "replace": "if ($enabled) {\n            $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G568 settings: changing the thresholds needs every branch",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "public function update(array $input, ?int $employeeId): void\n    {\n        $this->requireManage($employeeId);",
+  "replace": "public function update(array $input, ?int $employeeId): void\n    {\n        $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G569 settings: the settings of the agent check the company scope",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "        $this->branches->requireCompanyScope($employeeId);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php",
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G570 settings: the settings of the agent check the permission",
+  "file": "app/Libraries/Accounting/Ai/AiSettings.php",
+  "find": "        $this->guard->require(AccountingGuard::SETTINGS_MANAGE, $employeeId);\n        $this->branches->requireCompanyScope",
+  "replace": "        $this->branches->requireCompanyScope",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/AiSettingsTest.php"
+  ]
+ },
+ {
+  "name": "G571 screens: the form of the settings is for who manages them in every branch",
+  "file": "app/Controllers/AccountingAi.php",
+  "find": "$canManage = $this->canManage(AccountingGuard::SETTINGS_MANAGE);",
+  "replace": "$canManage = $this->can(AccountingGuard::SETTINGS_MANAGE);",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G572 reclassify: when the subjects are more than the cap the newest are kept",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "$builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->subjectCap)",
+  "replace": "$builder->orderBy('j.journal_id', 'ASC')->orderBy('l.line_no', 'ASC')->limit($this->subjectCap)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G573 reclassify: the suggestions come oldest first",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "return array_reverse($builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->subjectCap)->get()->getResult());",
+  "replace": "return $builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->subjectCap)->get()->getResult();",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G574 recurring: when the rows are more than the cap the newest are kept",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "$builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->rowCap)",
+  "replace": "$builder->orderBy('j.journal_id', 'ASC')->orderBy('l.line_no', 'ASC')->limit($this->rowCap)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G575 recurring: the rows are read oldest first, so the last of a month is the last",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "foreach (array_reverse($builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->rowCap)->get()->getResult()) as $row) {",
+  "replace": "foreach ($builder->orderBy('j.journal_id', 'DESC')->orderBy('l.line_no', 'DESC')->limit($this->rowCap)->get()->getResult() as $row) {",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G576 reclassify: the history is that of the branch of the subject",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "            ->where('j.branch_id', (int) $subject->branch_id)\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G577 reclassify: a line charged to a distribution of cost centers is left to a person",
+  "file": "app/Libraries/Accounting/Ai/ReclassificationProposer.php",
+  "find": "\n            ->where('NOT EXISTS (SELECT 1 FROM ' . $this->db->prefixTable('accounting_journal_line_distributions') . ' d WHERE d.line_id = l.line_id)', null, false);",
+  "replace": ";",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ReclassificationProposerTest.php"
+  ]
+ },
+ {
+  "name": "G578 recurring: a manual journal with a distribution of cost centers is left to a person",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "if (($manual && (int) $row->distributed === 1) || in_array(",
+  "replace": "if (in_array(",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G579 recurring: only a manual journal is left to a person for its distribution",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "if (($manual && (int) $row->distributed === 1)",
+  "replace": "if (((int) $row->distributed === 1)",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G580 recurring: the distribution is looked for in the journal of the month",
+  "file": "app/Libraries/Accounting/Ai/RecurringEntryProposer.php",
+  "find": "$template->source_type === JournalDraft::SOURCE_MANUAL",
+  "replace": "true",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/RecurringEntryProposerTest.php"
+  ]
+ },
+ {
+  "name": "G581 approval: the line rules of the books as they are now are checked again",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "            $this->assertLineRules($journal->lines);\n",
+  "replace": "",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G582 approval: a proposal that fails the line rules says so as the reason it was superseded",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "return 'line_rules_changed';",
+  "replace": "return 'x';",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G583 approval: a proposal that fails the line rules is superseded and not left standing",
+  "file": "app/Libraries/Accounting/Ai/ProposalService.php",
+  "find": "        } catch (AccountingException) {\n            return 'line_rules_changed';",
+  "replace": "        } catch (AccountingException $failure) {\n            throw $failure;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/ProposalServiceTest.php"
+  ]
+ },
+ {
+  "name": "G584 labels: the source of a journal is shown by its label",
+  "file": "app/Libraries/Accounting/Ai/EvidenceLabels.php",
+  "find": "return JournalSources::label($value);",
+  "replace": "return $value;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceLabelsTest.php",
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php",
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G585 labels: the owner of an account is shown by its label",
+  "file": "app/Libraries/Accounting/Ai/EvidenceLabels.php",
+  "find": "'entity_type' => 'Accounting_ai.evidence_owner_',",
+  "replace": "'entity_type' => 'Accounting_ai.evidence_nothing_',",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceLabelsTest.php",
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G586 labels: the status of a journal is shown by its label",
+  "file": "app/Libraries/Accounting/Ai/EvidenceLabels.php",
+  "find": "'status'      => 'Accounting_ai.evidence_status_',",
+  "replace": "'status'      => 'Accounting_ai.evidence_nothing_',",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceLabelsTest.php",
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G587 labels: a code that has no label is shown as it is",
+  "file": "app/Libraries/Accounting/Ai/EvidenceLabels.php",
+  "find": "return $line === $prefix . $value ? $value : $line;",
+  "replace": "return $line;",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceLabelsTest.php"
+  ]
+ },
+ {
+  "name": "G588 labels: a key that has no labels keeps its value",
+  "file": "app/Libraries/Accounting/Ai/EvidenceLabels.php",
+  "find": "        if ($prefix === null) {\n            return $value;\n        }\n",
+  "replace": "        $prefix ??= 'Accounting_ai.evidence_status_';\n",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/EvidenceLabelsTest.php"
+  ]
+ },
+ {
+  "name": "G589 labels: the message of a finding names the source by its label",
+  "file": "app/Libraries/Accounting/Ai/FindingService.php",
+  "find": "$args['source'] = EvidenceLabels::value('source', (string) $args['source']);",
+  "replace": "$args['source'] = (string) $args['source'];",
+  "tests": [
+   "tests/Libraries/Accounting/Ai/FindingServiceTest.php",
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G590 labels: the evidence of the screens is shown by its labels",
+  "file": "app/Views/accounting_ai/evidence.php",
+  "find": "<?= esc(EvidenceLabels::value((string) $key, (string) $value)) ?>",
+  "replace": "<?= esc((string) $value) ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G591 output: an evidence value typed by a person is escaped",
+  "file": "app/Views/accounting_ai/evidence.php",
+  "find": "<?= esc(EvidenceLabels::value((string) $key, (string) $value)) ?>",
+  "replace": "<?= EvidenceLabels::value((string) $key, (string) $value) ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G592 output: the title of a proposal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) $proposal->title_text) ?> <span",
+  "replace": "<?= (string) $proposal->title_text ?> <span",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G593 output: the rationale of a proposal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) $proposal->rationale_text) ?>",
+  "replace": "<?= (string) $proposal->rationale_text ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G594 output: the branch of a proposal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) $proposal->branch_code) ?>",
+  "replace": "<?= (string) $proposal->branch_code ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G595 output: the name of who asked for a proposal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "esc((string) $proposal->requester_name)",
+  "replace": "(string) $proposal->requester_name",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G596 output: the name of who decided is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "esc((string) $proposal->decider_name)",
+  "replace": "(string) $proposal->decider_name",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G597 output: the reason of a rejection is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) $proposal->reject_reason) ?>",
+  "replace": "<?= (string) $proposal->reject_reason ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G598 output: the text of the proposed journal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) ($proposal->payload_data['description'] ?? '')) ?>",
+  "replace": "<?= (string) ($proposal->payload_data['description'] ?? '') ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G599 output: the name of an account of the proposed journal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) $line['account_name']) ?>",
+  "replace": "<?= (string) $line['account_name'] ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G600 output: the text of a line of the proposed journal is escaped",
+  "file": "app/Views/accounting_ai/proposal.php",
+  "find": "<?= esc((string) ($line['description'] ?? '')) ?>",
+  "replace": "<?= (string) ($line['description'] ?? '') ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G601 output: the title in the list of proposals is escaped",
+  "file": "app/Views/accounting_ai/proposals.php",
+  "find": "<td><?= esc((string) $row->title_text) ?></td>",
+  "replace": "<td><?= (string) $row->title_text ?></td>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G602 output: the branch in the list of proposals is escaped",
+  "file": "app/Views/accounting_ai/proposals.php",
+  "find": "<bdi dir=\"ltr\"><?= esc((string) $row->branch_code) ?></bdi>",
+  "replace": "<bdi dir=\"ltr\"><?= (string) $row->branch_code ?></bdi>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G603 output: the title in the form of an approval is escaped",
+  "file": "app/Views/accounting_ai/approve_form.php",
+  "find": "<p><?= esc((string) $proposal->title_text) ?></p>",
+  "replace": "<p><?= (string) $proposal->title_text ?></p>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G604 output: the title in the form of a rejection is escaped",
+  "file": "app/Views/accounting_ai/reject_form.php",
+  "find": "<p class=\"fw-bold\"><?= esc((string) $proposal->title_text) ?></p>",
+  "replace": "<p class=\"fw-bold\"><?= (string) $proposal->title_text ?></p>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G605 output: the message in the form of a decision is escaped",
+  "file": "app/Views/accounting_ai/decide_form.php",
+  "find": "<p class=\"fw-bold\"><?= esc((string) $finding->message) ?></p>",
+  "replace": "<p class=\"fw-bold\"><?= (string) $finding->message ?></p>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G606 output: the message of a finding is escaped",
+  "file": "app/Views/accounting_ai/findings.php",
+  "find": "<p class=\"mb-2\"><?= esc((string) $row->message) ?></p>",
+  "replace": "<p class=\"mb-2\"><?= (string) $row->message ?></p>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G607 output: the decision on a finding is escaped",
+  "file": "app/Views/accounting_ai/findings.php",
+  "find": "<?= esc(lang('Accounting_ai.decision_line', [(string) $row->decider_name, (string) $row->decided_at, (string) $row->decision_reason])) ?>",
+  "replace": "<?= lang('Accounting_ai.decision_line', [(string) $row->decider_name, (string) $row->decided_at, (string) $row->decision_reason]) ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ },
+ {
+  "name": "G608 output: the branch of a finding is escaped",
+  "file": "app/Views/accounting_ai/findings.php",
+  "find": "<?= esc((string) $row->branch_code) ?>",
+  "replace": "<?= (string) $row->branch_code ?>",
+  "tests": [
+   "tests/Controllers/AccountingAiControllerTest.php"
+  ]
+ }
+]

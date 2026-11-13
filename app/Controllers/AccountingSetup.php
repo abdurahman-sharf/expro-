@@ -40,6 +40,8 @@ class AccountingSetup extends AccountingController
         AccountingGuard::CURRENCIES_MANAGE  => 'Accounting_currencies.currencies_manage',
         AccountingGuard::EINVOICING_MANAGE  => 'Accounting_einvoicing.einvoicing_manage',
         AccountingGuard::ASSETS_DEPRECIATE  => 'Accounting_assets.assets_depreciate',
+        AccountingGuard::AI_USE             => 'Accounting_ai.permission_use',
+        AccountingGuard::AI_APPROVE         => 'Accounting_ai.permission_approve',
     ];
 
     private AccountingSettings $settings;

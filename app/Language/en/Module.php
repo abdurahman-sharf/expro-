@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'accounting_ai'                => 'AI Agent',
+    'accounting_ai_desc'           => 'Journals the local rules propose for a person to approve, the findings of the scan of the books, and the switch of the agent.',
     'accounting_assets'            => 'Fixed Assets',
     'accounting_assets_desc'       => 'Register fixed assets, run and approve their depreciation, sell or write them off, and read the assets report.',
     'accounting_chart'             => 'Chart of Accounts',

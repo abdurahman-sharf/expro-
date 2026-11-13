@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'accounting_ai'                => '',
+    'accounting_ai_desc'           => '',
     'accounting_assets'            => '',
     'accounting_assets_desc'       => '',
     'accounting_chart'             => '',

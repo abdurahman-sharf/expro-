@@ -43,6 +43,8 @@ final class AccountingGuard
     public const EINVOICING_MANAGE   = 'acc_einvoicing_manage';
     public const ASSETS_MANAGE       = 'acc_assets_manage';
     public const ASSETS_DEPRECIATE   = 'acc_assets_depreciate';
+    public const AI_USE              = 'accounting_ai';
+    public const AI_APPROVE          = 'acc_ai_approve';
 
     /**
      * Permissions that change what ordinary users cannot undo. Nothing grants them
@@ -70,6 +72,8 @@ final class AccountingGuard
         self::CURRENCIES_MANAGE,
         self::EINVOICING_MANAGE,
         self::ASSETS_DEPRECIATE,
+        self::AI_USE,
+        self::AI_APPROVE,
     ];
 
     private Employee $employee;
