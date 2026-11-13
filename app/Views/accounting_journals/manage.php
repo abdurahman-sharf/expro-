@@ -2,6 +2,7 @@
 /**
  * @var string $table_headers
  * @var list<object> $accounts
+ * @var array<string, mixed>|null $picker The search box that replaces the list of accounts when there are many.
  * @var list<object> $branches
  * @var int|null $current_branch
  * @var list<object> $creators
@@ -72,7 +73,7 @@ $empty     = '<p class="mb-2">' . esc(lang('Accounting_journals.empty')) . '</p>
             table_support.refresh();
         });
 
-        const picker = accounting_support.accountPicker('accounts_list');
+        const picker = accounting_support.accountPicker('accounts_list', <?= json_encode($picker, $jsonFlags) ?>);
 
         $('#f_account_text').on('input change blur', function(event) {
             event.type === 'blur' ? picker.complete($(this), $('#f_account')) : picker.sync($(this), $('#f_account'));
@@ -136,13 +137,15 @@ $empty     = '<p class="mb-2">' . esc(lang('Accounting_journals.empty')) . '</p>
         <?php endif; ?>
         <div class="acc-filter">
             <label class="form-label" for="f_account_text"><?= lang('Accounting_journals.account') ?></label>
-            <input type="text" id="f_account_text" class="form-control form-control-sm" list="accounts_list" autocomplete="off" placeholder="<?= esc(lang('Accounting_journals.all_accounts'), 'attr') ?>">
+            <input type="text" id="f_account_text" class="form-control form-control-sm"<?= $picker === null ? ' list="accounts_list"' : '' ?> autocomplete="off" placeholder="<?= esc(lang('Accounting_journals.all_accounts'), 'attr') ?>">
             <input type="hidden" id="f_account" value="">
-            <datalist id="accounts_list">
-                <?php foreach ($accounts as $account): ?>
-                    <option value="<?= esc($account->code . ' - ' . $account->name, 'attr') ?>" data-id="<?= (int) $account->account_id ?>" data-code="<?= esc($account->code, 'attr') ?>"></option>
-                <?php endforeach; ?>
-            </datalist>
+            <?php if ($picker === null): ?>
+                <datalist id="accounts_list">
+                    <?php foreach ($accounts as $account): ?>
+                        <option value="<?= esc($account->code . ' - ' . $account->name, 'attr') ?>" data-id="<?= (int) $account->account_id ?>" data-code="<?= esc($account->code, 'attr') ?>"></option>
+                    <?php endforeach; ?>
+                </datalist>
+            <?php endif; ?>
         </div>
         <div class="acc-filter">
             <label class="form-label" for="f_number"><?= lang('Accounting_journals.number') ?></label>

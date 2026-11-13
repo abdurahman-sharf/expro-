@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReportScopeKind;
@@ -20,6 +21,7 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingTaxReports extends AccountingController
 {
+    use ExportsCsv;
     use ScopedReportRequest;
 
     private TaxReport $taxes;
@@ -118,11 +120,7 @@ class AccountingTaxReports extends AccountingController
 
         $this->csvChecks($handle, $report);
 
-        rewind($handle);
-        $text = (string) stream_get_contents($handle);
-        fclose($handle);
-
-        return $text;
+        return $this->csvText($handle);
     }
 
     /**
@@ -168,15 +166,6 @@ class AccountingTaxReports extends AccountingController
         if (! $report->inputRouted) {
             $this->csvRow($handle, [lang('Accounting_tax_reports.not_routed_input')]);
         }
-    }
-
-    /**
-     * @param resource     $handle
-     * @param list<string> $cells
-     */
-    private function csvRow($handle, array $cells): void
-    {
-        fputcsv($handle, $cells, ',', '"', '');
     }
 
     /**

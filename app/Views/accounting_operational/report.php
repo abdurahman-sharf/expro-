@@ -258,6 +258,13 @@ foreach ($table?->columns ?? [] as $column) {
                     </thead>
                     <tbody>
                         <?php foreach ($table->ties as $tie): ?>
+                            <?php if ($tie->isRefused()): ?>
+                                <tr data-tie="<?= esc($tie->labelKey, 'attr') ?>" data-status="refused">
+                                    <td><?= lang($tie->labelKey) ?></td>
+                                    <td colspan="4" class="text-warning-emphasis"><span class="bi bi-exclamation-triangle" aria-hidden="true">&nbsp;</span><?= esc(lang((string) $tie->refusal, $tie->refusalArguments)) ?></td>
+                                </tr>
+                                <?php continue; ?>
+                            <?php endif; ?>
                             <tr data-tie="<?= esc($tie->labelKey, 'attr') ?>">
                                 <td><?= lang($tie->labelKey) ?></td>
                                 <td class="text-end" data-cell="reported"><?= $amount($tie->reported) ?></td>

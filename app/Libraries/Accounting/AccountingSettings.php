@@ -27,6 +27,9 @@ final class AccountingSettings
     private const DEBIT_NOTE_KEY       = 'accounting_debit_note';
     private const SALES_TEMPLATE_KEY   = 'accounting_journal_description_sales';
     private const BUYING_TEMPLATE_KEY  = 'accounting_journal_description_purchases';
+    private const PICKER_KEY           = 'accounting_picker_threshold';
+    public const DEFAULT_PICKER_SIZE   = 200;
+    public const MAX_PICKER_SIZE       = 100000;
 
     private BaseConnection $db;
     private Appconfig $config;
@@ -132,6 +135,17 @@ final class AccountingSettings
     }
 
     /**
+     * How many accounts, customers or suppliers a list may hold before the screens that would list them all
+     * offer a search box instead.
+     */
+    public function pickerThreshold(): int
+    {
+        $value = $this->config->get_value(self::PICKER_KEY, (string) self::DEFAULT_PICKER_SIZE);
+
+        return preg_match('/^\d{1,6}$/', $value) === 1 && (int) $value >= 1 && (int) $value <= self::MAX_PICKER_SIZE ? (int) $value : self::DEFAULT_PICKER_SIZE;
+    }
+
+    /**
      * Whether the sales debit note is available: a document that raises what a customer owes without an
      * invoice. It is off until it is turned on, as the reference system keeps it.
      */
@@ -179,7 +193,7 @@ final class AccountingSettings
     }
 
     /**
-     * @param array{base_currency?: string, start_date?: string, auto_fiscal_year?: bool, line_description_required?: bool, expense_account_required?: bool, revenue_account_required?: bool, customer_opening?: bool, backfill_enabled?: bool, sales_adjustment?: bool, sales_shipping?: bool, shipping_tax_percent?: string, debit_note?: bool, journal_description_sales?: string, journal_description_purchases?: string} $input
+     * @param array{base_currency?: string, start_date?: string, auto_fiscal_year?: bool, line_description_required?: bool, expense_account_required?: bool, revenue_account_required?: bool, customer_opening?: bool, backfill_enabled?: bool, sales_adjustment?: bool, sales_shipping?: bool, shipping_tax_percent?: string, debit_note?: bool, journal_description_sales?: string, journal_description_purchases?: string, picker_threshold?: string} $input
      *
      * @throws AccountingException|BranchException
      */
@@ -187,7 +201,7 @@ final class AccountingSettings
     {
         $this->requireManage($employeeId);
 
-        $before  = ['base_currency' => $this->baseCurrency(), 'start_date' => $this->startDate(), 'auto_fiscal_year' => $this->autoFiscalYear(), 'line_description_required' => $this->lineDescriptionRequired(), 'expense_account_required' => $this->expenseAccountRequired(), 'revenue_account_required' => $this->revenueAccountRequired(), 'customer_opening' => $this->customerOpeningEnabled(), 'backfill_enabled' => $this->backfillEnabled(), 'sales_adjustment' => $this->salesAdjustmentEnabled(), 'sales_shipping' => $this->salesShippingEnabled(), 'shipping_tax_percent' => $this->shippingTaxPercent(), 'debit_note' => $this->debitNoteEnabled(), 'journal_description_sales' => $this->journalDescriptionTemplate(JournalDescriptionTemplate::SALES), 'journal_description_purchases' => $this->journalDescriptionTemplate(JournalDescriptionTemplate::PURCHASES)];
+        $before  = ['base_currency' => $this->baseCurrency(), 'start_date' => $this->startDate(), 'auto_fiscal_year' => $this->autoFiscalYear(), 'line_description_required' => $this->lineDescriptionRequired(), 'expense_account_required' => $this->expenseAccountRequired(), 'revenue_account_required' => $this->revenueAccountRequired(), 'customer_opening' => $this->customerOpeningEnabled(), 'backfill_enabled' => $this->backfillEnabled(), 'sales_adjustment' => $this->salesAdjustmentEnabled(), 'sales_shipping' => $this->salesShippingEnabled(), 'shipping_tax_percent' => $this->shippingTaxPercent(), 'debit_note' => $this->debitNoteEnabled(), 'journal_description_sales' => $this->journalDescriptionTemplate(JournalDescriptionTemplate::SALES), 'journal_description_purchases' => $this->journalDescriptionTemplate(JournalDescriptionTemplate::PURCHASES), 'picker_threshold' => (string) $this->pickerThreshold()];
         $after   = $before;
         $changes = [];
 
@@ -252,6 +266,16 @@ final class AccountingSettings
             $after['shipping_tax_percent'] = $percent;
         }
 
+        if (array_key_exists('picker_threshold', $input)) {
+            $size = trim((string) $input['picker_threshold']);
+
+            if (preg_match('/^\d{1,6}$/', $size) !== 1 || (int) $size < 1 || (int) $size > self::MAX_PICKER_SIZE) {
+                throw new AccountingException(AccountingError::PickerThresholdInvalid, 'The number of entries before a search box is offered is a whole number from 1 to the maximum.', ['max' => self::MAX_PICKER_SIZE]);
+            }
+
+            $after['picker_threshold'] = (string) (int) $size;
+        }
+
         foreach (['journal_description_sales', 'journal_description_purchases'] as $templateKey) {
             if (array_key_exists($templateKey, $input)) {
                 $template = trim((string) $input[$templateKey]);
@@ -300,6 +324,7 @@ final class AccountingSettings
                 'debit_note'                => self::DEBIT_NOTE_KEY,
                 'journal_description_sales'     => self::SALES_TEMPLATE_KEY,
                 'journal_description_purchases' => self::BUYING_TEMPLATE_KEY,
+                'picker_threshold'          => self::PICKER_KEY,
             }] = is_bool($value) ? ($value ? '1' : '0') : $value;
         }
 

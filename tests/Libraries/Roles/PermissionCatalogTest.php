@@ -135,6 +135,24 @@ final class PermissionCatalogTest extends CIUnitTestCase
         $this->assertSame([], array_values(array_diff($marked, AccountingGuard::SENSITIVE)));
     }
 
+    public function testModules_LocksEveryPermissionThatMovesMoneyOrChangesTheSettingsForARoleAndNoOtherOne(): void
+    {
+        $permissions = $this->permissionsById();
+        $locked      = array_keys(array_filter($permissions, static fn (array $permission): bool => $permission['role_locked']));
+
+        foreach (RoleGrants::REFUSED as $refused) {
+            $this->assertArrayHasKey($refused, $permissions);
+            $this->assertTrue($permissions[$refused]['role_locked'], $refused);
+        }
+
+        foreach (RoleGrants::ALLOWED_ACCOUNTING as $allowed) {
+            $this->assertFalse($permissions[$allowed]['role_locked'], $allowed);
+        }
+
+        $this->assertSame([], array_values(array_diff($locked, RoleGrants::REFUSED)));
+        $this->assertFalse($permissions['sales_delete']['role_locked']);
+    }
+
     public function testModules_NeverListsTheBranchScopePermissions(): void
     {
         $permissions = $this->permissionsById();

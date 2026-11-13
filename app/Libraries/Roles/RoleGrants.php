@@ -3,6 +3,7 @@
 namespace App\Libraries\Roles;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Documents\CustomFields;
 use App\Libraries\Organization\BranchGuard;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
@@ -10,11 +11,30 @@ use Config\Database;
 /**
  * The permission ids an employee holds through the roles they have: the second source of the
  * effective permissions, next to their own grants, read once for each employee and request. A role
- * never gives a sensitive permission or a branch scope, even if a row that says so were written
- * past the role service, and an inactive role, a deleted employee or a missing table give nothing.
+ * never gives a sensitive permission, an accounting permission that posts to the books, moves money
+ * or changes the settings, or a branch scope, even if a row that says so were written past the role
+ * service, and an inactive role, a deleted employee or a missing table give nothing. The accounting
+ * permissions a role may carry are the ones that only read or prepare.
  */
 final class RoleGrants
 {
+    public const REFUSED = [
+        AccountingGuard::CHART_MANAGE,
+        AccountingGuard::COST_CENTERS_MANAGE,
+        AccountingGuard::JOURNALS_POST,
+        AccountingGuard::JOURNALS_REVERSE,
+        AccountingGuard::PERIODS_MANAGE,
+        AccountingGuard::CHEQUES_MANAGE,
+        AccountingGuard::DEBIT_NOTES_MANAGE,
+        CustomFields::PERMISSION,
+    ];
+    public const ALLOWED_ACCOUNTING = [
+        AccountingGuard::JOURNALS_ALL,
+        AccountingGuard::JOURNALS_AUDIT,
+        AccountingGuard::JOURNALS_DRAFT,
+        AccountingGuard::BANK_RECONCILE,
+    ];
+
     private static int $generation = 0;
     private BaseConnection $db;
     private ?bool $available = null;
@@ -45,13 +65,14 @@ final class RoleGrants
 
     /**
      * The permissions a role can never hold: the sensitive ones, which only an administrator hands
-     * to an employee, and the branch scope, which stays on the employee.
+     * to an employee, the accounting ones that post, move money or change the settings, and the
+     * branch scope, which stays on the employee.
      *
      * @return list<string>
      */
     public static function forbidden(): array
     {
-        return [...AccountingGuard::SENSITIVE, BranchGuard::ALL_BRANCHES, BranchGuard::SCOPE_MANAGE];
+        return [...AccountingGuard::SENSITIVE, ...self::REFUSED, BranchGuard::ALL_BRANCHES, BranchGuard::SCOPE_MANAGE];
     }
 
     public function has(int $personId, string $permissionId): bool

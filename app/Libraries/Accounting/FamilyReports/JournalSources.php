@@ -21,6 +21,7 @@ use App\Libraries\Accounting\StockAdjustment;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\YearEndEntries;
+use App\Libraries\Stock\StockPermitSources;
 
 /**
  * The sources a journal can have in these books, for the filter of the reports of journals. The
@@ -40,9 +41,11 @@ final class JournalSources
             JournalDraft::SOURCE_MANUAL,
             SalePostingBuilder::SOURCE_SALE,
             SalePostingBuilder::SOURCE_PAYMENT,
+            SalePostingBuilder::SOURCE_PAYMENT_FX,
             ReceivingPostingBuilder::SOURCE_PURCHASE,
             ReceivingPostingBuilder::SOURCE_PAYMENT,
             ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT,
+            ReceivingPostingBuilder::SOURCE_SUPPLIER_FX,
             SupplierAdvances::SOURCE,
             CreditRefunds::SUPPLIER_SOURCE,
             CustomerAdvances::SOURCE,
@@ -56,6 +59,10 @@ final class JournalSources
             OpeningStock::SOURCE,
             ReceivingPostingBuilder::SOURCE_STOCK_TRANSFER,
             ReceivingPostingBuilder::SOURCE_TRANSFER_RECEIPT,
+            StockPermitSources::PERMIT,
+            StockPermitSources::TRANSFER,
+            StockPermitSources::TRANSFER_RECEIPT,
+            StockPermitSources::STOCKTAKE,
             TreasuryTransfers::SOURCE,
             TreasuryTransfers::SOURCE_RECEIPT,
             InterBranchSettlements::SOURCE,

@@ -157,7 +157,9 @@ $head = static function (array $columns): string {
     <?php if ($all->ties !== []): ?>
         <section id="report_ties" aria-label="<?= esc(lang('Accounting_family_reports.ties_title'), 'attr') ?>">
             <?php foreach ($all->ties as $index => $tie): ?>
-                <?php if ($tie->ties()): ?>
+                <?php if ($tie->isRefused()): ?>
+                    <p class="alert alert-warning mb-1" role="status" data-tie="<?= $index ?>" data-status="refused"><span class="bi bi-exclamation-triangle" aria-hidden="true">&nbsp;</span><?= esc($tie->label) ?>: <?= esc((string) $tie->refusal) ?></p>
+                <?php elseif ($tie->ties()): ?>
                     <p class="text-success mb-1" data-tie="<?= $index ?>" data-status="ties"><span class="bi bi-check-circle" aria-hidden="true">&nbsp;</span><?= esc($tie->label) ?>: <?= $amount($tie->reported) ?></p>
                 <?php else: ?>
                     <p class="alert alert-danger mb-1" role="alert" data-tie="<?= $index ?>" data-status="differs"><?= esc(lang('Accounting_family_reports.tie_differs', [$tie->label, $tie->reported, $tie->book, $tie->difference()])) ?></p>

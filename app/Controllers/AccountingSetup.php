@@ -79,6 +79,7 @@ class AccountingSetup extends AccountingController
             'sales_shipping'           => $this->settings->salesShippingEnabled(),
             'shipping_tax_percent'     => $this->settings->shippingTaxPercent(),
             'debit_note'               => $this->settings->debitNoteEnabled(),
+            'picker_threshold'         => $this->settings->pickerThreshold(),
             'journal_description_sales'     => $this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::SALES),
             'journal_description_purchases' => $this->settings->journalDescriptionTemplate(JournalDescriptionTemplate::PURCHASES),
             'template_max'             => JournalDescriptionTemplate::MAX,
@@ -141,6 +142,12 @@ class AccountingSetup extends AccountingController
                 if ($this->request->getPost($text) !== null) {
                     $input[$text] = (string) $this->request->getPost($text);
                 }
+            }
+
+            $pickerThreshold = $this->request->getPost('picker_threshold');
+
+            if ($pickerThreshold !== null) {
+                $input['picker_threshold'] = is_array($pickerThreshold) ? 'not a value' : (string) $pickerThreshold;
             }
 
             $this->settings->update($input, $this->employeeId());

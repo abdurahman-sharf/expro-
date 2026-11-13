@@ -2,6 +2,7 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\FamilyReports\ChartReport;
@@ -354,6 +355,27 @@ final class AccountingFamilyReportsControllerTest extends FamilyReportTestCase
 
         $differs->assertSee('data-status="differs"');
         $differs->assertDontSee('data-status="ties"');
+    }
+
+    public function testGetShow_SaysByNameThatTheCheckIsNotMadeWhenAPurchaseIsInAForeignCurrencyOnTheScreenAndInTheFile(): void
+    {
+        $ids = $this->market();
+
+        (new Currencies())->setActive('USD', true);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $ids['other'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+        $this->viewer($this->everyReportPermission());
+
+        $screen = $this->get('/accounting_reports/purchases?from=' . $this->today() . '&to=' . $this->today());
+
+        $screen->assertSee('data-status="refused"');
+        $screen->assertDontSee('data-status="differs"');
+        $screen->assertDontSee('data-status="ties"');
+
+        $refusal = lang('Accounting_family_reports.tie_foreign_currency', ['USD']);
+        $rows    = array_values(array_filter($this->csvRows($this->get('/accounting_reports/purchases/csv?from=' . $this->today() . '&to=' . $this->today())), static fn (array $row): bool => in_array($refusal, $row, true)));
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(['', ''], [$rows[0][1], $rows[0][2]]);
     }
 
     public function testGetShow_ShowsTheTiesToTheLedgerOfThePaymentReportsToWhoReadsEveryonesRecords(): void

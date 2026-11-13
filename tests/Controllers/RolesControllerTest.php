@@ -173,6 +173,23 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertStringContainsString(lang('Module.sales'), $html);
     }
 
+    public function testGetView_LocksThePermissionsThatMoveMoneyAndDropsThemFromARoleThatStillHoldsThem(): void
+    {
+        $role = $this->createRole(['sales']);
+
+        $this->roleDb()->table('role_permissions')->insert(['role_id' => $role, 'permission_id' => AccountingGuard::DEBIT_NOTES_MANAGE]);
+        RoleGrants::flush();
+        $this->manager();
+
+        $html = $this->get('/roles/view/' . $role)->getBody();
+
+        $this->assertMatchesRegularExpression('/id="perm_acc_debit_notes_manage"[^>]*disabled/', $html);
+        $this->assertDoesNotMatchRegularExpression('/id="perm_acc_debit_notes_manage"[^>]*name=/', $html);
+        $this->assertDoesNotMatchRegularExpression('/<input[^>]*type="hidden"[^>]*value="acc_debit_notes_manage"/', $html, 'The save would be refused if the old row were sent back');
+        $this->assertMatchesRegularExpression('/id="perm_acc_bank_reconcile"[^>]*name="permissions\[\]"/', $html, 'A permission that moves nothing stays choosable');
+        $this->assertStringContainsString(lang('Roles.refused_permission'), $html);
+    }
+
     public function testGetView_ShowsWhatTheRoleHoldsAndItsScope(): void
     {
         $role = $this->createRole(['sales', 'items'], 'own', true, 'Held ' . uniqid());
@@ -263,6 +280,17 @@ final class RolesControllerTest extends CIUnitTestCase
         $this->assertFalse($result['success']);
         $this->assertSame(lang('Roles.error_sensitive_permission', [AccountingGuard::PERIODS_CLOSE]), $result['message']);
         $this->assertStringContainsString(AccountingGuard::PERIODS_CLOSE, $result['message']);
+    }
+
+    public function testPostSave_RejectsAPermissionThatMovesMoneyAndNamesIt(): void
+    {
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/roles/save', ['name' => 'Cheques ' . uniqid(), 'permissions' => ['sales', AccountingGuard::CHEQUES_MANAGE]]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Roles.error_refused_permission', [AccountingGuard::CHEQUES_MANAGE]), $result['message']);
+        $this->assertStringContainsString(AccountingGuard::CHEQUES_MANAGE, $result['message']);
     }
 
     public function testPostSave_RefusesTheBranchScopeEvenWhenItIsPosted(): void

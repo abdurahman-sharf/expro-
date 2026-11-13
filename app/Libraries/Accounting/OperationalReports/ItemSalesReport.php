@@ -109,7 +109,7 @@ final class ItemSalesReport
             columns: $this->columns($group, $details, $scope),
             blocks: $details ? $blocks : [new ReportBlock([], $summary)],
             total: $total,
-            ties: $filtered ? [] : [$this->tie($documents, $total['total'])],
+            ties: $filtered ? [] : ForeignAmounts::guard([$this->tie($documents, $total['total'])], $documents),
             notes: ['Accounting_operational_reports.note_items'],
             documents: count(array_unique(array_map(static fn (array $row): int => $row['document']->id, $rows))),
         );

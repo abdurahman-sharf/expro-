@@ -195,7 +195,7 @@ class AccountingFamilyReports extends AccountingController
         }
 
         foreach ($table->ties as $tie) {
-            $this->csvRow($handle, [$tie->label, $tie->reported, $tie->book, $tie->difference()]);
+            $this->csvRow($handle, $tie->isRefused() ? [$tie->label, '', '', (string) $tie->refusal] : [$tie->label, $tie->reported, $tie->book, $tie->difference()]);
         }
 
         foreach ($table->notes as $note) {

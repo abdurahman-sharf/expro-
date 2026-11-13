@@ -58,7 +58,9 @@ class Recurring_expensesControllerTest extends CIUnitTestCase
     {
         $this->releaseOpenTransactions();
         $this->clearSchedules();
+        $this->removeInsertedEntities();
         $this->accountingDb()->table('accounting_audit_log')->whereIn('entity_type', ['recurring_invoice', 'recurring_expense'])->delete();
+        $this->accountingDb()->table('app_config')->where('key', 'accounting_picker_threshold')->delete();
         $this->stopExpenses();
 
         parent::tearDown();
@@ -193,6 +195,74 @@ class Recurring_expensesControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('<option value="monthly" selected>', $body);
         $this->assertStringContainsString('<option value="cash"', $body);
         $this->assertStringContainsString('>' . esc(lang('Sales.cash')) . '</option>', $body);
+    }
+
+    public function testGetForm_ListsTheSuppliersInASelectWhileTheyAreFewerThanTheThreshold(): void
+    {
+        $supplier = $this->insertSupplier('Recurring Picker Supplies');
+
+        $this->setConfigValue('accounting_picker_threshold', '200');
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $body = $this->get('/recurring_expenses/add')->getBody();
+
+        $this->assertStringContainsString('<select name="supplier_id" id="supplier_id"', $body);
+        $this->assertStringContainsString('<option value="' . $supplier . '">Recurring Picker Supplies</option>', $body);
+        $this->assertStringNotContainsString('id="supplier_text"', $body);
+    }
+
+    public function testGetForm_ListsEverySupplierUpToTheThresholdEvenWhenThereAreMoreThanTwoHundred(): void
+    {
+        $this->setConfigValue('accounting_picker_threshold', '260');
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $last = 0;
+
+        for ($index = 1; $index <= 230; $index++) {
+            $last = $this->insertSupplier('Recurring Bulk Supplier ' . str_pad((string) $index, 3, '0', STR_PAD_LEFT));
+        }
+
+        $body = $this->get('/recurring_expenses/add')->getBody();
+
+        $this->assertStringContainsString('<option value="' . $last . '">Recurring Bulk Supplier 230</option>', $body);
+        $this->assertStringContainsString('<select name="supplier_id" id="supplier_id"', $body);
+    }
+
+    public function testGetForm_ReplacesTheSelectOfSuppliersByASearchBoxAboveTheThresholdAndKeepsTheChosenName(): void
+    {
+        $supplier   = $this->insertSupplier('Recurring Chosen Supplies');
+        $scheduleId = $this->schedule(['supplier_id' => (string) $supplier]);
+
+        $this->setConfigValue('accounting_picker_threshold', '1');
+        $this->insertSupplier('Recurring Other Supplies');
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $body = $this->get('/recurring_expenses/edit/' . $scheduleId)->getBody();
+
+        $this->assertStringNotContainsString('<select name="supplier_id"', $body);
+        $this->assertStringContainsString('id="supplier_text"', $body);
+        $this->assertStringContainsString('value="Recurring Chosen Supplies"', $body);
+        $this->assertStringContainsString('<input type="hidden" name="supplier_id" id="supplier_id" value="' . $supplier . '">', $body);
+        $this->assertStringContainsString('accounting_lookup\/search', $body);
+        $this->assertStringContainsString('"kind":"supplier"', $body);
+        $this->assertStringNotContainsString('Recurring Other Supplies', $body, 'The suppliers are not all written into the page');
+    }
+
+    public function testGetForm_KeepsTheSelectOfSuppliersAboveTheThresholdWhileAccountingIsDisabled(): void
+    {
+        $first  = $this->insertSupplier('Recurring Plain Supplies');
+        $second = $this->insertSupplier('Recurring Second Supplies');
+
+        $this->setConfigValue('accounting_picker_threshold', '1');
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->actAsWith([RecurringKind::Expense->managePermission()]);
+
+        $body = $this->get('/recurring_expenses/add')->getBody();
+
+        $this->assertStringContainsString('<select name="supplier_id" id="supplier_id"', $body);
+        $this->assertStringContainsString('<option value="' . $first . '">Recurring Plain Supplies</option>', $body);
+        $this->assertStringContainsString('<option value="' . $second . '">Recurring Second Supplies</option>', $body, 'The stored threshold does not cut the list while accounting is off');
+        $this->assertStringNotContainsString('id="supplier_text"', $body, 'The search answers only while accounting is on');
     }
 
     public function testGetForm_SelectsTheFrequencyAndTheWayOfPaymentOfTheScheduleWhateverLanguageItWasTypedIn(): void

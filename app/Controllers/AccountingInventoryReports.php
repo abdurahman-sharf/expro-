@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\InventoryValuation;
 use App\Libraries\Accounting\InventoryValuationReport;
 use App\Libraries\Accounting\ReportScope;
@@ -18,9 +19,8 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class AccountingInventoryReports extends AccountingController
 {
+    use ExportsCsv;
     use ScopedReportRequest;
-
-    private const CSV_FORMULA_STARTS = ['=', '+', '-', '@', "\t", "\r"];
 
     private InventoryValuation $valuation;
 
@@ -142,33 +142,7 @@ class AccountingInventoryReports extends AccountingController
             $report->stockAccountDifference() ?? '',
         ]);
 
-        rewind($handle);
-        $text = (string) stream_get_contents($handle);
-        fclose($handle);
-
-        return $text;
-    }
-
-    /**
-     * @param resource                    $handle
-     * @param list<numeric-string|string> $cells
-     */
-    private function csvRow($handle, array $cells): void
-    {
-        fputcsv($handle, array_map(fn (string $cell): string => $this->safeCell($cell), $cells), ',', '"', '');
-    }
-
-    /**
-     * A text that a spreadsheet would read as a formula is shown as text, and a number is left as
-     * it is.
-     */
-    private function safeCell(string $cell): string
-    {
-        if ($cell === '' || is_numeric($cell) || ! in_array($cell[0], self::CSV_FORMULA_STARTS, true)) {
-            return $cell;
-        }
-
-        return "'" . $cell;
+        return $this->csvText($handle);
     }
 
     private function csvUrl(ReportScope $scope): string

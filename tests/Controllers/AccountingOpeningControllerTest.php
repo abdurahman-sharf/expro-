@@ -158,6 +158,32 @@ class AccountingOpeningControllerTest extends CIUnitTestCase
         $response->assertDontSee('data-code="1103"');
     }
 
+    public function testGetIndex_ReplacesTheListOfAccountsByASearchBoxAboveTheThreshold(): void
+    {
+        $this->manager();
+        $this->setConfigValue('accounting_picker_threshold', '1');
+
+        $body = $this->get('/accounting_periods/opening')->getBody();
+
+        $this->assertStringNotContainsString('<datalist id="accounts_list">', $body);
+        $this->assertStringNotContainsString('list="accounts_list"', $body);
+        $this->assertStringContainsString('accounting_lookup\/search', $body);
+        $this->assertStringContainsString('"mode":"opening"', $body);
+        $this->assertStringNotContainsString('data-code="1101"', $body);
+    }
+
+    public function testGetIndex_KeepsTheFullListOfAccountsWhileTheyAreFewerThanTheThreshold(): void
+    {
+        $this->manager();
+        $this->setConfigValue('accounting_picker_threshold', '200');
+
+        $body = $this->get('/accounting_periods/opening')->getBody();
+
+        $this->assertStringContainsString('<datalist id="accounts_list">', $body);
+        $this->assertStringContainsString('list="accounts_list"', $body);
+        $this->assertStringNotContainsString('accounting_lookup', $body);
+    }
+
     public function testGetIndex_ShowsTheBranchChoiceOnlyWhenThereAreSeveralBranches(): void
     {
         $this->manager();

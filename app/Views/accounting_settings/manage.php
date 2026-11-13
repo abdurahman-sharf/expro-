@@ -16,6 +16,7 @@
  * @var bool $sales_shipping
  * @var string $shipping_tax_percent
  * @var bool $debit_note
+ * @var int $picker_threshold
  * @var string $journal_description_sales
  * @var string $journal_description_purchases
  * @var list<string> $template_placeholders
@@ -261,6 +262,14 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
                         <label class="form-check-label" for="debit_note"><?= lang('Accounting_settings.debit_note') ?></label>
                     </div>
                     <p class="form-text"><?= lang('Accounting_settings.debit_note_desc') ?></p>
+                </div>
+
+                <div class="field">
+                    <label class="form-label" for="picker_threshold"><?= lang('Accounting_settings.picker_threshold') ?></label>
+                    <div class="field-control">
+                        <input type="text" class="form-control" name="picker_threshold" id="picker_threshold" value="<?= (int) $picker_threshold ?>" inputmode="numeric" dir="ltr" aria-describedby="picker_threshold_help"<?= $can_manage ? '' : ' disabled' ?>>
+                        <p class="form-text" id="picker_threshold_help"><?= lang('Accounting_settings.picker_threshold_desc') ?></p>
+                    </div>
                 </div>
 
                 <div class="field span-all">

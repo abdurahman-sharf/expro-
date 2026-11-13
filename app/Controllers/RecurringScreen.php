@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\AccountPicker;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Recurring\RecurrenceTerms;
@@ -82,18 +83,24 @@ abstract class RecurringScreen extends DocumentScreen
             $lines = array_map(static fn (object $line): array => ['item_id' => (int) $line->item_id, 'label' => (string) $line->item_name, 'quantity' => rtrim(rtrim((string) $line->quantity, '0'), '.'), 'unit_price' => (string) $line->unit_price, 'discount' => (string) $line->discount, 'discount_type' => (int) $line->discount_type, 'description' => (string) $line->description, 'item_location' => (int) $line->item_location], $this->schedules->lines($scheduleId));
         }
 
+        $supplierPicker = $kind === RecurringKind::Expense
+            ? (new AccountPicker())->partyScreen(AccountPicker::SUPPLIER, $schedule === null || $schedule->supplier_id === null ? null : (int) $schedule->supplier_id, base_url('accounting_lookup/search'), '#supplier_text')
+            : null;
+
         return view('recurring/form', [
-            'kind'       => $kind,
-            'schedule'   => $schedule,
-            'lines'      => $lines,
-            'reminders'  => $schedule === null ? [] : $this->schedules->reminders($scheduleId),
-            'frequency'  => $schedule === null ? self::DEFAULT_FREQUENCY : (RecurrenceTerms::of($schedule)->frequency() ?? self::DEFAULT_FREQUENCY),
-            'locations'  => $kind === RecurringKind::Invoice ? $this->locationOptions() : [],
-            'categories' => $kind === RecurringKind::Expense ? $this->categoryOptions() : [],
-            'payments'   => $kind === RecurringKind::Expense ? $this->paymentOptions() : [],
-            'suppliers'  => $kind === RecurringKind::Expense ? $this->supplierOptions() : [],
-            'treasuries' => $kind === RecurringKind::Expense ? $this->treasuryOptions() : [],
-            'today'      => date('Y-m-d'),
+            'kind'           => $kind,
+            'schedule'       => $schedule,
+            'lines'          => $lines,
+            'reminders'      => $schedule === null ? [] : $this->schedules->reminders($scheduleId),
+            'frequency'      => $schedule === null ? self::DEFAULT_FREQUENCY : (RecurrenceTerms::of($schedule)->frequency() ?? self::DEFAULT_FREQUENCY),
+            'locations'      => $kind === RecurringKind::Invoice ? $this->locationOptions() : [],
+            'categories'     => $kind === RecurringKind::Expense ? $this->categoryOptions() : [],
+            'payments'       => $kind === RecurringKind::Expense ? $this->paymentOptions() : [],
+            'suppliers'      => $kind === RecurringKind::Expense && $supplierPicker === null ? $this->supplierOptions() : [],
+            'supplierPicker' => $supplierPicker,
+            'supplierName'   => $supplierPicker['initial'][0]['label'] ?? '',
+            'treasuries'     => $kind === RecurringKind::Expense ? $this->treasuryOptions() : [],
+            'today'          => date('Y-m-d'),
         ]);
     }
 
@@ -246,8 +253,9 @@ abstract class RecurringScreen extends DocumentScreen
     private function supplierOptions(): array
     {
         $options = [];
+        $limit   = (new AccountPicker())->listLimit();
 
-        foreach (Database::connect()->table('suppliers s')->select("s.person_id, s.company_name, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS name", false)->join('people p', 'p.person_id = s.person_id')->where('s.deleted', 0)->orderBy('s.company_name', 'ASC')->limit(200)->get()->getResult() as $row) {
+        foreach (Database::connect()->table('suppliers s')->select("s.person_id, s.company_name, TRIM(CONCAT(p.first_name, ' ', p.last_name)) AS name", false)->join('people p', 'p.person_id = s.person_id')->where('s.deleted', 0)->orderBy('s.company_name', 'ASC')->limit($limit)->get()->getResult() as $row) {
             $options[(int) $row->person_id] = (string) ($row->company_name !== '' ? $row->company_name : $row->name);
         }
 

@@ -18,11 +18,13 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Organization\BranchError;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
@@ -39,6 +41,7 @@ class InterBranchSettlementsTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -740,6 +743,37 @@ class InterBranchSettlementsTest extends CIUnitTestCase
         }
 
         $this->assertSame(0, $this->countRows('interbranch_settlements'));
+    }
+
+    public function testSettle_LetsSixRealSessionsRaceForOnePairInEitherOrderWithoutADeadlockAndSettlesItOnce(): void
+    {
+        $this->send(true, '100.00');
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 30');
+
+        $pair = [1, $this->branch];
+
+        sort($pair);
+        // With the row already there, the insert of a session waits for no one and only the locking read of the row makes the sessions queue.
+        $this->accountingDb()->table('interbranch_pair_locks')->ignore(true)->insert(['company_id' => CompanyContext::id(), 'branch_id' => $pair[0], 'counterpart_branch_id' => $pair[1]]);
+
+        $date     = '2026-10-31';
+        $forward  = ['1', (string) $this->branch, $date, (string) $this->other, (string) $this->main, (string) $this->settler];
+        $reversed = [(string) $this->branch, '1', $date, (string) $this->other, (string) $this->main, (string) $this->settler];
+
+        $answers = $this->raceSessions('settleBranches', [$forward, $reversed, $forward, $reversed, $forward, $reversed]);
+
+        $this->assertCount(6, $answers);
+        $this->assertSame(1, count(array_filter($answers, static fn (string $answer): bool => $answer === 'done')), 'Exactly one session settles the pair: ' . json_encode($answers));
+
+        foreach ($answers as $answer) {
+            $this->assertMatchesRegularExpression('/^[a-z_]+$/', $answer, 'A session ended with something other than done or an error of the books: ' . $answer);
+        }
+
+        $this->assertSame(1, $this->countRows('interbranch_settlements'));
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->whereIn('source_type', [InterBranchSettlements::SOURCE, InterBranchSettlements::SOURCE_SECOND])->where('status', 'posted')->countAllResults());
+        $this->assertSame('0.0000', bcadd((new InterBranchPosition())->difference(), '0', 4));
+        $this->assertSame('1000.0000', bcadd($this->balanceOf($this->main), '0', 4), 'The hundred sent came back once');
+        $this->assertSame('1000.0000', bcadd($this->balanceOf($this->other), '0', 4), 'The cash moved once and not twice');
     }
 
     public function testPlan_SaysWhatSettlingWouldDoAndWritesNothing(): void

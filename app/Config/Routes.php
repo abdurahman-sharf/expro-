@@ -172,6 +172,8 @@ $routes->group('accounting_cheques', static function (RouteCollection $routes) u
     $reportFiles($routes, 'AccountingCheques::getReportCsv/$1', '', 'report/(:segment)/');
 });
 
+$routes->get('accounting_lookup/search', 'AccountingLookup::getSearch');
+
 $routes->group('accounting_debit_notes', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingDebitNotes::getIndex');
     $routes->get('form', 'AccountingDebitNotes::getForm');

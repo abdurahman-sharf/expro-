@@ -9,6 +9,7 @@ use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
+use CodeIgniter\Config\Factories;
 use CodeIgniter\Config\Services;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
@@ -705,6 +706,37 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame($salesCountBefore, $salesCountAfter);
     }
 
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function provideCompletionModes(): array
+    {
+        return ['a point of sale' => ['sale', '0.00'], 'an invoice' => ['sale_invoice', '100.00'], 'a work order' => ['sale_work_order', '0.00'], 'a quote' => ['sale_quote', '100.00']];
+    }
+
+    #[DataProvider('provideCompletionModes')]
+    public function testPostComplete_ReloadsTheRegisterWithTheOutOfStockMessageWhenTheSaveSaysThereIsNotEnoughStock(string $mode, string $price): void
+    {
+        $cashierId = $this->createCashierEmployee();
+        $itemId    = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($cashierId);
+        $this->seedCartLine(1, $price, $itemId);
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => $mode]));
+
+        $sales = $this->getMockBuilder(Sale::class)->onlyMethods(['save_value'])->getMock();
+        $sales->expects($this->once())->method('save_value')->willReturn(INSUFFICIENT_STOCK);
+        Factories::injectMock('models', Sale::class, $sales);
+
+        try {
+            $response = $this->post('/sales/complete');
+        } finally {
+            Factories::reset('models');
+        }
+
+        $response->assertSee(lang('Sales.item_out_of_stock'));
+        $response->assertDontSee('POS -4');
+    }
+
     public function testPostCompleteAllowsZeroPaymentQuoteCompletion(): void
     {
         $cashierId = $this->createCashierEmployee();
@@ -1370,6 +1402,26 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $response->assertSee('id="credit_applications"');
         $this->assertMatchesRegularExpression('~' . preg_quote(lang('Accounting_receivables.source_opening'), '~') . '\s*<bdi dir="ltr">#' . $openingId . '</bdi>\s*&rarr;\s*<bdi dir="ltr">#' . $saleId . '</bdi>~', $response->getBody());
         $response->assertDontSee(lang('Sales.credit_from_excess'));
+    }
+
+    public function testGetEdit_NamesWhatARefundInvoiceSettledAsACreditNoteOrARefundInvoice(): void
+    {
+        $this->startSelling();
+        $cycle  = $this->referenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes']);
+
+        $this->assertGreaterThan(0, $this->refundInvoiceOf($saleId, '100.00'));
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $response = $this->get('/sales/edit/' . $saleId);
+
+        $response->assertStatus(200);
+        $response->assertSee('id="credit_applications"');
+        $response->assertSee(esc(lang('Sales.credit_from_note')));
+
+        $english = include APPPATH . 'Language/en/Sales.php';
+
+        $this->assertStringContainsString('refund invoice', $english['credit_from_note']);
     }
 
     public function testGetEdit_OffersACreditNoteInsteadOfCancellingAnIssuedInvoice(): void

@@ -2,6 +2,7 @@
 
 namespace Tests\Libraries\Accounting\FamilyReports;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\FamilyReports\SupplierPurchasesReport;
 use Tests\Support\FamilyReportTestCase;
 
@@ -20,6 +21,20 @@ final class SupplierPurchasesReportTest extends FamilyReportTestCase
         parent::setUp();
 
         $this->report = new SupplierPurchasesReport();
+    }
+
+    public function testBuild_RejectsTheCheckAgainstTheBooksByNameWhenAPurchaseIsInAForeignCurrency(): void
+    {
+        $facts = $this->market();
+
+        (new Currencies())->setActive('USD', true);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $facts['other'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+
+        $table = $this->built($this->report, $this->thisDay());
+
+        $this->assertCount(1, $table->ties);
+        $this->assertTrue($table->ties[0]->isRefused());
+        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['USD']), $table->ties[0]->refusal);
     }
 
     public function testBuild_ShowsTheValueTheDiscountAndTheTaxOfEachDocumentWithReturnsAsNegativeLines(): void

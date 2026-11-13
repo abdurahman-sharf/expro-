@@ -46,7 +46,7 @@ return [
     'credit_filter'                     => 'بطاقة بنكية',
     'credit_from_advance'               => 'دفعة مقدمة',
     'credit_from_excess'                => 'زيادة الدفعة على الفاتورة',
-    'credit_from_note'                  => 'إشعار دائن',
+    'credit_from_note'                  => 'إشعار دائن أو فاتورة مرتجعة',
     'credit_note'                       => 'الإشعار الدائن',
     'credit_note_create'                => 'إنشاء إشعار دائن',
     'credit_note_help_issued'           => 'الفاتورة الصادرة لا تُلغى ولا تُعدَّل، بل تُصحَّح بإشعار دائن.',

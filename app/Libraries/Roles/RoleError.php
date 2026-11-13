@@ -12,6 +12,7 @@ enum RoleError: string
     case InvalidScope        = 'invalid_scope';
     case UnknownPermission   = 'unknown_permission';
     case SensitivePermission = 'sensitive_permission';
+    case RefusedPermission   = 'refused_permission';
     case BranchPermission    = 'branch_permission';
     case CannotGrant         = 'cannot_grant';
     case InUse               = 'in_use';

@@ -37,6 +37,7 @@ final readonly class PurchaseDocument
         public ?string $journalTotal,
         public array $lines,
         public ?PaymentState $state,
+        public ?string $currencyCode = null,
     ) {
     }
 

@@ -70,8 +70,8 @@ final class SupplierPaymentsReport implements FamilyReport
         $comparable = $input->scope->isCompany() && ! $input->readsOwnRecordsOnly() && $filters['supplier_id'] === 0 && $filters['employee_id'] === 0 && $filters['payment_type'] === '';
 
         if ($comparable) {
-            $cash   = $this->accounts->movement($this->accounts->tree(RoutingKey::Treasuries, RoutingKey::Banks), $input->scope, $period->from, $period->to, SupplierPaymentRows::cashSources());
-            $ties[] = new TieCheck($this->text('tie_treasury_payments'), bcadd($reported, '0', SaleAmounts::SCALE), bcsub('0', $cash, SaleAmounts::SCALE));
+            $cash = $this->accounts->movement($this->accounts->tree(RoutingKey::Treasuries, RoutingKey::Banks), $input->scope, $period->from, $period->to, SupplierPaymentRows::cashSources());
+            $ties = ForeignAmounts::guard([new TieCheck($this->text('tie_treasury_payments'), bcadd($reported, '0', SaleAmounts::SCALE), bcsub('0', $cash, SaleAmounts::SCALE))], array_map(static fn (object $row): ?string => $row->currency_code, $rows));
         } else {
             $notes[] = $this->text('note_payments_not_compared');
         }

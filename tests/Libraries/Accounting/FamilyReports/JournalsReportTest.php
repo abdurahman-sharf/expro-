@@ -25,12 +25,13 @@ final class JournalsReportTest extends FamilyReportTestCase
         $this->report = new JournalsReport();
     }
 
-    private function manual(int $branchId, string $amount, string $description, ?int $employeeId = null): int
+    private function manual(int $branchId, string $amount, string $description, ?int $employeeId = null, string $source = JournalDraft::SOURCE_MANUAL, ?int $sourceId = null): int
     {
         return (new PostingService())->post(new JournalDraft(
             date: $this->today(),
             lines: [new JournalLineDraft($this->accountId('cash'), debit: $amount), new JournalLineDraft($this->accountId('opening_balance'), credit: $amount)],
-            sourceType: JournalDraft::SOURCE_MANUAL,
+            sourceType: $source,
+            sourceId: $sourceId,
             description: $description,
             currencyCode: 'SAR',
             branchId: $branchId,
@@ -66,6 +67,21 @@ final class JournalsReportTest extends FamilyReportTestCase
         $this->assertAmount('40.00', $this->grandOf($manual, 'debit'));
         $this->assertCount(1, $this->rowsOf($words));
         $this->assertCount(1, $manual->ties === [] ? [1] : []);
+    }
+
+    public function testBuild_NarrowsToEachSourceOfTheStockDocumentsAndTheExchangeDifferences(): void
+    {
+        $this->manual(1, '40.00', 'By hand');
+
+        foreach (['stock_permit' => '11.00', 'stock_transfer_permit' => '12.00', 'stock_transfer_permit_receipt' => '13.00', 'stocktake' => '14.00', 'sale_payment_fx' => '15.00', 'supplier_payment_fx' => '16.00'] as $source => $amount) {
+            $this->manual(1, $amount, 'Of ' . $source, source: $source, sourceId: 900);
+
+            $narrowed = $this->built($this->report, [...$this->thisDay(), 'source' => $source]);
+
+            $this->assertCount(1, $this->rowsOf($narrowed), $source);
+            $this->assertAmount($amount, $this->grandOf($narrowed, 'debit'));
+            $this->assertSame(lang('Accounting.source_' . $source), $this->rowsOf($narrowed)[0]->cell('source'));
+        }
     }
 
     public function testBuild_ReadsOnlyTheBranchesOfTheScopeAndTheJournalsOfTheOwnerWhenGivenOne(): void

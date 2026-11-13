@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\SaleDocument;
@@ -35,13 +36,14 @@ final class SaleReader
      */
     public function documents(array $saleIds): array
     {
-        $documents = [];
+        $documents  = [];
+        $currencies = new Currencies($this->db);
 
         foreach (array_chunk(array_values(array_unique($saleIds)), self::CHUNK) as $chunk) {
             $lines = $this->lines($chunk);
 
             foreach ($this->db->table('sales')
-                ->select('sale_id, sale_time, invoice_date, customer_id, sale_status, sale_type, branch_id, delivered, return_of_sale_id, return_document, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_amount')
+                ->select('sale_id, sale_time, invoice_date, customer_id, sale_status, sale_type, branch_id, delivered, return_of_sale_id, return_document, adjustment_label, adjustment_amount, shipping_amount, shipping_options, shipping_tax_option, shipping_tax_amount, currency_code, currency_rate')
                 ->whereIn('sale_id', $chunk)
                 ->get()
                 ->getResult() as $sale) {
@@ -61,6 +63,7 @@ final class SaleReader
                     savedOn: $savedOn,
                     refundInvoice: $sale->return_document === ReturnDocument::RefundInvoice->storedValue(),
                     charges: $this->charges($sale),
+                    currency: $currencies->stored($sale->currency_code, $sale->currency_rate),
                 );
             }
         }

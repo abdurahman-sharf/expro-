@@ -3,6 +3,10 @@
 namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\FamilyReports\JournalSources;
+use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\ReceivingPostingBuilder;
+use App\Libraries\Accounting\SalePostingBuilder;
+use App\Libraries\Stock\StockPermitSources;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
@@ -33,6 +37,24 @@ final class JournalSourcesTest extends CIUnitTestCase
 
         foreach (['sale_payment_branch', 'supplier_payment_branch', 'expense_branch'] as $companion) {
             $this->assertContains($companion, $sources);
+        }
+    }
+
+    public function testAll_OffersTheSourcesOfTheStockDocumentsAndOfTheExchangeDifferences(): void
+    {
+        $sources = JournalSources::all();
+
+        foreach ([StockPermitSources::PERMIT, StockPermitSources::TRANSFER, StockPermitSources::TRANSFER_RECEIPT, StockPermitSources::STOCKTAKE, SalePostingBuilder::SOURCE_PAYMENT_FX, ReceivingPostingBuilder::SOURCE_SUPPLIER_FX] as $source) {
+            $this->assertContains($source, $sources, $source . ' cannot be filtered on');
+        }
+    }
+
+    public function testAll_OffersEverySourceThatTheServiceOfJournalsTreatsAsAutomatic(): void
+    {
+        $offered = JournalSources::all();
+
+        foreach ([...JournalService::TRANSFER_SOURCES, ...JournalService::DOCUMENT_SOURCES, ...JournalService::CREDIT_SOURCES, ...JournalService::FX_SOURCES] as $source) {
+            $this->assertContains($source, $offered, $source . ' is automatic and cannot be filtered on');
         }
     }
 

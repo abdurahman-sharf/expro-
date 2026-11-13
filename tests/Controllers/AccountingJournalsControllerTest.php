@@ -111,6 +111,70 @@ class AccountingJournalsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('<option value="reversal">', $body);
     }
 
+    public function testGetIndex_ReplacesTheListOfAccountsOfTheFilterByASearchBoxAboveTheThreshold(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_journals']));
+        $this->setConfigValue('accounting_picker_threshold', '1');
+
+        $body = $this->get('/accounting_journals')->getBody();
+
+        $this->assertStringNotContainsString('<datalist id="accounts_list">', $body);
+        $this->assertStringContainsString('accounting_lookup\/search', $body);
+        $this->assertStringContainsString('"mode":"every"', $body);
+        $this->assertStringContainsString('id="f_account_text"', $body);
+    }
+
+    public function testGetIndex_KeepsTheListOfAccountsOfTheFilterWhileTheyAreFewerThanTheThreshold(): void
+    {
+        $this->actAs($this->employeeWithGrants(['accounting_journals']));
+        $this->setConfigValue('accounting_picker_threshold', '200');
+
+        $body = $this->get('/accounting_journals')->getBody();
+
+        $this->assertStringContainsString('<datalist id="accounts_list">', $body);
+        $this->assertStringNotContainsString('accounting_lookup', $body);
+    }
+
+    public function testGetNew_ReplacesTheListOfAccountsOfTheLinesByASearchBoxAboveTheThreshold(): void
+    {
+        $this->accountant();
+        $this->setConfigValue('accounting_picker_threshold', '1');
+
+        $body = $this->get('/accounting_journals/new')->getBody();
+
+        $this->assertStringNotContainsString('<datalist id="accounts_list">', $body);
+        $this->assertStringNotContainsString('list="accounts_list"', $body);
+        $this->assertStringContainsString('accounting_lookup\/search', $body);
+        $this->assertStringContainsString('"mode":"postable"', $body);
+        $this->assertStringContainsString('"selector":".acc-account-text"', $body);
+    }
+
+    public function testGetNew_KeepsTheListOfAccountsOfTheLinesWhileTheyAreFewerThanTheThreshold(): void
+    {
+        $this->accountant();
+        $this->setConfigValue('accounting_picker_threshold', '200');
+
+        $body = $this->get('/accounting_journals/new')->getBody();
+
+        $this->assertStringContainsString('<datalist id="accounts_list">', $body);
+        $this->assertStringContainsString('list="accounts_list"', $body);
+        $this->assertStringNotContainsString('accounting_lookup', $body);
+    }
+
+    public function testGetEdit_KeepsTheNameOfTheAccountOfALineOfADraftWhenTheListIsASearchBox(): void
+    {
+        $this->accountant();
+        $this->setConfigValue('accounting_picker_threshold', '1');
+
+        $cash  = $this->accountId('cash');
+        $draft = (new JournalService())->saveDraft($this->journalInput('50.00'), null);
+
+        $body = $this->get('/accounting_journals/edit/' . $draft)->getBody();
+
+        $this->assertStringContainsString('value="' . esc($this->accountingDb()->table('accounting_accounts')->where('account_id', $cash)->get()->getRow()->code) . ' - ', $body);
+        $this->assertStringNotContainsString('<datalist id="accounts_list">', $body);
+    }
+
     public function testGetIndex_OffersTheNewJournalAndAuditLinksWithThePermissions(): void
     {
         $this->accountant();
