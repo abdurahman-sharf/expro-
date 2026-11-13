@@ -173,9 +173,10 @@ $routes->group('accounting_cheques', static function (RouteCollection $routes) u
 });
 
 $routes->get('accounting_lookup/search', 'AccountingLookup::getSearch');
-$routes->group('accounting_assets', static function (RouteCollection $routes): void {
+$routes->group('accounting_assets', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingAssets::getIndex');
     $routes->get('csv', 'AccountingAssets::getCsv');
+    $reportFiles($routes, 'AccountingAssets::getCsv', 'Accounting_assets.title');
     $routes->get('view/(:num)', 'AccountingAssets::getDetail/$1');
     $routes->get('form', 'AccountingAssets::getForm');
     $routes->get('form/(:num)', 'AccountingAssets::getForm/$1');
@@ -613,7 +614,7 @@ $routes->group('accounting_chart', static function (RouteCollection $routes): vo
     $routes->post('delete/(:num)', 'AccountingChart::postDeleteAccount/$1');
 });
 
-$routes->group('accounting_ai', static function (RouteCollection $routes): void {
+$routes->group('accounting_ai', static function (RouteCollection $routes) use ($reportFiles): void {
     $routes->get('/', 'AccountingAi::getIndex');
     $routes->get('proposal/(:num)', 'AccountingAi::getProposal/$1');
     $routes->get('approve_form/(:num)', 'AccountingAi::getApproveForm/$1');
@@ -624,6 +625,7 @@ $routes->group('accounting_ai', static function (RouteCollection $routes): void 
     $routes->post('scan', 'AccountingAi::postScan');
     $routes->get('findings', 'AccountingAi::getFindings');
     $routes->get('findings/csv', 'AccountingAi::getFindingsCsv');
+    $reportFiles($routes, 'AccountingAi::getFindingsCsv', 'Accounting_ai.findings_title', 'findings/');
     $routes->get('decide_form/(:num)', 'AccountingAi::getDecideForm/$1');
     $routes->post('decide/(:num)', 'AccountingAi::postDecide/$1');
     $routes->get('settings', 'AccountingAi::getSettings');

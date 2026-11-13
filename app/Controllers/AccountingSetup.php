@@ -43,6 +43,7 @@ class AccountingSetup extends AccountingController
         AccountingGuard::AI_USE             => 'Accounting_ai.permission_use',
         AccountingGuard::AI_APPROVE         => 'Accounting_ai.permission_approve',
         AccountingGuard::PORTAL_MANAGE      => 'Customers.manage',
+        AccountingGuard::API_KEYS_MANAGE    => 'Integrations.keys_manage',
     ];
 
     private AccountingSettings $settings;
