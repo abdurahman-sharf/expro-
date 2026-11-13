@@ -441,4 +441,32 @@ final class CashFlowTest extends CIUnitTestCase
             $this->assertSame($amount, bcadd($this->lines($first)[$key], $this->lines($second)[$key], 4), "Line {$key}");
         }
     }
+
+    public function testBuild_ReadsTheDefaultAccountsOfFixedAssetsInTheInvestingAndTheDepreciationLines(): void
+    {
+        $this->postOn('2026-10-05', 1, [[$this->accountId('fixed_assets'), '500.00', '0'], [$this->accountId('cash'), '0', '500.00']]);
+        $this->postOn('2026-10-31', 1, [[$this->accountId('depreciation_expense'), '100.00', '0'], [$this->accountId('accumulated_depreciation'), '0', '100.00']]);
+
+        $report = $this->flow();
+        $lines  = $this->lines($report);
+
+        $this->assertSame('-500.0000', $lines['assets_purchases']);
+        $this->assertSame('100.0000', $lines['depreciation_expense']);
+        $this->assertSame('-100.0000', $lines['net_income']);
+        $this->assertSame('-500.0000', $report->totalChange);
+        $this->assertTrue($report->ties());
+    }
+
+    public function testBuild_ShowsTheCostOfASoldAssetOnTheSaleLineAndStillTies(): void
+    {
+        $this->postOn('2026-10-05', 1, [[$this->accountId('fixed_assets'), '500.00', '0'], [$this->accountId('cash'), '0', '500.00']]);
+        $this->postOn('2026-10-31', 1, [[$this->accountId('depreciation_expense'), '100.00', '0'], [$this->accountId('accumulated_depreciation'), '0', '100.00']]);
+        $this->postOn('2026-11-10', 1, [[$this->accountId('cash'), '400.00', '0'], [$this->accountId('accumulated_depreciation'), '100.00', '0'], [$this->accountId('fixed_assets'), '0', '500.00']]);
+
+        $report = $this->flow('2026-11-01', '2026-11-30');
+
+        $this->assertSame('500.0000', $this->lines($report)['assets_selling'], 'the line takes what was credited to the accounts of the assets, which is the cost and not the proceeds');
+        $this->assertSame('400.0000', $report->totalChange);
+        $this->assertTrue($report->ties());
+    }
 }

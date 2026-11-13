@@ -50,6 +50,13 @@ enum RoutingKey: string
     case FxGain = 'fx.gain';
     case FxLoss = 'fx.loss';
 
+    case AssetCost        = 'assets.cost';
+    case AssetAccumulated = 'assets.accumulated';
+    case AssetExpense     = 'assets.expense';
+    case AssetGain        = 'assets.gain';
+    case AssetLoss        = 'assets.loss';
+    case AssetPayable     = 'assets.payable';
+
     public const GROUPS = ['sales', 'purchases', 'inventory', 'treasuries', 'cheques', 'stock_permits', 'fiscal', 'other'];
 
     public function group(): string
@@ -185,7 +192,7 @@ enum RoutingKey: string
      */
     public function accountRequired(): bool
     {
-        return ! in_array($this, [self::ProductSales, self::PurchaseReturns, self::InterBranchReceivable, self::InterBranchPayable], true);
+        return ! in_array($this, [self::ProductSales, self::PurchaseReturns, self::InterBranchReceivable, self::InterBranchPayable, self::AssetCost, self::AssetAccumulated, self::AssetExpense, self::AssetGain, self::AssetLoss, self::AssetPayable], true);
     }
 
     /**
@@ -202,6 +209,10 @@ enum RoutingKey: string
             self::Purchases, self::PurchaseReturns => [AccountType::Asset, AccountType::Expense],
             self::CashDifference => [AccountType::Asset, AccountType::Revenue, AccountType::Expense],
             self::FxGain, self::FxLoss => [AccountType::Revenue, AccountType::Expense, AccountType::Asset],
+            self::AssetCost, self::AssetAccumulated => [AccountType::Asset],
+            self::AssetExpense => [AccountType::Expense],
+            self::AssetGain, self::AssetLoss => [AccountType::Revenue, AccountType::Expense],
+            self::AssetPayable     => [AccountType::Liability],
             self::RetainedEarnings => [AccountType::Equity],
             self::TaxInput         => [AccountType::Asset, AccountType::Liability],
             default                => [],
@@ -268,6 +279,13 @@ enum RoutingKey: string
 
             self::FxGain => 'fx_gain',
             self::FxLoss => 'fx_loss',
+
+            self::AssetCost        => 'fixed_assets',
+            self::AssetAccumulated => 'accumulated_depreciation',
+            self::AssetExpense     => 'depreciation_expense',
+            self::AssetGain        => 'asset_gain',
+            self::AssetLoss        => 'asset_loss',
+            self::AssetPayable     => 'other_payables',
         };
     }
 }

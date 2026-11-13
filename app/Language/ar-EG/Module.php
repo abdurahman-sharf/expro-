@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'accounting_assets'            => 'الأصول الثابتة',
+    'accounting_assets_desc'       => 'سجل الأصول الثابتة، وتشغيل إهلاكها واعتماده، وبيعها أو شطبها، وتقرير الأصول.',
     'accounting_chart'             => 'دليل الحسابات',
     'accounting_chart_desc'        => 'عرض دليل الحسابات وإدارة الحسابات.',
     'accounting_cheques'           => 'الشيكات',

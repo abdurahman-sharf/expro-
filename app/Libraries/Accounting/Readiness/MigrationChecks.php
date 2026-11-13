@@ -50,6 +50,7 @@ final class MigrationChecks extends CheckGroup
         'StockLocationStatus'              => [self::DATA, 'adds the status and the primary flag to stock_locations and marks the location with the lowest number primary; a unique key keeps one live primary location'],
         'ShippingCompanies'                => [self::HEAVY, 'creates shipping_companies and adds the nullable sales.shipping_company_id with its index and key on a large table; down() refuses once a sale names a company'],
         'StockUnitsAndTracking'            => [self::HEAVY, 'adds nullable unit columns and a shape check to sales_items, receivings_items and stock_permit_lines; creates the unit templates, item profiles, serial numbers, batches and the tracking record of each line; down() refuses once a line carries a unit or a serial number or a batch is on record'],
+        'AssetAccounts'                    => [self::DATA, 'opens the accounts of fixed assets, accumulated depreciation, depreciation expense and the gain and loss on disposal in an existing chart, adopts the capital gains account 4202 when it has no key, and adds the routing rows assets.cost, assets.accumulated, assets.expense, assets.gain, assets.loss and assets.payable; no journal and no balance is touched'],
     ];
 
     public function run(): array

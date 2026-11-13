@@ -156,6 +156,40 @@ class MigrationChecksTest extends CIUnitTestCase
         $this->assertSame([], $unclassified, 'These migrations alter a table and would be printed as ADDITIVE: classify each in MigrationChecks::SENSITIVE (HEAVY when it alters a table that holds business rows), or list it here when it alters only tables the release creates.');
     }
 
+    public function testPending_ClassifiesTheMigrationThatOpensAccountsOfFixedAssetsAsDataWithItsNote(): void
+    {
+        $this->forgetMigration('20273500000001');
+
+        $pending = $this->checks->pending();
+
+        $this->assertSame(['20273500000001', 'AssetAccounts', MigrationChecks::DATA], [$pending[0]['version'], $pending[0]['class'], $pending[0]['kind']]);
+        $this->assertStringContainsString('4202', $pending[0]['note']);
+        $this->assertStringContainsString('assets.cost', $pending[0]['note']);
+    }
+
+    public function testPending_ClassifiesEveryMigrationThatOpensAccountsInAnExistingChartAsData(): void
+    {
+        $unclassified = [];
+
+        foreach ($this->checks->history() as $row) {
+            $this->forgetMigration($row['version']);
+        }
+
+        foreach ($this->checks->pending() as $migration) {
+            if ($migration['version'] < self::FIRST_MIGRATION_OF_THE_RELEASE || $migration['kind'] !== MigrationChecks::ADDITIVE) {
+                continue;
+            }
+
+            $source = (string) file_get_contents(APPPATH . "Database/Migrations/{$migration['version']}_{$migration['class']}.php");
+
+            if (str_contains($source, "table('accounting_accounts')->insert(")) {
+                $unclassified[] = $migration['version'] . ' ' . $migration['class'];
+            }
+        }
+
+        $this->assertSame([], $unclassified, 'These migrations write accounts into a chart that exists and would be printed as ADDITIVE: classify each in MigrationChecks::SENSITIVE as DATA.');
+    }
+
     public function testPending_ClassifiesTheMigrationOfOpeningBalancesOfCustomersAsHeavyWithItsNote(): void
     {
         $this->forgetMigration('20271000000000');

@@ -63,4 +63,14 @@ final class JournalSourcesTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.source_expense'), JournalSources::label('expense'));
         $this->assertSame('made_up', JournalSources::label('made_up'));
     }
+
+    public function testAll_OffersTheSourcesOfTheJournalsOfFixedAssets(): void
+    {
+        $sources = JournalSources::all();
+
+        foreach (['asset', 'asset_depreciation', 'asset_sale', 'asset_write_off'] as $source) {
+            $this->assertContains($source, $sources);
+            $this->assertNotSame($source, JournalSources::label($source), $source . ' has no name');
+        }
+    }
 }

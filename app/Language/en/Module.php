@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'accounting_assets'            => 'Fixed Assets',
+    'accounting_assets_desc'       => 'Register fixed assets, run and approve their depreciation, sell or write them off, and read the assets report.',
     'accounting_chart'             => 'Chart of Accounts',
     'accounting_chart_desc'        => 'View the chart of accounts and manage accounts.',
     'accounting_cheques'           => 'Cheques',

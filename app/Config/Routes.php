@@ -173,6 +173,35 @@ $routes->group('accounting_cheques', static function (RouteCollection $routes) u
 });
 
 $routes->get('accounting_lookup/search', 'AccountingLookup::getSearch');
+$routes->group('accounting_assets', static function (RouteCollection $routes): void {
+    $routes->get('/', 'AccountingAssets::getIndex');
+    $routes->get('csv', 'AccountingAssets::getCsv');
+    $routes->get('view/(:num)', 'AccountingAssets::getDetail/$1');
+    $routes->get('form', 'AccountingAssets::getForm');
+    $routes->get('form/(:num)', 'AccountingAssets::getForm/$1');
+    $routes->post('save', 'AccountingAssets::postSave');
+    $routes->post('save/(:num)', 'AccountingAssets::postSave/$1');
+    $routes->post('delete/(:num)', 'AccountingAssets::postDeleteAsset/$1');
+    $routes->post('status/(:num)/(:num)', 'AccountingAssets::postStatus/$1/$2');
+    $routes->get('usage_form/(:num)', 'AccountingAssets::getUsageForm/$1');
+    $routes->post('usage/(:num)', 'AccountingAssets::postUsage/$1');
+    $routes->get('dispose_form/(:segment)/(:num)', 'AccountingAssets::getDisposeForm/$1/$2');
+    $routes->post('dispose/(:segment)/(:num)', 'AccountingAssets::postDispose/$1/$2');
+    $routes->get('dispose_reverse_form/(:num)', 'AccountingAssets::getDisposeReverseForm/$1');
+    $routes->post('dispose_reverse/(:num)', 'AccountingAssets::postDisposeReverse/$1');
+    $routes->get('categories', 'AccountingAssets::getCategories');
+    $routes->get('category_form', 'AccountingAssets::getCategoryForm');
+    $routes->get('category_form/(:num)', 'AccountingAssets::getCategoryForm/$1');
+    $routes->post('save_category', 'AccountingAssets::postSaveCategory');
+    $routes->post('save_category/(:num)', 'AccountingAssets::postSaveCategory/$1');
+    $routes->post('category_active/(:num)/(:num)', 'AccountingAssets::postCategoryActive/$1/$2');
+    $routes->post('delete_category/(:num)', 'AccountingAssets::postDeleteCategory/$1');
+    $routes->get('depreciation', 'AccountingAssets::getDepreciation');
+    $routes->get('depreciation/approve_form', 'AccountingAssets::getApproveForm');
+    $routes->post('depreciation/approve', 'AccountingAssets::postApprove');
+    $routes->get('depreciation/reverse_form/(:num)', 'AccountingAssets::getReverseForm/$1');
+    $routes->post('depreciation/reverse/(:num)', 'AccountingAssets::postReverse/$1');
+});
 
 $routes->group('accounting_debit_notes', static function (RouteCollection $routes): void {
     $routes->get('/', 'AccountingDebitNotes::getIndex');

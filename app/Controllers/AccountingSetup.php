@@ -39,6 +39,7 @@ class AccountingSetup extends AccountingController
         AccountingGuard::ROLES_MANAGE       => 'Roles.roles_manage',
         AccountingGuard::CURRENCIES_MANAGE  => 'Accounting_currencies.currencies_manage',
         AccountingGuard::EINVOICING_MANAGE  => 'Accounting_einvoicing.einvoicing_manage',
+        AccountingGuard::ASSETS_DEPRECIATE  => 'Accounting_assets.assets_depreciate',
     ];
 
     private AccountingSettings $settings;

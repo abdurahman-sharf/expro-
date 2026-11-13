@@ -25,6 +25,7 @@ return [
     'type_customer_payment'   => 'دفعة عميل',
     'type_debit_note'         => 'إشعار مدين',
     'type_expense'            => 'مصروف',
+    'type_fixed_asset'        => 'أصل ثابت',
     'type_paid_cheque'        => 'شيك مدفوع',
     'type_permit_in'          => 'إذن إضافة مخزن',
     'type_permit_out'         => 'إذن صرف مخزن',
