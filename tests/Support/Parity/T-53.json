@@ -1,6 +1,6 @@
 {
   "id": "T-53",
-  "title": "Stock permits and the stocktake: the reference system settles a count against cost of sales at the current average, gives in-permits 2213 and out-permits 12042 as the counter account and has numbered permit documents and a stocktake document; this application posts the first two as the reference system does and has neither document",
+  "title": "Stock permits and the stocktake: the reference system settles a count against cost of sales at the current average, gives in-permits 2213 and out-permits 12042 as the counter account and has numbered permit documents and a stocktake document; this application posts the permits and the stocktake difference as the reference system does, except that approving a count makes one journal and no automatic permits and undoing it is a cancellation by reversal",
   "recorded": "2026-10-27",
   "observation": {
     "batch": "d2",
