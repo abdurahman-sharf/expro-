@@ -21,9 +21,71 @@
 
 آخر تشغيل (على قاعدة `ospos_test_wp41`، كل ملف على حدة، بلا تشغيل الحزمة كلها):
 
-__TEST_RUN_TABLE__
+| الملف | الاختبارات | التأكيدات |
+|---|---|---|
+| `tests/Commands/NotificationsEvaluateTest.php` | 5 | 29 |
+| `tests/Controllers/AccountingPayablesControllerTest.php` | 114 | 1085 |
+| `tests/Controllers/AccountingReceivablesControllerTest.php` | 149 | 1294 |
+| `tests/Controllers/Api/V1/ResourcesControllerTest.php` | 29 | 238 |
+| `tests/Controllers/Api_keysControllerTest.php` | 14 | 76 |
+| `tests/Controllers/EmployeesControllerTest.php` | 67 | 401 |
+| `tests/Controllers/ExpensesControllerTest.php` | 73 | 525 |
+| `tests/Controllers/IntegrationsControllerTest.php` | 32 | 190 |
+| `tests/Controllers/NotificationsControllerTest.php` | 11 | 55 |
+| `tests/Controllers/Receipt_vouchersControllerTest.php` | 36 | 278 |
+| `tests/Controllers/ReceivingsControllerTest.php` | 262 | 2181 |
+| `tests/Controllers/Recurring_expensesControllerTest.php` | 23 | 204 |
+| `tests/Controllers/SalesControllerTest.php` | 603 | 4286 |
+| `tests/Database/IntegrationSettingsTablesMigrationTest.php` | 9 | 51 |
+| `tests/Filters/ApiAuthTest.php` | 11 | 290 |
+| `tests/LanguageFilesTest.php` | 3562 | 12958 |
+| `tests/Libraries/Accounting/SensitivePermissionsTest.php` | 16 | 92 |
+| `tests/Libraries/Integrations/ApiAuthenticatorTest.php` | 13 | 89 |
+| `tests/Libraries/Integrations/ApiKeysTest.php` | 33 | 214 |
+| `tests/Libraries/Integrations/ApiRateLimiterTest.php` | 6 | 15 |
+| `tests/Libraries/Integrations/EntityTranslationsTest.php` | 35 | 91 |
+| `tests/Libraries/Integrations/IntegrationOptionsTest.php` | 14 | 60 |
+| `tests/Libraries/Integrations/NotificationEvaluatorTest.php` | 19 | 37022 |
+| `tests/Libraries/Integrations/NotificationRulesTest.php` | 26 | 72 |
+| `tests/Libraries/Integrations/NotificationsTest.php` | 14 | 68 |
+| `tests/Libraries/Integrations/PaymentMethodsTest.php` | 36 | 131 |
+| `tests/Libraries/Roles/PermissionCatalogTest.php` | 7 | 96 |
+| `tests/Models/ReceivingTest.php` | 91 | 816 |
+| `tests/Libraries/Recurring/GenerationRuntimeTest.php` | 3 | 13 |
+| `tests/Libraries/Recurring/RecurrencePhraseTest.php` | 23 | 23 |
+| `tests/Libraries/Recurring/RecurrenceTermsTest.php` | 23 | 79 |
+| `tests/Libraries/Recurring/RecurringGeneratorTest.php` | 43 | 447 |
+| `tests/Libraries/Recurring/RecurringRemindersTest.php` | 14 | 96 |
+| `tests/Libraries/Recurring/RecurringSchedulesTest.php` | 36 | 367 |
+| `tests/Libraries/Recurring/RunRefusalTest.php` | 8 | 20 |
+| `tests/Libraries/Recurring/ScheduleInputTest.php` | 44 | 277 |
+| `tests/Libraries/Roles/DefaultLocationsTest.php` | 11 | 46 |
+| `tests/Libraries/Roles/RecordScopeTest.php` | 16 | 78 |
+| `tests/Libraries/Roles/RoleGrantsTest.php` | 33 | 151 |
+| `tests/Libraries/Roles/RoleServiceTest.php` | 92 | 308 |
+| `tests/Libraries/Roles/RoleTablesTest.php` | 3 | 6 |
+| `tests/Libraries/Accounting/AccountingGuardTest.php` | 4 | 12 |
+| `tests/helpers/LocaleHelperTest.php` | 28 | 38 |
+| `tests/helpers/DocumentHelperTest.php` | 30 | 84 |
+| `tests/helpers/NavigationHelperTest.php` | 19 | 34 |
+| `tests/Config/FiltersTest.php` | 7 | 7 |
+| `tests/Controllers/Recurring_invoicesControllerTest.php` | 36 | 325 |
+| `tests/Libraries/Documents/VoucherDocumentsTest.php` | 22 | 183 |
+| `tests/Libraries/Documents/DocumentTermsSettingsTest.php` | 8 | 21 |
+| `tests/Libraries/Accounting/PaymentTreasuryStampingTest.php` | 14 | 71 |
+| `tests/Libraries/Accounting/RoutingResolverTest.php` | 190 | 444 |
+| `tests/Libraries/Accounting/TreasuryScopesTest.php` | 63 | 530 |
+| `tests/Libraries/Accounting/RoutingServiceTest.php` | 62 | 452 |
+| `tests/Controllers/AccountingRoutingControllerTest.php` | 24 | 157 |
+| `tests/Commands/AccountingReadinessTest.php` | 25 | 131 |
+| `tests/Libraries/Accounting/Readiness/RoutingChecksTest.php` | 14 | 31 |
+| `tests/Libraries/Accounting/Readiness/ReadinessRunnerTest.php` | 13 | 34 |
+| **المجموع (57 ملفًا)** | **6218** | **67372** |
 
-**الاختبارات الجديدة بحسب الملف** (عدد الدوال في كل ملف يخص الحزمة؛ كل اسم على النمط `test{الدالة}_{السلوك}`): الأوامر `NotificationsEvaluateTest` (5)؛ المتحكمات `IntegrationsControllerTest` (32) و`Api_keysControllerTest` (14) و`NotificationsControllerTest` (11) و`Api/V1/ResourcesControllerTest` (18)؛ المرشح `ApiAuthTest` (11)؛ المكتبات `PaymentMethodsTest` (29) و`EntityTranslationsTest` (25) و`ApiKeysTest` (17) و`ApiAuthenticatorTest` (13) و`ApiRateLimiterTest` (6) و`IntegrationOptionsTest` (14) و`NotificationRulesTest` (16) و`NotificationEvaluatorTest` (19) و`NotificationsTest` (14)؛ الترحيل `IntegrationSettingsTablesMigrationTest` (9)؛ والإضافات إلى الملفات القائمة: `SalesControllerTest` و`ReceivingsControllerTest` و`ExpensesControllerTest` و`Receipt_vouchersControllerTest` و`AccountingReceivablesControllerTest` و`AccountingPayablesControllerTest` و`Recurring_expensesControllerTest` و`EmployeesControllerTest` و`ReceivingTest` و`SensitivePermissionsTest` و`PermissionCatalogTest` و`LanguageFilesTest`.
+كلها **OK** بلا فشل ولا تحذير ولا تخطٍّ. الملفات هي: كل ملف اختبار غيّرته الحزمة أو أضافته، **والملفات القائمة التي تلمس ما غيّرته** (مكتبات الجدولة المتكررة كلها، ومكتبات الأدوار، وفحوص التوجيه والجاهزية، ومساعدات اللغة والمستندات والتنقل، والمرشحات، وسندات القبض والمصروفات والفواتير المتكررة). لم أشغّل الحزمة كلها (تستغرق نحو ساعة وتتقاسم المعالجات مع غيري).
+
+
+**الاختبارات الجديدة بحسب الملف** (الأعداد في الجدول أعلاه؛ كل اسم على النمط `test{الدالة}_{السلوك}`): الأوامر `NotificationsEvaluateTest`؛ المتحكمات `IntegrationsControllerTest` و`Api_keysControllerTest` و`NotificationsControllerTest` و`Api/V1/ResourcesControllerTest`؛ المرشح `ApiAuthTest`؛ المكتبات `PaymentMethodsTest` و`EntityTranslationsTest` و`ApiKeysTest` و`ApiAuthenticatorTest` و`ApiRateLimiterTest` و`IntegrationOptionsTest` و`NotificationRulesTest` و`NotificationEvaluatorTest` و`NotificationsTest`؛ الترحيل `IntegrationSettingsTablesMigrationTest`؛ والإضافات إلى الملفات القائمة: `SalesControllerTest` و`ReceivingsControllerTest` و`ExpensesControllerTest` و`Receipt_vouchersControllerTest` و`AccountingReceivablesControllerTest` و`AccountingPayablesControllerTest` و`Recurring_expensesControllerTest` و`EmployeesControllerTest` و`ReceivingTest` و`RoutingServiceTest` و`SensitivePermissionsTest` و`PermissionCatalogTest` و`LanguageFilesTest`.
 
 **ما تثبته الاختبارات** (مختصر): طرق الدفع: تفعيل وتعطيل وتسمية، الطرق القديمة بلا تغيير، التوجيه لا يُمسّ، النقدي محمي، الأسماء لا تتصادم، والمفتاح المطفأ لا يقرأ الجدول؛ وكل مدخل يرفض الطريقة الموقوفة ويحتفظ السجل القديم بطريقته. الترجمة: التخزين والطباعة بجانب الأول فقط والمفتاح مشغَّل، ولا أثر على القيود. المفاتيح: التجزئة وعدم تخزين السر والنطاق وحدّ الفرع والإلغاء والانتهاء والحد، **ولا سر في سجل التدقيق ولا سجل التطبيق** (إنشاء واستيثاق). الواجهة: 404 والمفتاح مطفأ، و401 و403 و409 و429، وحدّ الفرع، والمدى، وغياب أي مسار كتابة. الإشعارات: الإفراد لكل قاعدة وموضوع، والإغلاق وإعادة الرفع، **وعدم وجود قناة صادرة**. الصلاحيات: الصلاحية الحساسة يمنحها مدير النظام وحده (محرر غير مدير يُهمَل ما يحدّده منها ولو كان يحملها) وتظهر بين الحساسات في نموذج الموظف، والترحيل لا يمنحها لأحد، والشاشة ترفض من لا يحملها أو من يقيّده فرع. الترحيل: يعمل مرتين بلا خطأ ولا صف مكرر ولا منحة.
 
