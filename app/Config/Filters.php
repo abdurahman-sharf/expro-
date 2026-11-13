@@ -120,9 +120,10 @@ class Filters extends BaseFilters
      */
     public array $filters = [
         'throttle' => ['before' => ['login', 'migrate']],
+
         'portalguard' => ['before' => ['portal', 'portal/*']],
-        'csrf' => ['before' => ['portal', 'portal/*']],
-        'apiauth'  => ['before' => ['api/*'], 'after' => ['api/*']],
+        'csrf'        => ['before' => ['portal', 'portal/*']],
+        'apiauth'     => ['before' => ['api/*'], 'after' => ['api/*']],
     ];
 
     /**
