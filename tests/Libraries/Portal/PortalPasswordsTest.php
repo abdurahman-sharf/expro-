@@ -7,12 +7,30 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Portal\PortalPasswords;
 use CodeIgniter\Test\CIUnitTestCase;
+use Config\Services;
 
 /**
  * @internal
  */
 final class PortalPasswordsTest extends CIUnitTestCase
 {
+    private string $locale;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->locale = Services::language()->getLocale();
+        Services::language()->setLocale('en');
+    }
+
+    protected function tearDown(): void
+    {
+        Services::language()->setLocale($this->locale);
+
+        parent::tearDown();
+    }
+
     private function refusalOf(string $password, string $username = 'ahmed', ?string $current = null): ?AccountingError
     {
         try {

@@ -1142,7 +1142,7 @@
  {
   "name": "F02 the token filter stands before every portal route",
   "file": "app/Config/Filters.php",
-  "find": "        'csrf' => ['before' => ['portal', 'portal/*']],\n",
+  "find": "        'csrf'        => ['before' => ['portal', 'portal/*']],\n",
   "replace": "",
   "tests": [
    "tests/Config/FiltersTest.php"
