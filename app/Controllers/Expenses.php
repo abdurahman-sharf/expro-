@@ -163,7 +163,7 @@ class Expenses extends Secure_Controller
         }
 
         // Don't allow gift card to be a payment option in a sale transaction edit because it's a complex change
-        $data['payment_options'] = $this->expense->get_payment_options($expenseId == NEW_ENTRY ? [] : [(string) $data['expenses_info']->payment_type]);
+        $data['payment_options'] = $this->expense->get_payment_options($expenseId === NEW_ENTRY ? [] : [(string) $data['expenses_info']->payment_type]);
 
         $followed = $expenseId == NEW_ENTRY || $data['expenses_info']->branch_id !== null;
 

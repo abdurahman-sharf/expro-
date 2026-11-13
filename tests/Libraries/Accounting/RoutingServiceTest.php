@@ -13,6 +13,8 @@ use App\Libraries\Accounting\RoutingException;
 use App\Libraries\Accounting\RoutingItem;
 use App\Libraries\Accounting\RoutingKey;
 use App\Libraries\Accounting\RoutingService;
+use App\Libraries\Integrations\IntegrationOptions;
+use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -598,6 +600,27 @@ class RoutingServiceTest extends CIUnitTestCase
         $this->accountingDb()->table('sales')->where('sale_id', $saleId)->update(['sale_time' => date('Y-m-d H:i:s', strtotime('-2 years'))]);
 
         $this->assertNotContains(PaymentType::Upi, $this->service->requiredPaymentTypes());
+    }
+
+    public function testRequiredPaymentTypes_KeepsAWayTheRegisterSwitchedOff(): void
+    {
+        helper('locale');
+
+        $this->assertContains(PaymentType::Wallet, $this->service->requiredPaymentTypes());
+
+        $this->setConfigValue(IntegrationOptions::PAYMENT_METHODS, '1');
+
+        try {
+            (new PaymentMethods())->save(['wallet' => ['enabled' => '0']], null);
+
+            $this->assertArrayNotHasKey(lang('Sales.wallet'), get_payment_options(), 'The register no longer offers it.');
+            $this->assertContains(PaymentType::Wallet, $this->service->requiredPaymentTypes(), 'What accounting routes does not follow the register.');
+            $this->assertTrue($this->itemsByKey()[PaymentType::Wallet->routingKey()]->required);
+            $this->assertRowIsRefused(AccountingError::RoutingAccountRequired, PaymentType::Wallet->routingKey(), null);
+        } finally {
+            $this->accountingDb()->table('payment_methods')->where('method_code', PaymentType::Wallet->value)->delete();
+            $this->accountingDb()->table('app_config')->where('key', IntegrationOptions::PAYMENT_METHODS)->delete();
+        }
     }
 
     public function testBlockingIssues_AreNoneOnAFreshChart(): void
