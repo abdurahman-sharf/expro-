@@ -121,3 +121,20 @@ Client.prototype.submitForm = async function (formPath, overrides = {}, { index 
     const target = action ?? parsed.action;
     return this.post(target.replace(BASE, ''), body);
 };
+
+// Same as submitForm for the form whose action contains `actionPart` (the settings pages hold many forms).
+Client.prototype.submitFormByAction = async function (pagePath, actionPart, overrides = {}) {
+    const page = await this.get(pagePath, { ajax: false });
+    const forms = [...page.text.matchAll(/<form\b[^>]*>/g)].map((m) => decode((m[0].match(/action="([^"]*)"/) ?? [])[1] ?? ''));
+    const index = forms.findIndex((a) => a.includes(actionPart));
+    if (index < 0) throw new Error(`no form with action ${actionPart} on ${pagePath}`);
+    const parsed = formDefaults(page.text, index);
+    const body = {};
+    for (const [name, value] of parsed.fields) {
+        if (name === 'csrf_ospos_v4' || name === 'honeypot' || name in overrides) continue;
+        if (name.endsWith('[]')) (body[name] ??= []).push(value);
+        else body[name] = value;
+    }
+    for (const [k, v] of Object.entries(overrides)) if (v !== null) body[k] = v;
+    return this.post(parsed.action.replace(BASE, ''), body);
+};
