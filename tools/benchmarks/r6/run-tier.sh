@@ -29,6 +29,6 @@ node tools/benchmarks/r6/http-bench.mjs --last "$LAST" --customer "$CUSTOMER" --
 kill $SERVER 2>/dev/null || true
 trap - EXIT
 [ -n "${R6_SKIP_CLI:-}" ] && exit 0
-for name in readiness trial_balance aged_ledger_customers aged_ledger_suppliers sales_revenue clients_sales item_sales item_profit payments net_position year_end_preview family_journal_movements family_stock_movements family_product_balance; do
+for name in ${R6_CLI:-readiness trial_balance aged_ledger_customers aged_ledger_suppliers sales_revenue clients_sales item_sales item_profit payments net_position year_end_preview family_journal_movements family_stock_movements family_product_balance}; do
   ALLOWED_HOSTNAMES=127.0.0.1 CI_ENVIRONMENT="$ENVNAME" MYSQL_DB_NAME="$DB" R6_NOW="$LAST 20:00:00" php -d memory_limit="$LIMIT" tools/benchmarks/r6/cli-bench.php "$name" 2>&1 | tail -1 | tee -a "$OUT/cli.jsonl"
 done
