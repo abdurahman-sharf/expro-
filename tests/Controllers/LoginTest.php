@@ -3,13 +3,18 @@
 namespace Tests\Controllers;
 
 use App\Libraries\MigrationLock;
+use App\Libraries\WebMigration;
 use CodeIgniter\Config\Services;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
+use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\ItemFixtureTrait;
 use Tests\Support\MigrationHistoryFixtureTrait;
+use Tests\Support\UndecidedPurchaseLinesFixtureTrait;
 
 /**
  * Test suite for the Login controller, including the CI Throttler
@@ -20,6 +25,10 @@ class LoginTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use FeatureTestTrait;
     use MigrationHistoryFixtureTrait;
+    use AccountingFixtureTrait;
+    use EmployeeFixtureTrait;
+    use ItemFixtureTrait;
+    use UndecidedPurchaseLinesFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -41,6 +50,7 @@ class LoginTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->restoreMigrations();
+        $this->removeUndecidedPurchaseLines();
         $this->lockHolder?->close();
         $this->lockHolder = null;
         $this->clearThrottleState();
@@ -186,7 +196,7 @@ class LoginTest extends CIUnitTestCase
         return Database::connect()->table('migrations')->where('version', $version)->countAllResults() > 0;
     }
 
-    public function testPostLogin_LeavesAPendingMigrationAloneWhileAnotherRequestHoldsTheMigrationLock(): void
+    public function testPostLogin_ShowsThatAnotherRequestIsMigratingAndRunsNothingWhileItHoldsTheMigrationLock(): void
     {
         $pending = $this->leaveLatestMigrationPending();
         $this->holdMigrationLockInAnotherRequest();
@@ -194,7 +204,8 @@ class LoginTest extends CIUnitTestCase
         $response = $this->post('/login', ['username' => 'admin', 'password' => 'pointofsale']);
         $this->trackThrottleKeys('admin');
 
-        $this->assertStringEndsWith('/login', rtrim((string) $response->getRedirectUrl(), '/'));
+        $response->assertStatus(503);
+        $response->assertSee(WebMigration::BUSY);
         $this->assertFalse($this->migrationRan($pending), 'A request that finds the lock taken must not run the migration.');
     }
 
@@ -207,6 +218,46 @@ class LoginTest extends CIUnitTestCase
         $this->trackThrottleKeys('admin');
 
         $response->assertStatus(503);
+        $response->assertSee(WebMigration::BUSY);
+        $this->assertFalse($this->migrationRan($pending));
+    }
+
+    public function testPostLogin_StopsBeforeTheFirstMigrationAndNamesTheCommandWhenPurchaseLinesAreUndecided(): void
+    {
+        $pending = $this->leaveLatestMigrationPending();
+        $this->leaveUndecidedPurchaseLines();
+
+        $response = $this->post('/login', ['username' => 'admin', 'password' => 'pointofsale']);
+        $this->trackThrottleKeys('admin');
+
+        $response->assertStatus(503);
+        $response->assertSee('php spark accounting:purchase_discount resolve');
+        $response->assertDontSee('Stack trace');
+        $this->assertFalse($this->migrationRan($pending), 'No migration may run while the decision is missing.');
+        $this->assertFalse($this->migrationRan(self::DISCOUNT_MIGRATION));
+    }
+
+    public function testGetLogin_ShowsTheCommandBeforeAnyoneSubmitsWhenPurchaseLinesAreUndecided(): void
+    {
+        $this->leaveLatestMigrationPending();
+        $this->leaveUndecidedPurchaseLines();
+
+        $response = $this->get('/login');
+
+        $response->assertStatus(503);
+        $response->assertSee('php spark accounting:purchase_discount resolve');
+    }
+
+    public function testPostMigrate_RefusesWithTheCommandWhenPurchaseLinesAreUndecided(): void
+    {
+        $pending = $this->leaveLatestMigrationPending();
+        $this->leaveUndecidedPurchaseLines();
+
+        $response = $this->post('/migrate', ['username' => 'admin', 'password' => 'pointofsale']);
+        $this->trackThrottleKeys('admin');
+
+        $response->assertStatus(503);
+        $response->assertSee('php spark accounting:purchase_discount resolve');
         $this->assertFalse($this->migrationRan($pending));
     }
 }

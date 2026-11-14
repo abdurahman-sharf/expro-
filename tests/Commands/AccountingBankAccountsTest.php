@@ -118,4 +118,42 @@ class AccountingBankAccountsTest extends CIUnitTestCase
 
         $this->assertSame('1201', $this->parentCodeOf($later));
     }
+
+    public function testRun_SaysItNeedsTheMigrationsAndExitsOneWhileTheBankDetailsColumnsAreMissing(): void
+    {
+        $db = $this->accountingDb();
+        $db->query('ALTER TABLE ospos_treasuries RENAME COLUMN bank_name TO bank_name_hold');
+
+        try {
+            $this->resetStreamFilterBuffer();
+            $exit   = service('commands')->run('accounting:bank_accounts', []);
+            $output = $this->getStreamFilterBuffer();
+        } finally {
+            $db->query('ALTER TABLE ospos_treasuries RENAME COLUMN bank_name_hold TO bank_name');
+        }
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('treasuries.bank_name', $output);
+        $this->assertStringContainsString('php spark migrate -n App', $output);
+        $this->assertStringNotContainsString('DatabaseException', $output);
+        $this->assertStringNotContainsString('Stack trace', $output);
+    }
+
+    public function testRun_SaysItNeedsTheMigrationsAndMovesNothingWhileTheRoutingTableIsMissing(): void
+    {
+        $db = $this->accountingDb();
+        $db->query('RENAME TABLE ospos_accounting_routing TO ospos_accounting_routing_hold');
+
+        try {
+            $this->resetStreamFilterBuffer();
+            $exit   = service('commands')->run('accounting:bank_accounts', ['move' => null]);
+            $output = $this->getStreamFilterBuffer();
+        } finally {
+            $db->query('RENAME TABLE ospos_accounting_routing_hold TO ospos_accounting_routing');
+        }
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('accounting_routing', $output);
+        $this->assertStringNotContainsString('moved to', $output);
+    }
 }

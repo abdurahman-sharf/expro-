@@ -260,6 +260,28 @@ class ReadinessRunbookTest extends CIUnitTestCase
         }
     }
 
+    public function testSteps_AgreeWithTheDeployChecklistOnTheSettingsThatTheFirstRunCheckNames(): void
+    {
+        $checklist = (string) file_get_contents(ROOTPATH . 'docs/ui-redesign/deploy-checklist.md');
+
+        foreach (['company', 'address', 'phone', 'email', 'return_policy', 'invoice_default_comments', 'quote_default_comments', 'currency_symbol', 'dateformat', 'timezone', 'tax_id'] as $setting) {
+            $this->assertStringContainsString("`{$setting}`", $checklist, "The first-run checklist does not name the setting {$setting}.");
+        }
+
+        foreach (['app.appTimezone', 'ADMIN-DEFAULT-PASSWORD', 'FIRST-RUN-SETTINGS', 'tools/ops/backup.sh --keep 14', 'tools/ops/restore.sh --yes-empty-database', 'رقم بدء', 'قالب الإيصال', 'الأرصدة الافتتاحية', 'الأدوار', 'الخزائن'] as $token) {
+            $this->assertStringContainsString($token, $checklist, "The deploy checklist says nothing of {$token}.");
+        }
+    }
+
+    public function testSteps_AgreeWithTheRunbookDocumentOnTheProductionSettingsTheBackupCronLineAndWhatToDoIf(): void
+    {
+        $document = (string) file_get_contents(ROOTPATH . 'docs/accounting/readiness-runbook.md');
+
+        foreach (['CI_ENVIRONMENT = production', 'app.allowedHostnames', 'app.forceGlobalSecureRequests = true', 'cookie.secure = true', 'FORCE_HTTPS = true', 'chmod 600 /path/to/expro/.env', '17 3 * * * cd /path/to/expro && tools/ops/backup.sh --keep 14', 'tools/ops/backup.sh --verify', '## 7.', 'كيف أعرف أن الترحيلات توقفت في منتصفها', 'php spark migrate:status', 'Unknown column', 'R1-10', 'POST /login', 'Another request is migrating this database', 'Not available yet', 'accounting:purchase_discount resolve'] as $token) {
+            $this->assertStringContainsString($token, $document, "The runbook document says nothing of {$token}.");
+        }
+    }
+
     /**
      * @param list<string> $commands
      */

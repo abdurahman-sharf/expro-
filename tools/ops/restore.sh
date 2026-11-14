@@ -63,7 +63,7 @@ log "restore: SHA-256 of every file matches the manifest"
 if db_exists "$TARGET"; then
     objects=$(db_object_count "$TARGET")
     if [ "$objects" != 0 ]; then
-        die "$EXIT_NOT_EMPTY" "refusing: the database $TARGET holds $objects object(s). Restore into an empty database: keep what it holds if it matters (mysqldump), then DROP and CREATE it (runbook step 8). Nothing was changed."
+        die "$EXIT_NOT_EMPTY" "refusing: the database $TARGET holds $objects object(s). A dump restored over tables that a newer release created leaves their rows, and the next migration then fails half way (seen on a copy: migration 59, Unknown column invoice_date, 58 of 116 applied). Restore into an EMPTY database: keep what it holds if it matters (mysqldump), then DROP and CREATE it (runbook step 8). Nothing was changed."
     fi
     log "restore: the database $TARGET exists and is empty"
 else

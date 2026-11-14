@@ -95,4 +95,41 @@ class AccountingStampPaymentsTest extends CIUnitTestCase
         $this->assertStringContainsString('0 payment(s) have no treasury although their journal went into one.', $output);
         $this->assertNotNull($this->stampOf($paymentId));
     }
+
+    public function testRun_SaysItNeedsTheMigrationsAndExitsOneWhileTheJournalTablesAreMissing(): void
+    {
+        $db = $this->accountingDb();
+        $db->query('RENAME TABLE ospos_accounting_journal_lines TO ospos_accounting_journal_lines_hold');
+
+        try {
+            $this->resetStreamFilterBuffer();
+            $exit   = service('commands')->run('accounting:stamp_payments', []);
+            $output = $this->getStreamFilterBuffer();
+        } finally {
+            $db->query('RENAME TABLE ospos_accounting_journal_lines_hold TO ospos_accounting_journal_lines');
+        }
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('accounting_journal_lines', $output);
+        $this->assertStringContainsString('php spark migrate -n App', $output);
+        $this->assertStringNotContainsString('DatabaseException', $output);
+        $this->assertStringNotContainsString('Stack trace', $output);
+    }
+
+    public function testRun_StampsNothingWhileTheTreasuryColumnOfThePaymentsIsMissing(): void
+    {
+        $paymentId = $this->unstampedPayment();
+        $db        = $this->accountingDb();
+        $db->query('ALTER TABLE ospos_receivings_payments RENAME COLUMN treasury_id TO treasury_id_hold');
+
+        try {
+            $this->resetStreamFilterBuffer();
+            $exit = service('commands')->run('accounting:stamp_payments', ['apply' => null]);
+        } finally {
+            $db->query('ALTER TABLE ospos_receivings_payments RENAME COLUMN treasury_id_hold TO treasury_id');
+        }
+
+        $this->assertSame(1, $exit);
+        $this->assertNull($db->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow()->treasury_id);
+    }
 }

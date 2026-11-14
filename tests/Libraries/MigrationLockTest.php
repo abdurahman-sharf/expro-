@@ -75,13 +75,26 @@ class MigrationLockTest extends CIUnitTestCase
         $this->other()->query('SELECT GET_LOCK(?, 0)', [$name]);
         $runs = 0;
 
-        $ran = (new MigrationLock())->run(static function () use (&$runs): void {
+        $ran = (new MigrationLock(null, 0))->run(static function () use (&$runs): void {
             $runs++;
         });
 
         $this->assertFalse($ran);
         $this->assertSame(0, $runs);
         $this->assertFalse($this->lockIsFree($name), 'The lock of the other connection is still its own.');
+    }
+
+    public function testRun_WaitsTheSecondsItWasGivenForALockThatStaysTaken(): void
+    {
+        $name = MigrationLock::name(Database::connect()->getDatabase());
+        $this->other()->query('SELECT GET_LOCK(?, 0)', [$name]);
+        $start = microtime(true);
+
+        $ran = (new MigrationLock(null, 1))->run(static function (): void {
+        });
+
+        $this->assertFalse($ran);
+        $this->assertGreaterThanOrEqual(0.9, microtime(true) - $start);
     }
 
     public function testRun_RunsAgainOnceTheOtherConnectionLetsGo(): void

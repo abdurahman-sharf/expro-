@@ -40,7 +40,7 @@ final class HistoricalDataChecks extends CheckGroup
             $this->check('purchase_discount', 'E38-SCAN', 'Legacy fixed purchase discounts', ['receivings', 'receivings_items.discount_type', 'receivings_items.receiving_quantity'], fn (): CheckResult => $this->purchaseDiscount()),
             $this->check('bank_placement', 'E40-BANK-DETAILS', 'Bank accounts under the main account of the banks', $bank, fn (): CheckResult => $this->bankPlacement()),
             $this->check('bank_details', 'E40-BANK-DETAILS', 'Bank name and account number of bank treasuries', $bank, fn (): CheckResult => $this->bankDetails()),
-            $this->check('payment_stamping', 'E41-STAMP', 'Payments not stamped with their treasury', ['treasuries', 'accounting_journals', 'accounting_journal_lines', 'accounting_accounts.entity_type', 'sales_payments.treasury_id', 'sales_payments.cash_adjustment', 'receivings_payments.treasury_id'], fn (): CheckResult => $this->paymentStamping()),
+            $this->check('payment_stamping', 'E41-STAMP', 'Payments not stamped with their treasury', PaymentTreasuryStamping::REQUIRES, fn (): CheckResult => $this->paymentStamping()),
         ];
     }
 

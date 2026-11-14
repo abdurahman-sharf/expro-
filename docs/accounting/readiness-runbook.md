@@ -113,6 +113,8 @@ php spark accounting:bank_accounts
 ```
 
 - **E38:** قرّر أسطر الشراء التي لا دليل عليها (`resolve` يأخذ `--before` أو `--all-legacy` أو `--none-legacy`)، واللحظة هي أول مرة شغّلت فيها هذه القاعدة الخصم للوحدة. الترحيل `LegacyFixedPurchaseDiscount` يتوقف بلا تغيير ما دام سطر غير محسوم. القرار يُسجَّل في الإعدادات ولا يغيّر سطرًا.
+- **صفحة الدخول تفحص قرار E38 قبل أول ترحيل** (R1-08): ما دام سطر غير محسوم تردّ بالرمز `503` وبعبارة «… cannot be told apart … Run php spark accounting:purchase_discount resolve» **ولا ترحّل شيئًا** (كانت تشغّل أول عشرات الترحيلات ثم تفشل بصفحة `500` وتترك القاعدة نصف مرحَّلة: 12 من 70 في التجربة، والموقع بلا دخول حتى `resolve`).
+- `accounting:stamp_payments` و`accounting:bank_accounts` **يقرآن جداول تنشئها الترحيلات**: قبل الخطوة 4 يطبعان «Not available yet» ومعها «run php spark migrate -n App first» ويخرجان بالرمز `1` (كانا ينهاران برسم تتبّع وبالرمز `0`: R1-01)؛ وهما أمرا معالجة صفوف `FAIL` التي يعرضها التقرير **بعد** الترحيلات (الخطوة 5).
 - **E41:** الوسم يضع خزينة الدفعة وحدها، حيث يطابق حساب الخزينة حساب قيد الدفعة. بأمر المالك: `php spark accounting:stamp_payments --apply` أو `php spark accounting:readiness --apply`.
 - **E40:** تنتقل حسابات البنوك تحت `1202` بالترحيل `BankAccounts` أو بـ`php spark accounting:bank_accounts --move` (يتغير الأب والرمز وحدهما، ببصمة لسطور القيود قبل وبعد)، ويُكمَل اسم البنك ورقم الحساب من شاشة الخزائن.
 
@@ -126,7 +128,7 @@ php spark migrate -n App
 - **DATA** تعيد كتابة صفوف قائمة أو تصنّفها أو تضيف إلى الدليل: `BranchesFoundation` و`AccountingRouting` و`PurchasesAccounting` و`LegacyFixedPurchaseDiscount` و`BankAccounts` و`InterBranchTransfers`، و`ChequesAndRevenues` (يفتح أربعة حسابات فرعية للشيكات في دليل قائم ويوجّه أربعة مفاتيح إليها، **ولا يفتح حسابًا إن غاب أبوه** `1206` أو `212` أو `54` فيُراجَع التوجيه بعده)، و`InvoiceHeaderCharges` (الموجة 5: يفتح حسابي «تسويات المبيعات» `4204` و«إيرادات الشحن» `4208` بأول رمز حرّ من أربعة في دليل قائم ويوجّه صفّي `sales.adjustment` و`sales.shipping` إليهما، **وينقل صف التسوية القديم عن الخصم المسموح به فقط إن لم يغيّره أحد**: يُراجَع التوجيه بعده). **وأضافت الموجة 6:** `FxDifferenceAccounts` (يفتح حسابي «أرباح فروق العملة» `4209` و«خسائر فروق العملة» `5410` بأول رمز حرّ من أربعة في دليل قائم ويوجّه صفّي `fx.gain` و`fx.loss` إليهما، **ولا يغيّر توجيهًا وُجِّه لحساب آخر ولا يفتح شيئًا في دليل فارغ**: يُراجَع التوجيه بعده). **وأضافت الموجة 7:** `StockLocationStatus` (يضيف حالة الموقع وعلامة الرئيسي إلى `stock_locations` ويعلّم **الموقع الحي ذا الرقم الأدنى رئيسيًا** إن لم يوجد رئيسي، ومفتاح فريد يمنع موقعين رئيسيين؛ يُراجَع الرئيسي من الإعدادات بعده). **وأضافت الموجة 8:** `AssetAccounts` (يفتح إضافيًا في دليل قائم الحسابات `111006` «أصول ثابتة» و`112006` «مجمع إهلاك» و`5301` «مصروف الإهلاك» و`5420` «خسائر بيع وشطب الأصول» ويتبنّى `4202` «أرباح وخسائر رأسمالية» حسابًا لأرباح بيع الأصول (مفتاح `asset_gain`) **إن لم يكن له مفتاح ولم يُستعمل لغرض آخر**، ويضيف ستة صفوف توجيه `assets.cost` و`assets.accumulated` و`assets.expense` و`assets.gain` و`assets.loss` و`assets.payable`، **وتُتخطّى الصفوف التي اختارها المالك ويُؤخذ الرمز التالي الحر إن أُخذ الرمز**؛ **ولا قيد ولا رصيد يُمسّ**؛ يُراجَع التوجيه بعده، و`down()` يُبقي كل حساب يسمّيه سطر قيد أو أصل أو فئة).
 - **HEAVY** تعدّل جدولًا كبيرًا فتُشغَّل في ساعة هادئة: `SalesAccounting` و`SalesReceivables` و`CostPrecision` و`ReceivingCostPrecision` و`Treasuries` و`StockTransfersBetweenBranches` و`ExpensesAccounting` و`PurchaseInvoiceDiscount` و`SalesInvoiceDiscount` و`CrossBranchPayments` و`RefundInvoice` و`SupplierPaymentDate` و`InvoiceDatesAndPaymentTerms` و`PurchaseTaxesAndSupplierRegistry`، و`CustomerOpenings` (يعيد بناء `customer_credit_applications` ليقبل `invoice_sale_id` الفراغ) و`QuoteLifecycle` (عمودان وفهرس على `sales`) و`AppConfigValueText` (يوسّع عمود `app_config.value` إلى `TEXT` في جدول من نواة OSPOS، صغير، ولا رجوع تلقائيًا عنه: نسخة احتياطية قبله). وسُجِّل `ChequesAndRevenues` بوسم **DATA** (يفتح أربعة حسابات فرعية ويوجّه أربعة صفوف توجيه في دليل قائم). **وأضافت الموجة 5:** `PerTaxInclusive` (عمود وفهرس على `sales_items_taxes` وجدول `tax_definitions`) و`BankReconciliation` (عمود فارغ `treasuries.bank_code` وخمسة جداول جديدة) و`SalesDebitNotes` (جدول وعمود `customer_credit_applications.debit_note_id` واستبدال قاعدة «الهدف الواحد»: **يعيد بناء `customer_credit_applications` للمرة الثانية بعد `CustomerOpenings`**) و`PricingAndCreditControls` (أعمدة بقيم محايدة على `customers` و`sales` و`items` وجدولان): كلها بنسخة احتياطية قبلها وفي ساعة هادئة. **وأضافت الموجة 6:** `DocumentCurrencyColumns` (أعمدة قابلة لـ`NULL` للعملة والسعر على `sales` و`sales_payments` و`receivings` و`receivings_payments` و`expenses` و`revenues` و`treasuries` و`treasury_transfers` و`accounting_journal_lines`، **وأكبرها `accounting_journal_lines`**: نسخة احتياطية وساعة هادئة؛ و`down()` يرفض ما دام صف يحمل عملة). **وأضافت الموجة 7:** `CustomerMasterData` (ثمانية أعمدة فارغة أو محايدة على `customers` وعمود `suppliers.country_code` وجدول `customer_classifications`: `down()` يرفض ما دامت قيمة مخزَّنة) و`ProductMasterData` (ثلاثة أعمدة على `items` وجدول `item_brands`) و`ShippingCompanies` (جدول وعمود فارغ `sales.shipping_company_id` بفهرس ومفتاح على `sales`) و`StockUnitsAndTracking` (أعمدة قابلة للفراغ وقيد `CHECK` على `sales_items` و`receivings_items` و`stock_permit_lines` وثمانية جداول جديدة: `down()` يرفض إن وُجد سطر بوحدة أو سجل تتبع): كلها بنسخة احتياطية قبلها وفي ساعة هادئة.
 - **إضافية بلا وسم** (تنشئ جداول وتسجّل صلاحيات ولا تعدّل جدولًا قائمًا، فيطبعها الأمر «إضافية»): `YearEndClosings` (جدول وصلاحية) و`CreditFlows` (ستة جداول وأربع صلاحيات). الصلاحيات الجديدة كلها بلا منح، ويعدّد التقرير حاملي الحساسة منها في الخطوة 6. **ومن الموجة 5:** `RetroactiveBackfill` (يوسّع جدول `accounting_backfill_batches` الذي أنشأه الأساس ولم يستعمله كود وينشئ `accounting_backfill_items` ويكتب `accounting_backfill_enabled` = `0` ويسجّل الصلاحية الحساسة `acc_backfill_manage`؛ **مستثنى في `MigrationChecksTest`** لأنه يعدّل جدولًا أنشأه الإصدار نفسه) و`RolesAndRecordScope` و`RolesPermissions` (خمسة جداول جديدة ووحدة `roles` والصلاحية الحساسة `acc_roles_manage`، ولا يعدّلان جدولًا قائمًا). **وبعد الموجة 5 فُحصت ملفات الترحيل كلها (94 ملفًا) ببرنامج يطبّق قاعدة `MigrationChecksTest`: لا ترحيل يعدّل جدولًا وهو غير مصنَّف ولا مستثنى** (فلا بند كـ`AppConfigValueText` الذي سبق). **ومن الموجة 6:** `ItemRoutingAccounts` (جدول) و`StockDocuments` (ستة جداول ووحدة وخمس صلاحيات) و`CurrenciesAndRates` (جدولان ودليل 76 عملة **معطَّلًا** ووحدة وصلاحية حساسة `acc_currencies_manage`) و`OrderToCashDocuments` (ثمانية جداول وثلاث وحدات وصلاحياتها): كلها بلا منح ولا تعديل لجدول قائم. **وبعد الموجة 6 فُحصت ملفات الترحيل كلها (100 ملف) بالبرنامج نفسه الذي يطبّق قاعدة `MigrationChecksTest`: لا ترحيل يعدّل جدولًا وهو غير مصنَّف ولا مستثنى** (الوحيد الذي فيه `ALTER TABLE` من الستة هو `DocumentCurrencyColumns` وهو HEAVY). **ومن الموجة 7:** `CostCenterDistribution` (ثلاثة جداول) و`PurchaseCycleDocuments` (عشرة جداول وأربع وحدات وعشرون صلاحية) و`CustomFieldsTables` (جدولان ووحدة وصلاحية `acc_custom_fields_manage`): كلها بلا منح ولا تعديل لجدول قائم. **وبعد الموجة 7 فُحصت ملفات الترحيل كلها (108 ملفات) بقاعدة `MigrationChecksTest` نفسها (قُرئت ولم تُشغَّل): الخمسة التي فيها `ALTER TABLE` من الثمانية (`StockLocationStatus` و`CustomerMasterData` و`ProductMasterData` و`ShippingCompanies` و`StockUnitsAndTracking`) مصنَّفة، والثلاثة الباقية بلا `ALTER` ولا `addColumn` ولا `modifyColumn`: لا ترحيل غير مصنَّف ولا مستثنى.** **ومن الموجة 8:** `UniqueModuleSortValues` (يغيّر عمود `sort` في `modules` لأربع وحدات فقط ولا يعدّل جدولًا: **يتبدّل موضع الوحدة في قوائم الصلاحيات وبلاطات الشاشة الرئيسية وقائمة التنقل لمن يحمل الوحدتين المتعادلتين**) و`EInvoicing` (أربعة جداول ووحدة وصلاحيتان وصف عدّاد لكل شركة؛ الصلاحية الحساسة `acc_einvoicing_manage`) و`FixedAssets` (سبعة جداول ووحدة وصلاحيتان؛ الحساسة `acc_assets_depreciate`) و`AiAgentLayer` (عشر عبارات `ALTER` على الجدول `accounting_ai_proposals` الذي أنشأه الأساس ولم يستعمله كود، وجدول `accounting_ai_findings` ووحدة وصلاحيتان حساستان `accounting_ai` و`acc_ai_approve` والإعداد `accounting_ai_enabled` = `0`؛ **مستثنى في `MigrationChecksTest`** لأنه يعدّل جدولًا أنشأه الإصدار نفسه) و`PartyContacts` (جدول) و`CustomerPortal` (جدولان والصلاحية الحساسة `portal_manage` والإعداد `portal_enabled` = `0`) و`IntegrationSettingsTables` (سبعة جداول ووحدتان وأربع صلاحيات منها الحساسة `api_keys_manage`): كلها بلا منح ولا تعديل لجدول قائم. **وبعد الموجة 8 فُحصت ملفات الترحيل كلها (116 ملفًا) بقاعدة `MigrationChecksTest` نفسها (قُرئت ولم تُشغَّل): الوحيد الذي فيه `ALTER TABLE` من الثمانية هو `AiAgentLayer` وهو مستثنى، و`AssetAccounts` مصنَّف DATA، والستة الباقية بلا `ALTER` ولا `addColumn` ولا `modifyColumn`: لا ترحيل غير مصنَّف ولا مستثنى.** وأمر الجاهزية بقي 28 فحصًا بعد الموجة 8 (لم تضف الموجة فحصًا)، **وصار 31 بحزمة W93** (فحصان لوقائع WP9 وWP13 وفحص الساعة).
-- أول طلب بعد النشر كان سينفّذ الترحيلات نفسها تلقائيًا: صفحة الدخول (`POST /login`) تبدأها **بلا حساب**، و`POST /migrate` بحساب من النظام. شغّلها هنا **عمدًا** قبل أن يُفتح الموقع، وأبقه مغلقًا (الخادم متوقف أو صفحة صيانة) حتى تنتهي الخطوة 5. الطلب الذي يبدأها يأخذ **قفلًا مسمّى في خادم القاعدة** (`GET_LOCK`) فلا يشغّلها طلبان معًا، لكن طلبًا يموت في منتصفها يتركها **ناقصة التنفيذ**: انظر «كيف أعرف أن الترحيلات توقفت في منتصفها» في القسم 7.
+- أول طلب بعد النشر كان سينفّذ الترحيلات نفسها تلقائيًا: صفحة الدخول (`POST /login`) تبدأها **بلا حساب**، و`POST /migrate` بحساب من النظام. شغّلها هنا **عمدًا** قبل أن يُفتح الموقع، وأبقه مغلقًا (الخادم متوقف أو صفحة صيانة) حتى تنتهي الخطوة 5؛ والطلب عبر الويب تقطعه أيضًا مهلة البوابة (قيس **86 ثانية** على عشرة أضعاف بيانات محل حقيقي). الطلب الذي يبدأها يفحص أولًا قرار E38، ثم يأخذ **قفلًا مسمّى في خادم القاعدة** (`GET_LOCK`) وينتظره 3 ثوانٍ: لا يشغّلها طلبان معًا، ويرى الثاني «Another request is migrating this database» بالرمز `503` (R1-09: كان الثاني يفشل بـ`500` `Can't create table`). والخطأ يصير عبارة تسمّي `writable/logs` والأمر `php spark migrate -n App` (لا رسم تتبّع ولا صفحة `500` فارغة)، **لكن القاعدة قد تكون نصف مرحَّلة**: انظر «كيف أعرف أن الترحيلات توقفت في منتصفها» في القسم 7.
 - لا يسجّل أي مستند في المشروع تشغيل هذه الترحيلات على MySQL 5.7 أو MariaDB 10.5 (مصفوفة CI تسمّي الصورتين ولا تُسجَّل نتيجتها هنا): جرِّب الترحيلات في بروفة الخطوة 1 على قاعدة تجريبية يخدمها خادم بإصدار الخادم الحي نفسه.
 - توقّف عند أول فشل واستعد النسخة؛ لا تعدّل جدول `migrations` بيدك.
 
@@ -178,7 +180,7 @@ mysql -u USER -p -e "DROP DATABASE DATABASE; CREATE DATABASE DATABASE CHARACTER 
 tools/ops/restore.sh --yes-empty-database DATABASE backups/YYYYMMDD-HHMMSS
 ```
 
-- تُستعاد النسخة في قاعدة **فارغة**: ملف النسخة يُسقط ويعيد إنشاء الجداول التي فيه وحدها، فاستعادته فوق القاعدة الحية تترك الجداول التي أنشأها الإصدار (`accounting_journals` وغيرها) بصفوفها، وقيودها ستصادف مبيعات تعيد استعمال أرقامها. **`tools/ops/restore.sh` يرفض قاعدة فيها أي شيء** (رمز `8`)، ويطلب أن يُكتب اسم القاعدة الفارغة بوضوح (`--yes-empty-database`: بدونه لا يلمس شيئًا، رمز `2`)، ويفحص SHA-256 لكل ملف قبل أن يكتب (رمز `6`)، ثم يحمّل الملف ويقارن `CHECKSUM TABLE` وعدد صفوف كل جدول بالبيان، ويعيد `writable/` (`--no-files` لتركه)، **ولا يكتب فوق `.env` الحي** (نسخته في المجلد للمقارنة)، ويطبع أمر الجاهزية الذي يُشغَّل على القاعدة المستعادة.
+- تُستعاد النسخة في قاعدة **فارغة فقط**: ملف النسخة يُسقط ويعيد إنشاء الجداول التي فيه وحدها، فاستعادته فوق القاعدة الحية تترك الجداول التي أنشأها الإصدار (`accounting_journals` وغيرها) بصفوفها، وقيودها ستصادف مبيعات تعيد استعمال أرقامها، **والأسوأ أن الترحيل التالي يفشل في منتصفه** (R1-10، على نسخة فيها 67,541 قيدًا: الترحيل 59 `LegacyFixedPurchaseDiscount` بـ`Unknown column 'invoice_date'` وبقي **58 من 116** و`readiness` بثلاثة `ERROR`). **`tools/ops/restore.sh` يرفض قاعدة فيها أي شيء** (رمز `8`)، ويطلب أن يُكتب اسم القاعدة الفارغة بوضوح (`--yes-empty-database`: بدونه لا يلمس شيئًا، رمز `2`)، ويفحص SHA-256 لكل ملف قبل أن يكتب (رمز `6`)، ثم يحمّل الملف ويقارن `CHECKSUM TABLE` وعدد صفوف كل جدول بالبيان، ويعيد `writable/` (`--no-files` لتركه)، **ولا يكتب فوق `.env` الحي** (نسخته في المجلد للمقارنة)، ويطبع أمر الجاهزية الذي يُشغَّل على القاعدة المستعادة.
 - الأمر الأول يحفظ ما تركه الإصدار الفاشل للفحص بعد الحادثة؛ والثاني يحتاج حق إسقاط القاعدة وإنشائها، ويستعمل ترميز `app/Config/Database.php` وتجميعه؛ **أوقف الموقع قبله**. بلا الأدوات: `mysqldump --single-transaction -u USER -p DATABASE > state-after-failed-release.sql` أولًا، و`mysql -u USER -p DATABASE < backup-before-release.sql` بعد الإسقاط.
 - `down()` ليس تراجعًا للترحيلات التي تعيد كتابة البيانات: `LegacyFixedPurchaseDiscount` يغيّر معنى الخصم، و`BankAccounts` لا يعيد الحسابات إلى مكانها، و`PurchaseInvoiceDiscount` يرفض متى استعمله شراء.
 - أعد الشيفرة إلى الإصدار السابق **مع** الاستعادة (البيان `manifest.txt` يسمّي إصدار الشيفرة `git_commit` وقت النسخة)، وشغّل التقرير على القاعدة المستعادة.
@@ -189,3 +191,84 @@ tools/ops/restore.sh --yes-empty-database DATABASE backups/YYYYMMDD-HHMMSS
 - فحص لا يجد جدوله أو عموده لا يفشل ولا يوقف التقرير: يُوسم `SKIPPED`. وفحص ينكسر يُوسم `ERROR` ولا يخفي بقية الفحوص.
 - `--apply` لا يستدعي إلا `accounting:stamp_payments --apply` و`accounting:bank_accounts --move`، وفي ترتيب الفحوص، ولا يستدعيهما إن لم يفشل فحصهما. لا يقرّر القرار E38 ولا يكمل اسم بنك ولا يعدّل قيدًا.
 - لا يمسّ الأمر قيدًا ولا دفعة ولا رصيدًا. الوسم يضع خزينة الدفعة وحدها، ونقل حساب البنك يغيّر موضعه في الدليل وحده.
+
+## 5. إعداد الإنتاج: ملف `.env` وصلاحيات الملفات
+
+قاعدة الجاهزية تفحص القاعدة لا الخادم؛ هذه الإعدادات تقرؤها بنفسك قبل أن يصل الموقع إلى الإنترنت (وجدها المقيّمون ناقصة: R3-I2 وR3-B2 وR2 وR1-13).
+
+```
+CI_ENVIRONMENT = production
+app.allowedHostnames = 'shop.example.com'
+app.appTimezone = 'Asia/Riyadh'
+app.forceGlobalSecureRequests = true
+cookie.secure = true
+FORCE_HTTPS = true
+database.default.hostname = '127.0.0.1'
+database.default.database = 'ospos'
+database.default.username = 'ospos_app'
+database.default.password = 'a-long-random-password'
+```
+
+| الإعداد | لماذا وماذا يحدث |
+|---|---|
+| `CI_ENVIRONMENT=production` | **لا تترك `testing` ولا `development` في الإنتاج** (ملف `.env` منسوخ من جهاز التطوير يقول `testing`): في `testing` يُعطَّل CSRF، وفي `development` تظهر رسائل الخطأ وشريط التصحيح. في الإنتاج الخطأ `500` بجسم فارغ والسجل بمستوى الأخطاء |
+| `logger.threshold` | **اتركه غير مضبوط في الإنتاج** (الافتراضي `4`: الطوارئ والتنبيه والحرج والخطأ)، أو `5` لتضيف التحذيرات. **القيمة `0` تطفئ السجل** تقريبًا (لا يُكتب غير الطوارئ: `range(1, 0)` في `CodeIgniter\Log\Logger`) فلا تجد بعد عطل ما تقرؤه؛ و`9` يكتب كل شيء (للتطوير فقط: يملأ `writable/logs` ويبطّئ). افحص `writable/logs` بعد كل ترحيل |
+| `app.allowedHostnames` | قائمة بأسماء المضيف مفصولة بفواصل: **الإنتاج يرفض الإقلاع بدونها** وكل مضيف غير مدرج يرجع إلى أول المدرجين (ضد حقن ترويسة `Host`) |
+| `app.baseURL` | **لا أثر له في هذا الإصدار**: `Config\App` يحسب العنوان من المضيف المدرج، ويكون `https` حين يقول الخادم `HTTPS=on` أو حين يكون `FORCE_HTTPS=true` في البيئة. فاضبط `FORCE_HTTPS=true` خلف وسيط (nginx أو موازن) ينهي TLS |
+| `app.forceGlobalSecureRequests=true` | يحوّل `http` إلى `https` ويرسل `Strict-Transport-Security` لسنة: **بعد أن تثبت أن `https` يعمل بشهادة سليمة** |
+| `cookie.secure=true` | كوكي الجلسة والـCSRF لا يُرسلان إلا على `https` (**على `http` لا تثبت الجلسة فلا دخول**، فلا تفعّله إلا مع `https`). الافتراضي `false` (R3-I2) |
+| `app.appTimezone` | منطقة أوامر `php spark` (الافتراضي UTC): اضبطها على منطقة المتجر؛ `W93-CLOCK` يسمّي الفرق (R1-13) |
+| كلمة سر قاعدة البيانات | كلمة طويلة عشوائية لمستخدم لا يملك غير هذه القاعدة (وحق إنشاء قاعدة التجربة إن أردت `--verify`). **الكلمة الافتراضية في `app/Config/Database.php` و`docker/.env` منشورة مع المشروع**، وكذلك كلمة حساب `admin` (`ADMIN-DEFAULT-PASSWORD`: R3-B2) |
+| `expose_php = Off` في `php.ini` | يخفي `X-Powered-By: PHP/…` (R3-I2) |
+
+**الصلاحيات.** جذر الويب هو `public/` وحده؛ `.env` و`app/` و`vendor/` و`writable/` و`backups/` و`tools/` **خارجه** (المخطط الحالي سليم: R3). أمثلة بمستخدم الويب `www-data` ومالك الشيفرة `deploy` (عدّلهما):
+
+```
+chown -R deploy:www-data /path/to/expro
+chmod -R go-w /path/to/expro
+chown -R www-data:www-data /path/to/expro/writable
+find /path/to/expro/writable -type d -exec chmod 750 {} +
+find /path/to/expro/writable -type f -exec chmod 640 {} +
+chown www-data:www-data /path/to/expro/.env && chmod 600 /path/to/expro/.env
+stat -c '%a %U %G %n' /path/to/expro/.env /path/to/expro/writable /path/to/expro/backups
+```
+
+- `writable/` لمستخدم الويب وحده (يكتب فيه المرفقات والسجل والجلسات) ولا يقرؤه غيره؛ والشيفرة لا يكتب فيها مستخدم الويب.
+- `.env` بصلاحية `0600` لمستخدم الويب: فيه كلمة القاعدة. **ما يشغّله `cron` (النسخة الاحتياطية وأوامر `spark`) يعمل بمستخدم الويب نفسه** أو بمستخدم يُضاف إلى مجموعته مع `chmod 640`.
+- `backups/` بصلاحية `0700` (تنشئها الأداة هكذا) وفيها نسخة من `.env`.
+- خيارات `php spark` تأخذ **مسافة لا `=`** (`--currency SAR`): الخطوة 7 تكتبها هكذا. الأمر `accounting:enable` يقبل الصيغتين منذ R1-02، لكن `spark` يقرأ `--currency=SAR` اسم خيار هو `currency=SAR` فيتجاهله الأمر الذي لا يعالج هذه الصيغة بنفسه ويخرج بـ`0` (R1-02)؛ فاكتب المسافة دائمًا.
+
+## 6. النسخ الاحتياطي الدوري
+
+`tools/ops/backup.sh` و`tools/ops/restore.sh` (و`selftest.sh` الذي يجرّبهما على قاعدة تطوير) بلا أسرار في ملفاتها؛ بيانات الاتصال من `MYSQL_HOST_NAME` و`MYSQL_USERNAME` و`MYSQL_PASSWORD` و`MYSQL_DB_NAME` أو من `.env` (`database.default.*` في الإنتاج)، وتُمرَّر إلى `mysql` و`mysqldump` بملف خيارات مؤقت بصلاحية `0600` يُحذف عند الخروج: **لا كلمة سر في سطر أوامر ولا في ناتج**.
+
+```
+17 3 * * * cd /path/to/expro && tools/ops/backup.sh --keep 14 >> /var/log/expro-backup.log 2>&1
+47 4 * * 0 cd /path/to/expro && tools/ops/backup.sh --verify >> /var/log/expro-backup.log 2>&1
+37 3 * * * rsync -a /path/to/expro/backups/ backup@other-host:/srv/expro-backups/
+```
+
+- **السطر الأول يوميًا 03:17** (ساعة هادئة؛ ليست على رأس الساعة كي لا تتزاحم مع غيرها) ويبقي **14 نسخة**؛ والثاني أسبوعيًا يستعيد أحدث نسخة إلى قاعدة تجربة `ospos_test_verify_…` ويقارن `CHECKSUM TABLE` وعدد صفوف **كل جدول** بالبيان وبالقاعدة الآن ثم يحذفها (رمز `6` عند أي اختلاف، ويسمّي الجدول)؛ والثالث **ينسخ المجلد خارج الخادم** (مثال `rsync`: اختر مكانك وحذف القديم عنده بمدة تناسبك، **ولا تضع `--delete`** فيمحو مجلد المصدر الفارغ بعد عطل نسخك البعيدة). **نسخة على قرص الخادم الذي تحميه تضيع معه.**
+- النسخة تُؤخذ بـ`--single-transaction`: لا تحجب البيع، لكن **الاختلاف بين الجدول والبيان** ممكن لجدول كان يُكتب أثناء النسخة؛ لذلك الساعة الهادئة، و`--verify` يقول «changed since the backup in: …» للجدول الذي تغيّر بعدها (تحذير لا فشل) ويفشل فقط إن اختلفت النسخة المستعادة عن **البيان**.
+- التجربة الشهرية الكاملة: `tools/ops/backup.sh --verify --keep-scratch --scratch ospos_test_rehearsal` ثم `MYSQL_DB_NAME=ospos_test_rehearsal php spark accounting:readiness`، ثم احذف قاعدة التجربة. **قيد معروف:** `mysqldump` النصي لا يحفظ أعمدة `FLOAT` بتمامها (جدول `sales_reward_points`: 6 أرقام معنوية، R1-19) فقد يختلف `CHECKSUM TABLE` له (النسخة الفيزيائية وحدها بتّية).
+- رموز الخروج: `backup.sh` ‏`0` تم، `2` استعمال خاطئ، `3` لا بيانات اتصال أو لا اتصال، `4` فشل `mysqldump`، `5` فشلت الملفات أو البيان، `6` اختلاف عن البيان أو ملف تالف، `7` تعذّر إنشاء قاعدة التجربة؛ و`restore.sh` `0` تم، `2` استعمال خاطئ أو بلا `--yes-empty-database`، `3` اتصال، `5` الملفات، `6` ملف تالف أو اختلاف بعد الاستعادة، `7` تعذّر إنشاء القاعدة، `8` **القاعدة ليست فارغة (رفض)**، `9` فشل التحميل.
+- استضافة بلا سطر أوامر: `mysqldump` من لوحة الاستضافة (أو phpMyAdmin: تصدير بخيار «إضافة DROP TABLE» وإجراءات وتريغرات) مع نسخ `writable/` و`.env`؛ والاستعادة بلوحة الاستضافة **في قاعدة فارغة جديدة**.
+- `tools/ops/selftest.sh` يجرّب الأداتين فعلًا (نسخة، تحقق، ملف تالف، احتفاظ، رفض استعادة، هدم، استعادة، مقارنة) على قاعدة اسمها يبدأ بـ`ospos_test_`: `MYSQL_HOST_NAME=… MYSQL_USERNAME=… MYSQL_PASSWORD=… tools/ops/selftest.sh ospos_test_ops_selftest`.
+
+## 7. ماذا أفعل إن…
+
+**استعادة (قاعدة فُقدت أو أُفسدت).** (1) أوقف الموقع. (2) إن كان الخادم جديدًا فضع الشيفرة عند الإصدار الذي يسمّيه `git_commit` في `manifest.txt` للنسخة، وضع `.env` من `dot-env` بجوار النسخة (`chmod 600`). (3) `tools/ops/restore.sh --yes-empty-database DATABASE backups/YYYYMMDD-HHMMSS`؛ **يرفض كل قاعدة ليست فارغة**: أسقطها وأنشئها أولًا (الخطوة 8) بعد أن تحفظ ما فيها بـ`tools/ops/backup.sh --dir state-after-failed-release` إن كان يهمّ. (4) `MYSQL_DB_NAME=DATABASE php spark accounting:readiness` على المستعادة. (5) افتح الموقع. **لا تستعد فوق قاعدة فيها دفاتر**: الترحيل التالي يفشل في الترحيل 59 وتبقى 58 من 116 (R1-10).
+
+**تراجع عن إصدار.** `migrate:rollback` ليس تراجعًا موثوقًا بعد استعمال القاعدة (15 ترحيلًا يرفض `down()` فيها إن وُجد استعمال، ومن استُعملت فيها دفعة ترحيل رجعي تتراجع 29 ثم تتوقف فتبقى **نصف متراجعة**: R1 القسم 9.3). **التراجع هو الاستعادة**: الشيفرة إلى الإصدار السابق + الخطوة 8 بنسخة أُخذت قبل الترحيل.
+
+**كيف أعرف أن الترحيلات توقفت في منتصفها.** علاماتها: صفحة الدخول تقول «Migration required» أو العبارة التي تسمّي `writable/logs`؛ و`php spark accounting:readiness` يقول `phase pre-migration` ويسرد في `MIGRATIONS` ترحيلات منتظرة في قاعدة كان يُفترض أنها رُحِّلت؛ و`php spark migrate:status` يُظهر `---` في «Migrated On» لترحيل منتظر بعد ترحيلات مطبَّقة؛ والاستعلام:
+
+```
+php spark migrate:status
+php spark accounting:readiness
+mysql -u USER -p DATABASE -e "SELECT version, class, FROM_UNIXTIME(time) FROM ospos_migrations ORDER BY version DESC LIMIT 5"
+```
+
+ثم: **اقرأ الخطأ** بتشغيل `php spark migrate -n App` على الخادم (يطبعه بدل صفحة فارغة) وسبب شائع هو قرار E38 (`php spark accounting:purchase_discount resolve`)؛ أصلح السبب وأعد `php spark migrate -n App` (يُرجَّح أن يُكمل من حيث وقف لأن الترحيلات الحالية مكتوبة بحراس `IF NOT EXISTS`: استنتاج R1-09 لم يُجرَّب على كل ترحيل)؛ وإن لم تُصلَح فاستعد النسخة في قاعدة فارغة (الخطوة 8). **لا تعدّل جدول `migrations` بيدك.** صفحة «Another request is migrating this database» تعني أن طلبًا آخر يرحّل الآن: انتظر ثم أعد تحميل الصفحة؛ وإن بقيت بعد دقائق فلا ترحيل يعمل (القفل يسقط مع اتصاله) فشغّل الترحيل من سطر الأوامر.
+
+**`accounting:readiness` يخرج بـ`1`.** افتح التقرير عند أول `FAIL` أو `ERROR`: لكل فحص صف في القسم 2 يقول ما يعني وكيف يُعالَج؛ وما يعالجه `--apply` مذكور هناك. **`REVIEW` لا يوقف** (منه `FIRST-RUN-SETTINGS` وقيد يدوي على حساب خزينة).

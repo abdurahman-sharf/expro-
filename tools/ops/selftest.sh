@@ -167,6 +167,7 @@ assert_equal "the scratch database of a failed verification was dropped too" 0 "
 
 expect_exit "$EXIT_USAGE" "restore without the explicit flag touches nothing" restore "$FOLDER"
 expect_exit "$EXIT_NOT_EMPTY" "restore refuses a database that holds tables" restore --yes-empty-database "$SELFTEST_DB" "$FOLDER"
+assert "the refusal says that the next migration would fail half way and to restore into an EMPTY database" grep -q 'next migration then fails half way.*EMPTY database' "$OUT"
 assert_equal "the refused restore changed no table" "$BEFORE_CHECKSUMS" "$(table_checksums "$SELFTEST_DB")"
 expect_exit "$EXIT_USAGE" "a retention below 1 is refused" backup --keep 0
 expect_exit "$EXIT_USAGE" "an unknown option is refused" backup --nonsense
