@@ -1607,7 +1607,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $purchase = $this->purchaseOf('500.00');
         $payment  = $this->payPurchase($purchase, '100.00');
 
-        $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->update(['payment_date' => null]);
+        $this->accountingDb()->table('receivings_payments')->where('payment_id', $payment)->update(['payment_date' => null, 'payment_time' => date('Y-m-d') . ' 00:00:01']);
         $this->loginAs($this->buyer());
 
         $result = $this->jsonOf($this->post('/receivings/save/' . $purchase, $this->savedWith($purchase, $this->paymentFields([[$payment, lang('Sales.cash'), '100.00', 'completed']], null, '', ['payment_date_0' => date('Y-m-d')]))));

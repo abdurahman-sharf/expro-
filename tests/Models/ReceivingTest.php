@@ -737,7 +737,7 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertCount(1, $journals);
         $this->assertSame($date, $journals[0]->journal_date);
         $this->assertSame($date, $payment->payment_date);
-        $this->assertSame(date('Y-m-d'), substr((string) $payment->payment_time, 0, 10), 'The time it was saved is kept as it is');
+        $this->assertSame($this->databaseToday(), substr((string) $payment->payment_time, 0, 10), 'The time it was saved is kept as it is, and it is the clock of the database whichever zone it keeps');
         $this->assertSame('60.00', $this->owed());
         $this->assertSupplierTies();
     }

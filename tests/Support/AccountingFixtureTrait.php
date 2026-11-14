@@ -32,6 +32,11 @@ trait AccountingFixtureTrait
         return Database::connect();
     }
 
+    protected function databaseToday(): string
+    {
+        return (string) $this->accountingDb()->query('SELECT CURDATE() AS day')->getRow()->day;
+    }
+
     protected function setConfigValue(string $key, string $value): void
     {
         $this->accountingDb()->table('app_config')->replace(['key' => $key, 'value' => $value]);

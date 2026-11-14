@@ -480,7 +480,7 @@ class CustomerAdvancesTest extends CIUnitTestCase
 
         $this->assertSame($date, $journal->journal_date);
         $this->assertSame($date, $row->advance_date);
-        $this->assertSame(date('Y-m-d'), substr((string) $row->created_at, 0, 10));
+        $this->assertSame($this->databaseToday(), substr((string) $row->created_at, 0, 10), 'The time it was saved is the clock of the database, whichever zone it keeps');
     }
 
     public function testReceive_RefusesADateAfterTodayAndSavesNothing(): void

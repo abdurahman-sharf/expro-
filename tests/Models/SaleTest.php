@@ -2438,6 +2438,58 @@ class SaleTest extends CIUnitTestCase
         $this->assertEqualsCanonicalizing([$mine, $theirs], array_map('intval', array_column($sale->get_all_suspended($customer, $this->createEmployee()), 'sale_id')));
     }
 
+    private function withTheClockOfTheDatabaseInAnotherZone(callable $action): int
+    {
+        $db       = Database::connect();
+        $previous = (string) $db->query('SELECT @@session.time_zone AS zone')->getRow()->zone;
+
+        $db->query("SET time_zone = '+13:00'");
+
+        try {
+            return $action();
+        } finally {
+            $db->query('SET time_zone = ' . $db->escape($previous));
+        }
+    }
+
+    private function secondsBetweenNowAndThePaymentStamp(int $paymentId): int
+    {
+        $stamp = (string) Database::connect()->table('sales_payments')->select('payment_time')->where('payment_id', $paymentId)->get()->getRow()->payment_time;
+
+        return abs(time() - (int) strtotime($stamp));
+    }
+
+    public function testSaveValue_StampsThePaymentWithTheClockOfTheApplicationAndNotTheClockOfTheDatabase(): void
+    {
+        $seconds = $this->withTheClockOfTheDatabaseInAnotherZone(function (): int {
+            $saleId      = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment(4.00)]);
+            [$paymentId] = $this->paymentIdsOf($saleId);
+
+            return $this->secondsBetweenNowAndThePaymentStamp($paymentId);
+        });
+
+        $this->assertLessThan(120, $seconds, 'The day of a payment is the day the shop saved it on, whatever zone the database server keeps');
+    }
+
+    public function testUpdate_StampsAPaymentAddedToACompletedSaleWithTheClockOfTheApplicationAndNotTheClockOfTheDatabase(): void
+    {
+        $saleId   = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment(4.00)]);
+        $employee = $this->createEmployee();
+        $model    = model(Sale::class);
+
+        $seconds = $this->withTheClockOfTheDatabaseInAnotherZone(function () use ($model, $saleId, $employee): int {
+            $this->assertTrue($model->update($saleId, ['comment' => 'more', 'payments' => [
+                ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.debit'), 'payment_amount' => '6.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $employee, 'reference_code' => null],
+            ]]));
+
+            [, $added] = $this->paymentIdsOf($saleId);
+
+            return $this->secondsBetweenNowAndThePaymentStamp($added);
+        });
+
+        $this->assertLessThan(120, $seconds);
+    }
+
     public function testOutsideRecordScope_TreatsASaleThatDoesNotExistLikeAnotherEmployeesForAnOwnRecordsEmployeeOnly(): void
     {
         $own   = $this->ownRecordsEmployee();
