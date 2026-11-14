@@ -8893,7 +8893,14 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $controller = new Sales();
         $controller->initController(service('request'), service('response'), service('logger'));
 
-        return (new ReflectionMethod($controller, '_load_sale_data'))->invoke($controller, $saleId);
+        $scaleBefore = bcscale();
+        bcscale(max(2, totals_decimals() + tax_decimals()));
+
+        try {
+            return (new ReflectionMethod($controller, '_load_sale_data'))->invoke($controller, $saleId);
+        } finally {
+            bcscale($scaleBefore);
+        }
     }
 
     public function testGetPrint_PrintsTheCreditNoteOfAReturnWithItsOwnTitleLabelsAndTheAmountsItTakesBack(): void
