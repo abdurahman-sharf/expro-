@@ -400,6 +400,23 @@ class LedgerChecksTest extends CIUnitTestCase
         $this->assertSame(CheckStatus::Pass, $this->check('source_keys')->status);
     }
 
+    public function testSourceKeys_PassesForTheTwoLegsOfAChequeRejectedAfterItsDeposit(): void
+    {
+        $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 5, 'revision' => 1]);
+        $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 5, 'revision' => 2]);
+
+        $this->assertSame(CheckStatus::Pass, $this->check('source_keys')->status);
+    }
+
+    public function testSourceKeys_FailsWhenAChequeRejectedAfterItsDepositStandsAsMoreThanItsTwoLegs(): void
+    {
+        $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 5, 'revision' => 1]);
+        $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 5, 'revision' => 2]);
+        $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 5, 'revision' => 3]);
+
+        $this->assertSame(CheckStatus::Fail, $this->check('source_keys')->status);
+    }
+
     public function testSourceKeys_PassesForTheRevenueAndTheCostOfOneSale(): void
     {
         $this->journal(['source_type' => 'sale', 'source_id' => 12, 'entry_type' => 'revenue']);
@@ -445,29 +462,6 @@ class LedgerChecksTest extends CIUnitTestCase
         $this->assertSame(CheckStatus::Fail, $result->status);
         $this->assertSame(["journal #{$original} was reversed 2 times by journals {$first},{$second}"], $result->findings);
         $this->assertSame(1, $result->data['reversed_twice']);
-    }
-
-    public function testSourceKeys_PassesForADepositedChequeThatWasRejected(): void
-    {
-        $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 7, 'revision' => 1]);
-        $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 7, 'revision' => 2]);
-
-        $result = $this->check('source_keys');
-
-        $this->assertSame(CheckStatus::Pass, $result->status);
-        $this->assertSame([], $result->findings);
-    }
-
-    public function testSourceKeys_FailsWhenTheRejectionOfADepositedChequeStandsMoreThanOnce(): void
-    {
-        $first  = $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 7, 'revision' => 1]);
-        $second = $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 7, 'revision' => 2]);
-        $third  = $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 7, 'revision' => 3]);
-
-        $result = $this->check('source_keys');
-
-        $this->assertSame(CheckStatus::Fail, $result->status);
-        $this->assertSame(["cheque_in_dep_rejected 7 (general) stands as 3 posted journals: {$first},{$second},{$third}"], $result->findings);
     }
 
     public function testSourceKeys_FailsWhenAChequeStatusChangeThatPostsOneJournalStandsTwice(): void

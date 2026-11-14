@@ -20,12 +20,6 @@ final class LedgerChecks extends CheckGroup
     private const LIMIT     = 1000;
     private const TOLERANCE = '0.00005';
 
-    /**
-     * A deposited cheque that bounces posts two journals under one source key, one for each leg of
-     * ChequePostingBuilder, so a pair is the one document that stands in the books twice by design.
-     */
-    private const JOURNALS_PER_SOURCE = [ChequeSources::DEPOSIT_REJECTED => 2];
-
     public function run(): array
     {
         $journals = ['accounting_journals.company_id', 'accounting_journals.total_debit', 'accounting_journal_lines'];
@@ -157,7 +151,7 @@ final class LedgerChecks extends CheckGroup
             ->where('source_id IS NOT NULL', null, false)
             ->whereNotIn('source_type', [JournalDraft::SOURCE_MANUAL, JournalDraft::SOURCE_REVERSAL])
             ->groupBy('source_type, source_id, entry_type')
-            ->having('COUNT(*) > ' . $this->allowedJournalsPerSource(), null, false)
+            ->having('COUNT(*) > IF(source_type = ' . $this->db->escape(ChequeSources::DEPOSIT_REJECTED) . ', 2, 1)', null, false)
             ->orderBy('source_type', 'ASC')
             ->orderBy('source_id', 'ASC')
             ->limit(self::LIMIT + 1)
@@ -196,17 +190,6 @@ final class LedgerChecks extends CheckGroup
             $findings,
             ['documents' => min(count($documents), self::LIMIT), 'reversed_twice' => min(count($reversals), self::LIMIT), 'truncated' => count($documents) > self::LIMIT || count($reversals) > self::LIMIT],
         );
-    }
-
-    private function allowedJournalsPerSource(): string
-    {
-        $cases = '';
-
-        foreach (self::JOURNALS_PER_SOURCE as $source => $journals) {
-            $cases .= ' WHEN ' . $this->db->escape($source) . ' THEN ' . $journals;
-        }
-
-        return "CASE source_type{$cases} ELSE 1 END";
     }
 
     private function numbering(): CheckResult

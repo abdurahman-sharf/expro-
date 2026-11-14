@@ -12,13 +12,12 @@ use Throwable;
  */
 final class WebMigration
 {
-    public const BUSY = 'Another request is migrating this database: wait for it to finish, then reload this page.';
-
+    public const BUSY   = 'Another request is migrating this database: wait for it to finish, then reload this page.';
     public const FAILED = 'The migration stopped before it was finished and the database may be half migrated: do not open the site. See writable/logs, run "php spark migrate -n App" to read the error, and restore the backup if it cannot be fixed (docs/accounting/readiness-runbook.md, section 7).';
 
     public function __construct(private ?MigrationLock $lock = null, private ?MigrationPreflight $preflight = null)
     {
-        $this->lock      ??= new MigrationLock();
+        $this->lock ??= new MigrationLock();
         $this->preflight ??= new MigrationPreflight();
     }
 

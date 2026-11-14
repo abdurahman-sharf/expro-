@@ -32,7 +32,6 @@ final class DeploymentChecks extends CheckGroup
         'dateformat'               => ['m/d/Y', 'the date format'],
         'timezone'                 => ['America/New_York', 'the time zone'],
     ];
-
     private const NUMBERED_DOCUMENTS = [DocumentType::SalesInvoice, DocumentType::CreditNote, DocumentType::RefundInvoice, DocumentType::SalesQuote, DocumentType::Purchase];
 
     public function run(): array
