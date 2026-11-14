@@ -66,6 +66,13 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->creditNoteOf($paid, '57.50', $this->customerId);
     }
 
+    private function pickerScript(string $body): string
+    {
+        $this->assertSame(1, preg_match('/<script type="text\/javascript">\s*\$\(function\(\) \{\s*const fields = .*?<\/script>/s', $body, $found), 'The screen carries the script of its search boxes');
+
+        return $found[0];
+    }
+
     public function testGetRevenue_FiltersByCustomerInASearchBoxAboveThePickerThreshold(): void
     {
         $this->assertCustomerFilterSearches(self::REVENUE);
@@ -139,18 +146,47 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
 
     public function testGetRevenue_EscapesTheNameOfTheChosenCustomerInTheBoxAndTheScript(): void
     {
+        $name = 'Quote"s <b>Shop</b><script>alert(1)</script>';
+
         $this->bookedCustomer('Filter', 'Other');
-        $chosen = $this->bookedCustomer('Filter', 'Quoted', 'Quote"s <b>Shop</b>');
+        $chosen = $this->bookedCustomer('Filter', 'Quoted', $name);
         $this->setPickerThreshold(1);
         $this->reader();
 
         try {
-            $body = (string) $this->fetch(self::REVENUE . '?show=1&group=customer&customer=' . $chosen)->response()->getBody();
+            $response = $this->fetch(self::REVENUE . '?show=1&group=customer&customer=' . $chosen);
+            $body     = (string) $response->response()->getBody();
 
             $this->assertStringNotContainsString('<script>alert', $body);
             $this->assertStringNotContainsString('<b>Shop</b>', $body);
-            $this->assertStringContainsString('value="Quote&quot;s&#x20;&lt;b&gt;Shop&lt;&#x2F;b&gt;"', $body);
-            $this->assertStringContainsString('"label":"Quote\\u0022s \\u003Cb\\u003EShop\\u003C\\/b\\u003E"', $body);
+            $this->assertSame($name, $this->pageOf($response)->query("//input[@id='f_customer_text']/@value")->item(0)?->nodeValue, 'The box shows the name as text');
+            $this->assertStringContainsString('"label":"Quote\\u0022s \\u003Cb\\u003EShop\\u003C\\/b\\u003E\\u003Cscript\\u003Ealert(1)\\u003C\\/script\\u003E"', $body);
+        } finally {
+            $this->setPickerThreshold(null);
+        }
+    }
+
+    public function testGetRevenue_BlocksTheFormWhileTheNameInTheSearchBoxMatchesNobody(): void
+    {
+        $this->bookedCustomer('Filter', 'First');
+        $this->bookedCustomer('Filter', 'Second');
+        $this->setPickerThreshold(1);
+        $this->reader();
+
+        try {
+            $response = $this->fetch(self::REVENUE);
+            $page     = $this->pageOf($response);
+            $script   = $this->pickerScript((string) $response->response()->getBody());
+
+            $this->assertSame(1, $page->query("//form[@id='report_filters']//input[@id='f_customer_text']")->length);
+
+            $feedback = $page->query("//form[@id='report_filters']//input[@id='f_customer_text']/following-sibling::div[@class='invalid-feedback'][@role='alert']");
+
+            $this->assertSame(1, $feedback->length, 'The box is followed by the alert that shows once it is marked invalid');
+            $this->assertSame(lang('Accounting_operational_reports.customer_choose'), trim((string) $feedback->item(0)?->textContent));
+            $this->assertMatchesRegularExpression("/\\\$\\('#report_filters'\\)\\.on\\('submit', function\\(event\\) \\{.*pickers\\[field\\.name\\]\\.sync\\(.*if \\(\\\$text\\.hasClass\\('is-invalid'\\)\\) \\{\\s*event\\.preventDefault\\(\\);/s", $script, 'The form is stopped when the box is still invalid after it has been read again');
+            $this->assertStringContainsString("\$text.attr('aria-invalid', \$text.hasClass('is-invalid') ? 'true' : 'false');", $script, 'The box says to assistive technology that it is invalid');
+            $this->assertStringContainsString("\$text.on('input change blur', function(event) {", $script);
         } finally {
             $this->setPickerThreshold(null);
         }

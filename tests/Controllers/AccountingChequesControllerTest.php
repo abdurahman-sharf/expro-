@@ -15,6 +15,8 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\Database;
+use DOMDocument;
+use DOMXPath;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -137,6 +139,33 @@ class AccountingChequesControllerTest extends CIUnitTestCase
         $this->get('/accounting_cheques')->assertSee(lang('Accounting_cheques.new_received'));
         $this->get('/accounting_cheques?direction=paid')->assertSee(lang('Accounting_cheques.new_paid'));
         $this->get('/accounting_cheques?direction=paid')->assertSee(lang('Accounting_cheques.books'));
+    }
+
+    public function testGetIndex_OffersTheTwoDirectionsAsLinksThatNameTheCurrentOneAndAreNotTabs(): void
+    {
+        $this->actAsWith(['accounting_cheques']);
+
+        foreach (['received', 'paid'] as $direction) {
+            $document = new DOMDocument();
+
+            libxml_use_internal_errors(true);
+            $document->loadHTML('<?xml encoding="UTF-8">' . $this->get('/accounting_cheques?direction=' . $direction)->response()->getBody());
+            libxml_clear_errors();
+
+            $page = new DOMXPath($document);
+            $nav  = $page->query("//div[@id='title_bar']//ul[contains(@class, 'nav-pills')]");
+
+            $this->assertSame(1, $nav->length, $direction);
+            $this->assertFalse($nav->item(0)->hasAttribute('role'), "{$direction}: links that go to another page are not a tab list");
+            $this->assertSame(2, $page->query("//div[@id='title_bar']//ul[contains(@class, 'nav-pills')]//a[contains(@class, 'nav-link')]")->length, $direction);
+
+            $current = $page->query("//div[@id='title_bar']//ul[contains(@class, 'nav-pills')]//a[@aria-current]");
+
+            $this->assertSame(1, $current->length, "{$direction}: one link names the page the reader is on");
+            $this->assertSame('page', $current->item(0)->getAttribute('aria-current'));
+            $this->assertStringEndsWith('direction=' . $direction, $current->item(0)->getAttribute('href'));
+            $this->assertStringContainsString('active', $current->item(0)->getAttribute('class'));
+        }
     }
 
     public function testGetIndex_RedirectsAUserWithoutTheModuleGrant(): void

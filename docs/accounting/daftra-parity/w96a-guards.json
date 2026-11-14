@@ -88,13 +88,13 @@
     ]
   },
   {
-    "name": "W09 the lookup serves customers to the holders of the customer reports",
+    "name": "W09 the lookup serves the customers of the ledger to the holders of the customer reports",
     "file": "app/Controllers/AccountingLookup.php",
-    "find": "'sales', 'reports_customers'],",
-    "replace": "'sales'],",
+    "find": "['reports_customers', 'reports_payments', 'reports_sales']",
+    "replace": "['reports_payments', 'reports_sales']",
     "tests": [
       "--filter",
-      "ServesTheCustomersOfTheLedgerToTheHolderOfTheCustomerReports",
+      "ServesTheCustomersOfTheLedgerToTheReaderOfAReportThatFiltersByCustomer",
       "tests/Controllers/AccountingLookupControllerTest.php"
     ]
   },
@@ -455,6 +455,225 @@
       "--filter",
       "ShowsThePurchaseTaxesOfEachItemInItsRow",
       "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W38 the lookup serves the customers of the ledger to the holders of the payments reports",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "['reports_customers', 'reports_payments', 'reports_sales']",
+    "replace": "['reports_customers', 'reports_sales']",
+    "tests": [
+      "--filter",
+      "ServesTheCustomersOfTheLedgerToTheReaderOfAReportThatFiltersByCustomer",
+      "tests/Controllers/AccountingLookupControllerTest.php"
+    ]
+  },
+  {
+    "name": "W39 the lookup serves the customers of the ledger to the holders of the sales reports",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "['reports_customers', 'reports_payments', 'reports_sales']",
+    "replace": "['reports_customers', 'reports_payments']",
+    "tests": [
+      "--filter",
+      "ServesTheCustomersOfTheLedgerToTheReaderOfAReportThatFiltersByCustomer",
+      "tests/Controllers/AccountingLookupControllerTest.php"
+    ]
+  },
+  {
+    "name": "W40 the customers of the ledger are answered only to the holders of the reports and not to the screens of selling",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "foreach ($mode === AccountPicker::LEDGER ? self::LEDGER_SCREENS : self::SCREENS[$kind] as $screen) {",
+    "replace": "foreach (self::SCREENS[$kind] as $screen) {",
+    "tests": [
+      "--filter",
+      "RejectsTheCustomersOfTheLedgerToSomeoneWhoReadsNoReportThatFiltersByCustomer",
+      "tests/Controllers/AccountingLookupControllerTest.php"
+    ]
+  },
+  {
+    "name": "W41 the reports of customers do not open the search of every customer",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "AccountPicker::CUSTOMER => ['accounting_receivables', 'customers', 'sales'],",
+    "replace": "AccountPicker::CUSTOMER => ['accounting_receivables', 'customers', 'sales', 'reports_customers'],",
+    "tests": [
+      "--filter",
+      "RejectsTheEveryModeOfCustomersToTheReaderOfTheReportsWhoHoldsNothingElse",
+      "tests/Controllers/AccountingLookupControllerTest.php"
+    ]
+  },
+  {
+    "name": "W42 the search box of the payments screens is one that the lookup answers to their readers",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "['reports_customers', 'reports_payments', 'reports_sales']",
+    "replace": "['reports_customers', 'reports_sales']",
+    "tests": [
+      "--filter",
+      "OffersASearchBoxThatTheLookupAnswers",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W43 the search box of the net position screens is one that the lookup answers to their readers",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "['reports_customers', 'reports_payments', 'reports_sales']",
+    "replace": "['reports_customers', 'reports_payments']",
+    "tests": [
+      "--filter",
+      "OffersASearchBoxThatTheLookupAnswers",
+      "tests/Controllers/AccountingNetPositionControllerTest.php"
+    ]
+  },
+  {
+    "name": "W44 the search box of the customer screens is one that the lookup answers to their readers",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "['reports_customers', 'reports_payments', 'reports_sales']",
+    "replace": "['reports_payments', 'reports_sales']",
+    "tests": [
+      "--filter",
+      "OffersASearchBoxThatTheLookupAnswers",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W45 a name that matches nobody stops the form from being sent",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "event.preventDefault();\n                        $text.trigger('focus');",
+    "replace": "$text.trigger('focus');",
+    "tests": [
+      "--filter",
+      "BlocksTheFormWhileTheNameInTheSearchBoxMatchesNobody",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W46 the alert that tells to choose a customer is in the page",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "<div class=\"invalid-feedback\" role=\"alert\"><?= esc(lang($field['chooseKey'])) ?></div>",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "BlocksTheFormWhileTheNameInTheSearchBoxMatchesNobody",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W47 the alert says to choose from the list and not another text",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "esc(lang($field['chooseKey']))",
+    "replace": "esc(lang($field['allKey']))",
+    "tests": [
+      "--filter",
+      "BlocksTheFormWhileTheNameInTheSearchBoxMatchesNobody",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W48 the box tells assistive technology that it is invalid",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "$text.attr('aria-invalid', $text.hasClass('is-invalid') ? 'true' : 'false');",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "BlocksTheFormWhileTheNameInTheSearchBoxMatchesNobody",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W49 the submit reads the box again before it looks at it",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "pickers[field.name].sync($text, $('#f_' + field.name));\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "BlocksTheFormWhileTheNameInTheSearchBoxMatchesNobody",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W50 the filter names the alert of the choice of a customer",
+    "file": "app/Controllers/AccountingOperationalReport.php",
+    "find": "'chooseKey' => 'Accounting_operational_reports.customer_choose'",
+    "replace": "'chooseKey' => 'Accounting_operational_reports.all_customers'",
+    "tests": [
+      "--filter",
+      "BlocksTheFormWhileTheNameInTheSearchBoxMatchesNobody",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W51 a region of a table that scrolls takes focus",
+    "file": "resources/assets/js/46-stacked-tables.js",
+    "find": "region.setAttribute('tabindex', '0');",
+    "replace": "",
+    "tests": [
+      "tests/Views/StackedTablesTest.php"
+    ]
+  },
+  {
+    "name": "W52 the regions are looked at again after a resize and after a table is built",
+    "file": "resources/assets/js/46-stacked-tables.js",
+    "find": "new MutationObserver(later).observe(document.body, {childList: true, subtree: true});",
+    "replace": "",
+    "tests": [
+      "tests/Views/StackedTablesTest.php"
+    ]
+  },
+  {
+    "name": "W53 the regions of the tables of Bootstrap Table are looked at too",
+    "file": "resources/assets/js/46-stacked-tables.js",
+    "find": "const SCROLLERS = '.table-responsive, .fixed-table-body';",
+    "replace": "const SCROLLERS = '.table-responsive';",
+    "tests": [
+      "tests/Views/StackedTablesTest.php"
+    ]
+  },
+  {
+    "name": "W54 a region that no longer scrolls gives up its focus",
+    "file": "resources/assets/js/46-stacked-tables.js",
+    "find": "region.removeAttribute('tabindex');",
+    "replace": "void 0;",
+    "tests": [
+      "tests/Views/StackedTablesTest.php"
+    ]
+  },
+  {
+    "name": "W55 the scrolling region holds the hidden text of its table",
+    "file": "resources/assets/css/37-accounting.css",
+    "find": ".table-responsive {\n    position: relative;\n}",
+    "replace": ".table-responsive {\n}",
+    "tests": [
+      "tests/Views/StackedTablesTest.php"
+    ]
+  },
+  {
+    "name": "W56 code text has the contrast of the light theme",
+    "file": "resources/assets/css/00-theme.css",
+    "find": "--bs-code-color: #b02a6f;",
+    "replace": "--bs-code-color: #d63384;",
+    "tests": [
+      "tests/Views/StackedTablesTest.php"
+    ]
+  },
+  {
+    "name": "W57 the direction links of the cheques are not a tab list",
+    "file": "app/Views/accounting_cheques/manage.php",
+    "find": "<ul class=\"nav nav-pills me-auto\">",
+    "replace": "<ul class=\"nav nav-pills me-auto\" role=\"tablist\">",
+    "tests": [
+      "--filter",
+      "OffersTheTwoDirectionsAsLinks",
+      "tests/Controllers/AccountingChequesControllerTest.php"
+    ]
+  },
+  {
+    "name": "W58 the direction link of the page is named as the current one",
+    "file": "app/Views/accounting_cheques/manage.php",
+    "find": "<?= $direction === $kind ? ' aria-current=\"page\"' : '' ?>",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "OffersTheTwoDirectionsAsLinks",
+      "tests/Controllers/AccountingChequesControllerTest.php"
     ]
   }
 ]

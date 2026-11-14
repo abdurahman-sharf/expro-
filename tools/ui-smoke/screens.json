@@ -1761,11 +1761,6 @@
       "path": "/notifications"
     },
     {
-      "id": "branches",
-      "group": "accounting-w9",
-      "path": "/branches"
-    },
-    {
       "id": "roles",
       "group": "accounting-w9",
       "path": "/roles"
