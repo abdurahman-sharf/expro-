@@ -7566,6 +7566,59 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
     }
 
+    /**
+     * @return array<string, array{int, array{kit: string, stock: string, service: string}}>
+     */
+    public static function kitPriceOptionProvider(): array
+    {
+        return [
+            'the kit and its stock items'  => [PRICE_OPTION_ALL, ['kit' => '90.00', 'stock' => '50.00', 'service' => '30.00']],
+            'the price of the kit'         => [PRICE_OPTION_KIT, ['kit' => '90.00', 'stock' => '0.00', 'service' => '0.00']],
+            'the stock items only'         => [PRICE_OPTION_KIT_STOCK, ['kit' => '0.00', 'stock' => '50.00', 'service' => '0.00']],
+        ];
+    }
+
+    /**
+     * @param array{kit: string, stock: string, service: string} $expected
+     */
+    #[DataProvider('kitPriceOptionProvider')]
+    public function testPostAdd_PricesAKitByItsPriceOptionAndPricesOnlyTheStockItemsForOptionTwo(int $priceOption, array $expected): void
+    {
+        $this->registerWithPriceControls();
+
+        $kitItem = $this->item('0', false);
+        $stock   = $this->item('0');
+        $service = $this->item('0', false);
+
+        $this->accountingDb()->table('items')->where('item_id', $kitItem)->update(['item_type' => ITEM_KIT, 'unit_price' => '90']);
+        $this->accountingDb()->table('items')->where('item_id', $stock)->update(['unit_price' => '50']);
+        $this->accountingDb()->table('items')->where('item_id', $service)->update(['unit_price' => '30']);
+        $this->accountingDb()->table('item_kits')->insert(['name' => 'Gift box', 'item_id' => $kitItem, 'description' => '', 'price_option' => $priceOption, 'print_option' => PRINT_ALL]);
+
+        $kitId = (int) $this->accountingDb()->insertID();
+
+        try {
+            $this->accountingDb()->table('item_kit_items')->insertBatch([
+                ['item_kit_id' => $kitId, 'item_id' => $stock, 'quantity' => '1', 'kit_sequence' => 1],
+                ['item_kit_id' => $kitId, 'item_id' => $service, 'quantity' => '1', 'kit_sequence' => 2],
+            ]);
+            $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+
+            $this->post('/sales/add', ['item' => 'KIT ' . $kitId]);
+
+            $prices = [];
+
+            foreach (Services::session()->get('sales_cart') as $line) {
+                $prices[(int) $line['item_id']] = (string) $line['price'];
+            }
+
+            $this->assertSame([$kitItem => $expected['kit'], $stock => $expected['stock'], $service => $expected['service']], $prices);
+        } finally {
+            $this->accountingDb()->table('item_kit_items')->where('item_kit_id', $kitId)->delete();
+            $this->accountingDb()->table('item_kits')->where('item_kit_id', $kitId)->delete();
+        }
+    }
+
     public function testPostSelectCustomer_KeepsThePriceOfALineTakenFromASavedDraftWhenTheListPriceMovedAfterwardsAndWhenTheListIsChanged(): void
     {
         $setup  = $this->registerWithPriceControls(['sales_change_price']);

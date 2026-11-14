@@ -1215,6 +1215,40 @@ class Sale_libTest extends CIUnitTestCase
         $this->assertNull($this->saleLib->getPriceListChoice());
     }
 
+    /**
+     * @return array<string, array{int, int}>
+     */
+    public static function kitOptionProvider(): array
+    {
+        return [
+            'price everything, print everything'     => [PRICE_OPTION_ALL, PRINT_ALL],
+            'price the kit, print what is priced'    => [PRICE_OPTION_KIT, PRINT_PRICED],
+            'price the stock items, print the kit'   => [PRICE_OPTION_KIT_STOCK, PRINT_KIT],
+        ];
+    }
+
+    #[DataProvider('kitOptionProvider')]
+    public function testAddItemKit_HandsEveryComponentThePriceAndPrintOptionOfTheKitAsTheyAre(int $priceOption, int $printOption): void
+    {
+        $components = $this->createStub(Item_kit_items::class);
+        $components->method('get_info')->willReturn([['item_id' => 21, 'quantity' => '2'], ['item_id' => 22, 'quantity' => '1']]);
+        Factories::injectMock('models', Item_kit_items::class, $components);
+
+        $handed  = [];
+        $saleLib = $this->getMockBuilder(Sale_lib::class)->onlyMethods(['add_item', 'out_of_stock'])->getMock();
+        $saleLib->method('out_of_stock')->willReturn('');
+        $saleLib->method('add_item')->willReturnCallback(static function (string &$itemId, int $location, string $quantity, string &$discount, int $discountType, int $mode, ?int $kitPrice, ?int $kitPrint) use (&$handed): bool {
+            $handed[] = [(int) $itemId, $mode, $kitPrice, $kitPrint];
+
+            return true;
+        });
+
+        $warning = null;
+
+        $this->assertTrue($saleLib->add_item_kit('KIT 5', 1, 0.0, (string) PERCENT, $priceOption, $printOption, $warning));
+        $this->assertSame([[21, PRICE_MODE_KIT, $priceOption, $printOption], [22, PRICE_MODE_KIT, $priceOption, $printOption]], $handed);
+    }
+
     private function fourDecimals(string $amount): string
     {
         return bcadd($amount, '0', 4);

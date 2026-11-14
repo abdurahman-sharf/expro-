@@ -2147,12 +2147,12 @@ class Sale_lib
      * @param int $item_location
      * @param float $discount
      * @param string $discount_type
-     * @param bool $kit_price_option
-     * @param bool $kit_print_option
+     * @param int $kit_price_option PRICE_OPTION_ALL, PRICE_OPTION_KIT or PRICE_OPTION_KIT_STOCK, handed on to every line as it is
+     * @param int $kit_print_option PRINT_ALL, PRINT_PRICED or PRINT_KIT, handed on to every line as it is
      * @param string $stock_warning
      * @return bool
      */
-    public function add_item_kit(string $external_item_kit_id, int $item_location, float $discount, string $discount_type, bool $kit_price_option, bool $kit_print_option, ?string &$stock_warning): bool
+    public function add_item_kit(string $external_item_kit_id, int $item_location, float $discount, string $discount_type, int $kit_price_option, int $kit_print_option, ?string &$stock_warning): bool
     {
         // KIT #
         $pieces = explode(' ', $external_item_kit_id);
