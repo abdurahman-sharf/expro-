@@ -197,4 +197,109 @@ class Sale_libPaymentTest extends CIUnitTestCase
         $this->assertArrayNotHasKey('credit', $payments);
         $this->assertArrayHasKey('debit', $payments);
     }
+
+    // ========== the name of a payment type is stored in the language of the moment ==========
+
+    public function testCashPaymentKey_FindsTheCashPaymentWhateverLanguageItsNameWasStoredIn(): void
+    {
+        $this->saleLib->addPayment('نقدى', '50.00');
+        $this->saleLib->addPayment('Debit Card', '20.00', 'REF1');
+
+        $this->assertSame('نقدى', $this->saleLib->cashPaymentKey($this->saleLib->getPayments()));
+    }
+
+    public function testCashPaymentKey_IgnoresACashAdjustmentAndAPaymentThatIsNotCash(): void
+    {
+        $this->saleLib->addPayment('تعديل الصندوق', '0.05', null, CASH_ADJUSTMENT_TRUE);
+        $this->saleLib->addPayment('بطاقة خصم', '20.00', 'REF1');
+
+        $this->assertNull($this->saleLib->cashPaymentKey($this->saleLib->getPayments()));
+    }
+
+    public function testIsCashPayment_RecognisesCashAndItsAdjustmentInEveryLanguage(): void
+    {
+        $this->assertTrue($this->saleLib->isCashPayment('Cash'));
+        $this->assertTrue($this->saleLib->isCashPayment('نقدى'));
+        $this->assertTrue($this->saleLib->isCashPayment('Cash Adjustment'));
+        $this->assertTrue($this->saleLib->isCashPayment('تعديل الصندوق'));
+        $this->assertTrue($this->saleLib->isCashPayment('anything', true));
+        $this->assertFalse($this->saleLib->isCashPayment('بطاقة هدية:123'));
+        $this->assertFalse($this->saleLib->isCashPayment('Check'));
+    }
+
+    public function testDeletePayment_TakesTheCashAdjustmentWithTheCashPaymentWhateverLanguageTheCashWasStoredIn(): void
+    {
+        config(OSPOS::class)->settings['cash_decimals'] = 0;
+        $this->saleLib->addPayment('نقدى', '50.00');
+        $this->saleLib->addPayment('Cash Adjustment', '0.40', null, CASH_ADJUSTMENT_TRUE);
+        $this->saleLib->addPayment('Debit Card', '20.00', 'REF1');
+
+        $this->saleLib->delete_payment('نقدى');
+
+        $this->assertSame(['Debit Card'], array_keys($this->saleLib->getPayments()));
+    }
+
+    public function testDeletePayment_TakesTheCashPaymentWithItsAdjustmentWhateverLanguageTheAdjustmentWasStoredIn(): void
+    {
+        config(OSPOS::class)->settings['cash_decimals'] = 0;
+        $this->saleLib->addPayment('Cash', '50.00');
+        $this->saleLib->addPayment('تعديل الصندوق', '0.40', null, CASH_ADJUSTMENT_TRUE);
+        $this->saleLib->addPayment('Debit Card', '20.00', 'REF1');
+
+        $this->saleLib->delete_payment('تعديل الصندوق');
+
+        $this->assertSame(['Debit Card'], array_keys($this->saleLib->getPayments()));
+    }
+
+    // ========== the request key and the token of the sale ==========
+
+    public function testClaimRequestKey_AcceptsAKeyOnceAndRejectsItWhenItIsSubmittedAgain(): void
+    {
+        $key = str_repeat('a', 32);
+
+        $this->assertTrue($this->saleLib->claimRequestKey($key));
+        $this->assertFalse($this->saleLib->claimRequestKey($key));
+        $this->assertTrue($this->saleLib->claimRequestKey(str_repeat('b', 32)));
+    }
+
+    public function testClaimRequestKey_AcceptsAFormThatCarriesNoWellFormedKey(): void
+    {
+        $this->assertTrue($this->saleLib->claimRequestKey(null));
+        $this->assertTrue($this->saleLib->claimRequestKey(''));
+        $this->assertTrue($this->saleLib->claimRequestKey('not a key'));
+        $this->assertTrue($this->saleLib->claimRequestKey('not a key'));
+    }
+
+    public function testClaimRequestKey_StillRejectsAKeyAfterTheSaleWasCleared(): void
+    {
+        $key = str_repeat('c', 32);
+        $this->saleLib->claimRequestKey($key);
+
+        $this->saleLib->clear_all();
+
+        $this->assertFalse($this->saleLib->claimRequestKey($key));
+    }
+
+    public function testIsRegisterToken_AcceptsTheTokenOfTheSaleAndRejectsTheOneOfASaleThatEnded(): void
+    {
+        $token = $this->saleLib->registerToken();
+
+        $this->assertTrue($this->saleLib->isRegisterToken($token));
+        $this->assertSame($token, $this->saleLib->registerToken());
+
+        $this->saleLib->clear_all();
+
+        $this->assertFalse($this->saleLib->isRegisterToken($token));
+        $this->assertNotSame($token, $this->saleLib->registerToken());
+    }
+
+    public function testKeepsTypedValue_RejectsAValueTypedBeforeTheOneKept(): void
+    {
+        $this->assertTrue($this->saleLib->keepsTypedValue('comment', '200'));
+        $this->assertFalse($this->saleLib->keepsTypedValue('comment', '100'));
+        $this->assertTrue($this->saleLib->keepsTypedValue('comment', '200'));
+        $this->assertTrue($this->saleLib->keepsTypedValue('comment', '300'));
+        $this->assertTrue($this->saleLib->keepsTypedValue('invoice_number', '100'));
+        $this->assertTrue($this->saleLib->keepsTypedValue('comment', null));
+    }
 }

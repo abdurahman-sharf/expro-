@@ -16,6 +16,7 @@ use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\DraftInvoice;
 use App\Libraries\Accounting\InvoiceTiming;
+use App\Libraries\Accounting\PaymentLabels;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
@@ -125,7 +126,9 @@ class Sales extends Secure_Controller
         }
 
         $this->session->set('allow_temp_items', 1);
-        return $this->reload();
+        $notice = $this->session->getFlashdata('register_notice');
+
+        return $this->reload(is_array($notice) ? $notice : []);
     }
 
     /**
@@ -430,8 +433,44 @@ class Sales extends Secure_Controller
      */
     public function postSetComment(): ResponseInterface
     {
+        if ($this->isOutdatedTypedRequest('comment')) {
+            return $this->response->setJSON(['success' => false]);
+        }
+
         $this->sale_lib->set_comment($this->request->getPost('comment', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
         return $this->response->setJSON(['success' => true]);
+    }
+
+    private function postedString(string $name): ?string
+    {
+        $value = $this->request->getPost($name);
+
+        return is_string($value) ? $value : null;
+    }
+
+    private function isOutdatedTypedRequest(string $field): bool
+    {
+        return !$this->sale_lib->isRegisterToken($this->postedString('register_token'))
+            || !$this->sale_lib->keepsTypedValue($field, $this->postedString('typed_at'));
+    }
+
+    private function keepTypedFields(): void
+    {
+        if (!$this->sale_lib->isRegisterToken($this->postedString('register_token'))) {
+            return;
+        }
+
+        $comment = $this->request->getPost('comment', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+
+        if (is_string($comment) && $this->sale_lib->keepsTypedValue('comment', $this->postedString('typed_at'))) {
+            $this->sale_lib->set_comment($comment);
+        }
+
+        $invoiceNumber = $this->postedString('sales_invoice_number');
+
+        if ($invoiceNumber !== null && $this->sale_lib->is_invoice_mode() && $this->sale_lib->keepsTypedValue('invoice_number', $this->postedString('typed_at'))) {
+            $this->sale_lib->set_invoice_number(DocumentNumbering::typed($invoiceNumber));
+        }
     }
 
     /**
@@ -837,6 +876,10 @@ class Sales extends Secure_Controller
      */
     public function postSetInvoiceNumber(): ResponseInterface|string
     {
+        if ($this->isOutdatedTypedRequest('invoice_number')) {
+            return $this->response->setJSON(['success' => false]);
+        }
+
         $this->sale_lib->set_invoice_number(DocumentNumbering::typed((string) $this->request->getPost('sales_invoice_number')));
         return $this->response->setJSON(['success' => true]);
     }
@@ -1346,6 +1389,12 @@ class Sales extends Secure_Controller
     {
         $data = [];
         $giftcard = model(Giftcard::class);
+        $requestKey = $this->request->getPost('request_key');
+
+        if (!$this->sale_lib->claimRequestKey(is_string($requestKey) ? $requestKey : null)) {
+            return $this->redirectToRegister(['warning' => lang('Sales.payment_already_recorded')]);
+        }
+
         $paymentType = $this->request->getPost('payment_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
         if (!is_string($paymentType) || $paymentType === '') {
@@ -1481,12 +1530,36 @@ class Sales extends Secure_Controller
                 }
             } else {
                 $amountTendered = parse_decimals($this->request->getPost('amount_tendered'));
-                $referenceCode = $this->request->getPost('reference_code');
-                $this->sale_lib->addPayment($paymentType, $amountTendered, $referenceCode, CASH_ADJUSTMENT_FALSE, $treasuryId);
+                $amountDue = $this->sale_lib->get_amount_due();
+
+                if ($this->exceedsAmountDue((string) $amountTendered, $amountDue)) {
+                    $data['error'] = lang('Sales.payment_exceeds_amount_due', [to_currency($amountDue)]);
+                } else {
+                    $referenceCode = $this->request->getPost('reference_code');
+                    $this->sale_lib->addPayment($paymentType, $amountTendered, $referenceCode, CASH_ADJUSTMENT_FALSE, $treasuryId);
+                }
             }
         }
 
-        return $this->reload($data);
+        return isset($data['error']) ? $this->reload($data) : $this->redirectToRegister($data);
+    }
+
+    private function exceedsAmountDue(string $amount, string $amountDue): bool
+    {
+        $decimals = totals_decimals();
+        $paid = round((float) $amount, $decimals, PHP_ROUND_HALF_UP);
+        $due = round((float) $amountDue, $decimals, PHP_ROUND_HALF_UP);
+
+        return $this->sale_lib->get_mode() === 'return' ? $paid < $due : $paid > $due;
+    }
+
+    private function redirectToRegister(array $notice = []): ResponseInterface
+    {
+        if ($notice !== []) {
+            $this->session->setFlashdata('register_notice', $notice);
+        }
+
+        return redirect()->to(site_url('sales'));
     }
 
     /**
@@ -1825,6 +1898,7 @@ class Sales extends Secure_Controller
     public function postComplete(): string    // TODO: this function is huge.  Probably should be refactored.
     {
         $this->sale->useCurrency($this->registerCurrency());
+        $this->keepTypedFields();
 
         $saleId = $this->sale_lib->get_sale_id();
         $data = [];
@@ -1936,8 +2010,10 @@ class Sales extends Secure_Controller
         if ($data['amount_change'] > 0) {
             // Save cash refund to the cash payment transaction if found, if not then add as new Cash transaction
 
-            if (array_key_exists(lang('Sales.cash'), $data['payments'])) {
-                $data['payments'][lang('Sales.cash')]['cash_refund'] = $data['amount_change'];
+            $cashKey = $this->sale_lib->cashPaymentKey($data['payments']);
+
+            if ($cashKey !== null) {
+                $data['payments'][$cashKey]['cash_refund'] = $data['amount_change'];
             } else {
                 $payment = [
                     lang('Sales.cash') => [
@@ -3089,6 +3165,8 @@ class Sales extends Secure_Controller
             $data['warning'] = lang($discountProblem->languageKey());
         }
         $data['payments'] = $this->sale_lib->getPayments();
+        $data['payment_request_key'] = $this->sale_lib->newRequestKey();
+        $data['register_token'] = $this->sale_lib->registerToken();
 
         // Returns 'subtotal', 'total', 'cash_total', 'payment_total', 'amount_due', 'cash_amount_due', 'payments_cover_total'
         $totals = $this->sale_lib->get_totals($taxDetails[0]);
@@ -3539,14 +3617,14 @@ class Sales extends Secure_Controller
             $referenceCode = $this->request->getPost("reference_code_$i", FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: null;
             $paymentStatus = $this->request->getPost("payment_status_$i", FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-            $cashAdjustment = $paymentType == lang('Sales.cash_adjustment') ? CASH_ADJUSTMENT_TRUE : CASH_ADJUSTMENT_FALSE;
+            $cashAdjustment = PaymentLabels::isCashAdjustment((string) $paymentType) ? CASH_ADJUSTMENT_TRUE : CASH_ADJUSTMENT_FALSE;
 
             if (!$cashAdjustment) {
                 $amountTendered += $paymentAmount - $cashRefund;
             }
 
             // Non-cash positive refund amounts
-            if (empty(strstr($refundType, lang('Sales.cash'))) && $cashRefund > 0) {    // TODO: This if and the one below can be combined.
+            if (PaymentType::fromLabel((string) $refundType) !== PaymentType::Cash && $cashRefund > 0) {    // TODO: This if and the one below can be combined.
                 // Change it to be a new negative payment (a "non-cash refund")
                 $paymentType = $refundType;
                 $paymentAmount = $paymentAmount - $cashRefund;
@@ -3574,7 +3652,7 @@ class Sales extends Secure_Controller
         if ($paymentType != PAYMENT_TYPE_UNASSIGNED && !empty($paymentAmountNew)) {
             $paymentAmount = parse_decimals($paymentAmountNew);
             $cashRefund = 0;
-            if ($paymentType == lang('Sales.cash_adjustment')) {
+            if (PaymentLabels::isCashAdjustment((string) $paymentType)) {
                 $cashAdjustment = CASH_ADJUSTMENT_TRUE;
             } else {
                 $cashAdjustment = CASH_ADJUSTMENT_FALSE;
@@ -3681,6 +3759,7 @@ class Sales extends Secure_Controller
     public function postSuspend(): ResponseInterface|string
     {
         $this->sale->useCurrency($this->registerCurrency());
+        $this->keepTypedFields();
 
         $saleId = $this->sale_lib->get_sale_id();
         $dinnerTable = $this->sale_lib->get_dinner_table();

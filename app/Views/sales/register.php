@@ -37,6 +37,8 @@
  * @var array     $selected_payment_type
  * @var bool      $pos_mode
  * @var array     $payments
+ * @var string    $payment_request_key
+ * @var string    $register_token
  * @var array<int, string> $treasury_options
  * @var list<string> $treasury_free_types
  * @var string    $mode_label
@@ -228,7 +230,7 @@ $employee        = model(Employee::class);
             </script>
         <?php endif; ?>
 
-        <?= form_open("{$controller_name}/add", ['id' => 'add_item_form', 'class' => 'app-form card']) ?>
+        <?= form_open("{$controller_name}/add", ['id' => 'add_item_form', 'class' => 'app-form card', 'data-single-shot' => '1']) ?>
             <div class="card-body">
                 <label for="item" class="pos-label">
                     <?= lang("{$sectionName}.find_or_scan_item_or_receipt") ?>
@@ -408,7 +410,7 @@ $employee        = model(Employee::class);
     <aside class="pos-side" id="overall_sale">
         <div class="card">
             <div class="card-body">
-                <?= form_open("{$controller_name}/selectCustomer", ['id' => 'select_customer_form', 'class' => 'app-form']) ?>
+                <?= form_open("{$controller_name}/selectCustomer", ['id' => 'select_customer_form', 'class' => 'app-form', 'data-single-shot' => '1']) ?>
                     <?php if (isset($customer)): ?>
                         <div class="pos-customer-head">
                             <span class="pos-label mb-0"><?= lang("{$sectionName}.customer") ?></span>
@@ -544,8 +546,9 @@ $employee        = model(Employee::class);
             <div class="card" id="payment_card">
                 <div class="card-body" id="payment_details">
                     <?php if (! $payments_cover_total): ?>
-                        <?= form_open("{$controller_name}/addPayment", ['id' => 'add_payment_form', 'class' => 'app-form']) ?>
+                        <?= form_open("{$controller_name}/addPayment", ['id' => 'add_payment_form', 'class' => 'app-form', 'data-single-shot' => '1', 'data-single-shot-buttons' => '#add_payment_button']) ?>
                             <input type="hidden" name="complete_after_payment" value="0">
+                            <input type="hidden" name="request_key" value="<?= esc($payment_request_key, 'attr') ?>">
 
                             <label for="payment_types" class="pos-label"><?= lang("{$sectionName}.payment") ?></label>
                             <?= form_dropdown('payment_type', $payment_options, $selected_payment_type, ['id' => 'payment_types', 'class' => 'form-select', 'data-option-buttons' => 'true']) ?>
@@ -591,7 +594,7 @@ $employee        = model(Employee::class);
                                     <?= anchor(
                                         "{$controller_name}/deletePayment/" . esc(base64url_encode($paymentId), 'url'),
                                         '<span class="bi bi-trash" aria-hidden="true"></span>',
-                                        ['class' => 'btn btn-icon btn-sm btn-outline-danger', 'title' => lang('Common.delete'), 'aria-label' => lang('Common.delete')],
+                                        ['class' => 'btn btn-icon btn-sm btn-outline-danger', 'title' => lang('Common.delete'), 'aria-label' => lang('Common.delete'), 'data-single-shot' => '1'],
                                     ) ?>
                                 </li>
                             <?php endforeach; ?>
@@ -600,7 +603,9 @@ $employee        = model(Employee::class);
                 </div>
             </div>
 
-            <?= form_open("{$controller_name}/cancel", ['id' => 'buttons_form', 'class' => 'pos-actions']) ?>
+            <?= form_open("{$controller_name}/cancel", ['id' => 'buttons_form', 'class' => 'pos-actions', 'data-single-shot' => '1']) ?>
+                <input type="hidden" name="register_token" value="<?= esc($register_token, 'attr') ?>">
+                <input type="hidden" name="typed_at" id="typed_at" value="">
                 <?php if ($canFinishSale): ?>
                     <button type="button" class="btn btn-success btn-lg" id="finish_sale_button">
                         <span class="bi bi-check-lg" aria-hidden="true"></span>
@@ -634,7 +639,7 @@ $employee        = model(Employee::class);
                     <div class="card-body pos-options">
                         <div>
                             <label for="comment" class="pos-label" id="comment_label"><?= lang('Common.comments') ?></label>
-                            <?= form_textarea(['name' => 'comment', 'id' => 'comment', 'class' => 'form-control', 'value' => $comment, 'rows' => '2']) ?>
+                            <?= form_textarea(['name' => 'comment', 'id' => 'comment', 'class' => 'form-control', 'value' => $comment, 'rows' => '2', 'form' => 'buttons_form']) ?>
                         </div>
 
                         <?php if (! empty($custom_fields)): ?>
@@ -693,7 +698,7 @@ $employee        = model(Employee::class);
                                 <label for="sales_invoice_number" class="pos-label"><?= lang("{$sectionName}.invoice_enable") ?></label>
                                 <div class="input-group">
                                     <span class="input-group-text">#</span>
-                                    <?= form_input(['name' => 'sales_invoice_number', 'id' => 'sales_invoice_number', 'class' => 'form-control', 'value' => $invoice_number, 'placeholder' => $invoiceNumberPlaceholder ?? '']) ?>
+                                    <?= form_input(['name' => 'sales_invoice_number', 'id' => 'sales_invoice_number', 'class' => 'form-control', 'value' => $invoice_number, 'placeholder' => $invoiceNumberPlaceholder ?? '', 'form' => 'buttons_form']) ?>
                                 </div>
                             </div>
                         <?php endif; ?>
@@ -719,6 +724,7 @@ $employee        = model(Employee::class);
 <script type="text/javascript">
     const keyboardShortcuts = <?= json_encode($keyboardShortcuts) ?>;
     const paymentsCoverTotal = <?= json_encode((bool) $payments_cover_total) ?>;
+    const registerToken = <?= json_encode($register_token) ?>;
     const referenceCodePaymentTypes = <?= json_encode($reference_code_payment_types) ?>;
     const typesWithoutTreasury = <?= json_encode($treasury_free_types) ?>;
     const shortcutCodes = {
@@ -820,9 +826,11 @@ $employee        = model(Employee::class);
             }
         });
 
-        $('#comment').keyup(function() {
+        $('#comment').on('input change', function() {
             $.post("<?= esc(site_url("{$controller_name}/setComment")) ?>", {
-                comment: $('#comment').val()
+                comment: $('#comment').val(),
+                register_token: registerToken,
+                typed_at: Date.now()
             });
         });
 
@@ -833,9 +841,11 @@ $employee        = model(Employee::class);
         });
 
         <?php if ($config['invoice_enable']) { ?>
-            $('#sales_invoice_number').keyup(function() {
+            $('#sales_invoice_number').on('input change', function() {
                 $.post("<?= esc(site_url("{$controller_name}/setInvoiceNumber")) ?>", {
-                    sales_invoice_number: $('#sales_invoice_number').val()
+                    sales_invoice_number: $('#sales_invoice_number').val(),
+                    register_token: registerToken,
+                    typed_at: Date.now()
                 });
             });
 
@@ -886,11 +896,13 @@ $employee        = model(Employee::class);
         });
 
         $('#finish_sale_button, #finish_invoice_quote_button').click(function() {
+            $('#typed_at').val(Date.now());
             $('#buttons_form').attr('action', "<?= "{$controller_name}/complete" ?>");
             $('#buttons_form').submit();
         });
 
         $('#suspend_sale_button').click(function() {
+            $('#typed_at').val(Date.now());
             $('#buttons_form').attr('action', "<?= site_url("{$controller_name}/suspend") ?>");
             $('#buttons_form').submit();
         });

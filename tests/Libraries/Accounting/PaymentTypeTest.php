@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\RoutingKey;
 use CodeIgniter\Test\CIUnitTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Config\Services;
 
 class PaymentTypeTest extends CIUnitTestCase
@@ -35,6 +36,74 @@ class PaymentTypeTest extends CIUnitTestCase
         $this->assertSame(PaymentType::Cash, PaymentType::fromLabel('Cash'));
         $this->assertSame(PaymentType::Check, PaymentType::fromLabel('Check'));
         $this->assertSame(PaymentType::Cash, PaymentType::fromLabel(lang('Sales.cash')));
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function interfaceLanguages(): array
+    {
+        return ['english' => ['en'], 'arabic' => ['ar-EG']];
+    }
+
+    #[DataProvider('interfaceLanguages')]
+    public function testFromLabel_RecognisesTheNameOfEveryTypeInEveryLanguageOfTheApplicationWhateverLanguageIsInUse(string $inUse): void
+    {
+        Services::language()->setLocale($inUse);
+        $checked = 0;
+
+        foreach (glob(APPPATH . 'Language/*/Sales.php') as $file) {
+            $lines = require $file;
+
+            foreach (PaymentType::cases() as $type) {
+                $name = $lines[$type->value] ?? '';
+
+                if ($name === '') {
+                    continue;
+                }
+
+                $found = PaymentType::fromLabel($name);
+
+                $this->assertNotNull($found, basename(dirname($file)) . ' ' . $type->value . ' ' . $name);
+
+                if ($name === ($lines['cash'] ?? null)) {
+                    $this->assertSame(PaymentType::Cash, $found, basename(dirname($file)));
+                }
+
+                $checked++;
+            }
+        }
+
+        $this->assertGreaterThan(200, $checked);
+    }
+
+    #[DataProvider('interfaceLanguages')]
+    public function testFromLabel_ReadsTheStoredNameOfCashAndOfAGiftCardAsTheSameTypeInEveryLanguageInUse(string $inUse): void
+    {
+        Services::language()->setLocale($inUse);
+
+        $this->assertSame(PaymentType::Cash, PaymentType::fromLabel('Cash'));
+        $this->assertSame(PaymentType::Cash, PaymentType::fromLabel('نقدى'));
+        $this->assertSame(PaymentType::Giftcard, PaymentType::fromLabel('بطاقة هدية:000123'));
+        $this->assertSame(PaymentType::Giftcard, PaymentType::fromLabel('Gift Card:000123'));
+        $this->assertSame(PaymentType::Check, PaymentType::fromLabel('شيك'));
+        $this->assertTrue(PaymentType::fromLabel('نقدى')->isCash());
+        $this->assertFalse(PaymentType::fromLabel('شيك')->isCash());
+    }
+
+    public function testLabels_ListsTheNameOfTheTypeInEveryLanguageWithTheOneInUseFirst(): void
+    {
+        Services::language()->setLocale('ar-EG');
+        $arabic = PaymentType::Cash->labels();
+
+        Services::language()->setLocale('en');
+        $english = PaymentType::Cash->labels();
+
+        $this->assertSame('نقدى', $arabic[0]);
+        $this->assertSame('Cash', $english[0]);
+        $this->assertContains('Cash', $arabic);
+        $this->assertContains('نقدى', $english);
+        $this->assertSame(array_values(array_unique($english)), $english);
     }
 
     public function testFromLabel_IgnoresTheCaseOfTheName(): void
