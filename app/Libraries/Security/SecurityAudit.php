@@ -22,13 +22,11 @@ final class SecurityAudit
     public const EMPLOYEE_ENTITY = 'employee';
     public const SETTINGS_ENTITY = 'security_settings';
     public const NAME_LENGTH     = 64;
-
-    public const SETTINGS = [
+    public const SETTINGS        = [
         'gcaptcha_enable', 'gcaptcha_secret_key', 'gcaptcha_site_key', 'image_allowed_types', 'enforce_privacy',
         'smtp_host', 'smtp_user', 'smtp_pass', 'smtp_port', 'smtp_crypto', 'protocol', 'mailpath',
         'msg_uid', 'msg_pwd', 'msg_src', 'mailchimp_api_key',
     ];
-
     private const BOOLEAN_SETTINGS = ['gcaptcha_enable', 'enforce_privacy'];
 
     private BaseConnection $db;
