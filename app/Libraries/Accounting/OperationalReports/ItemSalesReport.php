@@ -39,7 +39,7 @@ final class ItemSalesReport
         $from ??= $allDates ? null : $period?->defaultFrom($to);
 
         $kinds   = $kind === null ? [] : [$kind];
-        $refusal = $this->documents->refusal($scope, $from, $to, $kinds, $customerId, $employeeId, true);
+        $refusal = $this->documents->refusal($scope, $from, $to, $kinds, $customerId, $employeeId, $details ? ReportDocuments::BYTES_WITH_LINES : ReportDocuments::BYTES_STREAMED);
 
         if ($refusal !== null) {
             return $refusal;
@@ -53,6 +53,9 @@ final class ItemSalesReport
         $documents = 0;
         $last      = null;
         $foreign   = [];
+        $folded    = [];
+        $totals    = array_fill_keys(self::FIGURES, '0');
+        $earliest  = null;
 
         foreach ($this->documents->chunks($scope, $from, $to, $kinds, $customerId, $employeeId, true) as $chunk) {
             $admitted = array_values(array_filter($chunk, static fn (ReportDocument $document): bool => StatusFilter::admits($statuses, $document, $today)));
@@ -88,7 +91,7 @@ final class ItemSalesReport
                         $last = $document->id;
                     }
 
-                    $rows[] = [
+                    $row = [
                         'document_id' => $document->id,
                         'customer_id' => $document->customerId,
                         'employee_id' => $document->employeeId,
@@ -107,28 +110,53 @@ final class ItemSalesReport
                         'total'       => $line->total,
                         'price_x_qty' => bcmul($line->unitPrice, $line->quantity, 8),
                     ];
+
+                    if ($details) {
+                        $rows[] = $row;
+
+                        continue;
+                    }
+
+                    $key = $this->keyOf($group, $row);
+
+                    $folded[$key] ??= ['first' => $row, 'sums' => array_fill_keys(self::FIGURES, '0'), 'money' => '0'];
+
+                    foreach (self::FIGURES as $figure) {
+                        $folded[$key]['sums'][$figure] = bcadd($folded[$key]['sums'][$figure], (string) $row[$figure], SaleAmounts::SCALE + 2);
+                        $totals[$figure]               = bcadd($totals[$figure], (string) $row[$figure], SaleAmounts::SCALE + 2);
+                    }
+
+                    $folded[$key]['money'] = bcadd($folded[$key]['money'], (string) $row['price_x_qty'], 8);
+                    $earliest              = $earliest === null || (string) $row['date'] < $earliest ? (string) $row['date'] : $earliest;
                 }
             }
         }
 
-        $groups  = $this->grouped($rows, $group, $from, $to);
         $blocks  = [];
         $summary = [];
 
-        foreach ($groups as $key => $members) {
-            $cells    = array_map(fn (array $row): array => $this->cells($row), $members);
-            $subtotal = $this->sums($members);
-            $label    = $this->label($group, $key, $members);
-
-            if ($details) {
-                $blocks[] = new ReportBlock($this->heading($label['text'], $label['kind']), $cells, $subtotal);
-            } else {
-                $summary[] = [...$label['cells'], 'unit_price' => $this->average($members), ...$subtotal];
+        if ($details) {
+            foreach ($this->grouped($rows, $group, $from, $to) as $key => $members) {
+                $label    = $this->label($group, $key, $members);
+                $blocks[] = new ReportBlock($this->heading($label['text'], $label['kind']), array_map(fn (array $row): array => $this->cells($row), $members), $this->sums($members));
             }
+
+            $total = $this->sums($rows);
+        } else {
+            foreach ($this->foldedGroups($folded, $group, $from, $to, $earliest) as $key => $accumulated) {
+                $units     = bcadd($accumulated['sums']['quantity'] ?? '0', '0', SaleAmounts::SCALE);
+                $average   = Amounts::isZero($units) ? Amounts::ZERO : bcadd(bcdiv($accumulated['money'] ?? '0', $units, 8), '0.00005', 4);
+                $summary[] = [
+                    ...$this->label($group, $key, $accumulated === null || ! isset($accumulated['first']) ? [] : [$accumulated['first']])['cells'],
+                    'unit_price' => $average,
+                    ...array_map(static fn (string $sum): string => bcadd($sum, '0', SaleAmounts::SCALE), $accumulated['sums'] ?? array_fill_keys(self::FIGURES, '0')),
+                ];
+            }
+
+            $total = array_map(static fn (string $sum): string => bcadd($sum, '0', SaleAmounts::SCALE), $totals);
         }
 
         $filtered = $itemId !== null || $category !== '' || $locationId !== null;
-        $total    = $this->sums($rows);
 
         return new ReportTable(
             scope: $scope,
@@ -183,6 +211,59 @@ final class ItemSalesReport
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function keyOf(ItemGroup $group, array $row): string
+    {
+        $period = $group->period();
+
+        if ($period !== null) {
+            return $period->bucketOf((string) $row['date'])->key;
+        }
+
+        return match ($group) {
+            ItemGroup::Item     => (string) $row['item_id'],
+            ItemGroup::Category => (string) $row['category'],
+            ItemGroup::Customer => (string) ($row['customer_id'] ?? 0),
+            default             => (string) ($row['employee_id'] ?? 0),
+        };
+    }
+
+    /**
+     * The groups of a summary in the order grouped() gives them, the periods with no line included: what the
+     * lines of each came to, folded as they were read, and the first line of each, which names it.
+     *
+     * @param array<string, array{first: array<string, mixed>, sums: array<string, string>, money: string}> $folded
+     *
+     * @return array<string, array{first: array<string, mixed>, sums: array<string, string>, money: string}|array{}>
+     */
+    private function foldedGroups(array $folded, ItemGroup $group, ?string $from, string $to, ?string $earliest): array
+    {
+        $period = $group->period();
+
+        if ($period !== null) {
+            $groups = [];
+            $start  = $from ?? $earliest;
+
+            foreach ($start === null ? [] : $period->buckets($start, $to) as $bucket) {
+                $groups[$bucket->key] = [];
+            }
+
+            foreach ($folded as $key => $accumulated) {
+                $groups[$key] = $accumulated;
+            }
+
+            ksort($groups);
+
+            return $groups;
+        }
+
+        uasort($folded, fn (array $a, array $b): int => [mb_strtolower($this->nameOf($group, $a['first'])), $this->nameOf($group, $a['first'])] <=> [mb_strtolower($this->nameOf($group, $b['first'])), $this->nameOf($group, $b['first'])]);
+
+        return $folded;
     }
 
     /**

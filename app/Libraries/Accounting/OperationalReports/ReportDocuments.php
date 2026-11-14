@@ -35,6 +35,7 @@ final class ReportDocuments
 {
     public const BYTES_PER_DOCUMENT = 2_800;
     public const BYTES_WITH_LINES   = 9_000;
+    public const BYTES_STREAMED     = 1_000;
     private const CHUNK             = 400;
 
     private BaseConnection $db;
@@ -234,10 +235,10 @@ final class ReportDocuments
      *
      * @param list<DocumentKind> $kinds Empty for the documents that make up the sales.
      */
-    public function refusal(ReportScope $scope, ?string $from, string $to, array $kinds = [], ?int $customerId = null, ?int $employeeId = null, bool $withLines = false): ?ReportTable
+    public function refusal(ReportScope $scope, ?string $from, string $to, array $kinds = [], ?int $customerId = null, ?int $employeeId = null, int $bytesPerDocument = self::BYTES_PER_DOCUMENT): ?ReportTable
     {
         $found = $this->count($scope, $from, $to, $kinds, $customerId, $employeeId);
-        $most  = $this->maxDocuments ?? ReportSizeGuard::memoryRows($withLines ? self::BYTES_WITH_LINES : self::BYTES_PER_DOCUMENT);
+        $most  = $this->maxDocuments ?? ReportSizeGuard::memoryRows($bytesPerDocument);
 
         return $found <= $most ? null : ReportTable::refused($scope, $from, $to, 'Accounting_operational_reports.too_many_documents', [(string) $found, (string) $most]);
     }

@@ -42,13 +42,13 @@ final class ProfitMovements
             return [];
         }
 
+        ReportSizeGuard::require($this->movementCount($from, $to, $itemId), $this->maxRows ?? ReportSizeGuard::memoryRows(self::BYTES_PER_ROW), AccountingError::ReportRowsExceedMemory);
+
         $movements = $this->movements($from, $to, $itemId);
 
         if ($movements === []) {
             return [];
         }
-
-        ReportSizeGuard::require(count($movements), $this->maxRows ?? ReportSizeGuard::memoryRows(self::BYTES_PER_ROW), AccountingError::ReportRowsExceedMemory);
 
         $items = $this->items(array_map(static fn (object $movement): int => (int) $movement->item_id, $movements));
         $rows  = [];
@@ -110,6 +110,23 @@ final class ProfitMovements
      */
     private function movements(?string $from, string $to, ?int $itemId): array
     {
+        [$grouped, $bindings] = $this->movementsQuery($from, $to, $itemId);
+
+        return $this->db->query($grouped . ' ORDER BY e.entry_date ASC, e.source_id ASC, e.item_id ASC', $bindings)->getResult();
+    }
+
+    private function movementCount(?string $from, string $to, ?int $itemId): int
+    {
+        [$grouped, $bindings] = $this->movementsQuery($from, $to, $itemId);
+
+        return (int) $this->db->query("SELECT COUNT(*) AS found FROM ({$grouped}) grouped_movements", $bindings)->getRow()->found;
+    }
+
+    /**
+     * @return array{0: string, 1: list<mixed>} The query that groups the movements, without its order, and what it is bound to.
+     */
+    private function movementsQuery(?string $from, string $to, ?int $itemId): array
+    {
         $entries  = $this->db->prefixTable('accounting_stock_entries');
         $where    = ['e.source_type = ?', 'e.entry_type = ?', "e.kind = 'posting'", 'r.entry_id IS NULL', 'e.entry_date <= ?'];
         $bindings = [SalePostingBuilder::SOURCE_SALE, JournalEntryType::Cogs->value, $to];
@@ -124,15 +141,14 @@ final class ProfitMovements
             $bindings[] = $itemId;
         }
 
-        return $this->db->query(
+        return [
             "SELECT e.source_id AS sale_id, e.item_id, e.entry_date, SUM(e.quantity) AS quantity, SUM(e.value) AS value
              FROM {$entries} e
              LEFT JOIN {$entries} r ON r.source_type = e.source_type AND r.source_id = e.source_id AND r.entry_type = e.entry_type AND r.revision = e.revision AND r.line_no = e.line_no AND r.kind = 'reversal' AND r.entry_id <> e.entry_id
              WHERE " . implode(' AND ', $where) . '
-             GROUP BY e.source_id, e.item_id, e.entry_date
-             ORDER BY e.entry_date ASC, e.source_id ASC, e.item_id ASC',
+             GROUP BY e.source_id, e.item_id, e.entry_date',
             $bindings,
-        )->getResult();
+        ];
     }
 
     /**

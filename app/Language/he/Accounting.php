@@ -678,6 +678,7 @@ return [
     'error_refund_party_missing'                 => '',
     'error_report_account_missing'               => '',
     'error_report_file_too_large'                => '',
+    'error_report_memory_exhausted'              => '',
     'error_report_period_invalid'                => '',
     'error_report_rows_exceed_memory'            => '',
     'error_report_rows_exceed_screen'            => '',

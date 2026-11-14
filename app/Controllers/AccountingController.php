@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\MemoryExhaustedNotice;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Organization\BranchException;
@@ -25,6 +26,8 @@ abstract class AccountingController extends Secure_Controller
     public function __construct(string $moduleId, bool $requiresAccounting = true)
     {
         parent::__construct($moduleId);
+
+        MemoryExhaustedNotice::arm();
 
         if ($requiresAccounting && ! (new AccountingSettings())->isEnabled()) {
             throw PageNotFoundException::forPageNotFound();

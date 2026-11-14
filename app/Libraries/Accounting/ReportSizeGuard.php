@@ -10,9 +10,10 @@ namespace App\Libraries\Accounting;
  */
 final class ReportSizeGuard
 {
-    public const BASE_BYTES = 40 * 1_048_576;
-    public const SCAN_ROWS  = 400_000;
-    public const MIN_ROWS   = 1_000;
+    public const BASE_BYTES  = 40 * 1_048_576;
+    public const SCAN_ROWS   = 400_000;
+    public const RENDER_ROWS = 10_000;
+    public const MIN_ROWS    = 1_000;
 
     /**
      * @return int What the memory of the request allows, in bytes, or the largest integer when it has no limit.
@@ -57,6 +58,14 @@ final class ReportSizeGuard
         $scan = max(1, (int) env('reports.scanRows', self::SCAN_ROWS));
 
         return $bytesPerRow === 0 ? $scan : min($scan, self::memoryRows($bytesPerRow, $limit));
+    }
+
+    /**
+     * @return int How many rows a screen that writes every row of a report into its page may show.
+     */
+    public static function renderRows(): int
+    {
+        return max(1, (int) env('reports.renderRows', self::RENDER_ROWS));
     }
 
     /**
