@@ -11,17 +11,17 @@ use App\Models\Customer;
  **/
 class Token_customer extends Token
 {
-    private ?array $customer_info;
-    private Sale_lib $sale_lib;
+    private ?array $customerInfo;
+    private Sale_lib $saleLib;
 
     /**
-     * @param array<string, mixed>|null $customer_info The customer of the document the number is made for, with first_name and last_name; null takes the customer of the register.
+     * @param array<string, mixed>|null $customerInfo The customer of the document the number is made for, with first_name and last_name; null takes the customer of the register.
      */
-    public function __construct(?array $customer_info = null)
+    public function __construct(?array $customerInfo = null)
     {
         parent::__construct();
-        $this->customer_info = $customer_info;
-        $this->sale_lib = new Sale_lib();
+        $this->customerInfo = $customerInfo;
+        $this->saleLib = new Sale_lib();
     }
 
     /**
@@ -37,17 +37,17 @@ class Token_customer extends Token
      */
     public function get_value(): string
     {
-        if ($this->customer_info !== null) {
-            return trim(($this->customer_info['first_name'] ?? '') . ' ' . ($this->customer_info['last_name'] ?? ''));
+        if ($this->customerInfo !== null) {
+            return trim(($this->customerInfo['first_name'] ?? '') . ' ' . ($this->customerInfo['last_name'] ?? ''));
         }
 
-        $customer_id = $this->sale_lib->get_customer();
+        $customerId = $this->saleLib->get_customer();
 
-        if ($customer_id != NEW_ITEM) {
-            $customer_info = model(Customer::class)->get_info($customer_id);
+        if ($customerId != NEW_ITEM) {
+            $customerInfo = model(Customer::class)->get_info($customerId);
 
-            if ($customer_info != '') {
-                return trim($customer_info->first_name . ' ' . $customer_info->last_name);
+            if ($customerInfo != '') {
+                return trim($customerInfo->first_name . ' ' . $customerInfo->last_name);
             }
         }
 

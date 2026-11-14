@@ -2510,6 +2510,14 @@ class Sale extends Model
         return $this->db->table('sales')->where(['return_of_sale_id' => $saleId, 'sale_type' => SALE_TYPE_RETURN, 'sale_status' => COMPLETED])->countAllResults() > 0;
     }
 
+    private function refuseWhileReturnStands(int $saleId): bool
+    {
+        $this->db->transRollback();
+        $this->accountingFailure = new AccountingException(AccountingError::SaleHasReturns, 'A sale that goods have been returned from cannot be cancelled while the return stands.', ['sale_id' => $saleId]);
+
+        return false;
+    }
+
     private function goodsNeverLeft(int $saleType, ReturnDocument $document, ?int $originId): bool
     {
         return $saleType === SALE_TYPE_RETURN && $document === ReturnDocument::CreditNote && (new UndeliveredReturns($this->db))->neverDelivered($originId);
@@ -2536,12 +2544,7 @@ class Sale extends Model
             return false;
         }
 
-        if ($sale_status === COMPLETED && $this->hasCompletedReturn((int) $sale_id)) {
-            $this->db->transRollback();
-            $this->accountingFailure = new AccountingException(AccountingError::SaleHasReturns, 'A sale that goods have been returned from cannot be cancelled while the return stands.', ['sale_id' => (int) $sale_id]);
-
-            return false;
-        }
+        $returnStands = $sale_status === COMPLETED && $this->hasCompletedReturn((int) $sale_id);
 
         if ($update_inventory && $sale_status === COMPLETED && (int) $sale->delivered === 1 && ! $this->goodsNeverLeft((int) $sale->sale_type, ReturnDocument::fromStored($sale->return_document), $sale->return_of_sale_id === null ? null : (int) $sale->return_of_sale_id)) {
             // Defect, not all item deletions will be undone?
@@ -2586,6 +2589,11 @@ class Sale extends Model
                     }
                 }
             }
+        }
+
+        // After the tracked items were looked at, so that a sale of batches or serial numbers keeps the refusal that names them; the rollback takes back what was written above
+        if ($returnStands) {
+            return $this->refuseWhileReturnStands((int) $sale_id);
         }
 
         $this->update_sale_status($sale_id, CANCELED);

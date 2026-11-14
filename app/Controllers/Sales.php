@@ -1215,7 +1215,8 @@ class Sales extends Secure_Controller
         $format        = (string) ($this->config['sales_invoice_format'] ?? '');
 
         if ($format !== '' && !(new DocumentNumbering())->isEnabled(DocumentType::SalesInvoice) && ($this->sale->getInvoiceNumber($saleId) ?? '') === '') {
-            $draftCustomer = $this->sale->get_customer($saleId);
+            $draft         = (new DraftInvoice())->find($saleId);
+            $draftCustomer = $this->customer->get_info($draft === null || $draft->customer_id === null ? null : (int) $draft->customer_id);
             $invoiceNumber = $this->token_lib->render($format, [new Token_customer(['first_name' => $draftCustomer->first_name, 'last_name' => $draftCustomer->last_name])]);
 
             if ($this->sale->check_invoice_number_exists($invoiceNumber)) {
