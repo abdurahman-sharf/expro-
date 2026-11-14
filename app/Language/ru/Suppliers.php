@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Номер счета',
     'agency_name'           => 'Название агентства',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Не удалось удалить выбранных поставщиков. У одного или нескольких из них есть продажи.',
     'category'              => 'Категория',
     'commercial_registry'   => '',

@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'ເລກບັນຊີ',
     'agency_name'           => 'ຊື່ Agency',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'ບໍ່ສາມາດລຶບຜູ້ສະໜອງທີ່ເລືອກໄດ້. 1 ຫຼື ຫຼາຍກວ່ານັ້ນມີການຊື້-ຂາຍຢູ່.',
     'category'              => '',
     'commercial_registry'   => '',

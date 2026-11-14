@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'เลขที่บัญชี',
     'agency_name'           => 'ชื่อตัวแทน',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'ลบผู้ผลิตที่ถูกเลือกไม่ได้, ผู้ผลิตบางรายยังคงมีการขายสินค้า',
     'category'              => 'ประเภท',
     'commercial_registry'   => '',

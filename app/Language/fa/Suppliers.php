@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'شماره حساب',
     'agency_name'           => 'نام آژانس',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'نمی توان تامین کننده (های) انتخاب شده را حذف کرد. یک یا تعداد بیشتری از فروش دارند.',
     'category'              => 'دسته بندی',
     'commercial_registry'   => '',

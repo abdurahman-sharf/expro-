@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Račun br.',
     'agency_name'           => 'Naziv djelatnosti',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Ne mogu obrisati odabranog dobavljača. Jedan ili više odabranih dobavljača ima prodaju.',
     'category'              => '',
     'commercial_registry'   => '',

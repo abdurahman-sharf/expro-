@@ -2097,6 +2097,75 @@ class CustomersControllerTest extends CIUnitTestCase
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'customer', 'entity_id' => $id, 'action' => 'party_contacts_hidden'])->countAllResults());
     }
 
+    private function isDeleted(int $personId): bool
+    {
+        return (int) $this->accountingDb()->table('customers')->where('person_id', $personId)->get()->getRow()->deleted === 1;
+    }
+
+    public function testPostDelete_RefusesACustomerWhoseAccountIsNotSettledAndNamesTheAmount(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+
+        $owing = $this->save(['opening_side' => 'owes_us', 'opening_amount' => '750.00', 'opening_date' => date('Y-m-d')]);
+
+        $this->assertNotNull($this->openingOf($owing['id']));
+
+        $deleted = json_decode($this->post('/customers/delete', ['ids' => [(string) $owing['id']]])->getJSON(), true);
+
+        $this->assertFalse($deleted['success']);
+        $this->assertSame(lang('Customers.balance_not_settled', [$this->nameOfCustomer($owing['id']), to_currency('750.00')]), $deleted['message']);
+        $this->assertFalse($this->isDeleted($owing['id']));
+    }
+
+    public function testPostDelete_RefusesTheCustomersWithABalanceOneByOneAndDeletesTheRest(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+
+        $owing = $this->save(['opening_side' => 'owes_us', 'opening_amount' => '750.00', 'opening_date' => date('Y-m-d')]);
+        $free  = $this->save();
+        $other = $this->save();
+
+        $deleted = json_decode($this->post('/customers/delete', ['ids' => [(string) $owing['id'], (string) $free['id'], (string) $other['id']]])->getJSON(), true);
+
+        $this->assertFalse($deleted['success']);
+        $this->assertStringContainsString(lang('Customers.successful_deleted') . ' 2 ' . lang('Customers.one_or_multiple'), $deleted['message']);
+        $this->assertStringContainsString(to_currency('750.00'), $deleted['message']);
+        $this->assertSame([false, true, true], [$this->isDeleted($owing['id']), $this->isDeleted($free['id']), $this->isDeleted($other['id'])]);
+    }
+
+    public function testPostDelete_DeletesACustomerWhoseAccountHoldsNothing(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+
+        $free = $this->save();
+
+        $deleted = json_decode($this->post('/customers/delete', ['ids' => [(string) $free['id']]])->getJSON(), true);
+
+        $this->assertTrue($deleted['success']);
+        $this->assertTrue($this->isDeleted($free['id']));
+    }
+
+    public function testPostDelete_DeletesACustomerWithABalanceWhileAccountingIsOff(): void
+    {
+        $this->startAccountingWithCustomerOpening();
+
+        $owing = $this->save(['opening_side' => 'owes_us', 'opening_amount' => '750.00', 'opening_date' => date('Y-m-d')]);
+
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $deleted = json_decode($this->post('/customers/delete', ['ids' => [(string) $owing['id']]])->getJSON(), true);
+
+        $this->assertTrue($deleted['success']);
+        $this->assertTrue($this->isDeleted($owing['id']));
+    }
+
+    private function nameOfCustomer(int $personId): string
+    {
+        $person = $this->accountingDb()->table('people')->select('first_name, last_name')->where('person_id', $personId)->get()->getRow();
+
+        return trim($person->first_name . ' ' . $person->last_name);
+    }
+
     public function testPostDelete_LeavesTheContactsOfAnotherCustomerAlone(): void
     {
         $gone = $this->saveWithContacts([$this->contactRow()]);

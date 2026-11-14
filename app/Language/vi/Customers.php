@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Trả trung bình',
     'avg_discount'                  => 'Giảm giá trung bình',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Thông tin',
     'billing_email'                 => '',
     'billing_method'                => '',

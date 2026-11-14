@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'சராசரி செலவிடபட்டது',
     'avg_discount'                  => 'சராசரி தள்ளுபடி',
+    'balance_not_settled'           => '',
     'basic_information'             => 'தகவல்',
     'billing_email'                 => '',
     'billing_method'                => '',

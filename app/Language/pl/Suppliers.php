@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Numer konta',
     'agency_name'           => '',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => '',
     'category'              => 'Kategoria',
     'commercial_registry'   => '',

@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Average spent',
     'avg_discount'                  => 'Average discount',
+    'balance_not_settled'           => 'Not deleted: the account of {0} is not settled (balance {1}). Settle it first.',
     'basic_information'             => 'Information',
     'billing_email'                 => 'Send by e-mail',
     'billing_method'                => 'Billing method',

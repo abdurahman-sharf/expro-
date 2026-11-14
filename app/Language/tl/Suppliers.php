@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Account Number',
     'agency_name'           => 'Agency Name',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Could not delete selected Supplier(s). One or more have Sales.',
     'category'              => 'Category',
     'commercial_registry'   => '',

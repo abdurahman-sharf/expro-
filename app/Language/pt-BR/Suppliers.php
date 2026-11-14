@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Conta nº',
     'agency_name'           => 'Nome da Agência',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Não foi possível excluir fornecedores selecionados, um ou mais dos fornecedores selecionados tem vendas.',
     'category'              => 'Categoria',
     'commercial_registry'   => '',

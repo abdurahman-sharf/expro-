@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'ژمارەی هەژمار',
     'agency_name'           => 'ناوی بریکاریەتی',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'نەتواندرا دابینکارە دیاری کراوەکان بسڕێنەوە. یەک یان زیاتر فرۆش هەیە.',
     'category'              => 'پۆلێن',
     'commercial_registry'   => '',

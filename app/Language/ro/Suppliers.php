@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Număr cont',
     'agency_name'           => 'Nume Agenție',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Nu pot șterge Funrizorul/Furnizorii selectat/selectați. Unul sau mai mulți au Vânzări.',
     'category'              => 'Categorie',
     'commercial_registry'   => '',

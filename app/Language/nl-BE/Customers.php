@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Uitgegeven gemiddelde',
     'avg_discount'                  => 'Gemiddelde korting',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Informatie',
     'billing_email'                 => '',
     'billing_method'                => '',

@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Wastani wa matumizi',
     'avg_discount'                  => 'Wastani wa punguzo',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Taarifa za Msingi',
     'billing_email'                 => '',
     'billing_method'                => '',

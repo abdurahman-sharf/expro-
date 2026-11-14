@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'ใช้จ่ายเฉลี่ย',
     'avg_discount'                  => 'ส่วนลดเฉลี่ย',
+    'balance_not_settled'           => '',
     'basic_information'             => 'ข้อมูล',
     'billing_email'                 => '',
     'billing_method'                => '',

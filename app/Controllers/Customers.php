@@ -9,6 +9,7 @@ use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CustomerOpening;
+use App\Libraries\Accounting\PartyDeletion;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\EInvoicing\CustomerParties;
 use App\Libraries\EInvoicing\EInvoiceException;
@@ -854,13 +855,27 @@ class Customers extends Persons
      */
     public function postDelete(): ResponseInterface
     {
-        $customers_to_delete = $this->request->getPost('ids');
-        $customers_info = $this->customer->get_multiple_info($customers_to_delete);
+        $customersToDelete = $this->request->getPost('ids');
+        $customersInfo = $this->customer->get_multiple_info($customersToDelete);
+        $deletion = new PartyDeletion();
 
         $count = 0;
+        $refusals = [];
 
-        foreach ($customers_info->getResult() as $info) {
-            if ($this->customer->delete($info->person_id)) {
+        foreach ($customersInfo->getResult() as $info) {
+            try {
+                $outcome = $deletion->deleteIfSettled(PartyDeletion::CUSTOMER, (int) $info->person_id, fn (): bool => $this->customer->delete($info->person_id));
+            } catch (AccountingException) {
+                continue;
+            }
+
+            if ($outcome['amount'] !== null) {
+                $refusals[] = lang('Customers.balance_not_settled', [$info->company_name ?: trim($info->first_name . ' ' . $info->last_name), to_currency($outcome['amount'])]);
+
+                continue;
+            }
+
+            if ($outcome['deleted']) {
                 // remove customer from Mailchimp selected list
                 $this->mailchimp_lib->removeMember($this->_list_id, $info->email);
 
@@ -868,14 +883,18 @@ class Customers extends Persons
             }
         }
 
-        if ($count == count($customers_to_delete)) {
+        if ($count == count($customersToDelete)) {
             return $this->response->setJSON([
                 'success' => true,
                 'message' => lang('Customers.successful_deleted') . ' ' . $count . ' ' . lang('Customers.one_or_multiple')
             ]);
-        } else {
-            return $this->response->setJSON(['success' => false, 'message' => lang('Customers.cannot_be_deleted')]);
         }
+
+        if ($refusals !== []) {
+            return $this->response->setJSON(['success' => false, 'message' => trim(($count > 0 ? lang('Customers.successful_deleted') . ' ' . $count . ' ' . lang('Customers.one_or_multiple') . '. ' : '') . implode(' ', $refusals))]);
+        }
+
+        return $this->response->setJSON(['success' => false, 'message' => lang('Customers.cannot_be_deleted')]);
     }
 
     /**

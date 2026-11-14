@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Partita IVA',
     'agency_name'           => 'Nome Agenzia',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Eliminazione del/i Fornitore/i non possibile. Uno o più hanno delle vendite.',
     'category'              => 'Categoria',
     'commercial_registry'   => '',

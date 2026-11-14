@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Account Number',
     'agency_name'           => 'Име на агенцията',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Избраните доставчици не можаха да бъдат изтрити. Един или повече от тях имат продажби.',
     'category'              => '',
     'commercial_registry'   => '',

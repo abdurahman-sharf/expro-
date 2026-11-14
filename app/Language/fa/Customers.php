@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'متوسط u200bu200bصرف شده',
     'avg_discount'                  => 'متوسط u200bu200bتخفیف',
+    'balance_not_settled'           => '',
     'basic_information'             => 'اطلاعات',
     'billing_email'                 => '',
     'billing_method'                => '',

@@ -12,6 +12,7 @@ return [
     'available_points_value'        => 'Puntos Disponibles',
     'average'                       => 'Gasto promedio',
     'avg_discount'                  => 'Descuento promedio',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Información',
     'billing_email'                 => '',
     'billing_method'                => '',

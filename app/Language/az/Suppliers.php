@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Hesab №',
     'agency_name'           => 'Agentliyin Adı',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Seçilmiş Təchizatçı (lar) silinə bilmədi. Bir və ya birdən çox satışlar var.',
     'category'              => 'Bölmə',
     'commercial_registry'   => '',

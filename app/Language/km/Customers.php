@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'ចំណាយជាមធ្យម',
     'avg_discount'                  => 'បញ្ចុះតម្លៃមធ្យម',
+    'balance_not_settled'           => '',
     'basic_information'             => 'ព័ត៌មានមូលដ្ឋាន',
     'billing_email'                 => '',
     'billing_method'                => '',

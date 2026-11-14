@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Nambari ya Akaunti',
     'agency_name'           => 'Jina la Wakala',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Haiwezekani kufuta Wasambazaji waliochaguliwa. Mmoja au zaidi tayari ana mauzo.',
     'category'              => 'Kategoria',
     'commercial_registry'   => '',

@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'رقم الحساب',
     'agency_name'           => 'اسم الوكالة',
+    'balance_not_settled'   => 'لم يُحذف: حساب {0} غير مسوّى (الرصيد {1}). سوِّه أولًا.',
     'cannot_be_deleted'     => 'لايمكن حذف المورد/الموردين لوجود مبيعات مرتبطة بهم.',
     'category'              => 'الفئة',
     'commercial_registry'   => 'السجل التجاري',
