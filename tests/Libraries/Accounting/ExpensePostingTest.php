@@ -21,6 +21,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
 use Tests\Support\ParityCaseTrait;
@@ -36,6 +37,7 @@ class ExpensePostingTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
     use ParityCaseTrait;
@@ -1910,5 +1912,63 @@ class ExpensePostingTest extends CIUnitTestCase
         }
 
         $this->assertSame($journals, $this->postedJournals($expenseId));
+    }
+
+    public function testDeleteList_LetsTwoSessionsDeleteTheSameExpenseAndTakesItsJournalBackOnce(): void
+    {
+        $id      = $this->saveExpense($this->expenseData('100.00'));
+        $session = ['delete', (string) $id, (string) $this->clerkId];
+
+        $this->assertSame(['done', 'done'], $this->raceSessions('expenseRace', [$session, $session]));
+        $this->assertSame(1, $this->accountingDb()->table('expenses')->where(['expense_id' => $id, 'deleted' => 1])->countAllResults());
+        $this->assertSame(0, $this->postedJournals($id));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->countAllResults(), 'The journal was taken back once');
+        $this->assertSame('0.00', $this->balanceOf($this->accountId('cash')));
+    }
+
+    public function testSaveValue_LetsTwoSessionsChangeTheSameExpenseAndLeavesOneJournalThatSaysWhatTheRowSays(): void
+    {
+        $category = $this->category();
+        $id       = $this->saveExpense($this->expenseData('100.00', '0', 'Cash', $category));
+        $answers  = $this->raceSessions('expenseRace', [
+            ['save', (string) $id, '150.00', (string) $category, (string) $this->clerkId],
+            ['save', (string) $id, '230.00', (string) $category, (string) $this->clerkId],
+        ]);
+
+        $stored = bcadd($this->accountingDb()->table('expenses')->where('expense_id', $id)->get()->getRow()->amount, '0', 2);
+
+        $this->assertSame(['done', 'done'], $answers);
+        $this->assertContains($stored, ['150.00', '230.00']);
+        $this->assertSame(1, $this->postedJournals($id), 'One journal stands for the expense');
+        $this->assertSame('-' . $stored, $this->balanceOf($this->accountId('cash')), 'The cash account holds what the row says');
+        $this->assertSame($stored, $this->postedDebit(self::SOURCE, $id));
+    }
+
+    public function testSaveValue_LetsAChangeAndADeletionOfTheSameExpenseRaceAndLeavesTheBooksAsTheRowSaysWhoeverWins(): void
+    {
+        $category = $this->category();
+        $id       = $this->saveExpense($this->expenseData('100.00', '0', 'Cash', $category));
+        $answers  = $this->raceSessions('expenseRace', [
+            ['save', (string) $id, '150.00', (string) $category, (string) $this->clerkId],
+            ['delete', (string) $id, (string) $this->clerkId],
+        ]);
+
+        $row = $this->accountingDb()->table('expenses')->where('expense_id', $id)->get()->getRow();
+
+        $this->assertSame(['done', 'done'], $answers);
+
+        if ((int) $row->deleted === 1) {
+            $this->assertSame(0, $this->postedJournals($id), 'The deletion went last, so nothing stands');
+            $this->assertSame('0.00', $this->balanceOf($this->accountId('cash')));
+        } else {
+            $this->assertSame(1, $this->postedJournals($id), 'The change went last, so the expense stands again');
+            $this->assertSame('-150.00', $this->balanceOf($this->accountId('cash')));
+            $this->assertSame('150.00', $this->postedDebit(self::SOURCE, $id));
+        }
+    }
+
+    private function postedDebit(string $source, int $sourceId): string
+    {
+        return bcadd($this->accountingDb()->table('accounting_journal_lines l')->selectSum('l.debit', 'total')->join('accounting_journals j', 'j.journal_id = l.journal_id')->where(['j.source_type' => $source, 'j.source_id' => $sourceId, 'j.status' => 'posted'])->get()->getRow()->total, '0', 2);
     }
 }

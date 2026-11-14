@@ -9,6 +9,7 @@ use App\Libraries\Accounting\ChequeBooks;
 use App\Libraries\Accounting\ChequeService;
 use App\Libraries\Accounting\ChequeSources;
 use App\Libraries\Accounting\ChequeTransition;
+use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\CustomerLock;
 use App\Libraries\Accounting\PostingError;
@@ -24,6 +25,9 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\CreditRefundFixtureTrait;
+use Tests\Support\CreditSourceFixtureTrait;
+use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityCaseTrait;
@@ -39,6 +43,9 @@ class ChequeServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use CreditRefundFixtureTrait;
+    use CreditSourceFixtureTrait;
+    use DatabaseFingerprintTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use ParityCaseTrait;
@@ -1559,5 +1566,109 @@ class ChequeServiceTest extends CIUnitTestCase
 
         $this->assertSame(1, $this->cheques->branchOf($chequeId));
         $this->assertNull($this->cheques->branchOf(99999));
+    }
+
+    public function testUpdate_RefusesToLowerTheAmountOfAChequeWhoseCreditWasPaidBackAndAcceptsRaisingIt(): void
+    {
+        $cheque = $this->received();
+
+        $this->refundCustomerCredit('100.00');
+
+        $journals = $this->countRows('accounting_journals');
+        $refusal  = $this->refusal(fn () => $this->cheques->update($cheque, $this->input(['amount' => '60.00']), $this->clerk));
+
+        $this->assertSame(AccountingError::CreditRefunded, $refusal->error);
+        $this->assertSame('100.00', bcadd($this->cheques->find($cheque)->amount, '0', 2));
+        $this->assertSame($journals, $this->countRows('accounting_journals'));
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+
+        $this->cheques->update($cheque, $this->input(['amount' => '100.00']), $this->clerk);
+        $this->cheques->update($cheque, $this->input(['amount' => '150.00']), $this->clerk);
+
+        $this->assertSame('50.00', $this->freeCustomerCredit(), 'What the cheque was raised by is credit that is free');
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    public function testReject_RefusesAChequeWhoseCreditWasPaidBackEvenAfterItWasDepositedAndAcceptsItOnceTheRefundIsCancelled(): void
+    {
+        $cheque   = $this->received();
+        $refundId = $this->refundCustomerCredit('100.00');
+
+        $this->assertSame(AccountingError::CreditRefunded, $this->refusal(fn () => $this->cheques->reject($cheque, $this->today, $this->clerk))->error);
+        $this->assertSame('received', $this->statusOf($cheque));
+
+        $this->cheques->deposit($cheque, $this->today, $this->clerk);
+
+        $this->assertSame(AccountingError::CreditRefunded, $this->refusal(fn () => $this->cheques->reject($cheque, $this->today, $this->clerk))->error);
+        $this->assertSame('deposited', $this->statusOf($cheque));
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+
+        $this->cancelCustomerRefund($refundId);
+        $this->cheques->reject($cheque, $this->today, $this->clerk);
+
+        $this->assertSame('rejected', $this->statusOf($cheque));
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    public function testDelete_RefusesAChequeWhoseCreditWasPaidBackAndKeepsItWithItsJournal(): void
+    {
+        $cheque = $this->received();
+
+        $this->refundCustomerCredit('100.00');
+
+        $before = $this->databaseFingerprint();
+
+        $this->assertSame(AccountingError::CreditRefunded, $this->refusal(fn () => $this->cheques->delete($cheque, $this->clerk))->error);
+        $this->assertSame('received', $this->statusOf($cheque));
+        $this->assertSame(1, $this->countJournalsOf(ChequeTransition::Receive->source(), $cheque, 'posted'));
+        $this->assertRefusedChangeLeftNoTrace($before, CreditSource::CHEQUE);
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    public function testCollect_LeavesTheCreditOfAChequeThatWasPaidBackAsItWasAndItsUndoDoesToo(): void
+    {
+        $cheque = $this->received();
+
+        $this->refundCustomerCredit('100.00');
+        $this->cheques->collect($cheque, $this->today, null, $this->clerk);
+
+        $this->assertSame('collected', $this->statusOf($cheque));
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+        $this->assertTies();
+
+        $this->cheques->undo($cheque, $this->clerk);
+
+        $this->assertSame('received', $this->statusOf($cheque));
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    public function testReject_RefusesAChequeDeliveredToASupplierWhoseCreditWasPaidBackAndSoDoesUndoingItsDelivery(): void
+    {
+        $cheque    = $this->paid([], $this->today);
+        $treasurer = $this->supplierTreasurer();
+        $refundId  = $this->supplierRefund('200.00', $treasurer);
+
+        $this->assertSame(AccountingError::CreditRefunded, $this->refusal(fn () => $this->cheques->reject($cheque, $this->today, $this->clerk))->error);
+        $this->assertSame(AccountingError::CreditRefunded, $this->refusal(fn () => $this->cheques->undo($cheque, $this->clerk))->error);
+        $this->assertSame('delivered', $this->statusOf($cheque));
+        $this->assertSame('0.00', $this->freeSupplierCredit());
+        $this->assertRefundsTie(CreditRefunds::SUPPLIER);
+        $this->assertSupplierTies();
+
+        $this->refundsFromSuppliers()->cancel($refundId, 'paid twice', $treasurer);
+        $this->cheques->undo($cheque, $this->clerk);
+
+        $this->assertSame('issued', $this->statusOf($cheque));
+        $this->assertSame('0.00', $this->freeSupplierCredit());
+        $this->assertRefundsTie(CreditRefunds::SUPPLIER);
+        $this->assertSupplierTies();
     }
 }

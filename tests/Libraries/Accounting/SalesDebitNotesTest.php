@@ -13,6 +13,7 @@ use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingError;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\SalesDebitNotes;
+use App\Libraries\Pricing\SalesControlSettings;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -71,6 +72,8 @@ class SalesDebitNotesTest extends CIUnitTestCase
         $db->table('document_numbers')->truncate();
         $db->table('document_sequences')->truncate();
         $db->table('app_config')->whereIn('key', ['accounting_debit_note', 'accounting_customer_opening'])->delete();
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '0');
+        $db->table('customers')->update(['credit_limit' => 0]);
 
         $this->stopSelling();
 
@@ -743,5 +746,24 @@ class SalesDebitNotesTest extends CIUnitTestCase
         $this->assertSame(7, SalesDebitNotes::idOfKey(-1_000_000_007));
         $this->assertNull(SalesDebitNotes::idOfKey(-12));
         $this->assertNull(SalesDebitNotes::idOfKey(12));
+    }
+
+    public function testCreate_DoesNotHoldANoteToTheCreditLimitOfTheCustomerButTheNextSaleIsRefusedBecauseOfIt(): void
+    {
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['credit_limit' => '100']);
+        $this->setConfigValue(SalesControlSettings::CREDIT_LIMIT, '1');
+
+        $note = $this->raise(['amount' => '300']);
+
+        $this->assertGreaterThan(0, $note, 'A debit note is not a sale, so the limit does not stop it');
+        $this->assertSame('300.00', bcadd($this->position()->open(), '0', 2));
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->invoiceOf('10.00'));
+
+        $failure = $this->failure();
+
+        $this->assertSame(AccountingError::CreditLimitExceeded, $failure->error);
+        $this->assertSame(['100.00', '310.00'], [$failure->context['limit'], $failure->context['balance']]);
+        $this->assertTies();
     }
 }

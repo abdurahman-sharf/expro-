@@ -16,8 +16,12 @@ use App\Libraries\Organization\BranchException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ChequeFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\CreditRefundFixtureTrait;
+use Tests\Support\CreditSourceFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
@@ -33,6 +37,9 @@ class CreditRefundsTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ChequeFixtureTrait;
+    use ConcurrentDbRaceTrait;
+    use CreditSourceFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -67,6 +74,7 @@ class CreditRefundsTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopCreditSources();
         $this->stopBuying();
 
         parent::tearDown();
@@ -925,5 +933,430 @@ class CreditRefundsTest extends CIUnitTestCase
         $this->assertSame(AccountingError::RefundNotFound, $this->refusal(fn () => $this->refunds->cancel($refund, 'by a stranger', $second))->error);
         $this->assertNull($this->refunds->branchOf($refund, $second));
         $this->assertNotNull($this->refunds->branchOf($refund, $this->clerk));
+    }
+
+    #[DataProvider('customerCreditSources')]
+    public function testRefund_TakesTheWholeOfTheCreditOfEachSourceAndNamesItInTheRefund(string $source): void
+    {
+        $id = $this->giveCustomerCredit($source);
+
+        $this->assertSame('100.00', $this->freeCustomerCredit());
+
+        $refundId = $this->refundCustomerCredit('100.00');
+        $rows     = $this->accountingDb()->table('customer_credit_refund_sources')->where('refund_id', $refundId)->get()->getResult();
+
+        $this->assertCount(1, $rows);
+        $this->assertSame([$source, $id, '100.00'], [$rows[0]->source_type, (int) $rows[0]->source_id, bcadd($rows[0]->amount, '0', 2)]);
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    #[DataProvider('customerCreditSources')]
+    public function testRefund_RefusesASecondRefundOfACreditOfEachSourceThatWasPaidBackWhole(string $source): void
+    {
+        $this->giveCustomerCredit($source);
+        $this->refundCustomerCredit('100.00');
+
+        $refusal = $this->refusal(fn () => $this->refundCustomerCredit('0.01'));
+
+        $this->assertSame(AccountingError::RefundExceedsCredit, $refusal->error);
+        $this->assertSame('0.00', $refusal->context['max']);
+        $this->assertSame(1, $this->countRows('customer_credit_refunds'));
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    #[DataProvider('customerCreditSources')]
+    public function testRefund_NeverLetsAnInvoiceSpendTheCreditOfEachSourceThatWasPaidBack(string $source): void
+    {
+        $this->giveCustomerCredit($source);
+        $this->refundCustomerCredit('100.00');
+
+        $invoice = $this->invoiceDated('100.00', $this->daysAgo(1));
+
+        $this->assertSame('100.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame([], array_values(array_filter($this->applications(), static fn (string $application): bool => str_contains($application, '->' . $invoice . ':'))));
+        $this->assertSame([], $this->accountingDb()->table('customer_credit_applications')->where('invoice_sale_id', $invoice)->get()->getResult());
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertSame('100.00', $this->balance($this->customerAccount()));
+        $this->assertTies();
+    }
+
+    #[DataProvider('customerCreditSources')]
+    public function testRefund_TakesOnlyWhatIsLeftOfTheCreditOfEachSourceAfterAnInvoiceSpentPartOfIt(string $source): void
+    {
+        $this->giveCustomerCredit($source);
+
+        $invoice = $this->invoiceDated('40.00', $this->daysAgo(1));
+
+        $this->assertSame('0.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('60.00', $this->freeCustomerCredit());
+
+        $refusal = $this->refusal(fn () => $this->refundCustomerCredit('60.01'));
+
+        $this->assertSame(AccountingError::RefundExceedsCredit, $refusal->error);
+        $this->assertSame('60.00', $refusal->context['max']);
+
+        $this->refundCustomerCredit('60.00');
+
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertSame('0.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2), 'The refund left what was spent on the invoice where it was');
+        $this->assertSame(AccountingError::RefundExceedsCredit, $this->refusal(fn () => $this->refundCustomerCredit('0.01'))->error);
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    #[DataProvider('customerCreditSources')]
+    public function testRefund_LeavesTheNextInvoiceOnlyTheCreditOfEachSourceThatIsLeft(string $source): void
+    {
+        $this->giveCustomerCredit($source);
+        $this->refundCustomerCredit('60.00');
+
+        $invoice = $this->invoiceDated('100.00', $this->daysAgo(1));
+
+        $this->assertSame('60.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    #[DataProvider('customerCreditSources')]
+    public function testCancel_GivesTheCreditOfEachSourceBackToTheInvoiceThatWaitedAndNeverTwice(string $source): void
+    {
+        $this->giveCustomerCredit($source);
+
+        $refundId = $this->refundCustomerCredit('100.00');
+        $invoice  = $this->invoiceDated('100.00', $this->daysAgo(1));
+
+        $this->assertSame('100.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+
+        $this->cancelCustomerRefund($refundId);
+
+        $this->assertSame('0.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2), 'The credit that came back was spent on the invoice that waited for it');
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertSame(AccountingError::RefundAlreadyCancelled, $this->refusal(fn () => $this->cancelCustomerRefund($refundId))->error);
+        $this->assertSame(AccountingError::RefundExceedsCredit, $this->refusal(fn () => $this->refundCustomerCredit('0.01'))->error);
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    #[DataProvider('customerCreditSources')]
+    public function testCancel_LetsTheCreditOfEachSourceBePaidBackAgainOnceItsRefundIsCancelled(string $source): void
+    {
+        $this->giveCustomerCredit($source);
+
+        $first = $this->refundCustomerCredit('100.00');
+
+        $this->cancelCustomerRefund($first);
+
+        $this->assertSame('100.00', $this->freeCustomerCredit());
+
+        $second = $this->refundCustomerCredit('100.00');
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertSame(2, $this->countRows('customer_credit_refunds'));
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    public function testRefund_TakesTheCreditOfAllFiveCustomerSourcesOldestFirstAndNamesEachOne(): void
+    {
+        $ids = [];
+
+        foreach ([CreditSource::CUSTOMER_ADVANCE, CreditSource::OPENING, CreditSource::CHEQUE, CreditSource::CREDIT_NOTE, CreditSource::INVOICE_EXCESS] as $index => $source) {
+            $ids[$source] = $this->giveCustomerCredit($source, '10.00');
+        }
+
+        $this->assertSame('50.00', $this->freeCustomerCredit());
+
+        $refundId = $this->refundCustomerCredit('35.00');
+        $taken    = [];
+
+        foreach ($this->accountingDb()->table('customer_credit_refund_sources')->where('refund_id', $refundId)->get()->getResult() as $row) {
+            $taken[$row->source_type . ':' . $row->source_id] = bcadd($row->amount, '0', 2);
+        }
+
+        $this->assertSame('35.00', bcadd(array_reduce($taken, static fn (string $sum, string $amount): string => bcadd($sum, $amount, 2), '0'), '0', 2));
+        $this->assertCount(4, $taken, 'Three credits of 10 and half of a fourth, oldest first, ties by id');
+        $this->assertSame('15.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+        $this->assertTies();
+
+        $this->cancelCustomerRefund($refundId);
+
+        $this->assertSame('50.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    #[DataProvider('supplierCreditSources')]
+    public function testRefund_TakesTheWholeOfTheCreditOfEachSupplierSourceAndNamesItInTheRefund(string $source): void
+    {
+        $id = $this->giveSupplierCredit($source);
+
+        $this->assertSame('100.00', $this->freeSupplierCredit());
+
+        $refundId = $this->supplierRefund('100.00');
+        $rows     = $this->accountingDb()->table('supplier_credit_refund_sources')->where('refund_id', $refundId)->get()->getResult();
+
+        $this->assertCount(1, $rows);
+        $this->assertSame([$source, $id, '100.00'], [$rows[0]->source_type, (int) $rows[0]->source_id, bcadd($rows[0]->amount, '0', 2)]);
+        $this->assertSame('0.00', $this->freeSupplierCredit());
+        $this->assertRefundsTie(CreditRefunds::SUPPLIER);
+        $this->assertSupplierTies();
+    }
+
+    #[DataProvider('supplierCreditSources')]
+    public function testRefund_RefusesASecondRefundOfACreditOfEachSupplierSourceThatWasPaidBackWhole(string $source): void
+    {
+        $this->giveSupplierCredit($source);
+        $this->supplierRefund('100.00');
+
+        $refusal = $this->refusal(fn () => $this->supplierRefund('0.01'));
+
+        $this->assertSame(AccountingError::RefundExceedsCredit, $refusal->error);
+        $this->assertSame('0.00', $refusal->context['max']);
+        $this->assertSame(1, $this->countRows('supplier_credit_refunds'));
+        $this->assertRefundsTie(CreditRefunds::SUPPLIER);
+        $this->assertSupplierTies();
+    }
+
+    #[DataProvider('supplierCreditSources')]
+    public function testRefund_NeverLetsAPurchaseSpendTheCreditOfEachSupplierSourceThatWasPaidBack(string $source): void
+    {
+        $this->giveSupplierCredit($source);
+        $this->supplierRefund('100.00');
+
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(1));
+
+        $this->assertSame('100.00', bcadd($this->supplierPosition()->purchase($purchase)->open(), '0', 2));
+        $this->assertSame([], $this->supplierApplications());
+        $this->assertSame('0.00', $this->freeSupplierCredit());
+        $this->assertSupplierTies();
+    }
+
+    #[DataProvider('supplierCreditSources')]
+    public function testRefund_TakesOnlyWhatIsLeftOfTheCreditOfEachSupplierSourceAfterAPurchaseSpentPartOfIt(string $source): void
+    {
+        $this->giveSupplierCredit($source);
+
+        $purchase = $this->purchaseDated('40.00', $this->daysAgo(1));
+
+        $this->assertSame('0.00', bcadd($this->supplierPosition()->purchase($purchase)->open(), '0', 2));
+        $this->assertSame('60.00', $this->freeSupplierCredit());
+
+        $refusal = $this->refusal(fn () => $this->supplierRefund('60.01'));
+
+        $this->assertSame(AccountingError::RefundExceedsCredit, $refusal->error);
+        $this->assertSame('60.00', $refusal->context['max']);
+
+        $this->supplierRefund('60.00');
+
+        $this->assertSame('0.00', $this->freeSupplierCredit());
+        $this->assertSame('0.00', bcadd($this->supplierPosition()->purchase($purchase)->open(), '0', 2));
+        $this->assertRefundsTie(CreditRefunds::SUPPLIER);
+        $this->assertSupplierTies();
+    }
+
+    #[DataProvider('supplierCreditSources')]
+    public function testCancel_GivesTheCreditOfEachSupplierSourceBackToThePurchaseThatWaited(string $source): void
+    {
+        $this->giveSupplierCredit($source);
+
+        $refundId = $this->supplierRefund('100.00');
+        $purchase = $this->purchaseDated('100.00', $this->daysAgo(1));
+
+        $this->assertSame('100.00', bcadd($this->supplierPosition()->purchase($purchase)->open(), '0', 2));
+
+        $this->refundsFromSuppliers()->cancel($refundId, 'paid twice', $this->supplierTreasurer());
+
+        $this->assertSame('0.00', bcadd($this->supplierPosition()->purchase($purchase)->open(), '0', 2));
+        $this->assertSame('0.00', $this->freeSupplierCredit());
+        $this->assertRefundsTie(CreditRefunds::SUPPLIER);
+        $this->assertSupplierTies();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function refundSession(string $party, int $partyId, string $amount, int $employeeId, string $key = ''): array
+    {
+        return ['refund', $party, (string) $partyId, $amount, date('Y-m-d'), (string) $employeeId, $key];
+    }
+
+    /**
+     * @return array<string, array{string, string}> The sources the race has a session for and what takes each one back.
+     */
+    public static function raceableCustomerSources(): array
+    {
+        return [
+            'an advance payment' => [CreditSource::CUSTOMER_ADVANCE, 'cancelCustomerAdvance'],
+            'an opening credit'  => [CreditSource::OPENING, 'cancelOpening'],
+            'a received cheque'  => [CreditSource::CHEQUE, 'rejectCheque'],
+        ];
+    }
+
+    public function testRefund_LetsExactlyOneOfTwoSessionsTakeACreditOnlyOneFitsIn(): void
+    {
+        $this->giveCustomerCredit(CreditSource::CUSTOMER_ADVANCE);
+
+        $session = $this->refundSession(CreditRefunds::CUSTOMER, $this->customerId, '60.00', $this->creditClerk());
+        $answers = $this->raceSessions('creditRace', [$session, $session]);
+
+        sort($answers);
+
+        $this->assertSame(['done', AccountingError::RefundExceedsCredit->value], $answers);
+        $this->assertSame(1, $this->countRows('customer_credit_refunds'));
+        $this->assertSame('40.00', $this->freeCustomerCredit());
+        $this->assertSame('-40.00', $this->balance($this->customerAccount()));
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    public function testRefund_LetsExactlyOneOfTwoSessionsTakeACreditOnlyOneFitsInForASupplier(): void
+    {
+        $treasurer = $this->supplierTreasurer();
+
+        $this->giveSupplierCredit(CreditSource::ADVANCE);
+
+        $session = $this->refundSession(CreditRefunds::SUPPLIER, $this->supplierId, '60.00', $treasurer);
+        $answers = $this->raceSessions('creditRace', [$session, $session]);
+
+        sort($answers);
+
+        $this->assertSame(['done', AccountingError::RefundExceedsCredit->value], $answers);
+        $this->assertSame(1, $this->countRows('supplier_credit_refunds'));
+        $this->assertSame('40.00', $this->freeSupplierCredit());
+        $this->assertRefundsTie(CreditRefunds::SUPPLIER);
+        $this->assertSupplierTies();
+    }
+
+    public function testRefund_LetsTwoOfFourSessionsTakeWhatTwoOfThemFitInAndRefusesTheOthers(): void
+    {
+        $this->giveCustomerCredit(CreditSource::CUSTOMER_ADVANCE);
+        $this->giveCustomerCredit(CreditSource::CHEQUE, '50.00');
+
+        $session = $this->refundSession(CreditRefunds::CUSTOMER, $this->customerId, '70.00', $this->creditClerk());
+        $answers = $this->raceSessions('creditRace', [$session, $session, $session, $session]);
+
+        sort($answers);
+
+        $this->assertSame(['done', 'done', AccountingError::RefundExceedsCredit->value, AccountingError::RefundExceedsCredit->value], $answers, 'A credit of 150 pays two refunds of 70 and no third');
+        $this->assertSame(2, $this->countRows('customer_credit_refunds'));
+        $this->assertSame('10.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    public function testRefund_LetsTwoSessionsBothRefundWhenBothFit(): void
+    {
+        $this->giveCustomerCredit(CreditSource::CUSTOMER_ADVANCE);
+
+        $session = $this->refundSession(CreditRefunds::CUSTOMER, $this->customerId, '40.00', $this->creditClerk());
+
+        $this->assertSame(['done', 'done'], $this->raceSessions('creditRace', [$session, $session]));
+        $this->assertSame(2, $this->countRows('customer_credit_refunds'));
+        $this->assertSame('20.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    public function testRefund_SavesOneRefundWhenTwoSessionsSendTheSameFormAtTheSameMoment(): void
+    {
+        $this->giveCustomerCredit(CreditSource::CUSTOMER_ADVANCE);
+
+        $session = $this->refundSession(CreditRefunds::CUSTOMER, $this->customerId, '60.00', $this->creditClerk(), 'form-race-1');
+
+        $this->assertSame(['done', 'done'], $this->raceSessions('creditRace', [$session, $session]));
+        $this->assertSame(1, $this->countRows('customer_credit_refunds'));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where(['source_type' => CreditRefunds::CUSTOMER_SOURCE, 'status' => 'posted'])->countAllResults());
+        $this->assertSame('40.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+    }
+
+    #[DataProvider('raceableCustomerSources')]
+    public function testRefund_LeavesTheRefundOrTheChangeOfTheSourceStandingAndNeverBothWhenTheyRace(string $source, string $takeBack): void
+    {
+        $id    = $this->giveCustomerCredit($source);
+        $actor = $takeBack === 'rejectCheque' ? $this->chequeClerk : $this->creditClerk();
+
+        $answers = $this->raceSessions('creditRace', [
+            $this->refundSession(CreditRefunds::CUSTOMER, $this->customerId, '60.00', $this->creditClerk()),
+            [$takeBack, (string) $id, (string) $actor],
+        ]);
+
+        sort($answers);
+
+        if ($this->countRows('customer_credit_refunds') === 1) {
+            $this->assertSame([AccountingError::CreditRefunded->value, 'done'], $answers, 'The refund went first, so the source could not be taken back');
+            $this->assertSame('40.00', $this->freeCustomerCredit());
+        } else {
+            $this->assertSame(['done', AccountingError::RefundExceedsCredit->value], $answers, 'The source was taken back first, so there was nothing to refund');
+            $this->assertSame('0.00', $this->freeCustomerCredit());
+        }
+
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    public function testRefund_LeavesTheRefundOrTheCancelledAdvanceStandingAndNeverBothForASupplier(): void
+    {
+        $treasurer = $this->supplierTreasurer();
+        $advance   = $this->giveSupplierCredit(CreditSource::ADVANCE);
+
+        $answers = $this->raceSessions('creditRace', [
+            $this->refundSession(CreditRefunds::SUPPLIER, $this->supplierId, '60.00', $treasurer),
+            ['cancelSupplierAdvance', (string) $advance, (string) $treasurer],
+        ]);
+
+        sort($answers);
+
+        if ($this->countRows('supplier_credit_refunds') === 1) {
+            $this->assertSame([AccountingError::CreditRefunded->value, 'done'], $answers);
+            $this->assertSame('40.00', $this->freeSupplierCredit());
+        } else {
+            $this->assertSame(['done', AccountingError::RefundExceedsCredit->value], $answers);
+            $this->assertSame('0.00', $this->freeSupplierCredit());
+        }
+
+        $this->assertRefundsTie(CreditRefunds::SUPPLIER);
+        $this->assertSupplierTies();
+    }
+
+    public function testCancel_LetsExactlyOneOfTwoSessionsCancelTheSameRefundAndGivesTheCreditBackOnce(): void
+    {
+        $this->giveCustomerCredit(CreditSource::CUSTOMER_ADVANCE);
+
+        $refundId = $this->refundCustomerCredit('60.00');
+        $session  = ['cancelRefund', CreditRefunds::CUSTOMER, (string) $refundId, (string) $this->creditClerk()];
+        $answers  = $this->raceSessions('creditRace', [$session, $session]);
+
+        sort($answers);
+
+        $this->assertSame(['done', AccountingError::RefundAlreadyCancelled->value], $answers);
+        $this->assertSame('100.00', $this->freeCustomerCredit(), 'The credit came back once');
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->countAllResults(), 'The journal of the refund was reversed once');
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    public function testCancel_LetsExactlyOneOfTwoSessionsCancelTheSameRefundOfASupplier(): void
+    {
+        $treasurer = $this->supplierTreasurer();
+
+        $this->giveSupplierCredit(CreditSource::ADVANCE);
+
+        $refundId = $this->supplierRefund('60.00', $treasurer);
+        $session  = ['cancelRefund', CreditRefunds::SUPPLIER, (string) $refundId, (string) $treasurer];
+        $answers  = $this->raceSessions('creditRace', [$session, $session]);
+
+        sort($answers);
+
+        $this->assertSame(['done', AccountingError::RefundAlreadyCancelled->value], $answers);
+        $this->assertSame('100.00', $this->freeSupplierCredit());
+        $this->assertRefundsTie(CreditRefunds::SUPPLIER);
+        $this->assertSupplierTies();
     }
 }

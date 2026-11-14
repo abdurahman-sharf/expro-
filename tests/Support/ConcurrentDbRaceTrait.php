@@ -12,6 +12,29 @@ use RuntimeException;
  */
 trait ConcurrentDbRaceTrait
 {
+    protected function raceWorkerScript(): string
+    {
+        return __DIR__ . '/RaceWorker.php';
+    }
+
+    /**
+     * What a worker that is no longer running said as it went, or null while it runs. A worker that ends before
+     * its barrier never writes its ready file, and its own words are the only explanation of why.
+     *
+     * @param resource               $process
+     * @param array<int, resource> $pipes
+     */
+    private function raceWorkerEndedEarly($process, array $pipes): ?string
+    {
+        $status = proc_get_status($process);
+
+        if ($status['running']) {
+            return null;
+        }
+
+        return 'it ended with exit code ' . $status['exitcode'] . ': ' . trim(stream_get_contents($pipes[2]) . ' ' . stream_get_contents($pipes[1]));
+    }
+
     /**
      * @return array{0: int, 1: int} affected_rows for [sql1, sql2]
      */
@@ -73,7 +96,7 @@ trait ConcurrentDbRaceTrait
      */
     protected function raceTwoProcesses(string $method, array $args1, array $args2): array
     {
-        $workerScript = __DIR__ . '/RaceWorker.php';
+        $workerScript = $this->raceWorkerScript();
         $php          = PHP_BINARY;
 
         $descriptorSpec = [
@@ -111,7 +134,17 @@ trait ConcurrentDbRaceTrait
             $deadline = microtime(true) + 5.0;
 
             while (!file_exists($readyFile1) || !file_exists($readyFile2)) {
-                if (microtime(true) >= $deadline) {
+                $ended = [];
+
+                foreach ([1 => [$process1, $pipes1, $readyFile1], 2 => [$process2, $pipes2, $readyFile2]] as $call => [$process, $pipes, $readyFile]) {
+                    $words = $this->raceWorkerEndedEarly($process, $pipes);
+
+                    if ($words !== null && !file_exists($readyFile)) {
+                        $ended[] = 'call ' . $call . ' ' . $words;
+                    }
+                }
+
+                if ($ended !== [] || microtime(true) >= $deadline) {
                     $status1 = proc_get_status($process1);
                     $status2 = proc_get_status($process2);
 
@@ -135,7 +168,7 @@ trait ConcurrentDbRaceTrait
                         !file_exists($readyFile2) ? 'call 2' : null,
                     ]);
 
-                    throw new RuntimeException('race_worker.php failed to reach readiness barrier: ' . implode(', ', $waiting));
+                    throw new RuntimeException('race_worker.php failed to reach readiness barrier: ' . implode(', ', $waiting) . ($ended === [] ? '' : ' (' . implode('; ', $ended) . ')'));
                 }
 
                 usleep(1000);
@@ -248,7 +281,7 @@ trait ConcurrentDbRaceTrait
         unlink($go);
 
         $environment = array_merge(array_filter($_SERVER, static fn ($value): bool => is_scalar($value)), ['RACE_READY_FILE' => $ready, 'RACE_GO_FILE' => $go]);
-        $process     = proc_open([PHP_BINARY, __DIR__ . '/RaceWorker.php', $method, ...array_map('strval', $arguments)], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, ROOTPATH, $environment);
+        $process     = proc_open([PHP_BINARY, $this->raceWorkerScript(), $method, ...array_map('strval', $arguments)], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, ROOTPATH, $environment);
 
         if (! is_resource($process)) {
             throw new RuntimeException('The worker did not start.');
@@ -259,6 +292,12 @@ trait ConcurrentDbRaceTrait
         $deadline = microtime(true) + 10.0;
 
         while (! file_exists($ready) && microtime(true) < $deadline) {
+            $words = $this->raceWorkerEndedEarly($process, $pipes);
+
+            if ($words !== null && ! file_exists($ready)) {
+                throw new RuntimeException('The worker did not reach its barrier, ' . $words);
+            }
+
             usleep(1000);
         }
 
@@ -296,7 +335,7 @@ trait ConcurrentDbRaceTrait
             unlink($ready);
 
             $process = proc_open(
-                array_merge([PHP_BINARY, __DIR__ . '/RaceWorker.php', $method], array_map('strval', [...$arguments, $outcome])),
+                array_merge([PHP_BINARY, $this->raceWorkerScript(), $method], array_map('strval', [...$arguments, $outcome])),
                 [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
                 $pipes,
                 ROOTPATH,
@@ -315,7 +354,15 @@ trait ConcurrentDbRaceTrait
         try {
             $deadline = microtime(true) + 30.0;
 
-            while (array_filter($sessions, static fn (array $session): bool => ! file_exists($session['ready'])) !== []) {
+            while (($waiting = array_filter($sessions, static fn (array $session): bool => ! file_exists($session['ready']))) !== []) {
+                foreach ($waiting as $index => $session) {
+                    $ended = $this->raceWorkerEndedEarly($session['process'], $session['pipes']);
+
+                    if ($ended !== null && ! file_exists($session['ready'])) {
+                        throw new RuntimeException('Session ' . $index . ' of the race did not reach the barrier, ' . $ended);
+                    }
+                }
+
                 if (microtime(true) >= $deadline) {
                     throw new RuntimeException('A session did not reach the barrier of the race.');
                 }
