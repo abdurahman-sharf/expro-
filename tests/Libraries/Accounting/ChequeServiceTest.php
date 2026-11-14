@@ -25,6 +25,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\CreditRefundFixtureTrait;
 use Tests\Support\CreditSourceFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
@@ -43,6 +44,7 @@ class ChequeServiceTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
     use CreditRefundFixtureTrait;
     use CreditSourceFixtureTrait;
     use DatabaseFingerprintTrait;
@@ -1670,5 +1672,45 @@ class ChequeServiceTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->freeSupplierCredit());
         $this->assertRefundsTie(CreditRefunds::SUPPLIER);
         $this->assertSupplierTies();
+    }
+
+    public function testDeposit_LetsExactlyOneOfTwoSessionsDepositTheSameCheque(): void
+    {
+        $chequeId = $this->received();
+        $session  = ['deposit', $chequeId, $this->today, $this->clerk];
+
+        $answers  = $this->raceSessions('chequeRace', [$session, $session]);
+        $expected = ['done', AccountingError::ChequeStatusInvalid->value];
+
+        sort($answers);
+        sort($expected);
+
+        $this->assertSame($expected, $answers);
+        $this->assertSame('deposited', $this->statusOf($chequeId));
+        $this->assertSame(1, $this->countJournalsOf(ChequeSources::DEPOSITED, $chequeId, 'posted'));
+        $this->assertSame('100.00', $this->balance($this->accountId('cheques_under_collection')));
+        $this->assertSame('0.00', $this->balance($this->accountId('notes_receivable')));
+    }
+
+    public function testCollect_LetsOnlyOneOfACollectionAndARejectionOfTheSameDepositedChequeStand(): void
+    {
+        $chequeId = $this->received();
+
+        $this->cheques->deposit($chequeId, $this->today, $this->clerk);
+
+        $answers  = $this->raceSessions('chequeRace', [['collect', $chequeId, $this->today, $this->clerk, '0.00'], ['reject', $chequeId, $this->today, $this->clerk]]);
+        $expected = ['done', AccountingError::ChequeStatusInvalid->value];
+
+        sort($answers);
+        sort($expected);
+
+        $this->assertSame($expected, $answers);
+
+        $status = $this->statusOf($chequeId);
+
+        $this->assertContains($status, ['collected', 'rejected']);
+        $this->assertSame($status === 'collected' ? 1 : 0, $this->countJournalsOf(ChequeSources::DEPOSIT_COLLECTED, $chequeId, 'posted'));
+        $this->assertSame($status === 'rejected' ? 2 : 0, $this->countJournalsOf(ChequeSources::DEPOSIT_REJECTED, $chequeId, 'posted'), 'A rejection after a deposit posts two journals');
+        $this->assertSame('0.00', $this->balance($this->accountId('cheques_under_collection')), 'What was under collection left it once');
     }
 }

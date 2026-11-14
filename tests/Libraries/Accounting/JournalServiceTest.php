@@ -42,6 +42,7 @@ use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\JournalAttachmentFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
@@ -51,6 +52,7 @@ class JournalServiceTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
     use ItemFixtureTrait;
     use JournalAttachmentFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -3368,5 +3370,70 @@ class JournalServiceTest extends CIUnitTestCase
         $this->assertSame([], $lines[0]->analysis->distribution);
         $this->assertNull($lines[1]->analysis->costCenterId);
         $this->assertFalse($lines[1]->analysis->hasCharge());
+    }
+
+    private function journalists(): int
+    {
+        return $this->employeeWithGrants([AccountingGuard::JOURNALS_ALL, AccountingGuard::JOURNALS_DRAFT, AccountingGuard::JOURNALS_POST, AccountingGuard::JOURNALS_REVERSE]);
+    }
+
+    private function cashBalanceOfTheBooks(): string
+    {
+        $row = $this->accountingDb()->query(
+            'SELECT COALESCE(SUM(l.debit - l.credit), 0) AS balance FROM ' . $this->accountingDb()->prefixTable('accounting_journal_lines') . ' l JOIN ' . $this->accountingDb()->prefixTable('accounting_journals') . ' j ON j.journal_id = l.journal_id WHERE l.account_id = ? AND j.status IN (?, ?)',
+            [$this->accountId('cash'), 'posted', 'reversed'],
+        )->getRow();
+
+        return bcadd((string) $row->balance, '0', 2);
+    }
+
+    public function testReverse_LetsExactlyOneOfTwoSessionsReverseTheSameJournal(): void
+    {
+        $journalist = $this->journalists();
+        $journalId  = $this->service->postNew($this->journalInput('250.00'), $journalist);
+        $session    = ['reverse', $journalId, '2026-10-22', $journalist];
+
+        $answers  = $this->raceSessions('journalRace', [$session, $session]);
+        $expected = ['done', AccountingError::AlreadyReversed->value];
+
+        sort($answers);
+        sort($expected);
+
+        $this->assertSame($expected, $answers);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('reverses_journal_id', $journalId)->countAllResults());
+        $this->assertSame('0.00', $this->cashBalanceOfTheBooks(), 'The journal and its one reversal cancel out');
+    }
+
+    public function testPostDraft_PostsTheSameDraftOnceWhenTwoSessionsPostItAtTheSameTime(): void
+    {
+        $journalist = $this->journalists();
+        $draftId    = $this->service->saveDraft($this->journalInput('75.00'), $journalist);
+        $before     = (int) $this->accountingDb()->table('accounting_sequences')->where('series', 'manual')->get()->getRow()->last_number;
+        $session    = ['postDraft', $draftId, $journalist];
+
+        $answers  = $this->raceSessions('journalRace', [$session, $session]);
+        $expected = ['done', AccountingError::NotADraft->value];
+
+        sort($answers);
+        sort($expected);
+
+        $this->assertSame($expected, $answers);
+        $this->assertSame('posted', $this->accountingDb()->table('accounting_journals')->where('journal_id', $draftId)->get()->getRow()->status);
+        $this->assertSame($before + 1, (int) $this->accountingDb()->table('accounting_sequences')->where('series', 'manual')->get()->getRow()->last_number, 'The session that lost does not use a number');
+        $this->assertSame('75.00', $this->cashBalanceOfTheBooks());
+    }
+
+    public function testPostNew_NumbersTwoJournalsPostedAtTheSameTimeWithTwoDifferentNumbers(): void
+    {
+        $journalist = $this->journalists();
+        $session    = ['postNew', $this->accountId('cash'), $this->accountId('sales_revenue'), '40.00', $journalist];
+
+        $this->assertSame(['done', 'done', 'done'], $this->raceSessions('journalRace', [$session, $session, $session]));
+
+        $numbers = array_column($this->accountingDb()->table('accounting_journals')->select('number')->where('source_type', 'manual')->where('status', 'posted')->get()->getResultArray(), 'number');
+
+        $this->assertCount(3, $numbers);
+        $this->assertCount(3, array_unique($numbers), 'No two manual journals share a number');
+        $this->assertSame('120.00', $this->cashBalanceOfTheBooks());
     }
 }

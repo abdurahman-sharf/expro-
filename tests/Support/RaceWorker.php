@@ -17,7 +17,10 @@ use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\CrossBranchPayments;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerOpening;
+use App\Libraries\Accounting\Bank\BankReconciliation;
 use App\Libraries\Accounting\InterBranchSettlements;
+use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\TreasuryTransfers;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\OpeningBalanceService;
@@ -532,6 +535,41 @@ $result = match ($method) {
         }
 
         $postCrossBranch(array_slice($args, 1));
+    }, (string) $args[array_key_last($args)]),
+    'journalRace' => $attempt(static function () use ($args): void {
+        $journals = new JournalService();
+
+        match ($args[0]) {
+            'reverse'   => $journals->reverse((int) $args[1], (string) $args[2], 'race', (int) $args[3]),
+            'postDraft' => $journals->postDraft((int) $args[1], (int) $args[2]),
+            'postNew'   => $journals->postNew([
+                'date'        => '2026-10-21',
+                'description' => 'Race journal',
+                'lines'       => [
+                    ['account_id' => (int) $args[1], 'debit' => (string) $args[3], 'credit' => ''],
+                    ['account_id' => (int) $args[2], 'debit' => '', 'credit' => (string) $args[3]],
+                ],
+            ], (int) $args[4]),
+        };
+    }, (string) $args[array_key_last($args)]),
+    'transferRace' => $attempt(static function () use ($args): void {
+        match ($args[0]) {
+            'cancel' => (new TreasuryTransfers())->cancel((int) $args[1], 'race', (int) $args[2]),
+        };
+    }, (string) $args[array_key_last($args)]),
+    'chequeRace' => $attempt(static function () use ($args): void {
+        $cheques = new ChequeService();
+
+        match ($args[0]) {
+            'deposit' => $cheques->deposit((int) $args[1], (string) $args[2], (int) $args[3]),
+            'collect' => $cheques->collect((int) $args[1], (string) $args[2], (string) $args[4], (int) $args[3]),
+            'reject'  => $cheques->reject((int) $args[1], (string) $args[2], (int) $args[3]),
+        };
+    }, (string) $args[array_key_last($args)]),
+    'bankRace' => $attempt(static function () use ($args): void {
+        match ($args[0]) {
+            'match' => (new BankReconciliation())->match((int) $args[1], (int) $args[2], array_map('intval', explode(',', (string) $args[3])), (int) $args[4]),
+        };
     }, (string) $args[array_key_last($args)]),
     default => throw new InvalidArgumentException("Unknown race method: {$method}"),
 };
