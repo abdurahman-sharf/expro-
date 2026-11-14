@@ -915,4 +915,22 @@ class ReportsControllerTest extends CIUnitTestCase
             $this->pageOf('/reports/summary_sales/' . $hours($this->reportDay . ' 10:30:00', $this->reportDay . ' 11:00:00') . '/sales/all'),
         );
     }
+
+    public function testDetailedReceivings_ReadsTheHoursOfTheNoteWhenTheReportIsAskedByTime(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $this->reportReceivings['a'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+        config(OSPOS::class)->settings['date_or_time_format'] = '1';
+        $hours = static fn (string $from, string $to): string => rawurlencode(rawurlencode($from)) . '/' . rawurlencode(rawurlencode($to));
+
+        $this->assertStringContainsString(
+            'RECV ' . $this->reportReceivings['a'] . ' (USD)',
+            $this->pageOf('/reports/detailed_receivings/' . $hours($this->reportDay . ' 08:00:00', $this->reportDay . ' 10:00:00') . '/all/all'),
+        );
+        $this->assertStringNotContainsString(
+            'report_foreign_currency',
+            $this->pageOf('/reports/detailed_receivings/' . $hours($this->reportDay . ' 09:30:00', $this->reportDay . ' 10:00:00') . '/all/all'),
+        );
+    }
 }
