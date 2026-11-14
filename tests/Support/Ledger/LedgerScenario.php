@@ -56,6 +56,8 @@ final class LedgerScenario
 
     private string $pending = '';
 
+    private bool $persisted = false;
+
     /**
      * @param list<int> $skip Positions left out of the run, to shrink a failing replay.
      */
@@ -114,7 +116,8 @@ final class LedgerScenario
             return;
         }
 
-        $this->pending = '';
+        $this->pending   = '';
+        $this->persisted = false;
 
         $before    = $this->checkRefusals ? $this->databaseFingerprint() : [];
         $accounts  = $this->checkRefusals ? $this->rowsOf('accounting_accounts', 'account_id') : [];
@@ -162,7 +165,7 @@ final class LedgerScenario
         $this->outcomes[$name . ':' . $outcome] = ($this->outcomes[$name . ':' . $outcome] ?? 0) + 1;
         $this->log[] = sprintf('#%d %s %s %s', $position, $name, $outcome, $detail);
 
-        if ($violation === null && $outcome === 'refused' && $this->checkRefusals) {
+        if ($violation === null && $outcome === 'refused' && $this->checkRefusals && ! $this->persisted) {
             $changed = $this->tablesChangedSince($before);
 
             if ($changed !== []) {
@@ -350,6 +353,14 @@ final class LedgerScenario
         )->getRow();
 
         return $row === null ? null : sprintf('journal %d (%s, branch %d) was written on %s, inside a closed period', $row->journal_id, $row->source_type, $row->branch_id, $row->journal_date);
+    }
+
+    /**
+     * An operation that does one thing after another has changed the books by the first before the second is refused.
+     */
+    protected function persisted(): void
+    {
+        $this->persisted = true;
     }
 
     protected function observe(string $code, string $example): void

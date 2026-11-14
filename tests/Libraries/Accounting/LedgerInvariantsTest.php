@@ -100,6 +100,8 @@ class LedgerInvariantsTest extends CIUnitTestCase
             $this->fail($this->failure($runner, $seed, $operations, $skip, $broken));
         }
 
+        $runner->scenario->observed += $runner->invariants->observed;
+
         $negative = $runner->invariants->locationsValuedBelowNothing();
 
         if ($negative !== []) {

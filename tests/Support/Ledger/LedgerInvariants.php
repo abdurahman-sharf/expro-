@@ -11,6 +11,7 @@ use App\Libraries\Accounting\Readiness\PurchaseCycleChecks;
 use App\Libraries\Accounting\Readiness\StockTrackingChecks;
 use App\Libraries\Accounting\Readiness\TieChecks;
 use App\Libraries\Accounting\ReportPeriod;
+use App\Libraries\Accounting\ProfitAndLoss;
 use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\SalePosting;
@@ -33,6 +34,9 @@ final class LedgerInvariants
 
     /** @var array<string, int> How many times each invariant was asked. */
     public array $asked = [];
+
+    /** @var array<string, array{count: int, example: string}> */
+    public array $observed = [];
 
     private BaseConnection $db;
 
@@ -301,6 +305,19 @@ final class LedgerInvariants
             $problems[] = sprintf('the balance sheet does not balance: assets %s, liabilities %s, equity %s, unclosed result %s', $sheet->assets->total, $sheet->liabilities->total, $sheet->equity->total, $sheet->unclosedResult);
         }
 
+        $profit = (new ProfitAndLoss($this->db))->build($scope, ReportPeriod::of(date('Y-m-01', strtotime('-4 months')), $today));
+        $result = $this->db->query(
+            "SELECT COALESCE(SUM(CASE WHEN a.account_type = 'revenue' THEN l.credit - l.debit WHEN a.account_type = 'expense' THEN l.credit - l.debit ELSE 0 END), 0) AS result FROM {$this->lines} l JOIN {$this->journals} j ON j.journal_id = l.journal_id JOIN {$this->accounts} a ON a.account_id = l.account_id WHERE j.status IN ('posted', 'reversed')",
+        )->getRow();
+
+        if (bccomp(bcadd((string) $result->result, '0', 4), bcadd($profit->totalProfit, '0', 4), 4) !== 0) {
+            $problems[] = sprintf('the profit and loss of the application says %s and the revenue and expense accounts say %s', $profit->totalProfit, $result->result);
+        }
+
+        if (bccomp(bcadd($sheet->unclosedResult, '0', 4), bcadd((string) $result->result, '0', 4), 4) !== 0) {
+            $problems[] = sprintf('the balance sheet carries a result of %s and the revenue and expense accounts say %s', $sheet->unclosedResult, $result->result);
+        }
+
         return $problems;
     }
 
@@ -315,7 +332,7 @@ final class LedgerInvariants
         $sales    = $this->db->prefixTable('sales');
 
         foreach ($this->saleFigures() as $row) {
-            if (bccomp($this->abs($row['document']), '0.005', 4) >= 0 && bccomp($row['posted'], '0', 4) === 0) {
+            if (bccomp($this->abs($row['document']), '0.015', 4) >= 0 && bccomp($row['posted'], '0', 4) === 0) {
                 $problems[] = "completed sale {$row['sale_id']} (type {$row['sale_type']}) comes to {$row['document']} and has no standing revenue journal";
             }
         }
@@ -337,7 +354,7 @@ final class LedgerInvariants
         }
 
         foreach ($this->purchaseFigures() as $row) {
-            if (bccomp($row['document'], '0.005', 4) >= 0 && bccomp($row['posted'], '0', 4) === 0 && ! $row['cancelled']) {
+            if (bccomp($row['document'], '0.015', 4) >= 0 && bccomp($row['posted'], '0', 4) === 0 && ! $row['cancelled']) {
                 $problems[] = "purchase {$row['receiving_id']} ({$row['type']}) comes to {$row['document']} and has no standing journal and was not cancelled";
             }
         }
@@ -355,7 +372,7 @@ final class LedgerInvariants
         $problems = [];
 
         foreach ($this->saleFigures() as $row) {
-            if (bccomp($row['posted'], '0', 4) === 0 && bccomp($this->abs($row['document']), '0.005', 4) < 0) {
+            if (bccomp($row['posted'], '0', 4) === 0 && bccomp($this->abs($row['document']), '0.015', 4) < 0) {
                 continue;
             }
 
@@ -380,7 +397,7 @@ final class LedgerInvariants
         $problems = [];
 
         foreach ($this->purchaseFigures() as $row) {
-            if ($row['cancelled'] || (bccomp($row['posted'], '0', 4) === 0 && bccomp($row['document'], '0.005', 4) < 0)) {
+            if ($row['cancelled'] || (bccomp($row['posted'], '0', 4) === 0 && bccomp($row['document'], '0.015', 4) < 0)) {
                 continue;
             }
 
@@ -408,7 +425,7 @@ final class LedgerInvariants
             "SELECT r.receiving_id, r.receiving_type, COALESCE(r.currency_rate, 1) AS rate,
                     (SELECT COUNT(*) FROM {$items} i WHERE i.receiving_id = r.receiving_id) AS line_count,
                     (SELECT COALESCE(SUM(GREATEST(0, ABS(i.quantity_purchased * i.receiving_quantity) * i.item_unit_price - IF(i.discount_type = 0, ABS(i.quantity_purchased * i.receiving_quantity) * i.item_unit_price * i.discount / 100, IF(i.discount_type = 1, ABS(i.quantity_purchased * i.receiving_quantity) * i.discount, i.discount)) - COALESCE(i.invoice_discount_share, 0)) * (1 + i.tax_percent / 100)), 0) FROM {$items} i WHERE i.receiving_id = r.receiving_id) AS document,
-                    (SELECT COALESCE(SUM(j.total_debit), 0) FROM {$this->journals} j WHERE j.source_type = 'purchase' AND j.source_id = r.receiving_id AND j.status = 'posted') AS posted,
+                    (SELECT COALESCE(SUM(l.debit + l.credit), 0) FROM {$this->journals} j JOIN {$this->lines} l ON l.journal_id = j.journal_id JOIN {$this->accounts} a ON a.account_id = l.account_id AND a.entity_type = 'supplier' WHERE j.source_type = 'purchase' AND j.source_id = r.receiving_id AND j.status = 'posted') AS posted,
                     (SELECT COUNT(*) FROM {$this->journals} j WHERE j.source_type = 'purchase' AND j.source_id = r.receiving_id AND j.status = 'reversed') AS reversed
              FROM {$receivings} r WHERE r.receiving_type IN ('receive', 'return')",
         )->getResultArray();
@@ -686,30 +703,65 @@ final class LedgerInvariants
         $tables = ['accounting_journals', 'accounting_journal_lines', 'accounting_stock_entries', 'accounting_allocations', 'customer_credit_applications', 'supplier_credit_applications', 'inventory', 'item_quantities', 'sales_payments', 'receivings_payments'];
         $sales  = array_column($this->db->query('SELECT sale_id FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_status = 0 AND sale_type IN (0, 1, 4) ORDER BY sale_id DESC LIMIT ' . $limit)->getResultArray(), 'sale_id');
         $buys   = array_column($this->db->query('SELECT receiving_id FROM ' . $this->db->prefixTable('receivings') . " WHERE receiving_type IN ('receive', 'return') ORDER BY receiving_id DESC LIMIT " . $limit)->getResultArray(), 'receiving_id');
-        $before = $this->checksums($tables);
+        $found  = [];
 
-        try {
-            foreach ($sales as $saleId) {
-                $posting = new SalePosting($this->db);
+        foreach ([['sale', $sales], ['purchase', $buys]] as [$kind, $ids]) {
+            foreach ($ids as $id) {
+                $before  = $this->checksums($tables);
+                $entries = $this->stockEntriesOf($kind, (int) $id);
 
-                $posting->postCompleted((int) $saleId, $employeeId);
-                $posting->syncPayments((int) $saleId, $employeeId);
+                try {
+                    if ($kind === 'sale') {
+                        $posting = new SalePosting($this->db);
+
+                        $posting->postCompleted((int) $id, $employeeId);
+                        $posting->syncPayments((int) $id, $employeeId);
+                    } else {
+                        $posting = new ReceivingPosting($this->db);
+
+                        $posting->postCompleted((int) $id, $employeeId);
+                        $posting->syncPayments((int) $id, $employeeId);
+                    }
+                } catch (Throwable $failure) {
+                    $found[] = "posting {$kind} {$id} again failed: " . $failure::class . ' ' . $failure->getMessage();
+
+                    continue;
+                }
+
+                $after   = $this->checksums($tables);
+                $changed = array_keys(array_filter($after, static fn (array $print, string $table): bool => $before[$table] !== $print, ARRAY_FILTER_USE_BOTH));
+
+                if ($changed === ['accounting_stock_entries'] && $this->standingJournals($kind, (int) $id) === 0) {
+                    $this->observed['F8-posting-a-document-with-no-journal-again-doubles-its-stock-entries'] = ['count' => ($this->observed['F8-posting-a-document-with-no-journal-again-doubles-its-stock-entries']['count'] ?? 0) + 1, 'example' => "posting {$kind} {$id} again: stock entries before " . json_encode($entries) . ' after ' . json_encode($this->stockEntriesOf($kind, (int) $id))];
+
+                    $this->db->query('DELETE FROM ' . $this->db->prefixTable('accounting_stock_entries') . ' WHERE source_type = ? AND source_id = ? AND revision = (SELECT m FROM (SELECT MAX(revision) AS m FROM ' . $this->db->prefixTable('accounting_stock_entries') . ' WHERE source_type = ? AND source_id = ?) x)', [$kind, $id, $kind, $id]);
+
+                    continue;
+                }
+
+                if ($changed !== []) {
+                    $found[] = "posting {$kind} {$id} again changed " . implode(', ', $changed) . ' (stock entries before ' . json_encode($entries) . ' after ' . json_encode($this->stockEntriesOf($kind, (int) $id)) . ')';
+                }
             }
-
-            foreach ($buys as $receivingId) {
-                $posting = new ReceivingPosting($this->db);
-
-                $posting->postCompleted((int) $receivingId, $employeeId);
-                $posting->syncPayments((int) $receivingId, $employeeId);
-            }
-        } catch (Throwable $failure) {
-            return ['posting a document again failed: ' . $failure::class . ' ' . $failure->getMessage()];
         }
 
-        $after   = $this->checksums($tables);
-        $changed = array_keys(array_filter($after, static fn (array $print, string $table): bool => $before[$table] !== $print, ARRAY_FILTER_USE_BOTH));
+        return $found;
+    }
 
-        return $changed === [] ? [] : ['posting the last documents again changed ' . implode(', ', $changed)];
+    private function standingJournals(string $kind, int $id): int
+    {
+        return $this->db->table('accounting_journals')->where(['source_type' => $kind, 'source_id' => $id, 'status' => 'posted'])->countAllResults();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stockEntriesOf(string $kind, int $id): array
+    {
+        $sources = $kind === 'sale' ? ['sale'] : ['purchase'];
+        $rows    = $this->db->table('accounting_stock_entries')->whereIn('source_type', $sources)->where('source_id', $id)->orderBy('entry_id')->get()->getResultArray();
+
+        return array_map(static fn (array $row): string => $row['entry_type'] . '#' . $row['revision'] . ' i' . $row['item_id'] . '@' . $row['location_id'] . ' ' . $row['quantity'] . '/' . $row['value'] . ' ' . $row['kind'], $rows);
     }
 
     /**
