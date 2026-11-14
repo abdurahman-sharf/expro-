@@ -1858,8 +1858,7 @@ Source: [readiness-assessment-report.md](../readiness-assessment-report.md) and 
 | R4-03 | open, owner decision: a purchase return does not refuse negative stock when the option is `refuse` |
 | R2-15 | open: no duplicate key on the supplier payment and on the expense (needs a migration) |
 | R5-02, R5-06, R5-07, R5-08 | open: English description of automatic journals in an Arabic interface; no print or export of the single customer and supplier statement; the tax report PDF breaks the figures; no page numbers on a multi-page document |
-| R5-09 | open: the QR of the A4 invoice is text; `wp/F7` prints an image and is not merged (market decision); thermal receipts print no QR |
+| R5-09 | **done** (E158): the QR is an image on the A4 documents (`wp/F7` merged) and on the thermal receipts of 80 and 58 mm; the second phase of the Saudi e-invoice (tags 6 to 9, CSID, reporting) is not built |
 | R6-10 | open: about four N+1 query sites (customer search, readiness ties, purchases reports, suspended list) |
 | F8 leftovers | open: profit and item profit for a year are refused at 40,000 documents or more; the net position screen for a year is refused above 10,000 rows (the CSV works); the invoice returns report runs 9,167 queries |
 | F9 leftovers | `ENGINE=MEMORY` removed from the legacy detailed and summary builders (`d94a17d`); `Summary_report` reads the settings before its builder (`2560486`); the binary-log format `STATEMENT` is not verified with the one-statement `READ COMMITTED` helper |
-
