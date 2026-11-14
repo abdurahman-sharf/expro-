@@ -239,7 +239,7 @@ final class RoutesAccessTest extends CIUnitTestCase
      *
      * @return array<string, string> Route key to verdict.
      */
-    private function walk(?int $personId, ?callable $skip = null): array
+    private function walk(?int $personId, ?callable $skip = null, string $query = ''): array
     {
         $verdicts = [];
 
@@ -248,7 +248,9 @@ final class RoutesAccessTest extends CIUnitTestCase
                 continue;
             }
 
-            $verdicts[$route['verb'] . ' ' . $route['uri']] = $this->verdict($this->asking($personId, $route['verb'], $route['uri']));
+            $uri = $route['verb'] === 'GET' && $query !== '' ? $route['uri'] . '?' . $query : $route['uri'];
+
+            $verdicts[$route['verb'] . ' ' . $route['uri']] = $this->verdict($this->asking($personId, $route['verb'], $uri));
         }
 
         return $verdicts;
@@ -375,6 +377,35 @@ final class RoutesAccessTest extends CIUnitTestCase
         }
 
         $this->assertNotEmpty($gates);
+    }
+
+    public function testRoutesNeverBreakTheSqlOnHostileValuesOfTheQueryString(): void
+    {
+        $hostile = http_build_query([
+            'search'     => "x' OR '1'='1\\\" ); --",
+            'term'       => "'\"%_\\) UNION SELECT 1 -- ",
+            'sort'       => 'zzz_not_a_column; SELECT SLEEP(1)',
+            'order'      => 'desc; SELECT SLEEP(1)',
+            'limit'      => '5; SELECT 1',
+            'offset'     => '-1',
+            'start_date' => "2026-01-01' OR 1=1 -- ",
+            'end_date'   => "2026-12-31' OR 1=1 -- ",
+            'from'       => "2026-01-01' OR 1=1 -- ",
+            'to'         => "2026-12-31' OR 1=1 -- ",
+            'date'       => "' OR 1=1 -- ",
+            'kind'       => "' OR 1=1 -- ",
+            'mode'       => "' OR 1=1 -- ",
+            'status'     => "' OR 1=1 -- ",
+            'filters'    => ["' OR 1=1 -- "],
+        ]);
+
+        $verdicts = $this->walk($this->holderOfEverything(), static fn (string $verb): bool => $verb !== 'GET', $hostile);
+        $this->writeLog('hostile-query.tsv', $verdicts);
+
+        $broken = array_filter($verdicts, static fn (string $verdict): bool => str_contains($verdict, 'DatabaseException') || str_contains(strtolower($verdict), 'sql syntax'));
+
+        $this->assertGreaterThan(300, count($verdicts));
+        $this->assertSame([], $broken, 'GET routes that let a hostile value of the query string reach the SQL');
     }
 
     /**
