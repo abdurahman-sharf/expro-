@@ -1028,7 +1028,7 @@ class JournalServiceTest extends CIUnitTestCase
 
         $this->assertSame([$early], $ids($this->service->search(['date_to' => '2026-09-30'])));
         $this->assertSame([$late], $ids($this->service->search(['date_from' => '2026-10-01'])));
-        $this->assertSame(2, $this->service->search(['created_from' => date('Y-m-d'), 'created_to' => date('Y-m-d')])['total']);
+        $this->assertSame(2, $this->service->search(['created_from' => $this->databaseToday(), 'created_to' => $this->databaseToday()])['total']);
         $this->assertSame(0, $this->service->search(['created_to' => '2000-01-01'])['total']);
         $this->assertSame(2, $this->service->search(['date_from' => 'not a date'])['total']);
     }

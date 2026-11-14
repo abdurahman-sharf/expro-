@@ -193,7 +193,7 @@ class SupplierPaymentListTest extends CIUnitTestCase
 
         $this->assertSame([$this->daysAgo(3), 1], [$byKey['purchase:' . $entered]->doc_date, (int) $byKey['purchase:' . $entered]->date_entered]);
         $this->assertSame([$this->daysAgo(6), 0, $this->daysAgo(6) . ' 09:30:00'], [$byKey['purchase:' . $legacy]->doc_date, (int) $byKey['purchase:' . $legacy]->date_entered, $byKey['purchase:' . $legacy]->saved_at]);
-        $this->assertSame(date('Y-m-d'), substr((string) $byKey['purchase:' . $entered]->saved_at, 0, 10), 'The time it was saved is kept apart from the date');
+        $this->assertSame($this->databaseToday(), substr((string) $byKey['purchase:' . $entered]->saved_at, 0, 10), 'The time it was saved is kept apart from the date, and it is the clock of the database');
     }
 
     public function testSearch_ShowsMoneyTheSupplierGaveBackAsANegativeAmount(): void

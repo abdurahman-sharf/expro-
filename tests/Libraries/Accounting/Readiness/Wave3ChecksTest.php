@@ -134,7 +134,7 @@ final class Wave3ChecksTest extends CIUnitTestCase
         $rows = [];
 
         for ($row = 0; $row < $count; $row++) {
-            $rows[] = ['comment' => self::CAP_ROWS, 'employee_id' => $this->clerk, 'sale_type' => $saleType, 'return_document' => 'refund_invoice'];
+            $rows[] = ['comment' => self::CAP_ROWS, 'employee_id' => $this->clerk, 'sale_type' => $saleType, 'sale_time' => date('Y-m-d H:i:s'), 'return_document' => 'refund_invoice'];
         }
 
         $this->accountingDb()->table('sales')->insertBatch($rows);
