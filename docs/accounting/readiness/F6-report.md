@@ -47,7 +47,7 @@
 - **الاعتماد:** عبر `CustomerOpening::create` و`SupplierAdvances::openingBalance` (**قيد لكل طرف** كما تفعل الاستمارتان)، **بصمة** تغطي كل صف وأخطاءه لا حالة ترحيله (فتبقى ثابتة وسط الخطوات)، تُقارن عند كل خطوة؛ **معاملة لكل مقطع من 25 طرفًا** تحت أقفال الأطراف مرتبة؛ ما رُحِّل لا يُرحَّل ثانية (**الطرف الذي له الرصيد نفسه المكتوب في الملف يُترك**: تشغيل الملف مرتين لا يرحّل شيئًا مرتين)؛ فشل صف يُرجع **مقطعه كله** ويقول رقم الصف في الملف والسبب؛ **قفل واحد لكل نوع** (`OpeningImportBusy`)؛ ملف الخطوة يُحفظ في `writable/uploads/opening_import/<sha256>.csv` (0640، يُمحى ما فوق أسبوع) فتقرأ الخطوة ما عُوين؛ **قيد تدقيق `opening_import_posted` لكل تشغيل** (النوع وبصمة الملف والبصمة والعدد والمتبقي والصف الفاشل) فوق قيود الخدمتين لكل طرف.
 - **الصلاحية:** العملاء `acc_opening_manage` (كاستمارتهم، وتشترط إعداد `accounting_customer_opening`)، والموردون `acc_payables_manage`؛ **كل الفروع** (كالاستمارتين)؛ الصفحة تفتح لمن يملك أحدهما وتخفي النوع الآخر.
 - **القياس على القاعدة القديمة** (1,939 عميلًا: `dev/import-2000*.log`): **معاينة 0.8 ثانية جدارية (0.4 معالج، 20 ميغابايت)، 12 خطوة اعتماد كل منها ≤ 10.3 ثانية (معالج ≈ 1.1 ثانية: الوقت انتظار قاعدة بيانات والآلة محمّلة)، المجموع 109 ثوانٍ**؛ النتيجة 1,939 رصيدًا (1,662 يدين و277 دائنًا، صافيها 1,482,919.50) و1,939 قيدًا مجموع مدينها ودائنها 0 و12 قيد تدقيق؛ **إعادة الملف: معاينة 0.1 ثانية وصفر ترحيل**.
-- **الاختبار بـ2,000 صف (مكتبة):** `OpeningImportTest::testApprove_PostsTheBalancesOfAFileOfTwoThousandPartiesInStepsThatEachFitARequest`: **تعبئة الحسابات 23.3 ثانية (خارج القياس)، معاينة 1.3 ثانية، 14 خطوة اعتماد أبطأها 5.8 ثانية (ميزانية 5 ثوانٍ)، كل الخطوات 71.8 ثانية**، وتنتهي بـ2,000 رصيد و2,000 قيد والميزان متوازن.
+- **الاختبار بـ2,000 صف (مكتبة):** `OpeningImportTest::testApprove_PostsTheBalancesOfAFileOfTwoThousandPartiesInStepsThatEachFitARequest`: **تعبئة الحسابات 23.3 ثانية (خارج القياس)، معاينة 1.3 ثانية، 14 خطوة اعتماد أبطأها 5.8 ثانية (ميزانية 5 ثوانٍ)، كل الخطوات 71.8 ثانية** (وفي التشغيل الأخير على الشجرة المدموجة: 21.0 و1.2 و12 خطوة وأبطأها 5.6 وكل الخطوات 60.0 ثانية)، وتنتهي بـ2,000 رصيد و2,000 قيد والميزان متوازن.
 
 **(ب) الفحص `LEGACY-BALANCES-OUTSIDE-BOOKS`** (في `BackfillChecks`، سطر في جدول الدليل وعدد الفحوص 32): العملاء: ما تركته دفعات النوع «آجل» (بأي لغة يعرفها `PaymentType::fromLabel`) في مبيعات مكتملة بلا قيد؛ الموردون: قيمة أسطر مشترياتهم الآجلة بلا قيد (قبل الضريبة وخصم الفاتورة)؛ **لا يُعدّ** طرف له رصيد افتتاحي قائم بتاريخ ≥ تاريخ المستند ولا المحذوفون؛ **منفصلة قبل تاريخ البدء** («استورد أرصدتهم») **وبعده** («شغّل الترحيل الرجعي»). REVIEW إن كانت المحاسبة مفعّلة ووُجد طرف؛ PASS مع الأعداد إن كانت مطفأة. **القاعدة القديمة** (`dev/readiness-after.txt`، 9 ثوانٍ): `621 customers carry a net 587256.6000 in 1160 document(s) dated since the start date` و`177 suppliers carry a net 13884099.5947 in 587 document(s)`. **تحذير:** المبلغ **تقريبي للموردين** (أسطر قبل الضريبة وخصم الفاتورة) ودقيق لـ«آجل» الدفعات للعملاء؛ ولا يتحقق من أن الدفعة «آجل» تساوي ما بقي على المستند.
 
@@ -67,9 +67,9 @@
 | `tests/Libraries/Accounting/Readiness/BackfillChecksTest.php` | 19، 124 |
 | `tests/Libraries/Accounting/Backfill/BackfillBatchesTest.php` | 15، 110 |
 | `tests/Libraries/Accounting/Backfill/BackfillBudgetTest.php` | 4، 7 |
-| `tests/Libraries/Accounting/Backfill/BackfillServiceTest.php` | __SERVICE__ |
-| `tests/Controllers/AccountingBackfillControllerTest.php` | __BFCONTROLLER__ |
-| `tests/Libraries/Accounting/OpeningImport/OpeningImportTest.php` | 32، 300 (منها اختبار الـ2,000 صف) |
+| `tests/Libraries/Accounting/Backfill/BackfillServiceTest.php` | 96 اختبارًا، 831 تأكيدًا (بعد الدمج) |
+| `tests/Controllers/AccountingBackfillControllerTest.php` | 53، 451 |
+| `tests/Libraries/Accounting/OpeningImport/OpeningImportTest.php` | 32، 300 ثم 32، 298 في التشغيل الأخير (منها اختبار الـ2,000 صف) |
 | `tests/Libraries/Accounting/OpeningImport/OpeningImportParserTest.php` | 10، 17 |
 | `tests/Libraries/Accounting/OpeningImport/OpeningImportFilesTest.php` | 5، 11 |
 | `tests/Controllers/AccountingOpeningImportControllerTest.php` | 27، 221 |
@@ -78,7 +78,7 @@
 | `tests/LanguageFilesTest.php` | 3856، 14432 |
 | `tests/Config/RoutesAccessTest.php` | **فشل `testRoutesRefuseAVisitorWhoIsNotSignedIn` بـ21 مسارًا تلقائيًا `::unknown::`: يفشل بالمسارات نفسها على `9c95ad9` من غير شيفرتي** (جرّبته في نسخة عمل مؤقتة)؛ لا مسار من مساراتي فيها، والاختبارات الباقية (6) ناجحة أو متخطاة |
 
-__MERGE__
+**بعد دمج `wp/F5`** (آخر ما دُفع منه `cf5eab9`): تعارضت ثلاثة مواضع في عدّ الفحوص (`ReadinessRunnerTest` و`AccountingReadinessTest` وجملة العدد في `readiness-runbook.md`) وحُلّت **إضافيًا**: فحصا F5 وفحصي الواحد = **34 فحصًا** («أربعة وثلاثين فحصًا»). الاختبارات على الشجرة المدموجة: `ReadinessRunnerTest` 14، 69 و`ReadinessRunbookTest` 29، 173 و`AccountingReadinessTest` 29، 158 و`DeploymentChecksTest` 15، 55 و`BackfillChecksTest` 19، 124 و`LanguageFilesTest` 3856، 14432 و`PurchaseBackfillTest` 16، 122 (يشمل `testDocumentAmount`).
 
 ## 4. ما لم أستطع التحقق منه أو لم أفعله
 
@@ -88,8 +88,18 @@ __MERGE__
 - **R1-05** (لغة أسماء أنواع الدفع) **لم أمسّه**، وهو يغيّر بصمة الدفعة بين CLI والويب، وفحص `LEGACY-BALANCES-OUTSIDE-BOOKS` يتبع لغة الجلسة في معرفة «آجل» كبقية النظام.
 - **استيراد الموردين** غير مقيس بحجم (اختبارات الوحدة 3 أطراف فقط؛ المسار نفسه والحجم لعملاء 1,939).
 - **السنوات المالية قبل أول سنة** (تاريخ بدء أقدم من أول سنة موجودة) يرفضها `update()` برسالة، ولا أنشئ سنوات للخلف.
-- ملاحظة إجرائية: استعملتُ `git stash` مرة واحدة (حفظ واسترجاع في الأمر نفسه) لتجربة الشيفرة القديمة **قبل** تعميم المنع؛ `git stash list` فارغة الآن.
+- ملاحظتان إجرائيتان: (1) استعملتُ `git stash` مرة واحدة (حفظ واسترجاع في الأمر نفسه، في بداية العمل) لتجربة الشيفرة القديمة **قبل** تعميم المنع؛ `git stash list` فارغة الآن. (2) أوقفتُ خادم التطوير الخاص بي على المنفذ 8096 بـ`pkill -f "php -d variables_order=EGPCS"`، **وهو نمط قد يطابق خادم تطوير لمشغّل آخر** إن كان يستعمل سطر التشغيل نفسه (وصفة R1): لم أجد خادمًا آخر بعدها، فمن فقد خادمه يعيد تشغيله.
 
 ## 5. الالتزامات
 
-__COMMITS__
+| الالتزام | المحتوى |
+|---|---|
+| `4031852` | الشيفرة والواجهات ومفاتيح اللغة والاختبارات: R1-03 وR1-04 وR1-07 وR1-11 وR1-06 |
+| `714cd01` | ميزانية زمنية متنبِّئة وسقف حجم المقطع للاعتماد بالخطوات، واختبارات مبالغ المحوِّلات، وصف الدليل |
+| `23848dc` | اختبارات (إصلاحات التواريخ فوق حد `TIMESTAMP` وأجسام الاستجابة وتنظيف الأرصدة الافتتاحية للموردين) ومسودة التقرير |
+| `bf32291` | دمج `wp/F5` (34 فحصًا) |
+| (هذا التقرير) | `docs/accounting/readiness/F6-report.md` |
+
+## 6. ملفات الأدلة
+
+تحت `/tmp/claude-0/-home-user-expro-/bb728d8f-d393-5401-ac14-56f0f0a97d9f/scratchpad/F6/`: سجلات الاختبارات `f62-enable-before.log` و`f62-settings-before.log` (قبل الإصلاح) و`f62-after.log` و`f64-run1.log` و`f6-run2.log` و`f6-run3.log` و`f6-run4.log` و`f6-run5.log`، و`base-routes.log` (فشل `RoutesAccessTest` على `9c95ad9`)، و`dev/` للقاعدة القديمة: `prep.sh` و`prep.log` (السنوات الأربع) و`harness.php` (أداة تطوير لا تدخل المنتج) و`preview-3000.log` و`approve-web-3000-run1-before-fix.log` و`approve-web-3000.log` (المستأنفة) و`approve_web.py` و`serve.sh` و`server-8096.log` و`import-2000.log` و`import-2000-again.log` و`import-2000-db.txt` و`readiness-after.txt`، وأداة مفاتيح اللغة `addkeys.py`. القاعدة `ospos_test_f6_legacy` باقية للمراجعة.
