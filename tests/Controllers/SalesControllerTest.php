@@ -1358,6 +1358,27 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertCount(2, $this->standing($invoice['saleId']));
     }
 
+    public function testPostDelete_SaysThatASaleWhoseReturnStandsCannotBeCancelledAndCancelsNothing(): void
+    {
+        $sale    = $this->postedInvoice(true, SALE_TYPE_POS);
+        $perfume = $sale['perfume'];
+
+        $this->save([$this->line($perfume, 0, '-1', '220', '120.00')], [$this->tax($perfume, 0, '-33.00')], [], SALE_TYPE_RETURN, -1, true, $sale['saleId']);
+
+        $stock    = $this->stock($sale['cream']);
+        $journals = $this->countJournals();
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/delete', ['ids' => [(string) $sale['saleId']]]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_sale_has_returns'), $result['message']);
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($sale['saleId'])->sale_status);
+        $this->assertEqualsWithDelta($stock, $this->stock($sale['cream']), 0.0001);
+        $this->assertSame($journals, $this->countJournals());
+    }
+
     public function testGetEdit_ShowsWhatIsOwedAndTheStatusOfEachPaymentOfAnIssuedInvoice(): void
     {
         $invoice = $this->postedInvoice();

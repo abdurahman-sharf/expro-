@@ -679,6 +679,7 @@ return [
     'error_routing_item_accounts_invalid'        => '',
     'error_routing_key_unknown'                  => '',
     'error_routing_type_invalid'                 => '',
+    'error_sale_has_returns'                     => '',
     'error_sale_locked'                          => '',
     'error_sale_payment_not_on_sale'             => '',
     'error_sales_order_customer_invalid'         => '',

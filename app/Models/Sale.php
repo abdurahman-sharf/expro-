@@ -2495,6 +2495,11 @@ class Sale extends Model
         }
     }
 
+    private function hasCompletedReturn(int $saleId): bool
+    {
+        return $this->db->table('sales')->where(['return_of_sale_id' => $saleId, 'sale_type' => SALE_TYPE_RETURN, 'sale_status' => COMPLETED])->countAllResults() > 0;
+    }
+
     private function goodsNeverLeft(int $saleType, ReturnDocument $document, ?int $originId): bool
     {
         return $saleType === SALE_TYPE_RETURN && $document === ReturnDocument::CreditNote && (new UndeliveredReturns($this->db))->neverDelivered($originId);
@@ -2517,6 +2522,13 @@ class Sale extends Model
         } catch (AccountingException $refusal) {
             $this->db->transRollback();
             $this->accountingFailure = $refusal;
+
+            return false;
+        }
+
+        if ($sale_status === COMPLETED && $this->hasCompletedReturn((int) $sale_id)) {
+            $this->db->transRollback();
+            $this->accountingFailure = new AccountingException(AccountingError::SaleHasReturns, 'A sale that goods have been returned from cannot be cancelled while the return stands.', ['sale_id' => (int) $sale_id]);
 
             return false;
         }

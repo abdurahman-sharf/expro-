@@ -3038,6 +3038,54 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame('0.00', $this->balance($this->customerAccount()));
     }
 
+    public function testDelete_RefusesToCancelAPointOfSaleSaleWhileAReturnOfItStandsAndLeavesTheBooksAndTheStockAsTheyWere(): void
+    {
+        $cycle    = $this->referenceInvoice();
+        $saleId   = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '816.50')], SALE_TYPE_POS);
+        $returnId = $this->save([$this->line($cycle['perfume'], 0, '-1', '220', '120.00')], [$this->tax($cycle['perfume'], 0, '-33.00')], [], SALE_TYPE_RETURN, -1, true, $saleId);
+
+        $this->assertGreaterThan(0, $returnId);
+
+        $journals = $this->countJournals();
+        $balance  = $this->balance($this->customerAccount());
+        $cream    = $this->stock($cycle['cream']);
+        $perfume  = $this->stock($cycle['perfume']);
+
+        $this->assertFalse($this->sales->delete($saleId, false, true, $this->employeeId));
+        $this->assertSame(AccountingError::SaleHasReturns, $this->failure()->error);
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($saleId)->sale_status);
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertSame($balance, $this->balance($this->customerAccount()));
+        $this->assertEqualsWithDelta($cream, $this->stock($cycle['cream']), 0.0001);
+        $this->assertEqualsWithDelta($perfume, $this->stock($cycle['perfume']), 0.0001);
+
+        $ledger = new StockLedger();
+
+        $this->assertSame([], ($ledger->mismatchedJournals()));
+
+        foreach ($ledger->reconcile() as $location) {
+            $this->assertSame(0, bccomp($location['unattributed'], '0', 4));
+        }
+
+        $this->assertSame(0, $this->countRows('accounting_posting_failures'));
+    }
+
+    public function testDelete_StillCancelsAPointOfSaleSaleWhoseReturnWasForAnotherSale(): void
+    {
+        $cycle  = $this->referenceInvoice();
+        $first  = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '816.50')], SALE_TYPE_POS);
+        $second = $this->save($cycle['items'], $cycle['taxes'], [$this->payment(lang('Sales.cash'), '816.50')], SALE_TYPE_POS);
+
+        $this->save([$this->line($cycle['perfume'], 0, '-1', '220', '120.00')], [$this->tax($cycle['perfume'], 0, '-33.00')], [], SALE_TYPE_RETURN, -1, true, $first);
+
+        $this->assertTrue($this->sales->delete($second, false, true, $this->employeeId));
+        $this->assertSame([], $this->standing($second));
+
+        foreach ((new StockLedger())->reconcile() as $location) {
+            $this->assertSame(0, bccomp($location['unattributed'], '0', 4));
+        }
+    }
+
     public function testUpdate_RefusesToMoveAnIssuedInvoiceToAnotherCustomerOrDateAsTheReferenceSystemDoes(): void
     {
         $case   = $this->behaviourCase('an-issued-invoice-keeps-its-customer-and-its-date', 'exact');
