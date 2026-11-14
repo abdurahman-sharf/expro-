@@ -194,6 +194,29 @@ final class SupplierAdvances
     }
 
     /**
+     * The accounts the journal of an opening balance debits and credits: the account of the supplier and the account of
+     * opening balances, the supplier's debited when they owe us.
+     *
+     * @param self::THEY_OWE|self::WE_OWE $side
+     *
+     * @return array{debit: int, credit: int}
+     *
+     * @throws PostingException
+     */
+    public function openingAccounts(int $supplierId, string $side): array
+    {
+        $equity = $this->resolver->accountFor(RoutingKey::OpeningBalance);
+
+        if ($equity === null) {
+            throw new PostingException(PostingError::RoutingRowCancelled, 'An opening balance cannot be entered without the account of opening balances.', ['routing_key' => RoutingKey::OpeningBalance->value]);
+        }
+
+        $supplier = $this->supplierAccount($supplierId);
+
+        return $side === self::THEY_OWE ? ['debit' => $supplier, 'credit' => $equity] : ['debit' => $equity, 'credit' => $supplier];
+    }
+
+    /**
      * @throws AccountingException|BranchException|PostingException
      */
     public function cancel(int $advanceId, string $reason, ?int $employeeId = null): void

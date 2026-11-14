@@ -579,6 +579,13 @@ $routes->group('accounting_periods', static function (RouteCollection $routes) u
     $routes->post('opening/stock/reverse', 'AccountingOpening::postStockReverse');
     $routes->get('opening/stock/reprice_form', 'AccountingOpening::getStockRepriceForm');
     $routes->post('opening/stock/reprice', 'AccountingOpening::postStockReprice');
+    $routes->get('opening_import', 'AccountingOpeningImport::getIndex');
+    $routes->post('opening_import/upload', 'AccountingOpeningImport::postUpload');
+    $routes->get('opening_import/sample/(:segment)', 'AccountingOpeningImport::getSample/$1');
+    $routes->get('opening_import/preview/(:segment)/(:segment)', 'AccountingOpeningImport::getPreview/$1/$2');
+    $routes->get('opening_import/export/(:segment)/(:segment)', 'AccountingOpeningImport::getExport/$1/$2');
+    $routes->get('opening_import/approve_form/(:segment)/(:segment)', 'AccountingOpeningImport::getApproveForm/$1/$2');
+    $routes->post('opening_import/approve', 'AccountingOpeningImport::postApprove');
 
     $routes->get('year_end', 'AccountingYearEnd::getIndex');
     $routes->get('year_end/csv', 'AccountingYearEnd::getCsv');
@@ -597,6 +604,8 @@ $routes->group('accounting_periods', static function (RouteCollection $routes) u
     $routes->post('backfill/approve/(:num)', 'AccountingBackfill::postApprove/$1');
     $routes->get('backfill/cancel_form/(:num)', 'AccountingBackfill::getCancelForm/$1');
     $routes->post('backfill/cancel/(:num)', 'AccountingBackfill::postCancel/$1');
+    $routes->post('backfill/create_years/(:num)', 'AccountingBackfill::postCreateYears/$1');
+    $routes->get('backfill/refused/(:num)', 'AccountingBackfill::getRefused/$1');
 });
 
 $routes->group('accounting_chart', static function (RouteCollection $routes): void {

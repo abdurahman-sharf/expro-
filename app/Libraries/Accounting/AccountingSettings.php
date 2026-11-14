@@ -175,13 +175,13 @@ final class AccountingSettings
     }
 
     /**
-     * The currency and the start date are fixed once a journal has been posted.
+     * The currency and the start date are fixed once the books hold a journal of any state: a draft
+     * and a preview carry the currency and a date of their own, and a posted one is the books.
      */
     public function isLocked(): bool
     {
         return $this->db->table('accounting_journals')
             ->where('company_id', CompanyContext::id())
-            ->whereIn('status', [JournalStatus::Posted->value, JournalStatus::Reversed->value])
             ->countAllResults() > 0;
     }
 
@@ -299,7 +299,7 @@ final class AccountingSettings
         }
 
         if ((isset($changes['base_currency']) || isset($changes['start_date'])) && $this->isLocked()) {
-            throw new AccountingException(AccountingError::SettingsLocked, 'The currency and the start date cannot change once a journal is posted.');
+            throw new AccountingException(AccountingError::SettingsLocked, 'The currency and the start date cannot change once the books hold a journal.');
         }
 
         if (isset($changes['start_date']) && $this->db->table('accounting_fiscal_years')->where('company_id', CompanyContext::id())->countAllResults() > 0 && ! $this->fiscalYearCovers($changes['start_date'])) {

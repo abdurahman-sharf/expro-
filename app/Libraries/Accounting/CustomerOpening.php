@@ -166,11 +166,14 @@ final class CustomerOpening
     }
 
     /**
-     * @param numeric-string $amount
+     * The accounts the journal of an opening balance debits and credits: the account of the customer and the account
+     * of opening balances, the customer's debited when they owe us.
      *
-     * @throws AccountingException|PostingException
+     * @return array{debit: int, credit: int}
+     *
+     * @throws PostingException
      */
-    private function write(int $customerId, int $branchId, string $side, string $amount, string $date, string $note, ?int $supersedes, ?int $employeeId): int
+    public function accountsFor(int $customerId, string $side): array
     {
         $equity   = $this->resolver->accountFor(RoutingKey::OpeningBalance);
         $customer = $this->resolver->accountFor(RoutingKey::Customers, $customerId);
@@ -183,6 +186,17 @@ final class CustomerOpening
             throw new PostingException(PostingError::EntityAccountMissing, 'The customer has no account of their own yet.', ['entity_id' => $customerId]);
         }
 
+        return $side === self::OWES_US ? ['debit' => $customer, 'credit' => $equity] : ['debit' => $equity, 'credit' => $customer];
+    }
+
+    /**
+     * @param numeric-string $amount
+     *
+     * @throws AccountingException|PostingException
+     */
+    private function write(int $customerId, int $branchId, string $side, string $amount, string $date, string $note, ?int $supersedes, ?int $employeeId): int
+    {
+        $accounts = $this->accountsFor($customerId, $side);
         $revision = $this->nextRevision($customerId);
 
         $this->db->table('customer_openings')->insert([
@@ -202,9 +216,7 @@ final class CustomerOpening
         $owed      = $side === self::OWES_US;
         $result    = $this->posting->post(new JournalDraft(
             date: $date,
-            lines: $owed
-                ? [new JournalLineDraft($customer, debit: $amount), new JournalLineDraft($equity, credit: $amount)]
-                : [new JournalLineDraft($equity, debit: $amount), new JournalLineDraft($customer, credit: $amount)],
+            lines: [new JournalLineDraft($accounts['debit'], debit: $amount), new JournalLineDraft($accounts['credit'], credit: $amount)],
             sourceType: self::SOURCE,
             sourceId: $customerId,
             revision: $revision,

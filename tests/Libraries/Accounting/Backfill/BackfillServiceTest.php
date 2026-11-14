@@ -8,6 +8,7 @@ use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\TaxReport;
 use App\Libraries\Accounting\Backfill\BackfillBatch;
+use App\Libraries\Accounting\Backfill\BackfillBudget;
 use App\Libraries\Accounting\Backfill\BackfillService;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
@@ -1038,6 +1039,220 @@ final class BackfillServiceTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $first);
     }
 
+    /**
+     * @return list<int> The expenses saved, one a day from the tenth of March.
+     */
+    private function expensesOfDays(int $count): array
+    {
+        $ids = [];
+
+        for ($day = 10; $day < 10 + $count; $day++) {
+            $ids[] = $this->legacyExpense((string) ($day * 10), '0', '2026-03-' . $day);
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function journalStatuses(int $batchId): array
+    {
+        return array_column($this->batchJournals($batchId), 'status');
+    }
+
+    public function testApproveStep_ChecksTheWholeBatchBeforeItPostsAnythingAndGoesOnFromWhereItStopped(): void
+    {
+        $this->expensesOfDays(5);
+
+        $batch    = $this->previewed(['chunk_size' => 2]);
+        $shown    = $this->batchJournals($batch->id);
+        $seen     = [];
+        $steps    = 0;
+        $progress = null;
+
+        do {
+            $batch    = $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+            $progress = $this->backfill->progress($batch);
+            $seen[]   = [$batch->status->value, $progress->phase, $progress->done];
+
+            if ($batch->status === BackfillStatus::Verifying) {
+                $this->assertSame(['preview', 'preview', 'preview', 'preview', 'preview'], $this->journalStatuses($batch->id), 'No journal is posted while the batch is still being checked.');
+            }
+        } while ($batch->status !== BackfillStatus::Approved && ++$steps < 20);
+
+        $this->assertSame(BackfillStatus::Approved, $batch->status);
+        $this->assertSame(['done', 5], [$progress->phase, $progress->done]);
+        $this->assertSame([['verifying', 2], ['verifying', 4], ['verifying', 5]], array_slice(array_map(static fn (array $row): array => [$row[1], $row[2]], $seen), 0, 3));
+        $this->assertSame(['approving', 'posting', 2], $seen[3]);
+        $this->assertSame(['posted', 'posted', 'posted', 'posted', 'posted'], $this->journalStatuses($batch->id));
+        $this->assertSame(array_column($shown, 'key'), array_column($this->batchJournals($batch->id), 'key'));
+        $this->assertSame(5, $this->accountingDb()->table('accounting_journals')->where('source_type', 'expense')->where('status', 'posted')->countAllResults());
+        $this->assertSame($this->backfillManager, $batch->decidedBy);
+    }
+
+    public function testApproveStep_CapsTheDocumentsOfAStepWhateverChunkTheBatchWasMadeWith(): void
+    {
+        $this->expensesOfDays(5);
+
+        for ($index = 0; $index < BackfillService::STEP_POSTED + 10; $index++) {
+            $this->legacyExpense('10', '0', '2026-04-01');
+        }
+
+        $batch = $this->previewed(['chunk_size' => BackfillService::CHUNK_MAX]);
+
+        $this->assertSame(BackfillService::STEP_POSTED + 15, $batch->readyCount);
+
+        do {
+            $step = $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+        } while ($step->status === BackfillStatus::Verifying);
+
+        $this->assertSame(BackfillStatus::Approving, $step->status);
+        $this->assertSame(BackfillService::STEP_POSTED, $step->approvedCount, 'A step posts no more documents than the cap, although the chunk of the batch holds them all.');
+        $this->assertSame(BackfillService::STEP_POSTED, $this->accountingDb()->table('accounting_journals')->where('backfill_batch_id', $batch->id)->where('status', 'posted')->countAllResults());
+    }
+
+    public function testApproveStep_StopsAfterTheSecondsItWasGivenWhateverNumberOfChunksItWasAllowed(): void
+    {
+        $this->expensesOfDays(4);
+
+        $batch = $this->previewed(['chunk_size' => 1]);
+        $step  = $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 100, 0.0);
+
+        $this->assertSame(BackfillStatus::Verifying, $step->status);
+        $this->assertSame(1, $this->backfill->progress($step)->done);
+    }
+
+    public function testApproveStep_PicksUpACheckThatAnEarlierRunLeftHalfDoneEvenInAnotherService(): void
+    {
+        $this->expensesOfDays(3);
+
+        $batch = $this->previewed(['chunk_size' => 1]);
+
+        $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 2);
+
+        $other = new BackfillService();
+        $done  = $other->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 50);
+
+        $this->assertSame(BackfillStatus::Approved, $done->status);
+        $this->assertSame(3, $this->accountingDb()->table('accounting_journals')->where('source_type', 'expense')->where('status', 'posted')->countAllResults());
+    }
+
+    public function testApproveStep_RefusesAndGoesBackToThePreviewWhenADocumentChangedBetweenTwoSteps(): void
+    {
+        $ids   = $this->expensesOfDays(5);
+        $batch = $this->previewed(['chunk_size' => 2]);
+
+        $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+        $this->accountingDb()->table('expenses')->where('expense_id', $ids[3])->update(['amount' => '999']);
+
+        $this->assertRefusedWith(AccountingError::BackfillPreviewChanged, fn () => $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1));
+        $this->assertSame(BackfillStatus::Preview, $this->statusOf($batch->id));
+        $this->assertSame(['preview', 'preview', 'preview', 'preview', 'preview'], $this->journalStatuses($batch->id));
+        $this->assertSame(0, $this->backfill->batch($batch->id, $this->backfillManager)->approvedCount);
+    }
+
+    public function testApproveStep_RefusesADocumentThatQualifiesSinceThePreviewInAChunkAfterTheFirst(): void
+    {
+        $this->expensesOfDays(4);
+
+        $batch = $this->previewed(['chunk_size' => 2]);
+
+        $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+        $this->legacyExpense('50', '0', '2026-03-20');
+
+        $this->assertRefusedWith(AccountingError::BackfillPreviewChanged, fn () => $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 10));
+        $this->assertSame(BackfillStatus::Preview, $this->statusOf($batch->id));
+        $this->assertSame(['preview', 'preview', 'preview', 'preview'], $this->journalStatuses($batch->id));
+    }
+
+    public function testApproveStep_RefusesADocumentThatLeftTheBatchSinceThePreview(): void
+    {
+        $ids   = $this->expensesOfDays(3);
+        $batch = $this->previewed(['chunk_size' => 2]);
+
+        $this->accountingDb()->table('expenses')->where('expense_id', $ids[1])->update(['deleted' => 1]);
+
+        $this->assertRefusedWith(AccountingError::BackfillPreviewChanged, fn () => $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 10));
+        $this->assertSame(BackfillStatus::Preview, $this->statusOf($batch->id));
+    }
+
+    public function testApproveStep_RefusesAFingerprintThatIsNotTheBatchsWhileItIsBeingChecked(): void
+    {
+        $this->expensesOfDays(3);
+
+        $batch = $this->previewed(['chunk_size' => 1]);
+
+        $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+
+        $this->assertRefusedWith(AccountingError::BackfillPreviewChanged, fn () => $this->backfill->approveStep($batch->id, str_repeat('b', 64), $this->backfillManager, 1));
+        $this->assertSame(BackfillStatus::Verifying, $this->statusOf($batch->id));
+    }
+
+    public function testApproveStep_RefusesASecondRunWhileAnotherRunHoldsTheBatch(): void
+    {
+        $this->expensesOfDays(3);
+
+        $batch = $this->previewed(['chunk_size' => 1]);
+
+        $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+
+        $other = $this->openSecondConnection();
+        $name  = 'ospos_backfill_' . substr(sha1($this->accountingDb()->getDatabase()), 0, 10) . '_batch_' . $batch->id;
+
+        $this->assertSame(1, (int) $other->query('SELECT GET_LOCK(?, 0) AS got', [$name])->getRow()->got);
+
+        try {
+            $this->assertRefusedWith(AccountingError::BackfillBusy, fn () => $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1));
+        } finally {
+            $other->query('SELECT RELEASE_LOCK(?)', [$name]);
+            $other->close();
+        }
+
+        $this->assertSame(BackfillStatus::Verifying, $this->statusOf($batch->id));
+        $this->assertSame(1, $this->backfill->progress($this->backfill->batch($batch->id, $this->backfillManager))->done);
+        $this->assertSame(BackfillStatus::Approved, $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 50)->status);
+    }
+
+    public function testCancel_RemovesThePreviewsOfABatchThatIsBeingChecked(): void
+    {
+        $this->expensesOfDays(3);
+
+        $batch = $this->previewed(['chunk_size' => 1]);
+
+        $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+
+        $this->assertSame(BackfillStatus::Verifying, $this->statusOf($batch->id));
+        $this->assertSame(BackfillStatus::Cancelled, $this->backfill->cancel($batch->id, $this->backfillManager)->status);
+        $this->assertSame([], $this->batchJournals($batch->id));
+        $this->assertSame(0, $this->countRows('accounting_backfill_items'));
+    }
+
+    public function testApproveStep_KeepsTheOpenBatchFromBeingCoveredAgainWhileItIsBeingChecked(): void
+    {
+        $this->expensesOfDays(2);
+
+        $batch = $this->previewed(['chunk_size' => 1]);
+
+        $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+
+        $this->assertRefusedWith(AccountingError::BackfillOverlaps, fn () => $this->backfill->create(['name' => 'Again', 'from' => '2026-01-01', 'to' => '2026-12-31'], $this->backfillManager));
+    }
+
+    public function testApproveStep_NeedsThePermissionTheSettingAndAPreviewWithReadyDocuments(): void
+    {
+        $this->expensesOfDays(2);
+
+        $batch = $this->previewed();
+
+        $this->assertRefusedWith(AccountingError::PermissionDenied, fn () => $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->employeeWithGrants([]), 1));
+
+        $this->setConfigValue('accounting_backfill_enabled', '0');
+
+        $this->assertRefusedWith(AccountingError::BackfillDisabled, fn () => $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1));
+        $this->assertSame(BackfillStatus::Preview, $this->statusOf($batch->id));
+    }
+
     public function testApprove_RunsAChunkInATransactionOfItsOwnSoAFailureLeavesTheChunksBeforeIt(): void
     {
         for ($day = 10; $day <= 14; $day++) {
@@ -1315,7 +1530,7 @@ final class BackfillServiceTest extends CIUnitTestCase
 
         $this->assertSame(BackfillStatus::Approving, $current->status);
         $this->assertSame(2, $current->approvedCount);
-        $this->assertRefusedWith(AccountingError::BackfillBusy, fn () => $method->invoke($this->backfill, $stale, $this->backfillManager, null));
+        $this->assertRefusedWith(AccountingError::BackfillBusy, fn () => $method->invoke($this->backfill, $stale, $this->backfillManager, new BackfillBudget(), false));
     }
 
     public function testApprove_PutsThePostedTaxOfThePastDocumentsInTheTaxReportThatCountedNothingBefore(): void

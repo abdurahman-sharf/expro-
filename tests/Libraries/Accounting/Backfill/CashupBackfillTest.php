@@ -64,6 +64,14 @@ final class CashupBackfillTest extends CIUnitTestCase
         parent::tearDown();
     }
 
+    public function testDocumentAmount_GivesWhatWasCountedAndZeroForACashupThatIsGone(): void
+    {
+        $cashupId = $this->legacyCashup('900');
+
+        $this->assertSame('900.0000', $this->adapter()->documentAmount(new BackfillDocument(BackfillFamily::Cashups, $cashupId, '2026-03-12', 1)));
+        $this->assertSame('0.0000', $this->adapter()->documentAmount(new BackfillDocument(BackfillFamily::Cashups, 99999999, '2026-03-12', 1)));
+    }
+
     private function adapter(): CashupBackfill
     {
         return new CashupBackfill($this->accountingDb());

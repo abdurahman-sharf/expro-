@@ -15,6 +15,7 @@ use Config\Services;
 use ReflectionClass;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\BackfillFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
@@ -32,6 +33,7 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
     use FeatureTestTrait;
     use AccountingFixtureTrait;
     use BackfillFixtureTrait;
+    use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use PurchaseAccountingFixtureTrait;
@@ -235,6 +237,158 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Accounting_backfill.outcome_refused'));
     }
 
+    public function testGetView_ListsEachRefusalClassWithItsCountItsAmountsAndWhatTheOwnerCanDo(): void
+    {
+        $this->legacyExpense('100', '0', '2019-03-14');
+        $this->legacyExpense('50', '0', '2019-04-01');
+        $this->legacyInvoice('2026-03-10', [$this->payment(lang('Sales.cash'), '816.50')]);
+        $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['deleted' => 1]);
+
+        $batch    = $this->previewed(['from' => '2019-01-01', 'to' => '2026-12-31']);
+        $response = $this->get('/accounting_periods/backfill/view/' . $batch->id);
+
+        $response->assertSee('id="backfill_classes_table"');
+        $response->assertSee(lang('Accounting_backfill.refusal_before_start_date'));
+        $response->assertSee(lang('Accounting_backfill.refusal_help_before_start_date'));
+        $response->assertSee(lang('Accounting_backfill.refusal_party_missing'));
+        $response->assertSee(lang('Accounting_backfill.refusal_help_party_missing'));
+        $response->assertSee('150.00');
+        $response->assertSee('816.50');
+        $response->assertSee('id="backfill_export_refused"');
+    }
+
+    public function testGetView_NamesTheRefusalOfThePostingByItsReasonAndSaysWhatToDoAboutIt(): void
+    {
+        $this->legacyExpense('100', '0', '2026-03-12');
+
+        $batch = $this->previewed();
+
+        $this->accountingDb()->table('accounting_backfill_items')->where('batch_id', $batch->id)->update(['outcome' => 'refused', 'reason' => 'posting_refused', 'detail' => 'sale_not_postable', 'total_debit' => '-85.0000']);
+
+        $response = $this->get('/accounting_periods/backfill/view/' . $batch->id);
+
+        $response->assertSee(lang('Accounting_backfill.refusal_kind_sale_not_postable'));
+        $response->assertSee(lang('Accounting_backfill.refusal_help_posting_sale_not_postable'));
+        $response->assertSee('-85.00');
+    }
+
+    public function testGetView_SaysWhichFiscalYearsAreMissingAndOffersToCreateThemToSomeoneWhoMay(): void
+    {
+        $this->legacyExpense('70', '0', '2037-03-05');
+        $this->legacyExpense('900', '0', '2036-02-01');
+
+        $batch = $this->previewed(['from' => '2036-01-01', 'to' => '2037-12-31']);
+
+        $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => AccountingGuard::PERIODS_MANAGE, 'person_id' => $this->backfillManager, 'menu_group' => 'home']);
+
+        $response = $this->get('/accounting_periods/backfill/view/' . $batch->id);
+
+        $response->assertSee('id="backfill_outside_years"');
+        $response->assertSee('id="backfill_create_years"');
+        $response->assertSee(lang('Accounting_backfill.outside_years_command'));
+        $response->assertSee('php spark accounting:enable');
+        $this->assertMatchesRegularExpression('/2036[^<0-9]{1,20}2037/u', $response->getBody());
+    }
+
+    public function testGetView_ShowsTheNoticeOfMissingYearsWithoutTheButtonToSomeoneWhoMayNotCreateThem(): void
+    {
+        $this->legacyExpense('70', '0', '2037-03-05');
+
+        $batch = $this->previewed(['from' => '2036-01-01', 'to' => '2037-12-31']);
+
+        $response = $this->get('/accounting_periods/backfill/view/' . $batch->id);
+
+        $response->assertSee('id="backfill_outside_years"');
+        $response->assertDontSee('id="backfill_create_years"');
+        $response->assertSee(lang('Accounting_backfill.outside_years_permission'));
+    }
+
+    public function testGetView_SaysNothingOfFiscalYearsWhenNoDocumentIsOutsideThem(): void
+    {
+        $this->legacyExpense('70', '0', '2026-03-05');
+
+        $this->get('/accounting_periods/backfill/view/' . $this->previewed()->id)->assertDontSee('id="backfill_outside_years"');
+    }
+
+    public function testPostCreateYears_CreatesTheYearsTheRefusedDocumentsNeedForSomeoneWhoMayAndRefusesOthers(): void
+    {
+        $this->legacyExpense('70', '0', '2037-03-05');
+
+        $batch = $this->previewed(['from' => '2036-01-01', 'to' => '2037-12-31']);
+
+        $refused = $this->json($this->post('/accounting_periods/backfill/create_years/' . $batch->id));
+
+        $this->assertFalse($refused['success']);
+        $this->assertSame(lang('Accounting.error_permission_denied'), $refused['message']);
+
+        $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => AccountingGuard::PERIODS_MANAGE, 'person_id' => $this->backfillManager, 'menu_group' => 'home']);
+
+        $result = $this->json($this->post('/accounting_periods/backfill/create_years/' . $batch->id));
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertSame(lang('Accounting_backfill.outside_years_created', ['2']), $result['message']);
+        $this->assertSame(['2036', '2037'], array_column($this->accountingDb()->table('accounting_fiscal_years')->where('start_date >', '2035-12-31')->orderBy('start_date')->get()->getResultArray(), 'name'));
+
+        $again = $this->json($this->post('/accounting_periods/backfill/create_years/' . $batch->id));
+
+        $this->assertTrue($again['success']);
+        $this->assertSame(lang('Accounting_backfill.outside_years_created', ['0']), $again['message']);
+    }
+
+    public function testPostCreateYears_SaysThereIsNothingToCreateForABatchWithNoDocumentOutsideTheYears(): void
+    {
+        $this->legacyExpense('70', '0', '2026-03-05');
+
+        $batch  = $this->previewed();
+        $result = $this->json($this->post('/accounting_periods/backfill/create_years/' . $batch->id));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting_backfill.outside_years_none'), $result['message']);
+    }
+
+    public function testGetRefused_GivesTheRefusedDocumentsWithTheirReasonAmountAndWhatToDoAsAFile(): void
+    {
+        $this->legacyExpense('100', '0', '2019-03-14');
+        $this->legacyExpense('230', '0', '2026-03-12');
+
+        $batch    = $this->previewed(['from' => '2019-01-01', 'to' => '2026-12-31']);
+        $response = $this->get('/accounting_periods/backfill/refused/' . $batch->id);
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+        $this->assertStringContainsString('backfill-' . $batch->id . '-refused.csv', $response->response()->getHeaderLine('Content-Disposition'));
+
+        $lines = array_map('str_getcsv', explode("\n", trim(substr((string) $response->response()->getBody(), 3))));
+
+        $this->assertCount(2, $lines, 'The header and the one refused document: the ready one is not in the file.');
+        $this->assertSame([lang('Accounting_backfill.family'), lang('Accounting_backfill.source'), lang('Accounting_backfill.date'), lang('Accounting_backfill.branch'), lang('Accounting_backfill.reason'), lang('Accounting_backfill.detail'), lang('Accounting_backfill.amount'), lang('Accounting_backfill.classes_todo')], $lines[0]);
+        $this->assertSame([lang('Accounting_backfill.family_expenses'), '1', '2019-03-14', 'HQ', lang('Accounting_backfill.refusal_before_start_date'), '', '100.0000', lang('Accounting_backfill.refusal_help_before_start_date')], [$lines[1][0], (string) ((int) $lines[1][1] > 0 ? 1 : 0), $lines[1][2], $lines[1][3], $lines[1][4], $lines[1][5], $lines[1][6], $lines[1][7]]);
+    }
+
+    public function testGetRefused_TurnsTextThatASpreadsheetWouldReadAsAFormulaIntoText(): void
+    {
+        $this->legacyExpense('100', '0', '2019-03-14');
+
+        $batch = $this->previewed(['from' => '2019-01-01', 'to' => '2026-12-31']);
+
+        $this->accountingDb()->table('accounting_backfill_items')->where('batch_id', $batch->id)->update(['detail' => '=HYPERLINK("x")']);
+
+        $this->assertStringContainsString("'=HYPERLINK", (string) $this->get('/accounting_periods/backfill/refused/' . $batch->id)->response()->getBody());
+    }
+
+    public function testGetRefused_IsNotFoundForSomeoneWithoutThePermissionOrForABatchThatDoesNotExist(): void
+    {
+        $this->legacyExpense('100', '0', '2019-03-14');
+
+        $batch = $this->previewed(['from' => '2019-01-01', 'to' => '2026-12-31']);
+
+        $this->actAs([]);
+
+        $this->expectException(PageNotFoundException::class);
+
+        $this->get('/accounting_periods/backfill/refused/' . $batch->id);
+    }
+
     public function testGetView_ListsTheJournalsTheBatchWouldPostWithTheirLines(): void
     {
         $this->legacyInvoice('2026-03-10', [$this->payment(lang('Sales.cash'), '816.50')]);
@@ -393,6 +547,79 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
         $this->assertSame(base_url('accounting_periods/backfill/view/' . $batch->id), $result['redirect']);
         $this->assertSame(BackfillStatus::Approved, $this->statusOf($batch->id));
         $this->assertSame('posted', $this->batchJournals($batch->id)[0]['status']);
+    }
+
+    public function testPostApprove_WorksInStepsAndSaysHowFarEachOneGotUntilTheBatchIsApproved(): void
+    {
+        for ($day = 10; $day <= 14; $day++) {
+            $this->legacyExpense((string) ($day * 10), '0', '2026-03-' . $day);
+        }
+
+        $batch     = $this->previewed(['chunk_size' => 2]);
+        $responses = [];
+
+        do {
+            $result      = $this->json($this->post('/accounting_periods/backfill/approve/' . $batch->id, ['fingerprint' => $batch->fingerprint, 'confirm' => '1', 'steps' => '1']));
+            $responses[] = $result;
+        } while ($result['success'] && $result['continue'] && count($responses) < 20);
+
+        $this->assertTrue($result['success'], $result['message']);
+        $this->assertFalse($result['continue']);
+        $this->assertSame(base_url('accounting_periods/backfill/view/' . $batch->id), $result['redirect']);
+        $this->assertSame(BackfillStatus::Approved, $this->statusOf($batch->id));
+        $this->assertGreaterThan(2, count($responses));
+
+        $first = $responses[0];
+
+        $this->assertSame(['verifying', 2, 5], [$first['phase'], $first['done'], $first['total']]);
+        $this->assertSame(lang('Accounting_backfill.approve_progress_verifying', ['2', '5']), $first['message']);
+        $this->assertSame(['posted', 'posted', 'posted', 'posted', 'posted'], array_column($this->batchJournals($batch->id), 'status'));
+    }
+
+    public function testPostApprove_AnswersARunThatAnotherRunHoldsWithoutTouchingTheBatch(): void
+    {
+        $this->legacyExpense();
+        $this->legacyExpense('60', '0', '2026-03-13');
+
+        $batch = $this->previewed(['chunk_size' => 1]);
+        $other = $this->openSecondConnection();
+        $name  = 'ospos_backfill_' . substr(sha1($this->accountingDb()->getDatabase()), 0, 10) . '_batch_' . $batch->id;
+
+        $this->assertSame(1, (int) $other->query('SELECT GET_LOCK(?, 0) AS got', [$name])->getRow()->got);
+
+        try {
+            $result = $this->json($this->post('/accounting_periods/backfill/approve/' . $batch->id, ['fingerprint' => $batch->fingerprint, 'confirm' => '1']));
+        } finally {
+            $other->query('SELECT RELEASE_LOCK(?)', [$name]);
+            $other->close();
+        }
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_backfill_busy'), $result['message']);
+        $this->assertSame(BackfillStatus::Preview, $this->statusOf($batch->id));
+    }
+
+    public function testGetApproveForm_OpensAgainWhileTheBatchIsBeingCheckedSoThatAStoppedApprovalGoesOn(): void
+    {
+        $this->legacyExpense();
+        $this->legacyExpense('60', '0', '2026-03-13');
+
+        $batch = $this->previewed(['chunk_size' => 1]);
+
+        $this->backfill->approveStep($batch->id, (string) $batch->fingerprint, $this->backfillManager, 1);
+
+        $this->assertSame(BackfillStatus::Verifying, $this->statusOf($batch->id));
+
+        $form = $this->get('/accounting_periods/backfill/approve_form/' . $batch->id, ['fingerprint' => $batch->fingerprint]);
+
+        $form->assertStatus(200);
+        $form->assertSee('id="approve_progress"');
+
+        $view = $this->get('/accounting_periods/backfill/view/' . $batch->id);
+
+        $view->assertSee('id="backfill_approve"');
+        $view->assertSee('id="backfill_cancel"');
+        $view->assertSee(lang('Accounting_backfill.status_verifying'));
     }
 
     public function testPostApprove_ExplainsWhyItWasRefused(): void

@@ -47,6 +47,9 @@ final class BackfillService
 
     public const CHUNK_DEFAULT = 200;
     public const CHUNK_MAX     = 1000;
+    public const STEP_CHUNKS   = 20;
+    public const STEP_CHECKED  = 100;
+    public const STEP_POSTED   = 50;
     public const NAME_MAX      = 120;
     private const CREATE_WAIT  = 5;
 
@@ -172,6 +175,40 @@ final class BackfillService
      */
     public function approve(int $batchId, string $fingerprint, ?int $employeeId = null, ?int $maxChunks = null): BackfillBatch
     {
+        return $this->advance($batchId, $fingerprint, $employeeId, new BackfillBudget(), new BackfillBudget($maxChunks), false);
+    }
+
+    /**
+     * One step of an approval, for a screen that must answer within the time a request is given: the check of the
+     * batch against its preview and the posting of its journals are both worked in chunks, and a step does as
+     * many chunks as it is given or as many as fit in the seconds it is given, whichever is spent first, then
+     * returns the batch as it stands. The next step goes on from the cursor the batch keeps, so nothing is
+     * checked or posted twice, and no journal is posted before the whole batch has been checked.
+     *
+     * @throws AccountingException|BranchException|PostingException
+     */
+    public function approveStep(int $batchId, string $fingerprint, ?int $employeeId = null, int $maxChunks = self::STEP_CHUNKS, ?float $maxSeconds = null): BackfillBatch
+    {
+        $budget = new BackfillBudget(max(1, $maxChunks), $maxSeconds);
+
+        return $this->advance($batchId, $fingerprint, $employeeId, $budget, $budget, true);
+    }
+
+    public function progress(BackfillBatch $batch): BackfillProgress
+    {
+        return match ($batch->status) {
+            BackfillStatus::Verifying => new BackfillProgress(BackfillProgress::VERIFYING, $this->batches->verifiedCount($batch), $batch->documentCount),
+            BackfillStatus::Approving => new BackfillProgress(BackfillProgress::POSTING, $batch->approvedCount, $batch->readyCount),
+            BackfillStatus::Approved  => new BackfillProgress(BackfillProgress::DONE, $batch->approvedCount, $batch->readyCount),
+            default                   => new BackfillProgress(BackfillProgress::IDLE, 0, $batch->readyCount),
+        };
+    }
+
+    /**
+     * @throws AccountingException|BranchException|PostingException
+     */
+    private function advance(int $batchId, string $fingerprint, ?int $employeeId, BackfillBudget $checking, BackfillBudget $posting, bool $stepwise): BackfillBatch
+    {
         $this->guard->require(AccountingGuard::BACKFILL_MANAGE, $employeeId);
 
         $this->visible($batchId, $employeeId);
@@ -181,7 +218,7 @@ final class BackfillService
             throw new AccountingException(AccountingError::BackfillDisabled, 'The retroactive posting is not turned on.');
         }
 
-        return $this->exclusive($this->batchLock($batchId), 0, function () use ($batchId, $fingerprint, $employeeId, $maxChunks): BackfillBatch {
+        return $this->exclusive($this->batchLock($batchId), 0, function () use ($batchId, $fingerprint, $employeeId, $checking, $posting, $stepwise): BackfillBatch {
             $batch = $this->batches->require($batchId);
 
             $this->requireOpen($batch);
@@ -201,14 +238,20 @@ final class BackfillService
                     throw new AccountingException(AccountingError::BackfillNothingToApprove, 'The batch holds no document that can be posted.');
                 }
 
-                $this->adapters = [];
-                $this->verify($batch, $employeeId);
-
-                $this->batches->update($batch->id, ['status' => BackfillStatus::Approving->value, 'cursor_family' => null, 'cursor_id' => 0, 'approved_count' => 0]);
+                $this->batches->update($batch->id, ['status' => BackfillStatus::Verifying->value, 'cursor_family' => $batch->families[0]->value, 'cursor_id' => 0, 'approved_count' => 0]);
                 $batch = $this->batches->require($batchId);
             }
 
-            return $this->post($batch, $employeeId, $maxChunks);
+            if ($batch->status === BackfillStatus::Verifying) {
+                $this->adapters = [];
+                $batch          = $this->verify($batch, $employeeId, $checking, $stepwise);
+
+                if ($batch->status === BackfillStatus::Verifying) {
+                    return $batch;
+                }
+            }
+
+            return $this->post($batch, $employeeId, $posting, $stepwise);
         });
     }
 
@@ -482,7 +525,7 @@ final class BackfillService
             'reason'        => $plan->refusal?->value,
             'detail'        => $plan->detail !== '' ? mb_substr($plan->detail, 0, 255) : ($plan->stamp === [] ? null : 'stamp:' . implode(',', array_keys($plan->stamp['columns']))),
             'journal_count' => count($journalIds),
-            'total_debit'   => $plan->total(),
+            'total_debit'   => $plan->isReady() ? $plan->total() : $adapter->documentAmount($document),
             'digest'        => $plan->digest(),
             'payload'       => $plan->isReady() ? json_encode(['journals' => $journalIds, 'stock' => $stock, 'stamp' => $plan->stamp, 'party' => [$plan->partyType, $plan->partyId]], JSON_UNESCAPED_UNICODE) : null,
         ]);
@@ -534,50 +577,106 @@ final class BackfillService
     }
 
     /**
-     * Makes again, from the documents as they are now, what the preview made, and refuses unless it
-     * comes to the same fingerprint: the documents of the batch are the same, none was added that qualifies,
-     * and each would put into the books what it was shown to.
+     * Makes again, from the documents as they are now, what the preview made, a chunk at a time from the cursor the
+     * batch keeps, and refuses unless each chunk comes to what the preview kept of the same documents: the documents
+     * of the batch are the same, none was added that qualifies, and each would put into the books what it was shown
+     * to. A batch that is found changed goes back to being previewed, so that it is refused again as it always was.
+     * When the whole batch has been through, it is the one the fingerprint names, and it is ready to be posted.
      *
      * @throws AccountingException
      */
-    private function verify(BackfillBatch $batch, ?int $employeeId): void
+    private function verify(BackfillBatch $batch, ?int $employeeId, BackfillBudget $budget, bool $stepwise): BackfillBatch
     {
-        $scope = $batch->scope();
-        $hash  = hash_init('sha256');
+        $scope   = $batch->scope();
+        $family  = $batch->cursorFamily ?? $batch->families[0];
+        $afterId = $batch->cursorId;
+        $size    = $stepwise ? min($batch->chunkSize, self::STEP_CHECKED) : $batch->chunkSize;
 
-        foreach ($batch->families as $family) {
-            $adapter = $this->adapter($family);
-            $afterId = 0;
+        try {
+            while (true) {
+                $adapter   = $this->adapter($family);
+                $documents = $adapter->candidates($scope, $afterId, $size, $batch->id);
+                $kept      = $this->batches->itemsAfterDocument($batch->id, $family, $afterId, $size);
 
-            do {
-                $documents = $adapter->candidates($scope, $afterId, $batch->chunkSize, $batch->id);
+                if ($documents === [] && $kept === []) {
+                    $next = $this->after($batch, $family);
 
-                foreach ($documents as $document) {
-                    $plan = $adapter->plan($document, $employeeId, $batch->id);
+                    if ($next === null) {
+                        break;
+                    }
 
-                    hash_update($hash, $this->fingerprintLine($family, $document->id, $plan->isReady() ? 'ready' : 'refused', $plan->refusal?->value, $plan->digest()));
+                    $family  = $next;
+                    $afterId = 0;
 
-                    $afterId = $document->id;
+                    $this->batches->update($batch->id, ['cursor_family' => $family->value, 'cursor_id' => 0]);
+
+                    continue;
                 }
-            } while ($documents !== []);
+
+                $this->assertChunkIsAsPreviewed($batch, $adapter, $documents, $kept, $employeeId);
+
+                $afterId = $documents[array_key_last($documents)]->id;
+
+                $this->batches->update($batch->id, ['cursor_family' => $family->value, 'cursor_id' => $afterId]);
+                $budget->spend();
+
+                if ($budget->exhausted()) {
+                    return $this->batches->require($batch->id);
+                }
+            }
+
+            $previews = (int) $this->db->table('accounting_journals')->where('backfill_batch_id', $batch->id)->where('status', 'preview')->countAllResults();
+
+            if ($batch->fingerprint === null || ! hash_equals($batch->fingerprint, $this->fingerprintOf($batch)) || $previews !== $batch->journalCount) {
+                throw new AccountingException(AccountingError::BackfillPreviewChanged, 'The documents or the books changed since the preview was made.');
+            }
+        } catch (AccountingException $failure) {
+            if ($failure->error === AccountingError::BackfillPreviewChanged) {
+                $this->batches->update($batch->id, ['status' => BackfillStatus::Preview->value, 'cursor_family' => null, 'cursor_id' => 0]);
+            }
+
+            throw $failure;
         }
 
-        $previews = (int) $this->db->table('accounting_journals')->where('backfill_batch_id', $batch->id)->where('status', 'preview')->countAllResults();
+        $this->batches->update($batch->id, ['status' => BackfillStatus::Approving->value, 'cursor_family' => null, 'cursor_id' => 0, 'approved_count' => 0]);
 
-        if ($batch->fingerprint === null || ! hash_equals($batch->fingerprint, hash_final($hash)) || $previews !== $batch->journalCount) {
+        return $this->batches->require($batch->id);
+    }
+
+    /**
+     * @param list<BackfillDocument> $documents What qualifies now, in the order of the ids.
+     * @param list<object>           $kept      What the preview kept of the same stretch of ids.
+     *
+     * @throws AccountingException
+     */
+    private function assertChunkIsAsPreviewed(BackfillBatch $batch, BackfillAdapter $adapter, array $documents, array $kept, ?int $employeeId): void
+    {
+        if (count($documents) !== count($kept)) {
             throw new AccountingException(AccountingError::BackfillPreviewChanged, 'The documents or the books changed since the preview was made.');
+        }
+
+        foreach ($documents as $index => $document) {
+            $item = $kept[$index];
+            $plan = $adapter->plan($document, $employeeId, $batch->id);
+
+            if ($document->id !== (int) $item->document_id
+                || ($plan->isReady() ? 'ready' : 'refused') !== (string) $item->outcome
+                || $plan->refusal?->value !== ($item->reason === null ? null : (string) $item->reason)
+                || ! hash_equals((string) $item->digest, $plan->digest())) {
+                throw new AccountingException(AccountingError::BackfillPreviewChanged, 'The documents or the books changed since the preview was made.');
+            }
         }
     }
 
     /**
      * @throws AccountingException|PostingException
      */
-    private function post(BackfillBatch $batch, ?int $employeeId, ?int $maxChunks): BackfillBatch
+    private function post(BackfillBatch $batch, ?int $employeeId, BackfillBudget $budget, bool $stepwise): BackfillBatch
     {
-        $chunks = 0;
+        $size = $stepwise ? min($batch->chunkSize, self::STEP_POSTED) : $batch->chunkSize;
 
         while (true) {
-            $items = $this->batches->itemsAfter($batch->id, $batch->cursorId, $batch->chunkSize);
+            $items = $this->batches->itemsAfter($batch->id, $batch->cursorId, $size);
 
             if ($items === []) {
                 break;
@@ -609,7 +708,9 @@ final class BackfillService
 
             $batch = $this->batches->require($batch->id);
 
-            if ($maxChunks !== null && ++$chunks >= $maxChunks) {
+            $budget->spend();
+
+            if ($budget->exhausted() && (! $stepwise || $this->batches->itemsAfter($batch->id, $batch->cursorId, 1) !== [])) {
                 return $batch;
             }
         }

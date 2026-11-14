@@ -606,6 +606,19 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertSame(lang('Accounting.error_settings_locked'), $result['message']);
     }
 
+    public function testPostSave_ReportsTheLockWhileOnlyADraftJournalExists(): void
+    {
+        $this->setConfigValue('accounting_base_currency', 'SAR');
+        (new JournalService())->saveDraft($this->journalInput());
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_settings/save', ['base_currency' => 'USD', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_settings_locked'), $result['message']);
+        $this->assertSame('SAR', (new AccountingSettings())->baseCurrency());
+    }
+
     public function testPostSave_RefusesSomeoneWithoutThePermission(): void
     {
         $this->actAs($this->employeeWithGrants(['accounting_settings']));
@@ -703,6 +716,33 @@ class AccountingSetupControllerTest extends CIUnitTestCase
 
         $this->assertTrue($result['success']);
         $this->assertTrue((new AccountingSettings())->isEnabled());
+    }
+
+    public function testPostEnable_CreatesTheFiscalYearsThroughTheYearAfterTheCurrentOne(): void
+    {
+        $this->accountingDb()->table('accounting_fiscal_years')->where('company_id', 1)->delete();
+        $this->accountingDb()->table('accounting_fiscal_years')->insert(['name' => '2024', 'start_date' => '2024-01-01', 'end_date' => '2024-12-31']);
+        $this->setConfigValue('accounting_start_date', '2024-03-01');
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_settings/enable'));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(array_map('strval', range(2024, max(2024, (int) date('Y') + 1))), array_column($this->accountingDb()->table('accounting_fiscal_years')->where('company_id', 1)->orderBy('start_date')->get()->getResultArray(), 'name'));
+    }
+
+    public function testPostEnable_CreatesNoYearWhenAccountingCannotBeTurnedOnYet(): void
+    {
+        $this->accountingDb()->table('accounting_fiscal_years')->where('company_id', 1)->delete();
+        $this->accountingDb()->table('accounting_fiscal_years')->insert(['name' => '2024', 'start_date' => '2024-01-01', 'end_date' => '2024-12-31']);
+        $this->setConfigValue('accounting_start_date', '2024-03-01');
+        $this->setConfigValue('accounting_base_currency', '');
+        $this->manager();
+
+        $result = $this->jsonOf($this->post('/accounting_settings/enable'));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_fiscal_years')->where('company_id', 1)->countAllResults());
     }
 
     public function testPostEnable_NamesWhatIsMissing(): void

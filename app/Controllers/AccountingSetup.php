@@ -285,6 +285,7 @@ class AccountingSetup extends AccountingController
         try {
             return $this->attempt(function (): array {
                 $this->settings->enable($this->employeeId());
+                $this->years->createThrough(((int) date('Y') + 1) . '-12-31');
 
                 return ['success' => true, 'message' => lang('Accounting_settings.enabled_now'), 'id' => 1];
             });

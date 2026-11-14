@@ -93,7 +93,7 @@ class ReadinessRunnerTest extends CIUnitTestCase
         $result = (new ReadinessRunner())->run();
         $ids    = array_map(static fn (CheckResult $check): string => $check->id, $result->checks);
 
-        $this->assertCount(33, $result->checks);
+        $this->assertCount(34, $result->checks);
         $this->assertSame($ids, array_values(array_unique($ids)));
         $this->assertSame('migrations', $ids[0]);
         $this->assertSame(['purchase_discount', 'bank_placement', 'bank_details', 'payment_stamping'], array_slice($ids, 1, 4));
@@ -104,7 +104,7 @@ class ReadinessRunnerTest extends CIUnitTestCase
 
     public function testRun_NamesEveryCheckOfTheReportInTheRunbookDocument(): void
     {
-        $words    = [33 => 'ثلاثة وثلاثين فحصًا'];
+        $words    = [34 => 'أربعة وثلاثين فحصًا'];
         $document = (string) file_get_contents(ROOTPATH . 'docs/accounting/readiness-runbook.md');
         $section  = substr($document, (int) strpos($document, '## 2.'), (int) strpos($document, '## 3.') - (int) strpos($document, '## 2.'));
         $checks   = (new ReadinessRunner())->run()->checks;

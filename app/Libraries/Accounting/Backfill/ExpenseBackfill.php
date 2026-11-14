@@ -96,6 +96,13 @@ final class ExpenseBackfill extends BackfillAdapter
         }
     }
 
+    public function documentAmount(BackfillDocument $document): string
+    {
+        $row = $this->db->table('expenses')->select('amount')->where('expense_id', $document->id)->get()->getRow();
+
+        return $row === null ? '0.0000' : bcadd((string) $row->amount, '0', 4);
+    }
+
     protected function documentKey(): array
     {
         return ['expenses', 'expense_id'];
