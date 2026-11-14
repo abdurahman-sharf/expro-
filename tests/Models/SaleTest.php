@@ -26,6 +26,7 @@ use CodeIgniter\Test\TestLogger;
 use Config\Database;
 use Config\OSPOS;
 use ReflectionClass;
+use Tests\Support\BulkSalesFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\DatabaseFailureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -41,6 +42,7 @@ use Tests\Support\UncommittedWriterTrait;
  */
 class SaleTest extends CIUnitTestCase
 {
+    use BulkSalesFixtureTrait;
     use ConcurrentDbRaceTrait;
     use DatabaseFailureTrait;
     use DatabaseTestTrait;
@@ -812,38 +814,30 @@ class SaleTest extends CIUnitTestCase
 
     public function testSearch_ReadsMoreSalesThanTheMemoryTablesOfTheServerCanHold(): void
     {
-        $db         = Database::connect();
-        $employeeId = $this->createEmployee();
-        $itemId     = $this->createTestItem();
-        $sales      = [];
-        $lines      = [];
-        $taxes      = [];
-
-        for ($index = 0; $index < 1600; $index++) {
-            $sales[] = ['sale_time' => '2001-02-10 12:00:00', 'employee_id' => $employeeId, 'comment' => '', 'sale_status' => COMPLETED, 'sale_type' => SALE_TYPE_POS, 'branch_id' => 1];
-        }
-
-        $db->table('sales')->insertBatch($sales, null, 800);
-
-        $firstId = (int) $db->table('sales')->selectMin('sale_id', 'first')->like('sale_time', '2001-02-10', 'after')->get()->getRow()->first;
-
-        for ($offset = 0; $offset < 1600; $offset++) {
-            for ($line = 1; $line <= 10; $line++) {
-                $lines[] = ['sale_id' => $firstId + $offset, 'item_id' => $itemId, 'line' => $line, 'description' => '', 'serialnumber' => '', 'quantity_purchased' => '1', 'item_cost_price' => '1', 'item_unit_price' => '2', 'discount' => '0', 'discount_type' => PERCENT, 'item_location' => self::LOCATION_ID, 'print_option' => 0];
-                $taxes[] = ['sale_id' => $firstId + $offset, 'item_id' => $itemId, 'line' => $line, 'name' => 'VAT', 'percent' => '15', 'tax_type' => 1, 'rounding_code' => 0, 'cascade_sequence' => 0, 'item_tax_amount' => '0.3'];
-            }
-        }
-
-        $db->table('sales_items')->insertBatch($lines, null, 2000);
-        $db->table('sales_items_taxes')->insertBatch($taxes, null, 2000);
-        $db->query('SET SESSION max_heap_table_size = 1048576');
+        $this->insertTaxedSales($this->createEmployee(), $this->createTestItem(), self::LOCATION_ID, '2001-02-10', 1600, 10);
+        $this->capTheMemoryTablesOfTheServer(1048576);
 
         try {
-            $filters = ['sale_type' => 'all', 'location_id' => 'all', 'start_date' => '2001-02-10', 'end_date' => '2001-02-10', 'only_cash' => false, 'only_due' => false, 'only_check' => false, 'selected_customer' => false, 'only_creditcard' => false, 'only_debit' => false, 'only_bank_transfer' => false, 'only_wallet' => false, 'only_invoices' => false, 'is_valid_receipt' => false];
-
-            $this->assertSame(1600, model(Sale::class)->get_found_rows('', $filters));
+            $this->assertSame(1600, model(Sale::class)->get_found_rows('', $this->filtersForDays('2001-02-10', '2001-02-10')));
         } finally {
-            $db->query('SET SESSION max_heap_table_size = ' . (16 * 1048576));
+            $this->releaseTheMemoryTablesOfTheServer();
+            $this->dropReportTables();
+        }
+    }
+
+    public function testCreateTempTable_ReadsMoreSalesThanTheMemoryTablesOfTheServerCanHold(): void
+    {
+        $this->insertTaxedSales($this->createEmployee(), $this->createTestItem(), self::LOCATION_ID, '2001-02-11', 1600, 10);
+        $this->capTheMemoryTablesOfTheServer(1048576);
+
+        try {
+            model(Sale::class)->create_temp_table(['start_date' => '2001-02-11', 'end_date' => '2001-02-11']);
+
+            $taxRows = (int) Database::connect()->query('SELECT COUNT(*) AS taxRows FROM ' . Database::connect()->prefixTable('sales_items_taxes_temp'))->getRow()->taxRows;
+
+            $this->assertSame(16000, $taxRows);
+        } finally {
+            $this->releaseTheMemoryTablesOfTheServer();
             $this->dropReportTables();
         }
     }

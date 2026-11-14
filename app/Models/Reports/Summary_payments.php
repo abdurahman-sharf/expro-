@@ -168,7 +168,7 @@ class Summary_payments extends Summary_report
         ReadCommittedStatement::run(
             $this->db,
             'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sumpay_taxes_temp') .
-                ' (INDEX(sale_id)) ENGINE=MEMORY
+                ' (INDEX(sale_id))
             (
                 SELECT sales.sale_id, SUM(sales_taxes.sale_tax_amount) AS total_taxes
                 FROM ' . $this->db->prefixTable('sales') . ' AS sales
@@ -182,7 +182,7 @@ class Summary_payments extends Summary_report
         ReadCommittedStatement::run(
             $this->db,
             'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sumpay_items_temp') .
-                ' (INDEX(sale_id)) ENGINE=MEMORY
+                ' (INDEX(sale_id))
             (
                 SELECT sales.sale_id, ' . $trans_amount
                 . ' FROM ' . $this->db->prefixTable('sales') . ' AS sales '
@@ -201,7 +201,7 @@ class Summary_payments extends Summary_report
         ReadCommittedStatement::run(
             $this->db,
             'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sumpay_payments_temp') .
-                ' (INDEX(sale_id)) ENGINE=MEMORY
+                ' (INDEX(sale_id))
             (
                 SELECT sales.sale_id, COUNT(sales.sale_id) AS number_payments,
                 SUM(CASE WHEN sales_payments.cash_adjustment = 0 THEN sales_payments.payment_amount ELSE 0 END) AS total_payments,

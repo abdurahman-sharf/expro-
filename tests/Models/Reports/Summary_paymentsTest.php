@@ -7,6 +7,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\BulkSalesFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
@@ -23,6 +24,7 @@ class Summary_paymentsTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use BulkSalesFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -126,6 +128,21 @@ class Summary_paymentsTest extends CIUnitTestCase
         $this->assertSame(1, $this->counted('b'));
         $this->assertSame(3, $this->counted('all'));
         $this->assertSame(0, $this->counted('none'));
+    }
+
+    public function testGetData_ReadsMoreSalesThanTheMemoryTablesOfTheServerCanHold(): void
+    {
+        $this->insertTaxedSales($this->createEmployee(), $this->createTestItem(HAS_NO_STOCK), 1, self::MONTH . '20', 1600, 2);
+        $this->capTheMemoryTablesOfTheServer(16384);
+
+        try {
+            $rows  = (new Summary_payments())->getData(['start_date' => self::MONTH . '20', 'end_date' => self::MONTH . '20', 'location_id' => 'all', 'sale_type' => 'complete']);
+            $sales = array_filter($rows, static fn (array $row): bool => $row['trans_group'] === lang('Reports.trans_sales'));
+
+            $this->assertSame(1600, (int) array_sum(array_column($sales, 'trans_sales')));
+        } finally {
+            $this->releaseTheMemoryTablesOfTheServer();
+        }
     }
 
     public function testGetData_BuildsThePaymentsWithoutWaitingForASaleThatIsBeingSaved(): void

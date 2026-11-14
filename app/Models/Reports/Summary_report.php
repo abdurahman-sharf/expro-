@@ -44,7 +44,7 @@ abstract class Summary_report extends Report
         ReadCommittedStatement::run(
             $this->db,
             'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_items_taxes_temp') .
-                ' (INDEX(sale_id), INDEX(item_id)) ENGINE=MEMORY
+                ' (INDEX(sale_id), INDEX(item_id))
             (
                 SELECT sales_items_taxes.sale_id AS sale_id,
                     sales_items_taxes.item_id AS item_id,
