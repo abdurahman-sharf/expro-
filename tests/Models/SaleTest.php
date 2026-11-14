@@ -18,10 +18,14 @@ use App\Models\Price_list;
 use App\Models\Sale;
 use CodeIgniter\Database\Config;
 use CodeIgniter\Database\Exceptions\DatabaseException;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use CodeIgniter\Test\TestLogger;
 use Config\Database;
 use Config\OSPOS;
+use ReflectionClass;
 use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\DatabaseFailureTrait;
 use Tests\Support\EmployeeFixtureTrait;
@@ -53,6 +57,7 @@ class SaleTest extends CIUnitTestCase
     protected $namespace   = null;
 
     private static bool $doneBootstrap = false;
+    private int $boundaryItem          = 0;
 
     private const LOCATION_ID = 1;
 
@@ -682,6 +687,118 @@ class SaleTest extends CIUnitTestCase
             $db->query('SET SESSION innodb_lock_wait_timeout = 50');
             $this->dropReportTables();
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function filtersForDays(string $firstDay, string $lastDay): array
+    {
+        return ['sale_type' => 'all', 'location_id' => 'all', 'start_date' => $firstDay, 'end_date' => $lastDay, 'only_cash' => false, 'only_due' => false, 'only_check' => false, 'selected_customer' => false, 'only_creditcard' => false, 'only_debit' => false, 'only_bank_transfer' => false, 'only_wallet' => false, 'only_invoices' => false, 'is_valid_receipt' => false];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function listedSaleIds(string $firstDay, string $lastDay): array
+    {
+        $ids = array_map('intval', array_column(model(Sale::class)->search('', $this->filtersForDays($firstDay, $lastDay), 0, 0, 'sales.sale_id', 'asc')->getResultArray(), 'sale_id'));
+
+        $this->dropReportTables();
+
+        return $ids;
+    }
+
+    private function saleAt(string $moment, int $employeeId): int
+    {
+        $db = Database::connect();
+
+        $db->table('sales')->insert(['sale_time' => $moment, 'employee_id' => $employeeId, 'comment' => '', 'sale_status' => COMPLETED, 'sale_type' => SALE_TYPE_POS, 'branch_id' => 1]);
+
+        $saleId = (int) $db->insertID();
+
+        $db->table('sales_items')->insert(['sale_id' => $saleId, 'item_id' => $this->boundaryItem, 'line' => 1, 'quantity_purchased' => '1', 'item_cost_price' => '1', 'item_unit_price' => '10', 'item_location' => self::LOCATION_ID]);
+
+        return $saleId;
+    }
+
+    public function testSearch_KeepsTheSalesOfTheDaysAskedForFromTheirFirstSecondToTheirLast(): void
+    {
+        $employeeId         = $this->createEmployee();
+        $this->boundaryItem = $this->createTestItem(HAS_NO_STOCK);
+        $before             = $this->saleAt('2001-02-11 23:59:59', $employeeId);
+        $first              = $this->saleAt('2001-02-12 00:00:00', $employeeId);
+        $noon               = $this->saleAt('2001-02-12 12:00:00', $employeeId);
+        $last               = $this->saleAt('2001-02-12 23:59:59', $employeeId);
+        $after              = $this->saleAt('2001-02-13 00:00:00', $employeeId);
+        $late               = $this->saleAt('2001-02-13 23:59:59', $employeeId);
+
+        $statements = [];
+
+        $listener   = static function (Query $query) use (&$statements): void {
+            $statements[] = $query->getQuery();
+        };
+
+        Events::on('DBQuery', $listener);
+
+        try {
+            $listed = $this->listedSaleIds('2001-02-12', '2001-02-12');
+        } finally {
+            Events::removeListener('DBQuery', $listener);
+        }
+
+        $this->assertSame([$first, $noon, $last], $listed);
+
+        $built = array_values(array_filter($statements, static fn (string $statement): bool => str_contains($statement, 'CREATE TEMPORARY TABLE') && str_contains($statement, 'sales_search_payments_temp')));
+
+        $this->assertCount(1, $built);
+        $this->assertStringContainsString("`ospos_sales`.`sale_time` >= '2001-02-12 00:00:00' AND `ospos_sales`.`sale_time` < '2001-02-13 00:00:00'", $built[0], 'The list reads the days as a range on the column, which its index serves.');
+        $this->assertStringNotContainsString('DATE(`ospos_sales`.`sale_time`)', $built[0]);
+        $this->assertSame([$first, $noon, $last, $after, $late], $this->listedSaleIds('2001-02-12', '2001-02-13'));
+        $this->assertSame([$before, $first, $noon, $last, $after, $late], array_values(array_intersect($this->listedSaleIds('2001-02-01', '2099-12-31'), [$before, $first, $noon, $last, $after, $late])));
+        $this->assertSame([], $this->listedSaleIds('2001-02-13', '2001-02-12'));
+        $this->assertSame(3, model(Sale::class)->get_found_rows('', $this->filtersForDays('2001-02-12', '2001-02-12')));
+    }
+
+    public function testSearch_KeepsTheSalesOfTheDaysOfTheConnectionWhenItsClockMovesAtMidnight(): void
+    {
+        $db       = Database::connect();
+        $employee = $this->createEmployee();
+        $original = (string) $db->query('SELECT @@session.time_zone AS zone')->getRow()->zone;
+
+        $this->boundaryItem = $this->createTestItem(HAS_NO_STOCK);
+
+        try {
+            $db->query("SET time_zone = '+00:00'");
+
+            $ids = [];
+
+            foreach (['2001-02-10 21:59:59', '2001-02-10 22:00:00', '2001-02-10 22:30:00', '2001-02-10 23:00:00', '2001-02-11 21:59:59', '2001-02-11 22:00:00'] as $instant) {
+                $ids[] = $this->saleAt($instant, $employee);
+            }
+
+            $db->query("SET time_zone = 'Africa/Cairo'");
+
+            foreach (['2001-02-10', '2001-02-11', '2001-02-12'] as $day) {
+                $byDate = array_map('intval', array_column($db->query('SELECT sale_id FROM ' . $db->prefixTable('sales') . ' WHERE DATE(sale_time) = ? AND employee_id = ? ORDER BY sale_id', [$day, $employee])->getResultArray(), 'sale_id'));
+
+                $this->assertSame($byDate, array_values(array_intersect($this->listedSaleIds($day, $day), $ids)), 'the day ' . $day);
+            }
+        } finally {
+            $db->query('SET time_zone = ' . $db->escape($original));
+        }
+    }
+
+    public function testSearch_WritesNothingToTheLog(): void
+    {
+        $logged = static fn (): int => count((new ReflectionClass(TestLogger::class))->getStaticPropertyValue('op_logs'));
+        $before = $logged();
+
+        $this->listedSaleIds('2001-02-12', '2001-02-12');
+        model(Sale::class)->get_found_rows('', $this->filtersForDays('2001-02-12', '2001-02-12'));
+        $this->dropReportTables();
+
+        $this->assertSame($before, $logged());
     }
 
     public function testCreateTempTable_ReadsTheSalesOfADayWithoutWaitingForASaleThatIsBeingSaved(): void

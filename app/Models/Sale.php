@@ -30,6 +30,7 @@ use App\Libraries\Accounting\SalesTaxSettings;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\UndeliveredReturns;
+use App\Libraries\Database\DayRange;
 use App\Libraries\Database\FailedTransaction;
 use App\Libraries\Database\ReadCommittedStatement;
 use App\Libraries\HeaderCharges;
@@ -335,7 +336,7 @@ class Sale extends Model
         // Only non-suspended records
         $where = 'sales.sale_status = 0 AND ';
         $where .= empty($config['date_or_time_format'])
-            ? 'DATE(' . $db_prefix . 'sales.sale_time) BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date'])
+            ? DayRange::condition($this->db, $db_prefix . 'sales.sale_time', $filters['start_date'], $filters['end_date'])
             : 'sales.sale_time BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date']));
 
         $cut = $this->viewerCut($viewerId);
@@ -442,7 +443,7 @@ class Sale extends Model
 
         // TODO: This needs to be replaced with Ternary notation
         if (empty($config['date_or_time_format'])) {    // TODO: duplicated code.  We should think about refactoring out a method.
-            $builder->where('DATE(sales.sale_time) BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date']));
+            $builder->where(DayRange::condition($this->db, 'sales.sale_time', $filters['start_date'], $filters['end_date']));
         } else {
             $builder->where('sales.sale_time BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date'])));
         }
