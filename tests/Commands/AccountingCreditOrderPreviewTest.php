@@ -3,10 +3,12 @@
 namespace Tests\Commands;
 
 use App\Libraries\Accounting\CreditSource;
+use CodeIgniter\CLI\CLI;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\StreamFilterTrait;
 use Config\Database;
+use ReflectionProperty;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\CreditSourceFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
@@ -153,6 +155,57 @@ final class AccountingCreditOrderPreviewTest extends CIUnitTestCase
             $this->assertSame(EXIT_USER_INPUT, $exit, $customer);
             $this->assertStringNotContainsString('Not where the order puts it', $output);
         }
+    }
+
+    public function testRun_RefusesTheCustomerOptionGivenWithoutANumberInEitherForm(): void
+    {
+        $this->creditOnTheWrongInvoice();
+
+        foreach ([['customer' => null], ['customer=' => null], ['customer=abc' => null], ['customer=0' => null], ['customer=1.5' => null]] as $params) {
+            [$exit, $output] = $this->preview($params);
+
+            $this->assertSame(EXIT_USER_INPUT, $exit, json_encode($params));
+            $this->assertStringNotContainsString('Not where the order puts it', $output);
+            $this->assertStringNotContainsString('No open item', $output);
+        }
+    }
+
+    public function testRun_RefusesTheCustomerOptionTheCommandLineParsedWithoutAValueAndDoesNotReadItAsCustomerOne(): void
+    {
+        $this->creditOnTheWrongInvoice();
+
+        $options = new ReflectionProperty(CLI::class, 'options');
+        $was     = $options->getValue();
+
+        $options->setValue(null, ['customer' => null]);
+
+        try {
+            [$exit, $output] = $this->preview(['customer' => null]);
+        } finally {
+            $options->setValue(null, $was);
+        }
+
+        $this->assertSame(EXIT_USER_INPUT, $exit);
+        $this->assertStringNotContainsString('Customer ' . $this->customerId, $output);
+        $this->assertStringNotContainsString('No open item', $output);
+    }
+
+    public function testRun_ReadsTheCustomerGivenAsTheOptionEqualsTheNumberAndNoOtherCustomer(): void
+    {
+        $this->creditOnTheWrongInvoice();
+
+        $other = $this->anotherCustomer();
+
+        [$exit, $output] = $this->preview(['customer=' . $other => null]);
+
+        $this->assertSame(0, $exit);
+        $this->assertStringContainsString('No open item would have its credit moved', $output);
+        $this->assertStringNotContainsString('Not where the order puts it', $output);
+
+        [$exit, $output] = $this->preview(['customer=' . $this->customerId => null]);
+
+        $this->assertSame(0, $exit);
+        $this->assertStringContainsString('Customer ' . $this->customerId . ' Omar Khaled', $output);
     }
 
     public function testRun_ReadsACustomerWithNothingToSayAsNothingToMove(): void

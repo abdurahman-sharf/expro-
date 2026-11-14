@@ -590,7 +590,7 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
 
         foreach ([0, 1, 2, 3, 4] as $round) {
             $first   = 7100 + $round * 10;
-            $day     = $this->daysAgo(100 - $round * 10);
+            $day     = date('Y-m-d', (int) strtotime('2026-09-01 +' . ($round * 5) . ' days'));
             $answers = $this->raceSessions('crossBranchRace', [
                 $post($first + 1, '100.00', true, $this->treasury, $this->branch, 1),
                 $post($first + 2, '40.00', true, $home, 1, $this->branch),

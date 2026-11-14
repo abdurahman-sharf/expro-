@@ -24,16 +24,16 @@ class AccountingCreditOrderPreview extends BaseCommand
      */
     public function run(array $params): int
     {
-        $customer = $params['customer'] ?? CLI::getOption('customer');
+        $customer = $this->customer($params);
 
-        if ($customer !== null && (! ctype_digit((string) $customer) || (int) $customer < 1)) {
+        if ($customer === false) {
             CLI::error('The customer must be the number of a person.');
 
             return EXIT_USER_INPUT;
         }
 
         $preview = new CreditOrderPreview();
-        $plans   = $customer === null ? $preview->all() : array_values(array_filter([$preview->forCustomer((int) $customer)], static fn (CreditOrderPlan $plan): bool => ! $plan->isEmpty()));
+        $plans   = $customer === null ? $preview->all() : array_values(array_filter([$preview->forCustomer($customer)], static fn (CreditOrderPlan $plan): bool => ! $plan->isEmpty()));
 
         if (array_key_exists('json', $params) || CLI::getOption('json') !== null) {
             CLI::write(json_encode(array_map($this->toArray(...), $plans), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
@@ -52,6 +52,30 @@ class AccountingCreditOrderPreview extends BaseCommand
         }
 
         return EXIT_SUCCESS;
+    }
+
+    /**
+     * @param array<int|string, string|null> $params
+     *
+     * @return false|int|null The customer, null when none was asked for, false when the option has no usable number.
+     */
+    private function customer(array $params): false|int|null
+    {
+        $given = array_key_exists('customer', $params) || CLI::getOption('customer') !== null;
+        $value = $params['customer'] ?? CLI::getOption('customer');
+
+        foreach (array_keys($params) as $key) {
+            if (is_string($key) && str_starts_with($key, 'customer=')) {
+                $given = true;
+                $value = substr($key, strlen('customer='));
+            }
+        }
+
+        if (! $given) {
+            return null;
+        }
+
+        return is_string($value) && ctype_digit($value) && (int) $value >= 1 ? (int) $value : false;
     }
 
     private function print(CreditOrderPlan $plan): void

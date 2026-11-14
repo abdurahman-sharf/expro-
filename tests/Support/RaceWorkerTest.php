@@ -6,6 +6,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
+use RuntimeException;
 
 /**
  * The process that races a method of the application against another. It must run the application of
@@ -16,7 +17,15 @@ use RecursiveIteratorIterator;
  */
 final class RaceWorkerTest extends CIUnitTestCase
 {
-    private ?string $checkout = null;
+    use ConcurrentDbRaceTrait;
+
+    private ?string $checkout     = null;
+    private ?string $workerScript = null;
+
+    protected function raceWorkerScript(): string
+    {
+        return $this->workerScript ?? __DIR__ . '/RaceWorker.php';
+    }
 
     protected function tearDown(): void
     {
@@ -30,7 +39,8 @@ final class RaceWorkerTest extends CIUnitTestCase
             rmdir($this->checkout);
         }
 
-        $this->checkout = null;
+        $this->checkout     = null;
+        $this->workerScript = null;
 
         parent::tearDown();
     }
@@ -132,5 +142,24 @@ final class RaceWorkerTest extends CIUnitTestCase
         $this->assertSame(3, $answer['exit']);
         $this->assertSame('', $answer['output']);
         $this->assertStringContainsString('would load the application from outside ' . $checkout, $answer['error']);
+    }
+
+    public function testRaceSessions_RefusesAtOnceWithTheWordsOfAWorkerThatEndedBeforeTheBarrier(): void
+    {
+        $checkout           = (string) realpath($this->checkoutWithLinkedVendor(false));
+        $this->workerScript = $checkout . '/tests/Support/RaceWorker.php';
+        $started            = microtime(true);
+
+        try {
+            $this->raceSessions('loadedFrom', [[]]);
+
+            $this->fail('The race was not refused.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('did not reach the barrier', $exception->getMessage());
+            $this->assertStringContainsString('exit code 3', $exception->getMessage());
+            $this->assertStringContainsString('would load the application from outside ' . $checkout, $exception->getMessage());
+        }
+
+        $this->assertLessThan(15.0, microtime(true) - $started, 'The refusal came when the worker ended and not when the wait for the barrier ran out');
     }
 }

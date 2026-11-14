@@ -403,8 +403,8 @@
  {
   "name": "C01 the command takes a customer that is not a whole number",
   "file": "app/Commands/AccountingCreditOrderPreview.php",
-  "find": "(! ctype_digit((string) $customer) || (int) $customer < 1)",
-  "replace": "((int) $customer < 1)",
+  "find": "is_string($value) && ctype_digit($value) && (int) $value >= 1 ? (int) $value : false;",
+  "replace": "(int) $value >= 1 ? (int) $value : false;",
   "tests": [
    "tests/Commands/AccountingCreditOrderPreviewTest.php"
   ]
@@ -434,6 +434,46 @@
   "replace": "if (false && APPPATH !== (string) realpath($root . '/app') . '/' ||",
   "tests": [
    "tests/Support/RaceWorkerTest.php"
+  ]
+ },
+ {
+  "name": "C03 the command reads --customer given with no number as customer 1",
+  "file": "app/Commands/AccountingCreditOrderPreview.php",
+  "find": "is_string($value) && ctype_digit($value) && (int) $value >= 1 ? (int) $value : false;",
+  "replace": "ctype_digit((string) $value) && (int) $value >= 1 ? (int) $value : false;",
+  "tests": [
+   "tests/Commands/AccountingCreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "C04 the command ignores the customer given as --customer=NUMBER and prints every customer",
+  "file": "app/Commands/AccountingCreditOrderPreview.php",
+  "find": "if (is_string($key) && str_starts_with($key, 'customer=')) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Commands/AccountingCreditOrderPreviewTest.php"
+  ]
+ },
+ {
+  "name": "R03 a race session that ended before its barrier is waited for to the end of the wait and its words are lost",
+  "file": "tests/Support/ConcurrentDbRaceTrait.php",
+  "find": "if ($ended !== null && ! file_exists($session['ready'])) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testRaceSessions_RefusesAtOnce",
+   "tests/Support/RaceWorkerTest.php"
+  ]
+ },
+ {
+  "name": "P13 the items that hold credit the order would put elsewhere are read after a run and not from nothing (proved by the scenarios that damage the applications)",
+  "file": "app/Libraries/Accounting/CreditOrderPreview.php",
+  "find": "$fresh     = $this->apply($position, []);",
+  "replace": "$fresh     = $afterARun ?? $this->apply($position, []);",
+  "tests": [
+   "--filter",
+   "ForesesWhatARunDoes",
+   "tests/Libraries/Accounting/CreditOrderPreviewTest.php"
   ]
  }
 ]

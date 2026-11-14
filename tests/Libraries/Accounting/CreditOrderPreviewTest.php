@@ -95,8 +95,42 @@ class CreditOrderPreviewTest extends CIUnitTestCase
     }
 
     /**
-     * Reads the plan of the customer, checks that reading it changed no row, runs the settlement for real and
-     * checks that the items the plan says would move are the items that moved, from what to what.
+     * What the real settlement leaves from nothing, which is where the order puts the credit of the customer,
+     * or null when it refuses. The applications that stood are put back as they were, ids included.
+     *
+     * @return array<int, array<string, string>>|null
+     */
+    private function standingMapFromNothing(int $customerId): ?array
+    {
+        $db   = $this->accountingDb();
+        $rows = $db->table('customer_credit_applications')->where('customer_id', $customerId)->get()->getResultArray();
+
+        $this->dropApplications($customerId);
+
+        try {
+            $this->settle($customerId);
+
+            $map = $this->standingMap($customerId);
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::CreditRefunded, $refusal->error);
+
+            $map = null;
+        }
+
+        $this->dropApplications($customerId);
+
+        if ($rows !== []) {
+            $db->table('customer_credit_applications')->insertBatch($rows);
+        }
+
+        return $map;
+    }
+
+    /**
+     * Reads the plan of the customer, checks that reading it changed no row, checks that the items it says do not
+     * hold their credit where the order puts it are those where a settlement from nothing puts it elsewhere, runs
+     * the settlement for real and checks that the items the plan says would move are the items that moved, from
+     * what to what.
      */
     private function assertPreviewIsWhatARunDoes(?int $customerId = null): CreditOrderPlan
     {
@@ -106,6 +140,12 @@ class CreditOrderPreviewTest extends CIUnitTestCase
         $plan         = $this->preview->forCustomer($customerId);
 
         $this->assertDatabaseUnchanged($print, 'Reading the plan changed a row');
+
+        $fromNothing = $this->standingMapFromNothing($customerId);
+
+        if ($fromNothing !== null) {
+            $this->assertSame($this->movesBetween($before, $fromNothing), $this->movesOf($plan->differences), 'The items the plan says hold credit the order would put elsewhere are not the items a settlement from nothing puts it on');
+        }
 
         try {
             $this->settle($customerId);
@@ -119,27 +159,48 @@ class CreditOrderPreviewTest extends CIUnitTestCase
 
         $this->assertNull($plan->blocked, 'The plan said the run would be refused and it was not');
 
-        $after    = $this->standingMap($customerId);
-        $expected = [];
+        $this->assertSame($this->movesBetween($before, $this->standingMap($customerId)), $this->movesOf($plan->moves), 'The items the plan says a run would move are not the items it moved');
+
+        return $plan;
+    }
+
+    /**
+     * @param array<int, array<string, string>> $before
+     * @param array<int, array<string, string>> $after
+     *
+     * @return array<int, array{array<string, string>, array<string, string>}> The items whose credit differs, by item.
+     */
+    private function movesBetween(array $before, array $after): array
+    {
+        $moves = [];
 
         foreach (array_unique([...array_keys($before), ...array_keys($after)]) as $key) {
             if (($before[$key] ?? []) !== ($after[$key] ?? [])) {
-                $expected[$key] = [$before[$key] ?? [], $after[$key] ?? []];
+                $moves[$key] = [$before[$key] ?? [], $after[$key] ?? []];
             }
         }
 
+        ksort($moves);
+
+        return $moves;
+    }
+
+    /**
+     * @param list<CreditOrderMove> $moves
+     *
+     * @return array<int, array{array<string, string>, array<string, string>}>
+     */
+    private function movesOf(array $moves): array
+    {
         $said = [];
 
-        foreach ($plan->moves as $move) {
+        foreach ($moves as $move) {
             $said[$move->key] = [$move->before, $move->after];
         }
 
-        ksort($expected);
         ksort($said);
 
-        $this->assertSame($expected, $said, 'The items the plan says a run would move are not the items it moved');
-
-        return $plan;
+        return $said;
     }
 
     private function dropApplications(?int $customerId = null): void

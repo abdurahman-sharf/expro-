@@ -976,7 +976,7 @@ class CreditRefundsTest extends CIUnitTestCase
         $invoice = $this->invoiceDated('100.00', $this->daysAgo(1));
 
         $this->assertSame('100.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
-        $this->assertSame([], array_values(array_filter($this->applications(), static fn (string $application): bool => str_ends_with($application, '->' . 0 . ':100.00'))));
+        $this->assertSame([], array_values(array_filter($this->applications(), static fn (string $application): bool => str_contains($application, '->' . $invoice . ':'))));
         $this->assertSame([], $this->accountingDb()->table('customer_credit_applications')->where('invoice_sale_id', $invoice)->get()->getResult());
         $this->assertSame('0.00', $this->freeCustomerCredit());
         $this->assertSame('100.00', $this->balance($this->customerAccount()));
