@@ -16,7 +16,7 @@ CUSTOMER=$(q "SELECT customer_id FROM ospos_sales WHERE customer_id IS NOT NULL 
 CUSTOMER_DOCS=$(q "SELECT COUNT(*) FROM ospos_sales WHERE customer_id = $CUSTOMER")
 SUPPLIER=$(q "SELECT supplier_id FROM ospos_receivings WHERE supplier_id IS NOT NULL GROUP BY supplier_id ORDER BY COUNT(*) DESC LIMIT 1")
 CASH=$(q "SELECT account_id FROM ospos_accounting_accounts WHERE system_key = 'cash'")
-OUT="$EV/$TIER-$LIMIT-$ENVNAME"
+OUT="$EV/$TIER-$LIMIT-$ENVNAME${R6_SUFFIX:-}"
 mkdir -p "$OUT"
 echo "tier=$TIER db=$DB last=$LAST customer=$CUSTOMER docs=$CUSTOMER_DOCS supplier=$SUPPLIER cash=$CASH limit=$LIMIT env=$ENVNAME uptime=$(uptime)" | tee "$OUT/meta.txt"
 rm -f "$OUT/http.log"
@@ -28,6 +28,7 @@ for i in 1 2 3 4 5 6 7 8 9 10; do curl -s -o /dev/null http://127.0.0.1:8086/log
 node tools/benchmarks/r6/http-bench.mjs --last "$LAST" --customer "$CUSTOMER" --supplier "$SUPPLIER" --cash "$CASH" --log "$OUT/http.log" --out "$OUT/http.json" --runs "${R6_RUNS:-3}" ${R6_ONLY:+--only "$R6_ONLY"} | tee "$OUT/http.txt"
 kill $SERVER 2>/dev/null || true
 trap - EXIT
+[ -n "${R6_SKIP_CLI:-}" ] && exit 0
 for name in readiness trial_balance aged_ledger_customers aged_ledger_suppliers sales_revenue clients_sales item_sales item_profit payments net_position year_end_preview family_journal_movements family_stock_movements family_product_balance; do
   ALLOWED_HOSTNAMES=127.0.0.1 CI_ENVIRONMENT="$ENVNAME" MYSQL_DB_NAME="$DB" R6_NOW="$LAST 20:00:00" php -d memory_limit="$LIMIT" tools/benchmarks/r6/cli-bench.php "$name" 2>&1 | tail -1 | tee -a "$OUT/cli.jsonl"
 done

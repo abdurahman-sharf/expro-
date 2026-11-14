@@ -538,5 +538,93 @@
  {
   "name": "export_treasury_statement_1_pdf",
   "path": "/accounting_treasuries/statement/1/pdf"
+ },
+ {
+  "name": "default_family_purchases",
+  "path": "/accounting_reports/purchases"
+ },
+ {
+  "name": "default_family_supplier_purchases",
+  "path": "/accounting_reports/supplier_purchases"
+ },
+ {
+  "name": "default_family_product_purchases",
+  "path": "/accounting_reports/product_purchases"
+ },
+ {
+  "name": "default_family_supplier_payments",
+  "path": "/accounting_reports/supplier_payments"
+ },
+ {
+  "name": "default_family_purchase_payments",
+  "path": "/accounting_reports/purchase_payments"
+ },
+ {
+  "name": "default_family_supplier_directory",
+  "path": "/accounting_reports/supplier_directory"
+ },
+ {
+  "name": "default_family_supplier_aged_ledger",
+  "path": "/accounting_reports/supplier_aged_ledger"
+ },
+ {
+  "name": "default_family_supplier_balances",
+  "path": "/accounting_reports/supplier_balances"
+ },
+ {
+  "name": "default_family_stock_count_sheet",
+  "path": "/accounting_reports/stock_count_sheet"
+ },
+ {
+  "name": "default_family_stock_operations",
+  "path": "/accounting_reports/stock_operations"
+ },
+ {
+  "name": "default_family_stock_movements",
+  "path": "/accounting_reports/stock_movements"
+ },
+ {
+  "name": "default_family_stock_balance",
+  "path": "/accounting_reports/stock_balance"
+ },
+ {
+  "name": "default_family_product_balance",
+  "path": "/accounting_reports/product_balance"
+ },
+ {
+  "name": "default_family_stock_aging",
+  "path": "/accounting_reports/stock_aging"
+ },
+ {
+  "name": "default_family_stock_turnover",
+  "path": "/accounting_reports/stock_turnover"
+ },
+ {
+  "name": "default_family_expenses",
+  "path": "/accounting_reports/expenses"
+ },
+ {
+  "name": "default_family_income",
+  "path": "/accounting_reports/income"
+ },
+ {
+  "name": "default_family_journal_movements",
+  "path": "/accounting_reports/journal_movements"
+ },
+ {
+  "name": "default_family_cost_centers",
+  "path": "/accounting_reports/cost_centers"
+ },
+ {
+  "name": "default_family_journals",
+  "path": "/accounting_reports/journals"
+ },
+ {
+  "name": "default_family_chart",
+  "path": "/accounting_reports/chart"
+ },
+ {
+  "name": "default_family_financial_movements",
+  "path": "/accounting_reports/financial_movements"
  }
 ]

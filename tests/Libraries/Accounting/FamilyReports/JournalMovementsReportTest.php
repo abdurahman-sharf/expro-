@@ -55,6 +55,54 @@ final class JournalMovementsReportTest extends FamilyReportTestCase
         return ['purchase' => $this->purchaseOf('230.00'), 'manual' => $this->manual($this->today(), 1, '40.00')];
     }
 
+    private function insertSingleLineJournals(int $from, int $count): void
+    {
+        $db      = $this->accountingDb();
+        $account = $this->accountId('cash');
+        $today   = $this->today();
+        $stamp   = $today . ' 10:00:00';
+
+        foreach (array_chunk(range($from + 1, $from + $count), 2000) as $chunk) {
+            $db->table('accounting_journals')->insertBatch(array_map(static fn (int $number): array => [
+                'series'        => 'bulk',
+                'number'        => (string) $number,
+                'journal_date'  => $today,
+                'description'   => 'Bulk journal ' . $number,
+                'status'        => 'posted',
+                'source_type'   => 'manual',
+                'entry_type'    => 'general',
+                'origin'        => 'system',
+                'currency_code' => 'SAR',
+                'exchange_rate' => '1',
+                'total_debit'   => '1',
+                'total_credit'  => '1',
+                'created_at'    => $stamp,
+                'updated_at'    => $stamp,
+                'company_id'    => 1,
+                'branch_id'     => 1,
+            ], $chunk), null, 2000);
+
+            $firstId = (int) $db->insertID();
+
+            $db->table('accounting_journal_lines')->insertBatch(array_map(static fn (int $offset): array => [
+                'journal_id' => $firstId + $offset,
+                'line_no'    => 1,
+                'account_id' => $account,
+                'debit'      => '1',
+                'credit'     => '0',
+            ], array_keys($chunk)), null, 2000);
+        }
+    }
+
+    private function secondsToBuild(): float
+    {
+        $started = hrtime(true);
+
+        $this->built($this->report, $this->thisDay());
+
+        return (hrtime(true) - $started) / 1_000_000_000;
+    }
+
     public function testBuild_GroupsByJournalDayMonthYearAndAccountWithTheTotalsEqualOnBothSides(): void
     {
         $this->entries();
@@ -86,6 +134,22 @@ final class JournalMovementsReportTest extends FamilyReportTestCase
         }
 
         $this->assertGreaterThanOrEqual(2, count($table->blocks));
+    }
+
+    public function testBuild_ReadsFourTimesTheJournalsInAboutFourTimesTheTime(): void
+    {
+        $this->insertSingleLineJournals(0, 10000);
+
+        $first = $this->secondsToBuild();
+
+        $this->insertSingleLineJournals(10000, 30000);
+
+        $started = hrtime(true);
+        $table   = $this->built($this->report, $this->thisDay());
+        $second  = (hrtime(true) - $started) / 1_000_000_000;
+
+        $this->assertGreaterThanOrEqual(40000, count($table->blocks));
+        $this->assertLessThan(9.0, $second / max($first, 0.05), "Reading 40,000 journals took {$second} s against {$first} s for 10,000: the time grows faster than the journals do.");
     }
 
     public function testBuild_TiesTheDebitToTheMovementOfTheTrialBalance(): void

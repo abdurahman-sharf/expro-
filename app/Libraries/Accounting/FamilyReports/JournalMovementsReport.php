@@ -74,7 +74,10 @@ final class JournalMovementsReport implements FamilyReport
         $all    = [];
 
         foreach ($sets as $set) {
-            $all      = [...$all, ...$set['lines']];
+            foreach ($set['lines'] as $row) {
+                $all[] = $row;
+            }
+
             $blocks[] = new ReportBlock($set['title'], $set['lines'], $this->totalRow($set['lines'], ['debit', 'credit'], 'account', $this->text('total')));
         }
 
