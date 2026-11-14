@@ -505,7 +505,7 @@ class CashupControllerTest extends CIUnitTestCase
     }
 
     #[DataProvider('languagesOfTheSaleAndOfTheClosing')]
-    public function testGetView_PrefillsTheCashAndTheCardTakenUnderTheNamesOfTheOtherLanguage(string $saleLanguage, string $closingLanguage, string $cashName, string $cardName): void
+    public function testGetView_PrefillsTheCashTheCardAndTheExpensePaidInCashUnderTheNamesOfTheOtherLanguage(string $saleLanguage, string $closingLanguage, string $cashName, string $cardName): void
     {
         $cashier = $this->accountingCashier();
         $db      = $this->accountingDb();
@@ -514,6 +514,7 @@ class CashupControllerTest extends CIUnitTestCase
         $this->sellFor('400.00', $cashName, date('Y-m-d H:i:s'));
         $this->sellFor('90.00', $cardName, date('Y-m-d H:i:s'));
         $this->sellFor('55.00', 'Due', date('Y-m-d H:i:s'));
+        $this->assertNotNull($this->saveExpense($this->expenseData('20.00', '0', $cashName, null, date('Y-m-d H:i:s'))));
         $db->table('employees')->where('person_id', $cashier)->update(['language_code' => $closingLanguage]);
 
         $db->table('cash_up')->insert([
@@ -526,7 +527,7 @@ class CashupControllerTest extends CIUnitTestCase
         try {
             $body = $this->get('/cashups/view/' . $db->insertID())->getBody();
 
-            $this->assertSame('400.00', $this->closedAmount($body, 'closed_amount_cash'));
+            $this->assertSame('380.00', $this->closedAmount($body, 'closed_amount_cash'), '400 taken in cash less the 20 an expense paid in cash');
             $this->assertSame('90.00', $this->closedAmount($body, 'closed_amount_card'));
         } finally {
             $db->table('cash_up')->where('description', 'language cash-up')->delete();
