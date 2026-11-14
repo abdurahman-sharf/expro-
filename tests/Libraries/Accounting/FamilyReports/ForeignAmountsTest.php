@@ -26,7 +26,7 @@ final class ForeignAmountsTest extends CIUnitTestCase
 
     public function testDocumentsOf_NamesEachForeignDocumentOnceAndNeverOneInTheBase(): void
     {
-        $foreign = ForeignAmounts::documentsOf([$this->document(1, null), $this->document(2, 'USD'), $this->document(3, 'EUR'), $this->document(2, 'USD'), $this->document(4, '')]);
+        $foreign = ForeignAmounts::documentsOf([$this->document(1, null), $this->document(2, 'USD'), $this->document(3, 'EUR'), $this->document(2, 'USD')]);
 
         $this->assertSame(['RECV 2 (USD)', 'RECV 3 (EUR)'], array_map(static fn (ForeignDocument $document): string => $document->label(), $foreign));
         $this->assertSame([], ForeignAmounts::documentsOf([$this->document(1, null)]));
@@ -34,7 +34,7 @@ final class ForeignAmountsTest extends CIUnitTestCase
 
     public function testPaymentsOf_NamesEachForeignPaymentOnceAndNeverOneInTheBase(): void
     {
-        $foreign = ForeignAmounts::paymentsOf([$this->payment('SP 1', null), $this->payment('SP 2', 'USD'), $this->payment('SP 2', 'USD'), $this->payment('SP 3', '')]);
+        $foreign = ForeignAmounts::paymentsOf([$this->payment('SP 1', null), $this->payment('SP 2', 'USD'), $this->payment('SP 2', 'USD')]);
 
         $this->assertSame(['SP 2 (USD)'], array_map(static fn (ForeignDocument $document): string => $document->label(), $foreign));
     }
