@@ -628,6 +628,20 @@ class EmployeeTest extends CIUnitTestCase
         });
     }
 
+    public function testHasModuleGrant_RejectsTheHolderOfTheModuleWhoHoldsOnlyAPermissionOfAnotherModuleWhoseIdBeginsWithIt(): void
+    {
+        $this->withTemporaryPermission('sales_audit_trail', 'customers', function (): void {
+            $model     = model(Employee::class);
+            $direct    = $this->createEmployee(grants: $this->homeGrants(['sales', 'sales_audit_trail']));
+            $viaRole   = $this->employeeWithRoles([$this->createRole(['sales', 'sales_audit_trail'])]);
+            $withStock = $this->createEmployee(grants: $this->homeGrants(['sales', 'sales_stock', 'sales_audit_trail']));
+
+            $this->assertFalse($model->has_module_grant('sales', $direct), 'The permission of the customers module is not a sub-permission of sales');
+            $this->assertFalse($model->has_module_grant('sales', $viaRole), 'A role is counted by the same rule');
+            $this->assertTrue($model->has_module_grant('sales', $withStock));
+        });
+    }
+
     public function testHasModuleGrant_CountsTheSubPermissionsOfTheModuleItself(): void
     {
         $model = model(Employee::class);
