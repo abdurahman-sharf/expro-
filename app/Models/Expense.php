@@ -10,6 +10,7 @@ use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\LockedRead;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
+use App\Libraries\Database\FailedTransaction;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
@@ -355,6 +356,15 @@ class Expense extends Model
      * decide what is allowed, and is the employee of the expense when none is given.
      */
     public function save_value(array &$expenseData, int $expenseId = NEW_ENTRY, ?int $actorId = null): bool
+    {
+        try {
+            return $this->saveExpense($expenseData, $expenseId, $actorId);
+        } finally {
+            FailedTransaction::forget($this->db);
+        }
+    }
+
+    private function saveExpense(array &$expenseData, int $expenseId, ?int $actorId): bool
     {
         $this->accountingFailure = null;
 

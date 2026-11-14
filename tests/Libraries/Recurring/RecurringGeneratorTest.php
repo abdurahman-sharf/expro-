@@ -27,6 +27,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
+use Tests\Support\DatabaseFailureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -46,6 +47,7 @@ final class RecurringGeneratorTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
     use ConcurrentDbRaceTrait;
+    use DatabaseFailureTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
     use ItemFixtureTrait;
@@ -867,6 +869,44 @@ final class RecurringGeneratorTest extends CIUnitTestCase
 
         $this->assertSame(1, $again->generated());
         $this->assertCount(1, $this->runsOf($broken));
+    }
+
+    public function testRun_MakesTheInvoiceAfterOneWhoseSaveTheDatabaseRefused(): void
+    {
+        $first  = $this->invoiceSchedule(['name' => 'First']);
+        $second = $this->invoiceSchedule(['name' => 'Second', 'comment' => self::REFUSED_MARKER]);
+        $third  = $this->invoiceSchedule(['name' => 'Third']);
+
+        $this->failWritesTo('sales', 'comment', self::REFUSED_MARKER);
+
+        try {
+            $report = $this->generator->run();
+        } finally {
+            $this->stopFailingWrites();
+        }
+
+        $this->cleanSaleIds();
+
+        $this->assertSame(2, $report->generated());
+        $this->assertSame([1, 0, 1], array_map(fn (int $scheduleId): int => count(array_filter($this->runsOf($scheduleId), static fn (object $run): bool => $run->status === 'generated')), [$first, $second, $third]));
+    }
+
+    public function testRun_MakesTheExpenseAfterOneWhoseSaveTheDatabaseRefused(): void
+    {
+        $first  = $this->expenseSchedule(['name' => 'First']);
+        $second = $this->expenseSchedule(['name' => 'Second', 'comment' => self::REFUSED_MARKER]);
+        $third  = $this->expenseSchedule(['name' => 'Third']);
+
+        $this->failWritesTo('expenses', 'description', self::REFUSED_MARKER);
+
+        try {
+            $report = $this->generator->run();
+        } finally {
+            $this->stopFailingWrites();
+        }
+
+        $this->assertSame(2, $report->generated());
+        $this->assertSame([1, 0, 1], array_map(fn (int $scheduleId): int => count(array_filter($this->runsOf($scheduleId), static fn (object $run): bool => $run->status === 'generated')), [$first, $second, $third]));
     }
 
     public function testRetry_MakesTheDocumentOfARefusedDateWhenTheCauseIsGone(): void

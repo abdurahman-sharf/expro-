@@ -30,6 +30,9 @@ use App\Libraries\Accounting\SalesTaxSettings;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\UndeliveredReturns;
+use App\Libraries\Database\DayRange;
+use App\Libraries\Database\FailedTransaction;
+use App\Libraries\Database\ReadCommittedStatement;
 use App\Libraries\HeaderCharges;
 use App\Libraries\HeaderChargesProblem;
 use App\Libraries\InvoiceDiscount;
@@ -333,7 +336,7 @@ class Sale extends Model
         // Only non-suspended records
         $where = 'sales.sale_status = 0 AND ';
         $where .= empty($config['date_or_time_format'])
-            ? 'DATE(' . $db_prefix . 'sales.sale_time) BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date'])
+            ? DayRange::condition($this->db, $db_prefix . 'sales.sale_time', $filters['start_date'], $filters['end_date'])
             : 'sales.sale_time BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date']));
 
         $cut = $this->viewerCut($viewerId);
@@ -440,7 +443,7 @@ class Sale extends Model
 
         // TODO: This needs to be replaced with Ternary notation
         if (empty($config['date_or_time_format'])) {    // TODO: duplicated code.  We should think about refactoring out a method.
-            $builder->where('DATE(sales.sale_time) BETWEEN ' . $this->db->escape($filters['start_date']) . ' AND ' . $this->db->escape($filters['end_date']));
+            $builder->where(DayRange::condition($this->db, 'sales.sale_time', $filters['start_date'], $filters['end_date']));
         } else {
             $builder->where('sales.sale_time BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date'])));
         }
@@ -1239,6 +1242,7 @@ class Sale extends Model
             return ACCOUNTING_FAILED;
         } finally {
             $this->savingCurrency = null;
+            FailedTransaction::forget($this->db);
         }
     }
 
@@ -3041,7 +3045,7 @@ class Sale extends Model
                 GROUP BY sales_items_taxes.sale_id, sales_items_taxes.item_id, sales_items_taxes.line
             )';
 
-        $this->db->query($sql);
+        ReadCommittedStatement::run($this->db, $sql);
 
         // Create a temporary table to contain all the payment types and amount
         $sql = 'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_payments_temp') .
@@ -3060,7 +3064,7 @@ class Sale extends Model
                 GROUP BY payments.sale_id
             )';
 
-        $this->db->query($sql);
+        ReadCommittedStatement::run($this->db, $sql);
         $item = model(Item::class);
         $sql = 'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_items_temp') .
             ' (INDEX(sale_date), INDEX(sale_time), INDEX(sale_id))
@@ -3128,7 +3132,7 @@ class Sale extends Model
                 GROUP BY sales.sale_id, items.item_id, sales_items.line, sales_items.discount_type
             )';
 
-        $this->db->query($sql);
+        ReadCommittedStatement::run($this->db, $sql);
     }
 
     /**
@@ -3495,10 +3499,8 @@ class Sale extends Model
         $builder->groupBy('payments.sale_id');
 
         $sub_query = $builder->getCompiledSelect();
-        log_message('error', $sub_query);
 
-        $this->readWithoutLocksOnce();
-        $this->db->query('CREATE TEMPORARY TABLE IF NOT EXISTS '
+        ReadCommittedStatement::run($this->db, 'CREATE TEMPORARY TABLE IF NOT EXISTS '
             . $this->db->prefixTable('sales_search_payments_temp')
             . ' (PRIMARY KEY(`sale_id`), INDEX(`sale_id`)) AS (' . $sub_query . ')');
     }
@@ -3527,22 +3529,9 @@ class Sale extends Model
         $builder->groupBy(['sale_id', 'item_id', 'line']);
         $sub_query = $builder->getCompiledSelect();
 
-        $this->readWithoutLocksOnce();
-        $this->db->query('CREATE TEMPORARY TABLE IF NOT EXISTS '
+        ReadCommittedStatement::run($this->db, 'CREATE TEMPORARY TABLE IF NOT EXISTS '
             . $this->db->prefixTable('sales_items_taxes_temp')
             . ' (INDEX(sale_id), INDEX(item_id)) AS (' . $sub_query . ')');
-    }
-
-    /**
-     * A CREATE TABLE ... SELECT reads with shared locks under REPEATABLE READ, so the list of sales waited for every sale being saved
-     * and sat on the rows the next save needed, and the two ended in deadlocks. Under READ COMMITTED the same statement reads without
-     * locks. The setting is for the next transaction only, which is the statement that follows, and cannot be changed inside one.
-     */
-    private function readWithoutLocksOnce(): void
-    {
-        if ($this->db->transDepth === 0) {
-            $this->db->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
-        }
     }
 
     /**

@@ -8,6 +8,7 @@ use CodeIgniter\Test\StreamFilterTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\AssetFixtureTrait;
+use Tests\Support\DatabaseFailureTrait;
 
 /**
  * The command that previews and posts the depreciation of a month: what it prints, that approving takes
@@ -21,6 +22,7 @@ final class AccountingDepreciateTest extends CIUnitTestCase
     use StreamFilterTrait;
     use AccountingFixtureTrait;
     use AssetFixtureTrait;
+    use DatabaseFailureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -155,6 +157,33 @@ final class AccountingDepreciateTest extends CIUnitTestCase
 
         $this->assertStringNotContainsString('ONE', $preview);
         $this->assertSame([$second], array_map(static fn (object $run): int => (int) $run->branch_id, $this->accountingDb()->table('asset_depreciation_runs')->get()->getResult()));
+    }
+
+    public function testRun_PostsTheNextBranchAfterTheDatabaseRefusedTheRunOfOne(): void
+    {
+        $second = $this->createBranch('T2', 'Second branch');
+        $third  = $this->createBranch('T3', 'Third branch');
+
+        $this->enterAsset(['code' => 'ONE']);
+        $this->enterAsset(['code' => 'TWO', 'name' => 'Chair', 'branch_id' => $second, 'funding' => 'payable', 'treasury_id' => '']);
+        $this->enterAsset(['code' => 'THREE', 'name' => 'Shelf', 'branch_id' => $third, 'funding' => 'payable', 'treasury_id' => '']);
+
+        $exits = [];
+
+        $this->failWritesTo('asset_depreciation_runs', 'branch_id', (string) $second);
+
+        try {
+            foreach ([1, $second, $third] as $branch) {
+                [, $preview] = $this->depreciate(['month' => '2026-02', 'branch' => (string) $branch]);
+                [$exit]      = $this->depreciate(['month' => '2026-02', 'branch' => (string) $branch, 'approve' => $this->fingerprintOf($preview)]);
+                $exits[]     = $exit;
+            }
+        } finally {
+            $this->stopFailingWrites();
+        }
+
+        $this->assertSame([0, 1, 0], $exits);
+        $this->assertSame([1, $third], array_map(static fn (object $run): int => (int) $run->branch_id, $this->accountingDb()->table('asset_depreciation_runs')->orderBy('branch_id')->get()->getResult()));
     }
 
     public function testRun_RefusesAnOptionThatIsNotValidWithSeven(): void

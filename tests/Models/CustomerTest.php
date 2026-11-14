@@ -16,12 +16,14 @@ use Config\Database;
 use Config\OSPOS;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\UncommittedWriterTrait;
 
 class CustomerTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
+    use UncommittedWriterTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -534,6 +536,23 @@ class CustomerTest extends CIUnitTestCase
         $db->table('item_quantities')->where('item_id', $itemId)->delete();
         $db->table('items')->where('item_id', $itemId)->delete();
         $this->resetBranches();
+    }
+
+    public function testGetStats_ReadsTheSalesOfACustomerWithoutWaitingForASaleThatIsBeingSaved(): void
+    {
+        $customerId = $this->insertCustomer();
+        $itemId     = $this->createStatItem();
+        $db         = $this->accountingDb();
+
+        try {
+            $stats = $this->whileASaleIsBeingSaved(1, $itemId, $customerId, static fn (): ?object => (new Customer())->get_stats($customerId));
+
+            $this->assertNull($stats);
+        } finally {
+            $db->query('DROP TEMPORARY TABLE IF EXISTS ' . $db->prefixTable('sales_items_temp'));
+            $db->table('item_quantities')->where('item_id', $itemId)->delete();
+            $db->table('items')->where('item_id', $itemId)->delete();
+        }
     }
 
     private function createStatItem(): int

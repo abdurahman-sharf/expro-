@@ -2,6 +2,7 @@
 
 namespace App\Models\Reports;
 
+use App\Libraries\Database\ReadCommittedStatement;
 use App\Libraries\InvoiceDiscount;
 use Config\OSPOS;
 use CodeIgniter\Database\BaseBuilder;
@@ -40,7 +41,8 @@ abstract class Summary_report extends Report
         $saleTotal = "ROUND(SUM($salePrice), $decimals) + $addedTax + $cashAdjustment";
 
         // Create a temporary table to contain all the sum of taxes per sale item
-        $this->db->query(
+        ReadCommittedStatement::run(
+            $this->db,
             'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_items_taxes_temp') .
                 ' (INDEX(sale_id), INDEX(item_id)) ENGINE=MEMORY
             (
@@ -60,7 +62,8 @@ abstract class Summary_report extends Report
             )'
         );
 
-        $this->db->query(
+        ReadCommittedStatement::run(
+            $this->db,
             'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_report_payments_temp') .
                 ' (PRIMARY KEY(sale_id), INDEX(sale_id))
             (

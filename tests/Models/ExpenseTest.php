@@ -14,6 +14,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\DatabaseFailureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
@@ -27,6 +28,7 @@ class ExpenseTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use DatabaseFailureTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
     use RoleFixtureTrait;
@@ -253,6 +255,40 @@ class ExpenseTest extends CIUnitTestCase
 
         $this->assertNotNull($this->saveExpense($this->expenseData('10.00', '0', 'Cash', null, '2026-11-02 10:00:00')));
         $this->assertNull($this->expenses->accountingFailure());
+    }
+
+    public function testSaveValue_SavesTheNextExpenseOfTheProcessAfterTheDatabaseRefusedOne(): void
+    {
+        $this->assertSame([true, false, true], $this->saveThreeExpensesTheSecondOfWhichTheDatabaseRefuses());
+    }
+
+    public function testSaveValue_SavesTheNextExpenseOfTheProcessAfterTheDatabaseRefusedOneWhileAccountingIsOff(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $this->assertSame([true, false, true], $this->saveThreeExpensesTheSecondOfWhichTheDatabaseRefuses());
+    }
+
+    /**
+     * @return list<bool>
+     */
+    private function saveThreeExpensesTheSecondOfWhichTheDatabaseRefuses(): array
+    {
+        $saved = [];
+
+        $this->failWritesTo('expenses', 'description', self::REFUSED_MARKER);
+
+        try {
+            foreach (['first', self::REFUSED_MARKER, 'third'] as $description) {
+                $data                = $this->expenseData('10.00');
+                $data['description'] = $description;
+                $saved[]             = $this->saveExpense($data) !== null;
+            }
+        } finally {
+            $this->stopFailingWrites();
+        }
+
+        return $saved;
     }
 
     public function testSaveValue_WritesNoAccountingColumnWhileAccountingIsOff(): void
