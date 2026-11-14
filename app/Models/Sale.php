@@ -1400,15 +1400,15 @@ class Sale extends Model
 
         foreach ($payments as $paymentId => $payment) {
             $splitPayment = explode(':', $payment['payment_type'], 2);
-            $paymentPrefix = $splitPayment[0];
+            $paymentType = PaymentType::fromLabel($payment['payment_type']);
 
-            if ($paymentPrefix === lang('Sales.giftcard')) {
+            if ($paymentType === PaymentType::Giftcard) {
                 if (empty($splitPayment[1]) || ! $giftcard->decrementGiftcardValue($splitPayment[1], (float) $payment['payment_amount'])) {
                     $this->db->transRollback();
 
                     return INSUFFICIENT_GIFTCARD_BALANCE;
                 }
-            } elseif ($paymentPrefix === lang('Sales.rewards')) {
+            } elseif ($paymentType === PaymentType::Rewards) {
                 if (! $customer->adjustRewardPoints($customerId, -(float) $payment['payment_amount'])) {
                     $this->db->transRollback();
 
@@ -1450,7 +1450,9 @@ class Sale extends Model
             $totalAmount = floatval($totalAmount) + floatval($payment['payment_amount']) - floatval($payment['cash_refund']);
         }
 
-        $this->save_customer_rewards($customerId, $saleId, $currencyColumns['currency_rate'] === null ? $totalAmount : (float) bcmul((string) $totalAmount, $currencyColumns['currency_rate'], 4), $totalAmountUsed);
+        if ($saleStatus == COMPLETED) {
+            $this->save_customer_rewards($customerId, $saleId, $currencyColumns['currency_rate'] === null ? $totalAmount : (float) bcmul((string) $totalAmount, $currencyColumns['currency_rate'], 4), $totalAmountUsed);
+        }
 
         $customer = $customer->get_info($customerId);
 
@@ -1689,9 +1691,9 @@ class Sale extends Model
     private function paysWithStoredValue(array $payments): bool
     {
         foreach ($payments as $payment) {
-            $prefix = explode(':', (string) ($payment['payment_type'] ?? ''), 2)[0];
+            $type = PaymentType::fromLabel((string) ($payment['payment_type'] ?? ''));
 
-            if ($prefix === lang('Sales.giftcard') || $prefix === lang('Sales.rewards')) {
+            if ($type === PaymentType::Giftcard || $type === PaymentType::Rewards) {
                 return true;
             }
         }
@@ -1788,12 +1790,6 @@ class Sale extends Model
 
         if ($issue === null) {
             $this->accountingFailure = new AccountingException(AccountingError::DraftNotFound, 'The sale is not a draft invoice.', ['sale_id' => $saleId]);
-
-            return ACCOUNTING_FAILED;
-        }
-
-        if ($issue->paidWithStoredValue) {
-            $this->accountingFailure = new AccountingException(AccountingError::DraftStoredValuePaid, 'A draft paid with a gift card or reward points is completed at the register.', ['sale_id' => $saleId]);
 
             return ACCOUNTING_FAILED;
         }
@@ -2607,6 +2603,10 @@ class Sale extends Model
             return $this->refuseWhileReturnStands((int) $saleId);
         }
 
+        if ($saleStatus === SUSPENDED) {
+            $this->giveBackStoredValue((int) $saleId, true);
+        }
+
         $this->update_sale_status($saleId, CANCELED);
 
         if ($saleStatus === COMPLETED && (new AccountingSettings($this->db))->isEnabled()) {
@@ -3230,9 +3230,26 @@ class Sale extends Model
             return false;
         }
 
+        try {
+            return (new CustomerLock($this->db))->run($this->customerOf($sale_id), fn (): bool => $this->discardSuspendedSaleLocked($sale_id));
+        } catch (AccountingException $busy) {
+            if ($busy->error !== AccountingError::CustomerBusy) {
+                throw $busy;
+            }
+
+            $this->accountingFailure = $busy;
+
+            return false;
+        }
+    }
+
+    private function discardSuspendedSaleLocked(int $sale_id): bool
+    {
         // Run these queries as a transaction, we want to make sure we do all or nothing
         $this->db->transStart();
         $config = config(OSPOS::class)->settings;
+
+        $this->db->query('SELECT sale_status FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$sale_id]);
 
         if ($config['dinner_table_enable']) {
             $dinner_table = model(Dinner_table::class);
@@ -3240,11 +3257,68 @@ class Sale extends Model
             $dinner_table->release($dinner_table_id);
         }
 
+        $this->giveBackStoredValue($sale_id, true);
         $this->update_sale_status($sale_id, CANCELED);
 
         $this->db->transComplete();
 
         return $this->db->transStatus();
+    }
+
+    /**
+     * A sale that is held keeps the gift card value and the reward points it will be paid with, taken when it
+     * was saved. This gives them back, once, so that saving the sale again, completing it or cancelling it
+     * starts from what the card and the customer held before the sale: the points the hold earned are taken
+     * back too, and its record of points is dropped. A sale that is not held gives nothing back. With
+     * $forgetPayments the payments of the sale that were stored value are taken off its record, as a cancelled
+     * sale that is brought back must not give the same value back twice. Call it inside the transaction that
+     * changes the sale, after the row of the sale is locked.
+     */
+    private function giveBackStoredValue(int $saleId, bool $forgetPayments = false): void
+    {
+        $sale = $this->db->table('sales')->select('customer_id, sale_status')->where('sale_id', $saleId)->get()->getRow();
+
+        if ($sale === null || (int) $sale->sale_status !== SUSPENDED) {
+            return;
+        }
+
+        $giftcard  = model(Giftcard::class);
+        $used      = '0';
+        $forgotten = [];
+
+        foreach ($this->db->table('sales_payments')->select('payment_id, payment_type, payment_amount')->where('sale_id', $saleId)->get()->getResult() as $payment) {
+            $type = PaymentType::fromLabel((string) $payment->payment_type);
+
+            if ($type === PaymentType::Giftcard) {
+                $number = explode(':', (string) $payment->payment_type, 2)[1] ?? '';
+
+                if ($number !== '') {
+                    $giftcard->incrementGiftcardValue($number, (float) $payment->payment_amount);
+                }
+            } elseif ($type === PaymentType::Rewards) {
+                $used = bcadd($used, (string) $payment->payment_amount, 4);
+            } else {
+                continue;
+            }
+
+            $forgotten[] = (int) $payment->payment_id;
+        }
+
+        $earned = '0';
+
+        foreach ($this->db->table('sales_reward_points')->select('earned')->where('sale_id', $saleId)->get()->getResult() as $row) {
+            $earned = bcadd($earned, (string) $row->earned, 4);
+        }
+
+        $this->db->table('sales_reward_points')->where('sale_id', $saleId)->delete();
+
+        if ($sale->customer_id !== null) {
+            model(Customer::class)->giveBackRewardPoints((int) $sale->customer_id, (float) $used, (float) $earned);
+        }
+
+        if ($forgetPayments && $forgotten !== []) {
+            $this->db->table('sales_payments')->whereIn('payment_id', $forgotten)->delete();
+        }
     }
 
     /**
@@ -3265,6 +3339,8 @@ class Sale extends Model
             $dinner_table_id = $this->get_dinner_table($sale_id);
             $dinner_table->release($dinner_table_id);
         }
+
+        $this->giveBackStoredValue($sale_id);
 
         $builder = $this->db->table('sales_payments');
         $builder->delete(['sale_id' => $sale_id]);

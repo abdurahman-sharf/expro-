@@ -1015,6 +1015,56 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertMatchesRegularExpression('/<a[^>]*deletePayment[^>]*data-single-shot="1"|<a[^>]*data-single-shot="1"[^>]*deletePayment/', $body);
     }
 
+    /**
+     * A register with a cart of 100.00 and a gift card of 150.00 paid in full by it, held with Suspend.
+     *
+     * @return array{card: int, sale: int}
+     */
+    private function saleHeldWithAGiftCard(): array
+    {
+        $this->registerWithACart();
+        $this->salesFloor = (int) $this->accountingDb()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+
+        $card = $this->createGiftcard(150.00);
+
+        $this->post('/sales/addPayment', ['payment_type' => 'Gift Card', 'amount_tendered' => (string) $card, 'request_key' => $this->requestKey('d')]);
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/suspend');
+
+        $held = (int) $this->accountingDb()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+
+        $this->assertEqualsWithDelta(50.00, $this->getGiftcardValue($card), 0.001, 'the card is debited when the sale is held');
+        $this->assertSame(SUSPENDED, (int) $this->accountingDb()->table('sales')->where('sale_id', $held)->get()->getRow()->sale_status);
+
+        return ['card' => $card, 'sale' => $held];
+    }
+
+    public function testPostComplete_DebitsTheGiftCardOnceForASaleThatWasHeldAndTakenBack(): void
+    {
+        $held = $this->saleHeldWithAGiftCard();
+
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => $held['sale']]);
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/complete');
+
+        $this->assertSame(COMPLETED, (int) $this->accountingDb()->table('sales')->where('sale_id', $held['sale'])->get()->getRow()->sale_status);
+        $this->assertEqualsWithDelta(50.00, $this->getGiftcardValue($held['card']), 0.001, 'the card is debited by the sale once');
+    }
+
+    public function testPostCancel_GivesTheGiftCardBackForASaleThatWasHeldAndTakenBack(): void
+    {
+        $held = $this->saleHeldWithAGiftCard();
+
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => $held['sale']]);
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/cancel');
+
+        $this->assertSame(CANCELED, (int) $this->accountingDb()->table('sales')->where('sale_id', $held['sale'])->get()->getRow()->sale_status);
+        $this->assertEqualsWithDelta(150.00, $this->getGiftcardValue($held['card']), 0.001);
+    }
+
     public function testPostCompleteRejectsSaleWithInsufficientPayments(): void
     {
         $cashierId = $this->createCashierEmployee();

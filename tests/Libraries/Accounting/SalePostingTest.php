@@ -5255,7 +5255,7 @@ class SalePostingTest extends CIUnitTestCase
         return $draft;
     }
 
-    public function testIssueDraft_RejectsADraftPaidWithAGiftCardBecauseTheCardWasAlreadyDebitedWhenItWasSaved(): void
+    public function testIssueDraft_IssuesADraftPaidWithAGiftCardAndDebitsTheCardOnce(): void
     {
         $db = $this->accountingDb();
         $db->table('giftcards')->insert(['giftcard_number' => 7771235, 'value' => 500, 'deleted' => 0, 'person_id' => null]);
@@ -5263,15 +5263,45 @@ class SalePostingTest extends CIUnitTestCase
         $cycle = $this->taxedReference();
         $draft = $this->save($cycle['items'], [], [$this->payment(lang('Sales.giftcard') . ':7771235', '100.00')], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
 
-        $this->assertEqualsWithDelta(400.0, (float) $db->table('giftcards')->where('giftcard_number', 7771235)->get()->getRow()->value, 0.001);
+        $this->assertEqualsWithDelta(400.0, (float) $db->table('giftcards')->where('giftcard_number', 7771235)->get()->getRow()->value, 0.001, 'the card is debited when the draft is saved');
 
-        $this->assertSame(ACCOUNTING_FAILED, $this->sales->issueDraft($draft, $this->employeeId));
-        $this->assertSame(AccountingError::DraftStoredValuePaid, $this->failure()->error);
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
         $this->assertEqualsWithDelta(400.0, (float) $db->table('giftcards')->where('giftcard_number', 7771235)->get()->getRow()->value, 0.001, 'the card is not debited a second time');
-        $this->assertSame((string) SUSPENDED, (string) $this->saleRow($draft)->sale_status);
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($draft)->sale_status);
+        $this->assertSame(1, $db->table('sales_payments')->where('sale_id', $draft)->like('payment_type', ':7771235')->countAllResults());
 
-        $db->table('sales_payments')->where('sale_id', $draft)->delete();
         $db->table('giftcards')->where('giftcard_number', 7771235)->delete();
+    }
+
+    public function testIssueDraft_IssuesADraftPaidWithRewardPointsAndSpendsThePointsOnce(): void
+    {
+        $db = $this->accountingDb();
+        $db->table('customers')->where('person_id', $this->customerId)->update(['points' => 200]);
+
+        $cycle = $this->taxedReference();
+        $draft = $this->save($cycle['items'], [], [$this->payment(lang('Sales.rewards'), '50.00')], SALE_TYPE_INVOICE, $this->customerId, true, null, SUSPENDED);
+
+        $this->assertSame('150', (string) $db->table('customers')->where('person_id', $this->customerId)->get()->getRow()->points);
+
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId));
+        $this->assertSame('150', (string) $db->table('customers')->where('person_id', $this->customerId)->get()->getRow()->points, 'the points are spent once');
+
+        $db->table('customers')->where('person_id', $this->customerId)->update(['points' => null]);
+    }
+
+    public function testIssueDraft_KeepsTheCardOfADraftTheCardWasUsedUpOnElsewhereBecauseTheDraftHeldTheValue(): void
+    {
+        $db = $this->accountingDb();
+        $db->table('giftcards')->insert(['giftcard_number' => 7771237, 'value' => 100, 'deleted' => 0, 'person_id' => null]);
+
+        $cycle = $this->taxedReference();
+        $draft = $this->save($cycle['items'], [], [$this->payment(lang('Sales.giftcard') . ':7771237', '100.00')], SALE_TYPE_INVOICE, -1, true, null, SUSPENDED);
+
+        $this->assertEqualsWithDelta(0.0, (float) $db->table('giftcards')->where('giftcard_number', 7771237)->get()->getRow()->value, 0.001);
+        $this->assertSame($draft, $this->sales->issueDraft($draft, $this->employeeId), 'the value the draft held is still its own when it is issued');
+        $this->assertEqualsWithDelta(0.0, (float) $db->table('giftcards')->where('giftcard_number', 7771237)->get()->getRow()->value, 0.001);
+
+        $db->table('giftcards')->where('giftcard_number', 7771237)->delete();
     }
 
     public function testIssueDraft_UndoesTheWholeIssueWhenTheCostCannotBePostedAndKeepsTheDraft(): void

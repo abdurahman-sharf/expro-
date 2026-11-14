@@ -326,6 +326,19 @@ class Giftcard extends Model
         return $builder->update() && $this->db->affectedRows() > 0;
     }
 
+    public function incrementGiftcardValue(string $giftcardNumber, float $amount): bool
+    {
+        if ($amount <= 0.0) {
+            return false;
+        }
+
+        $builder = $this->db->table('giftcards');
+        $builder->where('giftcard_number', $giftcardNumber);
+        $builder->set('value', 'value + ' . $this->db->escape($amount), false);
+
+        return $builder->update() && $this->db->affectedRows() > 0;
+    }
+
     /**
      * Determines if a given giftcard_name exists
      */

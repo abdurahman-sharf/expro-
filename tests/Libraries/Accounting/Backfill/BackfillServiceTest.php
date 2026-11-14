@@ -26,6 +26,7 @@ use Closure;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use Config\Services;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\BackfillFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
@@ -510,6 +511,35 @@ final class BackfillServiceTest extends CIUnitTestCase
 
         $this->assertSame($whole->fingerprint, $batch->fingerprint);
         $this->assertSame($whole->journalCount, $batch->journalCount);
+    }
+
+    public function testPreview_GivesTheSamePlanAndFingerprintWhateverLanguageIsInUseForSalesStoredWithArabicPaymentNames(): void
+    {
+        $this->legacyInvoice('2026-03-10', [$this->payment('نقدى', '816.50')]);
+        $this->legacyInvoice('2026-03-11', [$this->payment('بطاقة خصم', '816.50')]);
+        $this->legacyInvoice('2026-03-12', [$this->payment('Cash', '400.00'), $this->payment('نقدى', '416.50')]);
+        $this->legacyPurchase('500', '2026-03-13', 'نقدى');
+
+        $inUse   = Services::language()->getLocale();
+        $batches = [];
+
+        try {
+            foreach (['en', 'ar-EG', 'fr'] as $locale) {
+                Services::language()->setLocale($locale);
+
+                $batch     = $this->previewed();
+                $batches[$locale] = [$batch->readyCount, $batch->refusedCount, $batch->journalCount, $batch->fingerprint, array_column($this->batchJournals($batch->id), 'key')];
+
+                $this->backfill->cancel($batch->id, $this->backfillManager);
+            }
+        } finally {
+            Services::language()->setLocale($inUse);
+        }
+
+        $this->assertSame(4, $batches['en'][0], 'every legacy document of the range is ready under English');
+        $this->assertSame(0, $batches['en'][1]);
+        $this->assertSame($batches['en'], $batches['ar-EG']);
+        $this->assertSame($batches['en'], $batches['fr']);
     }
 
     public function testApprove_ResumesFromTheCursorAndPostsEveryJournalOnce(): void

@@ -304,6 +304,22 @@ class Customer extends Person
     }
 
     /**
+     * Gives back the points a suspended sale spent and takes back the points it earned, in one statement,
+     * without taking the balance below zero.
+     */
+    public function giveBackRewardPoints(int $customerId, float $used, float $earned): void
+    {
+        if ($used <= 0.0 && $earned <= 0.0) {
+            return;
+        }
+
+        $builder = $this->db->table('customers');
+        $builder->where('person_id', $customerId);
+        $builder->set('points', 'GREATEST(IFNULL(points, 0) + ' . $this->db->escape($used) . ' - ' . $this->db->escape($earned) . ', 0)', false);
+        $builder->update();
+    }
+
+    /**
      * @param $customer_id
      * @param bool $purge
      * @return bool

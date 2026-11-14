@@ -3721,7 +3721,7 @@ class Sales extends Secure_Controller
             }
 
             if ($sale_type == SALE_TYPE_WORK_ORDER) {
-                $this->sale->update_sale_status($sale_id, CANCELED);
+                $this->sale->delete_suspended_sale($sale_id);
             } else {
                 $this->sale->delete($sale_id, false, true, (int) $this->employee->get_logged_in_employee_info()->person_id);
                 $this->session->set('sale_id', NEW_ENTRY);
