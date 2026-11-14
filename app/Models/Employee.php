@@ -451,24 +451,39 @@ class Employee extends Person
     }
 
     /**
-     * Determines whether the employee has access to at least one submodule, through their own
-     * grants or through their roles
+     * Determines whether the employee has access to a module, through their own grants or through their
+     * roles. What counts are the grant of the module itself and the grants of the sub-permissions the
+     * catalog files under that module with an id that begins with the module id and an underscore (the
+     * stock locations of items, sales and receivings, the reports and the recurring documents). The
+     * permission of another module never counts, whatever its id begins with. A module that has
+     * sub-permissions opens for a holder of at least two of them. The empty id asks for at least two grants of any kind.
      */
     public function has_module_grant(string $permission_id, int $person_id): bool
     {
+        $counted      = array_merge([$permission_id], $this->subpermissionIds($permission_id));
+        $countedLower = array_map('strtolower', $counted);
+
         $builder = $this->db->table('grants');
-        $builder->like('permission_id', $permission_id, 'after');
+        $builder->select('permission_id');
         $builder->where('person_id', $person_id);
 
-        $held = array_column($builder->get()->getResultArray(), 'permission_id');
+        if ($permission_id !== '') {
+            $builder->whereIn('permission_id', $counted);
+        }
+
+        $held = array_map('strtolower', array_column($builder->get()->getResultArray(), 'permission_id'));
 
         foreach ($this->roleGrants()->idsFor($person_id) as $roleGranted) {
-            if (stripos($roleGranted, $permission_id) === 0) {
-                $held[] = $roleGranted;
+            if ($permission_id === '' || in_array(strtolower($roleGranted), $countedLower, true)) {
+                $held[] = strtolower($roleGranted);
             }
         }
 
         $resultCount = count(array_unique($held));
+
+        if ($permission_id === '') {
+            return $resultCount > 1;
+        }
 
         if ($resultCount != 1) {
             return ($resultCount != 0);
@@ -478,14 +493,28 @@ class Employee extends Person
     }
 
     /**
-     * Checks permissions
+     * Whether the module has no sub-permission, so that its own grant alone opens it
      */
     public function has_subpermissions(string $permission_id): bool
     {
-        $builder = $this->db->table('permissions');
-        $builder->like('permission_id', $permission_id . '_', 'after');
+        return $this->subpermissionIds($permission_id) === [];
+    }
 
-        return ($builder->get()->getNumRows() == 0);    // TODO: ===
+    /**
+     * @return list<string>
+     */
+    private function subpermissionIds(string $moduleId): array
+    {
+        $builder = $this->db->table('permissions');
+        $builder->select('permission_id');
+        $builder->where('module_id', $moduleId);
+
+        $prefix = strtolower($moduleId) . '_';
+
+        return array_values(array_filter(
+            array_column($builder->get()->getResultArray(), 'permission_id'),
+            static fn (string $permissionId): bool => str_starts_with(strtolower($permissionId), $prefix)
+        ));
     }
 
     /**

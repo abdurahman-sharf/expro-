@@ -18,6 +18,9 @@ class EmployeeTest extends CIUnitTestCase
     use EmployeeFixtureTrait;
     use RoleFixtureTrait;
 
+    private const MODULES_THAT_NEED_A_SECOND_GRANT = ['items', 'receivings', 'recurring_expenses', 'recurring_invoices', 'reports', 'sales'];
+    private const PERMISSIONS_OF_ANOTHER_MODULE_THAT_BEGIN_WITH_A_MODULE_ID = ['expenses_categories' => 'expenses'];
+
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
@@ -546,5 +549,188 @@ class EmployeeTest extends CIUnitTestCase
         $modules  = array_column((new Module())->getAllowedModules($employee)->getResultArray(), 'module_id');
 
         $this->assertSame(['items'], $modules);
+    }
+
+    private function withTemporaryPermission(string $permissionId, string $moduleId, callable $body): void
+    {
+        $db = db_connect();
+        $db->table('permissions')->insert(['permission_id' => $permissionId, 'module_id' => $moduleId]);
+
+        try {
+            $body();
+        } finally {
+            $db->table('permissions')->where('permission_id', $permissionId)->delete();
+        }
+    }
+
+    /**
+     * @param list<string> $permissionIds
+     *
+     * @return list<array{permission_id: string, menu_group: string}>
+     */
+    private function homeGrants(array $permissionIds): array
+    {
+        return array_map(static fn (string $id): array => ['permission_id' => $id, 'menu_group' => 'home'], $permissionIds);
+    }
+
+    public function testHasModuleGrant_OpensTheExpensesModuleToAnEmployeeWhoHoldsOnlyTheModule(): void
+    {
+        $employee = $this->createEmployee(grants: $this->homeGrants(['expenses']));
+
+        $this->assertSame(1, db_connect()->table('permissions')->where('permission_id', 'expenses_categories')->countAllResults());
+        $this->assertTrue(model(Employee::class)->has_module_grant('expenses', $employee), 'The permission of the categories begins with the id of the expenses module but belongs to another module');
+        $this->assertTrue(model(Employee::class)->has_subpermissions('expenses'));
+    }
+
+    public function testHasModuleGrant_RejectsTheHolderOfTwoPermissionsOfAnotherModuleWhoseIdBeginsWithTheModuleId(): void
+    {
+        $this->withTemporaryPermission('expenses_categories_manage', 'expenses_categories', function (): void {
+            $employee = $this->createEmployee(grants: $this->homeGrants(['expenses_categories', 'expenses_categories_manage']));
+
+            $this->assertFalse(model(Employee::class)->has_module_grant('expenses', $employee));
+            $this->assertTrue(model(Employee::class)->has_module_grant('expenses_categories', $employee), 'The module of the categories opens on its own two grants');
+        });
+    }
+
+    public function testHasModuleGrant_KeepsAModuleOpenWhenAPermissionOfAnotherModuleBeginsWithItsId(): void
+    {
+        $this->withTemporaryPermission('expenses_categories_manage', 'expenses_categories', function (): void {
+            $employee = $this->createEmployee(grants: $this->homeGrants(['expenses']));
+
+            $this->assertTrue(model(Employee::class)->has_module_grant('expenses', $employee));
+        });
+    }
+
+    public function testHasModuleGrant_RejectsTheHolderOfTwoPermissionsOfAnotherModuleThroughTheRolesToo(): void
+    {
+        $this->withTemporaryPermission('expenses_categories_manage', 'expenses_categories', function (): void {
+            $holder = $this->employeeWithRoles([$this->createRole(['expenses_categories', 'expenses_categories_manage'])]);
+            $alone  = $this->employeeWithRoles([$this->createRole(['expenses'])]);
+
+            $this->assertFalse(model(Employee::class)->has_module_grant('expenses', $holder));
+            $this->assertTrue(model(Employee::class)->has_module_grant('expenses', $alone));
+        });
+    }
+
+    public function testHasModuleGrant_CountsTheSubPermissionsOfTheModuleItself(): void
+    {
+        $model = model(Employee::class);
+
+        $this->assertTrue($model->has_module_grant('sales', $this->createEmployee(grants: $this->homeGrants(['sales', 'sales_stock']))));
+        $this->assertTrue($model->has_module_grant('sales', $this->createEmployee(grants: $this->homeGrants(['sales', 'sales_delete']))));
+        $this->assertFalse($model->has_module_grant('sales', $this->createEmployee(grants: $this->homeGrants(['sales']))), 'A module with sub-permissions needs one of them beside its own grant');
+        $this->assertFalse($model->has_module_grant('sales', $this->createEmployee(grants: $this->homeGrants(['sales_delete']))));
+        $this->assertFalse($model->has_module_grant('sales', $this->createEmployee()));
+    }
+
+    public function testHasModuleGrant_AnswersTheEmptyModuleIdForTheHolderOfTwoGrantsOfAnyKind(): void
+    {
+        $model = model(Employee::class);
+
+        $this->assertTrue($model->has_module_grant('', $this->createEmployee(grants: $this->homeGrants(['taxes', 'items']))));
+        $this->assertTrue($model->has_module_grant('', $this->employeeWithRoles([$this->createRole(['taxes'])], ['items'])));
+        $this->assertFalse($model->has_module_grant('', $this->createEmployee(grants: $this->homeGrants(['taxes']))));
+        $this->assertFalse($model->has_module_grant('', $this->createEmployee()));
+    }
+
+    public function testHasModuleGrant_ReadsTheNameOfAStockLocationWhateverItsCase(): void
+    {
+        $this->withTemporaryPermission('sales_Warehouse', 'sales', function (): void {
+            $model = model(Employee::class);
+
+            $this->assertTrue($model->has_module_grant('sales', $this->createEmployee(grants: $this->homeGrants(['sales', 'sales_Warehouse']))));
+            $this->assertTrue($model->has_module_grant('sales', $this->employeeWithRoles([$this->createRole(['sales', 'sales_Warehouse'])])));
+        });
+    }
+
+    public function testCatalog_RejectsAPermissionWhoseIdBeginsWithTheIdOfAnotherModule(): void
+    {
+        $db          = db_connect();
+        $moduleIds   = array_column($db->table('modules')->select('module_id')->get()->getResultArray(), 'module_id');
+        $permissions = $db->table('permissions')->select('permission_id, module_id')->get()->getResultArray();
+        $offenders   = [];
+
+        foreach ($permissions as $permission) {
+            foreach ($moduleIds as $moduleId) {
+                $beginsWithIt = $permission['permission_id'] !== $moduleId && str_starts_with(strtolower($permission['permission_id']), strtolower($moduleId));
+
+                if ($beginsWithIt && $permission['module_id'] !== $moduleId && (self::PERMISSIONS_OF_ANOTHER_MODULE_THAT_BEGIN_WITH_A_MODULE_ID[$permission['permission_id']] ?? null) !== $moduleId) {
+                    $offenders[] = $permission['permission_id'] . ' (module ' . $permission['module_id'] . ') begins with the id of the module ' . $moduleId;
+                }
+            }
+        }
+
+        $this->assertSame([], $offenders, 'The id of a module and of its permissions must not begin with the id of another module: name them like so_*, stk_* or acc_*');
+    }
+
+    public function testCatalog_RequiresEveryModuleThatNeedsASecondGrantToBeOnTheList(): void
+    {
+        $db      = db_connect();
+        $needing = [];
+
+        foreach ($db->table('permissions')->select('permission_id, module_id')->get()->getResultArray() as $permission) {
+            if ($permission['permission_id'] !== $permission['module_id'] && str_starts_with(strtolower($permission['permission_id']), strtolower($permission['module_id']) . '_')) {
+                $needing[$permission['module_id']][] = $permission['permission_id'];
+            }
+        }
+
+        $unlisted = array_diff(array_keys($needing), self::MODULES_THAT_NEED_A_SECOND_GRANT);
+
+        $this->assertSame([], array_map(static fn (string $moduleId): string => $moduleId . ': ' . implode(', ', $needing[$moduleId]), array_values($unlisted)), 'A permission that begins with the id of its own module and an underscore makes the module open only for a holder of two grants: name the permission another way, or put the module on the list on purpose');
+        $this->assertSame([], array_values(array_diff(self::MODULES_THAT_NEED_A_SECOND_GRANT, array_keys($needing))), 'A module on the list no longer has such a permission');
+    }
+
+    public function testHasModuleGrant_OpensEveryModuleToTheHolderOfItsOwnGrantExceptTheOnesThatNeedASecondGrant(): void
+    {
+        $db       = db_connect();
+        $model    = model(Employee::class);
+        $moduleIds = array_column($db->table('modules')->select('module_id')->get()->getResultArray(), 'module_id');
+        $failures = [];
+
+        $this->assertGreaterThan(40, count($moduleIds));
+
+        foreach ($moduleIds as $moduleId) {
+            $holder   = $this->createEmployee(grants: $this->homeGrants([$moduleId]));
+            $expected = ! in_array($moduleId, self::MODULES_THAT_NEED_A_SECOND_GRANT, true);
+
+            if ($model->has_module_grant($moduleId, $holder) !== $expected) {
+                $failures[] = $moduleId;
+            }
+        }
+
+        $this->assertSame([], $failures);
+    }
+
+    public function testHasModuleGrant_OpensNoModuleToTheHolderOfTheGrantsOfAnotherModule(): void
+    {
+        $db         = db_connect();
+        $model      = model(Employee::class);
+        $permissions = $db->table('permissions')->select('permission_id, module_id')->get()->getResultArray();
+        $failures   = [];
+
+        foreach (array_keys(self::PERMISSIONS_OF_ANOTHER_MODULE_THAT_BEGIN_WITH_A_MODULE_ID) as $permissionId) {
+            $moduleId = self::PERMISSIONS_OF_ANOTHER_MODULE_THAT_BEGIN_WITH_A_MODULE_ID[$permissionId];
+            $holder   = $this->createEmployee(grants: $this->homeGrants([$permissionId]));
+
+            if ($model->has_module_grant($moduleId, $holder)) {
+                $failures[] = $permissionId . ' opens ' . $moduleId;
+            }
+        }
+
+        foreach ($permissions as $permission) {
+            if ($permission['permission_id'] === $permission['module_id']) {
+                continue;
+            }
+
+            $holder = $this->createEmployee(grants: $this->homeGrants([$permission['permission_id']]));
+
+            foreach ($permissions as $other) {
+                if ($other['permission_id'] === $other['module_id'] && $other['module_id'] !== $permission['module_id'] && $model->has_module_grant($other['module_id'], $holder)) {
+                    $failures[] = $permission['permission_id'] . ' opens ' . $other['module_id'];
+                }
+            }
+        }
+
+        $this->assertSame([], $failures);
     }
 }
