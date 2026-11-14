@@ -540,4 +540,32 @@ class CashupControllerTest extends CIUnitTestCase
         $response->assertStatus(200);
         $this->assertSame([(string) $second, (string) $first], array_column(json_decode($response->getJSON(), true)['rows'], 'cashup_id'));
     }
+
+    public function testGetRow_HidesACashUpOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $this->markTestSkipped('Open finding R3-I6: cashups/row and cashups/view give a cash-up of another branch to an employee who does not work in it. Remove this line when they refuse it.');
+
+        $this->accountingCashier();
+
+        $second = $this->createBranch('B2');
+        $remote = $this->employeeWithGrants(['cashups'], [$second]);
+
+        $this->loginAs($remote);
+
+        $created = $this->saveClosing($this->closingForm('90.75'));
+
+        $this->assertTrue($created['success']);
+
+        $this->loginAs($this->employeeWithGrants(['cashups'], [1]));
+
+        $screens = [
+            'row'    => (string) $this->get('/cashups/row/' . $created['id'])->response()->getBody(),
+            'view'   => (string) $this->get('/cashups/view/' . $created['id'])->response()->getBody(),
+            'search' => (string) $this->get('/cashups/search?limit=50&offset=0&search=&order=asc')->response()->getBody(),
+        ];
+
+        $leaks = array_keys(array_filter($screens, static fn (string $body): bool => str_contains($body, '90.75')));
+
+        $this->assertSame([], $leaks, 'Screens that show the cash-up of a branch the employee does not work in');
+    }
 }
