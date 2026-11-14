@@ -633,6 +633,69 @@ class SaleTest extends CIUnitTestCase
         $this->assertFalse($this->temporaryTableExists('sales_items_temp'), 'Reading the time of a sale must leave no temporary table behind.');
     }
 
+    public function testSearch_ReadsTheListWithoutWaitingForASaleThatIsBeingSaved(): void
+    {
+        $db         = Database::connect();
+        $employeeId = $this->createEmployee();
+        $config     = (new Database())->tests;
+        $writer     = Database::connect($config, false);
+
+        $writer->transStart();
+        $writer->table('sales')->insert(['sale_time' => '2026-10-20 12:00:00', 'employee_id' => $employeeId, 'comment' => '', 'sale_status' => COMPLETED, 'sale_type' => SALE_TYPE_POS, 'branch_id' => 1]);
+        $writer->table('sales_payments')->insert(['sale_id' => $writer->insertID(), 'payment_type' => 'Cash', 'payment_amount' => '10', 'cash_refund' => '0', 'employee_id' => $employeeId, 'reference_code' => '']);
+
+        $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $filters = ['sale_type' => 'all', 'location_id' => 'all', 'start_date' => '2026-10-20', 'end_date' => '2026-10-20', 'only_cash' => false, 'only_due' => false, 'only_check' => false, 'selected_customer' => false, 'only_creditcard' => false, 'only_debit' => false, 'only_bank_transfer' => false, 'only_wallet' => false, 'only_invoices' => false, 'is_valid_receipt' => false];
+
+            $this->assertNotNull(model(Sale::class)->search('', $filters, 25, 0, 'sale_id', 'desc'));
+        } finally {
+            $writer->transRollback();
+            $writer->close();
+            $db->query('SET SESSION innodb_lock_wait_timeout = 50');
+            $this->dropReportTables();
+        }
+    }
+
+    public function testSearch_ReadsMoreSalesThanTheMemoryTablesOfTheServerCanHold(): void
+    {
+        $db         = Database::connect();
+        $employeeId = $this->createEmployee();
+        $itemId     = $this->createTestItem();
+        $sales      = [];
+        $lines      = [];
+        $taxes      = [];
+
+        for ($index = 0; $index < 1600; $index++) {
+            $sales[] = ['sale_time' => '2001-02-10 12:00:00', 'employee_id' => $employeeId, 'comment' => '', 'sale_status' => COMPLETED, 'sale_type' => SALE_TYPE_POS, 'branch_id' => 1];
+        }
+
+        $db->table('sales')->insertBatch($sales, null, 800);
+
+        $firstId = (int) $db->table('sales')->selectMin('sale_id', 'first')->like('sale_time', '2001-02-10', 'after')->get()->getRow()->first;
+
+        for ($offset = 0; $offset < 1600; $offset++) {
+            for ($line = 1; $line <= 10; $line++) {
+                $lines[] = ['sale_id' => $firstId + $offset, 'item_id' => $itemId, 'line' => $line, 'description' => '', 'serialnumber' => '', 'quantity_purchased' => '1', 'item_cost_price' => '1', 'item_unit_price' => '2', 'discount' => '0', 'discount_type' => PERCENT, 'item_location' => self::LOCATION_ID, 'print_option' => 0];
+                $taxes[] = ['sale_id' => $firstId + $offset, 'item_id' => $itemId, 'line' => $line, 'name' => 'VAT', 'percent' => '15', 'tax_type' => 1, 'rounding_code' => 0, 'cascade_sequence' => 0, 'item_tax_amount' => '0.3'];
+            }
+        }
+
+        $db->table('sales_items')->insertBatch($lines, null, 2000);
+        $db->table('sales_items_taxes')->insertBatch($taxes, null, 2000);
+        $db->query('SET SESSION max_heap_table_size = 1048576');
+
+        try {
+            $filters = ['sale_type' => 'all', 'location_id' => 'all', 'start_date' => '2001-02-10', 'end_date' => '2001-02-10', 'only_cash' => false, 'only_due' => false, 'only_check' => false, 'selected_customer' => false, 'only_creditcard' => false, 'only_debit' => false, 'only_bank_transfer' => false, 'only_wallet' => false, 'only_invoices' => false, 'is_valid_receipt' => false];
+
+            $this->assertSame(1600, model(Sale::class)->get_found_rows('', $filters));
+        } finally {
+            $db->query('SET SESSION max_heap_table_size = ' . (16 * 1048576));
+            $this->dropReportTables();
+        }
+    }
+
     private function temporaryTableExists(string $table): bool
     {
         $db = Database::connect();

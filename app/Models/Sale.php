@@ -3497,6 +3497,7 @@ class Sale extends Model
         $sub_query = $builder->getCompiledSelect();
         log_message('error', $sub_query);
 
+        $this->readWithoutLocksOnce();
         $this->db->query('CREATE TEMPORARY TABLE IF NOT EXISTS '
             . $this->db->prefixTable('sales_search_payments_temp')
             . ' (PRIMARY KEY(`sale_id`), INDEX(`sale_id`)) AS (' . $sub_query . ')');
@@ -3526,9 +3527,22 @@ class Sale extends Model
         $builder->groupBy(['sale_id', 'item_id', 'line']);
         $sub_query = $builder->getCompiledSelect();
 
+        $this->readWithoutLocksOnce();
         $this->db->query('CREATE TEMPORARY TABLE IF NOT EXISTS '
             . $this->db->prefixTable('sales_items_taxes_temp')
-            . ' (INDEX(sale_id), INDEX(item_id)) ENGINE=MEMORY AS (' . $sub_query . ')');
+            . ' (INDEX(sale_id), INDEX(item_id)) AS (' . $sub_query . ')');
+    }
+
+    /**
+     * A CREATE TABLE ... SELECT reads with shared locks under REPEATABLE READ, so the list of sales waited for every sale being saved
+     * and sat on the rows the next save needed, and the two ended in deadlocks. Under READ COMMITTED the same statement reads without
+     * locks. The setting is for the next transaction only, which is the statement that follows, and cannot be changed inside one.
+     */
+    private function readWithoutLocksOnce(): void
+    {
+        if ($this->db->transDepth === 0) {
+            $this->db->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+        }
     }
 
     /**
