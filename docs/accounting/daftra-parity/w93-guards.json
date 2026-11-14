@@ -1,0 +1,20 @@
+[
+  {
+    "name": "W93-01 the aging of a customer is read as of the day of the report instead of a day after every document (a customer invoice dated ahead is then missing from the aged total and the check fails)",
+    "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+    "find": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));",
+    "replace": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(date('Y-m-d')));",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/TieChecksTest.php"
+    ]
+  },
+  {
+    "name": "W93-02 the aging of a supplier is read as of the day of the report instead of a day after every document (a purchase dated ahead is then missing from the aged total and the check fails)",
+    "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
+    "find": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));",
+    "replace": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(date('Y-m-d')));",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/TieChecksTest.php"
+    ]
+  }
+]
