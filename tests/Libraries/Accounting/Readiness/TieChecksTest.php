@@ -353,16 +353,45 @@ class TieChecksTest extends CIUnitTestCase
         $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
     }
 
-    public function testTreasuryTies_FailsWhenAJournalWrittenByHandPutsMoneyOnATreasuryAccount(): void
+    public function testTreasuryTies_ReviewsAJournalWrittenByHandOnATreasuryAccountAndDoesNotFail(): void
     {
         $drawer = $this->treasuries->create(['name' => 'Drawer', 'kind' => 'cash']);
         $this->byHand((int) $this->treasuries->accountOf($drawer), '25.00');
 
         $result = $this->check('treasury_ties');
 
-        $this->assertSame(CheckStatus::Fail, $result->status);
+        $this->assertSame(CheckStatus::Review, $result->status);
+        $this->assertFalse($result->status->blocks());
         $this->assertSame(["treasury {$drawer} (Drawer): its account holds 25.0000 and 25.0000 of it was put there by hand"], $result->findings);
+        $this->assertSame(0, $result->data['differences']);
+        $this->assertSame(1, $result->data['by_hand']);
+        $this->assertSame('25.0000', $result->data['by_hand_total']);
+    }
+
+    public function testTreasuryTies_PassesWhenTheJournalsWrittenByHandNetToNothing(): void
+    {
+        $drawer = $this->treasuries->create(['name' => 'Drawer', 'kind' => 'cash']);
+        $this->byHand((int) $this->treasuries->accountOf($drawer), '25.00');
+        $this->byHand((int) $this->treasuries->accountOf($drawer), '25.00', false);
+
+        $this->assertSame(CheckStatus::Pass, $this->check('treasury_ties')->status);
+    }
+
+    public function testTreasuryTies_FailsForATreasuryThatHasNoAccountEvenWhenAnotherHoldsAJournalWrittenByHand(): void
+    {
+        $drawer    = $this->treasuries->create(['name' => 'Drawer', 'kind' => 'cash']);
+        $till      = $this->treasuries->create(['name' => 'Till', 'kind' => 'cash']);
+        $accountId = (int) $this->treasuries->accountOf($drawer);
+        $this->accountingDb()->table('accounting_accounts')->where('account_id', $accountId)->update(['entity_type' => null, 'entity_id' => null]);
+        $this->byHand((int) $this->treasuries->accountOf($till), '25.00');
+
+        $result = $this->check('treasury_ties');
+
+        $this->assertSame(CheckStatus::Fail, $result->status);
+        $this->assertContains("treasury {$drawer} (Drawer) has no account", $result->findings);
+        $this->assertContains("treasury {$till} (Till): its account holds 25.0000 and 25.0000 of it was put there by hand", $result->findings);
         $this->assertSame(1, $result->data['differences']);
+        $this->assertSame(1, $result->data['by_hand']);
     }
 
     public function testTreasuryTies_FailsForATreasuryThatHasNoAccount(): void
@@ -383,7 +412,7 @@ class TieChecksTest extends CIUnitTestCase
         $this->accountingDb()->table('treasuries')->where('treasury_id', $drawer)->update(['active' => 0]);
         $this->byHand((int) $this->treasuries->accountOf($drawer), '25.00');
 
-        $this->assertSame(CheckStatus::Fail, $this->check('treasury_ties')->status);
+        $this->assertSame(CheckStatus::Review, $this->check('treasury_ties')->status);
     }
 
     public function testStockTies_PassesWhenEveryLocationTiesToItsMovements(): void

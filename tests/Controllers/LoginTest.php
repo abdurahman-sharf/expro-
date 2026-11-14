@@ -2,10 +2,14 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\MigrationLock;
 use CodeIgniter\Config\Services;
+use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
+use Config\Database;
+use Tests\Support\MigrationHistoryFixtureTrait;
 
 /**
  * Test suite for the Login controller, including the CI Throttler
@@ -15,6 +19,7 @@ class LoginTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use FeatureTestTrait;
+    use MigrationHistoryFixtureTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -22,6 +27,8 @@ class LoginTest extends CIUnitTestCase
     protected $namespace   = null;
 
     private array $usedKeys = [];
+
+    private ?BaseConnection $lockHolder = null;
 
     protected function setUp(): void
     {
@@ -33,6 +40,9 @@ class LoginTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->restoreMigrations();
+        $this->lockHolder?->close();
+        $this->lockHolder = null;
         $this->clearThrottleState();
 
         parent::tearDown();
@@ -154,5 +164,49 @@ class LoginTest extends CIUnitTestCase
             $this->skipIfMigrationRequired($response);
             $response->assertStatus(200);
         }
+    }
+
+    private function leaveLatestMigrationPending(): string
+    {
+        $latest = (string) Database::connect()->table('migrations')->selectMax('version')->get()->getRow()->version;
+
+        $this->forgetMigration($latest);
+
+        return $latest;
+    }
+
+    private function holdMigrationLockInAnotherRequest(): void
+    {
+        $this->lockHolder = Database::connect(config('Database')->tests, false);
+        $this->lockHolder->query('SELECT GET_LOCK(?, 0)', [MigrationLock::name(Database::connect()->getDatabase())]);
+    }
+
+    private function migrationRan(string $version): bool
+    {
+        return Database::connect()->table('migrations')->where('version', $version)->countAllResults() > 0;
+    }
+
+    public function testPostLogin_LeavesAPendingMigrationAloneWhileAnotherRequestHoldsTheMigrationLock(): void
+    {
+        $pending = $this->leaveLatestMigrationPending();
+        $this->holdMigrationLockInAnotherRequest();
+
+        $response = $this->post('/login', ['username' => 'admin', 'password' => 'pointofsale']);
+        $this->trackThrottleKeys('admin');
+
+        $this->assertStringEndsWith('/login', rtrim((string) $response->getRedirectUrl(), '/'));
+        $this->assertFalse($this->migrationRan($pending), 'A request that finds the lock taken must not run the migration.');
+    }
+
+    public function testPostMigrate_RefusesWhileAnotherRequestHoldsTheMigrationLock(): void
+    {
+        $pending = $this->leaveLatestMigrationPending();
+        $this->holdMigrationLockInAnotherRequest();
+
+        $response = $this->post('/migrate', ['username' => 'admin', 'password' => 'pointofsale']);
+        $this->trackThrottleKeys('admin');
+
+        $response->assertStatus(503);
+        $this->assertFalse($this->migrationRan($pending));
     }
 }

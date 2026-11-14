@@ -7,6 +7,10 @@ use App\Libraries\Accounting\LegacyDiscountFinding;
 use App\Libraries\Accounting\LegacyDiscountVerdict;
 use App\Libraries\Accounting\LegacyPurchaseDiscount;
 use App\Libraries\Accounting\PaymentTreasuryStamping;
+use App\Libraries\Accounting\PaymentType;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\RoutingKey;
+use App\Libraries\Accounting\RoutingResolver;
 use App\Libraries\Accounting\SaleAmounts;
 use CodeIgniter\Database\BaseConnection;
 
@@ -14,8 +18,10 @@ use CodeIgniter\Database\BaseConnection;
  * The protections of data that existed before the accounting layer: the fixed purchase discounts
  * the migration cannot tell apart (E38), the bank treasuries without their bank details and the
  * ones not under the account of the banks (E40), and the payments that name no treasury although
- * their journal went into one (E41). Each is read with the scan its own command uses, and nothing
- * is changed here.
+ * their journal went into one and their way of payment is now routed to another account (E41): a
+ * payment that names no treasury and is still where its routing points is how a payment is written
+ * when no treasury is named. Each is read with the scan its own command uses, and nothing is changed
+ * here.
  */
 final class HistoricalDataChecks extends CheckGroup
 {
@@ -209,16 +215,30 @@ final class HistoricalDataChecks extends CheckGroup
 
     private function paymentStamping(): CheckResult
     {
-        $plan = (new PaymentTreasuryStamping($this->db))->plan();
+        $plan     = (new PaymentTreasuryStamping($this->db))->plan();
+        $resolver = new RoutingResolver($this->db);
+        $moved    = [];
+        $inPlace  = [];
 
-        $data = ['stamp' => count($plan['stamp']), 'skipped' => count($plan['skipped'])];
+        foreach ($plan['stamp'] as $row) {
+            $type   = PaymentType::fromLabel($row['payment_type']);
+            $routed = $type === null ? null : $this->routedTo($resolver, $type);
+
+            if ($routed !== null && $routed === $this->treasuryAccount($resolver, $row['treasury_id'])) {
+                $inPlace[$row['table']] = ($inPlace[$row['table']] ?? 0) + 1;
+            } else {
+                $moved[] = $row;
+            }
+        }
+
+        $data = ['stamp' => count($moved), 'in_place' => array_sum($inPlace), 'skipped' => count($plan['skipped'])];
 
         $skipped = array_map(static fn (array $row): string => "{$row['table']} #{$row['payment_id']} cannot be stamped: {$row['reason']}", $plan['skipped']);
 
-        if ($plan['stamp'] !== []) {
+        if ($moved !== []) {
             return CheckResult::fail(
-                count($plan['stamp']) . ' payment(s) name no treasury although their journal went into one. Stamping sets only the treasury of the payment: no journal, no amount and no balance changes.',
-                [...array_map(static fn (array $row): string => "{$row['table']} #{$row['payment_id']} would take treasury {$row['treasury_id']}", $plan['stamp']), ...$skipped],
+                count($moved) . ' payment(s) name no treasury, their journal went into one, and their way of payment is now routed to another account: the next time their document is brought in line with the books they would move to that account. Stamping sets only the treasury of the payment: no journal, no amount and no balance changes.',
+                [...array_map(static fn (array $row): string => "{$row['table']} #{$row['payment_id']} would take treasury {$row['treasury_id']}: its way of payment is now routed to another account than its journal", $moved), ...$skipped],
                 $data,
                 ['command' => 'accounting:stamp_payments', 'params' => ['apply' => null]],
             );
@@ -228,6 +248,34 @@ final class HistoricalDataChecks extends CheckGroup
             return CheckResult::review(count($skipped) . ' payment(s) went into a treasury and cannot be stamped: the owner looks at each.', $skipped, $data);
         }
 
+        if ($inPlace !== []) {
+            ksort($inPlace);
+
+            return CheckResult::pass(
+                $data['in_place'] . ' payment(s) name no treasury and stay on the account their way of payment is routed to, which is where a payment goes when no treasury is named: nothing would move them, and the routing screen stamps them before it moves a way of payment.',
+                array_map(static fn (string $table, int $count): string => "{$table}: {$count} payment(s) name no treasury and are where their way of payment is routed", array_keys($inPlace), $inPlace),
+                $data,
+            );
+        }
+
         return CheckResult::pass('Every payment that went into a treasury names it, or has no journal in one.', [], $data);
+    }
+
+    private function routedTo(RoutingResolver $resolver, PaymentType $type): ?int
+    {
+        try {
+            return $resolver->accountForPayment($type);
+        } catch (PostingException) {
+            return null;
+        }
+    }
+
+    private function treasuryAccount(RoutingResolver $resolver, int $treasuryId): ?int
+    {
+        try {
+            return $resolver->accountFor(RoutingKey::Treasuries, $treasuryId);
+        } catch (PostingException) {
+            return null;
+        }
     }
 }

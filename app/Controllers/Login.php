@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\MigrationLock;
 use App\Libraries\MY_Migration;
 use App\Models\Employee;
 use CodeIgniter\HTTP\RedirectResponse;
@@ -63,7 +64,8 @@ class Login extends BaseController
             if (!$data['isLatest'] || $data['isNewInstall']) {
                 set_time_limit(3600);
 
-                $migration->setNamespace('App')->latest();
+                (new MigrationLock())->run(static fn () => $migration->setNamespace('App')->latest());
+
                 return redirect()->to('login');
             }
 
@@ -121,7 +123,13 @@ class Login extends BaseController
             $migration->migrateToCI4();
 
             set_time_limit(3600);
-            $migration->setNamespace('App')->latest();
+
+            if (! (new MigrationLock())->run(static fn () => $migration->setNamespace('App')->latest())) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Another request is migrating this database: wait for it to finish'
+                ])->setStatusCode(503);
+            }
 
             return $this->response->setJSON([
                 'success' => true,
