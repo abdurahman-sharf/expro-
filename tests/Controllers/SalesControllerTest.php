@@ -2589,6 +2589,40 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertEqualsWithDelta($stock, $this->stock($item), 0.0001);
     }
 
+    public function testPostComplete_RefusesAReturnOfASaleCancelledAfterTheReturnWasOpenedAndSavesNothing(): void
+    {
+        $this->startSelling();
+
+        $service = $this->item('0', false);
+        $origin  = $this->save([$this->line($service, 0, '1', '100.00')], [], [$this->payment(lang('Sales.cash'), '100.00')], SALE_TYPE_POS, -1);
+
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->seedCartLine(1, '100.00', $service);
+
+        $cart                        = $this->session['sales_cart'];
+        $cart[1]['quantity']         = '-1';
+        $cart[1]['total']            = '-100.00';
+        $cart[1]['discounted_total'] = '-100.00';
+
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sale_type' => SALE_TYPE_RETURN, 'sales_customer' => $this->customerId, 'sales_cart' => $cart, 'sales_payments' => [], 'sales_return_origin' => $origin]));
+        $this->post('/sales/addPayment', ['payment_type' => lang('Sales.cash'), 'amount_tendered' => '-100']);
+        $this->withSession(array_merge($this->session, ['sales_payments' => Services::session()->get('sales_payments')]));
+
+        $this->assertTrue($this->sales->delete($origin, false, true, $supervisorId));
+
+        $sales    = $this->countSales();
+        $journals = $this->countJournals();
+        $balance  = $this->balance($this->customerAccount());
+
+        $this->post('/sales/complete')->assertSee(lang('Accounting.posting_return_origin_invalid'));
+
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertSame($balance, $this->balance($this->customerAccount()));
+    }
+
     public function testPostSetReturnOrigin_NamesTheSaleAndSelectsItsCustomer(): void
     {
         $invoice      = $this->postedInvoice();
