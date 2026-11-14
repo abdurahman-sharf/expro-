@@ -3,6 +3,7 @@
 namespace App\Models\Reports;
 
 use App\Libraries\Accounting\PaymentType;
+use App\Libraries\Database\ReadCommittedStatement;
 use App\Libraries\InvoiceDiscount;
 use Config\OSPOS;
 
@@ -164,7 +165,8 @@ class Summary_payments extends Summary_report
             . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, $decimals) "
             . ' ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END - ' . InvoiceDiscount::sqlShare('sales_items') . ') AS trans_amount';
 
-        $this->db->query(
+        ReadCommittedStatement::run(
+            $this->db,
             'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sumpay_taxes_temp') .
                 ' (INDEX(sale_id)) ENGINE=MEMORY
             (
@@ -177,7 +179,8 @@ class Summary_payments extends Summary_report
             )'
         );
 
-        $this->db->query(
+        ReadCommittedStatement::run(
+            $this->db,
             'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sumpay_items_temp') .
                 ' (INDEX(sale_id)) ENGINE=MEMORY
             (
@@ -195,7 +198,8 @@ class Summary_payments extends Summary_report
             . 'SET trans_amount = trans_amount + IFNULL((SELECT total_taxes FROM ' . $this->db->prefixTable('sumpay_taxes_temp')
             . ' AS sumpay_taxes WHERE sumpay_items.sale_id = sumpay_taxes.sale_id),0)');
 
-        $this->db->query(
+        ReadCommittedStatement::run(
+            $this->db,
             'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sumpay_payments_temp') .
                 ' (INDEX(sale_id)) ENGINE=MEMORY
             (

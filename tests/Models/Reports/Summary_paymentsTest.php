@@ -13,6 +13,7 @@ use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\ReportBranchFixtureTrait;
 use Tests\Support\ReportSaleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\UncommittedWriterTrait;
 
 /**
  * What was paid, and how, is counted from the sales of the branches the employee works in, and what
@@ -28,6 +29,7 @@ class Summary_paymentsTest extends CIUnitTestCase
     use PurchaseAccountingFixtureTrait;
     use ReportBranchFixtureTrait;
     use ReportSaleFixtureTrait;
+    use UncommittedWriterTrait;
 
     private const MONTH = '2004-05-';
 
@@ -124,6 +126,13 @@ class Summary_paymentsTest extends CIUnitTestCase
         $this->assertSame(1, $this->counted('b'));
         $this->assertSame(3, $this->counted('all'));
         $this->assertSame(0, $this->counted('none'));
+    }
+
+    public function testGetData_BuildsThePaymentsWithoutWaitingForASaleThatIsBeingSaved(): void
+    {
+        $rows = $this->whileASaleIsBeingSaved($this->createEmployee(), $this->createTestItem(HAS_NO_STOCK), null, static fn (): array => (new Summary_payments())->getData(['start_date' => self::UNCOMMITTED_DAY, 'end_date' => self::UNCOMMITTED_DAY, 'location_id' => 'all', 'sale_type' => 'complete']));
+
+        $this->assertSame([], array_filter($rows, static fn (array $row): bool => $row['trans_group'] === lang('Reports.trans_sales')));
     }
 
     public function testGetData_CountsWhatASaleCameToAfterTheDiscountOnTheWholeOfItAsTheAmountOfTheTransaction(): void

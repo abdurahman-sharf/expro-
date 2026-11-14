@@ -14,6 +14,7 @@ use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\ReportBranchFixtureTrait;
 use Tests\Support\ReportSaleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\UncommittedWriterTrait;
 
 /**
  * The sales summary adds up the sales of the branches the employee works in, and every branch for
@@ -30,6 +31,7 @@ class Summary_salesTest extends CIUnitTestCase
     use PurchaseAccountingFixtureTrait;
     use ReportBranchFixtureTrait;
     use ReportSaleFixtureTrait;
+    use UncommittedWriterTrait;
 
     private const MONTH = '2005-06-';
 
@@ -116,6 +118,13 @@ class Summary_salesTest extends CIUnitTestCase
 
         $this->assertSame('10.00', bcsub($this->figures('a')['total'], '207.00', 2), 'The first branch holds the old sale');
         $this->assertSame('126.00', $this->figures('b')['total'], 'The second does not');
+    }
+
+    public function testGetData_BuildsTheDaysWithoutWaitingForASaleThatIsBeingSaved(): void
+    {
+        $rows = $this->whileASaleIsBeingSaved($this->createEmployee(), $this->createTestItem(HAS_NO_STOCK), null, static fn (): array => (new Summary_sales())->getData(['start_date' => self::UNCOMMITTED_DAY, 'end_date' => self::UNCOMMITTED_DAY, 'location_id' => 'all', 'sale_type' => 'complete']));
+
+        $this->assertSame([], $rows);
     }
 
     public function testGetSummaryData_AddsUpTheSalesOfADayAfterTheirDiscountsOnTheWholeOfTheSale(): void

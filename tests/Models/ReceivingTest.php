@@ -33,6 +33,7 @@ use Tests\Support\PurchaseAccountingFixtureTrait;
 use Tests\Support\PurchaseCycleFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
+use Tests\Support\UncommittedWriterTrait;
 
 /**
  * Regression tests: Receiving::delete_value() must
@@ -51,6 +52,7 @@ class ReceivingTest extends CIUnitTestCase
     use PurchaseAccountingFixtureTrait;
     use PurchaseCycleFixtureTrait;
     use RoleFixtureTrait;
+    use UncommittedWriterTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -148,6 +150,21 @@ class ReceivingTest extends CIUnitTestCase
         $this->assertTrue($deleteResult);
         $this->assertEqualsWithDelta(0.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
     }
+    public function testCreateTempTable_ReadsTheReceivingsOfADayWithoutWaitingForAPurchaseThatIsBeingSaved(): void
+    {
+        $db = Database::connect();
+
+        try {
+            $this->whileAPurchaseIsBeingSaved($this->createEmployee(), $this->createTestItem(), static function (): void {
+                model(Receiving::class)->create_temp_table(['start_date' => self::UNCOMMITTED_DAY, 'end_date' => self::UNCOMMITTED_DAY]);
+            });
+
+            $this->assertSame(0, $db->table('receivings_items_temp')->countAllResults());
+        } finally {
+            $db->query('DROP TEMPORARY TABLE IF EXISTS ' . $db->prefixTable('receivings_items_temp'));
+        }
+    }
+
     public function testBranchIdsOfItems_NamesEachBranchOfTheLocationsOfTheLinesOnce(): void
     {
         $this->startBuying();

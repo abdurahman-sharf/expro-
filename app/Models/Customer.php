@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Database\ReadCommittedStatement;
 use App\Libraries\MasterData\PartyContacts;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -168,7 +169,7 @@ class Customer extends Person
 
         $sql = 'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_items_temp');
         $sql .= ' (INDEX(sale_id)) ENGINE=MEMORY (' . $selectQuery . ')';
-        $this->db->query($sql);
+        ReadCommittedStatement::run($this->db, $sql);
 
         // Get data
         $builder = $this->db->table('sales');

@@ -28,6 +28,7 @@ use App\Libraries\Accounting\SupplierLock;
 use App\Libraries\Accounting\SupplierPaymentDate;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
+use App\Libraries\Database\ReadCommittedStatement;
 use App\Libraries\Integrations\PaymentMethods;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -2055,6 +2056,6 @@ class Receiving extends Model
         $sql = 'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('receivings_items_temp') .
             ' (INDEX(receiving_date), INDEX(receiving_time), INDEX(receiving_id)) AS (' . $selectQuery . ')';
 
-        $this->db->query($sql);
+        ReadCommittedStatement::run($this->db, $sql);
     }
 }

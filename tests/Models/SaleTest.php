@@ -27,6 +27,7 @@ use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\FailedQueryConnectionTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\RoleFixtureTrait;
+use Tests\Support\UncommittedWriterTrait;
 
 /**
  * Regression tests: Sale::save_value() must reject
@@ -41,6 +42,7 @@ class SaleTest extends CIUnitTestCase
     use FailedQueryConnectionTrait;
     use ItemFixtureTrait;
     use RoleFixtureTrait;
+    use UncommittedWriterTrait;
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -656,6 +658,15 @@ class SaleTest extends CIUnitTestCase
             $db->query('SET SESSION innodb_lock_wait_timeout = 50');
             $this->dropReportTables();
         }
+    }
+
+    public function testCreateTempTable_ReadsTheSalesOfADayWithoutWaitingForASaleThatIsBeingSaved(): void
+    {
+        $this->whileASaleIsBeingSaved($this->createEmployee(), $this->createTestItem(HAS_NO_STOCK), null, static function (): void {
+            model(Sale::class)->create_temp_table(['start_date' => self::UNCOMMITTED_DAY, 'end_date' => self::UNCOMMITTED_DAY]);
+        });
+
+        $this->assertTrue($this->temporaryTableExists('sales_items_temp'));
     }
 
     public function testSearch_ReadsMoreSalesThanTheMemoryTablesOfTheServerCanHold(): void
