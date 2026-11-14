@@ -39,13 +39,13 @@ echo '&#187; XML: ', extension_loaded('xml') ? '<span class="text-success">&#x27
                 <?php
 $browserNameAndVersion = static function (string $userAgent): string {
     $browser = match (true) {
-        str_contains($userAgent, 'Opera') || str_contains($userAgent, 'OPR/')      => 'Opera',
-        str_contains($userAgent, 'Edge')                                               => 'Edge',
-        str_contains($userAgent, 'Chrome')                                             => 'Chrome',
-        str_contains($userAgent, 'Safari')                                             => 'Safari',
-        str_contains($userAgent, 'Firefox')                                            => 'Firefox',
+        str_contains($userAgent, 'Opera') || str_contains($userAgent, 'OPR/')     => 'Opera',
+        str_contains($userAgent, 'Edge')                                          => 'Edge',
+        str_contains($userAgent, 'Chrome')                                        => 'Chrome',
+        str_contains($userAgent, 'Safari')                                        => 'Safari',
+        str_contains($userAgent, 'Firefox')                                       => 'Firefox',
         str_contains($userAgent, 'MSIE') || str_contains($userAgent, 'Trident/7') => 'Internet Explorer',
-        default                                                                        => 'Other',
+        default                                                                   => 'Other',
     };
 
     $version = match ($browser) {

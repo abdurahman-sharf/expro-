@@ -17,14 +17,14 @@ foreach ($licenses as $license) {
                     <?= form_label($license['title'], 'license', ['class' => 'col-form-label col-3 col-md-2']) ?>
                     <div class="col-9 col-xl-8">
                         <?= form_textarea([
-                    'name'     => 'license',
-                    'id'       => 'license_' . $counter++,    // TODO: String Interpolation
-                    'class'    => 'form-control font-monospace',
-                    'style'    => 'resize: vertical',
-                    'rows'     => '14',
-                    'readonly' => '',
-                    'value'    => $license['text'],
-                ]) ?>
+                            'name'     => 'license',
+                            'id'       => 'license_' . $counter++,    // TODO: String Interpolation
+                            'class'    => 'form-control font-monospace',
+                            'style'    => 'resize: vertical',
+                            'rows'     => '14',
+                            'readonly' => '',
+                            'value'    => $license['text'],
+                        ]) ?>
                     </div>
                 </div>
             <?php } ?>

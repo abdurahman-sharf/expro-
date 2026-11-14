@@ -119,14 +119,14 @@ $employee = model(Employee::class);
         </button>
         <?= form_input(['name' => 'daterangepicker', 'class' => 'form-control form-control-sm', 'id' => 'daterangepicker', 'aria-label' => lang('Reports.date_range')]) ?>
         <?= form_multiselect('filters[]', $filters, $selected_filters ?? [], [
-    'id'                        => 'filters',
-    'aria-label'                => lang('Common.search_options'),
-    'class'                     => 'selectpicker show-menu-arrow',
-    'data-none-selected-text'   => lang('Common.none_selected_text'),
-    'data-selected-text-format' => 'count > 1',
-    'data-style'                => 'btn-outline-secondary btn-sm',
-    'data-width'                => 'fit',
-]) ?>
+            'id'                        => 'filters',
+            'aria-label'                => lang('Common.search_options'),
+            'class'                     => 'selectpicker show-menu-arrow',
+            'data-none-selected-text'   => lang('Common.none_selected_text'),
+            'data-selected-text-format' => 'count > 1',
+            'data-style'                => 'btn-outline-secondary btn-sm',
+            'data-width'                => 'fit',
+        ]) ?>
         <?php
 if (count($stock_locations) > 1) {
     echo form_dropdown(

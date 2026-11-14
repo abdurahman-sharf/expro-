@@ -5,6 +5,7 @@ namespace app\Libraries;
 use CodeIgniter\Email\Email;
 use Config\OSPOS;
 use Config\Services;
+use EncryptionException;
 
 /**
  * Email library
@@ -27,7 +28,7 @@ class Email_lib
         if (! empty($smtp_pass) && checkEncryption()) {
             try {
                 $smtp_pass = $encrypter->decrypt($smtp_pass);
-            } catch (\EncryptionException $e) {
+            } catch (EncryptionException $e) {
                 // Decryption failed, use the original value
                 log_message('error', 'SMTP password decryption failed: ' . $e->getMessage());
                 $smtp_pass = '';

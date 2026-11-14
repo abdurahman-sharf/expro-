@@ -18,22 +18,22 @@ foreach ($tax_categories as $key => $category) {
         <?= form_label(lang('Taxes.tax_category') . " {$i}", "tax_category_{$i}", ['class' => 'form-label tax-row-label']) ?>
         <div class="tax-row-field">
             <?php $form_data = [
-                    'name'        => 'tax_category[]',
-                    'id'          => "tax_category_{$i}",
-                    'class'       => 'valid_chars form-control form-control-sm',
-                    'placeholder' => lang('Taxes.tax_category_name'),
-                    'value'       => $tax_category,
-                ];
+                'name'        => 'tax_category[]',
+                'id'          => "tax_category_{$i}",
+                'class'       => 'valid_chars form-control form-control-sm',
+                'placeholder' => lang('Taxes.tax_category_name'),
+                'value'       => $tax_category,
+            ];
     echo form_input($form_data);
     ?>
         </div>
         <div class="tax-row-field">
             <?php $form_data = [
-        'name'        => 'tax_group_sequence[]',
-        'class'       => 'valid_chars form-control form-control-sm',
-        'placeholder' => lang('Taxes.sequence'),
-        'value'       => $tax_group_sequence,
-    ];
+                'name'        => 'tax_group_sequence[]',
+                'class'       => 'valid_chars form-control form-control-sm',
+                'placeholder' => lang('Taxes.sequence'),
+                'value'       => $tax_group_sequence,
+            ];
     echo form_input($form_data);
     ?>
         </div>

@@ -36,11 +36,11 @@
             <?= form_label(lang('Giftcards.giftcard_number'), 'giftcard_number', ['class' => $numberLabelClass]) ?>
             <div class="field-control">
                 <?= form_input([
-            'name'  => 'giftcard_number',
-            'id'    => 'giftcard_number',
-            'class' => 'form-control form-control-sm',
-            'value' => $giftcard_number,
-        ]) ?>
+                    'name'  => 'giftcard_number',
+                    'id'    => 'giftcard_number',
+                    'class' => 'form-control form-control-sm',
+                    'value' => $giftcard_number,
+                ]) ?>
             </div>
         </div>
 
@@ -53,11 +53,11 @@
                         <span class="input-group-text"><?= esc($config['currency_symbol']) ?></span>
                     <?php endif; ?>
                     <?= form_input([
-                'name'  => 'giftcard_amount',
-                'id'    => 'giftcard_amount',
-                'class' => 'form-control form-control-sm',
-                'value' => to_currency_no_money($giftcard_value),
-            ]) ?>
+                        'name'  => 'giftcard_amount',
+                        'id'    => 'giftcard_amount',
+                        'class' => 'form-control form-control-sm',
+                        'value' => to_currency_no_money($giftcard_value),
+                    ]) ?>
                     <?php if (is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>

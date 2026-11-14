@@ -2021,7 +2021,8 @@ class Sales extends Secure_Controller
             $this->sale_lib->clear_all();
 
             return view('sales/' . $invoiceView, $data);
-        } elseif ($this->sale_lib->is_work_order_mode()) {
+        }
+        if ($this->sale_lib->is_work_order_mode()) {
             if (! ($data['price_work_orders'] === 1)) {
                 $data['print_price_info'] = false;
             }
@@ -2088,7 +2089,8 @@ class Sales extends Secure_Controller
             $this->sale_lib->clear_all();
 
             return view('sales/work_order', $data);
-        } elseif ($this->sale_lib->is_quote_mode()) {
+        }
+        if ($this->sale_lib->is_quote_mode()) {
             $data['sales_quote']        = lang('Sales.quote');
             $data['quote_number_label'] = lang('Sales.quote_number');
 

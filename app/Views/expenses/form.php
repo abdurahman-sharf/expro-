@@ -76,10 +76,10 @@ echo form_input([
             <?= form_label(lang('Expenses.supplier_tax_code'), 'supplier_tax_code', ['class' => 'form-label']) ?>
             <div class="field-control">
                 <?= form_input([
-'name'  => 'supplier_tax_code',
-'id'    => 'supplier_tax_code',
-'class' => 'form-control form-control-sm',
-'value' => $expenses_info->supplier_tax_code,
+                    'name'  => 'supplier_tax_code',
+                    'id'    => 'supplier_tax_code',
+                    'class' => 'form-control form-control-sm',
+                    'value' => $expenses_info->supplier_tax_code,
                 ]) ?>
             </div>
         </div>
@@ -92,11 +92,11 @@ echo form_input([
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
                     <?= form_input([
-    'name'  => 'amount',
-    'id'    => 'amount',
-    'class' => 'form-control form-control-sm',
-    'value' => to_currency_no_money($expenses_info->amount),
-]) ?>
+                        'name'  => 'amount',
+                        'id'    => 'amount',
+                        'class' => 'form-control form-control-sm',
+                        'value' => to_currency_no_money($expenses_info->amount),
+                    ]) ?>
                     <?php if (is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
@@ -112,11 +112,11 @@ echo form_input([
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
                     <?= form_input([
-    'name'  => 'tax_amount',
-    'id'    => 'tax_amount',
-    'class' => 'form-control form-control-sm',
-    'value' => to_currency_no_money($expenses_info->tax_amount),
-]) ?>
+                        'name'  => 'tax_amount',
+                        'id'    => 'tax_amount',
+                        'class' => 'form-control form-control-sm',
+                        'value' => to_currency_no_money($expenses_info->tax_amount),
+                    ]) ?>
                     <?php if (is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
@@ -173,10 +173,10 @@ echo form_input([
             <?= form_label(lang('Expenses.description'), 'description', ['class' => 'form-label']) ?>
             <div class="field-control">
                 <?= form_textarea([
-'name'  => 'description',
-'id'    => 'description',
-'class' => 'form-control form-control-sm',
-'value' => $expenses_info->description,
+                    'name'  => 'description',
+                    'id'    => 'description',
+                    'class' => 'form-control form-control-sm',
+                    'value' => $expenses_info->description,
                 ]) ?>
             </div>
         </div>
@@ -186,11 +186,11 @@ echo form_input([
                 <?= form_label(lang('Expenses.is_deleted'), 'deleted', ['class' => 'form-label']) ?>
                 <div class="field-control">
                     <?= form_checkbox([
-    'name'    => 'deleted',
-    'id'      => 'deleted',
-    'value'   => 1,
-    'checked' => $expenses_info->deleted === 1,
-]) ?>
+                        'name'    => 'deleted',
+                        'id'      => 'deleted',
+                        'value'   => 1,
+                        'checked' => $expenses_info->deleted === 1,
+                    ]) ?>
                 </div>
             </div>
         <?php } ?>

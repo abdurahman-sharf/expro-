@@ -107,6 +107,8 @@ class Secure_Controller extends BaseController
     }
 
     /**
+     * @param mixed $key
+     *
      * @return mixed|void
      */
     public function getConfig($key)
