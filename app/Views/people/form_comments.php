@@ -10,6 +10,6 @@
         'name'  => 'comments',
         'id'    => 'comments',
         'class' => 'form-control form-control-sm',
-        'value' => $person_info->comments
+        'value' => $person_info->comments,
     ]) ?>
 </div>

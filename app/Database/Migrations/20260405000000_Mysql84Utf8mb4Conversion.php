@@ -4,6 +4,7 @@ namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
 use RuntimeException;
+use Throwable;
 
 class Migration_Mysql84Utf8mb4Conversion extends Migration
 {
@@ -21,21 +22,21 @@ class Migration_Mysql84Utf8mb4Conversion extends Migration
             }
 
             $script = APPPATH . 'Database/Migrations/sqlscripts/3.4.3_mysql84_utf8mb4_conversion.sql';
-            if (!executeScript($script)) {
+            if (! executeScript($script)) {
                 throw new RuntimeException('Failed to execute utf8mb4 conversion migration: ' . $script);
             }
 
-            if (!$this->db->query('ALTER TABLE ' . $this->db->prefixTable('people')
+            if (! $this->db->query('ALTER TABLE ' . $this->db->prefixTable('people')
                 . ' ADD INDEX(`first_name`(191), `last_name`(191), `email`(191), `phone_number`(191))')) {
                 throw new RuntimeException('Failed to add composite index on people table');
             }
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             log_message('error', 'utf8mb4 conversion failed; recovering dropped foreign keys: '
                 . json_encode($foreignKeys));
 
             try {
                 recreateForeignKeyConstraints($foreignKeys);
-            } catch (\Throwable $restoreError) {
+            } catch (Throwable $restoreError) {
                 log_message('error', 'Foreign key recovery failed: ' . $restoreError->getMessage());
             }
 
@@ -79,21 +80,22 @@ class Migration_Mysql84Utf8mb4Conversion extends Migration
         ")->getResultArray();
 
         $problems = [];
+
         foreach ($uniqueColumns as $uniqueColumn) {
-            $table = $uniqueColumn['TABLE_NAME'];
+            $table  = $uniqueColumn['TABLE_NAME'];
             $column = $uniqueColumn['COLUMN_NAME'];
 
             $collisions = $this->db->query("
-                SELECT CONVERT(`$column` USING utf8mb4) COLLATE utf8mb4_unicode_520_ci AS value,
+                SELECT CONVERT(`{$column}` USING utf8mb4) COLLATE utf8mb4_unicode_520_ci AS value,
                        COUNT(*) AS count
-                FROM `$table`
-                WHERE `$column` IS NOT NULL
-                GROUP BY CONVERT(`$column` USING utf8mb4) COLLATE utf8mb4_unicode_520_ci
+                FROM `{$table}`
+                WHERE `{$column}` IS NOT NULL
+                GROUP BY CONVERT(`{$column}` USING utf8mb4) COLLATE utf8mb4_unicode_520_ci
                 HAVING count > 1
             ")->getResultArray();
 
             if ($collisions) {
-                $problems[] = "$table.$column (" . count($collisions) . ' colliding value(s))';
+                $problems[] = "{$table}.{$column} (" . count($collisions) . ' colliding value(s))';
             }
         }
 
@@ -102,7 +104,7 @@ class Migration_Mysql84Utf8mb4Conversion extends Migration
                 'Cannot convert to utf8mb4: the following unique column(s) contain values that '
                 . 'collide under utf8mb4_unicode_520_ci (often due to invisible Unicode characters '
                 . "that this collation treats as equivalent):\n  - " . implode("\n  - ", $problems)
-                . "\nClean up or merge the colliding rows before retrying this migration."
+                . "\nClean up or merge the colliding rows before retrying this migration.",
             );
         }
     }

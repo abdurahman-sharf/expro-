@@ -1,10 +1,10 @@
 <?php
 /**
- * @var array $suppliers
- * @var array $allow_alt_description_choices
- * @var array $serialization_choices
+ * @var array  $suppliers
+ * @var array  $allow_alt_description_choices
+ * @var array  $serialization_choices
  * @var string $controller_name
- * @var array $config
+ * @var array  $config
  */
 ?>
 
@@ -20,7 +20,7 @@
                 <?= form_input([
                     'name'  => 'name',
                     'id'    => 'name',
-                    'class' => 'form-control form-control-sm'
+                    'class' => 'form-control form-control-sm',
                 ]) ?>
             </div>
         </div>
@@ -33,7 +33,7 @@
                     <?= form_input([
                         'name'  => 'category',
                         'id'    => 'category',
-                        'class' => 'form-control form-control-sm'
+                        'class' => 'form-control form-control-sm',
                     ]) ?>
                 </div>
             </div>
@@ -50,13 +50,13 @@
             <?= form_label(lang('Items.cost_price'), 'cost_price', ['class' => 'form-label']) ?>
             <div class="field-control">
                 <div class="input-group input-group-sm">
-                    <?php if (!is_right_side_currency_symbol()): ?>
+                    <?php if (! is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
                     <?= form_input([
                         'name'  => 'cost_price',
                         'id'    => 'cost_price',
-                        'class' => 'form-control form-control-sm'
+                        'class' => 'form-control form-control-sm',
                     ]) ?>
                     <?php if (is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -69,13 +69,13 @@
             <?= form_label(lang('Items.unit_price'), 'unit_price', ['class' => 'form-label']) ?>
             <div class="field-control">
                 <div class="input-group input-group-sm">
-                    <?php if (!is_right_side_currency_symbol()): ?>
+                    <?php if (! is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
                     <?= form_input([
                         'name'  => 'unit_price',
                         'id'    => 'unit_price',
-                        'class' => 'form-control form-control-sm'
+                        'class' => 'form-control form-control-sm',
                     ]) ?>
                     <?php if (is_right_side_currency_symbol()): ?>
                         <span class="input-group-text"><b><?= esc($config['currency_symbol']) ?></b></span>
@@ -92,14 +92,14 @@
                         'name'  => 'tax_names[]',
                         'id'    => 'tax_name_1',
                         'class' => 'form-control form-control-sm',
-                        'value' => $config['default_tax_1_name']
+                        'value' => $config['default_tax_1_name'],
                     ]) ?>
                     <?= form_input([
                         'name'       => 'tax_percents[]',
                         'id'         => 'tax_percent_name_1',
                         'class'      => 'form-control form-control-sm',
                         'aria-label' => lang('Items.tax_1') . ' %',
-                        'value'      => to_tax_decimals($config['default_tax_1_rate'])
+                        'value'      => to_tax_decimals($config['default_tax_1_rate']),
                     ]) ?>
                     <span class="input-group-text"><b>%</b></span>
                 </div>
@@ -114,14 +114,14 @@
                         'name'  => 'tax_names[]',
                         'id'    => 'tax_name_2',
                         'class' => 'form-control form-control-sm',
-                        'value' => $config['default_tax_2_name']
+                        'value' => $config['default_tax_2_name'],
                     ]) ?>
                     <?= form_input([
                         'name'       => 'tax_percents[]',
                         'id'         => 'tax_percent_name_2',
                         'class'      => 'form-control form-control-sm',
                         'aria-label' => lang('Items.tax_2') . ' %',
-                        'value'      => to_tax_decimals($config['default_tax_2_rate'])
+                        'value'      => to_tax_decimals($config['default_tax_2_rate']),
                     ]) ?>
                     <span class="input-group-text"><b>%</b></span>
                 </div>
@@ -134,7 +134,7 @@
                 <?= form_input([
                     'name'  => 'reorder_level',
                     'id'    => 'reorder_level',
-                    'class' => 'form-control form-control-sm'
+                    'class' => 'form-control form-control-sm',
                 ]) ?>
             </div>
         </div>
@@ -145,7 +145,7 @@
                 <?= form_textarea([
                     'name'  => 'description',
                     'id'    => 'description',
-                    'class' => 'form-control form-control-sm'
+                    'class' => 'form-control form-control-sm',
                 ]) ?>
             </div>
         </div>

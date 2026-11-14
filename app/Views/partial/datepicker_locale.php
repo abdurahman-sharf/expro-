@@ -5,15 +5,15 @@
 
 use Config\OSPOS;
 
-$config = config(OSPOS::class)->settings;
+$config     = config(OSPOS::class)->settings;
 $timeFormat = $config['timeformat'];
-$hasTime = !isset($format);
+$hasTime    = ! isset($format);
 $format ??= dateformatFlatpickr($config['dateformat'] . ' ' . $timeFormat);
 $meridian = str_contains($timeFormat, 'a') || str_contains($timeFormat, 'A');
 
-$lines = static fn(string $prefix, array $keys): string => json_encode(
-    array_map(static fn(string $key): string => lang("$prefix.$key"), $keys),
-    JSON_UNESCAPED_UNICODE
+$lines = static fn (string $prefix, array $keys): string => json_encode(
+    array_map(static fn (string $key): string => lang("{$prefix}.{$key}"), $keys),
+    JSON_UNESCAPED_UNICODE,
 );
 ?>
 

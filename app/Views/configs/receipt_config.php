@@ -20,10 +20,10 @@
                             'receipt_default'    => lang('Config.receipt_default'),
                             'receipt_short'      => lang('Config.receipt_short'),
                             'receipt_thermal_80' => lang('Config.receipt_thermal_80'),
-                            'receipt_thermal_58' => lang('Config.receipt_thermal_58')
+                            'receipt_thermal_58' => lang('Config.receipt_thermal_58'),
                         ],
                         $config['receipt_template'],
-                        'id="receipt_template" class="form-select form-select-sm"'
+                        'id="receipt_template" class="form-select form-select-sm"',
                     ) ?>
                 </div>
             </div>
@@ -39,7 +39,7 @@
                             'name'  => 'receipt_font_size',
                             'id'    => 'receipt_font_size',
                             'class' => 'form-control form-control-sm required',
-                            'value' => $config['receipt_font_size']
+                            'value' => $config['receipt_font_size'],
                         ]) ?>
                         <span class="input-group-text">px</span>
                     </div>
@@ -57,7 +57,7 @@
                             'name'  => 'print_delay_autoreturn',
                             'id'    => 'print_delay_autoreturn',
                             'class' => 'form-control form-control-sm required',
-                            'value' => $config['print_delay_autoreturn']
+                            'value' => $config['print_delay_autoreturn'],
                         ]) ?>
                         <span class="input-group-text">s</span>
                     </div>
@@ -71,7 +71,7 @@
                         <?= form_radio([
                             'name'    => 'email_receipt_check_behaviour',
                             'value'   => 'always',
-                            'checked' => $config['email_receipt_check_behaviour'] == 'always'
+                            'checked' => $config['email_receipt_check_behaviour'] === 'always',
                         ]) ?>
                         <?= lang('Config.email_receipt_check_behaviour_always') ?>
                     </label>
@@ -79,7 +79,7 @@
                         <?= form_radio([
                             'name'    => 'email_receipt_check_behaviour',
                             'value'   => 'never',
-                            'checked' => $config['email_receipt_check_behaviour'] == 'never'
+                            'checked' => $config['email_receipt_check_behaviour'] === 'never',
                         ]) ?>
                         <?= lang('Config.email_receipt_check_behaviour_never') ?>
                     </label>
@@ -87,7 +87,7 @@
                         <?= form_radio([
                             'name'    => 'email_receipt_check_behaviour',
                             'value'   => 'last',
-                            'checked' => $config['email_receipt_check_behaviour'] == 'last'
+                            'checked' => $config['email_receipt_check_behaviour'] === 'last',
                         ]) ?>
                         <?= lang('Config.email_receipt_check_behaviour_last') ?>
                     </label>
@@ -101,7 +101,7 @@
                         <?= form_radio([
                             'name'    => 'print_receipt_check_behaviour',
                             'value'   => 'always',
-                            'checked' => $config['print_receipt_check_behaviour'] == 'always'
+                            'checked' => $config['print_receipt_check_behaviour'] === 'always',
                         ]) ?>
                         <?= lang('Config.print_receipt_check_behaviour_always') ?>
                     </label>
@@ -109,7 +109,7 @@
                         <?= form_radio([
                             'name'    => 'print_receipt_check_behaviour',
                             'value'   => 'never',
-                            'checked' => $config['print_receipt_check_behaviour'] == 'never'
+                            'checked' => $config['print_receipt_check_behaviour'] === 'never',
                         ]) ?>
                         <?= lang('Config.print_receipt_check_behaviour_never') ?>
                     </label>
@@ -117,7 +117,7 @@
                         <?= form_radio([
                             'name'    => 'print_receipt_check_behaviour',
                             'value'   => 'last',
-                            'checked' => $config['print_receipt_check_behaviour'] == 'last'
+                            'checked' => $config['print_receipt_check_behaviour'] === 'last',
                         ]) ?>
                         <?= lang('Config.print_receipt_check_behaviour_last') ?>
                     </label>
@@ -131,7 +131,7 @@
                         'name'    => 'receipt_show_company_name',
                         'value'   => 'receipt_show_company_name',
                         'id'      => 'receipt_show_company_name',
-                        'checked' => $config['receipt_show_company_name'] == 1
+                        'checked' => $config['receipt_show_company_name'] === 1,
                     ]) ?>
                 </div>
             </div>
@@ -143,7 +143,7 @@
                         'name'    => 'receipt_show_taxes',
                         'value'   => 'receipt_show_taxes',
                         'id'      => 'receipt_show_taxes',
-                        'checked' => $config['receipt_show_taxes'] == 1
+                        'checked' => $config['receipt_show_taxes'] === 1,
                     ]) ?>
                 </div>
             </div>
@@ -155,7 +155,7 @@
                         'name'    => 'receipt_show_tax_ind',
                         'value'   => 'receipt_show_tax_ind',
                         'id'      => 'receipt_show_tax_ind',
-                        'checked' => $config['receipt_show_tax_ind'] == 1
+                        'checked' => $config['receipt_show_tax_ind'] === 1,
                     ]) ?>
                 </div>
             </div>
@@ -167,7 +167,7 @@
                         'name'    => 'receipt_show_total_discount',
                         'value'   => 'receipt_show_total_discount',
                         'id'      => 'receipt_show_total_discount',
-                        'checked' => $config['receipt_show_total_discount'] == 1
+                        'checked' => $config['receipt_show_total_discount'] === 1,
                     ]) ?>
                 </div>
             </div>
@@ -179,7 +179,7 @@
                         'name'    => 'receipt_show_description',
                         'value'   => 'receipt_show_description',
                         'id'      => 'receipt_show_description',
-                        'checked' => $config['receipt_show_description'] == 1
+                        'checked' => $config['receipt_show_description'] === 1,
                     ]) ?>
                 </div>
             </div>
@@ -191,7 +191,7 @@
                         'name'    => 'receipt_show_serialnumber',
                         'value'   => 'receipt_show_serialnumber',
                         'id'      => 'receipt_show_serialnumber',
-                        'checked' => $config['receipt_show_serialnumber'] == 1
+                        'checked' => $config['receipt_show_serialnumber'] === 1,
                     ]) ?>
                 </div>
             </div>
@@ -203,7 +203,7 @@
                         'name'    => 'print_silently',
                         'id'      => 'print_silently',
                         'value'   => 'print_silently',
-                        'checked' => $config['print_silently'] == 1
+                        'checked' => $config['print_silently'] === 1,
                     ]) ?>
                 </div>
             </div>
@@ -215,7 +215,7 @@
                         'name'    => 'print_header',
                         'id'      => 'print_header',
                         'value'   => 'print_header',
-                        'checked' => $config['print_header'] == 1
+                        'checked' => $config['print_header'] === 1,
                     ]) ?>
                 </div>
             </div>
@@ -227,7 +227,7 @@
                         'name'    => 'print_footer',
                         'id'      => 'print_footer',
                         'value'   => 'print_footer',
-                        'checked' => $config['print_footer'] == 1
+                        'checked' => $config['print_footer'] === 1,
                     ]) ?>
                 </div>
             </div>
@@ -264,7 +264,7 @@
                             'name'  => 'print_top_margin',
                             'id'    => 'print_top_margin',
                             'class' => 'form-control form-control-sm required',
-                            'value' => $config['print_top_margin']
+                            'value' => $config['print_top_margin'],
                         ]) ?>
                         <span class="input-group-text">px</span>
                     </div>
@@ -282,7 +282,7 @@
                             'name'  => 'print_left_margin',
                             'id'    => 'print_left_margin',
                             'class' => 'form-control form-control-sm required',
-                            'value' => $config['print_left_margin']
+                            'value' => $config['print_left_margin'],
                         ]) ?>
                         <span class="input-group-text">px</span>
                     </div>
@@ -300,7 +300,7 @@
                             'name'  => 'print_bottom_margin',
                             'id'    => 'print_bottom_margin',
                             'class' => 'form-control form-control-sm required',
-                            'value' => $config['print_bottom_margin']
+                            'value' => $config['print_bottom_margin'],
                         ]) ?>
                         <span class="input-group-text">px</span>
                     </div>
@@ -318,7 +318,7 @@
                             'name'  => 'print_right_margin',
                             'id'    => 'print_right_margin',
                             'class' => 'form-control form-control-sm required',
-                            'value' => $config['print_right_margin']
+                            'value' => $config['print_right_margin'],
                         ]) ?>
                         <span class="input-group-text">px</span>
                     </div>
@@ -330,7 +330,7 @@
                     'name'  => 'submit_receipt',
                     'id'    => 'submit_receipt',
                     'value' => lang('Common.submit'),
-                    'class' => 'btn btn-primary'
+                    'class' => 'btn btn-primary',
                 ]) ?>
             </div>
 

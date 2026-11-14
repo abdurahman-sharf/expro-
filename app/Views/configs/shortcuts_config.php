@@ -4,7 +4,6 @@
  * @var array $keyboardShortcutOptions
  * @var array $keyboardShortcuts
  */
-
 $keyboardShortcuts ??= [];
 $keyboardShortcutOptions ??= [];
 $config ??= [];
@@ -19,7 +18,7 @@ $shortcutLabels = [
     'payment'   => lang('Sales.key_payment'),
     'complete'  => lang('Sales.key_finish_sale'),
     'finish'    => lang('Sales.key_finish_quote'),
-    'help'      => lang('Sales.key_help_modal')
+    'help'      => lang('Sales.key_help_modal'),
 ];
 ?>
 
@@ -39,7 +38,7 @@ $shortcutLabels = [
                             'key_' . $name,
                             $keyboardShortcutOptions,
                             $keyboardShortcutSelectedValue,
-                            'id="key_' . $name . '" class="form-select form-select-sm"'
+                            'id="key_' . $name . '" class="form-select form-select-sm"',
                         ) ?>
                     </div>
                 </div>
@@ -50,7 +49,7 @@ $shortcutLabels = [
                     'name'  => 'submit_shortcuts',
                     'id'    => 'submit_shortcuts',
                     'value' => lang('Common.submit'),
-                    'class' => 'btn btn-primary'
+                    'class' => 'btn btn-primary',
                 ]) ?>
             </div>
         </fieldset>
