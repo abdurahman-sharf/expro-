@@ -16,7 +16,8 @@ for (const line of out.split('\n')) {
 }
 const gets = routes.filter((r) => r.method === 'GET' && !/\.(csv|xlsx|pdf)$/.test(r.route) && !/portal|login|^\/$|api\/v1|logout|migrate/.test(r.route) && !/(delete|cancel|logout)/i.test(r.route));
 const posts = routes.filter((r) => r.method === 'POST' && !/portal|login|logout|migrate|delete|disable|cancel/i.test(r.route));
-const fill = (route, token) => route.replace(/\(\[0-9\]\+\)/g, '1').replace(/\(\[\^\/\]\+\)/g, token).replace(/\(\.\*\)/g, token).replace(/\(:any\)/g, token);
+const entry = /\(-\?\[0-9\]\{1,9\}\)/g;
+const fill = (route, token) => route.replace(/\(\[0-9\]\+\)/g, '1').replace(entry, token === '1' ? '1' : token).replace(/\(\[\^\/\]\+\)/g, token).replace(/\(\.\*\)/g, token).replace(/\(:any\)/g, token);
 
 const evidence = { counts: { routes: routes.length, gets: gets.length, posts: posts.length }, unauth: [], cashier: [], junk500: [], junkOther: [], post500: [] };
 console.log(evidence.counts);
@@ -44,7 +45,7 @@ console.log('cashier gets content:', evidence.cashier.length);
 // 3. the administrator with junk in every parameter
 const root = await admin();
 for (const r of gets) {
-    if (!/\(\[\^\/\]\+\)|\(\.\*\)|\(:any\)/.test(r.route)) continue;
+    if (!/\(\[\^\/\]\+\)|\(\.\*\)|\(:any\)|\(-\?\[0-9\]\{1,9\}\)/.test(r.route)) continue;
     for (const junk of ['abc', "'", '%00', '9999999999999999999']) {
         const path = '/' + fill(r.route, encodeURIComponent(junk));
         const res = await root.get(path, { ajax: false });

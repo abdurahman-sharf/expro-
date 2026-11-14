@@ -112,7 +112,8 @@ const add = (id, steps, expected, actual, pass) => { results.push({ id, steps, e
     const sa = Number(sql('SELECT COUNT(*) FROM ospos_sales'));
     add('BR-dblclick-finish', 'double click the finish sale button', 'one sale', `${sa - sb} sale(s); events ${events.slice(0, 2).join(' ; ')}`, sa - sb === 1);
     await page.screenshot({ path: SHOTS + '/br-receipt.png' });
-    await page.goBack();
+    let backError = '';
+    await page.goBack({ timeout: 8000 }).catch((e) => { backError = String(e.message).split('\n')[0]; });
     await page.waitForTimeout(1200);
     const url = page.url();
     const finBack = await page.$('#finish_sale_button');
@@ -121,7 +122,7 @@ const add = (id, steps, expected, actual, pass) => { results.push({ id, steps, e
       await page.waitForTimeout(1500);
     }
     const sb2 = Number(sql('SELECT COUNT(*) FROM ospos_sales'));
-    add('BR-back-finish', 'press the browser back button after the receipt and finish again', 'no second sale', `${sb2 - sb} sale(s) in total; page after back: ${url.replace(BASE, '')}`, sb2 - sb === 1);
+    add('BR-back-finish', 'press the browser back button after the receipt and finish again', 'no second sale and the page comes back', `${sb2 - sb} sale(s) in total; page after back: ${url.replace(BASE, '')}${backError ? ' [' + backError + ']' : ''}`, sb2 - sb === 1 && !backError);
   }
   fs.writeFileSync(OUT, JSON.stringify({ results, seen }, null, 2));
   await browser.close();

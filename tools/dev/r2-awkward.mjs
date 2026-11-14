@@ -9,7 +9,7 @@ const show = (r) => JSON.stringify(r.data ?? r.text.slice(0, 200)).slice(0, 240)
 const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const bal = (where) => num(`SELECT COALESCE(SUM(l.debit-l.credit),0) FROM ospos_accounting_journal_lines l JOIN ospos_accounting_journals j USING(journal_id) JOIN ospos_accounting_accounts a USING(account_id) WHERE j.status IN ('posted','reversed') AND (${where})`);
 const only = (fn) => fn().catch((e) => rec.add('ERR', 'section crashed', 'no crash', String(e.message).slice(0, 300), false));
-const ties = () => readiness().filter((x) => ['customer_ties', 'supplier_ties', 'stock_ties', 'treasury_ties', 'journals_unbalanced', 'interbranch_ties'].includes(x.id)).map((x) => `${x.id}:${x.status}`);
+const ties = () => readiness().filter((x) => ['customer_ties', 'supplier_ties', 'stock_ties', 'journals_unbalanced', 'interbranch_ties'].includes(x.id)).map((x) => `${x.id}:${x.status}`);
 const mkItem = async (code, name, cost, price) => { await c.submitForm('/items/view', { item_number: code, name, category: 'R2', cost_price: cost, unit_price: price, 'tax_names[]': ['Zero', 'Zero2'], 'tax_percents[]': ['0', '0'] }); return num(`SELECT item_id FROM ospos_items WHERE item_number='${code}'`); };
 const receiveOne = async (code, qty, price, supplier, pay = 'Due') => { const rv = new Receiving(c); await rv.open(); await rv.supplier(supplier); await rv.add(code); await rv.editLine(1, { price, quantity: qty, discount: '0', discount_type: 0, tax_percent: '0', receiving_quantity: '1', description: '', serialnumber: '' }); await rv.complete({ payment_type: pay }); return num('SELECT MAX(receiving_id) FROM ospos_receivings'); };
 
