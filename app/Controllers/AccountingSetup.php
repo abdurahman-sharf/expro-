@@ -114,6 +114,12 @@ class AccountingSetup extends AccountingController
 
     public function postSaveSettings(): ResponseInterface
     {
+        $malformed = $this->refuseNonText('base_currency', 'start_date', 'shipping_tax_percent', 'journal_description_sales', 'journal_description_purchases', 'picker_threshold');
+
+        if ($malformed !== null) {
+            return $malformed;
+        }
+
         return $this->attempt(function (): array {
             $input = [
                 'base_currency'            => (string) $this->request->getPost('base_currency'),
@@ -153,7 +159,7 @@ class AccountingSetup extends AccountingController
             $pickerThreshold = $this->request->getPost('picker_threshold');
 
             if ($pickerThreshold !== null) {
-                $input['picker_threshold'] = is_array($pickerThreshold) ? 'not a value' : (string) $pickerThreshold;
+                $input['picker_threshold'] = (string) $pickerThreshold;
             }
 
             $this->settings->update($input, $this->employeeId());
@@ -190,6 +196,12 @@ class AccountingSetup extends AccountingController
 
     public function postSaveShippingCompany(int $companyId = NEW_ENTRY): ResponseInterface
     {
+        $malformed = $this->refuseNonText('name', 'account_id');
+
+        if ($malformed !== null) {
+            return $malformed;
+        }
+
         return $this->attempt(function () use ($companyId): array {
             $input = ['name' => (string) $this->request->getPost('name'), 'account_id' => (string) $this->request->getPost('account_id')];
 
@@ -216,6 +228,12 @@ class AccountingSetup extends AccountingController
 
     public function postSaveControls(): ResponseInterface
     {
+        $malformed = $this->refuseNonText('default_list', 'max_discount');
+
+        if ($malformed !== null) {
+            return $malformed;
+        }
+
         return $this->attempt(function (): array {
             $input = [];
 
@@ -227,7 +245,7 @@ class AccountingSetup extends AccountingController
 
             foreach (['default_list', 'max_discount'] as $field) {
                 if ($this->request->getPost($field) !== null) {
-                    $input[$field] = is_array($this->request->getPost($field)) ? 'not a value' : (string) $this->request->getPost($field);
+                    $input[$field] = (string) $this->request->getPost($field);
                 }
             }
 
@@ -245,6 +263,12 @@ class AccountingSetup extends AccountingController
 
     public function postFirstYear(): ResponseInterface
     {
+        $malformed = $this->refuseNonText('name', 'start_date', 'end_date');
+
+        if ($malformed !== null) {
+            return $malformed;
+        }
+
         return $this->attempt(function (): array {
             $id = $this->years->create([
                 'name'       => (string) $this->request->getPost('name'),
@@ -280,6 +304,19 @@ class AccountingSetup extends AccountingController
 
             return ['success' => true, 'message' => lang('Accounting_settings.disabled_now'), 'id' => 1];
         });
+    }
+
+    private function refuseNonText(string ...$names): ?ResponseInterface
+    {
+        foreach ($names as $name) {
+            $value = $this->request->getPost($name);
+
+            if ($value !== null && ! is_string($value)) {
+                return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => lang('Accounting_settings.malformed_request'), 'id' => NEW_ENTRY]);
+            }
+        }
+
+        return null;
     }
 
     private function canManageSettings(): bool

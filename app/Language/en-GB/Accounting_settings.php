@@ -71,6 +71,7 @@ return [
     'line_description_required'                => 'Require a description on every journal line',
     'line_description_required_desc'           => 'When on, a manual journal cannot be posted while a line has no description. A draft can still be saved without one. Journals the books make by themselves are not affected.',
     'locked_note'                              => 'The currency and the start date are fixed once a journal is posted.',
+    'malformed_request'                        => 'The request holds a value that is not text, so nothing was saved.',
     'next_number'                              => 'Next manual journal number',
     'not_ready'                                => 'Accounting cannot be turned on yet.',
     'picker_threshold'                         => 'Entries before a search box replaces the list',

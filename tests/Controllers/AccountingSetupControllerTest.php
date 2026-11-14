@@ -368,11 +368,151 @@ class AccountingSetupControllerTest extends CIUnitTestCase
 
         $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form + ['picker_threshold' => '120']))['success']);
 
-        $answer = $this->jsonOf($this->post('/accounting_settings/save', $form + ['picker_threshold' => ['5', '6']]));
+        $response = $this->post('/accounting_settings/save', $form + ['picker_threshold' => ['5', '6']]);
+        $answer   = $this->jsonOf($response);
 
+        $response->assertStatus(400);
         $this->assertFalse($answer['success']);
-        $this->assertSame(lang('Accounting.error_picker_threshold_invalid', [(string) AccountingSettings::MAX_PICKER_SIZE]), $answer['message']);
+        $this->assertSame(lang('Accounting_settings.malformed_request'), $answer['message']);
         $this->assertSame(120, (new AccountingSettings())->pickerThreshold());
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function textFieldsOfTheSettings(): array
+    {
+        return [
+            'the base currency'              => ['base_currency'],
+            'the start date'                 => ['start_date'],
+            'the tax on shipping'            => ['shipping_tax_percent'],
+            'the description of the sales'   => ['journal_description_sales'],
+            'the description of the buying'  => ['journal_description_purchases'],
+            'the number of entries'          => ['picker_threshold'],
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function settingsSnapshot(): array
+    {
+        return [
+            $this->accountingDb()->table('app_config')->like('key', 'accounting_', 'after')->orderBy('key', 'ASC')->get()->getResultArray(),
+            $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'settings')->countAllResults(),
+        ];
+    }
+
+    #[DataProvider('textFieldsOfTheSettings')]
+    public function testPostSave_RejectsATextFieldSentAsAnArrayWithoutSavingAnything(string $field): void
+    {
+        $this->manager();
+
+        $form = ['base_currency' => 'usd', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1', 'shipping_tax_percent' => '15', 'journal_description_sales' => 'Invoice {number}', 'journal_description_purchases' => 'Bill {number}', 'picker_threshold' => '120'];
+
+        $this->assertTrue($this->jsonOf($this->post('/accounting_settings/save', $form))['success']);
+
+        $before = $this->settingsSnapshot();
+
+        foreach ([['x'], [], ['a' => ['b']]] as $malformed) {
+            $response = $this->post('/accounting_settings/save', [$field => $malformed, 'sales_shipping' => '1', 'debit_note' => '1'] + $form);
+
+            $response->assertStatus(400);
+            $this->assertFalse($this->jsonOf($response)['success'], $field);
+            $this->assertSame(lang('Accounting_settings.malformed_request'), $this->jsonOf($response)['message'], $field);
+        }
+
+        $this->assertSame($before, $this->settingsSnapshot(), 'a refused request leaves every setting and the audit log as they were');
+        $this->assertFalse((new AccountingSettings())->salesShippingEnabled(), 'the valid switches of the same form are not saved either');
+        $this->assertSame('Invoice {number}', (new AccountingSettings())->journalDescriptionTemplate('sales'), 'an array does not take the template away');
+    }
+
+    public function testPostSave_AcceptsEveryTextFieldSentAsText(): void
+    {
+        $this->manager();
+
+        $form = ['base_currency' => 'usd', 'start_date' => '2026-01-01', 'auto_fiscal_year' => '1', 'shipping_tax_percent' => '15', 'journal_description_sales' => 'Invoice {number}', 'journal_description_purchases' => 'Bill {number}', 'picker_threshold' => '120'];
+
+        $response = $this->post('/accounting_settings/save', $form);
+
+        $response->assertStatus(200);
+        $this->assertTrue($this->jsonOf($response)['success']);
+        $this->assertSame('15', (new AccountingSettings())->shippingTaxPercent());
+        $this->assertSame('Bill {number}', (new AccountingSettings())->journalDescriptionTemplate('purchases'));
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function textFieldsOfTheControls(): array
+    {
+        return [
+            'the default list'     => ['default_list'],
+            'the maximum discount' => ['max_discount'],
+        ];
+    }
+
+    #[DataProvider('textFieldsOfTheControls')]
+    public function testPostSaveControls_RejectsATextFieldSentAsAnArrayWithoutSavingAnything(string $field): void
+    {
+        $this->resetSalesControlSettings();
+        $this->manager();
+
+        $response = $this->post('/accounting_settings/save_controls', [$field => ['5'], 'minimum_price' => '1']);
+
+        $response->assertStatus(400);
+        $this->assertFalse($this->jsonOf($response)['success']);
+        $this->assertSame(lang('Accounting_settings.malformed_request'), $this->jsonOf($response)['message']);
+        $this->assertFalse((new SalesControlSettings())->minimumPriceEnabled());
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function textFieldsOfTheShippingCompany(): array
+    {
+        return [
+            'the name'    => ['name'],
+            'the account' => ['account_id'],
+        ];
+    }
+
+    #[DataProvider('textFieldsOfTheShippingCompany')]
+    public function testPostSaveShippingCompany_RejectsATextFieldSentAsAnArrayWithoutSavingAnything(string $field): void
+    {
+        $this->manager();
+
+        $count    = $this->accountingDb()->table('shipping_companies')->countAllResults();
+        $response = $this->post('/accounting_settings/save_shipping_company', [$field => ['x']] + ['name' => 'Fast Ship', 'account_id' => '']);
+
+        $response->assertStatus(400);
+        $this->assertFalse($this->jsonOf($response)['success']);
+        $this->assertSame($count, $this->accountingDb()->table('shipping_companies')->countAllResults());
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function textFieldsOfTheFirstYear(): array
+    {
+        return [
+            'the name'       => ['name'],
+            'the start date' => ['start_date'],
+            'the end date'   => ['end_date'],
+        ];
+    }
+
+    #[DataProvider('textFieldsOfTheFirstYear')]
+    public function testPostFirstYear_RejectsATextFieldSentAsAnArrayWithoutCreatingAYear(string $field): void
+    {
+        $this->accountingDb()->table('accounting_fiscal_years')->where('company_id', 1)->delete();
+        $this->manager();
+
+        $response = $this->post('/accounting_settings/first_year', [$field => ['x']] + ['name' => '2026', 'start_date' => '2026-01-01', 'end_date' => '2026-12-31']);
+
+        $response->assertStatus(400);
+        $this->assertFalse($this->jsonOf($response)['success']);
+        $this->assertSame(0, $this->accountingDb()->table('accounting_fiscal_years')->where('company_id', 1)->countAllResults());
     }
 
     public function testGetIndex_ShowsTheNumberOfEntriesBeforeASearchBoxInItsField(): void
@@ -954,9 +1094,8 @@ class AccountingSetupControllerTest extends CIUnitTestCase
 
         $percent = $this->jsonOf($this->post('/accounting_settings/save_controls', ['minimum_price' => '1', 'max_discount' => '120']));
         $list    = $this->jsonOf($this->post('/accounting_settings/save_controls', ['minimum_price' => '1', 'default_list' => '987654']));
-        $array   = $this->jsonOf($this->post('/accounting_settings/save_controls', ['max_discount' => ['5']]));
 
-        foreach ([$percent, $list, $array] as $result) {
+        foreach ([$percent, $list] as $result) {
             $this->assertFalse($result['success']);
             $this->assertSame(lang('Accounting.error_control_setting_invalid'), $result['message']);
         }
