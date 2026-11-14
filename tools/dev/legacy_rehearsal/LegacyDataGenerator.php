@@ -33,8 +33,8 @@ final class LegacyDataGenerator
     private const EXPENSE_TEXTS = ['Monthly payment', 'Invoice settlement', 'Repair', 'Fuel', 'Cleaning service', 'Ads', 'Stationery', 'Courier', 'دفعة شهرية', 'صيانة'];
 
     private const PAYMENT_LABELS = [
-        'en' => ['cash' => 'Cash', 'debit' => 'Debit Card', 'credit' => 'Credit Card', 'check' => 'Check', 'due' => 'Due', 'giftcard' => 'Gift Card', 'rewards' => 'Reward Points'],
-        'ar-EG' => ['cash' => 'نقدى', 'debit' => 'بطاقة خصم', 'credit' => 'بطاقة إئتمانية', 'check' => 'شيك', 'due' => 'مستحق', 'giftcard' => 'بطاقة هدية', 'rewards' => 'نقاط المكافئة'],
+        'en' => ['cash' => 'Cash', 'debit' => 'Debit Card', 'credit' => 'Credit Card', 'check' => 'Check', 'due' => 'Due', 'giftcard' => 'Gift Card', 'rewards' => 'Reward Points', 'cash_adjustment' => 'Cash Adjustment'],
+        'ar-EG' => ['cash' => 'نقدى', 'debit' => 'بطاقة خصم', 'credit' => 'بطاقة إئتمانية', 'check' => 'شيك', 'due' => 'مستحق', 'giftcard' => 'بطاقة هدية', 'rewards' => 'نقاط المكافئة', 'cash_adjustment' => 'تعديل الصندوق'],
     ];
 
     private DateTimeZone $zone;
@@ -1212,17 +1212,22 @@ final class LegacyDataGenerator
                 $reference,
             ]);
 
-            $isDue = $type === self::PAYMENT_LABELS['en']['due'] || $type === self::PAYMENT_LABELS['ar-EG']['due'];
-
-            if (! $isDue) {
-                $day = substr($this->localTime((int) $at), 0, 10);
-                $bucket = $this->bucketOf($type);
-                $this->dayTotals[$day][$bucket] = ($this->dayTotals[$day][$bucket] ?? 0.0) + $amount - $refund;
-                $paidNet += $amount - $refund;
-            } else {
-                $day = substr($this->localTime((int) $at), 0, 10);
-                $this->dayTotals[$day]['due'] = ($this->dayTotals[$day]['due'] ?? 0.0) + $amount;
+            if ($adjustment === 1) {
+                continue;
             }
+
+            $isDue = $type === self::PAYMENT_LABELS['en']['due'] || $type === self::PAYMENT_LABELS['ar-EG']['due'];
+            $day = substr($this->localTime((int) $at), 0, 10);
+
+            if ($isDue) {
+                $this->dayTotals[$day]['due'] = ($this->dayTotals[$day]['due'] ?? 0.0) + $amount;
+
+                continue;
+            }
+
+            $bucket = $this->bucketOf($type);
+            $this->dayTotals[$day][$bucket] = ($this->dayTotals[$day][$bucket] ?? 0.0) + $amount - $refund;
+            $paidNet += $amount - $refund;
         }
 
         if ($customer !== null && ! $isReturn && $customer['packageId'] !== null && $total > 0) {
@@ -1271,7 +1276,8 @@ final class LegacyDataGenerator
 
             if ($this->chance(2.5)) {
                 $rounded = round($total * 20) / 20;
-                $add($cashLabel, $rounded, 0.0, 1);
+                $add($cashLabel, $rounded);
+                $add($this->label($employeeId, 'cash_adjustment'), $this->roundHalfUp($rounded - $total, 2), 0.0, 1);
 
                 return;
             }
