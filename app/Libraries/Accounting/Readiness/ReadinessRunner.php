@@ -41,6 +41,8 @@ final class ReadinessRunner
             new RecurringChecks($this->db),
             new PurchaseCycleChecks($this->db),
             new StockTrackingChecks($this->db),
+            new Wave3Checks($this->db, $this->migrations),
+            new ClockChecks($this->db),
         ];
     }
 

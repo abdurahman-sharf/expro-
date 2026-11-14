@@ -22,10 +22,13 @@ final class ReadinessRunbook
                 'title'    => 'Back up (E54): no migration runs before this exists and restores',
                 'commands' => [
                     'mysqldump --single-transaction --routines --triggers -u USER -p DATABASE > backup-before-release.sql',
+                    'mysql -u USER -p SCRATCH < backup-before-release.sql',
+                    'MYSQL_DB_NAME=SCRATCH php spark accounting:readiness --json --no-header > readiness-rehearsal.json',
                 ],
                 'notes' => [
                     'Copy writable/ (it holds writable/accounting_attachments) and the .env file next to the dump.',
                     'Restore the dump into a scratch database (mysql -u USER -p SCRATCH < backup-before-release.sql) and run this report against it first: that is the rehearsal. Never name the live database there.',
+                    'MYSQL_DB_NAME makes the command read the scratch database and not the one of the .env file (app/Config/Database.php): the rehearsal is a restore that was run and a report taken on the restored copy, so keep readiness-rehearsal.json and the date of the restore next to the dump; nothing in this repository records that a restore was ever rehearsed.',
                     'Nobody saves a sale or a purchase between the backup and the migrations.',
                 ],
             ],
@@ -34,11 +37,14 @@ final class ReadinessRunbook
                 'commands' => [
                     'php spark accounting:readiness',
                     'php spark accounting:readiness --json --no-header > readiness-before.json',
+                    'mysql -u USER -p -e "SELECT @@global.time_zone, @@session.time_zone, @@system_time_zone, NOW(), UTC_TIMESTAMP()"',
                 ],
                 'notes' => [
                     'Exit code 0 is required to go on. Every FAIL is fixed in the next step, or the owner accepts it in writing.',
                     'The report only reads. Nothing is stamped, moved or decided by it.',
                     'Ask for --no-header together with --json: without it spark prints its own banner before the JSON and the file is not valid JSON.',
+                    'W93-CLOCK: the clock of the database and the clock of the shop must name the same day. The invoice, the purchase and the supplier payment take their day from the application (PHP date(), in the zone of the locale settings), but the day of a payment on a sale is stamped by the database (sales_payments.payment_time) and its journal is dated with it: a database a few hours apart puts the payment on another day than its invoice, in another period. The last command shows the zone of the database. On a database that holds no sale or purchase yet, align it with the zone of the shop (default-time-zone in the server configuration, or SET GLOBAL time_zone), or set the shop to the zone of the database, and run the report again. On a database that already holds history, do not change the zone of the database server on its own: sales.sale_time, receivings.receiving_time and sales_payments.payment_time are TIMESTAMP columns, which the database keeps in UTC and shows in the zone of the session, so a new server zone moves the time every saved row shows (a sale saved late in the evening shows as the next day, and an edit or a repost of it dates its journal on the shifted day, perhaps in another period): convert the saved times (CONVERT_TZ) on the rehearsal copy first and have the accountant check them. Setting the zone of the shop to the one of the database leaves the saved rows alone, but a new document then takes its day from the clock of the database, so the first hours of the shop day carry the day before. A hosting plan that does not let you change the server zone leaves the shop zone as the one to change.',
+                    'The php spark commands run in the zone of app.appTimezone (UTC unless the .env file says otherwise), not in the zone of the locale settings; only accounting:generate_recurring and accounting:depreciate apply the zone of the shop. Set app.appTimezone in the .env file to the zone of the shop; W93-CLOCK names the difference.',
                 ],
             ],
             [
@@ -65,6 +71,7 @@ final class ReadinessRunbook
                     )),
                     'DATA: rewrites or classifies existing rows or adds to the chart. HEAVY: alters a large table, so run it in a quiet hour. The order is the order of the version numbers and each step depends on the ones before it.',
                     'The first login after the deploy runs the same migrations by itself: run them here, on purpose, before anybody logs in.',
+                    'No run of these migrations on MySQL 5.7 or MariaDB 10.5 is recorded in the project documents (the CI matrix names those images, and its result is not recorded here): rehearse the migrations in step 1 on a scratch database served by the same server version as the live one.',
                     'Stop at the first failure and restore the backup; never edit the migrations table by hand.',
                 ],
             ],
@@ -73,13 +80,15 @@ final class ReadinessRunbook
                 'commands' => [
                     'php spark accounting:readiness',
                     'php spark accounting:readiness --json --no-header > readiness-after.json',
+                    'php spark accounting:readiness_compare readiness-before.json readiness-after.json',
                     'php spark accounting:bank_accounts',
                     'php spark accounting:check_locks',
                     'php spark accounting:status',
                 ],
                 'notes' => [
                     'The report must now say post-migration and exit 0; the bank command must report no account outside 1202.',
-                    'Compare readiness-before.json with readiness-after.json (diff, or jq on .checks[].data): E38-SCAN would_mark and would_mark_discount before must equal marked_lines and marked_discount after, so the purchase lines the migration marked are the ones the report named, with the discount they had.',
+                    'Compare readiness-before.json with readiness-after.json with accounting:readiness_compare (diff, or jq on .checks[].data, does it by hand): E38-SCAN would_mark and would_mark_discount before must equal marked_lines and marked_discount after, so the purchase lines the migration marked are the ones the report named, with the discount they had. The comparison also flags every other value of .checks[].data that changed and a check that turned FAIL or ERROR; it exits 0 when nothing is flagged, 1 when something is and 7 for a file it cannot read, and what it flags somebody explains before the release goes on. A second report that still says pre-migration, and two files that are one report, are flagged too (exit 1): they cannot show what the migrations changed, so take the reports again. Put the two file names before the options (accounting:readiness_compare readiness-before.json readiness-after.json --json --no-header): an option placed first takes the next file name for its value.',
+                    'TIE-CUSTOMERS and TIE-SUPPLIERS keep the aging total of every party in data.aging_totals: a migration may move an amount from one bucket to another and never change what a party owes or is owed, so a party whose total moved is flagged. A database whose books did not exist before has both checks SKIPPED in the first report and nothing to compare them with.',
                     'TIE-SUPPLIERS and TIE-CUSTOMERS are SKIPPED before the migrations while the books do not exist yet, and must now PASS: that is the evidence that every supplier and customer account ties to its documents, its credit and its aging.',
                     'Open the balances between branches and the treasuries screen and look at what the report listed for review.',
                 ],
@@ -100,6 +109,8 @@ final class ReadinessRunbook
                 'notes' => [
                     'Accounting stays disabled on a real business until then. After enabling, the opening stock is posted from the opening balances screen, one location at a time (E26).',
                     'Keep the whole-purchase discount off in production until a separate owner permission (E47, E54).',
+                    'Cron, which the code never installs: accounting:generate_recurring once a day at least. accounting:depreciate is run from cron only as the preview, which writes nothing (the posting needs --approve with the fingerprint the preview printed, and is a person\'s act: whether it is ever scheduled is an open question for the owner). accounting:ai_scan and accounting:ai_propose are left unscheduled until the owner switches the agent on: while it is off they refuse and exit 1, so a cron line for them fails at every run.',
+                    'The report has no check for fixed assets, e-invoicing, the AI agent, the customer portal or API keys: the migrations switch each off or grant it to nobody, so a half-configured one cannot be found by it. The owner reads the checklist items of the release for each before turning one on.',
                     'Documents saved while accounting was off have no journal. The retroactive posting gives them one: "php spark accounting:backfill --from ... --to ..." is its read-only dry run, and a batch is previewed and approved on the periods screen. Approval stays off (accounting_backfill_enabled) until the owner turns it on, needs the opening balances and the start date, and is never run on a real database without separate permission (E47). Approve a batch before the opening stock of the locations it moves stock in is posted: that opening stock is posted from the shelves, which already hold what those documents moved, and a document saved before it was posted is refused (stock_opened_after).',
                 ],
             ],

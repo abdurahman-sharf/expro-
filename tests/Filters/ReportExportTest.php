@@ -548,4 +548,23 @@ class ReportExportTest extends CIUnitTestCase
         $this->assertSame(422, $after->getStatusCode());
         $this->assertSame(lang('Accounting.error_report_file_too_large', [ReportExporter::MAX_PDF_ROWS]), $after->getBody());
     }
+
+    public function testAfter_PdfTextCasesAreNotSkippedBecauseTheWorkflowInstallsPoppler(): void
+    {
+        $workflow = (string) file_get_contents(ROOTPATH . '.github/workflows/phpunit.yml');
+        $install  = (int) strpos($workflow, 'apt-get install -y --no-install-recommends poppler-utils');
+
+        $this->assertGreaterThan(0, $install, 'The PHPUnit workflow installs poppler-utils.');
+        $this->assertLessThan((int) strpos($workflow, 'Run PHPUnit tests'), $install, 'poppler-utils is installed before the tests run.');
+        $this->assertStringContainsString('command -v pdftotext', $workflow, 'The step fails when pdftotext is still missing.');
+    }
+
+    public function testAfter_PdfTextCasesHavePdftotextOnTheContinuousIntegrationMachine(): void
+    {
+        if (getenv('GITHUB_ACTIONS') !== 'true') {
+            $this->markTestSkipped('Only the machine of the GitHub workflow has to provide pdftotext.');
+        }
+
+        $this->assertNotSame('', trim((string) shell_exec('command -v pdftotext')), 'The cases that read the text of a PDF would be skipped without pdftotext.');
+    }
 }

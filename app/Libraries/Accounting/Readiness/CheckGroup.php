@@ -3,6 +3,8 @@
 namespace App\Libraries\Accounting\Readiness;
 
 use CodeIgniter\Database\BaseConnection;
+use DateTimeImmutable;
+use DateTimeZone;
 use Throwable;
 
 /**
@@ -40,5 +42,31 @@ abstract class CheckGroup
         } catch (Throwable $failure) {
             return CheckResult::error($failure)->named($id, $ref, $title);
         }
+    }
+
+    protected function shopZoneSetting(): string
+    {
+        $row = $this->db->table('app_config')->select('value')->where('key', 'timezone')->get()->getRow();
+
+        return trim((string) ($row->value ?? ''));
+    }
+
+    protected function isZone(string $zone): bool
+    {
+        try {
+            new DateTimeZone($zone);
+        } catch (Throwable) {
+            return false;
+        }
+
+        return true;
+    }
+
+    protected function shopToday(): string
+    {
+        $setting = $this->shopZoneSetting();
+        $zone    = $setting !== '' && $this->isZone($setting) ? $setting : date_default_timezone_get();
+
+        return (new DateTimeImmutable('now', new DateTimeZone($zone)))->format('Y-m-d');
     }
 }
