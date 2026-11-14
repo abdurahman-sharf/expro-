@@ -746,18 +746,25 @@ final class Generator
 
     private function saveState(): void
     {
-        $this->db->table('app_config')->replace(['key' => self::STATE_KEY, 'value' => json_encode($this->state, JSON_THROW_ON_ERROR)]);
+        $table = $this->db->prefixTable('r6_generator_state');
+
+        $this->db->query("CREATE TABLE IF NOT EXISTS {$table} (id TINYINT UNSIGNED NOT NULL PRIMARY KEY, state LONGTEXT NOT NULL)");
+        $this->db->query("REPLACE INTO {$table} (id, state) VALUES (1, ?)", [json_encode($this->state, JSON_THROW_ON_ERROR)]);
     }
 
     private function loadState(): void
     {
-        $row = $this->db->table('app_config')->where('key', self::STATE_KEY)->get()->getRow();
+        $table = $this->db->prefixTable('r6_generator_state');
+
+        $row = $this->db->query("SHOW TABLES LIKE '{$table}'")->getRow() === null ? null : $this->db->query("SELECT state FROM {$table} WHERE id = 1")->getRow();
 
         if ($row === null) {
-            throw new RuntimeException('Run the setup first.');
+            $this->state = $this->rebuiltState();
+            $this->saveState();
+        } else {
+            $this->state = json_decode((string) $row->state, true, 512, JSON_THROW_ON_ERROR);
         }
 
-        $this->state    = json_decode((string) $row->value, true, 512, JSON_THROW_ON_ERROR);
         $this->branches = [];
 
         foreach ($this->state['branches'] as $index => $place) {
@@ -765,6 +772,79 @@ final class Generator
         }
 
         $this->reloadCatalogue();
+    }
+
+    /**
+     * The first version kept its state in a TEXT column that cut it at 64 KB: what can still be read of the payments it had scheduled is
+     * kept, the rest is taken from the data (the days, the branches, the sales a return can come from).
+     *
+     * @return array<string, mixed>
+     */
+    private function rebuiltState(): array
+    {
+        $old = $this->db->table('app_config')->where('key', self::STATE_KEY)->get()->getRow();
+
+        if ($old === null) {
+            throw new RuntimeException('Run the setup first.');
+        }
+
+        $pending = [];
+
+        if (preg_match_all('/"(\d{4}-\d{2}-\d{2})":\[((?:\{[^{}]*\},?)+)\]/', (string) $old->value, $matches, PREG_SET_ORDER) > 0) {
+            foreach ($matches as $match) {
+                $entries = json_decode('[' . rtrim($match[2], ',') . ']', true);
+
+                if (is_array($entries)) {
+                    $pending[$match[1]] = $entries;
+                }
+            }
+        }
+
+        $last   = $this->db->query('SELECT DATE(MAX(sale_time)) AS day FROM ' . $this->db->prefixTable('sales'))->getRow()->day;
+        $places = $this->db->query('SELECT b.branch_id AS branch, l.location_id AS location, e.person_id AS employee FROM ' . $this->db->prefixTable('branches') . ' b JOIN ' . $this->db->prefixTable('stock_locations') . ' l ON l.branch_id = b.branch_id JOIN ' . $this->db->prefixTable('employees') . ' e ON e.default_treasury_id IN (SELECT treasury_id FROM ' . $this->db->prefixTable('treasuries') . ' t WHERE t.branch_id = b.branch_id) ORDER BY b.branch_id')->getResultArray();
+
+        $branches = [];
+
+        foreach ($places as $index => $place) {
+            $branches[$index] = ['employee' => (int) $place['employee'], 'location' => (int) $place['location'], 'branch' => (int) $place['branch']];
+        }
+
+        $firstItem = (int) $this->db->table('items')->selectMin('item_id', 'first')->get()->getRow()->first;
+        $recent    = [];
+
+        $invoices = $this->db->query('SELECT sale_id, customer_id, branch_id, DATE(sale_time) AS day FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_type = 1 AND customer_id IS NOT NULL AND sale_status = 0 ORDER BY sale_id DESC LIMIT 300')->getResult();
+
+        foreach (array_reverse($invoices) as $invoice) {
+            $lines = [];
+
+            foreach ($this->db->query('SELECT item_id, item_unit_price AS price, item_cost_price AS cost, quantity_purchased AS quantity, line, discount, item_location AS location FROM ' . $this->db->prefixTable('sales_items') . ' WHERE sale_id = ? ORDER BY line LIMIT 3', [$invoice->sale_id])->getResultArray() as $line) {
+                $lines[] = ['item_id' => (int) $line['item_id'], 'price' => bcadd((string) $line['price'], '0', 2), 'cost' => bcadd((string) $line['cost'], '0', 2), 'quantity' => (string) (int) $line['quantity'], 'line' => (int) $line['line'], 'index' => (int) $line['item_id'] - $firstItem, 'discount' => (string) (int) $line['discount'], 'location' => (int) $line['location']];
+            }
+
+            $branchIndex = 0;
+
+            foreach ($branches as $index => $place) {
+                if ($place['branch'] === (int) $invoice->branch_id) {
+                    $branchIndex = $index;
+                }
+            }
+
+            $recent[] = ['sale' => (int) $invoice->sale_id, 'customer' => (int) $invoice->customer_id, 'branch' => $branchIndex, 'lines' => $lines, 'day' => $invoice->day];
+        }
+
+        return [
+            'day'         => (new DateTimeImmutable($last, $this->zone))->modify('+1 day')->format('Y-m-d'),
+            'documents'   => (int) $this->db->table('sales')->countAllResults(),
+            'purchases'   => (int) $this->db->table('receivings')->countAllResults(),
+            'expenses'    => (int) $this->db->table('expenses')->countAllResults(),
+            'payments'    => (int) $this->db->table('sales_payments')->countAllResults(),
+            'pending'     => $pending,
+            'pendingBuys' => [],
+            'recent'      => $recent,
+            'branches'    => $branches,
+            'seed'        => 6,
+            'opened'      => true,
+        ];
     }
 
     private function reloadCatalogue(): void

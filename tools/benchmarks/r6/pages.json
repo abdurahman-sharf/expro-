@@ -13,19 +13,19 @@
  },
  {
   "name": "sales_search_alldates",
-  "path": "/sales/search?search=&limit=25&offset=0&sort=sale_id&order=desc"
+  "path": "/sales/search?search=&limit=25&offset=0&sort=sale_id&order=desc&start_date=2024-01-01&end_date=2099-12-31"
  },
  {
   "name": "sales_search_offset5000",
-  "path": "/sales/search?search=&limit=25&offset=5000&sort=sale_id&order=desc"
+  "path": "/sales/search?search=&limit=25&offset=5000&sort=sale_id&order=desc&start_date=2024-01-01&end_date=2099-12-31"
  },
  {
   "name": "sales_search_by_name",
-  "path": "/sales/search?search=Alharbi&limit=25&offset=0&sort=sale_id&order=desc"
+  "path": "/sales/search?search=Alharbi&limit=25&offset=0&sort=sale_id&order=desc&start_date=2024-01-01&end_date=2099-12-31"
  },
  {
   "name": "sales_search_due_invoices",
-  "path": "/sales/search?search=&limit=25&offset=0&sort=sale_id&order=desc&only_invoices=1&filters%5B%5D=only_due"
+  "path": "/sales/search?search=&limit=25&offset=0&sort=sale_id&order=desc&only_invoices=1&filters%5B%5D=only_due&start_date=2024-01-01&end_date=2099-12-31"
  },
  {
   "name": "sales_suspended",
