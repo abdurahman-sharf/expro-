@@ -92,7 +92,7 @@ class LedgerInvariantsTest extends CIUnitTestCase
         $listed = trim((string) getenv('LEDGER_SKIP'));
         $skip   = $listed === '' ? [] : array_map('intval', explode(',', $listed));
         $runner = new LedgerRunner($seed, $skip);
-        $broken = $runner->run($operations, self::BATCH);
+        $broken = $runner->run($operations, (int) (getenv('LEDGER_BATCH') ?: self::BATCH));
 
         $this->writeLog($seed, $runner->scenario);
 

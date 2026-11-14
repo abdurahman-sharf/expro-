@@ -296,11 +296,19 @@ trait LedgerSaleOperations
     {
         $candidates = array_keys(array_filter($this->saleBook, static fn (array $sale): bool => $sale['status'] === 'completed' && $sale['type'] === 'invoice' && ($sale['delivered'] ?? true) === false));
 
-        if ($candidates === []) {
+        $withRevenue = array_values(array_filter($candidates, fn (int $saleId): bool => $this->db->table('accounting_journals')->where(['source_type' => 'sale', 'source_id' => $saleId, 'entry_type' => 'revenue', 'status' => 'posted'])->countAllResults() > 0));
+
+        if ($withRevenue !== [] || $candidates !== []) {
+            foreach (array_diff($candidates, $withRevenue) as $saleId) {
+                $this->observe('F9-delivery-of-an-invoice-with-no-revenue-journal-takes-stock-and-posts-no-cost-so-the-run-leaves-it-undelivered', 'sale ' . $saleId);
+            }
+        }
+
+        if ($withRevenue === []) {
             return $this->operationSale($random);
         }
 
-        $saleId = $random->pick($candidates);
+        $saleId = $random->pick($withRevenue);
 
         $this->note('confirm delivery of sale ' . $saleId);
 
