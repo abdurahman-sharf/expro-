@@ -584,6 +584,22 @@ class SupplierSettlementTest extends CIUnitTestCase
         $this->assertSupplierTies();
     }
 
+    public function testSettle_RefusesByNameADebitNoteInDollarsAtAnotherRateOnAPurchaseInDollars(): void
+    {
+        $this->enableDollars();
+
+        $first  = $this->foreignPurchase();
+        $second = $this->foreignPurchase('4', '50.00', lang('Sales.cash'), 2);
+
+        $this->assertSame(['3.75000000', '3.60000000'], [$this->accountingDb()->table('receivings')->where('receiving_id', $first)->get()->getRow()->currency_rate, $this->accountingDb()->table('receivings')->where('receiving_id', $second)->get()->getRow()->currency_rate]);
+
+        $item = (int) $this->accountingDb()->table('receivings_items')->where('receiving_id', $second)->get()->getRow()->item_id;
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->buy([$this->purchaseLine($item, 0, '-1', '50.00')], -1, null, $second));
+        $this->assertSame(AccountingError::CreditInForeignPurchase, $this->purchases->accountingFailure()->error);
+        $this->assertSame([], $this->supplierApplications());
+    }
+
     public function testSettle_RefusesByNameADebitNoteInEurosOnAPurchaseInDollarsEvenAtTheSameRate(): void
     {
         $this->enableDollars();
