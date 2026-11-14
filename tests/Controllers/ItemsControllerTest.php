@@ -556,6 +556,42 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/value="0" id="purchase_tax_percent_2"/', $response->getBody());
     }
 
+    public function testGetView_EscapesTheNameOfTheStockLocationInTheQuantityLabel(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $itemId = $this->createTestItem();
+
+        $page = $this->pageWithTheFirstStockLocationNamed('"\'></script><img src=x onerror=alert(1)>', '/items/view/' . $itemId);
+
+        $this->assertStringNotContainsString('<img src=x', $page);
+        $this->assertStringNotContainsString('</script><img', $page);
+        $this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;</label>', $page);
+    }
+
+    public function testGetInventory_EscapesTheNameOfEveryStockLocationInTheDropdown(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $itemId = $this->createTestItem();
+
+        $page = $this->pageWithTheFirstStockLocationNamed('<img src=x onerror=alert(1)>', '/items/inventory/' . $itemId);
+
+        $this->assertStringNotContainsString('<img src=x', $page);
+        $this->assertStringContainsString('>&lt;img src=x onerror=alert(1)&gt;</option>', $page);
+    }
+
+    private function pageWithTheFirstStockLocationNamed(string $name, string $path): string
+    {
+        $db       = $this->accountingDb();
+        $original = (string) $db->table('stock_locations')->where('location_id', 1)->get()->getRow()->location_name;
+        $db->table('stock_locations')->where('location_id', 1)->update(['location_name' => $name]);
+
+        try {
+            return (string) $this->get($path)->response()->getBody();
+        } finally {
+            $db->table('stock_locations')->where('location_id', 1)->update(['location_name' => $original]);
+        }
+    }
+
     public function testGetView_ShowsEmptyPurchaseTaxesForAnItemThatSetsNone(): void
     {
         $this->loginAsItemsEmployee($this->createItemsEmployee());

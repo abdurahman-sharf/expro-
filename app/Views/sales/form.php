@@ -352,7 +352,7 @@ use App\Libraries\Accounting\CreditSource;
     $(document).ready(function() {
         <?php if (!empty($sale_info['email'])): ?>
             $('#send_invoice').click(function(event) {
-                if (confirm("<?= lang('Sales.invoice_confirm') . ' ' . $sale_info['email'] ?>")) {
+                if (confirm("<?= esc(lang('Sales.invoice_confirm') . ' ' . $sale_info['email'], 'js') ?>")) {
                     $.get("<?= esc("$controller_name/sendPdf/" . $sale_info['sale_id']) ?>",
                         function(response) {
                             dialog_support.hide();
