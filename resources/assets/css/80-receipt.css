@@ -139,6 +139,12 @@
     text-align: end;
 }
 
+.rt-totals dd,
+.rt-calc > :last-child {
+    flex: none;
+    white-space: nowrap;
+}
+
 .rt-items {
     margin: 8px 0;
     padding: 6px 0;
