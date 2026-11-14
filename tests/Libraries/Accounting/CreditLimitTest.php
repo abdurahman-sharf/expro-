@@ -1047,6 +1047,7 @@ final class CreditLimitTest extends CIUnitTestCase
     {
         $this->giveTerms('0', 30);
         $this->opening(CustomerOpening::OWES_US, '300.00', 45);
+        $this->invoiceDated('20.00', $this->daysAgo(5));
 
         $sale = $this->invoiceOf('10.00');
 
@@ -1066,6 +1067,7 @@ final class CreditLimitTest extends CIUnitTestCase
     {
         $this->giveTerms('0', 30);
         $this->debitNote('100.00', 40);
+        $this->invoiceDated('20.00', $this->daysAgo(5));
 
         $sale = $this->invoiceOf('10.00');
 

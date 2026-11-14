@@ -225,13 +225,13 @@
   ]
  },
  {
-  "name": "G21 the two journals of a payment across branches are written in opposite orders by different payments",
+  "name": "G21 the two journals of a payment across branches are written in opposite orders by different payments (proved by the order the locks are asked in; the race cannot prove it, because postings hold the period locks shared)",
   "file": "app/Libraries/Accounting/CrossBranchPayments.php",
   "find": "usort($drafts, static fn (JournalDraft $a, JournalDraft $b): int => (int) $a->branchId <=> (int) $b->branchId);",
   "replace": "usort($drafts, static fn (JournalDraft $a, JournalDraft $b): int => ((int) $a->sourceId % 2 === 0 ? -1 : 1) * ((int) $a->branchId <=> (int) $b->branchId));",
   "tests": [
    "--filter",
-   "testPost_LetsFourRealSessions|testPost_LetsTwoRealSessions",
+   "testPost_TakesThePeriodLockOfTheLowerBranchBeforeTheOther",
    "tests/Libraries/Accounting/CrossBranchPaymentsTest.php"
   ]
  },
@@ -286,7 +286,7 @@
   "replace": "if (false) {",
   "tests": [
    "--filter",
-   "testPost_LetsFourRealSessions|testPost_LetsTwoRealSessions",
+   "testPost_LetsEightRealSessions|testPost_LetsRealSessionsPostAcrossTheBranchesWhile|testPost_LetsTwoRealSessions",
    "tests/Libraries/Accounting/CrossBranchPaymentsTest.php"
   ]
  },

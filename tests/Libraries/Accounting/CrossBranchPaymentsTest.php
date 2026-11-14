@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CrossBranchPayments;
 use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\JournalChange;
@@ -541,7 +542,7 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
         return [(string) $paymentId, $amount, $receipt ? '1' : '0', (string) $treasuryId, (string) $treasuryBranch, (string) $ownBranch, (string) $this->customerAccount(), (string) $this->treasuries->accountOf($treasuryId)];
     }
 
-    public function testPost_LetsFourRealSessionsPostPaymentsAcrossTheBranchesInBothDirectionsWithoutADeadlockAndTiesTheBranches(): void
+    public function testPost_LetsEightRealSessionsPostPaymentsAcrossTheBranchesInBothDirectionsWithoutADeadlockAndTiesTheBranches(): void
     {
         $home = $this->treasuries->create(['name' => 'Home drawer', 'kind' => 'cash']);
 
@@ -552,21 +553,77 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
             $this->paymentSession(7002, '40.00', true, $home, 1, $this->branch),
             $this->paymentSession(7003, '25.00', true, $this->treasury, $this->branch, 1),
             $this->paymentSession(7004, '10.00', false, $home, 1, $this->branch),
+            $this->paymentSession(7005, '10.00', false, $this->treasury, $this->branch, 1),
+            $this->paymentSession(7006, '30.00', true, $home, 1, $this->branch),
+            $this->paymentSession(7007, '5.00', true, $this->treasury, $this->branch, 1),
+            $this->paymentSession(7008, '20.00', true, $home, 1, $this->branch),
         ]);
 
-        $this->assertSame(['done', 'done', 'done', 'done'], $answers);
+        $this->assertSame(array_fill(0, 8, 'done'), $answers);
 
-        foreach ([7001, 7002, 7003, 7004] as $paymentId) {
+        foreach (range(7001, 7008) as $paymentId) {
             $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['sale_payment', 'sale_payment_branch'])->where(['source_id' => $paymentId, 'status' => 'posted'])->countAllResults(), 'The payment ' . $paymentId . ' is two journals');
             $this->assertSame(2, $this->accountingDb()->table('accounting_interbranch_legs')->where(['document_type' => 'sale_payment', 'document_id' => $paymentId])->countAllResults(), 'The payment ' . $paymentId . ' is two legs');
         }
 
         $this->assertSame('0.0000', bcadd((new InterBranchPosition())->difference(), '0', 4), 'What one branch is owed the other owes');
-        $this->assertSame('125.00', bcadd($this->treasuries->position($this->treasury)->balance, '0', 2));
-        $this->assertSame('30.00', bcadd($this->treasuries->position($home)->balance, '0', 2));
+        $this->assertSame('120.00', bcadd($this->treasuries->position($this->treasury)->balance, '0', 2));
+        $this->assertSame('80.00', bcadd($this->treasuries->position($home)->balance, '0', 2));
         $this->assertSame($this->balance($this->account), bcadd($this->treasuries->position($this->treasury)->balance, '0', 2));
         $this->assertSame($this->balance((int) $this->treasuries->accountOf($home)), bcadd($this->treasuries->position($home)->balance, '0', 2));
-        $this->assertSame('-155.00', $this->balance($this->customerAccount()), 'The customer was credited by each receipt and debited by the payment out');
+        $this->assertSame('-200.00', $this->balance($this->customerAccount()), 'The customer was credited by each receipt and debited by each payment out');
+    }
+
+    public function testPost_LetsRealSessionsPostAcrossTheBranchesWhileBothBranchesAreBeingClosedAndLosesNoPayment(): void
+    {
+        $home   = $this->treasuries->create(['name' => 'Home drawer', 'kind' => 'cash']);
+        $closer = $this->employeeWithGrants([AccountingGuard::PERIODS_CLOSE]);
+
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 30');
+
+        foreach ([0, 1, $this->branch] as $locked) {
+            $this->accountingDb()->table('accounting_period_locks')->ignore(true)->insert(['company_id' => 1, 'branch_id' => $locked]);
+        }
+
+        $post     = fn (int $paymentId, string $amount, bool $receipt, int $treasury, int $treasuryBranch, int $own): array => ['post', ...$this->paymentSession($paymentId, $amount, $receipt, $treasury, $treasuryBranch, $own)];
+        $closings = 0;
+
+        foreach ([0, 1, 2, 3, 4] as $round) {
+            $first   = 7100 + $round * 10;
+            $day     = $this->daysAgo(100 - $round * 10);
+            $answers = $this->raceSessions('crossBranchRace', [
+                $post($first + 1, '100.00', true, $this->treasury, $this->branch, 1),
+                $post($first + 2, '40.00', true, $home, 1, $this->branch),
+                ['close', '1', $day, (string) $closer],
+                $post($first + 3, '25.00', true, $this->treasury, $this->branch, 1),
+                $post($first + 4, '10.00', true, $home, 1, $this->branch),
+                ['close', (string) $this->branch, $day, (string) $closer],
+                $post($first + 5, '5.00', true, $this->treasury, $this->branch, 1),
+                $post($first + 6, '20.00', true, $home, 1, $this->branch),
+            ]);
+
+            $this->assertSame(array_fill(0, 6, 'done'), [$answers[0], $answers[1], $answers[3], $answers[4], $answers[6], $answers[7]], 'Round ' . $round . ': no payment was refused or lost to a deadlock: ' . json_encode($answers));
+
+            foreach ([$answers[2], $answers[5]] as $closing) {
+                $this->assertContains($closing, ['done', 'write_failed'], 'A closing is made or is rolled back whole to be made again: ' . json_encode($answers));
+            }
+
+            $closings += count(array_filter([$answers[2], $answers[5]], static fn (string $closing): bool => $closing === 'done'));
+        }
+
+        $this->assertSame($closings, $this->accountingDb()->table('accounting_closed_periods')->where('active', 1)->countAllResults(), 'A closing that was rolled back left no period closed');
+
+        foreach ([0, 1, 2, 3, 4] as $round) {
+            foreach (range(7101, 7106) as $offset) {
+                $paymentId = $offset + $round * 10;
+
+                $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['sale_payment', 'sale_payment_branch'])->where(['source_id' => $paymentId, 'status' => 'posted'])->countAllResults(), 'The payment ' . $paymentId . ' is two journals');
+            }
+        }
+
+        $this->assertSame('0.0000', bcadd((new InterBranchPosition())->difference(), '0', 4));
+        $this->assertSame('650.00', bcadd($this->treasuries->position($this->treasury)->balance, '0', 2));
+        $this->assertSame('350.00', bcadd($this->treasuries->position($home)->balance, '0', 2));
     }
 
     public function testPost_LetsTwoRealSessionsPostTheSamePaymentAtTheSameMomentAndWritesItOnce(): void

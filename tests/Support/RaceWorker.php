@@ -12,6 +12,7 @@
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\Backfill\BackfillService;
 use App\Libraries\Accounting\ChequeService;
+use App\Libraries\Accounting\ClosedPeriodService;
 use App\Libraries\Accounting\CreditRefunds;
 use App\Libraries\Accounting\CrossBranchPayments;
 use App\Libraries\Accounting\CustomerAdvances;
@@ -118,6 +119,26 @@ $attemptModel = static function (callable $action, string $outcomeFile): bool {
     file_put_contents($outcomeFile, $outcome);
 
     return $outcome === 'done';
+};
+
+$postCrossBranch = static function (array $args): void {
+    $payments = new CrossBranchPayments();
+    $amount   = (string) $args[1];
+    $treasury = (int) $args[7];
+    $customer = (int) $args[6];
+
+    $draft = new JournalDraft(
+        date: '2026-10-21',
+        lines: $args[2] === '1'
+            ? [new JournalLineDraft($treasury, debit: $amount), new JournalLineDraft($customer, credit: $amount)]
+            : [new JournalLineDraft($customer, debit: $amount), new JournalLineDraft($treasury, credit: $amount)],
+        sourceType: SalePostingBuilder::SOURCE_PAYMENT,
+        sourceId: (int) $args[0],
+        description: 'Race payment #' . $args[0],
+        branchId: (int) $args[5],
+    );
+
+    $payments->post($payments->drafts($draft, (int) $args[3], (int) $args[4]));
 };
 
 $result = match ($method) {
@@ -502,25 +523,16 @@ $result = match ($method) {
 
         return model(Cashup::class)->save_value($data, (int) $args[1], (int) $args[3]);
     }, (string) $args[array_key_last($args)]),
-    'postCrossBranch'   => $attempt(static function () use ($args): void {
-        $payments = new CrossBranchPayments();
-        $amount   = (string) $args[1];
-        $treasury = (int) $args[7];
-        $customer = (int) $args[6];
+    'postCrossBranch'   => $attempt(static fn () => $postCrossBranch($args), (string) $args[8]),
+    'crossBranchRace'   => $attempt(static function () use ($args, $postCrossBranch): void {
+        if ($args[0] === 'close') {
+            (new ClosedPeriodService())->close($args[1] === 'company' ? null : (int) $args[1], (string) $args[2], 'race', (int) $args[3]);
 
-        $draft = new JournalDraft(
-            date: '2026-10-21',
-            lines: $args[2] === '1'
-                ? [new JournalLineDraft($treasury, debit: $amount), new JournalLineDraft($customer, credit: $amount)]
-                : [new JournalLineDraft($customer, debit: $amount), new JournalLineDraft($treasury, credit: $amount)],
-            sourceType: SalePostingBuilder::SOURCE_PAYMENT,
-            sourceId: (int) $args[0],
-            description: 'Race payment #' . $args[0],
-            branchId: (int) $args[5],
-        );
+            return;
+        }
 
-        $payments->post($payments->drafts($draft, (int) $args[3], (int) $args[4]));
-    }, (string) $args[8]),
+        $postCrossBranch(array_slice($args, 1));
+    }, (string) $args[array_key_last($args)]),
     default => throw new InvalidArgumentException("Unknown race method: {$method}"),
 };
 
