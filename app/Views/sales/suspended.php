@@ -28,7 +28,7 @@ $this->dinner_table = model(Dinner_table::class);
     <tbody>
         <?php foreach ($suspended_sales as $suspendedSale) { ?>
             <tr>
-                <td><?= $suspendedSale['doc_id'] ?></td>
+                <td><bdi dir="ltr"><?= esc((string) $suspendedSale['doc_id']) ?></bdi></td>
                 <td><?= date($config['dateformat'], strtotime($suspendedSale['sale_time'])) ?></td>
                 <?php if ($config['dinner_table_enable']) { ?>
                     <td><?= esc($this->dinner_table->get_name($suspendedSale['dinner_table_id'])) ?></td>

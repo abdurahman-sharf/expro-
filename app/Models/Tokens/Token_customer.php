@@ -11,13 +11,13 @@ use App\Models\Customer;
  **/
 class Token_customer extends Token
 {
-    private array $customer_info;
+    private ?array $customer_info;
     private Sale_lib $sale_lib;
 
     /**
-     * @param string $customer_info
+     * @param array<string, mixed>|null $customer_info The customer of the document the number is made for, with first_name and last_name; null takes the customer of the register.
      */
-    public function __construct(array $customer_info = [])
+    public function __construct(?array $customer_info = null)
     {
         parent::__construct();
         $this->customer_info = $customer_info;
@@ -37,11 +37,14 @@ class Token_customer extends Token
      */
     public function get_value(): string
     {
-        // Substitute customer info
+        if ($this->customer_info !== null) {
+            return trim(($this->customer_info['first_name'] ?? '') . ' ' . ($this->customer_info['last_name'] ?? ''));
+        }
+
         $customer_id = $this->sale_lib->get_customer();
-        if ($customer_id != NEW_ITEM && empty($this->customer_info)) {
-            $customer = model(Customer::class);
-            $customer_info = $customer->get_info($customer_id);
+
+        if ($customer_id != NEW_ITEM) {
+            $customer_info = model(Customer::class)->get_info($customer_id);
 
             if ($customer_info != '') {
                 return trim($customer_info->first_name . ' ' . $customer_info->last_name);

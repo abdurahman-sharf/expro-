@@ -5601,6 +5601,28 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
     }
 
+    public function testPostIssue_NamesTheCustomerOfTheDraftInANumberFormatThatCarriesTheCustomerAndNotTheOneOfTheRegister(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft  = $this->draftInvoice($this->taxedLines());
+        $other  = $this->anotherCustomer('Mona', 'Zaki');
+        $marker = 'CU' . random_int(100000, 999999);
+        $before = $this->config()['sales_invoice_format'];
+
+        $this->withSession(array_merge($this->session, ['sales_customer' => $other]));
+        config(OSPOS::class)->settings['sales_invoice_format'] = $marker . '-{CU}';
+
+        try {
+            $answer = $this->jsonOf($this->post('/sales/issue/' . $draft));
+        } finally {
+            config(OSPOS::class)->settings['sales_invoice_format'] = $before;
+        }
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame($marker . '-Omar Khaled', Database::connect()->table('sales')->where('sale_id', $draft)->get()->getRow()->invoice_number);
+    }
+
     public function testPostIssue_RejectsAFormatNumberThatAnotherInvoiceAlreadyHasAndLeavesTheDraft(): void
     {
         $this->supervisorForDocuments();
@@ -6433,6 +6455,29 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame(SUSPENDED, $this->saleStatusOf($converted));
     }
 
+    public function testPostSave_RefusesToEditAConvertedQuoteOpenedByItsIdAndKeepsItAsItWas(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items     = $this->taxedLines();
+        $open      = $this->quote(null, $items);
+        $converted = $this->quote(null, $items);
+
+        Database::connect()->table('sales')->where('sale_id', $converted)->update(['quote_status' => QuoteStatus::Converted->value]);
+
+        $form = fn (string $comment): array => ['date' => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']), 'customer_id' => (string) $this->customerId, 'employee_id' => (string) $this->employeeId, 'comment' => $comment, 'number_of_payments' => '0'];
+
+        $answer = $this->jsonOf($this->post('/sales/save/' . $converted, $form('changed')));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.error_quote_locked'), $answer['message']);
+        $this->assertSame('test', $this->saleRow($converted)->comment);
+        $this->assertSame((string) QuoteStatus::Converted->value, $this->statusOfTheQuote($converted));
+
+        $this->assertTrue($this->jsonOf($this->post('/sales/save/' . $open, $form('changed')))['success'], 'a quote that was not converted is edited as before');
+        $this->assertSame('changed', $this->saleRow($open)->comment);
+    }
+
     public function testPostComplete_SaysWhyAQuoteOfAnotherBranchCannotBeConvertedAndSavesNothing(): void
     {
         $this->supervisorForDocuments();
@@ -6499,8 +6544,38 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->assertSame('draft-' . $draft, $rows[$draft]);
         $this->assertSame('Q26-0099', $rows[$open]);
-        $this->assertSame((string) $number, (string) $rows[$number], 'a suspended invoice shows its id in the list of the register as it always did');
+        $this->assertSame('draft-' . $number, (string) $rows[$number], 'a suspended invoice is a draft and is known by its temporary number');
         $this->get('/sales/suspended')->assertSee('draft-' . $draft);
+    }
+
+    public function testGetAllSuspended_KeepsTheIdForASuspendedPointOfSaleSaleAndNamesAWorkOrderByItsNumber(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items = $this->taxedLines();
+        $pos   = $this->save($items, [], [], SALE_TYPE_POS, -1, true, null, SUSPENDED);
+        $order = $this->save($items, [], [], SALE_TYPE_WORK_ORDER, -1, true, null, SUSPENDED);
+
+        Database::connect()->table('sales')->where('sale_id', $order)->update(['work_order_number' => 'WO-7']);
+
+        $rows = array_column($this->sales->get_all_suspended(NEW_ENTRY), 'doc_id', 'sale_id');
+
+        $this->assertSame((string) $pos, (string) $rows[$pos]);
+        $this->assertSame('WO-7', $rows[$order]);
+    }
+
+    public function testGetSuspended_ShowsTheNumberOfASuspendedDocumentAsTextAndNeverAsMarkup(): void
+    {
+        $this->supervisorForDocuments();
+
+        $quote = $this->quote(null, $this->taxedLines());
+
+        Database::connect()->table('sales')->where('sale_id', $quote)->update(['quote_number' => '<b onmouseover=alert(1)>Q-1</b>']);
+
+        $body = $this->get('/sales/suspended')->getBody();
+
+        $this->assertStringContainsString('&lt;b onmouseover=alert(1)&gt;Q-1&lt;/b&gt;', $body);
+        $this->assertStringNotContainsString('<b onmouseover=alert(1)>', $body);
     }
 
     // ---------------------------------------------------------------------------------------

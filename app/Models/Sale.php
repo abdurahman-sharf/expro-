@@ -824,6 +824,16 @@ class Sale extends Model
         $openBefore = null;
 
         $this->db->transStart();
+        $this->db->query('SELECT sale_id FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$saleId]);
+
+        try {
+            (new QuoteLifecycle($this->db))->assertUnlocked((int) $saleId);
+        } catch (AccountingException $refusal) {
+            $this->db->transRollback();
+            $this->accountingFailure = $refusal;
+
+            return false;
+        }
 
         try {
             if ($accounting !== null) {
@@ -3046,7 +3056,7 @@ class Sale extends Model
         $cut      = $this->viewerCut($viewerId);
         $mineOnly = $cut === null ? '' : ' AND employee_id = ' . $cut;
 
-        $documentId = "case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN IF(quote_status = " . QuoteStatus::Draft->value . " AND (quote_number IS NULL OR quote_number = ''), CONCAT('" . DraftInvoice::PREFIX . "', sale_id), quote_number) WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id";
+        $documentId = "case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN IF(quote_status = " . QuoteStatus::Draft->value . " AND (quote_number IS NULL OR quote_number = ''), CONCAT('" . DraftInvoice::PREFIX . "', sale_id), quote_number) WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number WHEN sale_type = '" . SALE_TYPE_INVOICE . "' THEN CONCAT('" . DraftInvoice::PREFIX . "', sale_id) else sale_id end as doc_id";
 
         if ($customer_id == NEW_ENTRY) {
             $query = $this->db->query("SELECT sale_id, {$documentId}, sale_id as suspended_sale_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "

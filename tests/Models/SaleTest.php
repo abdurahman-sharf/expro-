@@ -4,6 +4,7 @@ namespace Tests\Models;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\InvoiceDiscountProblem;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -884,6 +885,29 @@ class SaleTest extends CIUnitTestCase
 
         $this->assertSame(NEW_ENTRY, $saleModel->confirm_delivery($pos, null));
         $this->assertSame(NEW_ENTRY, $saleModel->confirm_delivery(999999999, null));
+    }
+
+    public function testUpdate_RefusesAQuoteThatBecameAnInvoiceAndChangesNothingOfIt(): void
+    {
+        $saleModel = model(Sale::class);
+        $quote     = $this->saveSale(SALE_TYPE_QUOTE, [], SUSPENDED);
+
+        Database::connect()->table('sales')->where('sale_id', $quote)->update(['quote_status' => QuoteStatus::Converted->value, 'comment' => 'kept']);
+
+        $this->assertFalse($saleModel->update($quote, ['comment' => 'changed']));
+        $this->assertInstanceOf(AccountingException::class, $saleModel->accountingFailure());
+        $this->assertSame(AccountingError::QuoteLocked, $saleModel->accountingFailure()->error);
+        $this->assertSame('kept', Database::connect()->table('sales')->where('sale_id', $quote)->get()->getRow()->comment);
+    }
+
+    public function testUpdate_StillEditsAQuoteThatWasNotConverted(): void
+    {
+        $saleModel = model(Sale::class);
+        $quote     = $this->saveSale(SALE_TYPE_QUOTE, [], SUSPENDED);
+
+        $this->assertTrue($saleModel->update($quote, ['comment' => 'changed']));
+        $this->assertNull($saleModel->accountingFailure());
+        $this->assertSame('changed', Database::connect()->table('sales')->where('sale_id', $quote)->get()->getRow()->comment);
     }
 
     public function testBranchIdsOfItems_ListsTheBranchOfEveryLocationOnceAndNothingForAnEmptyCart(): void
