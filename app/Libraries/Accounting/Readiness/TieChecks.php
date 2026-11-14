@@ -47,11 +47,14 @@ final class TieChecks extends CheckGroup
     {
         $ledger = new CustomerLedger($this->db);
         $bad    = [];
+        $totals = [];
         $ids    = $this->partyIds(EntityAccountService::CUSTOMER);
 
         foreach ($ids as $customerId) {
             $position = $ledger->position($customerId);
             $aged     = $this->agedTotal($position->aging(self::AS_OF));
+
+            $totals[$customerId] = $aged;
 
             if ($position->agrees() && bccomp($aged, $position->open(), SaleAmounts::SCALE) === 0) {
                 continue;
@@ -69,18 +72,21 @@ final class TieChecks extends CheckGroup
             );
         }
 
-        return $this->partyResult('customer', count($ids), $bad);
+        return $this->partyResult('customer', $totals, $bad);
     }
 
     private function suppliers(): CheckResult
     {
         $ledger = new SupplierLedger($this->db);
         $bad    = [];
+        $totals = [];
         $ids    = $this->partyIds(EntityAccountService::SUPPLIER);
 
         foreach ($ids as $supplierId) {
             $position = $ledger->position($supplierId);
             $aged     = $this->agedTotal($position->aging(self::AS_OF));
+
+            $totals[$supplierId] = $aged;
 
             if ($position->agrees() && bccomp($aged, $position->open(), SaleAmounts::SCALE) === 0) {
                 continue;
@@ -98,19 +104,27 @@ final class TieChecks extends CheckGroup
             );
         }
 
-        return $this->partyResult('supplier', count($ids), $bad);
+        return $this->partyResult('supplier', $totals, $bad);
     }
 
     /**
-     * @param list<string> $bad
+     * The aging total of every party is kept in the data so that the report taken before the migrations
+     * and the one taken after can be compared: a migration may move an amount from one bucket to another
+     * but never change what a party owes or is owed.
+     *
+     * @param array<int, string> $totals The aging total of each party with movements, by party number.
+     * @param list<string>       $bad
      */
-    private function partyResult(string $kind, int $checked, array $bad): CheckResult
+    private function partyResult(string $kind, array $totals, array $bad): CheckResult
     {
+        $checked = count($totals);
+        $data    = ['checked' => $checked, 'differences' => count($bad), 'aging_total' => $this->agedTotal($totals), 'aging_totals' => $totals];
+
         if ($bad === []) {
-            return CheckResult::pass("Every {$kind} account with movements ties to its documents, its credit and its aging ({$checked} checked).", [], ['checked' => $checked, 'differences' => 0]);
+            return CheckResult::pass("Every {$kind} account with movements ties to its documents, its credit and its aging ({$checked} checked).", [], $data);
         }
 
-        return CheckResult::fail(count($bad) . " {$kind} account(s) do not tie to their documents, credit and aging ({$checked} checked).", $bad, ['checked' => $checked, 'differences' => count($bad)]);
+        return CheckResult::fail(count($bad) . " {$kind} account(s) do not tie to their documents, credit and aging ({$checked} checked).", $bad, $data);
     }
 
     /**
@@ -132,7 +146,7 @@ final class TieChecks extends CheckGroup
     }
 
     /**
-     * @param array<string, numeric-string> $buckets
+     * @param array<int|string, numeric-string> $buckets
      */
     private function agedTotal(array $buckets): string
     {

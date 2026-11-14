@@ -246,6 +246,62 @@ class TieChecksTest extends CIUnitTestCase
         $this->assertSame(1, $result->data['checked']);
     }
 
+    public function testCustomerTies_KeepsTheAgingTotalOfEveryCustomerInTheData(): void
+    {
+        $firstId  = $this->invoiceOf('100.00');
+        $secondId = $this->invoiceOf('70.00');
+        $this->accountingDb()->table('sales')->where('sale_id', $secondId)->update(['sale_time' => date('Y-m-d H:i:s', strtotime('+45 days'))]);
+        $other    = $this->insertCustomer();
+        (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $other, 'Second customer');
+        $this->invoiceOf('25.50', $other);
+
+        $result = $this->check('customer_ties');
+
+        $this->assertSame(CheckStatus::Pass, $result->status);
+        $this->assertSame([$this->customerId, $other], array_keys($result->data['aging_totals']));
+        $this->assertSame(0, bccomp('170.00', $result->data['aging_totals'][$this->customerId], 4), 'The invoice dated ahead is in the total of its customer.');
+        $this->assertSame(0, bccomp('25.50', $result->data['aging_totals'][$other], 4));
+        $this->assertSame(0, bccomp('195.50', $result->data['aging_total'], 4));
+        $this->assertSame(2, $result->data['checked']);
+        $this->assertGreaterThan(0, $firstId);
+    }
+
+    public function testCustomerTies_KeepsTheAgingTotalsInTheDataOfAFailingCheckToo(): void
+    {
+        $this->invoiceOf('100.00');
+        $this->byHand($this->customerAccount(), '40.00');
+
+        $result = $this->check('customer_ties');
+
+        $this->assertSame(CheckStatus::Fail, $result->status);
+        $this->assertSame(0, bccomp('100.00', $result->data['aging_totals'][$this->customerId], 4));
+    }
+
+    public function testSupplierTies_KeepsTheAgingTotalOfEverySupplierInTheData(): void
+    {
+        $firstId = $this->purchaseOf('500.00');
+        $this->purchaseOf('300.00');
+        $this->accountingDb()->table('receivings')->where('receiving_id', $firstId)->update(['receiving_time' => date('Y-m-d H:i:s', strtotime('+45 days'))]);
+        $other = $this->anotherSupplier();
+        $this->purchaseOf('40.00', $other);
+
+        $result = $this->check('supplier_ties');
+
+        $this->assertSame(CheckStatus::Pass, $result->status);
+        $this->assertSame([$this->supplierId, $other], array_keys($result->data['aging_totals']));
+        $this->assertSame(0, bccomp('800.00', $result->data['aging_totals'][$this->supplierId], 4), 'The purchase dated ahead is in the total of its supplier.');
+        $this->assertSame(0, bccomp('40.00', $result->data['aging_totals'][$other], 4));
+        $this->assertSame(0, bccomp('840.00', $result->data['aging_total'], 4));
+    }
+
+    public function testSupplierTies_ListsNoAgingTotalWhenNoSupplierHasMovements(): void
+    {
+        $result = $this->check('supplier_ties');
+
+        $this->assertSame([], $result->data['aging_totals']);
+        $this->assertSame(0, bccomp('0', $result->data['aging_total'], 4));
+    }
+
     public function testSupplierTies_PassesForASupplierWhoseAccountMatchesTheirPurchases(): void
     {
         $this->purchaseOf('500.00');

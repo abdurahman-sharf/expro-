@@ -93,12 +93,27 @@ class ReadinessRunnerTest extends CIUnitTestCase
         $result = (new ReadinessRunner())->run();
         $ids    = array_map(static fn (CheckResult $check): string => $check->id, $result->checks);
 
-        $this->assertCount(28, $result->checks);
+        $this->assertCount(31, $result->checks);
         $this->assertSame($ids, array_values(array_unique($ids)));
         $this->assertSame('migrations', $ids[0]);
         $this->assertSame(['purchase_discount', 'bank_placement', 'bank_details', 'payment_stamping'], array_slice($ids, 1, 4));
         $this->assertSame('opening_balances', $ids[19]);
         $this->assertSame(['routing_types', 'item_routing', 'entity_routing'], array_values(array_intersect($ids, ['routing_types', 'item_routing', 'entity_routing'])));
+    }
+
+    public function testRun_NamesEveryCheckOfTheReportInTheRunbookDocument(): void
+    {
+        $words    = [31 => 'واحدًا وثلاثين فحصًا'];
+        $document = (string) file_get_contents(ROOTPATH . 'docs/accounting/readiness-runbook.md');
+        $section  = substr($document, (int) strpos($document, '## 2.'), (int) strpos($document, '## 3.') - (int) strpos($document, '## 2.'));
+        $checks   = (new ReadinessRunner())->run()->checks;
+
+        foreach (array_unique(array_map(static fn (CheckResult $check): string => $check->ref, $checks)) as $ref) {
+            $this->assertStringContainsString("| `{$ref}`", $section, "The check {$ref} has no row in the table of section 2 of the runbook document.");
+        }
+
+        $this->assertArrayHasKey(count($checks), $words, 'The number of checks changed: write it in words here and in section 1 of the runbook document.');
+        $this->assertStringContainsString('**' . $words[count($checks)] . '**', $document);
     }
 
     public function testRun_NamesTheDatabaseAndTheMoment(): void
