@@ -134,7 +134,17 @@ trait ConcurrentDbRaceTrait
             $deadline = microtime(true) + 5.0;
 
             while (!file_exists($readyFile1) || !file_exists($readyFile2)) {
-                if (microtime(true) >= $deadline) {
+                $ended = [];
+
+                foreach ([1 => [$process1, $pipes1, $readyFile1], 2 => [$process2, $pipes2, $readyFile2]] as $call => [$process, $pipes, $readyFile]) {
+                    $words = $this->raceWorkerEndedEarly($process, $pipes);
+
+                    if ($words !== null && !file_exists($readyFile)) {
+                        $ended[] = 'call ' . $call . ' ' . $words;
+                    }
+                }
+
+                if ($ended !== [] || microtime(true) >= $deadline) {
                     $status1 = proc_get_status($process1);
                     $status2 = proc_get_status($process2);
 
@@ -158,7 +168,7 @@ trait ConcurrentDbRaceTrait
                         !file_exists($readyFile2) ? 'call 2' : null,
                     ]);
 
-                    throw new RuntimeException('race_worker.php failed to reach readiness barrier: ' . implode(', ', $waiting));
+                    throw new RuntimeException('race_worker.php failed to reach readiness barrier: ' . implode(', ', $waiting) . ($ended === [] ? '' : ' (' . implode('; ', $ended) . ')'));
                 }
 
                 usleep(1000);
@@ -282,6 +292,12 @@ trait ConcurrentDbRaceTrait
         $deadline = microtime(true) + 10.0;
 
         while (! file_exists($ready) && microtime(true) < $deadline) {
+            $words = $this->raceWorkerEndedEarly($process, $pipes);
+
+            if ($words !== null && ! file_exists($ready)) {
+                throw new RuntimeException('The worker did not reach its barrier, ' . $words);
+            }
+
             usleep(1000);
         }
 

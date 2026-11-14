@@ -162,4 +162,41 @@ final class RaceWorkerTest extends CIUnitTestCase
 
         $this->assertLessThan(15.0, microtime(true) - $started, 'The refusal came when the worker ended and not when the wait for the barrier ran out');
     }
+
+    public function testRaceTwoProcesses_RefusesAtOnceWithTheWordsOfTheWorkersThatEndedBeforeTheBarrier(): void
+    {
+        $checkout           = (string) realpath($this->checkoutWithLinkedVendor(false));
+        $this->workerScript = $checkout . '/tests/Support/RaceWorker.php';
+        $started            = microtime(true);
+
+        try {
+            $this->raceTwoProcesses('loadedFrom', [], []);
+
+            $this->fail('The race was not refused.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('failed to reach readiness barrier', $exception->getMessage());
+            $this->assertStringContainsString('exit code 3', $exception->getMessage());
+            $this->assertStringContainsString('would load the application from outside ' . $checkout, $exception->getMessage());
+        }
+
+        $this->assertLessThan(4.0, microtime(true) - $started, 'The refusal came when the workers ended and not when the wait for the barrier ran out');
+    }
+
+    public function testStartRaceWorker_RefusesAtOnceWithTheWordsOfAWorkerThatEndedBeforeItsBarrier(): void
+    {
+        $checkout           = (string) realpath($this->checkoutWithLinkedVendor(false));
+        $this->workerScript = $checkout . '/tests/Support/RaceWorker.php';
+        $started            = microtime(true);
+
+        try {
+            $this->startRaceWorker('loadedFrom', []);
+
+            $this->fail('The worker was not refused.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('did not reach its barrier', $exception->getMessage());
+            $this->assertStringContainsString('would load the application from outside ' . $checkout, $exception->getMessage());
+        }
+
+        $this->assertLessThan(8.0, microtime(true) - $started, 'The refusal came when the worker ended and not when the wait for the barrier ran out');
+    }
 }

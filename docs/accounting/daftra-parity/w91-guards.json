@@ -466,6 +466,28 @@
   ]
  },
  {
+  "name": "R04 two race workers that ended before their barrier are waited for to the end of the wait and their words are lost",
+  "file": "tests/Support/ConcurrentDbRaceTrait.php",
+  "find": "if ($ended !== [] || microtime(true) >= $deadline) {",
+  "replace": "if (microtime(true) >= $deadline) {",
+  "tests": [
+   "--filter",
+   "testRaceTwoProcesses_RefusesAtOnce",
+   "tests/Support/RaceWorkerTest.php"
+  ]
+ },
+ {
+  "name": "R05 a single race worker that ended before its barrier is waited for to the end of the wait and its words are lost",
+  "file": "tests/Support/ConcurrentDbRaceTrait.php",
+  "find": "if ($words !== null && ! file_exists($ready)) {",
+  "replace": "if (false) {",
+  "tests": [
+   "--filter",
+   "testStartRaceWorker_RefusesAtOnce",
+   "tests/Support/RaceWorkerTest.php"
+  ]
+ },
+ {
   "name": "P13 the items that hold credit the order would put elsewhere are read after a run and not from nothing (proved by the scenarios that damage the applications)",
   "file": "app/Libraries/Accounting/CreditOrderPreview.php",
   "find": "$fresh     = $this->apply($position, []);",
