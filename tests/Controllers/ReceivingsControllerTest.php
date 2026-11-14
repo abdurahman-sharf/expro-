@@ -4263,6 +4263,8 @@ class ReceivingsControllerTest extends CIUnitTestCase
         }
 
         $this->assertStringNotContainsString('class="doc-qr', $body);
+        $this->assertStringNotContainsString('class="doc-qr-image"', $body);
+        $this->assertStringNotContainsString('data:image/png', $body);
         $this->assertStringNotContainsString(lang('Documents.qr_label'), $body);
     }
 

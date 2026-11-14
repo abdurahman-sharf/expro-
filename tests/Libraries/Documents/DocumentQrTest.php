@@ -4,6 +4,7 @@ namespace Tests\Libraries\Documents;
 
 use App\Libraries\Documents\DocumentError;
 use App\Libraries\Documents\DocumentQr;
+use App\Libraries\Documents\QrImage;
 use CodeIgniter\Test\CIUnitTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -121,6 +122,20 @@ class DocumentQrTest extends CIUnitTestCase
 
         $this->assertNull($result->payload);
         $this->assertSame(DocumentError::QrSellerMissing, $result->refusal);
+    }
+
+    #[DataProvider('typeProvider')]
+    public function testForDocument_CarriesAPayloadTheImageDrawsAtAReadableSizeEvenForTheLongestNameOfASeller(string $type): void
+    {
+        $longest = ['company' => str_repeat('ش', 127), 'tax_id' => '300000000000003'];
+        $sale    = $this->sale(['total' => '123456789012.99', 'taxes' => [['sale_tax_amount' => '16106479436.99']]]);
+        $payload = (new DocumentQr())->forDocument($type, $sale, $longest)->payload;
+        $image   = new QrImage();
+
+        $this->assertNotNull($payload);
+        $this->assertGreaterThan(0, count($image->modules($payload)));
+        $this->assertLessThanOrEqual(60.0, $image->sizeMm($payload, QrImage::SIZE_A4_MM));
+        $this->assertStringStartsWith("\x89PNG", $image->png($payload));
     }
 
     public function testForDocument_AsksForTheTaxNumberFirstWhenTheNameIsAlsoMissing(): void

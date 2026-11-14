@@ -53,7 +53,7 @@ return [
     'purchase_invoice'               => 'Purchase invoice',
     'purchase_number'                => 'Purchase invoice #',
     'purpose'                        => 'For',
-    'qr_label'                       => 'E-invoice code (QR text)',
+    'qr_label'                       => 'E-invoice code (QR)',
     'receipt_voucher'                => 'Receipt voucher',
     'received_by'                    => 'Received by',
     'received_from_label'            => 'Received from',

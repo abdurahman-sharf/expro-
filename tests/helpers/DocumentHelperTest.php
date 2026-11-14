@@ -2,6 +2,7 @@
 
 namespace Tests\Helpers;
 
+use App\Libraries\Documents\QrImage;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\OSPOS;
@@ -256,6 +257,23 @@ class DocumentHelperTest extends CIUnitTestCase
         $this->assertSame('', documentTerms('receipt_voucher', $config));
         $this->assertSame('', documentTerms('packing_slip', $config));
         $this->assertSame('', documentTerms('invoice', []));
+    }
+
+    public function testDocumentQrImage_GivesThePictureAndTheSideItIsPrintedAt(): void
+    {
+        $payload = documentQr('invoice', ['total' => '115.00', 'taxes' => [['sale_tax_amount' => '15.00']], 'sale_time_raw' => '2026-10-22 12:47:29'], ['company' => 'opes', 'tax_id' => '300000000000003'])->payload;
+
+        $image = documentQrImage((string) $payload, QrImage::SIZE_A4_MM);
+
+        $this->assertNotNull($image);
+        $this->assertSame((new QrImage())->pngDataUri((string) $payload), $image['source']);
+        $this->assertSame(QrImage::SIZE_A4_MM, $image['sizeMm']);
+    }
+
+    public function testDocumentQrImage_GivesNothingWhenThePictureCannotBeMade(): void
+    {
+        $this->assertNull(documentQrImage('', QrImage::SIZE_A4_MM));
+        $this->assertNull(documentQrImage(str_repeat('a', 3000), QrImage::SIZE_A4_MM));
     }
 
     public function testDocumentQr_RefusesWithoutTheTaxNumberOfTheShop(): void
