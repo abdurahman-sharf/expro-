@@ -98,7 +98,33 @@
 
 ## 8. ما شغلتُه
 
-RESULTS_PLACEHOLDER
+كل التشغيلات على الإيداع النهائي (`c0fe5f2`)، كل ملف على قاعدة منفصلة بعملية واحدة. ما شُغّل من لقطة منسوخة من المجلد نفسه (حتى لا تتأثر بتعديلي أثناء التشغيل) ذُكر؛ **وما فشل بسبب اللقطة (تعريف صنف اختبار مكرر في ملفات `tests/Commands`) أُعيد من الفرع نفسه**.
+
+| الملف | النتيجة |
+|---|---|
+| `tests/Controllers/SalesControllerTest.php` (**الملف كله**، قاعدته وحده) | **OK: 669 اختبارًا، 4706 توكيدًا** (17 دقيقة؛ قبل إضافتي كان 649 والأساس لا يمرّ منفردًا) |
+| `SalesControllerTest` بمرشّح `testPostSave_` و`testPostAddPayment_` و`testPostComplete_` و`testPostSetComment_` على الإيداع النهائي | OK: 162 / 1114 |
+| `tests/Models/SaleTest.php` | OK: 141 / 970 |
+| `tests/Libraries/Accounting/SalePostingTest.php` | OK: 480 / 3683 (أول تشغيل أظهر فشلًا واحدًا بسبب رفض دفعة سالبة تسجّل استردادًا بلا باقٍ: `testUpdate_PostsARefundOutOfATreasuryOfAnotherBranchTheOtherWay`؛ صُحّح الفحص والإيداع `c0fe5f2` وأُضيف له اختبار) |
+| `Sale_libTest` / `Sale_libPaymentTest` | OK: 94 / 252 ؛ 22 / 50 |
+| `GiftcardTest` / `CustomerRewardPointsTest` | OK: 7 / 14 ؛ 5 / 10 |
+| `tests/Libraries/Accounting/PaymentTypeTest.php` | OK: 14 / 757 |
+| `tests/Views/BuiltAssetsTest.php` | OK: 7 / 30 |
+| `tests/LanguageFilesTest.php` | OK: 3810 / 14366 (بعد كل المفاتيح) |
+| `AccountingMessageTest` | OK: 617 / 672 |
+| `CashupControllerTest` / `CashupTest` | OK (26 / 187، منها واحد متجاوَز قديم `R3-I6`) ؛ OK 13 / 61 |
+| `Summary_paymentsTest` | OK: 7 / 70 |
+| `BackfillServiceTest` | OK: 85 / 747 |
+| `tests/Commands/AccountingBackfillTest` و`...StampPaymentsTest` و`...ReadinessTest` | OK: 7 ؛ 3 ؛ 25 |
+| `DraftInvoiceTest` | OK: 29 / 156 |
+| `RoutingServiceTest` / `CashMovementTest` / `CustomerAdvancesTest` / `AccountingRoutingControllerTest` / `Receipt_vouchersControllerTest` | OK: 62 ؛ 18 ؛ 51 ؛ 24 ؛ 36 |
+| `tests/Libraries/Portal` و`Documents` و`Integrations` و`SalesOrders` | OK: 171 ؛ 251 ؛ 196 ؛ 69 |
+| `PortalControllerTest` / `AccountingReceivablesControllerTest` | OK: 83 ؛ 151 |
+| `ReceivingsControllerTest` / `ReceivingTest` (قاعدة جديدة: يفشل على قاعدة فيها بيانات بترحيل `down` لا علاقة لي به) | OK: 270 ؛ 91 |
+| `ExpensesControllerTest` / `ExpenseTest` / `ReportsControllerTest` | OK: 73 ؛ 40 ؛ 50 |
+| `tests/Config/FiltersTest.php` | OK: 49 / 78 |
+
+الأدلة: `final_SalesControllerTest.log` و`fb_*.log` و`fb2_*.log` و`fc_*.log` و`fd_*.log` و`salescontroller_run1.log` (الأول، قبل R5-10، 649 اختبارًا OK) و`pdf_alone.log` (فشل الاختبار منفردًا على الأساس) و`r501_output.json` و`r510_output.json` ولقطات `pos/*.png` وسكربتات Playwright `pos/r501.cjs` و`pos/r510.cjs` و`pos/lib.cjs`، وموجّه الخادم `router.php`. تشغيل الخادم: `ALLOWED_HOSTNAMES=127.0.0.1:8093` (المنفذ يدخل في القائمة البيضاء لأن `getValidHost` يقارن `HTTP_HOST` كاملًا، فيعمل أي منفذ).
 
 ## 9. ما لم أتحقق منه / ما بقي
 
@@ -117,4 +143,4 @@ RESULTS_PLACEHOLDER
 - `1533c39` G-154 ورفع رفض المسودة وترحيل backfill
 - `1dd7e26` الإقفال النقدي يطرح المصروف النقدي بأي لغة
 - `777880a` R4-08
-- (إيداع التقرير في آخر القائمة)
+- `c0fe5f2` R4-08: الدفعة السالبة التي تسجّل استردادًا بلا باقٍ تبقى مقبولة، والتقرير (هذا الملف)
