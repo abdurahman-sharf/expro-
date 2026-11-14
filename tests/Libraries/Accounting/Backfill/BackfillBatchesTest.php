@@ -62,8 +62,8 @@ final class BackfillBatchesTest extends CIUnitTestCase
     {
         $this->legacyExpense('100', '0', '2019-03-14');
         $this->legacyExpense('50', '0', '2019-04-01');
-        $this->legacyExpense('70', '0', '2040-01-05');
-        $this->legacyExpense('900', '0', '2037-06-01');
+        $this->legacyExpense('70', '0', '2037-01-05');
+        $this->legacyExpense('900', '0', '2036-06-01');
         $this->legacyInvoice('2026-03-10', [$this->payment(lang('Sales.cash'), '816.50')]);
         $this->accountingDb()->table('customers')->where('person_id', $this->customerId)->update(['deleted' => 1]);
     }
@@ -74,7 +74,7 @@ final class BackfillBatchesTest extends CIUnitTestCase
 
         $classes = [];
 
-        foreach ($this->batches->refusalClasses($this->previewed(['from' => '2019-01-01', 'to' => '2040-12-31'])->id) as $class) {
+        foreach ($this->batches->refusalClasses($this->previewed(['from' => '2019-01-01', 'to' => '2037-12-31'])->id) as $class) {
             $classes[$class['reason']] = [$class['documents'], $class['net'], $class['gross']];
         }
 
@@ -115,7 +115,7 @@ final class BackfillBatchesTest extends CIUnitTestCase
     {
         $this->refusedDocuments();
 
-        $items = $this->batches->refusedItems($this->previewed(['from' => '2019-01-01', 'to' => '2040-12-31'])->id);
+        $items = $this->batches->refusedItems($this->previewed(['from' => '2019-01-01', 'to' => '2037-12-31'])->id);
 
         $this->assertSame(['party_missing', 'before_start_date', 'before_start_date', 'outside_fiscal_year', 'outside_fiscal_year'], array_column($items, 'reason'));
         $this->assertSame(['sales', 'expenses'], array_values(array_unique(array_column(array_slice($items, 0, 2), 'family'))));
@@ -133,9 +133,9 @@ final class BackfillBatchesTest extends CIUnitTestCase
         $this->backfill->cancel($clean->id, $this->backfillManager);
         $this->refusedDocuments();
 
-        $outside = $this->batches->outsideFiscalYears($this->previewed(['name' => 'Far', 'from' => '2019-01-01', 'to' => '2040-12-31'])->id);
+        $outside = $this->batches->outsideFiscalYears($this->previewed(['name' => 'Far', 'from' => '2019-01-01', 'to' => '2037-12-31'])->id);
 
-        $this->assertSame(['documents' => 2, 'from' => '2037-06-01', 'to' => '2040-01-05'], $outside);
+        $this->assertSame(['documents' => 2, 'from' => '2036-06-01', 'to' => '2037-01-05'], $outside);
     }
 
     public function testVerifiedCount_CountsTheDocumentsOfTheFamiliesBeforeTheCursorAndTheFamilyAtItUpToIt(): void

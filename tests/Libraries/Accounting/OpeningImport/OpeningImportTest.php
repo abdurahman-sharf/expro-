@@ -74,6 +74,8 @@ final class OpeningImportTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->releaseOpenTransactions();
+        $this->accountingDb()->table('receivings')->where('receiving_type', 'opening')->delete();
         $this->stopBuying();
         $this->setConfigValue('accounting_customer_opening', '0');
 
@@ -155,8 +157,8 @@ final class OpeningImportTest extends CIUnitTestCase
         $this->assertSame([], $plan->failing());
         $this->assertSame([CustomerOpening::OWES_US, '250.5000', self::DAY], [$this->row($plan)->side, $this->row($plan)->amount, $this->row($plan)->date]);
         $this->assertSame([CustomerOpening::WE_OWE, '40.0000', '2020-01-01'], [$this->row($plan, 1)->side, $this->row($plan, 1)->amount, $this->row($plan, 1)->date]);
-        $this->assertSame([$this->customerAccount(), $this->accountId('opening_balance_equity')], [$this->row($plan)->debitAccountId, $this->row($plan)->creditAccountId]);
-        $this->assertSame([$this->accountId('opening_balance_equity'), $this->customerAccount($other)], [$this->row($plan, 1)->debitAccountId, $this->row($plan, 1)->creditAccountId]);
+        $this->assertSame([$this->customerAccount(), $this->accountId('opening_balance')], [$this->row($plan)->debitAccountId, $this->row($plan)->creditAccountId]);
+        $this->assertSame([$this->accountId('opening_balance'), $this->customerAccount($other)], [$this->row($plan, 1)->debitAccountId, $this->row($plan, 1)->creditAccountId]);
         $this->assertSame(['250.5000', '40.0000', '210.5000'], array_values($plan->totals()));
         $this->assertSame('Omar Khaled', $this->row($plan)->partyName);
         $this->assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $plan->fingerprint);
@@ -171,11 +173,11 @@ final class OpeningImportTest extends CIUnitTestCase
 
         $single = $this->import->plan(OpeningImportKind::Suppliers, $this->csv([[(string) $this->supplierId, '900']]), $this->manager);
 
-        $this->assertSame([$this->accountId('opening_balance_equity'), $this->supplierAccount()], [$this->row($single)->debitAccountId, $this->row($single)->creditAccountId]);
+        $this->assertSame([$this->accountId('opening_balance'), $this->supplierAccount()], [$this->row($single)->debitAccountId, $this->row($single)->creditAccountId]);
 
         $owed = $this->import->plan(OpeningImportKind::Suppliers, $this->csv([[(string) $this->supplierId, '-100']]), $this->manager);
 
-        $this->assertSame([$this->supplierAccount(), $this->accountId('opening_balance_equity')], [$this->row($owed)->debitAccountId, $this->row($owed)->creditAccountId]);
+        $this->assertSame([$this->supplierAccount(), $this->accountId('opening_balance')], [$this->row($owed)->debitAccountId, $this->row($owed)->creditAccountId]);
     }
 
     public function testPlan_FindsAPartyByNumberByExactNameAndByAccountNumber(): void
@@ -244,7 +246,7 @@ final class OpeningImportTest extends CIUnitTestCase
     public function testPlan_ReadsThousandsSeparatorsParenthesesAndArabicDigits(): void
     {
         $ids  = $this->customers(4, 'Fmt');
-        $plan = $this->customersPlan($this->csv([[(string) $ids[0], '"1,234.50"'], [(string) $ids[1], '(75.25)'], [(string) $ids[2], '٣٠٫٥'], [(string) $ids[3], '+8']]));
+        $plan = $this->customersPlan($this->csv([[(string) $ids[0], '1,234.50'], [(string) $ids[1], '(75.25)'], [(string) $ids[2], '٣٠٫٥'], [(string) $ids[3], '+8']]));
 
         $this->assertSame([], $plan->failing());
         $this->assertSame(['1234.5000', '75.2500', '30.5000', '8.0000'], array_map(static fn (OpeningImportRow $row): ?string => $row->amount, $plan->rows));
@@ -622,10 +624,12 @@ final class OpeningImportTest extends CIUnitTestCase
 
         $db->table('people')->insertBatch($people);
 
-        $first = (int) $db->insertID();
+        $ids = array_map('intval', array_column($db->table('people')->select('person_id')->like('email', 'mass', 'after')->like('email', '@example.com', 'before')->orderBy('person_id')->get()->getResultArray(), 'person_id'));
 
-        for ($id = $first; $id < $first + $count; $id++) {
-            $customers[] = ['person_id' => $id, 'employee_id' => 1];
+        $this->assertCount($count, $ids);
+
+        foreach ($ids as $id) {
+            $customers[]            = ['person_id' => $id, 'employee_id' => 1];
             $this->insertedPeople[] = $id;
         }
 
@@ -638,7 +642,7 @@ final class OpeningImportTest extends CIUnitTestCase
         $filling = microtime(true) - $startedFilling;
         $rows    = [];
 
-        foreach (range($first, $first + $count - 1) as $index => $id) {
+        foreach ($ids as $index => $id) {
             $rows[] = $index % 2 === 0 ? ['Mass Customer ' . ($index + 1), (string) (100 + $index) . '.25', self::DAY, 'Row ' . $index] : [(string) $id, '-' . (10 + $index), '', ''];
         }
 

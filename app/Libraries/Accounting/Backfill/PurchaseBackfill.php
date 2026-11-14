@@ -147,7 +147,7 @@ final class PurchaseBackfill extends BackfillAdapter
             return '0.0000';
         }
 
-        $total = ReceivingAmounts::totals($purchase->lines, $purchase->currency?->decimals ?? 2)['total'];
+        $total = bcadd(ReceivingAmounts::totals($purchase->lines, $purchase->currency?->decimals ?? 2)['total'], '0', ReceivingAmounts::SCALE);
 
         return $purchase->type === ReceivingType::Return ? bcsub('0', $total, ReceivingAmounts::SCALE) : $total;
     }

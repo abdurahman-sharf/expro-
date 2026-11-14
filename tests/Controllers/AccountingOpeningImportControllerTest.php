@@ -69,6 +69,9 @@ final class AccountingOpeningImportControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->releaseOpenTransactions();
+        $this->accountingDb()->table('receivings')->where('receiving_type', 'opening')->delete();
+
         $files = new OpeningImportFiles();
 
         foreach ($this->tokens as $token) {
@@ -187,11 +190,11 @@ final class AccountingOpeningImportControllerTest extends CIUnitTestCase
 
         $customers->assertStatus(200);
         $customers->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
-        $this->assertStringContainsString('opening-balances-customers.csv', $customers->getHeaderLine('Content-Disposition'));
-        $this->assertStringStartsWith("\xEF\xBB\xBF# ", $customers->getBody());
-        $this->assertStringContainsString("party,amount,date,note\n", $customers->getBody());
-        $this->assertStringContainsString(lang('Accounting_opening_import.sample_customers_amount'), $customers->getBody());
-        $this->assertStringContainsString(lang('Accounting_opening_import.sample_suppliers_amount'), $this->get('/accounting_periods/opening_import/sample/suppliers')->getBody());
+        $this->assertStringContainsString('opening-balances-customers.csv', $customers->response()->getHeaderLine('Content-Disposition'));
+        $this->assertStringStartsWith("\xEF\xBB\xBF# ", (string) $customers->response()->getBody());
+        $this->assertStringContainsString("party,amount,date,note\n", (string) $customers->response()->getBody());
+        $this->assertStringContainsString(lang('Accounting_opening_import.sample_customers_amount'), (string) $customers->response()->getBody());
+        $this->assertStringContainsString(lang('Accounting_opening_import.sample_suppliers_amount'), (string) $this->get('/accounting_periods/opening_import/sample/suppliers')->response()->getBody());
     }
 
     public function testGetSample_IsNotFoundForAKindTheEmployeeMayNotImportAndForANonsenseKind(): void
@@ -473,9 +476,9 @@ final class AccountingOpeningImportControllerTest extends CIUnitTestCase
 
         $response->assertStatus(200);
         $response->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
-        $this->assertStringContainsString('opening-balances-customers-rows.csv', $response->getHeaderLine('Content-Disposition'));
+        $this->assertStringContainsString('opening-balances-customers-rows.csv', $response->response()->getHeaderLine('Content-Disposition'));
 
-        $lines = array_map('str_getcsv', explode("\n", trim(substr($response->getBody(), 3))));
+        $lines = array_map('str_getcsv', explode("\n", trim(substr((string) $response->response()->getBody(), 3))));
 
         $this->assertSame(['line', 'party', 'party_id', 'name', 'amount', 'date', 'note', 'state', 'errors'], $lines[0]);
         $this->assertSame(['2', (string) $this->customerId, (string) $this->customerId, 'Omar Khaled', '250.5000', self::DAY, 'Invoice 7', 'pending', ''], $lines[1]);

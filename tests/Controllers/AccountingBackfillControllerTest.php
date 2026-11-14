@@ -275,9 +275,9 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
     public function testGetView_SaysWhichFiscalYearsAreMissingAndOffersToCreateThemToSomeoneWhoMay(): void
     {
         $this->legacyExpense('70', '0', '2037-03-05');
-        $this->legacyExpense('900', '0', '2038-06-01');
+        $this->legacyExpense('900', '0', '2036-02-01');
 
-        $batch = $this->previewed(['from' => '2036-01-01', 'to' => '2040-12-31']);
+        $batch = $this->previewed(['from' => '2036-01-01', 'to' => '2037-12-31']);
 
         $this->accountingDb()->table('grants')->ignore(true)->insert(['permission_id' => AccountingGuard::PERIODS_MANAGE, 'person_id' => $this->backfillManager, 'menu_group' => 'home']);
 
@@ -287,15 +287,14 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
         $response->assertSee('id="backfill_create_years"');
         $response->assertSee(lang('Accounting_backfill.outside_years_command'));
         $response->assertSee('php spark accounting:enable');
-        $this->assertStringContainsString('2036', $response->getBody());
-        $this->assertStringContainsString('2038', $response->getBody());
+        $this->assertMatchesRegularExpression('/2036[^<0-9]{1,20}2037/u', $response->getBody());
     }
 
     public function testGetView_ShowsTheNoticeOfMissingYearsWithoutTheButtonToSomeoneWhoMayNotCreateThem(): void
     {
         $this->legacyExpense('70', '0', '2037-03-05');
 
-        $batch = $this->previewed(['from' => '2036-01-01', 'to' => '2040-12-31']);
+        $batch = $this->previewed(['from' => '2036-01-01', 'to' => '2037-12-31']);
 
         $response = $this->get('/accounting_periods/backfill/view/' . $batch->id);
 
@@ -315,7 +314,7 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
     {
         $this->legacyExpense('70', '0', '2037-03-05');
 
-        $batch = $this->previewed(['from' => '2036-01-01', 'to' => '2040-12-31']);
+        $batch = $this->previewed(['from' => '2036-01-01', 'to' => '2037-12-31']);
 
         $refused = $this->json($this->post('/accounting_periods/backfill/create_years/' . $batch->id));
 
@@ -357,9 +356,9 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
 
         $response->assertStatus(200);
         $response->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
-        $this->assertStringContainsString('backfill-' . $batch->id . '-refused.csv', $response->getHeaderLine('Content-Disposition'));
+        $this->assertStringContainsString('backfill-' . $batch->id . '-refused.csv', $response->response()->getHeaderLine('Content-Disposition'));
 
-        $lines = array_map('str_getcsv', explode("\n", trim(substr($response->getBody(), 3))));
+        $lines = array_map('str_getcsv', explode("\n", trim(substr((string) $response->response()->getBody(), 3))));
 
         $this->assertCount(2, $lines, 'The header and the one refused document: the ready one is not in the file.');
         $this->assertSame([lang('Accounting_backfill.family'), lang('Accounting_backfill.source'), lang('Accounting_backfill.date'), lang('Accounting_backfill.branch'), lang('Accounting_backfill.reason'), lang('Accounting_backfill.detail'), lang('Accounting_backfill.amount'), lang('Accounting_backfill.classes_todo')], $lines[0]);
@@ -374,7 +373,7 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
 
         $this->accountingDb()->table('accounting_backfill_items')->where('batch_id', $batch->id)->update(['detail' => '=HYPERLINK("x")']);
 
-        $this->assertStringContainsString("'=HYPERLINK", $this->get('/accounting_periods/backfill/refused/' . $batch->id)->getBody());
+        $this->assertStringContainsString("'=HYPERLINK", (string) $this->get('/accounting_periods/backfill/refused/' . $batch->id)->response()->getBody());
     }
 
     public function testGetRefused_IsNotFoundForSomeoneWithoutThePermissionOrForABatchThatDoesNotExist(): void

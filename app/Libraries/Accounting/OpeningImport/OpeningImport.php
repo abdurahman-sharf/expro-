@@ -423,20 +423,24 @@ final class OpeningImport
      */
     private function postChunk(OpeningImportKind $kind, array $rows, OpeningImportPlan $plan, ?int $employeeId, ?OpeningImportRow &$stoppedAt): void
     {
-        $this->underPartyLocks($kind, array_map(static fn (OpeningImportRow $row): int => (int) $row->partyId, $rows), fn () => $this->transactional(function () use ($kind, $rows, $plan, $employeeId, &$stoppedAt): void {
-            foreach ($rows as $row) {
-                $stoppedAt = $row;
-                $note      = trim($row->note) !== '' ? mb_substr($row->note, 0, self::NOTE_MAX) : 'csv:' . substr($plan->fileHash, 0, 12);
+        $partyIds = array_map(static fn (OpeningImportRow $row): int => (int) $row->partyId, $rows);
 
-                if ($kind === OpeningImportKind::Customers) {
-                    $this->customers->create((int) $row->partyId, (string) $row->side, (string) $row->amount, (string) $row->date, $note, $employeeId, $plan->branchId);
-                } else {
-                    $this->suppliers->openingBalance((int) $row->partyId, (string) $row->side, (string) $row->amount, (string) $row->date, $note, $employeeId);
+        $this->underPartyLocks($kind, $partyIds, function () use ($kind, $rows, $plan, $employeeId, &$stoppedAt): void {
+            $this->transactional(function () use ($kind, $rows, $plan, $employeeId, &$stoppedAt): void {
+                foreach ($rows as $row) {
+                    $stoppedAt = $row;
+                    $note      = trim($row->note) !== '' ? mb_substr($row->note, 0, self::NOTE_MAX) : 'csv:' . substr($plan->fileHash, 0, 12);
+
+                    if ($kind === OpeningImportKind::Customers) {
+                        $this->customers->create((int) $row->partyId, (string) $row->side, (string) $row->amount, (string) $row->date, $note, $employeeId, $plan->branchId);
+                    } else {
+                        $this->suppliers->openingBalance((int) $row->partyId, (string) $row->side, (string) $row->amount, (string) $row->date, $note, $employeeId);
+                    }
                 }
-            }
+            });
 
             $stoppedAt = null;
-        }));
+        });
     }
 
     /**
