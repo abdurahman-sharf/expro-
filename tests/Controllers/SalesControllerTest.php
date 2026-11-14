@@ -3974,7 +3974,90 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
     }
 
-    public function testGetReceipt_PrintsATaxInsideThePriceWithTheDecimalsOfTheTaxAndOneAddedToItWithThoseOfTheCurrency(): void
+    /**
+     * Rings the register of registerWithTwoTaxes up with three decimals for the tax: the tax of 15% inside the price
+     * is saved as 13.043 and the service charge of 5% added to it as 4.35.
+     */
+    private function saleWithTaxInsideThePriceOfThreeDecimals(): int
+    {
+        $this->registerWithTwoTaxes();
+
+        config(OSPOS::class)->settings['tax_decimals'] = 3;
+
+        $this->post('/sales/complete');
+
+        $saleId = $this->lastSaleId();
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        model(Appconfig::class)->save(['receipt_show_taxes' => '1']);
+        config(OSPOS::class)->settings['tax_decimals'] = 3;
+
+        return $saleId;
+    }
+
+    #[DataProvider('receiptTemplateProvider')]
+    public function testGetReceipt_PrintsATaxInsideThePriceWithTheDecimalsOfTheTaxAndOneAddedToItWithThoseOfTheCurrencyOnEveryReceiptTemplate(string $template): void
+    {
+        $before = $this->config()['tax_decimals'];
+
+        try {
+            $saleId = $this->saleWithTaxInsideThePriceOfThreeDecimals();
+
+            $this->withReceiptSettings(['receipt_template' => $template], function () use ($saleId): void {
+                $receipt = $this->get('/sales/receipt/' . $saleId);
+
+                $receipt->assertStatus(200);
+                $receipt->assertSee('13.043');
+                $receipt->assertSee('4.35');
+                $receipt->assertDontSee('4.350');
+            });
+        } finally {
+            config(OSPOS::class)->settings['tax_decimals'] = $before;
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testGetInvoice_PrintsATaxInsideThePriceWithTheDecimalsOfTheTax(): void
+    {
+        $before = $this->config()['tax_decimals'];
+
+        try {
+            $saleId = $this->saleWithTaxInsideThePriceOfThreeDecimals();
+
+            $invoice = $this->get('/sales/invoice/' . $saleId);
+
+            $invoice->assertStatus(200);
+            $invoice->assertSee('13.043');
+            $invoice->assertDontSee('4.350');
+        } finally {
+            config(OSPOS::class)->settings['tax_decimals'] = $before;
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testReceiptEmail_PrintsATaxInsideThePriceWithTheDecimalsOfTheTaxAndOneAddedToItWithThoseOfTheCurrency(): void
+    {
+        $before = $this->config()['tax_decimals'];
+
+        try {
+            $saleId = $this->saleWithTaxInsideThePriceOfThreeDecimals();
+
+            $controller = new Sales();
+            $controller->initController(service('request'), service('response'), service('logger'));
+
+            $load = new ReflectionMethod($controller, '_load_sale_data');
+            $html = view('sales/receipt_email', $load->invoke($controller, $saleId) + ['pdf' => false]);
+
+            $this->assertStringContainsString('13.043', $html);
+            $this->assertStringContainsString('4.35', $html);
+            $this->assertStringNotContainsString('4.350', $html);
+        } finally {
+            config(OSPOS::class)->settings['tax_decimals'] = $before;
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testGetIndex_PrintsATaxInsideThePriceOfTheRegisterWithTheDecimalsOfTheTax(): void
     {
         $before = $this->config()['tax_decimals'];
 
@@ -3983,20 +4066,11 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
             config(OSPOS::class)->settings['tax_decimals'] = 3;
 
-            $this->post('/sales/complete');
+            $register = $this->get('/sales');
 
-            $saleId = $this->lastSaleId();
-
-            $this->loginAs($this->createBranchLimitedSupervisor(1));
-            model(Appconfig::class)->save(['receipt_show_taxes' => '1']);
-            config(OSPOS::class)->settings['tax_decimals'] = 3;
-
-            $receipt = $this->get('/sales/receipt/' . $saleId);
-
-            $receipt->assertStatus(200);
-            $receipt->assertSee('13.043');
-            $receipt->assertSee('4.35');
-            $receipt->assertDontSee('4.350');
+            $register->assertStatus(200);
+            $register->assertSee('13.043');
+            $register->assertDontSee('4.350');
         } finally {
             config(OSPOS::class)->settings['tax_decimals'] = $before;
             $this->forgetTheTaxList();
@@ -7028,6 +7102,28 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
             $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '100.00', '91.30']));
             $this->assertSame($sales, $this->countSales());
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testPostComplete_LetsAnEmployeeWhoMayOverridePricesSellALineWhoseTaxlessPriceIsUnderTheMinimumAndWritesThePriceWithoutTheTax(): void
+    {
+        try {
+            $setup = $this->registerWithTaxInsideThePrice([AccountingGuard::PRICE_OVERRIDE], '105.00', '100');
+
+            $sales = $this->countSales();
+
+            $this->post('/sales/complete');
+
+            $this->assertSame($sales + 1, $this->countSales());
+
+            $entry = $this->lastAudit('price_override');
+            $line  = json_decode($entry['details'], true)['lines'][0];
+
+            $this->assertSame($setup['employee'], (int) $entry['employee_id']);
+            $this->assertSame(['below_minimum', '91.3043', '100.0000'], [$line['rule'], $line['net'], $line['bound']]);
+            $this->assertSame(0, $this->auditEntries('price_refused'));
         } finally {
             $this->forgetTheTaxList();
         }

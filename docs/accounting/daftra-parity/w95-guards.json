@@ -1,0 +1,347 @@
+[
+ {
+  "name": "G01 kit: the price option of the kit reaches the lines as an integer, not as a bool",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "string $discount_type, int $kit_price_option, int $kit_print_option, ?string &$stock_warning): bool",
+  "replace": "string $discount_type, bool $kit_price_option, int $kit_print_option, ?string &$stock_warning): bool",
+  "tests": [
+   "--filter",
+   "testAddItemKit",
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G02 kit: the print option of the kit reaches the lines as an integer, not as a bool",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "string $discount_type, int $kit_price_option, int $kit_print_option, ?string &$stock_warning): bool",
+  "replace": "string $discount_type, int $kit_price_option, bool $kit_print_option, ?string &$stock_warning): bool",
+  "tests": [
+   "--filter",
+   "testAddItemKit",
+   "tests/Libraries/Sale_libTest.php"
+  ]
+ },
+ {
+  "name": "G03 kit: the register prices the stock items of a kit of option two (end to end)",
+  "file": "app/Libraries/Sale_lib.php",
+  "find": "string $discount_type, int $kit_price_option, int $kit_print_option, ?string &$stock_warning): bool",
+  "replace": "string $discount_type, bool $kit_price_option, int $kit_print_option, ?string &$stock_warning): bool",
+  "tests": [
+   "--filter",
+   "testPostAdd_PricesAKitByItsPriceOption",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G04 cancel: a sale whose completed return stands is refused",
+  "file": "app/Models/Sale.php",
+  "find": "if ($sale_status === COMPLETED && $this->hasCompletedReturn((int) $sale_id)) {",
+  "replace": "if (false && $this->hasCompletedReturn((int) $sale_id)) {",
+  "tests": [
+   "--filter",
+   "testDelete_",
+   "tests/Models/SaleTest.php"
+  ]
+ },
+ {
+  "name": "G05 cancel: the refusal holds with the books on and keeps the stock ledger tied",
+  "file": "app/Models/Sale.php",
+  "find": "if ($sale_status === COMPLETED && $this->hasCompletedReturn((int) $sale_id)) {",
+  "replace": "if (false && $this->hasCompletedReturn((int) $sale_id)) {",
+  "tests": [
+   "--filter",
+   "testDelete_RefusesToCancelAPointOfSale|testDelete_StillCancelsAPointOfSaleSaleWhoseReturn",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G06 cancel: the answer reaches the cashier in words",
+  "file": "app/Models/Sale.php",
+  "find": "if ($sale_status === COMPLETED && $this->hasCompletedReturn((int) $sale_id)) {",
+  "replace": "if (false && $this->hasCompletedReturn((int) $sale_id)) {",
+  "tests": [
+   "--filter",
+   "testPostDelete_SaysThatASaleWhoseReturnStands",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G07 cancel: only a completed return blocks, a cancelled or waiting one does not",
+  "file": "app/Models/Sale.php",
+  "find": "'sale_type' => SALE_TYPE_RETURN, 'sale_status' => COMPLETED])->countAllResults() > 0;",
+  "replace": "'sale_type' => SALE_TYPE_RETURN])->countAllResults() > 0;",
+  "tests": [
+   "--filter",
+   "testDelete_",
+   "tests/Models/SaleTest.php"
+  ]
+ },
+ {
+  "name": "G08 edit: a quote that became an invoice is not updated by its id",
+  "file": "app/Models/Sale.php",
+  "find": "(new QuoteLifecycle($this->db))->assertUnlocked((int) $saleId);",
+  "replace": "$saleId;",
+  "tests": [
+   "--filter",
+   "testUpdate_",
+   "tests/Models/SaleTest.php"
+  ]
+ },
+ {
+  "name": "G09 edit: the form of a converted quote answers with the named refusal",
+  "file": "app/Models/Sale.php",
+  "find": "(new QuoteLifecycle($this->db))->assertUnlocked((int) $saleId);",
+  "replace": "$saleId;",
+  "tests": [
+   "--filter",
+   "testPostSave_RefusesToEditAConvertedQuote",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G10 list: a suspended invoice is named by its temporary number",
+  "file": "app/Models/Sale.php",
+  "find": " WHEN sale_type = '\" . SALE_TYPE_INVOICE . \"' THEN CONCAT('\" . DraftInvoice::PREFIX . \"', sale_id)",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testGetSuspended_|testGetAllSuspended_",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G11 list: the number of a suspended document is printed escaped",
+  "file": "app/Views/sales/suspended.php",
+  "find": "<?= esc((string) $suspendedSale['doc_id']) ?>",
+  "replace": "<?= (string) $suspendedSale['doc_id'] ?>",
+  "tests": [
+   "--filter",
+   "testGetSuspended_ShowsTheNumberOfASuspendedDocumentAsText",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G12 token: the customer given to the token is the one it names",
+  "file": "app/Models/Tokens/Token_customer.php",
+  "find": "if ($this->customer_info !== null) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Token_libTest.php"
+  ]
+ },
+ {
+  "name": "G13 token: the draft page hands the customer of the draft to the number format",
+  "file": "app/Controllers/Sales.php",
+  "find": "$this->token_lib->render($format, [new Token_customer(['first_name' => $draftCustomer->first_name, 'last_name' => $draftCustomer->last_name])]);",
+  "replace": "$this->token_lib->render($format);",
+  "tests": [
+   "--filter",
+   "testPostIssue_NamesTheCustomerOfTheDraft",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G14 minimum: the register hands the tax rows of the cart to the control",
+  "file": "app/Controllers/Sales.php",
+  "find": "$this->sale_lib->currencyRate(), $this->tax_lib->get_taxes($cart)[1])",
+  "replace": "$this->sale_lib->currencyRate(), [])",
+  "tests": [
+   "--filter",
+   "testPostEditItem_HoldsAPriceWithTaxInside",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G15 minimum: the save hands the tax rows of the sale to the control",
+  "file": "app/Models/Sale.php",
+  "find": "$currencyColumns['currency_rate'] ?? '1', $salesTaxes[1] ?? [])",
+  "replace": "$currencyColumns['currency_rate'] ?? '1', [])",
+  "tests": [
+   "--filter",
+   "testPostComplete_RefusesALineWhoseTaxless|testPostComplete_LetsAnEmployeeWhoMayOverridePricesSellALineWhoseTaxless|testPostComplete_SellsALineWhoseTaxless",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G16 minimum: only a tax inside the price is taken out of it",
+  "file": "app/Libraries/Pricing/PriceControls.php",
+  "find": "if ((string) ($tax['tax_type'] ?? '') !== Tax_lib::TAX_TYPE_INCLUDED) {",
+  "replace": "if (false) {",
+  "tests": [
+   "tests/Libraries/Pricing/PriceControlsTest.php"
+  ]
+ },
+ {
+  "name": "G17 minimum: the tax of a line of several units is shared among them",
+  "file": "app/Libraries/Pricing/PriceControls.php",
+  "find": "?? '0', $quantity, 4), 4);",
+  "replace": "?? '0', '1', 4), 4);",
+  "tests": [
+   "tests/Libraries/Pricing/PriceControlsTest.php"
+  ]
+ },
+ {
+  "name": "G18 minimum: the tax read is that of the line of the item",
+  "file": "app/Libraries/Pricing/PriceControls.php",
+  "find": "':' . (int) ($line['line'] ?? 0)] ?? '0'",
+  "replace": "':' . 0] ?? '0'",
+  "tests": [
+   "tests/Libraries/Pricing/PriceControlsTest.php"
+  ]
+ },
+ {
+  "name": "G19 minimum: the tax is kept by the line it belongs to",
+  "file": "app/Libraries/Pricing/PriceControls.php",
+  "find": "$key          = (int) $tax['item_id'] . ':' . (int) ($tax['line'] ?? 0);",
+  "replace": "$key          = (int) $tax['item_id'] . ':' . 0;",
+  "tests": [
+   "tests/Libraries/Pricing/PriceControlsTest.php"
+  ]
+ },
+ {
+  "name": "G20 minimum: the price compared is the one without the tax",
+  "file": "app/Libraries/Pricing/PriceControls.php",
+  "find": "$netBase = bcmul($taxless, $rate, 4);",
+  "replace": "$netBase = bcmul($net, $rate, 4);",
+  "tests": [
+   "tests/Libraries/Pricing/PriceControlsTest.php"
+  ]
+ },
+ {
+  "name": "G21 minimum: two taxes inside the price are added up",
+  "file": "app/Libraries/Pricing/PriceControls.php",
+  "find": "$inside[$key] = bcadd($inside[$key] ?? '0', (string) $tax['item_tax_amount'], 6);",
+  "replace": "$inside[$key] = (string) $tax['item_tax_amount'];",
+  "tests": [
+   "tests/Libraries/Pricing/PriceControlsTest.php"
+  ]
+ },
+ {
+  "name": "G22 return share: the cent of the units back before is rounded half up",
+  "file": "app/Libraries/Receiving_lib.php",
+  "find": "$earlier   = SaleAmounts::round(bcdiv(bcmul($discount, $takenText, 8), $unitsText, 8), 2);",
+  "replace": "$earlier   = bcadd(bcdiv(bcmul($discount, $takenText, 8), $unitsText, 8), '0', 2);",
+  "tests": [
+   "--filter",
+   "testReturnRemainingOfReceiving_",
+   "tests/Libraries/Receiving_libTest.php"
+  ]
+ },
+ {
+  "name": "G23 return share: the units to return take the discount less what the others took",
+  "file": "app/Libraries/Receiving_lib.php",
+  "find": "return bcsub($discount, $earlier, 2);",
+  "replace": "return SaleAmounts::round(bcdiv(bcmul($discount, bcsub($unitsText, $takenText, 3), 8), $unitsText, 8), 2);",
+  "tests": [
+   "--filter",
+   "testReturnRemainingOfReceiving_",
+   "tests/Libraries/Receiving_libTest.php"
+  ]
+ },
+ {
+  "name": "G24 return share: only a whole-line discount is shared",
+  "file": "app/Libraries/Receiving_lib.php",
+  "find": "(int) $row->discount_type === FIXED_LINE ? (float) $this->discountLeftOfWholeLine(",
+  "replace": "(int) $row->discount_type === PERCENT ? (float) $this->discountLeftOfWholeLine(",
+  "tests": [
+   "--filter",
+   "testReturnRemainingOfReceiving_",
+   "tests/Libraries/Receiving_libTest.php"
+  ]
+ },
+ {
+  "name": "G25 return share: the debit note leaves the supplier at nothing when everything is back",
+  "file": "app/Libraries/Receiving_lib.php",
+  "find": "return bcsub($discount, $earlier, 2);",
+  "replace": "return SaleAmounts::round(bcdiv(bcmul($discount, bcsub($unitsText, $takenText, 3), 8), $unitsText, 8), 2);",
+  "tests": [
+   "--filter",
+   "testPostDebitNote_",
+   "tests/Controllers/ReceivingsControllerTest.php"
+  ]
+ },
+ {
+  "name": "G26 tax print: a shop that taxes by destination keeps the setting of the shop",
+  "file": "app/Helpers/locale_helper.php",
+  "find": "$taxType === null || !empty($config['use_destination_based_tax'])",
+  "replace": "$taxType === null",
+  "tests": [
+   "tests/helpers/LocaleHelperTest.php"
+  ]
+ },
+ {
+  "name": "G27 tax print: a tax inside the price keeps the decimals of the tax",
+  "file": "app/Helpers/locale_helper.php",
+  "find": ": (string) $taxType === Tax_lib::TAX_TYPE_INCLUDED;",
+  "replace": ": (string) $taxType !== Tax_lib::TAX_TYPE_INCLUDED;",
+  "tests": [
+   "tests/helpers/LocaleHelperTest.php"
+  ]
+ },
+ {
+  "name": "G28 tax print: the default receipt hands the mode of the tax line to the printer",
+  "file": "app/Views/sales/receipt_default.php",
+  "find": "to_currency_tax($tax['sale_tax_amount'], $tax['tax_type'] ?? null)",
+  "replace": "to_currency_tax($tax['sale_tax_amount'])",
+  "tests": [
+   "--filter",
+   "testGetReceipt_PrintsATaxInsideThePrice",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G29 tax print: the short receipt hands the mode of the tax line to the printer",
+  "file": "app/Views/sales/receipt_short.php",
+  "find": "to_currency_tax($tax['sale_tax_amount'], $tax['tax_type'] ?? null)",
+  "replace": "to_currency_tax($tax['sale_tax_amount'])",
+  "tests": [
+   "--filter",
+   "testGetReceipt_PrintsATaxInsideThePrice",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G30 tax print: the thermal receipts hand the mode of the tax line to the printer",
+  "file": "app/Views/sales/receipt_thermal.php",
+  "find": "to_currency_tax($tax['sale_tax_amount'], $tax['tax_type'] ?? null)",
+  "replace": "to_currency_tax($tax['sale_tax_amount'])",
+  "tests": [
+   "--filter",
+   "testGetReceipt_PrintsATaxInsideThePrice",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G31 tax print: the register hands the mode of the tax line to the printer",
+  "file": "app/Views/sales/register.php",
+  "find": "to_currency_tax($tax['sale_tax_amount'], $tax['tax_type'] ?? null)",
+  "replace": "to_currency_tax($tax['sale_tax_amount'])",
+  "tests": [
+   "--filter",
+   "testGetIndex_PrintsATaxInsideThePrice",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G32 tax print: the e-mail receipt hands the mode of the tax line to the printer",
+  "file": "app/Views/sales/receipt_email.php",
+  "find": "to_currency_tax($tax['sale_tax_amount'], $tax['tax_type'] ?? null)",
+  "replace": "to_currency_tax($tax['sale_tax_amount'])",
+  "tests": [
+   "--filter",
+   "testReceiptEmail_PrintsATaxInsideThePrice",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G33 tax print: the document hands the mode of the tax line to the printer",
+  "file": "app/Views/documents/document.php",
+  "find": "to_currency_tax($figure($tax['sale_tax_amount']), $tax['tax_type'] ?? null)",
+  "replace": "to_currency_tax($figure($tax['sale_tax_amount']))",
+  "tests": [
+   "--filter",
+   "testGetInvoice_PrintsATaxInsideThePrice",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ }
+]
