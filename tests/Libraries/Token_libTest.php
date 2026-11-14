@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Tokens\Token_customer;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Test\CIUnitTestCase;
+use Locale;
 
 class Token_libTest extends CIUnitTestCase
 {
@@ -354,5 +355,19 @@ class Token_libTest extends CIUnitTestCase
         $this->registerHoldingCustomer(NEW_ITEM, 'Mona', 'Zaki');
 
         $this->assertSame('INV-', $this->tokenLib->render('INV-{CU}', [], false));
+    }
+
+    public function testRender_KeepsLatinDigitsInDateTokensWhenTheDefaultLocaleIsArabic(): void
+    {
+        $previous = Locale::getDefault();
+        Locale::setDefault('ar');
+
+        try {
+            $result = $this->tokenLib->render('Q%y%m%d', [], false);
+        } finally {
+            Locale::setDefault($previous);
+        }
+
+        $this->assertMatchesRegularExpression('/^Q[0-9]{6}$/', $result);
     }
 }
