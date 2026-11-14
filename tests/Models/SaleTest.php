@@ -2792,6 +2792,16 @@ class SaleTest extends CIUnitTestCase
         $this->assertSame(lang('Sales.debit'), $this->storedPayment($saleId)->payment_type);
     }
 
+    public function testUpdate_AcceptsANewNegativePaymentThatRefundsTheCustomerWithoutAnyChange(): void
+    {
+        $saleId = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment(10.00)]);
+
+        $this->assertTrue(model(Sale::class)->update($saleId, ['comment' => 'refund', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.debit'), 'payment_amount' => '-3.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->createEmployee(), 'reference_code' => 'ABC123'],
+        ]]));
+        $this->assertSame(2, Database::connect()->table('sales_payments')->where('sale_id', $saleId)->countAllResults());
+    }
+
     public function testUpdate_AcceptsAPaymentLoweredOnASaleThatGaveNoChange(): void
     {
         $saleId = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment(10.00)]);

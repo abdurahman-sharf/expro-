@@ -1005,7 +1005,9 @@ class Sale extends Model
             return;
         }
 
-        if (bccomp((string) $payment['payment_amount'], (string) ($payment['cash_refund'] ?? 0), 4) < 0) {
+        $change = (string) ($payment['cash_refund'] ?? 0);
+
+        if (bccomp($change, '0', 4) > 0 && bccomp((string) $payment['payment_amount'], $change, 4) < 0) {
             throw new AccountingException(AccountingError::SalePaymentBelowChange, 'A payment cannot be less than the change already given back.', ['payment_id' => (int) $payment['payment_id']]);
         }
     }
