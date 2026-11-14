@@ -400,6 +400,23 @@ class LedgerChecksTest extends CIUnitTestCase
         $this->assertSame(CheckStatus::Pass, $this->check('source_keys')->status);
     }
 
+    public function testSourceKeys_PassesForTheTwoLegsOfAChequeRejectedAfterItsDeposit(): void
+    {
+        $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 5, 'revision' => 1]);
+        $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 5, 'revision' => 2]);
+
+        $this->assertSame(CheckStatus::Pass, $this->check('source_keys')->status);
+    }
+
+    public function testSourceKeys_FailsWhenAChequeRejectedAfterItsDepositStandsAsMoreThanItsTwoLegs(): void
+    {
+        $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 5, 'revision' => 1]);
+        $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 5, 'revision' => 2]);
+        $this->journal(['source_type' => 'cheque_in_dep_rejected', 'source_id' => 5, 'revision' => 3]);
+
+        $this->assertSame(CheckStatus::Fail, $this->check('source_keys')->status);
+    }
+
     public function testSourceKeys_PassesForTheRevenueAndTheCostOfOneSale(): void
     {
         $this->journal(['source_type' => 'sale', 'source_id' => 12, 'entry_type' => 'revenue']);
