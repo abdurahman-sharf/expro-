@@ -2,7 +2,10 @@
 
 namespace Tests\Libraries\Accounting\FamilyReports;
 
+use App\Libraries\Accounting\FamilyReports\JournalLines;
 use App\Libraries\Accounting\FamilyReports\JournalMovementsReport;
+use App\Libraries\Accounting\FamilyReports\ReportCsv;
+use App\Libraries\Accounting\FamilyReports\ReportStream;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\JournalDraft;
@@ -10,6 +13,7 @@ use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\JournalService;
 use App\Libraries\Accounting\PostingService;
 use Tests\Support\FamilyReportTestCase;
+use Tests\Support\LegacyFamilyReports\LegacyJournalMovementsReport;
 use Tests\Support\ReportFixtureTrait;
 
 /**
@@ -343,5 +347,132 @@ final class JournalMovementsReportTest extends FamilyReportTestCase
         $this->assertReportTies($limited);
         $this->assertSame([], $this->rowsOf($none));
         $this->assertCount(1, $none->ties);
+    }
+    /**
+     * Journals over three days of two months in two branches, of manual, purchase and reversal sources, with
+     * lines charged to cost centers, on the accounts of cash, the opening balance, revenue and the suppliers.
+     *
+     * @return array{from: string, to: string, branch: int, owner: int}
+     */
+    private function variedJournals(): array
+    {
+        $this->entries();
+
+        $branch  = $this->createBranch('JM3', 'Varied branch');
+        $service = new JournalService();
+        $centers = new CostCenterService();
+        $center  = $centers->create(['code' => 'V', 'name' => 'Varied']);
+        $other   = $centers->create(['code' => 'W', 'name' => 'Other']);
+        $owner   = $this->employeeWithGrants([AccountingGuard::JOURNALS_REVERSE, AccountingGuard::JOURNALS_ALL]);
+        $days    = [$this->today(), date('Y-m-d', strtotime('-1 day')), date('Y-m-d', strtotime('-40 days'))];
+        $cash    = $this->accountId('cash');
+        $revenue = $this->accountId('sales_revenue');
+        $opening = $this->accountId('opening_balance');
+
+        foreach ($days as $index => $day) {
+            $this->manual($day, 1, (string) (10 + $index) . '.00', 'Manual ' . $index);
+            $this->manual($day, $branch, (string) (20 + $index) . '.50', 'Branch ' . $index);
+            $service->postNew(['date' => $day, 'description' => 'Charged ' . $index, 'lines' => [
+                ['account_id' => $cash, 'debit' => '100.00'],
+                ['account_id' => $revenue, 'credit' => '60.00', 'cost_center_id' => $center],
+                ['account_id' => $opening, 'credit' => '40.00', 'distribution' => [['cost_center_id' => $center, 'percent' => '25'], ['cost_center_id' => $other, 'percent' => '75']]],
+            ]]);
+        }
+
+        $ids = $this->entries();
+
+        $service->reverse($ids['manual'], $this->today(), 'Mistake', $owner);
+
+        return ['from' => $days[2], 'to' => $this->today(), 'branch' => $branch, 'owner' => $owner];
+    }
+
+    public function testBuild_GivesTheTableTheReportGaveWhenItReadEveryLineAtOnceWhateverTheSizeOfTheChunks(): void
+    {
+        $varied = $this->variedJournals();
+        $legacy = new LegacyJournalMovementsReport();
+        $period = ['from' => $varied['from'], 'to' => $varied['to']];
+        $narrow = [
+            'all'      => [[], null, null],
+            'manual'   => [['source' => 'manual'], null, null],
+            'reversal' => [['source' => 'reversal'], null, null],
+            'cash'     => [['account_id' => (string) $this->accountId('cash')], null, null],
+            'center'   => [['cost_center_id' => '1'], null, null],
+            'without'  => [['without_cost_center' => '1'], null, null],
+            'branch'   => [[], $this->limitedTo($varied['branch']), null],
+            'owner'    => [[], null, $varied['owner']],
+        ];
+
+        foreach ([1, 2, 3, 7, JournalLines::CHUNK] as $chunk) {
+            $report = new JournalMovementsReport(new JournalLines(null, $chunk));
+
+            foreach (JournalMovementsReport::GROUPS as $group) {
+                foreach ($narrow as $name => [$query, $scope, $owner]) {
+                    $input = $this->input([...$period, ...$query, 'group' => $group], $scope, null, $owner);
+                    $label = "chunks of {$chunk}, by {$group}, {$name}";
+                    $old   = $legacy->build($input);
+                    $new   = $report->build($input);
+
+                    $this->assertGreaterThan(0, $old->rowCount() + count($old->ties), $label);
+                    $this->assertEquals($old, $new, $label);
+                    $this->assertSame(iterator_to_array(ReportCsv::rows($old, null), false), iterator_to_array(ReportCsv::rows($report->stream($input), null), false), $label);
+                    $this->assertSame($old->rowCount(), $report->stream($input)->rowCount(), $label);
+                }
+            }
+        }
+    }
+
+    public function testBuild_GivesEveryPageTheRowsOfThePageOfTheTableThatHoldsThem(): void
+    {
+        $varied = $this->variedJournals();
+        $legacy = new LegacyJournalMovementsReport();
+        $report = new JournalMovementsReport(new JournalLines(null, 3));
+
+        foreach (['journal', 'day', 'account'] as $group) {
+            $input = $this->input(['from' => $varied['from'], 'to' => $varied['to'], 'group' => $group]);
+            $old   = $legacy->build($input);
+
+            foreach ([1, 2, 3, 9] as $page) {
+                $this->assertEquals($old->page($page, 4), $report->stream($input)->page($page, 4), "page {$page} by {$group}");
+            }
+        }
+    }
+
+    public function testBuild_ShowsTheCurrentMonthAndSaysSoWhenNoPeriodIsChosen(): void
+    {
+        $this->entries();
+        $this->manual(date('Y-m-d', strtotime('-70 days')), 1, '999.00', 'Long ago');
+
+        $table = $this->built($this->report);
+
+        $this->assertAmount('270.00', $this->grandOf($table, 'debit'));
+        $this->assertStringContainsString(lang('Accounting_family_reports.note_default_month', [date('Y-m-01')]), implode(' ', $table->notes));
+        $this->assertReportTies($table);
+
+        $chosen = $this->built($this->report, ['from' => date('Y-m-d', strtotime('-80 days')), 'to' => $this->today()]);
+
+        $this->assertAmount('1269.00', $this->grandOf($chosen, 'debit'));
+        $this->assertStringNotContainsString(lang('Accounting_family_reports.note_default_month', [date('Y-m-01')]), implode(' ', $chosen->notes));
+    }
+
+    public function testStream_ReadsTwelveThousandLinesWithinTheMemoryOfAFewChunks(): void
+    {
+        $this->insertSingleLineJournals(0, 12000);
+
+        $stream = $this->report->stream($this->input($this->thisDay()));
+
+        $this->assertSame(12000, $stream->rowCount());
+
+        gc_collect_cycles();
+        memory_reset_peak_usage();
+
+        $before = memory_get_peak_usage();
+        $rows   = 0;
+
+        foreach ($stream->events() as $event) {
+            $rows += $event->kind === 'row' ? 1 : 0;
+        }
+
+        $this->assertSame(12000, $rows);
+        $this->assertLessThan(12 * 1_048_576, memory_get_peak_usage() - $before, 'Reading 12,000 lines held them in memory.');
     }
 }

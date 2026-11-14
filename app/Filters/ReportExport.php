@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\Export\ExportFormat;
 use App\Libraries\Accounting\Export\ExportOptions;
 use App\Libraries\Accounting\Export\ReportExporter;
+use App\Libraries\Accounting\Export\StreamedCsvResponse;
 use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\RequestInterface;
@@ -42,8 +43,11 @@ class ReportExport implements FilterInterface
 
         $query = $request instanceof IncomingRequest ? $request->getGet() : [];
 
+        $exporter = new ReportExporter();
+
         try {
-            $body = (new ReportExporter())->convert($format, (string) $response->getBody(), isset($arguments[1]) ? lang($arguments[1]) : '', ExportOptions::fromQuery(is_array($query) ? $query : []));
+            $csv  = $response instanceof StreamedCsvResponse ? $response->csv($exporter->limit($format)) : (string) $response->getBody();
+            $body = $exporter->convert($format, $csv, isset($arguments[1]) ? lang($arguments[1]) : '', ExportOptions::fromQuery(is_array($query) ? $query : []));
         } catch (AccountingException $refusal) {
             return $this->refused($response, AccountingMessage::of($refusal));
         } catch (MpdfException $failure) {
@@ -52,7 +56,9 @@ class ReportExport implements FilterInterface
             return $this->refused($response, lang('Bootstrap_tables.export_failed'), ResponseInterface::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        return $response
+        $file = $response instanceof StreamedCsvResponse ? service('response') : $response;
+
+        return $file
             ->setContentType($format->contentType(), '')
             ->setHeader('Content-Disposition', (string) preg_replace('/\.csv"$/', '.' . $format->value . '"', $response->getHeaderLine('Content-Disposition')))
             ->setBody($body);
@@ -60,6 +66,8 @@ class ReportExport implements FilterInterface
 
     private function refused(ResponseInterface $response, string $message, int $status = ResponseInterface::HTTP_UNPROCESSABLE_ENTITY): ResponseInterface
     {
+        $response = $response instanceof StreamedCsvResponse ? service('response') : $response;
+
         return $response
             ->removeHeader('Content-Disposition')
             ->setStatusCode($status)

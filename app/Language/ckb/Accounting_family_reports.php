@@ -195,6 +195,7 @@ return [
     'note_chart_balances' => '',
     'note_chart_company' => '',
     'note_count_sheet' => '',
+    'note_default_month' => '',
     'note_directory_no_figures' => '',
     'note_directory_text_filter' => '',
     'note_expense_groups' => '',

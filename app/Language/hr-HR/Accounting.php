@@ -679,6 +679,8 @@ return [
     'error_report_account_missing'               => '',
     'error_report_file_too_large'                => '',
     'error_report_period_invalid'                => '',
+    'error_report_rows_exceed_memory'            => '',
+    'error_report_rows_exceed_screen'            => '',
     'error_report_too_large'                     => '',
     'error_report_too_many_periods'              => '',
     'error_revenue_account_invalid'              => '',

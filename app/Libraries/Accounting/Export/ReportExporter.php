@@ -19,6 +19,11 @@ final class ReportExporter
     {
     }
 
+    public function limit(ExportFormat $format): int
+    {
+        return $format === ExportFormat::Pdf ? $this->maxPdfRows : $this->maxRows;
+    }
+
     /**
      * @throws AccountingException
      */
@@ -30,7 +35,7 @@ final class ReportExporter
 
         $sheet = ReportSheet::fromCsv($csv, $title);
 
-        $limit = $format === ExportFormat::Pdf ? $this->maxPdfRows : $this->maxRows;
+        $limit = $this->limit($format);
 
         if ($sheet->rowCount() > $limit) {
             throw new AccountingException(AccountingError::ReportFileTooLarge, 'The report is too large for the file asked for.', ['max' => $limit]);

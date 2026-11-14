@@ -195,6 +195,7 @@ return [
     'note_chart_balances' => 'Each account holds what the journals of the branches read put on it itself, debit less credit.',
     'note_chart_company' => 'The chart is the same for every branch.',
     'note_count_sheet' => 'Lists the stock items that hold stock; tick "also the items with no stock" to add the others. The count and note columns are left empty to write in.',
+    'note_default_month' => 'No period was chosen, so the report shows the current month, from {0}. Choose dates to see another period.',
     'note_directory_no_figures' => 'The directory holds no figures, so it is the same for every branch.',
     'note_directory_text_filter' => 'City and country are matched as they are written on the supplier.',
     'note_expense_groups' => 'Grouped by category, employee, vendor, treasury, day, week, month or year. Every period of the range is listed once the range holds a document.',

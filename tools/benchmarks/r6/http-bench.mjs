@@ -64,7 +64,7 @@ const request = async (path, options = {}) => {
 const logLines = () => (logFile && existsSync(logFile) ? readFileSync(logFile, 'utf8').split('\n').filter(Boolean) : []);
 
 const login = async () => {
-    const result = await request('/login', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: q({ username: 'admin', password: 'pointofsale' }) });
+    const result = await request('/login', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: q({ username: 'admin', password: process.env.R6_PASSWORD ?? 'pointofsale' }) });
 
     if (![301, 302, 303].includes(result.status)) {
         throw new Error(`login returned ${result.status}`);
