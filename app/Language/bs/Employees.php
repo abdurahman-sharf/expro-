@@ -25,6 +25,8 @@ return [
     'language'                              => 'Jezik',
     'login_info'                            => 'Prijava',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Novi zaposlenik',
     'none_selected'                         => 'Nije izabran nijedan zaposlenik za brisanje.',
     'one_or_multiple'                       => 'Zaposlenici',

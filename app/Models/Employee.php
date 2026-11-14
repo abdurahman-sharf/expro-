@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Libraries\Organization\EmployeeBranchService;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Security\PasswordPolicy;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Session\Session;
 use stdClass;
@@ -17,6 +18,7 @@ use stdClass;
  */
 class Employee extends Person
 {
+    public const MUST_CHANGE_KEY   = 'must_change_password';
     public const UNKNOWN_USER_HASH = '$2y$10$ZFdSLBi1mAZ01oVRRa8nYecLSEvWXHuuSWdfrrcrP8ZzQAHD4nbzC';
 
     public Session $session;
@@ -408,6 +410,7 @@ class Employee extends Person
                         $this->session->regenerate(true);
                     }
                     $this->session->set('person_id', $row->person_id);
+                    $this->flagInstallerPassword($password);
                 }
 
                 return $updated;
@@ -416,6 +419,7 @@ class Employee extends Person
                     $this->session->regenerate(true);
                 }
                 $this->session->set('person_id', $row->person_id);
+                $this->flagInstallerPassword($password);
 
                 return true;
             }
@@ -424,6 +428,43 @@ class Employee extends Person
         }
 
         return false;
+    }
+
+    private function flagInstallerPassword(string $password): void
+    {
+        if (hash_equals(PasswordPolicy::INSTALLER_DEFAULT, $password)) {
+            $this->session->set(self::MUST_CHANGE_KEY, true);
+        } else {
+            $this->session->remove(self::MUST_CHANGE_KEY);
+        }
+    }
+
+    /**
+     * Whether the employee who is signed in signed in with the password the installer gives the first account
+     * and has not changed it since, which the stored password confirms on every call so that a flag that is
+     * out of date holds nobody back.
+     */
+    public function mustChangePassword(): bool
+    {
+        $personId = (int) $this->session->get('person_id');
+
+        if ($personId === 0 || $this->session->get(self::MUST_CHANGE_KEY) !== true) {
+            return false;
+        }
+
+        $row = $this->db->table('employees')->select('password, hash_version')->where('person_id', $personId)->get()->getRow();
+
+        $stillInstallerPassword = $row !== null && match ((string) $row->hash_version) {
+            '1'     => hash_equals((string) $row->password, md5(PasswordPolicy::INSTALLER_DEFAULT)),
+            '2'     => password_verify(PasswordPolicy::INSTALLER_DEFAULT, (string) $row->password),
+            default => false,
+        };
+
+        if (! $stillInstallerPassword) {
+            $this->session->remove(self::MUST_CHANGE_KEY);
+        }
+
+        return $stillInstallerPassword;
     }
 
     protected function spendAPasswordVerification(string $password): void

@@ -105,6 +105,11 @@ class Home extends Secure_Controller
         return view('home/form_change_password', $data);
     }
 
+    public function getMustChangePassword(): string
+    {
+        return view('home/must_change_password', ['person_info' => $this->employee->get_logged_in_employee_info()]);
+    }
+
     /**
      * Change employee password
      *
@@ -148,6 +153,10 @@ class Home extends Secure_Controller
                 ];
 
                 if ($this->employee->change_password($employee_data, $employeeId)) {
+                    if ($employeeId === $currentPersonId) {
+                        session()->remove(Employee::MUST_CHANGE_KEY);
+                    }
+
                     return $this->response->setJSON([
                         'success' => true,
                         'message' => lang('Employees.successful_change_password'),

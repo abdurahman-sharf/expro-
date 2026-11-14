@@ -25,6 +25,8 @@ return [
     'language'                              => 'Linguagem',
     'login_info'                            => 'Autenticação',
     'manager'                               => 'Gerente',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Novo Funcionário',
     'none_selected'                         => 'Você não selecionou nenhum funcionário para excluir.',
     'one_or_multiple'                       => 'funcionário(s)',

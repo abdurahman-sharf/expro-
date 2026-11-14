@@ -25,6 +25,8 @@ return [
     'language'                              => 'Taal',
     'login_info'                            => 'Login',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'N. Werknemer',
     'none_selected'                         => 'U hebt geen werknemers geselecteerd.',
     'one_or_multiple'                       => 'werknemer(s) verwijderd',

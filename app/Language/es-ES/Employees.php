@@ -25,6 +25,8 @@ return [
     'language'                              => 'Idioma',
     'login_info'                            => 'Información de Ingreso del Empleado',
     'manager'                               => 'Encargado',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Nuevo Empleado',
     'none_selected'                         => 'No has seleccionado empleados para borrar.',
     'one_or_multiple'                       => 'empleado(s)',

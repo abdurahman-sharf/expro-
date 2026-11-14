@@ -25,6 +25,8 @@ return [
     'language'                              => 'Bahasa',
     'login_info'                            => 'Info Login Karyawan',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Karyawan Baru',
     'none_selected'                         => 'Anda belum memilih karyawan untuk dihapus.',
     'one_or_multiple'                       => 'Karyawan',

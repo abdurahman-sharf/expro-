@@ -25,6 +25,8 @@ return [
     'language'                              => 'Lugha',
     'login_info'                            => 'Ingia',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Mfanyakazi Mpya',
     'none_selected'                         => 'Hujachagua Mfanyakazi/Wafanyakazi yeyote wa kufuta.',
     'one_or_multiple'                       => 'Mfanyakazi/Wafanyakazi',

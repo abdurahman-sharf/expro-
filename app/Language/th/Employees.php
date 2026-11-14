@@ -25,6 +25,8 @@ return [
     'language'                              => 'ภาษา',
     'login_info'                            => 'รหัสเข้าระบบ',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'เพิ่มพนักงาน',
     'none_selected'                         => 'โปรดเลือกพนักงานที่จะลบ',
     'one_or_multiple'                       => 'พนักงาน',

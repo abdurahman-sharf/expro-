@@ -25,6 +25,8 @@ return [
     'language'                              => 'Lingua',
     'login_info'                            => 'Login',
     'manager'                               => 'Manager',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Nuovo Impiegato',
     'none_selected'                         => 'Non hai selezionato nessun impiegato da eliminare.',
     'one_or_multiple'                       => 'impiegato/i',

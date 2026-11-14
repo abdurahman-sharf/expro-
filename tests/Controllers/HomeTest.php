@@ -790,4 +790,48 @@ class HomeTest extends CIUnitTestCase
         $this->assertFalse($result['success']);
         $this->assertSame(lang('Employees.password_is_default'), $result['message']);
     }
+    public function testGetMustChangePassword_ShowsTheFormToTheEmployeeWhoIsSignedIn(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'forced-form']);
+        $this->withSession(['person_id' => $personId]);
+
+        $result = $this->get('/home/mustChangePassword');
+
+        $result->assertStatus(200);
+        $result->assertSee(lang('Employees.must_change_password'));
+        $result->assertSeeElement('input[name=current_password]');
+        $result->assertSeeElement('input[name=password]');
+        $result->assertSeeElement('input[name=repeat_password]');
+        $result->assertSee('value="forced-form"');
+    }
+
+    public function testPostSave_TakesTheMustChangeFlagAwayWhenTheEmployeeChangesTheirOwnPassword(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'forced-own']);
+        $this->withSession(['person_id' => $personId, Employee::MUST_CHANGE_KEY => true]);
+
+        $result = json_decode($this->post('/home/save', [
+            'username'         => 'forced-own',
+            'current_password' => 'password123',
+            'password'         => 'a-better-password',
+        ])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $this->assertNull(session()->get(Employee::MUST_CHANGE_KEY));
+    }
+
+    public function testPostSave_KeepsTheMustChangeFlagWhenThePasswordIsRefused(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'forced-bad']);
+        $this->withSession(['person_id' => $personId, Employee::MUST_CHANGE_KEY => true]);
+
+        $result = json_decode($this->post('/home/save', [
+            'username'         => 'forced-bad',
+            'current_password' => 'password123',
+            'password'         => 'short',
+        ])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertTrue(session()->get(Employee::MUST_CHANGE_KEY));
+    }
 }

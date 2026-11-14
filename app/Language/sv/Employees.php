@@ -25,6 +25,8 @@ return [
     'language'                              => 'Språk',
     'login_info'                            => 'Login',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Ny anställd',
     'none_selected'                         => 'Du har inte valt någon anställd att radera.',
     'one_or_multiple'                       => 'Anställda',

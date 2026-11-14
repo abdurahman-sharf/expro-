@@ -25,6 +25,8 @@ return [
     'language'                              => 'Ngôn ngữ',
     'login_info'                            => 'Đăng nhập',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Nhân viên mới',
     'none_selected'                         => 'Bạn chưa chọn bất kỳ một nhân viên nào để mà xóa.',
     'one_or_multiple'                       => 'nhân viên',

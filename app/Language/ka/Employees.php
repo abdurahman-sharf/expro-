@@ -25,6 +25,8 @@ return [
     'language'                              => '',
     'login_info'                            => '',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => '',
     'none_selected'                         => '',
     'one_or_multiple'                       => '',

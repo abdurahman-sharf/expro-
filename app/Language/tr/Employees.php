@@ -25,6 +25,8 @@ return [
     'language'                              => 'Dil',
     'login_info'                            => 'Personel Giriş Bilgileri',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Yeni Personel',
     'none_selected'                         => 'Silmek için çalışan seçmediniz.',
     'one_or_multiple'                       => 'personel',

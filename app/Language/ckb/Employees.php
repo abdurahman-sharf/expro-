@@ -25,6 +25,8 @@ return [
     'language'                              => 'زمان',
     'login_info'                            => 'چوونەژوورەوە',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'فەرمانبەری نوێ',
     'none_selected'                         => 'هیچ فەرمانبەرێک(کان)ت هەڵنەبژاردووە بۆ سڕینەوە.',
     'one_or_multiple'                       => 'فەرمانبەر(ان)',

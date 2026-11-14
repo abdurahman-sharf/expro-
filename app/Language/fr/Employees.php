@@ -25,6 +25,8 @@ return [
     'language'                              => 'Langue',
     'login_info'                            => 'Connexion',
     'manager'                               => 'Gestionnaire',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Nouvel employé',
     'none_selected'                         => 'Aucun employé sélectionné pour la suppression.',
     'one_or_multiple'                       => 'employé(s)',

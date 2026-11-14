@@ -25,6 +25,8 @@ return [
     'language'                              => '',
     'login_info'                            => 'Munkavállaló azonosító',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Új munkavállaló',
     'none_selected'                         => 'Nem választott ki munkavállalót a törléshez',
     'one_or_multiple'                       => 'munkavállaló(k)',

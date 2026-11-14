@@ -25,6 +25,8 @@ return [
     'language'                              => 'Мова',
     'login_info'                            => 'Вхід',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Новий працівник',
     'none_selected'                         => 'Ви не вибрали працівника(ів) для видалення.',
     'one_or_multiple'                       => 'Працівник(и)',

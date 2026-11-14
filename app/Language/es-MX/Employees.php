@@ -25,6 +25,8 @@ return [
     'language'                              => 'Idioma',
     'login_info'                            => 'Iniciar sesión',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Nuevo Empleado',
     'none_selected'                         => 'No ha seleccionado empleados a borrar.',
     'one_or_multiple'                       => 'Empleado(s)',

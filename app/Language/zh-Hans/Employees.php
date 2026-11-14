@@ -25,6 +25,8 @@ return [
     'language'                              => '',
     'login_info'                            => '員工登錄資料',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => '新員工',
     'none_selected'                         => '您還沒有選擇任何員工進行刪除',
     'one_or_multiple'                       => '員工',

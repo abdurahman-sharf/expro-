@@ -11,6 +11,8 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 class IsLoggedIn implements FilterInterface
 {
+    private const PASSWORD_PATHS = ['home/mustchangepassword', 'home/save', 'home/logout'];
+
     public function before(RequestInterface $request, $arguments = null)
     {
         $employee = model(Employee::class);
@@ -26,6 +28,18 @@ class IsLoggedIn implements FilterInterface
             }
 
             throw new RedirectException('login');
+        }
+
+        $path = strtolower(trim($request->getUri()->getRoutePath(), '/ '));
+
+        if (! in_array($path, self::PASSWORD_PATHS, true) && $employee->mustChangePassword()) {
+            if ($request->isAJAX()) {
+                return service('response')
+                    ->setStatusCode(403)
+                    ->setJSON(['success' => false, 'message' => lang('Employees.must_change_password')]);
+            }
+
+            throw new RedirectException('home/mustChangePassword');
         }
 
         return null;

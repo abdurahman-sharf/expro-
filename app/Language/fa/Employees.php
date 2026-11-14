@@ -25,6 +25,8 @@ return [
     'language'                              => 'زبان',
     'login_info'                            => 'وارد شدن',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'کارمند جدید',
     'none_selected'                         => 'شما هیچ کارمندی را برای حذف انتخاب نکرده اید.',
     'one_or_multiple'                       => 'کارمند (ها)',

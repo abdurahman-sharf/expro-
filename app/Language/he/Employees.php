@@ -25,6 +25,8 @@ return [
     'language'                              => 'שפה',
     'login_info'                            => 'כניסה',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'עובד חדש',
     'none_selected'                         => 'לא בחרת עובדים שברצונך למחוק.',
     'one_or_multiple'                       => 'עובד(ים)',

@@ -25,6 +25,8 @@ return [
     'language'                              => 'Dil',
     'login_info'                            => 'Daxil Ol',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Yeni Əməkdaş',
     'none_selected'                         => 'Silmək üçün heç bir işçi (lər) seçməmisiniz.',
     'one_or_multiple'                       => 'İşçi (lər)',

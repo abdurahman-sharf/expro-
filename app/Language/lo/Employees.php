@@ -25,6 +25,8 @@ return [
     'language'                              => 'ພາສາ',
     'login_info'                            => 'ເຂົ້າລະບົບ',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'ພະນັກງານໃໝ່',
     'none_selected'                         => 'ທ່ານຍັງບໍ່ໄດ້ເລືອກພະນັກງານໃດເລີຍເພື່ອລຶບ.',
     'one_or_multiple'                       => 'ພະນັກງານ',

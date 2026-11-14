@@ -25,6 +25,8 @@ return [
     'language'                              => 'ភាសា',
     'login_info'                            => 'ចូលទៅក្នុងប្រពន្ធ័',
     'manager'                               => '',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'បុគ្គលិកថ្មី',
     'none_selected'                         => 'អ្នកមិនបានជ្រើសរើស បុគ្គលិកណាមួយដើម្បីលុបនោះទេ។',
     'one_or_multiple'                       => 'បុគ្គលិក',

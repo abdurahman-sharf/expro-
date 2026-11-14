@@ -4,6 +4,8 @@ namespace Tests\Filters;
 
 use App\Filters\IsLoggedIn;
 use App\Libraries\Portal\PortalSession;
+use App\Libraries\Security\PasswordPolicy;
+use App\Models\Employee;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -134,6 +136,99 @@ final class IsLoggedInTest extends CIUnitTestCase
     public function testBefore_LetsAVisitorReachTheSignInItself(): void
     {
         $result = $this->get('login');
+
+        $result->assertStatus(200);
+    }
+    private function employeeOnTheInstallerPassword(string $username = 'forced-user'): int
+    {
+        return $this->createEmployee(
+            username: $username . '-' . uniqid(),
+            grants: [['permission_id' => 'home', 'menu_group' => 'home'], ['permission_id' => 'office', 'menu_group' => 'home'], ['permission_id' => 'customers', 'menu_group' => 'home']],
+            employee: ['password' => password_hash(PasswordPolicy::INSTALLER_DEFAULT, PASSWORD_DEFAULT)],
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function forcedSession(int $personId): array
+    {
+        return ['person_id' => $personId, Employee::MUST_CHANGE_KEY => true];
+    }
+
+    public function testBefore_SendsAnEmployeeWhoMustChangeThePasswordToThePageThatChangesIt(): void
+    {
+        $personId = $this->employeeOnTheInstallerPassword();
+
+        $result = $this->withSession($this->forcedSession($personId))->get('customers');
+
+        $result->assertRedirect();
+        $this->assertStringEndsWith('home/mustChangePassword', $result->getRedirectUrl());
+    }
+
+    public function testBefore_AnswersAnAjaxRequestOfAnEmployeeWhoMustChangeThePasswordWithAForbiddenStatus(): void
+    {
+        $personId = $this->employeeOnTheInstallerPassword();
+
+        $result = $this->withSession($this->forcedSession($personId))->withHeaders(['X-Requested-With' => 'XMLHttpRequest'])->get('customers/search');
+
+        $result->assertStatus(403);
+        $this->assertSame(lang('Employees.must_change_password'), json_decode($result->getJSON(), true)['message']);
+    }
+
+    public function testBefore_LetsAnEmployeeWhoMustChangeThePasswordReachThePageThatChangesIt(): void
+    {
+        $personId = $this->employeeOnTheInstallerPassword();
+
+        $result = $this->withSession($this->forcedSession($personId))->get('home/mustChangePassword');
+
+        $result->assertStatus(200);
+        $result->assertSee(lang('Employees.must_change_password'));
+    }
+
+    public function testBefore_LetsAnEmployeeWhoMustChangeThePasswordSignOut(): void
+    {
+        $personId = $this->employeeOnTheInstallerPassword();
+
+        $result = $this->withSession($this->forcedSession($personId))->get('home/logout');
+
+        $result->assertRedirect();
+        $this->assertStringEndsWith('login', $result->getRedirectUrl());
+    }
+
+    public function testBefore_LetsAnEmployeeWhoMustChangeThePasswordChangeItAndThenGoWhereHeWants(): void
+    {
+        $personId = $this->employeeOnTheInstallerPassword('changer');
+        $username = (string) $this->db->table('employees')->where('person_id', $personId)->get()->getRow()->username;
+
+        $changed = json_decode($this->withSession($this->forcedSession($personId))->post('home/save', [
+            'username'         => $username,
+            'current_password' => PasswordPolicy::INSTALLER_DEFAULT,
+            'password'         => 'a-better-password',
+        ])->getJSON(), true);
+
+        $this->assertTrue($changed['success'], $changed['message']);
+        $this->assertNull(session()->get(Employee::MUST_CHANGE_KEY));
+
+        $result = $this->withSession(['person_id' => $personId])->get('customers');
+
+        $result->assertStatus(200);
+    }
+
+    public function testBefore_StopsHoldingBackAnEmployeeWhosePasswordIsNoLongerTheInstallerOne(): void
+    {
+        $personId = $this->createEmployee(grants: [['permission_id' => 'home', 'menu_group' => 'home'], ['permission_id' => 'office', 'menu_group' => 'home'], ['permission_id' => 'customers', 'menu_group' => 'home']]);
+
+        $result = $this->withSession($this->forcedSession($personId))->get('customers');
+
+        $result->assertStatus(200);
+    }
+
+    public function testBefore_LeavesAnEmployeeWithoutTheFlagAlone(): void
+    {
+        $personId = $this->employeeOnTheInstallerPassword();
+
+        $result = $this->withSession(['person_id' => $personId])->get('customers');
 
         $result->assertStatus(200);
     }

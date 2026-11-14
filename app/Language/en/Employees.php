@@ -25,6 +25,8 @@ return [
     'language'                              => 'Language',
     'login_info'                            => 'Login',
     'manager'                               => '',
+    'must_change_password'                  => 'You are signed in with the password the installer gave this account, which everyone knows. Choose a new password to continue.',
+    'must_change_password_title'            => 'Choose a new password',
     'new'                                   => 'New Employee',
     'none_selected'                         => 'You have not selected any employee(s) to delete.',
     'one_or_multiple'                       => 'employee(s)',

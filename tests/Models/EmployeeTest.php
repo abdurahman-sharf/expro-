@@ -7,6 +7,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
+use App\Libraries\Security\PasswordPolicy;
 use App\Models\Employee;
 use App\Models\Module;
 use Tests\Support\EmployeeFixtureTrait;
@@ -879,5 +880,68 @@ class EmployeeTest extends CIUnitTestCase
     {
         $this->assertFalse(password_needs_rehash(Employee::UNKNOWN_USER_HASH, PASSWORD_DEFAULT));
         $this->assertFalse(password_verify('anything', Employee::UNKNOWN_USER_HASH));
+    }
+    public function testLogin_FlagsTheSessionWhenTheEmployeeSignsInWithThePasswordTheInstallerGives(): void
+    {
+        $username = 'installer-' . uniqid();
+        $this->createEmployee(username: $username, employee: ['password' => password_hash(PasswordPolicy::INSTALLER_DEFAULT, PASSWORD_DEFAULT)]);
+        $model = model(Employee::class);
+
+        $this->assertTrue($model->login($username, PasswordPolicy::INSTALLER_DEFAULT));
+        $this->assertTrue($model->mustChangePassword());
+    }
+
+    public function testLogin_FlagsTheSessionOfAnEmployeeWhosePasswordIsStillStoredAsMd5(): void
+    {
+        $username = 'oldhash-' . uniqid();
+        $this->createEmployee(username: $username, employee: ['password' => md5(PasswordPolicy::INSTALLER_DEFAULT), 'hash_version' => 1]);
+        $model = model(Employee::class);
+
+        $this->assertTrue($model->login($username, PasswordPolicy::INSTALLER_DEFAULT));
+        $this->assertTrue($model->mustChangePassword());
+    }
+
+    public function testLogin_DoesNotFlagTheSessionWhenTheEmployeeSignsInWithAnotherPassword(): void
+    {
+        $username = 'ordinary-' . uniqid();
+        $this->createEmployee(username: $username);
+        $model = model(Employee::class);
+
+        $this->assertTrue($model->login($username, 'password123'));
+        $this->assertFalse($model->mustChangePassword());
+    }
+
+    public function testLogin_TakesTheFlagOfAnEarlierSignInAway(): void
+    {
+        $forced  = 'forced-' . uniqid();
+        $regular = 'regular-' . uniqid();
+        $this->createEmployee(username: $forced, employee: ['password' => password_hash(PasswordPolicy::INSTALLER_DEFAULT, PASSWORD_DEFAULT)]);
+        $this->createEmployee(username: $regular);
+        $model = model(Employee::class);
+
+        $model->login($forced, PasswordPolicy::INSTALLER_DEFAULT);
+        $model->login($regular, 'password123');
+
+        $this->assertFalse($model->mustChangePassword());
+    }
+
+    public function testMustChangePassword_AnswersNoWhenTheStoredPasswordIsNoLongerTheInstallerOneAndTakesTheFlagAway(): void
+    {
+        $username = 'changed-' . uniqid();
+        $person   = $this->createEmployee(username: $username, employee: ['password' => password_hash(PasswordPolicy::INSTALLER_DEFAULT, PASSWORD_DEFAULT)]);
+        $model    = model(Employee::class);
+        $model->login($username, PasswordPolicy::INSTALLER_DEFAULT);
+
+        $model->change_password(['password' => password_hash('something-else-1', PASSWORD_DEFAULT), 'hash_version' => 2], $person);
+
+        $this->assertFalse($model->mustChangePassword());
+        $this->assertNull(session()->get(Employee::MUST_CHANGE_KEY));
+    }
+
+    public function testMustChangePassword_AnswersNoWhenNobodyIsSignedIn(): void
+    {
+        session()->remove(['person_id', Employee::MUST_CHANGE_KEY]);
+
+        $this->assertFalse(model(Employee::class)->mustChangePassword());
     }
 }

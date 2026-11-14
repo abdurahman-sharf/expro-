@@ -25,6 +25,8 @@ return [
     'language'                              => 'Sprache',
     'login_info'                            => 'Mitarbeiter Login',
     'manager'                               => 'Manager',
+    'must_change_password'                  => '',
+    'must_change_password_title'            => '',
     'new'                                   => 'Neuer Mitarbeiter',
     'none_selected'                         => 'Sie haben keine Mitarbeiter zum Löschen gewählt.',
     'one_or_multiple'                       => 'Mitarbeiter',
