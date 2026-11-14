@@ -149,7 +149,7 @@ php spark accounting:status
 
 ```
 php spark accounting:fill_accounts
-php spark accounting:enable --currency=SAR --start-date=YYYY-MM-DD --fiscal-year-end=YYYY-MM-DD
+php spark accounting:enable --currency SAR --start-date YYYY-MM-DD --fiscal-year-end YYYY-MM-DD
 ```
 
 - تبقى المحاسبة **معطَّلة على أي نشاط حقيقي** حتى يأمر المالك بالتفعيل (D1: التعطيل يعني سلوك OSPOS كما هو).

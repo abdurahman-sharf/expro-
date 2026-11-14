@@ -44,6 +44,24 @@ const add = (id, steps, expected, actual, pass) => { results.push({ id, steps, e
     add('BR-' + s.replace(/\//g, '-'), `open /${s} and watch the console`, '200, no console error, no failed request', `${status} ${bad.slice(0, 3).join(' ; ')}${overflow ? ' [horizontal overflow]' : ''}`, status === 200 && bad.length === 0);
   }
 
+  // the dialogs that used to answer 404: create through the real screen and count the rows
+  for (const [id, page_, selector, fields, table, extra] of [
+    ['voucher', 'receipt_vouchers', '[data-href*="receipt_vouchers/view"]', { amount: '33.00' }, 'ospos_revenues', ''],
+    ['price-list', 'price_lists', '[data-href*="price_lists/view"]', { name: 'Browser list ' + Date.now().toString().slice(-5) }, 'ospos_price_lists', ''],
+    ['revenue-category', 'revenue_categories', '[data-href*="revenue_categories/view"]', { category_name: 'Browser cat ' + Date.now().toString().slice(-5) }, 'ospos_revenue_categories', ''],
+  ]) {
+    const countBefore = Number(sql('SELECT COUNT(*) FROM ' + table));
+    await page.goto(BASE + '/' + page_, { waitUntil: 'networkidle' });
+    await page.click(selector);
+    await page.waitForSelector('.modal.show form', { timeout: 10000 });
+    for (const [name, value] of Object.entries(fields)) await page.fill('.modal.show [name=' + name + ']', value);
+    const submit = await page.$('.modal.show button:has-text("Submit"), .modal.show #submit');
+    await submit.click();
+    await page.waitForTimeout(2500);
+    const countAfter = Number(sql('SELECT COUNT(*) FROM ' + table));
+    add('BR-new-' + id, 'create a new ' + id + ' through its dialog in the browser', 'one row saved', `${countAfter - countBefore} row(s)`, countAfter - countBefore === 1);
+  }
+
   // double click on the submit of a dialog: an expense
   events = [];
   await page.goto(BASE + '/expenses', { waitUntil: 'networkidle' });

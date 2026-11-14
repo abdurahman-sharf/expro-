@@ -87,7 +87,7 @@
 
 ```sh
 php spark accounting:status
-php spark accounting:enable --currency=SAR --start-date=2026-01-01 --fiscal-year-end=2026-12-31
+php spark accounting:enable --currency SAR --start-date 2026-01-01 --fiscal-year-end 2026-12-31
 php spark accounting:disable
 ```
 
