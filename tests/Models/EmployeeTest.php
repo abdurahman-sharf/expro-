@@ -720,7 +720,7 @@ class EmployeeTest extends CIUnitTestCase
         $needing = $this->subPermissionsByModule();
         $unlisted = array_diff(array_keys($needing), self::MODULES_THAT_NEED_A_SECOND_GRANT);
 
-        $this->assertSame([], array_map(static fn (string $moduleId): string => $moduleId . ': ' . implode(', ', $needing[$moduleId]), array_values($unlisted)), 'A permission that begins with the id of its own module and an underscore makes the module open only for a holder of two grants: name the permission another way, or put the module on the list on purpose');
+        $this->assertSame([], array_map(static fn (string $moduleId): string => $moduleId . ': ' . implode(', ', $needing[$moduleId]), array_values($unlisted)), 'A permission that begins with the id of its own module and an underscore makes the module open only for a holder of its own grant and one of them: name the permission another way, or put the module on the list on purpose');
         $this->assertSame([], array_values(array_diff(self::MODULES_THAT_NEED_A_SECOND_GRANT, array_keys($needing))), 'A module on the list no longer has such a permission');
     }
 

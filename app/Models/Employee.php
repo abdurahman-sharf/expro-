@@ -514,7 +514,7 @@ class Employee extends Person
 
         return array_values(array_filter(
             array_column($builder->get()->getResultArray(), 'permission_id'),
-            static fn (string $permissionId): bool => str_starts_with(strtolower($permissionId), $prefix)
+            static fn (string $permissionId): bool => str_starts_with(strtolower($permissionId), $prefix),
         ));
     }
 

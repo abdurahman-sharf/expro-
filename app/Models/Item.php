@@ -1363,7 +1363,7 @@ class Item extends Model
     public function get_search_suggestions(string $search, array $filters = ['is_deleted' => false, 'search_custom' => false], bool $unique = false, int $limit = 25): array
     {
         $suggestions = [];
-        $nonKit = [ITEM, ITEM_AMOUNT_ENTRY];
+        $nonKit      = [ITEM, ITEM_AMOUNT_ENTRY];
 
         $builder = $this->db->table('items');
         $builder->select($this->get_search_suggestion_format('item_id, name, pack_name'));
@@ -1463,7 +1463,7 @@ class Item extends Model
     public function get_stock_search_suggestions(string $search, array $filters = ['is_deleted' => false, 'search_custom' => false], bool $unique = false, int $limit = 25): array
     {
         $suggestions = [];
-        $nonKit = [ITEM, ITEM_AMOUNT_ENTRY];
+        $nonKit      = [ITEM, ITEM_AMOUNT_ENTRY];
 
         $builder = $this->db->table('items');
         $builder->select($this->get_search_suggestion_format('item_id, name, pack_name'));
@@ -1566,7 +1566,7 @@ class Item extends Model
     public function get_kit_search_suggestions(string $search, array $filters = ['is_deleted' => false, 'search_custom' => false], bool $unique = false, int $limit = 25): array
     {
         $suggestions = [];
-        $nonKit = [ITEM, ITEM_AMOUNT_ENTRY];    // TODO: This variable is never used.
+        $nonKit      = [ITEM, ITEM_AMOUNT_ENTRY];    // TODO: This variable is never used.
 
         $builder = $this->db->table('items');
         $builder->select('item_id, name');

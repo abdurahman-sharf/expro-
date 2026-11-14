@@ -12,8 +12,8 @@
  {
   "name": "G02 the sign-in is exempt from the token filter by its exact path, not by a prefix or a suffix",
   "file": "app/Config/Filters.php",
-  "find": "'csrf' => ['except' => ['login', 'migrate']],",
-  "replace": "'csrf' => ['except' => 'login|migrate'],",
+  "find": "'csrf'       => ['except' => ['login', 'migrate']],",
+  "replace": "'csrf'       => ['except' => 'login|migrate'],",
   "tests": [
    "tests/Config/FiltersTest.php",
    "tests/Filters/IsLoggedInTest.php"
