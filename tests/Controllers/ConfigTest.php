@@ -988,7 +988,7 @@ class ConfigTest extends CIUnitTestCase
         $this->resetSession();
         $this->post('/config/saveInvoice', $this->invoiceSettingsPayload(['document_terms_quote' => 'Valid for 14 days <b>only</b>']));
 
-        $body = $this->settingsPage()->getBody();
+        $body = $this->settingsPage()->response()->getBody();
 
         foreach (['invoice', 'credit_note', 'quote', 'work_order', 'purchase_invoice'] as $family) {
             $this->assertStringContainsString('name="document_terms_' . $family . '"', $body, $family);

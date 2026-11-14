@@ -214,7 +214,7 @@ class ExpensesCategoriesControllerTest extends CIUnitTestCase
 
         $this->customAccount('5', '5993', '<i>Marketing</i>', false);
 
-        $select = $this->accountSelect($this->get('/expenses_categories/view/-1')->getBody());
+        $select = $this->accountSelect($this->get('/expenses_categories/view/-1')->response()->getBody());
 
         $this->assertStringContainsString('5993 - &lt;i&gt;Marketing&lt;/i&gt;', $select);
         $this->assertStringNotContainsString('<i>Marketing</i>', $select);

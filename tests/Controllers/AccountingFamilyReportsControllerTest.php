@@ -300,7 +300,7 @@ final class AccountingFamilyReportsControllerTest extends FamilyReportTestCase
         $this->assertStringNotContainsString(",=HYPERLINK", $csv);
         $this->assertStringNotContainsString("\n=HYPERLINK", $csv);
 
-        $screen = $this->get('/accounting_reports/purchases' . $day)->getBody();
+        $screen = $this->get('/accounting_reports/purchases' . $day)->response()->getBody();
 
         $this->assertStringNotContainsString('A<i>x</i>B', $screen);
         $this->assertStringContainsString('A&lt;i&gt;x&lt;/i&gt;B', $screen);

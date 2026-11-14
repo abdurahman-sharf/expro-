@@ -311,9 +311,9 @@ class IntegrationsControllerTest extends CIUnitTestCase
 
         $response = $this->get('/integrations/translations');
 
-        $this->assertStringNotContainsString('<script>alert(1)</script>', $response->getBody());
-        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $response->getBody());
-        $this->assertStringContainsString('&lt;b&gt;bold&lt;/b&gt;', $response->getBody());
+        $this->assertStringNotContainsString('<script>alert(1)</script>', $response->response()->getBody());
+        $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $response->response()->getBody());
+        $this->assertStringContainsString('&lt;b&gt;bold&lt;/b&gt;', $response->response()->getBody());
     }
 
     public function testGetTranslations_RedirectsAnEmployeeWithoutThePermissionToManage(): void

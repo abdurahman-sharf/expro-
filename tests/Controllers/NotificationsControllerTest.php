@@ -152,7 +152,7 @@ class NotificationsControllerTest extends CIUnitTestCase
         $this->actAsWith([IntegrationAccess::NOTIFICATIONS_MODULE]);
         $this->notice('stock:1:1', 1, '<script>alert(1)</script>');
 
-        $body = $this->get('/notifications')->getBody();
+        $body = $this->get('/notifications')->response()->getBody();
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
         $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $body);

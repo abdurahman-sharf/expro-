@@ -1675,7 +1675,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
 
         $this->loginAs($this->buyer([1, $branch]));
 
-        $body = $this->get('/receivings/edit/' . $purchase)->getBody();
+        $body = $this->get('/receivings/edit/' . $purchase)->response()->getBody();
 
         $this->assertStringNotContainsString('<img src=x', $body);
         $this->assertStringNotContainsString('<b>drawer</b>', $body);
@@ -3933,7 +3933,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->loginAs($this->buyer());
 
         try {
-            $body = $this->get('/receivings/print/' . $receiving)->getBody();
+            $body = $this->get('/receivings/print/' . $receiving)->response()->getBody();
         } finally {
             $this->accountingDb()->query('SET FOREIGN_KEY_CHECKS = 0');
             $this->accountingDb()->table('custom_field_values')->truncate();
@@ -3972,7 +3972,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         config(OSPOS::class)->settings['document_terms_invoice']          = 'Invoice terms only';
 
         try {
-            $body = $this->get('/receivings/print/' . $receiving)->getBody();
+            $body = $this->get('/receivings/print/' . $receiving)->response()->getBody();
         } finally {
             config(OSPOS::class)->settings = $before;
         }
@@ -4002,7 +4002,7 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $receiving = $this->purchaseOf('500.00', $supplier);
         $this->loginAs($this->buyer());
 
-        $body = $this->get('/receivings/print/' . $receiving)->getBody();
+        $body = $this->get('/receivings/print/' . $receiving)->response()->getBody();
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
         $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt; Trading', $body);

@@ -270,7 +270,7 @@ class AccountingPayablesControllerTest extends CIUnitTestCase
         ], 1);
         $this->viewer();
 
-        $body = $this->get('/accounting_payables/supplier/' . $this->supplierId)->getBody();
+        $body = $this->get('/accounting_payables/supplier/' . $this->supplierId)->response()->getBody();
 
         $this->assertStringContainsString('party-contacts', $body);
         $this->assertStringContainsString('&lt;i&gt;Khaled&lt;/i&gt;', $body);

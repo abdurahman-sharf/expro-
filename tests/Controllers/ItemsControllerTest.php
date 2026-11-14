@@ -545,7 +545,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertNotEmpty($definitionData['definition_id']);
 
         $response = $this->get('/items/attributes/1');
-        $output = (string) $response->getBody();
+        $output = (string) $response->response()->getBody();
 
         // A live, unescaped tag in the dropdown label is the stored-XSS sink.
         $this->assertStringNotContainsString($payload, $output);
@@ -3542,7 +3542,7 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->brand($hostile);
         $this->loginAsItemsEmployee($this->createItemsEmployee());
 
-        $form = $this->get('/items/view/-1')->getBody();
+        $form = $this->get('/items/view/-1')->response()->getBody();
 
         $this->assertDoesNotMatchRegularExpression('/<img\b[^>]*onerror/i', $form);
         $this->assertStringContainsString('>' . esc($hostile) . '</option>', $form);

@@ -696,7 +696,7 @@ class ExpensesControllerTest extends CIUnitTestCase
         $this->treasury('Another drawer');
         $this->restrictTreasury($used, TreasuryScopes::WITHDRAW, [$this->clerkId]);
 
-        $select = $this->treasurySelect($this->get('/expenses/view/' . $expense)->getBody());
+        $select = $this->treasurySelect($this->get('/expenses/view/' . $expense)->response()->getBody());
 
         $this->assertStringContainsString('&lt;b&gt;Bold&lt;/b&gt; drawer', $select);
         $this->assertStringContainsString('&lt;i&gt;Used&lt;/i&gt; drawer', $select);
@@ -794,7 +794,7 @@ class ExpensesControllerTest extends CIUnitTestCase
 
         $this->actAsWith(['expenses', 'expenses_categories']);
 
-        $body = $this->get('/expenses/view/-1')->getBody();
+        $body = $this->get('/expenses/view/-1')->response()->getBody();
 
         $this->assertStringNotContainsString('<img src=x', $body);
         $this->assertStringNotContainsString('<script>alert(2)', $body);
@@ -1058,7 +1058,7 @@ class ExpensesControllerTest extends CIUnitTestCase
         $id    = $this->voucherExpense(['supplier_id' => $payee, 'description' => '<img src=x onerror=alert(2)> rent']);
         $this->actAsWith();
 
-        $body = $this->get('/expenses/voucher/' . $id)->getBody();
+        $body = $this->get('/expenses/voucher/' . $id)->response()->getBody();
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
         $this->assertStringNotContainsString('<img src=x', $body);

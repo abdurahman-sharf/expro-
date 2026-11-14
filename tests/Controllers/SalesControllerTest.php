@@ -794,7 +794,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $response = $this->get('/sales');
 
         $response->assertStatus(200);
-        $body = $response->getBody();
+        $body = $response->response()->getBody();
         $this->assertStringNotContainsString('<svg onload', $body);
         $this->assertStringContainsString('&lt;svg', $body);
     }
@@ -2249,7 +2249,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->loginAs($this->supervisorInBoth($branch));
 
-        $body = $this->get('/sales/edit/' . $invoice['saleId'])->getBody();
+        $body = $this->get('/sales/edit/' . $invoice['saleId'])->response()->getBody();
 
         $this->assertStringNotContainsString('<img src=x', $body);
         $this->assertStringNotContainsString('<b>drawer</b>', $body);
@@ -2262,7 +2262,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->registerWithACart();
         $this->treasuryOfBranch('Register <img src=x onerror=alert(1)>');
 
-        $body = $this->get('/sales')->getBody();
+        $body = $this->get('/sales')->response()->getBody();
 
         $this->assertStringNotContainsString('<img src=x', $body);
         $this->assertStringContainsString('Register &lt;img src=x onerror=alert(1)&gt;</option>', $body);
@@ -5301,7 +5301,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $db->table('sales')->where('sale_id', $quote)->update(['quote_number' => '<q>Q-1']);
 
         foreach ([$draft, $quote] as $saleId) {
-            $body = $this->get('/sales/document/' . $saleId)->getBody();
+            $body = $this->get('/sales/document/' . $saleId)->response()->getBody();
 
             foreach (['<img src=x onerror=alert(2)>', '<u>described</u>', '<i>Employee', '<s>B1'] as $markup) {
                 $this->assertStringNotContainsString($markup, $body, "{$markup} on the page of {$saleId}");
@@ -5309,9 +5309,9 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
             }
         }
 
-        $this->assertStringNotContainsString('<b>Customer', $this->get('/sales/document/' . $draft)->getBody());
-        $this->assertStringNotContainsString('<q>Q-1', $this->get('/sales/document/' . $quote)->getBody());
-        $this->assertStringContainsString(esc('<q>Q-1'), $this->get('/sales/document/' . $quote)->getBody());
+        $this->assertStringNotContainsString('<b>Customer', $this->get('/sales/document/' . $draft)->response()->getBody());
+        $this->assertStringNotContainsString('<q>Q-1', $this->get('/sales/document/' . $quote)->response()->getBody());
+        $this->assertStringContainsString(esc('<q>Q-1'), $this->get('/sales/document/' . $quote)->response()->getBody());
         $this->assertGreaterThan(0, $supervisor);
     }
 
@@ -5326,7 +5326,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         Database::connect()->table('sales')->where('sale_id', $invoice)->update(['invoice_number' => '<b>INV-9</b>']);
 
-        $body = $this->get('/sales/document/' . $quote)->getBody();
+        $body = $this->get('/sales/document/' . $quote)->response()->getBody();
 
         $this->assertStringNotContainsString('<b>INV-9</b>', $body);
         $this->assertStringContainsString('&lt;b&gt;INV-9&lt;/b&gt;', $body);
@@ -5349,7 +5349,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->loginAs($both);
 
-        $body = $this->get('/sales/documents')->getBody();
+        $body = $this->get('/sales/documents')->response()->getBody();
 
         foreach (['<q>Q-2', '<d>D-2', '<b>Quoted', '<i>Seller', '<s>B1'] as $markup) {
             $this->assertStringNotContainsString($markup, $body, $markup);
@@ -7618,7 +7618,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->setConfigValue(SalesControlSettings::PRICE_LISTS, '1');
         $this->setConfigValue(SalesControlSettings::CHANGE_LIST, '1');
 
-        $body = $this->get('/sales')->getBody();
+        $body = $this->get('/sales')->response()->getBody();
 
         $this->assertStringContainsString('&lt;b&gt;Gold&lt;/b&gt; &amp; &lt;i&gt;VIP&lt;/i&gt;', $body);
         $this->assertStringNotContainsString('<b>Gold</b>', $body);
@@ -9840,7 +9840,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->useSecondLanguage('en');
         $this->loginAs($this->createBranchLimitedSupervisor(1));
 
-        $printed = $this->get('/sales/print/' . $saleId . '/invoice')->getBody();
+        $printed = $this->get('/sales/print/' . $saleId . '/invoice')->response()->getBody();
 
         $this->assertStringNotContainsString('<b>Bold</b>', $printed);
         $this->assertStringContainsString('&lt;b&gt;Bold&lt;/b&gt; &amp; co', $printed);

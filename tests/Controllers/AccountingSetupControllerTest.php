@@ -559,7 +559,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->setConfigValue('accounting_journal_description_sales', 'Invoice {number} "{party}"');
         $this->setConfigValue('accounting_journal_description_purchases', 'Bill {number}');
 
-        $body = $this->get('/accounting_settings')->getBody();
+        $body = $this->get('/accounting_settings')->response()->getBody();
 
         $this->assertSame(1, preg_match('/id="journal_description_sales" value=(["\'])(.*?)\1 maxlength/s', $body, $sales), 'the quotes of the text do not end the attribute');
         $this->assertSame(1, preg_match('/id="journal_description_purchases" value=(["\'])(.*?)\1 maxlength/s', $body, $purchases));
@@ -1003,7 +1003,7 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->accountingDb()->table('price_lists')->insert(['name' => '<b>Gold</b> & <i>VIP</i>']);
         $this->actAs($this->employeeWithGrants(['accounting_settings']));
 
-        $body = $this->get('/accounting_settings')->getBody();
+        $body = $this->get('/accounting_settings')->response()->getBody();
 
         $this->assertStringContainsString('&lt;b&gt;Gold&lt;/b&gt; &amp; &lt;i&gt;VIP&lt;/i&gt;', $body);
         $this->assertStringNotContainsString('<b>Gold</b>', $body);

@@ -544,7 +544,7 @@ final class AccountingTaxReportsControllerTest extends CIUnitTestCase
         $this->accountingDb()->table('accounting_accounts')->where('code', '215002')->update(['code' => '<b>215002</b>']);
         $this->viewer();
 
-        $body = $this->get(self::SCREEN)->getBody();
+        $body = $this->get(self::SCREEN)->response()->getBody();
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $body);
         $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $body);
