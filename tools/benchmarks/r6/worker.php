@@ -61,9 +61,18 @@ if ($killAfter > 0) {
 $deadlocksBefore = $status('Innodb_deadlocks');
 $waitsBefore     = $status('Innodb_row_lock_waits');
 $deadline        = microtime(true) + $seconds;
+$maxOps          = (int) (getenv('R6_MAX_OPS') ?: 0);
+$ops             = 0;
+$samples         = [];
 $started         = microtime(true);
 
-while (microtime(true) < $deadline) {
+while (microtime(true) < $deadline && ($maxOps === 0 || $ops < $maxOps)) {
+    $ops++;
+
+    if ($ops % 500 === 1) {
+        $samples[] = ['after_ops' => $ops - 1, 'mem_mb' => round(memory_get_usage(true) / 1048576, 1), 'peak_mb' => round(memory_get_peak_usage(true) / 1048576, 1)];
+    }
+
     $place = $places[mt_rand(0, count($places) - 1)];
     $roll  = mt_rand(1, 100);
 
@@ -170,6 +179,9 @@ $summary = [
     'deadlocks_seen'  => $status('Innodb_deadlocks') - $deadlocksBefore,
     'row_lock_waits'  => $status('Innodb_row_lock_waits') - $waitsBefore,
     'peak_mb'         => round(memory_get_peak_usage(false) / 1048576, 1),
+    'operations'      => $ops,
+    'memory_samples'  => [...$samples, ['after_ops' => $ops, 'mem_mb' => round(memory_get_usage(true) / 1048576, 1), 'peak_mb' => round(memory_get_peak_usage(true) / 1048576, 1)]],
+    'environment'     => ENVIRONMENT,
 ];
 
 $json = json_encode($summary, JSON_PRETTY_PRINT);
