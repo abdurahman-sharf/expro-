@@ -7,6 +7,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Stock\TrackingType;
 use App\Libraries\Stock\UnitBarcodes;
+use App\Models\Attribute;
 use App\Models\Item;
 use App\Models\Item_quantity;
 use CodeIgniter\Database\Config;
@@ -909,6 +910,70 @@ class ItemTest extends CIUnitTestCase
     }
 
     /**
+     * @return array{token: string, items: list<int>, definitions: list<int>}
+     */
+    private function itemsWithATextAttribute(): array
+    {
+        $attribute   = model(Attribute::class);
+        $token       = 'Attr' . uniqid();
+        $items       = [$this->itemWithStatus(0, 'Plain ' . uniqid()), $this->itemWithStatus(1, 'Plain ' . uniqid())];
+        $definitions = [];
+
+        foreach (['Colour', 'Size'] as $name) {
+            $definition = ['definition_name' => $name . uniqid(), 'definition_type' => TEXT, 'definition_flags' => 0, 'deleted' => 0];
+
+            $this->assertTrue($attribute->saveDefinition($definition));
+
+            $definitions[] = (int) $definition['definition_id'];
+        }
+
+        foreach ($items as $itemId) {
+            foreach ($definitions as $definitionId) {
+                $attribute->saveAttributeValue($token . ' red', $definitionId, $itemId, false, TEXT);
+            }
+        }
+
+        return ['token' => $token, 'items' => $items, 'definitions' => $definitions];
+    }
+
+    private function cleanTextAttributes(array $fixture): void
+    {
+        $db = $this->accountingDb();
+
+        $db->table('attribute_links')->whereIn('item_id', $fixture['items'])->delete();
+        $db->table('attribute_definitions')->whereIn('definition_id', $fixture['definitions'])->delete();
+        $db->query('DELETE FROM ' . $db->prefixTable('attribute_values') . ' WHERE attribute_value LIKE ?', [$fixture['token'] . '%']);
+        $this->cleanStatusFixtures();
+    }
+
+    /**
+     * @return list<array{0: string}>
+     */
+    public static function suggestionMethods(): array
+    {
+        return [['get_search_suggestions'], ['get_stock_search_suggestions'], ['get_kit_search_suggestions']];
+    }
+
+    #[DataProvider('suggestionMethods')]
+    public function testSuggestions_FindAnItemByATextAttributeOfItsOwnOnceWhenAsked(string $method): void
+    {
+        $fixture = $this->itemsWithATextAttribute();
+        $model   = model(Item::class);
+        [$active, $inactive] = $fixture['items'];
+
+        $shown  = array_map('intval', array_column($model->{$method}($fixture['token'], ['search_custom' => true, 'is_deleted' => false]), 'value'));
+        $hidden = array_map('intval', array_column($model->{$method}($fixture['token'], ['search_custom' => true, 'is_deleted' => false, 'hide_inactive' => true]), 'value'));
+        $off    = array_column($model->{$method}($fixture['token'], ['search_custom' => false, 'is_deleted' => false]), 'value');
+
+        $this->assertSame(1, count(array_keys($shown, $active, true)), 'an item with two matching attributes is offered once');
+        $this->assertContains($inactive, $shown);
+        $this->assertContains($active, $hidden);
+        $this->assertNotContains($inactive, $hidden, 'an inactive item stays out when asked to hide them');
+        $this->assertSame([], $off, 'without the setting the attributes are not searched');
+        $this->cleanTextAttributes($fixture);
+    }
+
+    /**
      * @return list<string> What was asked of the items table while the action ran.
      */
     private function itemQueriesOf(callable $action): array
@@ -1022,6 +1087,87 @@ class ItemTest extends CIUnitTestCase
 
         $this->assertFalse($model->isMentionedInOpenDocuments([$itemId]));
         $this->assertFalse($model->isMentionedInOpenDocuments([]));
+        $this->cleanStatusFixtures();
+    }
+
+    /**
+     * Runs the action while another connection, standing for a request running at the same time, holds the
+     * rows of the items for update, and gives the connections back.
+     *
+     * @param list<int> $itemIds
+     */
+    private function whileAnotherRequestHoldsTheItems(array $itemIds, callable $action): void
+    {
+        $other = $this->openSecondConnection();
+        $other->transStart();
+        $other->query('SELECT item_id FROM ' . $other->prefixTable('items') . ' WHERE item_id IN (' . implode(',', $itemIds) . ') FOR UPDATE');
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $action();
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+            $this->releaseOpenTransactions();
+        }
+    }
+
+    public function testIsMentionedInOpenDocuments_WaitsForARequestThatHoldsTheItemWhenAskedToLock(): void
+    {
+        $model  = model(Item::class);
+        $itemId = $this->itemWithStatus(0, 'Held ' . uniqid());
+
+        $this->whileAnotherRequestHoldsTheItems([$itemId], function () use ($model, $itemId): void {
+            $this->assertFalse($model->isMentionedInOpenDocuments([$itemId]), 'the plain read does not wait');
+            $this->assertWaitsForLock(fn () => $model->isMentionedInOpenDocuments([$itemId], true));
+        });
+        $this->cleanStatusFixtures();
+    }
+
+    public function testIsMentionedInOpenDocuments_SeesADocumentCommittedBeforeTheLockWhenAskedToLock(): void
+    {
+        $model  = model(Item::class);
+        $itemId = $this->itemWithStatus(0, 'Named ' . uniqid());
+
+        $this->accountingDb()->transStart();
+        $this->accountingDb()->query('SELECT COUNT(*) FROM ' . $this->accountingDb()->prefixTable('sales_items'));
+        $this->saleNamingItem($itemId, SUSPENDED);
+
+        $this->assertTrue($model->isMentionedInOpenDocuments([$itemId], true));
+        $this->assertSame($this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->name, $model->accountingFailure()->context['name']);
+
+        $this->accountingDb()->transRollback();
+        $this->cleanStatusFixtures();
+    }
+
+    public function testDelete_WaitsForARequestThatHoldsTheItemAndDeletesNothingWhenItCannotHaveIt(): void
+    {
+        $model  = model(Item::class);
+        $itemId = $this->itemWithStatus(0, 'Held ' . uniqid());
+
+        $this->whileAnotherRequestHoldsTheItems([$itemId], function () use ($model, $itemId): void {
+            $this->assertFalse($model->delete($itemId));
+            $this->assertSame(AccountingError::WriteFailed, $model->accountingFailure()->error);
+        });
+
+        $this->assertSame('0', (string) $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->deleted);
+        $this->assertTrue($model->delete($itemId), 'once the other request is done the item goes');
+        $this->cleanStatusFixtures();
+    }
+
+    public function testDeleteList_WaitsForARequestThatHoldsAnItemAndDeletesNothingWhenItCannotHaveIt(): void
+    {
+        $model = model(Item::class);
+        $first = $this->itemWithStatus(0, 'First ' . uniqid());
+        $held  = $this->itemWithStatus(0, 'Held ' . uniqid());
+
+        $this->whileAnotherRequestHoldsTheItems([$held], function () use ($model, $first, $held): void {
+            $this->assertFalse($model->delete_list([$first, $held]));
+            $this->assertSame(AccountingError::WriteFailed, $model->accountingFailure()->error);
+        });
+
+        $this->assertSame(['0', '0'], [(string) $this->accountingDb()->table('items')->where('item_id', $first)->get()->getRow()->deleted, (string) $this->accountingDb()->table('items')->where('item_id', $held)->get()->getRow()->deleted]);
         $this->cleanStatusFixtures();
     }
 }
