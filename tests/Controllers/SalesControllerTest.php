@@ -3785,6 +3785,49 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
     }
 
+    #[DataProvider('receiptTemplateProvider')]
+    public function testGetReceipt_PrintsTheSubTotalOfTheLinesBeforeTheDiscountsOnEveryReceiptTemplate(string $template): void
+    {
+        $this->startSelling();
+        $this->setConfigValue('receipt_template', $template);
+
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        try {
+            $body  = $this->get('/sales/receipt/' . $saleId)->getBody();
+            $gross = strpos($body, to_currency('740'));
+
+            $this->assertNotFalse($gross, 'the sub total is the lines as they were before their discounts');
+            $this->assertLessThan(strpos($body, to_currency('-71')), $gross, 'the discounts come after the sub total they come off');
+        } finally {
+            $this->setConfigValue('receipt_template', 'receipt_default');
+        }
+    }
+
+    public function testReceiptEmail_PrintsTheSubTotalOfTheLinesBeforeTheDiscounts(): void
+    {
+        $this->startSelling();
+
+        $cycle  = $this->discountedReferenceInvoice();
+        $saleId = $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_POS, -1, true, null, COMPLETED, NEW_ENTRY, $cycle['discount']);
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $this->get('/sales/receipt/' . $saleId);
+
+        $controller = new Sales();
+        $controller->initController(service('request'), service('response'), service('logger'));
+
+        $load = new ReflectionMethod($controller, '_load_sale_data');
+        $html = view('sales/receipt_email', $load->invoke($controller, $saleId) + ['pdf' => false]);
+
+        $gross = strpos($html, to_currency('740'));
+
+        $this->assertNotFalse($gross, 'the sub total is the lines as they were before their discounts');
+        $this->assertLessThan(strpos($html, to_currency('-71')), $gross);
+    }
+
     private function invoiceWithCharges(): int
     {
         $this->startSelling();
@@ -3882,6 +3925,20 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->assertStringContainsString(lang('Sales.invoice_discount') . ' (' . to_decimals('10') . '%)', $html);
         $this->assertStringContainsString(to_currency('-71'), $html);
+    }
+
+    public function testGetInvoice_ShowsTheAmountStillDueAsAPositiveAmount(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $page = $this->get('/sales/invoice/' . $invoice['saleId']);
+
+        $page->assertStatus(200);
+        $page->assertSee(lang('Sales.amount_due'));
+        $page->assertSee(to_currency('516.5'));
+        $page->assertDontSee(to_currency('-516.5'));
     }
 
     public function testGetInvoice_ShowsASaleWithoutADiscountWithoutItsRow(): void
@@ -9258,6 +9315,26 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertStringNotContainsString('Quote valid for 14 days', $invoiceHtml);
         $this->assertStringContainsString('Quote valid for 14 days', $quoteHtml);
         $this->assertStringNotContainsString('class="doc-terms"', $workOrder);
+    }
+
+    public function testRenderPdfHtml_PrintsTheDefaultCommentsOfTheQuoteOnAQuoteAndNotThoseOfTheInvoice(): void
+    {
+        $invoice = $this->postedInvoice();
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        $before = $this->withPrintSettings(['invoice_default_comments' => 'Pay within 30 days', 'quote_default_comments' => 'Offer valid for 14 days']);
+
+        try {
+            $sale        = ['comments' => ''] + $this->savedSaleData($invoice['saleId']);
+            $quoteHtml   = view('documents/pdf', ['type' => 'quote', 'sale' => $sale]);
+            $invoiceHtml = view('documents/pdf', ['type' => 'invoice', 'sale' => $sale]);
+        } finally {
+            $this->restorePrintSettings($before);
+        }
+
+        $this->assertStringContainsString('Offer valid for 14 days', $quoteHtml);
+        $this->assertStringNotContainsString('Pay within 30 days', $quoteHtml);
+        $this->assertStringContainsString('Pay within 30 days', $invoiceHtml);
+        $this->assertStringNotContainsString('Offer valid for 14 days', $invoiceHtml);
     }
 
     public function testRenderPdfHtml_PrintsNoTermsBlockWhileNoTermsAreSaved(): void

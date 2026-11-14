@@ -30,6 +30,7 @@ return [
     'name'                       => 'Name',
     'name_required'              => 'The name is required.',
     'new'                        => 'New role',
+    'no_roles_to_display'        => 'There are no roles to display.',
     'none_yet'                   => 'There are no roles yet.',
     'permissions'                => 'Permissions',
     'permissions_help'           => 'Choose what the role allows. Each check is made on the permission itself: choosing one does not choose the others it usually needs.',

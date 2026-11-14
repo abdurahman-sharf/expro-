@@ -6,6 +6,7 @@
  * @var string $employee
  * @var float  $discount
  * @var array  $cart
+ * @var float  $prediscount_subtotal
  * @var float  $subtotal
  * @var array  $taxes
  * @var float  $total
@@ -81,16 +82,15 @@ foreach ($payments as $payment) {
     </div>
 
     <dl class="rt-totals">
-        <?php if ($showDiscountTotals || $config['receipt_show_taxes']): ?>
-            <div><dt><?= lang('Sales.sub_total') ?></dt><dd><?= documentIsolate(to_currency($subtotal)) ?></dd></div>
-        <?php endif; ?>
         <?php if ($showDiscountTotals): ?>
+            <div><dt><?= lang('Sales.sub_total') ?></dt><dd><?= documentIsolate(to_currency($prediscount_subtotal ?? $subtotal)) ?></dd></div>
             <div><dt><?= lang('Sales.discount') ?></dt><dd><?= documentIsolate(to_currency($discount * -1)) ?></dd></div>
         <?php endif; ?>
         <?php if (bccomp((string) ($invoice_discount ?? '0'), '0') !== 0): ?>
             <div><dt><?= esc(invoiceDiscountLabel($invoice_discount_entry ?? null)) ?></dt><dd><?= documentIsolate(to_currency($invoice_discount * -1)) ?></dd></div>
         <?php endif; ?>
         <?php if ($config['receipt_show_taxes']): ?>
+            <div><dt><?= lang('Sales.sub_total') ?></dt><dd><?= documentIsolate(to_currency($subtotal)) ?></dd></div>
             <?php foreach ($taxes as $tax): ?>
                 <div><dt><?= documentIsolate((float) $tax['tax_rate'] . '%') ?> <?= esc($tax['tax_group']) ?></dt><dd><?= documentIsolate(to_currency_tax($tax['sale_tax_amount'], $tax['tax_type'] ?? null)) ?></dd></div>
             <?php endforeach; ?>
@@ -105,7 +105,7 @@ foreach ($payments as $payment) {
         <?php if (isset($cur_giftcard_value) && $showGiftcardBalance): ?>
             <div><dt><?= lang('Sales.giftcard_balance') ?></dt><dd><?= documentIsolate(to_currency($cur_giftcard_value)) ?></dd></div>
         <?php endif; ?>
-        <div class="rt-balance"><dt><?= lang($amount_change >= 0 ? ($onlyCheck ? 'Sales.check_balance' : 'Sales.change_due') : 'Sales.amount_due') ?></dt><dd><?= documentIsolate(to_currency($amount_change)) ?></dd></div>
+        <div class="rt-balance"><dt><?= lang($amount_change >= 0 ? ($onlyCheck ? 'Sales.check_balance' : 'Sales.change_due') : 'Sales.amount_due') ?></dt><dd><?= documentIsolate(to_currency(abs($amount_change))) ?></dd></div>
     </dl>
 
     <?php if (! empty($config['return_policy'])): ?>

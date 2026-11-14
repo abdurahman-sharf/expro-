@@ -169,6 +169,33 @@ class LocaleHelperTest extends CIUnitTestCase
         $this->assertSame($expected, to_currency_exact($amount));
     }
 
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function amountThatRoundsToZeroProvider(): array
+    {
+        return [
+            'negative zero'               => ['-0'],
+            'negative zero with decimals' => ['-0.00'],
+            'below half a cent'           => ['-0.004'],
+        ];
+    }
+
+    #[DataProvider('amountThatRoundsToZeroProvider')]
+    public function testToCurrency_PrintsNoSignForAnAmountThatRoundsToZero(string $amount): void
+    {
+        $this->useNumbers(2);
+
+        $this->assertSame('$0.00', to_currency($amount));
+    }
+
+    public function testToCurrency_KeepsTheSignOfARealNegativeAmount(): void
+    {
+        $this->useNumbers(2);
+
+        $this->assertSame('-$0.01', to_currency('-0.01'));
+    }
+
     public function testToCurrencyExact_ShowsNothingForNothing(): void
     {
         $this->useNumbers(2);

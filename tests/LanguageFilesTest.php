@@ -789,4 +789,37 @@ class LanguageFilesTest extends CIUnitTestCase
             $this->assertNotSame('', $messages['entity_' . $entity] ?? '', "{$locale} lacks the audit record {$entity}");
         }
     }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function emptyTableMessageProvider(): array
+    {
+        return [
+            'roles'              => ['Roles', 'no_roles_to_display'],
+            'price lists'        => ['Price_lists', 'no_price_lists_to_display'],
+            'revenue categories' => ['Revenue_categories', 'no_revenue_categories_to_display'],
+            'custom fields'      => ['Custom_fields', 'no_custom_fields_to_display'],
+        ];
+    }
+
+    #[DataProvider('emptyTableMessageProvider')]
+    public function testTableFiles_SayWhenTheirTableIsEmpty(string $file, string $key): void
+    {
+        foreach (['en', 'en-GB', 'ar-EG', 'ar-LB'] as $locale) {
+            $messages = include __DIR__ . "/../app/Language/{$locale}/{$file}.php";
+
+            $this->assertNotSame('', $messages[$key] ?? '', "{$locale} {$file} lacks {$key}, which the empty table shows as it is");
+        }
+    }
+
+    #[DataProvider('arabicLocaleProvider')]
+    public function testLoginFile_SeparatesTheNameOfTheProductFromTheWordBeforeIt(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Login.php";
+
+        foreach (['welcome', 'migration_needed'] as $key) {
+            $this->assertMatchesRegularExpression('/\p{Arabic} \{0\}/u', $messages[$key], "{$locale} {$key} runs the name of the product into the word before it");
+        }
+    }
 }

@@ -544,16 +544,19 @@ function to_decimals(?string $number, ?string $decimals = null, int $type = Numb
     }
 
     $config = config(OSPOS::class)->settings;
+    $digits = empty($decimals) ? DEFAULT_PRECISION : $config[$decimals];
     $fmt = new NumberFormatter(numberFormatterLocale($config['number_locale']), $type);
-    $fmt->setAttribute(NumberFormatter::MIN_FRACTION_DIGITS, empty($decimals) ? DEFAULT_PRECISION : $config[$decimals]);
-    $fmt->setAttribute(NumberFormatter::MAX_FRACTION_DIGITS, empty($decimals) ? DEFAULT_PRECISION : $config[$decimals]);
+    $fmt->setAttribute(NumberFormatter::MIN_FRACTION_DIGITS, $digits);
+    $fmt->setAttribute(NumberFormatter::MAX_FRACTION_DIGITS, $digits);
 
     if (empty($config['thousands_separator'])) {
         $fmt->setTextAttribute(NumberFormatter::GROUPING_SEPARATOR_SYMBOL, '');
     }
     $fmt->setSymbol(NumberFormatter::CURRENCY_SYMBOL, $config['currency_symbol']);
 
-    return $fmt->format((float) $number);
+    $value = (float) $number;
+
+    return $fmt->format(round($value, (int) $digits) == 0.0 ? 0.0 : $value);
 }
 
 /**

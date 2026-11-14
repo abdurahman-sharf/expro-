@@ -5,6 +5,7 @@
  * @var string $employee
  * @var array  $cart
  * @var float  $discount
+ * @var float  $prediscount_subtotal
  * @var float  $subtotal
  * @var array  $taxes
  * @var float  $total
@@ -111,7 +112,7 @@ $summaryRow = static fn (string $label, string $value, string $style = ''): stri
         <?php endforeach; ?>
 
         <?php if ($config['receipt_show_total_discount'] && $discount > 0): ?>
-            <?= $summaryRow(lang('Sales.sub_total'), to_currency($subtotal), 'border-top: 2px solid #042359;') ?>
+            <?= $summaryRow(lang('Sales.sub_total'), to_currency($prediscount_subtotal ?? $subtotal), 'border-top: 2px solid #042359;') ?>
             <?= $summaryRow(lang('Sales.discount'), to_currency($discount * -1)) ?>
         <?php endif; ?>
 
@@ -140,7 +141,7 @@ $summaryRow = static fn (string $label, string $value, string $style = ''): stri
             <?= $summaryRow(lang('Sales.giftcard_balance'), to_currency($cur_giftcard_value)) ?>
         <?php endif; ?>
 
-        <?= $summaryRow(lang($amount_change >= 0 ? ($onlyCheck ? 'Sales.check_balance' : 'Sales.change_due') : 'Sales.amount_due'), to_currency($amount_change), 'font-weight: bold;') ?>
+        <?= $summaryRow(lang($amount_change >= 0 ? ($onlyCheck ? 'Sales.check_balance' : 'Sales.change_due') : 'Sales.amount_due'), to_currency(abs($amount_change)), 'font-weight: bold;') ?>
     </table>
 
     <?php if (! empty($config['return_policy'])): ?>

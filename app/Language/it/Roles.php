@@ -30,6 +30,7 @@ return [
     'name'                       => '',
     'name_required'              => '',
     'new'                        => '',
+    'no_roles_to_display'        => '',
     'none_yet'                   => '',
     'permissions'                => '',
     'permissions_help'           => '',

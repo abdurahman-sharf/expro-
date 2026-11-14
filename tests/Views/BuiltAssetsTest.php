@@ -48,6 +48,14 @@ final class BuiltAssetsTest extends CIUnitTestCase
         }
     }
 
+    public function testBuild_KeepsAnAmountOfAThermalReceiptOnOneLine(): void
+    {
+        $styles = (string) file_get_contents(ROOTPATH . 'public/assets/css/app.css');
+
+        $this->assertMatchesRegularExpression('/\.rt-totals dd[^{]*\{[^}]*white-space: nowrap;/', $styles, 'an amount of the totals is cut in two on paper of 58 mm');
+        $this->assertMatchesRegularExpression('/\.rt-calc > :last-child[^{]*\{[^}]*white-space: nowrap;/', $styles, 'the total of a line is cut in two on paper of 58 mm');
+    }
+
     private function bundleOf(string $directory, string $suffix, string $separator): string
     {
         $texts = [];

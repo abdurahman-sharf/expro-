@@ -5,6 +5,7 @@
  * @var string $employee
  * @var float $discount
  * @var array $cart
+ * @var float $prediscount_subtotal
  * @var float $subtotal
  * @var array $taxes
  * @var float $total
@@ -92,7 +93,7 @@
         <?php if ($config['receipt_show_total_discount'] && $discount > 0) { ?>
             <tr>
                 <td colspan="2" style="text-align: right; border-top: 2px solid #000000;"><?= lang('Sales.sub_total') ?></td>
-                <td style="text-align: right; border-top: 2px solid #000000;"><?= to_currency($subtotal) ?></td>
+                <td style="text-align: right; border-top: 2px solid #000000;"><?= to_currency($prediscount_subtotal ?? $subtotal) ?></td>
             </tr>
             <tr>
                 <td colspan="2" class="total-value"><?= lang('Sales.discount') ?>:</td>
@@ -161,7 +162,7 @@
         <?php } ?>
         <tr>
             <td colspan="2" style="text-align: right;"> <?= lang($amount_change >= 0 ? ($only_sale_check ? 'Sales.check_balance' : 'Sales.change_due') : 'Sales.amount_due') ?> </td>
-            <td class="total-value"><?= to_currency($amount_change) ?></td>
+            <td class="total-value"><?= to_currency(abs($amount_change)) ?></td>
         </tr>
     </table>
 

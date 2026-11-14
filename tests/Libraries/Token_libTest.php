@@ -12,11 +12,19 @@ use Locale;
 class Token_libTest extends CIUnitTestCase
 {
     private Token_lib $tokenLib;
+    private string $defaultLocale;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->tokenLib = new Token_lib();
+        $this->tokenLib      = new Token_lib();
+        $this->defaultLocale = Locale::getDefault();
+    }
+
+    protected function tearDown(): void
+    {
+        Locale::setDefault($this->defaultLocale);
+        parent::tearDown();
     }
 
     public function testRenderReturnsInputStringWhenNoTokens(): void
