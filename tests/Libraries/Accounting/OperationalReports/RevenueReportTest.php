@@ -381,4 +381,22 @@ class RevenueReportTest extends CIUnitTestCase
             $this->assertFalse($tie->isRefused(), $tie->labelKey);
         }
     }
+
+    public function testBuild_TakesAnInvoiceWithABlankCurrencyForOneInTheBase(): void
+    {
+        $this->enableDollars();
+        $invoice = $this->invoiceDated('115', $this->daysAgo(3), null, $this->customerId, [$this->payment(lang('Sales.cash'), '100')]);
+
+        $this->assertGreaterThan(0, $invoice);
+
+        $this->accountingDb()->table('sales')->where('sale_id', $invoice)->update(['currency_code' => '', 'currency_rate' => '3.75000000']);
+
+        $table = $this->table(RevenueGroup::Customer);
+
+        $this->assertCount(3, $table->ties);
+
+        foreach ($table->ties as $tie) {
+            $this->assertFalse($tie->isRefused(), $tie->labelKey);
+        }
+    }
 }

@@ -701,6 +701,15 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('accounting_reports/supplier_balances', $this->reportsIndexOf(['reports_suppliers', 'accounting_journals'], '1'));
     }
 
+    /**
+     * The two ends of a range of hours encoded so many times that they reach the controller still encoded once,
+     * which the report models decode a last time and so must the note.
+     */
+    private function hoursStillEncoded(string $from, string $to): string
+    {
+        return rawurlencode(rawurlencode(rawurlencode($from))) . '/' . rawurlencode(rawurlencode(rawurlencode($to)));
+    }
+
     private function inDollars(int $saleId): void
     {
         $this->accountingDb()->table('sales')->where('sale_id', $saleId)->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
@@ -904,15 +913,14 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->readerOfTheBranches(null);
         $this->inDollars($this->reportSales['b']);
         config(OSPOS::class)->settings['date_or_time_format'] = '1';
-        $hours = static fn (string $from, string $to): string => rawurlencode(rawurlencode($from)) . '/' . rawurlencode(rawurlencode($to));
 
         $this->assertStringContainsString(
             'POS ' . $this->reportSales['b'] . ' (USD)',
-            $this->pageOf('/reports/summary_sales/' . $hours($this->reportDay . ' 09:00:00', $this->reportDay . ' 11:00:00') . '/sales/all'),
+            $this->pageOf('/reports/summary_sales/' . $this->hoursStillEncoded($this->reportDay . ' 09:00:00', $this->reportDay . ' 11:00:00') . '/sales/all'),
         );
         $this->assertStringNotContainsString(
             'report_foreign_currency',
-            $this->pageOf('/reports/summary_sales/' . $hours($this->reportDay . ' 10:30:00', $this->reportDay . ' 11:00:00') . '/sales/all'),
+            $this->pageOf('/reports/summary_sales/' . $this->hoursStillEncoded($this->reportDay . ' 10:30:00', $this->reportDay . ' 11:00:00') . '/sales/all'),
         );
     }
 
@@ -922,15 +930,14 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->readerOfTheBranches(null);
         $this->accountingDb()->table('receivings')->where('receiving_id', $this->reportReceivings['a'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
         config(OSPOS::class)->settings['date_or_time_format'] = '1';
-        $hours = static fn (string $from, string $to): string => rawurlencode(rawurlencode($from)) . '/' . rawurlencode(rawurlencode($to));
 
         $this->assertStringContainsString(
             'RECV ' . $this->reportReceivings['a'] . ' (USD)',
-            $this->pageOf('/reports/detailed_receivings/' . $hours($this->reportDay . ' 08:00:00', $this->reportDay . ' 10:00:00') . '/all/all'),
+            $this->pageOf('/reports/detailed_receivings/' . $this->hoursStillEncoded($this->reportDay . ' 08:00:00', $this->reportDay . ' 10:00:00') . '/all/all'),
         );
         $this->assertStringNotContainsString(
             'report_foreign_currency',
-            $this->pageOf('/reports/detailed_receivings/' . $hours($this->reportDay . ' 09:30:00', $this->reportDay . ' 10:00:00') . '/all/all'),
+            $this->pageOf('/reports/detailed_receivings/' . $this->hoursStillEncoded($this->reportDay . ' 09:30:00', $this->reportDay . ' 10:00:00') . '/all/all'),
         );
     }
 }
