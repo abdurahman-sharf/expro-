@@ -36,19 +36,25 @@ final class R6Clock
             self::$now = (int) strtotime($env);
         }
 
-        $namespaces = [];
-        $iterator   = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($appDirectory, \FilesystemIterator::SKIP_DOTS));
+        $cache      = sys_get_temp_dir() . '/r6-clock-namespaces-' . md5($appDirectory) . '.json';
+        $namespaces = is_file($cache) && getenv('R6_REFRESH') !== '1' ? array_fill_keys((array) json_decode((string) file_get_contents($cache), true), true) : [];
 
-        foreach ($iterator as $file) {
-            if ($file->getExtension() !== 'php') {
-                continue;
+        if ($namespaces === []) {
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($appDirectory, \FilesystemIterator::SKIP_DOTS));
+
+            foreach ($iterator as $file) {
+                if ($file->getExtension() !== 'php') {
+                    continue;
+                }
+
+                $source = (string) file_get_contents($file->getPathname());
+
+                if (preg_match('/^namespace\s+([A-Za-z0-9_\\\\]+)\s*;/m', $source, $match) === 1 && preg_match('/(^|[^>:\\\\\w$])(date|gmdate|time|strtotime)\(/m', $source) === 1) {
+                    $namespaces[$match[1]] = true;
+                }
             }
 
-            $source = (string) file_get_contents($file->getPathname());
-
-            if (preg_match('/^namespace\s+([A-Za-z0-9_\\\\]+)\s*;/m', $source, $match) === 1 && preg_match('/(^|[^>:\\\\\w$])(date|gmdate|time|strtotime)\(/m', $source) === 1) {
-                $namespaces[$match[1]] = true;
-            }
+            file_put_contents($cache, json_encode(array_keys($namespaces)));
         }
 
         foreach (array_keys($namespaces) as $namespace) {

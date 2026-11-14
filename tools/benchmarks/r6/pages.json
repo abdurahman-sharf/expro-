@@ -1,0 +1,350 @@
+[
+ {
+  "name": "sales_register_page",
+  "path": "/sales"
+ },
+ {
+  "name": "sales_manage_page",
+  "path": "/sales/manage"
+ },
+ {
+  "name": "sales_search_30d",
+  "path": "/sales/search?search=&limit=25&offset=0&sort=sale_id&order=desc&start_date={DAY30}&end_date={LAST}"
+ },
+ {
+  "name": "sales_search_alldates",
+  "path": "/sales/search?search=&limit=25&offset=0&sort=sale_id&order=desc"
+ },
+ {
+  "name": "sales_search_offset5000",
+  "path": "/sales/search?search=&limit=25&offset=5000&sort=sale_id&order=desc"
+ },
+ {
+  "name": "sales_search_by_name",
+  "path": "/sales/search?search=Alharbi&limit=25&offset=0&sort=sale_id&order=desc"
+ },
+ {
+  "name": "sales_search_due_invoices",
+  "path": "/sales/search?search=&limit=25&offset=0&sort=sale_id&order=desc&only_invoices=1&filters%5B%5D=only_due"
+ },
+ {
+  "name": "sales_suspended",
+  "path": "/sales/suspended"
+ },
+ {
+  "name": "items_page",
+  "path": "/items"
+ },
+ {
+  "name": "items_search_name",
+  "path": "/items/search?search=Olive&limit=25&offset=0&sort=items.item_id&order=desc"
+ },
+ {
+  "name": "items_search_barcode",
+  "path": "/items/search?search=6280000001234&limit=25&offset=0&sort=items.item_id&order=desc"
+ },
+ {
+  "name": "items_suggest",
+  "path": "/items/suggest?term=oli"
+ },
+ {
+  "name": "pos_item_search",
+  "path": "/sales/itemSearch?term=oli"
+ },
+ {
+  "name": "customers_page",
+  "path": "/customers"
+ },
+ {
+  "name": "customers_search_name",
+  "path": "/customers/search?search=Ahmed&limit=25&offset=0&sort=last_name&order=asc"
+ },
+ {
+  "name": "customers_suggest",
+  "path": "/customers/suggest?term=Ahm"
+ },
+ {
+  "name": "suppliers_search",
+  "path": "/suppliers/search?search=Supplier&limit=25&offset=0&sort=last_name&order=asc"
+ },
+ {
+  "name": "receivings_register_page",
+  "path": "/receivings"
+ },
+ {
+  "name": "expenses_page",
+  "path": "/expenses"
+ },
+ {
+  "name": "expenses_search",
+  "path": "/expenses/search?search=&limit=25&offset=0&sort=expense_id&order=desc"
+ },
+ {
+  "name": "journals_page",
+  "path": "/accounting_journals"
+ },
+ {
+  "name": "journals_search_default",
+  "path": "/accounting_journals/search?search=&limit=25&offset=0&sort=journal_date&order=desc"
+ },
+ {
+  "name": "journals_search_filters",
+  "path": "/accounting_journals/search?search=Sale&limit=25&offset=0&sort=journal_date&order=desc&from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "receivables_page",
+  "path": "/accounting_receivables"
+ },
+ {
+  "name": "receivables_search",
+  "path": "/accounting_receivables/search?search=&limit=25&offset=0&sort=balance&order=desc"
+ },
+ {
+  "name": "customer_ledger_heaviest",
+  "path": "/accounting_receivables/customer/{CUSTOMER}"
+ },
+ {
+  "name": "receivables_aged",
+  "path": "/accounting_receivables/aged_ledger"
+ },
+ {
+  "name": "receivables_balances",
+  "path": "/accounting_receivables/balances"
+ },
+ {
+  "name": "receivables_payments",
+  "path": "/accounting_receivables/payments"
+ },
+ {
+  "name": "payables_page",
+  "path": "/accounting_payables"
+ },
+ {
+  "name": "supplier_ledger",
+  "path": "/accounting_payables/supplier/{SUPPLIER}"
+ },
+ {
+  "name": "payables_aged",
+  "path": "/accounting_payables/aged_ledger"
+ },
+ {
+  "name": "payables_balances",
+  "path": "/accounting_payables/balances"
+ },
+ {
+  "name": "trial_balance",
+  "path": "/accounting_reports"
+ },
+ {
+  "name": "trial_balance_alltime",
+  "path": "/accounting_reports?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "trial_balance_entities",
+  "path": "/accounting_reports?type=movement&entities=1&empty=1"
+ },
+ {
+  "name": "account_ledger_cash",
+  "path": "/accounting_reports/ledger?account={CASH}"
+ },
+ {
+  "name": "account_ledger_cash_30d",
+  "path": "/accounting_reports/ledger?account={CASH}&from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "income_statement",
+  "path": "/accounting_statements/income_statement"
+ },
+ {
+  "name": "balance_sheet",
+  "path": "/accounting_statements/balance_sheet"
+ },
+ {
+  "name": "profit_loss",
+  "path": "/accounting_statements/profit_loss"
+ },
+ {
+  "name": "cash_flow",
+  "path": "/accounting_statements/cash_flow"
+ },
+ {
+  "name": "tax_report",
+  "path": "/accounting_reports/tax"
+ },
+ {
+  "name": "inventory_valuation",
+  "path": "/accounting_reports/inventory_valuation"
+ },
+ {
+  "name": "treasury_statement_1",
+  "path": "/accounting_treasuries/statement/1"
+ },
+ {
+  "name": "treasury_statement_2",
+  "path": "/accounting_treasuries/statement/2"
+ },
+ {
+  "name": "sales_report_revenue_all",
+  "path": "/accounting_reports/revenue?show=1&group=customer&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "sales_report_revenue_30d",
+  "path": "/accounting_reports/revenue?show=1&group=customer&from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "sales_report_clients_sales_all",
+  "path": "/accounting_reports/clients_sales?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "sales_report_clients_sales_30d",
+  "path": "/accounting_reports/clients_sales?show=1&from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "sales_report_item_sales_all",
+  "path": "/accounting_reports/item_sales?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "sales_report_item_sales_30d",
+  "path": "/accounting_reports/item_sales?show=1&from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "sales_report_profit_all",
+  "path": "/accounting_reports/profit?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "sales_report_profit_30d",
+  "path": "/accounting_reports/profit?show=1&from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "sales_report_item_profit_all",
+  "path": "/accounting_reports/item_profit?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "sales_report_item_profit_30d",
+  "path": "/accounting_reports/item_profit?show=1&from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "sales_report_payments_all",
+  "path": "/accounting_reports/payments?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "sales_report_payments_30d",
+  "path": "/accounting_reports/payments?show=1&from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "sales_report_advance_payments_all",
+  "path": "/accounting_reports/advance_payments?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "sales_report_advance_payments_30d",
+  "path": "/accounting_reports/advance_payments?show=1&from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "sales_report_net_position_all",
+  "path": "/accounting_reports/net_position?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "sales_report_net_position_30d",
+  "path": "/accounting_reports/net_position?show=1&from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "sales_report_invoice_returns_all",
+  "path": "/accounting_reports/invoice_returns?show=1&from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "sales_report_invoice_returns_30d",
+  "path": "/accounting_reports/invoice_returns?show=1&from={DAY30}&to={LAST}"
+ },
+ {
+  "name": "family_purchases_all",
+  "path": "/accounting_reports/purchases?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_supplier_purchases_all",
+  "path": "/accounting_reports/supplier_purchases?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_product_purchases_all",
+  "path": "/accounting_reports/product_purchases?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_supplier_payments_all",
+  "path": "/accounting_reports/supplier_payments?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_purchase_payments_all",
+  "path": "/accounting_reports/purchase_payments?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_supplier_directory_all",
+  "path": "/accounting_reports/supplier_directory?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_supplier_aged_ledger_all",
+  "path": "/accounting_reports/supplier_aged_ledger?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_supplier_balances_all",
+  "path": "/accounting_reports/supplier_balances?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_stock_count_sheet_all",
+  "path": "/accounting_reports/stock_count_sheet?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_stock_operations_all",
+  "path": "/accounting_reports/stock_operations?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_stock_movements_all",
+  "path": "/accounting_reports/stock_movements?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_stock_balance_all",
+  "path": "/accounting_reports/stock_balance?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_product_balance_all",
+  "path": "/accounting_reports/product_balance?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_stock_aging_all",
+  "path": "/accounting_reports/stock_aging?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_stock_turnover_all",
+  "path": "/accounting_reports/stock_turnover?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_expenses_all",
+  "path": "/accounting_reports/expenses?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_income_all",
+  "path": "/accounting_reports/income?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_journal_movements_all",
+  "path": "/accounting_reports/journal_movements?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_cost_centers_all",
+  "path": "/accounting_reports/cost_centers?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_journals_all",
+  "path": "/accounting_reports/journals?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_chart_all",
+  "path": "/accounting_reports/chart?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_financial_movements_all",
+  "path": "/accounting_reports/financial_movements?from=2024-11-01&to={LAST}"
+ },
+ {
+  "name": "family_journal_movements_30d",
+  "path": "/accounting_reports/journal_movements?from={DAY30}&to={LAST}"
+ }
+]
