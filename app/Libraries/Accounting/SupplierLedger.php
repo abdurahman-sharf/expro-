@@ -40,11 +40,14 @@ final class SupplierLedger
         $returned  = [];
         $credits   = [];
         $figures   = [];
+        $currency  = [];
 
         foreach ($purchases as $purchase) {
             if ($purchase->receiving_type !== ReceivingType::Return->value) {
                 continue;
             }
+
+            $currency[CreditSource::DEBIT_NOTE . ':' . $purchase->receiving_id] = self::currencyOf($purchase);
 
             $worth  = bcsub('0', $purchase->total, SaleAmounts::SCALE);
             $amount = bcadd($worth, $paid[(int) $purchase->receiving_id] ?? '0', SaleAmounts::SCALE);
@@ -63,6 +66,7 @@ final class SupplierLedger
             }
 
             $receivingId           = (int) $purchase->receiving_id;
+            [$code, $rate]         = self::currencyOf($purchase);
             $figures[$receivingId] = new PurchaseFigures(
                 $receivingId,
                 (string) $purchase->doc_date,
@@ -73,6 +77,8 @@ final class SupplierLedger
                 $purchase->due_date === null ? (string) $purchase->doc_date : (string) $purchase->due_date,
                 $purchase->payment_terms_days === null ? null : (int) $purchase->payment_terms_days,
                 $purchase->receiving_type === SupplierAdvances::OPENING_TYPE,
+                $code,
+                $rate,
             );
         }
 
@@ -99,13 +105,29 @@ final class SupplierLedger
         $sources  = [];
 
         foreach ($credits as [$type, $sourceId, $origin, $date, $amount]) {
-            $sources[] = new CreditSource($type, $sourceId, $origin, $date, $amount, $applied['from'][$type . ':' . $sourceId] ?? '0.0000', $refunded[$type . ':' . $sourceId] ?? '0.0000');
+            [$code, $rate] = $currency[$type . ':' . $sourceId] ?? [null, null];
+
+            $sources[] = new CreditSource($type, $sourceId, $origin, $date, $amount, $applied['from'][$type . ':' . $sourceId] ?? '0.0000', $refunded[$type . ':' . $sourceId] ?? '0.0000', $code, $rate);
         }
 
         usort($sources, static fn (CreditSource $a, CreditSource $b): int => [$a->date, $a->sourceId] <=> [$b->date, $b->sourceId]);
         usort($list, static fn (PurchaseFigures $a, PurchaseFigures $b): int => [$a->date, $a->receivingId] <=> [$b->date, $b->receivingId]);
 
         return new SupplierPosition($supplierId, $accountId, $this->accountBalance($accountId, $asOf), $list, $sources, $asOf);
+    }
+
+    /**
+     * The currency a purchase was made in and the rate it was captured at, or nothing for a purchase in the base currency.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private static function currencyOf(object $purchase): array
+    {
+        if ($purchase->currency_code === null || $purchase->currency_code === '') {
+            return [null, null];
+        }
+
+        return [(string) $purchase->currency_code, $purchase->currency_rate === null ? null : (string) $purchase->currency_rate];
     }
 
     /**
@@ -204,7 +226,7 @@ final class SupplierLedger
         }
 
         return $this->db->query(
-            'SELECT r.receiving_id, r.receiving_type, r.receiving_time, r.return_of_receiving_id, r.due_date, r.payment_terms_days,
+            'SELECT r.receiving_id, r.receiving_type, r.receiving_time, r.return_of_receiving_id, r.due_date, r.payment_terms_days, r.currency_code, r.currency_rate,
                     COALESCE(r.invoice_date, DATE(r.receiving_time)) AS doc_date,
                     (SELECT COALESCE(SUM(l.credit - l.debit), 0) FROM ' . $this->db->prefixTable('accounting_journal_lines') . ' l WHERE l.journal_id = j.journal_id AND l.account_id = ?) AS total
              FROM ' . $this->db->prefixTable('receivings') . ' r

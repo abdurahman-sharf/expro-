@@ -523,6 +523,31 @@ class CreditSettlementTest extends CIUnitTestCase
         $this->assertTies();
     }
 
+    public function testSettle_RefusesByNameToCancelAnInvoiceWhoseCreditWouldGoToAnOpenInvoiceInDollarsAndChangesNothing(): void
+    {
+        $this->dollarsAt('3.75');
+
+        $advance = (new CustomerAdvances())->receive($this->customerId, '100.00', date('Y-m-d'), 'Cash', null, '', '', $this->advanceTaker());
+        $base    = $this->invoiceOf('100.00', null, [], SALE_TYPE_POS);
+
+        $this->assertSame(['customer_advance:' . $advance . '->' . $base . ':100.00'], $this->applications());
+
+        $this->grantInvoiceDate();
+        $this->sales->useCurrency('USD');
+        $dollars = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+
+        $this->assertGreaterThan(0, $dollars);
+
+        $journals = $this->countJournals();
+
+        $this->assertFalse($this->sales->delete($base, false, true, $this->employeeId));
+        $this->assertSame(AccountingError::CreditInForeignCurrency, $this->failure()->error);
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertSame(['customer_advance:' . $advance . '->' . $base . ':100.00'], $this->applications(), 'the credit stays on the invoice it was on');
+        $this->assertSame('375.00', bcadd($this->position()->invoice($dollars)->open(), '0', 2));
+        $this->assertTies();
+    }
+
     public function testSettle_AppliesTheCreditNoteOfAnInvoiceInDollarsToAnOlderInvoiceInTheBase(): void
     {
         $this->dollarsAt('3.75');

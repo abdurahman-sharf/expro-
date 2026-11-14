@@ -438,6 +438,7 @@ return [
     'error_cost_center_required'                 => '',
     'error_country_code_invalid'                 => '',
     'error_credit_in_foreign_currency'           => '',
+    'error_credit_in_foreign_purchase'           => '',
     'error_credit_journal_locked'                => '',
     'error_credit_limit_exceeded'                => '',
     'error_credit_payment_unknown'               => '',

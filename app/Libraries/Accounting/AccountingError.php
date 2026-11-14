@@ -444,6 +444,7 @@ enum AccountingError: string
     case ForeignDecimalsUnsupported   = 'foreign_decimals_unsupported';
     case StoredValueInForeignCurrency = 'stored_value_in_foreign_currency';
     case CreditInForeignCurrency      = 'credit_in_foreign_currency';
+    case CreditInForeignPurchase      = 'credit_in_foreign_purchase';
     case TransferRateOutOfRange       = 'transfer_rate_out_of_range';
 
 
