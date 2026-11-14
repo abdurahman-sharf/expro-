@@ -8,9 +8,11 @@ use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\CashupPosting;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
 use App\Models\Cashup;
 use App\Models\Expense;
 use App\Models\Reports\Summary_payments;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\OSPOS;
 use Config\Services;
@@ -66,7 +68,8 @@ class Cashups extends Secure_Controller
             'start_date' => $this->request->getGet('start_date', FILTER_SANITIZE_FULL_SPECIAL_CHARS),    // TODO: Is this the best way to filter dates
             'end_date'   => $this->request->getGet('end_date', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'only_unposted' => false,
-            'is_deleted' => false
+            'is_deleted' => false,
+            'branch_ids' => (new BranchGuard())->allowedBranchIds($this->personId()),
         ];
 
         // Check if any filter is set in the multiselect dropdown
@@ -88,6 +91,8 @@ class Cashups extends Secure_Controller
      */
     public function getView(int $cashupId = NEW_ENTRY): string
     {
+        $this->requireInScope($cashupId);
+
         $data = [];
 
         $data['employees'] = [];
@@ -156,7 +161,8 @@ class Cashups extends Secure_Controller
             }
 
             // Get all the transactions payment summaries
-            $reportsData = $this->summary_payments->readingTheCompany(fn (): array => $this->summary_payments->getData($inputs));
+            $readPayments = fn (): array => $this->summary_payments->getData($inputs);
+            $reportsData  = $accountingOn ? $readPayments() : $this->summary_payments->readingTheCompany($readPayments);
 
             foreach ($reportsData as $row) {
                 if ($row['trans_group'] == lang('Reports.trans_payments')) {
@@ -223,6 +229,8 @@ class Cashups extends Secure_Controller
      */
     public function getRow(int $row_id): ResponseInterface
     {
+        $this->requireInScope($row_id);
+
         $cash_ups_info = $this->cashup->get_info($row_id);
         $data_row = get_cash_up_data_row($cash_ups_info);
 
@@ -290,6 +298,18 @@ class Cashups extends Secure_Controller
             return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_deleted') . ' ' . count($cashUpsToDelete) . ' ' . lang('Cashups.one_or_multiple'), 'ids' => $cashUpsToDelete]);
         } else {
             return $this->response->setJSON(['success' => false, 'message' => $this->refusal(lang('Cashups.cannot_be_deleted')), 'ids' => $cashUpsToDelete]);
+        }
+    }
+
+    private function personId(): int
+    {
+        return (int) $this->employee->get_logged_in_employee_info()->person_id;
+    }
+
+    private function requireInScope(int $cashupId): void
+    {
+        if ($this->cashup->outsideScope($cashupId, $this->personId())) {
+            throw PageNotFoundException::forPageNotFound();
         }
     }
 

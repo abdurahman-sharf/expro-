@@ -8,6 +8,8 @@ use App\Libraries\Accounting\CashupPosting;
 use App\Libraries\Accounting\LockedRead;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
+use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use Config\OSPOS;
@@ -52,6 +54,81 @@ class Cashup extends Model
     public function accountingFailure(): ?Throwable
     {
         return $this->accountingFailure;
+    }
+
+    /**
+     * Whether a cash-up belongs to a branch the employee does not work in. A cash-up carries the branch
+     * of its drawer; one saved before the books followed cash-ups carries none and is one of the default
+     * branch while accounting is on, and belongs to nobody in particular while it is off.
+     */
+    public function outsideScope(int $cashupId, ?int $employeeId): bool
+    {
+        $branchId = $this->scopeBranchOf($cashupId);
+
+        return $branchId !== null && ! (new BranchGuard($this->db))->canAccess($branchId, $employeeId);
+    }
+
+    private function scopeBranchOf(int $cashupId): ?int
+    {
+        $row = $this->db->table('cash_up')->select('branch_id')->where('cashup_id', $cashupId)->get()->getRow();
+
+        if ($row === null) {
+            return null;
+        }
+
+        if ($row->branch_id !== null) {
+            return (int) $row->branch_id;
+        }
+
+        return (new AccountingSettings($this->db))->isEnabled() ? (new BranchGuard($this->db))->companyDefaultBranchId() : null;
+    }
+
+    /**
+     * @throws BranchException
+     */
+    private function requireScope(int $cashupId, ?int $actorId): void
+    {
+        $branchId = $this->scopeBranchOf($cashupId);
+
+        if ($branchId !== null) {
+            (new BranchGuard($this->db))->requireBranch($branchId, $actorId);
+        }
+    }
+
+    /**
+     * Whether a search limited to some branches still lists the cash-ups that carry no branch: they are
+     * the default branch's while accounting is on. It reads before the search builder exists, because a
+     * builder made later on the connection would forget the aliases of the search.
+     *
+     * @param list<int> $branchIds
+     */
+    private function listsUnbranched(array $branchIds, bool $accountingOn): bool
+    {
+        return ! $accountingOn || in_array((new BranchGuard($this->db))->companyDefaultBranchId(), $branchIds, true);
+    }
+
+    /**
+     * @param list<int> $branchIds
+     */
+    private function limitToBranches(BaseBuilder $builder, array $branchIds, bool $listsUnbranched): void
+    {
+        if ($branchIds === [] && ! $listsUnbranched) {
+            $builder->where('1 = 0', null, false);
+
+            return;
+        }
+
+        $builder->groupStart();
+
+        if ($branchIds !== []) {
+            $builder->whereIn('cash_up.branch_id', $branchIds);
+        }
+
+        if ($listsUnbranched) {
+            $builder->orWhere('cash_up.branch_id IS NULL', null, false);
+        }
+
+        $builder->groupEnd();
     }
 
     /**
@@ -113,7 +190,9 @@ class Cashup extends Model
 
         $config = config(OSPOS::class)->settings;
         $accountingOn = (new AccountingSettings($this->db))->isEnabled();
-        $builder = $this->db->table('cash_up AS cash_up');
+        $branchIds    = $filters['branch_ids'] ?? null;
+        $unbranched   = $branchIds === null ? true : $this->listsUnbranched($branchIds, $accountingOn);
+        $builder      = $this->db->table('cash_up AS cash_up');
 
         // get_found_rows case
         if ($count_only) {
@@ -160,6 +239,10 @@ class Cashup extends Model
         $builder->groupEnd();
 
         $builder->where('cash_up.deleted', $filters['is_deleted']);
+
+        if ($branchIds !== null) {
+            $this->limitToBranches($builder, $branchIds, $unbranched);
+        }
 
         if ($accountingOn && !empty($filters['only_unposted'])) {
             $builder->where('cash_up.branch_id IS NULL AND cash_up.deleted = 0', null, false);
@@ -269,6 +352,14 @@ class Cashup extends Model
     {
         $this->accountingFailure = null;
 
+        try {
+            $this->requireScope((int) $cashupId, $actorId ?? (isset($cashUpData['close_employee_id']) ? (int) $cashUpData['close_employee_id'] : null));
+        } catch (BranchException $outside) {
+            $this->accountingFailure = $outside;
+
+            return false;
+        }
+
         if (! (new AccountingSettings($this->db))->isEnabled()) {
             unset($cashUpData['branch_id'], $cashUpData['treasury_id'], $cashUpData['expected_amount_cash'], $cashUpData['cash_difference']);
 
@@ -342,6 +433,16 @@ class Cashup extends Model
     public function delete_list(array $cashupIds, ?int $actorId = null): bool
     {
         $this->accountingFailure = null;
+
+        try {
+            foreach ($cashupIds as $cashupId) {
+                $this->requireScope((int) $cashupId, $actorId);
+            }
+        } catch (BranchException $outside) {
+            $this->accountingFailure = $outside;
+
+            return false;
+        }
 
         if (! (new AccountingSettings($this->db))->isEnabled()) {
             return $this->deleteRows($cashupIds);
