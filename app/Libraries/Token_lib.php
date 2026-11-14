@@ -6,6 +6,7 @@ use App\Models\Tokens\Token;
 use Config\OSPOS;
 use IntlDateFormatter;
 use DateTime;
+use Locale;
 
 /**
  * Token library
@@ -81,7 +82,7 @@ class Token_lib
     private function applyDateFormats(string $text): string
     {
         $formatter = new IntlDateFormatter(
-            null,
+            Locale::getDefault() . '@numbers=latn',
             IntlDateFormatter::FULL,
             IntlDateFormatter::FULL,
             null,

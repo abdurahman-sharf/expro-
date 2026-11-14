@@ -7,15 +7,24 @@ use App\Models\Customer;
 use App\Models\Tokens\Token_customer;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Test\CIUnitTestCase;
+use Locale;
 
 class Token_libTest extends CIUnitTestCase
 {
     private Token_lib $tokenLib;
+    private string $defaultLocale;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->tokenLib = new Token_lib();
+        $this->tokenLib      = new Token_lib();
+        $this->defaultLocale = Locale::getDefault();
+    }
+
+    protected function tearDown(): void
+    {
+        Locale::setDefault($this->defaultLocale);
+        parent::tearDown();
     }
 
     public function testRenderReturnsInputStringWhenNoTokens(): void
@@ -354,5 +363,12 @@ class Token_libTest extends CIUnitTestCase
         $this->registerHoldingCustomer(NEW_ITEM, 'Mona', 'Zaki');
 
         $this->assertSame('INV-', $this->tokenLib->render('INV-{CU}', [], false));
+    }
+
+    public function testRender_WritesTheDateTokensWithWesternDigitsInAnArabicLocale(): void
+    {
+        Locale::setDefault('ar-EG');
+
+        $this->assertMatchesRegularExpression('/^Q\d{2}\d{2}$/', $this->tokenLib->render('Q%y%m', [], false));
     }
 }
