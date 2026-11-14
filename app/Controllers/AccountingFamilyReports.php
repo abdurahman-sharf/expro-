@@ -87,12 +87,12 @@ class AccountingFamilyReports extends AccountingController
         $label      = $this->scopeLabel($scope);
 
         try {
-            $this->source($definition, $input);
+            $source = $this->source($definition, $input);
         } catch (AccountingException $refusal) {
             return $this->response->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)->setBody($this->messageFor($refusal));
         }
 
-        return new StreamedCsvResponse($key . '_' . date('Y-m-d') . '.csv', fn (): iterable => ReportCsv::rows($this->source($definition, $input), $label));
+        return new StreamedCsvResponse($key . '_' . date('Y-m-d') . '.csv', fn (): iterable => ReportCsv::rows($source instanceof ReportStream ? $this->source($definition, $input) : $source, $label));
     }
 
     /**
