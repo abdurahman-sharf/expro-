@@ -92,6 +92,14 @@ final class Generator
             throw new RuntimeException('The generator only writes to databases whose name starts with ospos_test_.');
         }
 
+        if (getenv('R6_DEBUG') === '1') {
+            Events::on('DBQuery', static function (\CodeIgniter\Database\Query $query): void {
+                if ($query->hasError()) {
+                    fwrite(STDERR, 'DB ERROR ' . $query->getErrorCode() . ': ' . $query->getErrorMessage() . ' IN ' . substr(preg_replace('/\s+/', ' ', $query->getQuery()), 0, 300) . "\n");
+                }
+            });
+        }
+
         $this->zone      = new DateTimeZone(date_default_timezone_get());
         $this->sales     = model(Sale::class);
         $this->purchases = model(Receiving::class);
@@ -725,6 +733,7 @@ final class Generator
 
     private function at(string $moment): void
     {
+        $this->db->resetTransStatus();
         $this->clockTime = substr($moment, 11, 8);
         R6Clock::set((new DateTimeImmutable($moment, $this->zone))->getTimestamp());
         R6Clock::setDatabase($this->db);
@@ -741,7 +750,10 @@ final class Generator
     {
         $failure = $this->sales->accountingFailure() ?? $this->purchases->accountingFailure() ?? $this->expenses->accountingFailure();
 
-        return $failure === null ? 'unknown' : substr($failure::class . ':' . $failure->getMessage(), 0, 160);
+        $error   = $this->db->error();
+        $lastSql = ($error['code'] ?? 0) !== 0 ? ' [db ' . $error['code'] . ': ' . substr((string) $error['message'], 0, 100) . ']' : '';
+
+        return $failure === null ? 'unknown' . $lastSql : substr($failure::class . ':' . $failure->getMessage(), 0, 160) . $lastSql;
     }
 
     private function saveState(): void
