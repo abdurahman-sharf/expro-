@@ -1,0 +1,219 @@
+{
+  "environment": {
+    "php": "8.3.6",
+    "database": "10.11.14-MariaDB-0ubuntu0.24.04.1",
+    "cores": 4,
+    "memory_peak": "184 MB",
+    "date": "2026-11-14 04:58:34",
+    "machine": "4 cores shared with other agents, MariaDB local, run 2000 documents"
+  },
+  "documents": 2000,
+  "rolled_back": true,
+  "rows_left": [],
+  "results": [
+    {
+      "name": "sale_save_with_posting",
+      "ms": 41612.17,
+      "documents": 2000,
+      "refused": 0,
+      "ms_per_document": 20.47,
+      "ms_median": 20.4,
+      "ms_p95": 26.58,
+      "ms_max": 52.46,
+      "queries": 295710,
+      "queries_per_document": 147.9
+    },
+    {
+      "name": "readiness",
+      "ms": 471.2,
+      "queries": 1570,
+      "covered": 28
+    },
+    {
+      "name": "trial_balance",
+      "ms": 22.28,
+      "queries": 13,
+      "covered": 21
+    },
+    {
+      "name": "aged_ledger",
+      "ms": 13.71,
+      "queries": 1,
+      "covered": 51
+    },
+    {
+      "name": "sales_revenue",
+      "ms": 157.12,
+      "queries": 53,
+      "covered": 2004
+    },
+    {
+      "name": "sales_revenue_rows",
+      "ms": 150.98,
+      "queries": 53,
+      "covered": 2004
+    },
+    {
+      "name": "clients_sales",
+      "ms": 156.39,
+      "queries": 53,
+      "covered": 2004
+    },
+    {
+      "name": "item_sales",
+      "ms": 179.15,
+      "queries": 54,
+      "covered": 2004
+    },
+    {
+      "name": "item_profit",
+      "ms": 243.01,
+      "queries": 81,
+      "covered": 4010
+    },
+    {
+      "name": "payments",
+      "ms": 31.8,
+      "queries": 6,
+      "covered": 1146
+    },
+    {
+      "name": "net_position",
+      "ms": 391.22,
+      "queries": 1085,
+      "covered": 2004
+    },
+    {
+      "name": "family_purchases",
+      "ms": 6.44,
+      "queries": 13,
+      "covered": 1
+    },
+    {
+      "name": "family_supplier_purchases",
+      "ms": 3.83,
+      "queries": 13,
+      "covered": 1
+    },
+    {
+      "name": "family_product_purchases",
+      "ms": 3.39,
+      "queries": 13,
+      "covered": 1
+    },
+    {
+      "name": "family_supplier_payments",
+      "ms": 2.63,
+      "queries": 8,
+      "covered": 1
+    },
+    {
+      "name": "family_purchase_payments",
+      "ms": 5.67,
+      "queries": 20,
+      "covered": 1
+    },
+    {
+      "name": "family_supplier_directory",
+      "ms": 0.61,
+      "queries": 1,
+      "covered": 1
+    },
+    {
+      "name": "family_supplier_aged_ledger",
+      "ms": 1.76,
+      "queries": 5,
+      "covered": 1
+    },
+    {
+      "name": "family_supplier_balances",
+      "ms": 1.97,
+      "queries": 5,
+      "covered": 1
+    },
+    {
+      "name": "family_stock_count_sheet",
+      "ms": 1.95,
+      "queries": 4,
+      "covered": 1
+    },
+    {
+      "name": "family_stock_operations",
+      "ms": 27.24,
+      "queries": 1,
+      "covered": 1
+    },
+    {
+      "name": "family_stock_movements",
+      "ms": 27.57,
+      "queries": 1,
+      "covered": 42
+    },
+    {
+      "name": "family_stock_balance",
+      "ms": 1.79,
+      "queries": 4,
+      "covered": 1
+    },
+    {
+      "name": "family_product_balance",
+      "ms": 35.26,
+      "queries": 15,
+      "covered": 1
+    },
+    {
+      "name": "family_stock_aging",
+      "ms": 15.82,
+      "queries": 1,
+      "covered": 1
+    },
+    {
+      "name": "family_stock_turnover",
+      "ms": 49.5,
+      "queries": 19,
+      "covered": 1
+    },
+    {
+      "name": "family_expenses",
+      "ms": 1.66,
+      "queries": 3,
+      "covered": 1
+    },
+    {
+      "name": "family_income",
+      "ms": 0.62,
+      "queries": 2,
+      "covered": 1
+    },
+    {
+      "name": "family_journal_movements",
+      "ms": 209.97,
+      "queries": 27,
+      "covered": 5167
+    },
+    {
+      "name": "family_cost_centers",
+      "ms": 44,
+      "queries": 19,
+      "covered": 2
+    },
+    {
+      "name": "family_journals",
+      "ms": 133.86,
+      "queries": 14,
+      "covered": 1
+    },
+    {
+      "name": "family_chart",
+      "ms": 1.33,
+      "queries": 1,
+      "covered": 1
+    },
+    {
+      "name": "family_financial_movements",
+      "ms": 18.32,
+      "queries": 10,
+      "covered": 1
+    }
+  ]
+}
