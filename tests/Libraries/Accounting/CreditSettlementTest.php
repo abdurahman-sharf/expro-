@@ -606,6 +606,46 @@ class CreditSettlementTest extends CIUnitTestCase
         $this->assertSame([], $this->applications());
     }
 
+    public function testSettle_RefusesByNameTheOpeningCreditOfACustomerWhoHasAnInvoiceInDollarsOpen(): void
+    {
+        $this->dollarsAt('3.75');
+        $this->assertGreaterThan(0, $this->foreignInvoice('100'));
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        try {
+            (new CustomerOpening())->create($this->customerId, CustomerOpening::WE_OWE, '100.00', $this->daysAgo(60), '', null);
+            $this->fail('The opening credit was taken although it would have been spent on an invoice in dollars.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::CreditInForeignCurrency, $refusal->error);
+        } finally {
+            $this->setConfigValue('accounting_customer_opening', '0');
+        }
+
+        $this->assertSame([], $this->applications());
+        $this->assertSame('0.00', bcadd($this->position()->credit(), '0', 2));
+    }
+
+    public function testSettle_RefusesByNameWhatAPaymentBeyondAnInvoiceInTheBaseLeavesWhenAnInvoiceInDollarsIsOpen(): void
+    {
+        $this->dollarsAt('3.75');
+        $this->grantInvoiceDate();
+
+        $dollars = $this->foreignInvoice('100');
+        $base    = $this->invoiceDated('100.00', $this->daysAgo(1));
+
+        $this->assertGreaterThan(0, $dollars);
+
+        $payments = $this->countRows('sales_payments');
+
+        $this->assertFalse($this->sales->update($base, ['comment' => 'paid', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.cash'), 'payment_amount' => '150.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->employeeId, 'reference_code' => null],
+        ]]));
+        $this->assertSame(AccountingError::CreditInForeignCurrency, $this->failure()->error);
+        $this->assertSame($payments, $this->countRows('sales_payments'));
+        $this->assertSame([], $this->applications());
+        $this->assertTies();
+    }
+
     public function testSettle_AppliesTheCreditNoteOfAnInvoiceInDollarsToAnOlderInvoiceInTheBase(): void
     {
         $this->dollarsAt('3.75');
@@ -619,6 +659,20 @@ class CreditSettlementTest extends CIUnitTestCase
 
         $this->assertGreaterThan(0, $note);
         $this->assertSame(['credit_note:' . $note . '->' . $base . ':150.00'], $this->applications());
+        $this->assertTies();
+    }
+
+    public function testSettle_PaysACreditNoteOfAnInvoiceInDollarsIntoItAtTheRateOfTheInvoice(): void
+    {
+        $this->dollarsAt('3.75');
+        $this->sales->useCurrency('USD');
+
+        $invoice = $this->invoiceOf('100.00');
+        (new Currencies())->rates()->add(['currency_code' => 'USD', 'rate' => '3.00', 'effective_date' => date('Y-m-d')]);
+        $note = $this->creditNoteOf($invoice, '40.00');
+
+        $this->assertSame(['credit_note:' . $note . '->' . $invoice . ':150.00'], $this->applications());
+        $this->assertSame('225.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
         $this->assertTies();
     }
 
