@@ -119,7 +119,7 @@ class AccountingDebitNotes extends AccountingController
 
     private function visible(int $debitNoteId): ?object
     {
-        $note = $this->notes->find($debitNoteId);
+        $note = $this->notes->find($debitNoteId, $this->employeeId());
 
         return $note !== null && $this->branchGuard()->canAccess((int) $note->branch_id, $this->employeeId()) ? $note : null;
     }

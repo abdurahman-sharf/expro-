@@ -16,6 +16,8 @@ use App\Libraries\Accounting\SalesDebitNotes;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Organization\BranchGuard;
+use App\Libraries\Roles\RoleService;
 use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -24,6 +26,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\RoleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
@@ -37,6 +40,7 @@ class SalesDebitNotesTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
+    use RoleFixtureTrait;
     use SaleAccountingFixtureTrait;
 
     protected $migrate     = true;
@@ -743,5 +747,124 @@ class SalesDebitNotesTest extends CIUnitTestCase
         $this->assertSame(7, SalesDebitNotes::idOfKey(-1_000_000_007));
         $this->assertNull(SalesDebitNotes::idOfKey(-12));
         $this->assertNull(SalesDebitNotes::idOfKey(12));
+    }
+
+    private function ownRecordsEmployee(): int
+    {
+        $employee = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+
+        (new RoleService())->setRecordScope($employee, 'own', null);
+
+        return $employee;
+    }
+
+    /**
+     * @param array{rows: list<object>} $result
+     *
+     * @return list<int>
+     */
+    private function idsOf(array $result): array
+    {
+        $ids = array_map(static fn (object $row): int => (int) $row->debit_note_id, $result['rows']);
+
+        sort($ids);
+
+        return $ids;
+    }
+
+    public function testSearch_ListsOnlyTheNotesTheEmployeeRaisedWhenTheEmployeeSeesTheirOwnRecords(): void
+    {
+        $viewer = $this->ownRecordsEmployee();
+        $mine   = $this->raise([], $viewer);
+        $theirs = $this->raise();
+        $result = $this->notes->search([], $viewer);
+
+        $this->assertSame([$mine], $this->idsOf($result));
+        $this->assertSame(1, $result['total'], 'the count and the rows are cut alike');
+        $this->assertSame([$mine], $this->idsOf($this->notes->search(['search' => 'Omar'], $viewer)));
+        $this->assertSame([$mine, $theirs], $this->idsOf($this->notes->search([], $this->clerk)), 'whoever sees every record still sees every note');
+    }
+
+    public function testSearch_ListsOnlyTheOwnNotesWhenARoleOfTheEmployeeSeesTheOwnRecords(): void
+    {
+        $viewer = $this->employeeWithRoles([$this->createRole(['accounting_debit_notes'], 'own')], [AccountingGuard::DEBIT_NOTES_MANAGE, BranchGuard::ALL_BRANCHES]);
+        $mine   = $this->raise([], $viewer);
+
+        $this->raise();
+
+        $this->assertSame([$mine], $this->idsOf($this->notes->search([], $viewer)));
+    }
+
+    public function testSearch_ListsNothingToAnEmployeeWhoSeesTheirOwnRecordsAndRaisedNoNote(): void
+    {
+        $this->raise();
+
+        $result = $this->notes->search([], $this->ownRecordsEmployee());
+
+        $this->assertSame(0, $result['total']);
+        $this->assertSame([], $result['rows']);
+    }
+
+    public function testSearch_ListsEveryNoteWhenTheSystemAsksWithoutAnEmployee(): void
+    {
+        $first  = $this->raise();
+        $second = $this->raise([], $this->ownRecordsEmployee());
+
+        $this->assertSame([$first, $second], $this->idsOf($this->notes->search([], null)));
+    }
+
+    public function testReverse_RefusesAnotherEmployeesNoteAsOneThatDoesNotExistWhenTheEmployeeSeesTheirOwnRecords(): void
+    {
+        $id       = $this->raise();
+        $stranger = $this->ownRecordsEmployee();
+        $balance  = $this->balance($this->customerAccount());
+
+        $this->assertRefusedWith(AccountingError::DebitNoteNotFound, fn () => $this->notes->reverse($id, 'by a stranger', $stranger));
+
+        $this->assertSame('posted', $this->noteRow($id)->status);
+        $this->assertSame($balance, $this->balance($this->customerAccount()));
+        $this->assertSame(0, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'sales_debit_note', 'entity_id' => $id, 'action' => 'reversed'])->countAllResults());
+    }
+
+    public function testReverse_TakesBackTheOwnNoteOfAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $owner = $this->ownRecordsEmployee();
+        $id    = $this->raise([], $owner);
+
+        $this->notes->reverse($id, 'entered twice', $owner);
+
+        $this->assertSame('reversed', $this->noteRow($id)->status);
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+    }
+
+    public function testReverse_TakesBackTheNoteOfAnotherEmployeeWhenTheEmployeeSeesEveryRecord(): void
+    {
+        $id       = $this->raise([], $this->ownRecordsEmployee());
+        $reviewer = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+
+        $this->notes->reverse($id, 'checked and refused', $reviewer);
+
+        $this->assertSame('reversed', $this->noteRow($id)->status);
+    }
+
+    public function testReverse_RefusesAnotherEmployeesNoteWhenARoleOfTheEmployeeSeesTheOwnRecords(): void
+    {
+        $id       = $this->raise();
+        $stranger = $this->employeeWithRoles([$this->createRole(['accounting_debit_notes'], 'own')], [AccountingGuard::DEBIT_NOTES_MANAGE, BranchGuard::ALL_BRANCHES]);
+
+        $this->assertRefusedWith(AccountingError::DebitNoteNotFound, fn () => $this->notes->reverse($id, 'by a stranger', $stranger));
+        $this->assertSame('posted', $this->noteRow($id)->status);
+    }
+
+    public function testFind_HidesAnotherEmployeesNoteFromAnEmployeeWhoSeesTheirOwnRecords(): void
+    {
+        $viewer = $this->ownRecordsEmployee();
+        $mine   = $this->raise([], $viewer);
+        $theirs = $this->raise();
+
+        $this->assertNull($this->notes->find($theirs, $viewer));
+        $this->assertSame($mine, (int) $this->notes->find($mine, $viewer)->debit_note_id);
+        $this->assertSame($theirs, (int) $this->notes->find($theirs, $this->clerk)->debit_note_id);
+        $this->assertSame($theirs, (int) $this->notes->find($theirs)->debit_note_id, 'the system reads every note');
     }
 }
