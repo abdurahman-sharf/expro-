@@ -284,6 +284,20 @@ class CashupControllerTest extends CIUnitTestCase
         }
     }
 
+    public function testPostSave_SaysTheDateIsNotValidWhenItIsNotADateAndSavesNothing(): void
+    {
+        $this->accountingCashier();
+
+        foreach (['open_date', 'close_date'] as $field) {
+            $result = $this->saveClosing($this->closingForm('485.50', [$field => 'not a date']));
+
+            $this->assertFalse($result['success']);
+            $this->assertSame(lang('Accounting.error_invalid_date'), $result['message']);
+        }
+
+        $this->assertSame(0, $this->countRows('cash_up'));
+    }
+
     public function testPostSave_PostsNothingWhenTheCountIsWhatWasExpected(): void
     {
         $this->accountingCashier();

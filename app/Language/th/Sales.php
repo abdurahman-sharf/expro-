@@ -217,6 +217,7 @@ return [
     'key_system'                        => 'ทางลัดระบบ',
     'key_tendered'                      => 'แก้ไขจำนวนเงินรับมา',
     'key_title'                         => 'ทางลัดคียบอร์ดงานขาย',
+    'line_not_a_number'                 => '',
     'mc'                                => '',
     'mixed_branches'                    => '',
     'mode'                              => 'รูปแบบการลงทะเบียน',

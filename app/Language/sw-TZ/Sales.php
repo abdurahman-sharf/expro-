@@ -217,6 +217,7 @@ return [
     'key_system'                        => 'Vifupisho vya Mfumo',
     'key_tendered'                      => 'Hariri Kiasi Kilicholipwa',
     'key_title'                         => 'Vifupisho vya Kibodi (Keyboard) vya Mauzo',
+    'line_not_a_number'                 => '',
     'mc'                                => '',
     'mixed_branches'                    => '',
     'mode'                              => 'Hali ya Usajili',

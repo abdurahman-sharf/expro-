@@ -217,6 +217,7 @@ return [
     'key_system'                        => 'Phím tắt hệ thống',
     'key_tendered'                      => 'Edit Amount Tendered',
     'key_title'                         => 'Phím tắt bán hàng',
+    'line_not_a_number'                 => '',
     'mc'                                => '',
     'mixed_branches'                    => '',
     'mode'                              => 'Chế độ đăng ký',

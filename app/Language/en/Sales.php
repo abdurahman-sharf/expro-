@@ -217,6 +217,7 @@ return [
     'key_system'                        => 'System Shortcuts',
     'key_tendered'                      => 'Edit Amount Tendered',
     'key_title'                         => 'Sales Keyboard Shortcuts',
+    'line_not_a_number'                 => 'The quantity, the price and the discount of a line must be numbers.',
     'mc'                                => '',
     'mixed_branches'                    => 'A sale can sell only from the stock locations of one branch. Remove the items of the other branch.',
     'mode'                              => 'Register Mode',

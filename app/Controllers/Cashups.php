@@ -249,6 +249,10 @@ class Cashups extends Secure_Controller
         $closeDate = $this->request->getPost('close_date');
         $closeDateFormatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $closeDate);
 
+        if ($openDateFormatter === false || $closeDateFormatter === false) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Accounting.error_invalid_date'), 'id' => NEW_ENTRY]);
+        }
+
         $openAmountCash     = parse_decimals($this->request->getPost('open_amount_cash'));
         $transferAmountCash = parse_decimals($this->request->getPost('transfer_amount_cash'));
         $closedAmountCash   = parse_decimals($this->request->getPost('closed_amount_cash'));

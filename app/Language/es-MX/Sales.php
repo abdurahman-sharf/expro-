@@ -217,6 +217,7 @@ return [
     'key_system'                        => 'Atajos del Sistema',
     'key_tendered'                      => 'Editar Importe Licitado',
     'key_title'                         => 'Atajos de Teclado para Ventas',
+    'line_not_a_number'                 => '',
     'mc'                                => '',
     'mixed_branches'                    => '',
     'mode'                              => 'Registrar Modo',
