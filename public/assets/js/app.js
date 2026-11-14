@@ -886,8 +886,34 @@ function number_sorter(a, b) {
         });
     };
 
+    const SCROLLERS = '.table-responsive, .fixed-table-body';
+
+    const focusScrollers = function() {
+        document.querySelectorAll(SCROLLERS).forEach(function(region) {
+            const scrolls = region.scrollWidth > region.clientWidth || region.scrollHeight > region.clientHeight;
+
+            if (scrolls && !region.hasAttribute('tabindex')) {
+                region.setAttribute('tabindex', '0');
+                region.setAttribute('data-scroll-focus', '1');
+            } else if (!scrolls && region.hasAttribute('data-scroll-focus')) {
+                region.removeAttribute('tabindex');
+                region.removeAttribute('data-scroll-focus');
+            }
+        });
+    };
+
     document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('table.acc-lines').forEach(labelCells);
+        focusScrollers();
+
+        let pending = null;
+        const later = function() {
+            clearTimeout(pending);
+            pending = setTimeout(focusScrollers, 150);
+        };
+
+        window.addEventListener('resize', later);
+        new MutationObserver(later).observe(document.body, {childList: true, subtree: true});
     });
 
 })();

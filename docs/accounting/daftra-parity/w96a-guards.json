@@ -1,0 +1,460 @@
+[
+  {
+    "name": "W01 the customers of the ledger are only those with an account in the books",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "return $builder->where(\"EXISTS (SELECT 1 FROM {$accounts} acc WHERE acc.company_id = \" . (int) CompanyContext::id() . \" AND acc.entity_type = '\" . EntityAccountService::CUSTOMER . \"' AND acc.entity_id = c.person_id)\", null, false);",
+    "replace": "return $builder;",
+    "tests": [
+      "--filter",
+      "LeavesOutACustomerWithoutAnAccountInTheLedger",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "W02 the ledger offers a customer deleted after its account was opened",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "if ($mode !== self::LEDGER) {",
+    "replace": "if (true) {",
+    "tests": [
+      "--filter",
+      "OffersACustomerDeletedAfterItsAccountWasOpenedOnlyInTheLedger",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "W03 outside the ledger a deleted customer is still left out",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "return $builder->where('c.deleted', 0);",
+    "replace": "return $builder;",
+    "tests": [
+      "--filter",
+      "OffersACustomerDeletedAfterItsAccountWasOpenedOnlyInTheLedger|FindsACustomerByNameOrCompany",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "W04 the ledger mode belongs to the customer kind only",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "($mode !== self::LEDGER || $kind === self::CUSTOMER)",
+    "replace": "true",
+    "tests": [
+      "--filter",
+      "testAccepts_",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "W05 the search box is offered above the threshold of the customers of the ledger",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "if (! $this->settings->isEnabled() || ! $this->searching($kind, $mode, null)) {",
+    "replace": "if (! $this->settings->isEnabled() || ! $this->searching($kind, self::EVERY, null)) {",
+    "tests": [
+      "--filter",
+      "CountsTheCustomersOfTheLedgerAtTheThresholdAsAList",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "W06 the chosen customer is named from the ledger and not only from the live customers",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "$entry = $selected === null ? null : $this->find($kind, $mode, $selected, null);",
+    "replace": "$entry = $selected === null ? null : $this->find($kind, self::EVERY, $selected, null);",
+    "tests": [
+      "--filter",
+      "NamesAChosenCustomerThatWasDeletedButKeepsItsAccountInTheLedger",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "W07 the search box asks the lookup for the ledger mode",
+    "file": "app/Libraries/Accounting/AccountPicker.php",
+    "find": "'params'   => ['kind' => $kind, 'mode' => $mode],",
+    "replace": "'params'   => ['kind' => $kind, 'mode' => self::EVERY],",
+    "tests": [
+      "--filter",
+      "FindsCustomerFiveHundredAndOneOfTheLedger",
+      "tests/Libraries/Accounting/AccountPickerTest.php"
+    ]
+  },
+  {
+    "name": "W08 the lookup refuses a kind or a mode that does not go together",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "|| ! AccountPicker::accepts($kind, $mode)) {",
+    "replace": ") {",
+    "tests": [
+      "--filter",
+      "RejectsAKindOrAModeItDoesNotKnow|RejectsTheLedgerModeForAKindThatIsNotACustomer",
+      "tests/Controllers/AccountingLookupControllerTest.php"
+    ]
+  },
+  {
+    "name": "W09 the lookup serves customers to the holders of the customer reports",
+    "file": "app/Controllers/AccountingLookup.php",
+    "find": "'sales', 'reports_customers'],",
+    "replace": "'sales'],",
+    "tests": [
+      "--filter",
+      "ServesTheCustomersOfTheLedgerToTheHolderOfTheCustomerReports",
+      "tests/Controllers/AccountingLookupControllerTest.php"
+    ]
+  },
+  {
+    "name": "W10 above the threshold the report filter is a search box and not a list",
+    "file": "app/Controllers/AccountingOperationalReport.php",
+    "find": "return $picker === null\n            ?",
+    "replace": "return true\n            ?",
+    "tests": [
+      "--filter",
+      "FiltersByCustomerInASearchBox",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W11 the search box of the filter is the field of the form",
+    "file": "app/Controllers/AccountingOperationalReport.php",
+    "find": "base_url('accounting_lookup/search'), '#f_customer_text', AccountPicker::LEDGER)",
+    "replace": "base_url('accounting_lookup/search'), '#f_customer_search', AccountPicker::LEDGER)",
+    "tests": [
+      "--filter",
+      "testGetRevenue_FiltersByCustomerInASearchBox",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W12 the list of customers of the filter is as long as the threshold and not cut at five hundred",
+    "file": "app/Controllers/AccountingOperationalReport.php",
+    "find": "->limit((new AccountPicker())->listLimit())",
+    "replace": "->limit(500)",
+    "tests": [
+      "--filter",
+      "ListsEveryCustomerOfTheLedgerBelowTheThreshold",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W13 the filter looks for customers of the ledger and not every customer",
+    "file": "app/Controllers/AccountingOperationalReport.php",
+    "find": "base_url('accounting_lookup/search'), '#f_customer_text', AccountPicker::LEDGER)",
+    "replace": "base_url('accounting_lookup/search'), '#f_customer_text', AccountPicker::EVERY)",
+    "tests": [
+      "--filter",
+      "testGetRevenue_FiltersByCustomerInASearchBox",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W14 the filter of the customer on the screens of sales and clients is the shared one",
+    "file": "app/Controllers/AccountingSalesReports.php",
+    "find": "$this->customerField(),",
+    "replace": "['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => ['' => ''], 'value' => $this->query('customer')],",
+    "tests": [
+      "--filter",
+      "FiltersByCustomerInASearchBox",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "W14 the filter of the customer on the screens of item sales is the shared one",
+    "file": "app/Controllers/AccountingItemReports.php",
+    "find": "$this->customerField(),",
+    "replace": "['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => ['' => ''], 'value' => $this->query('customer')],",
+    "tests": [
+      "--filter",
+      "FiltersByCustomerInASearchBox",
+      "tests/Controllers/AccountingItemReportsControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "W14 the filter of the customer on the screens of profit and item profit is the shared one",
+    "file": "app/Controllers/AccountingProfitReports.php",
+    "find": "$this->customerField(),",
+    "replace": "['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => ['' => ''], 'value' => $this->query('customer')],",
+    "tests": [
+      "--filter",
+      "FiltersByCustomerInASearchBox",
+      "tests/Controllers/AccountingProfitReportsControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "W14 the filter of the customer on the screens of payments and advances is the shared one",
+    "file": "app/Controllers/AccountingPaymentReports.php",
+    "find": "$this->customerField(),",
+    "replace": "['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => ['' => ''], 'value' => $this->query('customer')],",
+    "tests": [
+      "--filter",
+      "FiltersByCustomerInASearchBox",
+      "tests/Controllers/AccountingPaymentReportsControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "W14 the filter of the customer on the screens of net position and returns is the shared one",
+    "file": "app/Controllers/AccountingNetPosition.php",
+    "find": "$this->customerField(),",
+    "replace": "['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => ['' => ''], 'value' => $this->query('customer')],",
+    "tests": [
+      "--filter",
+      "FiltersByCustomerInASearchBox",
+      "tests/Controllers/AccountingNetPositionControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "W15 the name of the chosen customer is escaped in the box",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "value=\"<?= esc($field['picker']['initial'][0]['label'] ?? '', 'attr') ?>\"",
+    "replace": "value=\"<?= $field['picker']['initial'][0]['label'] ?? '' ?>\"",
+    "tests": [
+      "--filter",
+      "EscapesTheNameOfTheChosenCustomer",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W16 the settings of the picker reach the script without breaking out of it",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;\n            const pickers",
+    "replace": "0) ?>;\n            const pickers",
+    "tests": [
+      "--filter",
+      "EscapesTheNameOfTheChosenCustomer",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W17 the box sends the number of the chosen customer under the name of the filter",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "<input type=\"hidden\" id=\"f_<?= esc($field['name'], 'attr') ?>\" name=\"<?= esc($field['name'], 'attr') ?>\"",
+    "replace": "<input type=\"hidden\" id=\"f_<?= esc($field['name'], 'attr') ?>\" name=\"<?= esc($field['name'], 'attr') ?>_id\"",
+    "tests": [
+      "--filter",
+      "NamesTheCustomerChosenInTheSearchBox|testGetRevenue_FiltersByCustomerInASearchBox",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W18 the chosen customer is shown in the box",
+    "file": "app/Views/accounting_operational/report.php",
+    "find": "esc((string) ($field['picker']['initial'][0]['id'] ?? ''), 'attr')",
+    "replace": "''",
+    "tests": [
+      "--filter",
+      "NamesTheCustomerChosenInTheSearchBox",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W19 someone who may not filter by customer gets no search box",
+    "file": "app/Controllers/AccountingSalesReports.php",
+    "find": "private const REVENUE_FILTERS = ['customer' => 'reports_customers', 'user' => 'reports_employees'];",
+    "replace": "private const REVENUE_FILTERS = ['user' => 'reports_employees'];",
+    "tests": [
+      "--filter",
+      "OffersNoSearchBoxToSomeoneWhoMayNotFilterByCustomer",
+      "tests/Controllers/AccountingSalesReportsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W20 the served script is the text of its sources",
+    "file": "public/assets/js/app.js",
+    "find": "document.querySelectorAll('table.acc-lines').forEach(labelCells);",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "ServesTheTextOfItsSourcesJoinedAsTheBuildJoinsThem",
+      "tests/Views/BuiltAssetsTest.php"
+    ]
+  },
+  {
+    "name": "W21 a rule of the print styles lives in its source and not only in the served file",
+    "file": "resources/assets/pages/document.css",
+    "find": ".doc-qr {\n",
+    "replace": "/* gone */ .doc-qr-gone {\n",
+    "tests": [
+      "--filter",
+      "ServesTheTextOfItsSourcesJoinedAsTheBuildJoinsThem",
+      "tests/Views/BuiltAssetsTest.php"
+    ]
+  },
+  {
+    "name": "W22 the receiving cart row keeps its eight columns in the source",
+    "file": "resources/assets/css/50-pos.css",
+    "find": "136px 72px 84px 84px;",
+    "replace": "136px 84px 84px;",
+    "tests": [
+      "--filter",
+      "ServesTheTextOfItsSourcesJoinedAsTheBuildJoinsThem",
+      "tests/Views/BuiltAssetsTest.php"
+    ]
+  },
+  {
+    "name": "W23 the sources are joined in the order of their names",
+    "file": "resources/assets/js/45-accounting.js",
+    "find": "let pickers = 0;",
+    "replace": "let pickers = 0;\n",
+    "tests": [
+      "--filter",
+      "JoinsTheSourcesInTheOrderOfTheirNames|ServesTheTextOfItsSourcesJoinedAsTheBuildJoinsThem",
+      "tests/Views/BuiltAssetsTest.php"
+    ]
+  },
+  {
+    "name": "W24 the branch of a location is named only for someone who works in more than one branch",
+    "file": "app/Controllers/Receivings.php",
+    "find": "|| ! (new BranchGuard())->seesBranches((int) $this->session->get('person_id'))) {",
+    "replace": ") {",
+    "tests": [
+      "--filter",
+      "LeavesTheLocationNamesAloneForSomeoneWhoWorksInOneBranch",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W25 the branch code is added to the name of the location",
+    "file": "app/Controllers/Receivings.php",
+    "find": "$locations[$locationId] .= ' (' . $code . ')';",
+    "replace": "$locations[$locationId] .= '';",
+    "tests": [
+      "--filter",
+      "NamesTheBranchOfEachLocationForSomeoneWhoWorksInMoreThanOneBranch",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W26 the code is the one of the branch of the location",
+    "file": "app/Models/Receiving.php",
+    "find": "->select('l.location_id, b.code')",
+    "replace": "->select('l.location_id, \\'--\\' AS code')",
+    "tests": [
+      "--filter",
+      "NamesTheBranchOfEachLocationForSomeoneWhoWorksInMoreThanOneBranch",
+      "tests/Controllers/ReceivingsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W27 a request that names the branches in any way but a list carries none into the links",
+    "file": "app/Libraries/Accounting/ScopedReportRequest.php",
+    "find": "return is_array($this->request->getGet('branches')) ? ($scope->isEmpty() ? [0] : $scope->ids) : null;",
+    "replace": "return $this->request->getGet('branches') === null ? null : ($scope->isEmpty() ? [0] : $scope->ids);",
+    "tests": [
+      "--filter",
+      "ReadsBranchesNamedAsOneValueAsNamingNone",
+      "tests/Controllers/AccountingStatementsControllerTest.php",
+      "tests/Controllers/AccountingInterBranchControllerTest.php"
+    ]
+  },
+  {
+    "name": "W28 a list inside the list of branches names no branch",
+    "file": "app/Libraries/Accounting/ScopedReportRequest.php",
+    "find": "is_string($id) ? (int) $id : 0",
+    "replace": "(int) $id",
+    "tests": [
+      "--filter",
+      "ReadsAListInsideTheListOfBranchesAsNamingNoBranch",
+      "tests/Controllers/AccountingInterBranchControllerTest.php"
+    ]
+  },
+  {
+    "name": "W29 the inter-branch screens read the branches the way the other reports do",
+    "file": "app/Controllers/AccountingInterBranch.php",
+    "find": "$scope = $this->requestedScope();",
+    "replace": "$scope = ReportScope::resolve(null, $this->branchIds());",
+    "tests": [
+      "--filter",
+      "LinksTheThreeFilesWithTheDayAndTheBranchesAsked|CutsTheBranchesAskedDownToTheOnesTheEmployeeWorksIn",
+      "tests/Controllers/AccountingInterBranchControllerTest.php"
+    ],
+    "all": true
+  },
+  {
+    "name": "W30 the inter-branch links carry the branches only when the request named them",
+    "file": "app/Controllers/AccountingInterBranch.php",
+    "find": "($this->branchesToCarry($scope) === null ? [] : ['branches' => $this->branchesToCarry($scope)])",
+    "replace": "['branches' => $scope->ids]",
+    "tests": [
+      "--filter",
+      "ReadsBranchesNamedAsOneValueAsNamingNoneAndCarriesNothingIntoTheFiles",
+      "tests/Controllers/AccountingInterBranchControllerTest.php"
+    ]
+  },
+  {
+    "name": "W31 a rate left empty is not shown as a purchase tax",
+    "file": "app/Helpers/tabular_helper.php",
+    "find": "if ($percent === null || $percent === '') {",
+    "replace": "if ($percent === '') {",
+    "tests": [
+      "--filter",
+      "LeavesThePurchaseTaxesEmptyWhenTheRatesFollowTheSalesTax",
+      "tests/helpers/GetItemDataRowTest.php"
+    ]
+  },
+  {
+    "name": "W32 the name of the purchase tax is shown with its rate",
+    "file": "app/Helpers/tabular_helper.php",
+    "find": "$texts[] = ($name === '' ? '' : $name . ' ') . to_decimals",
+    "replace": "$texts[] = to_decimals",
+    "tests": [
+      "--filter",
+      "ShowsThePurchaseTaxesOfTheItemByNameAndRate",
+      "tests/helpers/GetItemDataRowTest.php"
+    ]
+  },
+  {
+    "name": "W33 the column of purchase taxes appears only while an item has one",
+    "file": "app/Helpers/tabular_helper.php",
+    "find": "if (model(Item::class)->hasPurchaseTaxes()) {",
+    "replace": "if (true) {",
+    "tests": [
+      "--filter",
+      "ShowsAColumnOfPurchaseTaxesOnlyWhileAnItemHasOne",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W34 the column of purchase taxes appears once an item has one",
+    "file": "app/Helpers/tabular_helper.php",
+    "find": "if (model(Item::class)->hasPurchaseTaxes()) {",
+    "replace": "if (false) {",
+    "tests": [
+      "--filter",
+      "ShowsAColumnOfPurchaseTaxesOnlyWhileAnItemHasOne",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W35 an item that was deleted does not make the column appear",
+    "file": "app/Models/Item.php",
+    "find": "->select('item_id')\n            ->where('deleted', 0)\n            ->groupStart()\n            ->where('purchase_tax_1_percent IS NOT NULL'",
+    "replace": "->select('item_id')\n            ->groupStart()\n            ->where('purchase_tax_1_percent IS NOT NULL'",
+    "tests": [
+      "--filter",
+      "ShowsAColumnOfPurchaseTaxesOnlyWhileAnItemHasOne",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W36 the second purchase tax counts for the column too",
+    "file": "app/Models/Item.php",
+    "find": "->orWhere('purchase_tax_2_percent IS NOT NULL', null, false)",
+    "replace": "->orWhere('purchase_tax_2_percent IS NULL AND 1 = 0', null, false)",
+    "tests": [
+      "--filter",
+      "ShowsAColumnOfPurchaseTaxesOnlyWhileAnItemHasOne",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  },
+  {
+    "name": "W37 the search carries the purchase taxes of each item to its row",
+    "file": "app/Models/Item.php",
+    "find": "        $builder->select('MAX(items.purchase_tax_2_percent) AS purchase_tax_2_percent');\n",
+    "replace": "",
+    "tests": [
+      "--filter",
+      "ShowsThePurchaseTaxesOfEachItemInItsRow",
+      "tests/Controllers/ItemsControllerTest.php"
+    ]
+  }
+]

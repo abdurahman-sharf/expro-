@@ -359,6 +359,14 @@ class ItemsControllerTest extends CIUnitTestCase
 
         $this->assertStringContainsString('"field":"purchase_taxes"', $with);
         $this->assertStringContainsString(lang('Items.purchase_taxes'), $with);
+
+        $this->accountingDb()->table('items')->where('purchase_tax_1_percent IS NOT NULL', null, false)->update(['deleted' => 1]);
+
+        try {
+            $this->assertStringNotContainsString('"field":"purchase_taxes"', $this->get('/items')->getBody(), 'An item that was deleted shows no column');
+        } finally {
+            $this->accountingDb()->table('items')->where('purchase_tax_1_percent IS NOT NULL', null, false)->update(['deleted' => 0]);
+        }
     }
 
     public function testGetSearch_ShowsThePurchaseTaxesOfEachItemInItsRowSoThatTheTableAndItsExportCarryThem(): void

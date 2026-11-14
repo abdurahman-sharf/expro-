@@ -1,5 +1,6 @@
 :root,
 [data-bs-theme="light"] {
+    --bs-code-color: #b02a6f;
     --navy-950: #010f34;
     --navy-900: #021e5d;
     --navy-800: #042359;
@@ -2365,6 +2366,10 @@ input.flatpickr-input,
 
 .acc-year-notice {
     margin-bottom: 12px;
+}
+
+.table-responsive {
+    position: relative;
 }
 
 .app-search-open {

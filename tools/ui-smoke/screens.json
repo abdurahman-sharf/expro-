@@ -1519,6 +1519,256 @@
       "id": "accounting-year-end",
       "group": "accounting",
       "path": "/accounting_periods/year_end"
+    },
+    {
+      "id": "accounting-revenue-report",
+      "group": "accounting-w9",
+      "path": "/accounting_reports/revenue?show=1&group=customer&preset=year_to_date"
+    },
+    {
+      "id": "accounting-clients-sales-report",
+      "group": "accounting-w9",
+      "path": "/accounting_reports/clients_sales?show=1&preset=year_to_date"
+    },
+    {
+      "id": "accounting-item-sales-report",
+      "group": "accounting-w9",
+      "path": "/accounting_reports/item_sales?show=1&preset=year_to_date"
+    },
+    {
+      "id": "accounting-profit-report",
+      "group": "accounting-w9",
+      "path": "/accounting_reports/profit?show=1&preset=year_to_date"
+    },
+    {
+      "id": "accounting-item-profit-report",
+      "group": "accounting-w9",
+      "path": "/accounting_reports/item_profit?show=1&preset=year_to_date"
+    },
+    {
+      "id": "accounting-payments-report",
+      "group": "accounting-w9",
+      "path": "/accounting_reports/payments?show=1&preset=year_to_date"
+    },
+    {
+      "id": "accounting-advance-payments-report",
+      "group": "accounting-w9",
+      "path": "/accounting_reports/advance_payments?show=1&preset=year_to_date"
+    },
+    {
+      "id": "accounting-net-position-report",
+      "group": "accounting-w9",
+      "path": "/accounting_reports/net_position?show=1&preset=year_to_date"
+    },
+    {
+      "id": "accounting-invoice-returns-report",
+      "group": "accounting-w9",
+      "path": "/accounting_reports/invoice_returns?show=1&preset=year_to_date"
+    },
+    {
+      "id": "accounting-profit-loss",
+      "group": "accounting-w9",
+      "path": "/accounting_statements/profit_loss"
+    },
+    {
+      "id": "accounting-cash-flow",
+      "group": "accounting-w9",
+      "path": "/accounting_statements/cash_flow"
+    },
+    {
+      "id": "accounting-receivable-payments",
+      "group": "accounting-w9",
+      "path": "/accounting_receivables/payments"
+    },
+    {
+      "id": "accounting-receivable-credit-notes",
+      "group": "accounting-w9",
+      "path": "/accounting_receivables/credit_notes"
+    },
+    {
+      "id": "accounting-payable-payments",
+      "group": "accounting-w9",
+      "path": "/accounting_payables/payments"
+    },
+    {
+      "id": "accounting-payable-debit-notes",
+      "group": "accounting-w9",
+      "path": "/accounting_payables/debit_notes"
+    },
+    {
+      "id": "accounting-cheques",
+      "group": "accounting-w9",
+      "path": "/accounting_cheques"
+    },
+    {
+      "id": "accounting-cheque-books",
+      "group": "accounting-w9",
+      "path": "/accounting_cheques/books"
+    },
+    {
+      "id": "accounting-bank-reconciliation",
+      "group": "accounting-w9",
+      "path": "/accounting_treasuries/bank"
+    },
+    {
+      "id": "accounting-assets",
+      "group": "accounting-w9",
+      "path": "/accounting_assets"
+    },
+    {
+      "id": "accounting-asset-categories",
+      "group": "accounting-w9",
+      "path": "/accounting_assets/categories"
+    },
+    {
+      "id": "accounting-asset-depreciation",
+      "group": "accounting-w9",
+      "path": "/accounting_assets/depreciation"
+    },
+    {
+      "id": "accounting-currencies",
+      "group": "accounting-w9",
+      "path": "/accounting_currencies"
+    },
+    {
+      "id": "accounting-backfill",
+      "group": "accounting-w9",
+      "path": "/accounting_periods/backfill"
+    },
+    {
+      "id": "accounting-ai",
+      "group": "accounting-w9",
+      "path": "/accounting_ai"
+    },
+    {
+      "id": "accounting-einvoicing",
+      "group": "accounting-w9",
+      "path": "/accounting_einvoicing"
+    },
+    {
+      "id": "accounting-debit-notes-sales",
+      "group": "accounting-w9",
+      "path": "/accounting_debit_notes"
+    },
+    {
+      "id": "stock-permits",
+      "group": "accounting-w9",
+      "path": "/stock_documents/permits"
+    },
+    {
+      "id": "stock-stocktakes",
+      "group": "accounting-w9",
+      "path": "/stock_documents/stocktakes"
+    },
+    {
+      "id": "stock-requests",
+      "group": "accounting-w9",
+      "path": "/stock_documents/requests"
+    },
+    {
+      "id": "stock-units",
+      "group": "accounting-w9",
+      "path": "/stock_units"
+    },
+    {
+      "id": "customer-orders",
+      "group": "accounting-w9",
+      "path": "/customer_orders"
+    },
+    {
+      "id": "customer-order-new",
+      "group": "accounting-w9",
+      "path": "/customer_orders/add"
+    },
+    {
+      "id": "purchase-requests",
+      "group": "accounting-w9",
+      "path": "/purchase_requests"
+    },
+    {
+      "id": "quotation-requests",
+      "group": "accounting-w9",
+      "path": "/quotation_requests"
+    },
+    {
+      "id": "supplier-quotations",
+      "group": "accounting-w9",
+      "path": "/supplier_quotations"
+    },
+    {
+      "id": "purchase-orders",
+      "group": "accounting-w9",
+      "path": "/purchase_orders"
+    },
+    {
+      "id": "recurring-invoices",
+      "group": "accounting-w9",
+      "path": "/recurring_invoices"
+    },
+    {
+      "id": "recurring-invoice-new",
+      "group": "accounting-w9",
+      "path": "/recurring_invoices/add"
+    },
+    {
+      "id": "recurring-expenses",
+      "group": "accounting-w9",
+      "path": "/recurring_expenses"
+    },
+    {
+      "id": "recurring-expense-new",
+      "group": "accounting-w9",
+      "path": "/recurring_expenses/add"
+    },
+    {
+      "id": "receipt-vouchers",
+      "group": "accounting-w9",
+      "path": "/receipt_vouchers"
+    },
+    {
+      "id": "revenue-categories",
+      "group": "accounting-w9",
+      "path": "/revenue_categories"
+    },
+    {
+      "id": "tax-definitions",
+      "group": "accounting-w9",
+      "path": "/tax_definitions"
+    },
+    {
+      "id": "price-lists",
+      "group": "accounting-w9",
+      "path": "/price_lists"
+    },
+    {
+      "id": "custom-fields",
+      "group": "accounting-w9",
+      "path": "/custom_fields"
+    },
+    {
+      "id": "integrations",
+      "group": "accounting-w9",
+      "path": "/integrations"
+    },
+    {
+      "id": "api-keys",
+      "group": "accounting-w9",
+      "path": "/api_keys"
+    },
+    {
+      "id": "notifications",
+      "group": "accounting-w9",
+      "path": "/notifications"
+    },
+    {
+      "id": "branches",
+      "group": "accounting-w9",
+      "path": "/branches"
+    },
+    {
+      "id": "roles",
+      "group": "accounting-w9",
+      "path": "/roles"
     }
   ]
 }

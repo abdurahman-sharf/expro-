@@ -71,9 +71,9 @@ $jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 </script>
 
 <div id="title_bar" class="print_hide btn-toolbar">
-    <ul class="nav nav-pills me-auto" role="tablist">
+    <ul class="nav nav-pills me-auto">
         <?php foreach (['received', 'paid'] as $kind): ?>
-            <li class="nav-item"><a class="nav-link<?= $direction === $kind ? ' active' : '' ?>" href="<?= esc(base_url('accounting_cheques?direction=' . $kind), 'attr') ?>"><?= lang('Accounting_cheques.direction_' . $kind) ?></a></li>
+            <li class="nav-item"><a class="nav-link<?= $direction === $kind ? ' active' : '' ?>"<?= $direction === $kind ? ' aria-current="page"' : '' ?> href="<?= esc(base_url('accounting_cheques?direction=' . $kind), 'attr') ?>"><?= lang('Accounting_cheques.direction_' . $kind) ?></a></li>
         <?php endforeach; ?>
     </ul>
     <a class="btn btn-outline-secondary btn-sm" href="<?= esc(base_url('accounting_cheques/report/' . $direction), 'attr') ?>"><span class="bi bi-file-earmark-bar-graph" aria-hidden="true">&nbsp;</span><?= lang('Accounting_cheques.report') ?></a>

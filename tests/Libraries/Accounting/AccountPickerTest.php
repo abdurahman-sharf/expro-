@@ -376,6 +376,19 @@ final class AccountPickerTest extends CIUnitTestCase
         $this->assertNotNull($this->picker->partyScreen(AccountPicker::CUSTOMER, null, 'http://x/search', '#box', AccountPicker::LEDGER), 'One more makes a search box');
     }
 
+    public function testPartyScreen_NamesAChosenCustomerThatWasDeletedButKeepsItsAccountInTheLedger(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue('accounting_picker_threshold', '1');
+        $this->ledgerCustomer('Ledger', 'Present');
+        $gone = $this->ledgerCustomer('Ledger', 'Chosen Departed');
+        $this->accountingDb()->table('customers')->where('person_id', $gone)->update(['deleted' => 1]);
+
+        $screen = $this->picker->partyScreen(AccountPicker::CUSTOMER, $gone, 'http://x/search', '#box', AccountPicker::LEDGER);
+
+        $this->assertSame([$gone], array_column($screen['initial'], 'id'));
+    }
+
     public function testSearch_OffersACustomerDeletedAfterItsAccountWasOpenedOnlyInTheLedger(): void
     {
         $gone = $this->ledgerCustomer('Ledger', 'Departed');

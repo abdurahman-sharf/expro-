@@ -106,3 +106,10 @@ INSERT INTO ospos_accounting_cost_centers (parent_id, code, name, active) VALUES
 
 INSERT INTO ospos_accounting_cost_centers (parent_id, code, name, active)
 SELECT cost_center_id, '21', 'معرض الرياض', 1 FROM ospos_accounting_cost_centers WHERE code = '2';
+
+-- The screens of the later waves (the sales, payment and profit reports, cheques, fixed assets, currencies, stock
+-- documents, the order-to-cash and purchase documents, recurring documents, price lists, integrations, roles):
+-- the administrator may open every module and permission that is not tied to one stock location, so that the pass
+-- looks at the screens and not at the page that says there is no access.
+INSERT IGNORE INTO ospos_grants (permission_id, person_id, menu_group)
+SELECT permission_id, 1, '--' FROM ospos_permissions WHERE location_id IS NULL;
