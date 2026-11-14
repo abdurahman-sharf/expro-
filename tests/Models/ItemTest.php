@@ -910,14 +910,19 @@ class ItemTest extends CIUnitTestCase
     }
 
     /**
-     * @return array{token: string, items: list<int>, definitions: list<int>}
+     * @return array{token: string, items: list<int>, definitions: list<int>, kit: int, unstocked: int}
      */
     private function itemsWithATextAttribute(): array
     {
         $attribute   = model(Attribute::class);
         $token       = 'Attr' . uniqid();
         $items       = [$this->itemWithStatus(0, 'Plain ' . uniqid()), $this->itemWithStatus(1, 'Plain ' . uniqid())];
+        $kit         = $this->itemWithStatus(0, 'Kit ' . uniqid());
+        $unstocked   = $this->itemWithStatus(0, 'Service ' . uniqid());
         $definitions = [];
+
+        $this->accountingDb()->table('items')->where('item_id', $kit)->update(['item_type' => ITEM_KIT]);
+        $this->accountingDb()->table('items')->where('item_id', $unstocked)->update(['stock_type' => HAS_NO_STOCK]);
 
         foreach (['Colour', 'Size'] as $name) {
             $definition = ['definition_name' => $name . uniqid(), 'definition_type' => TEXT, 'definition_flags' => 0, 'deleted' => 0];
@@ -927,20 +932,21 @@ class ItemTest extends CIUnitTestCase
             $definitions[] = (int) $definition['definition_id'];
         }
 
-        foreach ($items as $itemId) {
+        foreach ([...$items, $kit, $unstocked] as $itemId) {
             foreach ($definitions as $definitionId) {
                 $attribute->saveAttributeValue($token . ' red', $definitionId, $itemId, false, TEXT);
             }
         }
 
-        return ['token' => $token, 'items' => $items, 'definitions' => $definitions];
+        return ['token' => $token, 'items' => $items, 'definitions' => $definitions, 'kit' => $kit, 'unstocked' => $unstocked];
     }
 
     private function cleanTextAttributes(array $fixture): void
     {
-        $db = $this->accountingDb();
+        $db       = $this->accountingDb();
+        $itemIds  = [...$fixture['items'], $fixture['kit'], $fixture['unstocked']];
 
-        $db->table('attribute_links')->whereIn('item_id', $fixture['items'])->delete();
+        $db->table('attribute_links')->whereIn('item_id', $itemIds)->delete();
         $db->table('attribute_definitions')->whereIn('definition_id', $fixture['definitions'])->delete();
         $db->query('DELETE FROM ' . $db->prefixTable('attribute_values') . ' WHERE attribute_value LIKE ?', [$fixture['token'] . '%']);
         $this->cleanStatusFixtures();
@@ -971,6 +977,35 @@ class ItemTest extends CIUnitTestCase
         $this->assertNotContains($inactive, $hidden, 'an inactive item stays out when asked to hide them');
         $this->assertSame([], $off, 'without the setting the attributes are not searched');
         $this->cleanTextAttributes($fixture);
+    }
+
+    public function testGetSearchSuggestions_LeavesAKitOutOfTheItemsFoundByAttribute(): void
+    {
+        $fixture = $this->itemsWithATextAttribute();
+        $found   = array_map('intval', array_column(model(Item::class)->get_search_suggestions($fixture['token'], ['search_custom' => true, 'is_deleted' => false]), 'value'));
+
+        $this->assertNotContains($fixture['kit'], $found);
+        $this->assertContains($fixture['unstocked'], $found, 'a service is an item to sell');
+        $this->cleanTextAttributes($fixture);
+    }
+
+    #[DataProvider('stockedItemMethods')]
+    public function testSuggestions_LeaveAnItemWithoutStockOutOfTheItemsFoundByAttribute(string $method): void
+    {
+        $fixture = $this->itemsWithATextAttribute();
+        $found   = array_map('intval', array_column(model(Item::class)->{$method}($fixture['token'], ['search_custom' => true, 'is_deleted' => false]), 'value'));
+
+        $this->assertNotContains($fixture['unstocked'], $found);
+        $this->assertContains($fixture['kit'], $found, 'the stock type decides here and not the type of the item');
+        $this->cleanTextAttributes($fixture);
+    }
+
+    /**
+     * @return list<array{0: string}>
+     */
+    public static function stockedItemMethods(): array
+    {
+        return [['get_stock_search_suggestions'], ['get_kit_search_suggestions']];
     }
 
     /**

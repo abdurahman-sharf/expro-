@@ -3370,6 +3370,29 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->cleanMasterItems();
     }
 
+    public function testPostSave_RefusesToDeleteThroughTheFormAnItemWhileAnotherRequestHoldsItAndSaysSo(): void
+    {
+        $itemId = (int) $this->saveMasterItem()['id'];
+        $other  = $this->openSecondConnection();
+
+        $other->transStart();
+        $other->query('SELECT item_id FROM ' . $other->prefixTable('items') . ' WHERE item_id = ' . $itemId . ' FOR UPDATE');
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+        try {
+            $result = $this->saveMasterItem(['is_deleted' => '1'], $itemId);
+        } finally {
+            $other->transRollback();
+            $other->close();
+            $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 50');
+            $this->releaseOpenTransactions();
+        }
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('0', (string) $this->masterItemRow($itemId)['deleted']);
+        $this->cleanMasterItems();
+    }
+
     public function testGetSearch_OffersTheFiveStatusFiltersOfTheList(): void
     {
         $this->loginAsItemsEmployee($this->createItemsEmployee());

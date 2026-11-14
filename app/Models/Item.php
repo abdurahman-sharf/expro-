@@ -1337,8 +1337,6 @@ class Item extends Model
         $builder->join('attribute_definitions', 'attribute_definitions.definition_id = attribute_links.definition_id');
         $builder->like('attribute_values.attribute_value', $search);
         $builder->where('attribute_definitions.definition_type', TEXT);
-        $builder->where('attribute_links.receiving_id', null);
-        $builder->where('attribute_links.sale_id', null);
         $builder->where('items.deleted', $filters['is_deleted']);
         $this->hideInactive($builder, $filters);
         $constrain($builder);
