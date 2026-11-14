@@ -88,7 +88,7 @@ final class RoutesAccessTest extends CIUnitTestCase
                 continue;
             }
 
-            $table[] = ['verb' => $verb, 'uri' => str_replace(['abc_123', 'abc123'], '123', $generator->get((string) $route['route'])), 'handler' => (string) $route['handler']];
+            $table[] = ['verb' => $verb, 'uri' => str_replace(['abc_123', 'abc123', '::unknown::'], '123', $generator->get((string) $route['route'])), 'handler' => (string) $route['handler']];
         }
 
         $defined = $table;

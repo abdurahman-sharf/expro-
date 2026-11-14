@@ -117,10 +117,10 @@ final class IsLoggedInTest extends CIUnitTestCase
     public static function routesWhoseLastSegmentIsFree(): array
     {
         return [
-            'a view that ends with migrate'      => ['GET', 'branches/view/migrate'],
-            'a view whose key ends with migrate' => ['GET', 'roles/view/xmigrate'],
-            'a save that ends with migrate'      => ['POST', 'branches/save/xmigrate'],
-            'a chart view that ends with it'     => ['GET', 'accounting_chart/view/migrate'],
+            'a form that ends with migrate'      => ['GET', 'accounting_cheques/form/migrate'],
+            'a template form whose key ends so'  => ['GET', 'stock_units/templateForm/xmigrate'],
+            'a save that ends with migrate'      => ['POST', 'accounting_cheques/save/xmigrate'],
+            'a report that ends with it'         => ['GET', 'accounting_cheques/report/migrate'],
         ];
     }
 
