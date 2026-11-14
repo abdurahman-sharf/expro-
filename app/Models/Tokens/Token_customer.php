@@ -3,12 +3,11 @@
 namespace App\Models\Tokens;
 
 use App\Libraries\Sale_lib;
-
 use App\Models\Customer;
 
 /**
  * Token_customer class
- **/
+ */
 class Token_customer extends Token
 {
     private ?array $customerInfo;
@@ -21,20 +20,14 @@ class Token_customer extends Token
     {
         parent::__construct();
         $this->customerInfo = $customerInfo;
-        $this->saleLib = new Sale_lib();
+        $this->saleLib      = new Sale_lib();
     }
 
-    /**
-     * @return string
-     */
     public function token_id(): string
     {
         return 'CU';
     }
 
-    /**
-     * @return string
-     */
     public function get_value(): string
     {
         if ($this->customerInfo !== null) {
