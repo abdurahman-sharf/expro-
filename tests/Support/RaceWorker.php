@@ -47,8 +47,11 @@ use App\Models\Expense;
 use App\Models\Giftcard;
 use App\Models\Item_quantity;
 use App\Models\Receiving;
+use App\Models\Reports\Summary_payments;
+use App\Models\Reports\Summary_sales;
 use App\Models\Sale;
 use Config\Database;
+use Config\OSPOS;
 
 $root = dirname(__DIR__, 2);
 
@@ -142,6 +145,98 @@ $postCrossBranch = static function (array $args): void {
     );
 
     $payments->post($payments->drafts($draft, (int) $args[3], (int) $args[4]));
+};
+
+$lockRace = static function (array $args): bool {
+    [$role, $itemId, $employeeId, $partyId, $count, $stopFile, $outcomeFile] = $args;
+
+    $db     = Database::connect();
+    $done   = 0;
+    $failed = 0;
+    $errors = [];
+    $saver  = in_array($role, ['saveSale', 'savePurchase'], true);
+
+    config(OSPOS::class);
+
+    $range  = ['start_date' => getenv('LOCK_RACE_FROM') ?: '2000-01-01', 'end_date' => getenv('LOCK_RACE_TO') ?: '2099-12-31', 'sale_type' => 'complete', 'location_id' => 'all'];
+    $line   = static fn (string $price): array => [
+        'item_id'       => (int) $itemId,
+        'line'          => 0,
+        'description'   => 'Lock race',
+        'serialnumber'  => '',
+        'quantity'      => '1',
+        'discount'      => '0',
+        'discount_type' => 0,
+        'cost_price'    => '1',
+        'price'         => $price,
+        'item_location' => 1,
+        'print_option'  => 0,
+    ];
+    $act = match ($role) {
+        'saveSale' => static function () use ($line, $partyId, $employeeId): bool {
+            $status = COMPLETED;
+            $items  = [$line('10.00')];
+            $taxes  = [[], []];
+
+            return model(Sale::class)->save_value(NEW_ENTRY, $status, $items, (int) $partyId > 0 ? (int) $partyId : NEW_ENTRY, (int) $employeeId, 'lock race', null, null, null, SALE_TYPE_POS, [['payment_type' => 'Cash', 'payment_amount' => '10.00', 'cash_refund' => '0', 'cash_adjustment' => 0, 'reference_code' => null]], null, $taxes, true) > 0;
+        },
+        'savePurchase' => static fn (): bool => model(Receiving::class)->save_value([[...$line('4.00'), 'receiving_quantity' => 1, 'tax_percent' => 0]], (int) $partyId > 0 ? (int) $partyId : NEW_ENTRY, (int) $employeeId, 'lock race', 'REF', 'Due', NEW_ENTRY) > 0,
+        'saleList'        => static fn (): bool => model(Sale::class)->search('', ['sale_type' => 'all', 'location_id' => 'all', 'start_date' => $range['start_date'], 'end_date' => $range['end_date'], 'only_cash' => false, 'only_due' => false, 'only_check' => false, 'selected_customer' => false, 'only_creditcard' => false, 'only_debit' => false, 'only_bank_transfer' => false, 'only_wallet' => false, 'only_invoices' => false, 'is_valid_receipt' => false], 25, 0, 'sale_id', 'desc') !== null,
+        'saleTemp'        => static function () use ($range): bool {
+            model(Sale::class)->create_temp_table($range);
+
+            return true;
+        },
+        'receivingTemp'   => static function () use ($range): bool {
+            model(Receiving::class)->create_temp_table($range);
+
+            return true;
+        },
+        'customerStats'   => static fn (): bool => model(Customer::class)->get_stats((int) $partyId) !== false,
+        'summarySales'    => static fn (): bool => is_array((new Summary_sales())->getData($range)),
+        'summaryPayments' => static fn (): bool => is_array((new Summary_payments())->getData($range)),
+    };
+
+    $savers   = (int) (getenv('LOCK_RACE_SAVERS') ?: 1);
+    $finished = static fn (): bool => is_file($stopFile) && substr_count((string) file_get_contents($stopFile), "\n") >= $savers;
+
+    $turns = (int) (getenv('LOCK_RACE_TURNS') ?: 0);
+
+    for ($turn = 0; $saver ? $turn < (int) $count : ($turns > 0 ? $turn < $turns : $turn === 0 || ! $finished()); $turn++) {
+        $db->resetTransStatus();
+
+        try {
+            $ok = $act();
+        } catch (Throwable $exception) {
+            $ok    = false;
+            $error = get_class($exception) . ' ' . substr($exception->getMessage(), 0, 90) . (getenv('LOCK_RACE_SQL') ? ' | ' . substr((string) strstr(preg_replace('/\s+/', ' ', (string) $db->getLastQuery()), ' FROM '), 0, 700) : '');
+        }
+
+        if (! $saver) {
+            foreach (['sales_items_temp', 'sales_payments_temp', 'sales_items_taxes_temp', 'sales_search_payments_temp', 'sales_report_payments_temp', 'sumpay_taxes_temp', 'sumpay_items_temp', 'sumpay_payments_temp', 'receivings_items_temp'] as $table) {
+                $db->query('DROP TEMPORARY TABLE IF EXISTS ' . $db->prefixTable($table));
+            }
+        }
+
+        if ($ok) {
+            $done++;
+
+            continue;
+        }
+
+        $failed++;
+        $key          = $error ?? ('refused, database error ' . ($db->error()['code'] ?? 0));
+        $errors[$key] = ($errors[$key] ?? 0) + 1;
+        unset($error);
+    }
+
+    if ($saver) {
+        file_put_contents($stopFile, "done\n", FILE_APPEND | LOCK_EX);
+    }
+
+    file_put_contents($outcomeFile, json_encode(['role' => $role, 'done' => $done, 'failed' => $failed, 'errors' => $errors]));
+
+    return $failed === 0;
 };
 
 $result = match ($method) {
@@ -611,6 +706,7 @@ $result = match ($method) {
             'match' => (new BankReconciliation())->match((int) $args[1], (int) $args[2], array_map('intval', explode(',', (string) $args[3])), (int) $args[4]),
         };
     }, (string) $args[array_key_last($args)]),
+    'lockRace' => $lockRace($args),
     default => throw new InvalidArgumentException("Unknown race method: {$method}"),
 };
 

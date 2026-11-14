@@ -4,6 +4,7 @@ namespace Tests\Support;
 
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
+use Config\OSPOS;
 
 /**
  * A document that a second connection has written and not committed yet, as a register saving a sale or a
@@ -45,8 +46,15 @@ trait UncommittedWriterTrait
         return $this->readingWithShortLockWait($writer, $read);
     }
 
+    /**
+     * The settings are loaded before the read, as they are when a request reaches a report: a report that meets them
+     * unloaded reads them with a query of its own in the middle of building its own, which makes the query builder forget
+     * the aliases of the one in the making.
+     */
     private function readingWithShortLockWait(BaseConnection $writer, callable $read): mixed
     {
+        config(OSPOS::class);
+
         $reader = Database::connect();
 
         $reader->query('SET SESSION innodb_lock_wait_timeout = 1');
