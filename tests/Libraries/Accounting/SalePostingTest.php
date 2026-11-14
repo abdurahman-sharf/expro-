@@ -3070,6 +3070,24 @@ class SalePostingTest extends CIUnitTestCase
         $this->assertSame(0, $this->countRows('accounting_posting_failures'));
     }
 
+    public function testSaveValue_RefusesACreditNoteOfACancelledSaleOfServicesAndPostsNothing(): void
+    {
+        $invoice = $this->invoiceOf('100.00', null, [$this->payment(lang('Sales.cash'), '100.00')], SALE_TYPE_POS);
+
+        $this->assertTrue($this->sales->delete($invoice, false, true, $this->employeeId));
+
+        $journals = $this->countJournals();
+        $sales    = $this->countSales();
+        $balance  = $this->balance($this->customerAccount());
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->creditNoteOf($invoice, '40.00'));
+        $this->assertSame(PostingError::ReturnOriginInvalid, $this->failure()->error);
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame($balance, $this->balance($this->customerAccount()));
+        $this->assertSame('0.00', $this->balance($this->customerAccount()));
+    }
+
     public function testDelete_StillCancelsAPointOfSaleSaleWhoseReturnWasForAnotherSale(): void
     {
         $cycle  = $this->referenceInvoice();

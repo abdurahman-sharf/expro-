@@ -35,7 +35,7 @@
  {
   "name": "G04 cancel: a sale whose completed return stands is refused",
   "file": "app/Models/Sale.php",
-  "find": "$returnStands = $sale_status === COMPLETED && $this->hasCompletedReturn((int) $sale_id);",
+  "find": "$returnStands = $saleStatus === COMPLETED && $this->hasCompletedReturn((int) $saleId);",
   "replace": "$returnStands = false;",
   "tests": [
    "--filter",
@@ -46,7 +46,7 @@
  {
   "name": "G05 cancel: the refusal holds with the books on and keeps the stock ledger tied",
   "file": "app/Models/Sale.php",
-  "find": "$returnStands = $sale_status === COMPLETED && $this->hasCompletedReturn((int) $sale_id);",
+  "find": "$returnStands = $saleStatus === COMPLETED && $this->hasCompletedReturn((int) $saleId);",
   "replace": "$returnStands = false;",
   "tests": [
    "--filter",
@@ -57,7 +57,7 @@
  {
   "name": "G06 cancel: the answer reaches the cashier in words",
   "file": "app/Models/Sale.php",
-  "find": "$returnStands = $sale_status === COMPLETED && $this->hasCompletedReturn((int) $sale_id);",
+  "find": "$returnStands = $saleStatus === COMPLETED && $this->hasCompletedReturn((int) $saleId);",
   "replace": "$returnStands = false;",
   "tests": [
    "--filter",
@@ -68,8 +68,8 @@
  {
   "name": "G07 cancel: the refusal also holds when the stock is not to be touched",
   "file": "app/Models/Sale.php",
-  "find": "        if ($returnStands) {\n            return $this->refuseWhileReturnStands((int) $sale_id);\n        }\n\n        $this->update_sale_status($sale_id, CANCELED);",
-  "replace": "        $this->update_sale_status($sale_id, CANCELED);",
+  "find": "        if ($returnStands) {\n            return $this->refuseWhileReturnStands((int) $saleId);\n        }\n\n        $this->update_sale_status($saleId, CANCELED);",
+  "replace": "        $this->update_sale_status($saleId, CANCELED);",
   "tests": [
    "--filter",
    "testDelete_RefusesToCancelASaleWhoseReturnStandsEvenWhenTheStockIsNotToBeTouched",
@@ -353,6 +353,72 @@
    "--filter",
    "testGetInvoice_PrintsATaxInsideThePrice",
    "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G35 minimum: a price whose share without the tax equals the minimum is accepted at the register edit",
+  "file": "app/Libraries/Pricing/PriceControls.php",
+  "find": "bccomp($netBase, $minimum, 2) < 0",
+  "replace": "bccomp($netBase, $minimum, 2) <= 0",
+  "tests": [
+   "--filter",
+   "testPostEditItem_AcceptsAPriceWithTaxInside",
+   "tests/Controllers/SalesControllerTest.php"
+  ]
+ },
+ {
+  "name": "G36 return of a cancelled sale: refused inside the save, with the books off, and the shelf stays as it is",
+  "file": "app/Models/Sale.php",
+  "find": "(int) $origin->sale_status !== COMPLETED || ",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSaveValue_Refuses",
+   "tests/Models/SaleTest.php"
+  ]
+ },
+ {
+  "name": "G37 return of a cancelled sale: refused with the books on too, and nothing is posted",
+  "file": "app/Models/Sale.php",
+  "find": "(int) $origin->sale_status !== COMPLETED || ",
+  "replace": "",
+  "tests": [
+   "--filter",
+   "testSaveValue_RefusesACreditNoteOfACancelledSale",
+   "tests/Libraries/Accounting/SalePostingTest.php"
+  ]
+ },
+ {
+  "name": "G38 return of a return: refused, a return is taken only from a sale",
+  "file": "app/Models/Sale.php",
+  "find": " || (int) $origin->sale_type === SALE_TYPE_RETURN)) {",
+  "replace": ")) {",
+  "tests": [
+   "--filter",
+   "testSaveValue_RefusesAReturnWhoseOriginIsAReturnItself",
+   "tests/Models/SaleTest.php"
+  ]
+ },
+ {
+  "name": "G39 return of a sale that does not exist: refused with the reason, not left to the database",
+  "file": "app/Models/Sale.php",
+  "find": "($origin === null || (int) $origin->sale_status !== COMPLETED",
+  "replace": "((int) $origin->sale_status !== COMPLETED",
+  "tests": [
+   "--filter",
+   "testSaveValue_RefusesAReturnWhoseOriginDoesNotExist",
+   "tests/Models/SaleTest.php"
+  ]
+ },
+ {
+  "name": "G40 return of a cancelled sale: only the completion is refused, a waiting return may wait again",
+  "file": "app/Models/Sale.php",
+  "find": "if ($saleStatus == COMPLETED && ($origin === null",
+  "replace": "if (($origin === null",
+  "tests": [
+   "--filter",
+   "testSaveValue_RefusesToCompleteAWaitingReturn",
+   "tests/Models/SaleTest.php"
   ]
  }
 ]

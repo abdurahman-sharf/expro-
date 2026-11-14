@@ -4,6 +4,8 @@ namespace Tests\Models;
 
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\PostingError;
+use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\QuoteStatus;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\InvoiceDiscountProblem;
@@ -871,6 +873,77 @@ class SaleTest extends CIUnitTestCase
 
         $this->assertGreaterThan(0, $waiting);
         $this->assertTrue($saleModel->delete($third, false, true, $employee), 'a return that waits to be completed has taken nothing back yet');
+    }
+
+    public function testSaveValue_RefusesAReturnOfASaleCancelledAfterTheReturnWasStagedAndLeavesTheStockAsItIs(): void
+    {
+        $saleModel = model(Sale::class);
+        $employee  = $this->createEmployee();
+        $itemId    = $this->stockedItemWith(20);
+        $invoice   = $this->saveInvoice(true, $itemId, 10);
+
+        $this->assertTrue($saleModel->delete($invoice, false, true, $employee));
+        $this->assertEqualsWithDelta(20.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+
+        $note = $this->saveCreditNote($invoice, $itemId, 4, $employee);
+
+        $this->assertSame(ACCOUNTING_FAILED, $note);
+        $this->assertInstanceOf(PostingException::class, $saleModel->accountingFailure());
+        $this->assertSame(PostingError::ReturnOriginInvalid, $saleModel->accountingFailure()->error);
+        $this->assertEqualsWithDelta(20.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+        $this->assertSame(0, Database::connect()->table('sales')->where('return_of_sale_id', $invoice)->countAllResults());
+    }
+
+    public function testSaveValue_RefusesAReturnWhoseOriginIsAReturnItself(): void
+    {
+        $saleModel = model(Sale::class);
+        $employee  = $this->createEmployee();
+        $itemId    = $this->stockedItemWith(20);
+        $invoice   = $this->saveInvoice(true, $itemId, 10);
+        $note      = $this->saveCreditNote($invoice, $itemId, 4, $employee);
+
+        $this->assertGreaterThan(0, $note);
+        $this->assertSame(ACCOUNTING_FAILED, $this->saveCreditNote($note, $itemId, 1, $employee));
+        $this->assertSame(PostingError::ReturnOriginInvalid, $saleModel->accountingFailure()->error);
+        $this->assertEqualsWithDelta(14.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+    }
+
+    public function testSaveValue_RefusesAReturnWhoseOriginDoesNotExistAndLeavesTheStockAsItIs(): void
+    {
+        $saleModel = model(Sale::class);
+        $employee  = $this->createEmployee();
+        $itemId    = $this->stockedItemWith(20);
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->saveCreditNote(987654321, $itemId, 4, $employee));
+        $this->assertSame(PostingError::ReturnOriginInvalid, $saleModel->accountingFailure()->error);
+        $this->assertEqualsWithDelta(20.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+    }
+
+    public function testSaveValue_RefusesToCompleteAWaitingReturnWhoseSaleWasCancelledMeanwhileButLetsItWaitAgain(): void
+    {
+        $saleModel = model(Sale::class);
+        $employee  = $this->createEmployee();
+        $itemId    = $this->stockedItemWith(20);
+        $invoice   = $this->saveInvoice(true, $itemId, 10);
+        $status    = SUSPENDED;
+        $lines     = $this->buildCartLine($itemId, -4, 5.00);
+        $taxes     = [[], []];
+        $waiting   = $saleModel->save_value(NEW_ENTRY, $status, $lines, NEW_ENTRY, $employee, 'return', null, null, null, SALE_TYPE_RETURN, [], null, $taxes, true, $invoice);
+
+        $this->assertGreaterThan(0, $waiting);
+        $this->assertTrue($saleModel->delete($invoice, false, true, $employee));
+        $this->assertEqualsWithDelta(20.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
+
+        $again = $saleModel->save_value($waiting, $status, $lines, NEW_ENTRY, $employee, 'return', null, null, null, SALE_TYPE_RETURN, [], null, $taxes, true, $invoice);
+
+        $this->assertSame($waiting, $again, 'a return that waits is not refused before it is completed');
+
+        $completed = COMPLETED;
+
+        $this->assertSame(ACCOUNTING_FAILED, $saleModel->save_value($waiting, $completed, $lines, NEW_ENTRY, $employee, 'return', null, null, null, SALE_TYPE_RETURN, [], null, $taxes, true, $invoice));
+        $this->assertSame(PostingError::ReturnOriginInvalid, $saleModel->accountingFailure()->error);
+        $this->assertSame(SUSPENDED, (int) $saleModel->getSaleStatus($waiting));
+        $this->assertEqualsWithDelta(20.0, $this->getItemQuantity($itemId, self::LOCATION_ID), 0.001);
     }
 
     public function testConfirmDelivery_RefusesASaleThatIsNotAnIssuedInvoice(): void

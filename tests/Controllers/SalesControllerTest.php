@@ -6632,7 +6632,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame('draft-' . $draftQuote, $rows[$draftQuote]['doc_id']);
     }
 
-    public function testGetSuspended_NamesADraftQuoteByItsTemporaryNumberAndLeavesTheOtherDocumentsAsTheyWere(): void
+    public function testGetSuspended_NamesADraftQuoteAndASuspendedInvoiceByTheirTemporaryNumberAndKeepsTheNumberOfAnOpenQuote(): void
     {
         $this->supervisorForDocuments();
 
@@ -7082,10 +7082,19 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
             $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '100.00', '91.30']));
             $this->assertSame('115.00', (string) Services::session()->get('sales_cart')[1]['price']);
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testPostEditItem_AcceptsAPriceWithTaxInsideItWhoseShareWithoutTheTaxIsExactlyTheMinimum(): void
+    {
+        try {
+            $this->registerWithTaxInsideThePrice(['sales_change_price'], '130.00', '100');
 
             $this->post('/sales/editItem/1', ['price' => '115', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
 
-            $this->assertSame('115.00', (string) Services::session()->get('sales_cart')[1]['price'], '115 less the 15 inside it is exactly the minimum');
+            $this->assertSame('115.00', (string) Services::session()->get('sales_cart')[1]['price'], '115 less the 15 inside it is exactly the minimum, and each request of the test starts from the cart seeded at 130');
         } finally {
             $this->forgetTheTaxList();
         }

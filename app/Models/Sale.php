@@ -1343,7 +1343,16 @@ class Sale extends Model
 
         if ($salesData['return_of_sale_id'] !== null) {
             // The sale a return comes from is locked while the return is saved, so that two returns of it never run side by side
-            $this->db->query('SELECT sale_id FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$salesData['return_of_sale_id']]);
+            $locked = $this->db->query('SELECT sale_status, sale_type FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$salesData['return_of_sale_id']]);
+            $origin = $locked === false ? null : $locked->getRow();
+
+            // A return staged while its sale stood is refused if the sale was cancelled meanwhile: the cancel already put the goods and the books back
+            if ($saleStatus == COMPLETED && ($origin === null || (int) $origin->sale_status !== COMPLETED || (int) $origin->sale_type === SALE_TYPE_RETURN)) {
+                $this->db->transRollback();
+                $this->accountingFailure = new PostingException(PostingError::ReturnOriginInvalid, 'A return can only be taken from a completed sale.', ['origin_id' => (int) $salesData['return_of_sale_id']]);
+
+                return ACCOUNTING_FAILED;
+            }
         }
 
         $discountPlan = $this->invoiceDiscountPlan($items, $saleType, $salesData['return_of_sale_id'], $invoiceDiscount, $saleId, $saleStatus == COMPLETED);
@@ -2523,7 +2532,7 @@ class Sale extends Model
         return $saleType === SALE_TYPE_RETURN && $document === ReturnDocument::CreditNote && (new UndeliveredReturns($this->db))->neverDelivered($originId);
     }
 
-    private function deleteLocked($sale_id, bool $update_inventory, $employee_id): bool
+    private function deleteLocked($saleId, bool $updateInventory, $employeeId): bool
     {
         $this->accountingFailure = null;
 
@@ -2531,12 +2540,12 @@ class Sale extends Model
         $this->db->transStart();
 
         // The lock of the sale comes first, so two requests cancelling it never run side by side
-        $locked      = $this->db->query('SELECT sale_status, delivered, sale_type, return_of_sale_id, return_document FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$sale_id]);
+        $locked      = $this->db->query('SELECT sale_status, delivered, sale_type, return_of_sale_id, return_document FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$saleId]);
         $sale        = $locked === false ? null : $locked->getRow();
-        $sale_status = $sale === null ? null : (int) $sale->sale_status;
+        $saleStatus = $sale === null ? null : (int) $sale->sale_status;
 
         try {
-            (new QuoteLifecycle($this->db))->assertUnlocked((int) $sale_id);
+            (new QuoteLifecycle($this->db))->assertUnlocked((int) $saleId);
         } catch (AccountingException $refusal) {
             $this->db->transRollback();
             $this->accountingFailure = $refusal;
@@ -2544,22 +2553,22 @@ class Sale extends Model
             return false;
         }
 
-        $returnStands = $sale_status === COMPLETED && $this->hasCompletedReturn((int) $sale_id);
+        $returnStands = $saleStatus === COMPLETED && $this->hasCompletedReturn((int) $saleId);
 
-        if ($update_inventory && $sale_status === COMPLETED && (int) $sale->delivered === 1 && ! $this->goodsNeverLeft((int) $sale->sale_type, ReturnDocument::fromStored($sale->return_document), $sale->return_of_sale_id === null ? null : (int) $sale->return_of_sale_id)) {
+        if ($updateInventory && $saleStatus === COMPLETED && (int) $sale->delivered === 1 && ! $this->goodsNeverLeft((int) $sale->sale_type, ReturnDocument::fromStored($sale->return_document), $sale->return_of_sale_id === null ? null : (int) $sale->return_of_sale_id)) {
             // Defect, not all item deletions will be undone?
             // Get array with all the items involved in the sale to update the inventory tracking
             $inventory = model('Inventory');
             $item = model(Item::class);
-            $item_quantity = model(Item_quantity::class);
+            $itemQuantity = model(Item_quantity::class);
 
-            $items = $this->get_sale_items($sale_id)->getResultArray();
+            $items = $this->get_sale_items($saleId)->getResultArray();
 
             $tracking = new StockTracking($this->db);
             $reversed = [];
 
             try {
-                $reversed = $tracking->reverseSource('sale', (int) $sale_id);
+                $reversed = $tracking->reverseSource('sale', (int) $saleId);
             } catch (AccountingException $refusal) {
                 $this->db->transRollback();
                 $this->accountingFailure = $refusal;
@@ -2567,25 +2576,25 @@ class Sale extends Model
                 return false;
             }
 
-            foreach ($items as $item_data) {
-                $cur_item_info = $item->get_info($item_data['item_id']);
+            foreach ($items as $itemData) {
+                $itemInfo = $item->get_info($itemData['item_id']);
 
-                if ($cur_item_info->stock_type == HAS_STOCK) {
+                if ($itemInfo->stock_type == HAS_STOCK) {
                     // Create query to update inventory tracking
-                    $inv_data = [
+                    $inventoryRow = [
                         'trans_date'      => date('Y-m-d H:i:s'),
-                        'trans_items'     => $item_data['item_id'],
-                        'trans_user'      => $employee_id,
-                        'trans_comment'   => 'Deleting sale ' . $sale_id,
-                        'trans_location'  => $item_data['item_location'],
-                        'trans_inventory' => $item_data['quantity_purchased']
+                        'trans_items'     => $itemData['item_id'],
+                        'trans_user'      => $employeeId,
+                        'trans_comment'   => 'Deleting sale ' . $saleId,
+                        'trans_location'  => $itemData['item_location'],
+                        'trans_inventory' => $itemData['quantity_purchased']
                     ];
                     // Update inventory
-                    $inventory->insert($inv_data, false);
+                    $inventory->insert($inventoryRow, false);
 
                     // Update quantities
-                    if (! in_array((int) $item_data['item_id'], $reversed, true)) {
-                        $item_quantity->changeQuantity($item_data['item_id'], $item_data['item_location'], $item_data['quantity_purchased']);
+                    if (! in_array((int) $itemData['item_id'], $reversed, true)) {
+                        $itemQuantity->changeQuantity($itemData['item_id'], $itemData['item_location'], $itemData['quantity_purchased']);
                     }
                 }
             }
@@ -2593,17 +2602,17 @@ class Sale extends Model
 
         // After the tracked items were looked at, so that a sale of batches or serial numbers keeps the refusal that names them; the rollback takes back what was written above
         if ($returnStands) {
-            return $this->refuseWhileReturnStands((int) $sale_id);
+            return $this->refuseWhileReturnStands((int) $saleId);
         }
 
-        $this->update_sale_status($sale_id, CANCELED);
+        $this->update_sale_status($saleId, CANCELED);
 
-        if ($sale_status === COMPLETED && (new AccountingSettings($this->db))->isEnabled()) {
+        if ($saleStatus === COMPLETED && (new AccountingSettings($this->db))->isEnabled()) {
             try {
-                (new SalePosting($this->db))->cancel((int) $sale_id, $employee_id === null ? null : (int) $employee_id);
+                (new SalePosting($this->db))->cancel((int) $saleId, $employeeId === null ? null : (int) $employeeId);
             } catch (Throwable $exception) {
                 $this->db->transRollback();
-                $this->recordAccountingFailure((int) $sale_id, $this->asAccountingFailure($exception, (int) $sale_id), $employee_id === null ? null : (int) $employee_id, $this->getBranchId((int) $sale_id));
+                $this->recordAccountingFailure((int) $saleId, $this->asAccountingFailure($exception, (int) $saleId), $employeeId === null ? null : (int) $employeeId, $this->getBranchId((int) $saleId));
 
                 return false;
             }
