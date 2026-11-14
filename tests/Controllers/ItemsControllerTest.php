@@ -3393,6 +3393,32 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->cleanMasterItems();
     }
 
+    public function testPostSave_RefusesToDeleteThroughTheFormAnItemADocumentNamedAfterTheSnapshotOfTheRequest(): void
+    {
+        $itemId = (int) $this->saveMasterItem()['id'];
+
+        $this->startWithSnapshot($this->accountingDb());
+
+        $other = $this->openSecondConnection();
+
+        $other->table('sales')->insert(['sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_INVOICE, 'employee_id' => 1, 'comment' => '', 'sale_time' => date('Y-m-d H:i:s')]);
+        $saleId = (int) $other->insertID();
+        $other->table('sales_items')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 1, 'quantity_purchased' => 1, 'item_cost_price' => 1, 'item_unit_price' => 5, 'item_location' => 1]);
+        $other->close();
+
+        try {
+            $result = $this->saveMasterItem(['is_deleted' => '1'], $itemId);
+        } finally {
+            $this->releaseOpenTransactions();
+            $this->accountingDb()->table('sales_items')->where('sale_id', $saleId)->delete();
+            $this->accountingDb()->table('sales')->where('sale_id', $saleId)->delete();
+        }
+
+        $this->assertFalse($result['success']);
+        $this->assertSame('0', (string) $this->masterItemRow($itemId)['deleted']);
+        $this->cleanMasterItems();
+    }
+
     public function testGetSearch_OffersTheFiveStatusFiltersOfTheList(): void
     {
         $this->loginAsItemsEmployee($this->createItemsEmployee());

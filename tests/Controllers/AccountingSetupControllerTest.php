@@ -565,6 +565,9 @@ class AccountingSetupControllerTest extends CIUnitTestCase
         $this->assertSame(1, preg_match('/id="journal_description_purchases" value=(["\'])(.*?)\1 maxlength/s', $body, $purchases));
         $this->assertSame('Invoice {number} "{party}"', html_entity_decode($sales[2]));
         $this->assertSame('Bill {number}', html_entity_decode($purchases[2]));
+        $this->assertStringContainsString('id="journal_description_sales" value="' . esc('Invoice {number} "{party}"', 'attr') . '"', $body);
+        $this->assertStringContainsString('id="journal_description_purchases" value="' . esc('Bill {number}', 'attr') . '"', $body);
+        $this->assertStringNotContainsString('value="Invoice {number} "{party}""', $body);
         $this->assertStringContainsString('{number} {party} {type} {date}', $body);
         $this->assertStringContainsString('maxlength="200"', $body);
     }

@@ -279,8 +279,8 @@
   "replace": "$rows = $this->db->query($sql)->getResult();",
   "tests": [
    "--filter",
-   "WaitsFor|SeesADocument",
-   "tests/Models/ItemTest.php"
+   "SeesADocument|WaitsForARequestThatHoldsADocumentLine",
+   "tests/Libraries/MasterData/ItemOpenDocumentsTest.php"
   ]
  },
  {
@@ -301,7 +301,7 @@
   "replace": "if (false) {",
   "tests": [
    "--filter",
-   "testDelete_WaitsFor",
+   "testDelete_",
    "tests/Models/ItemTest.php"
   ]
  },
@@ -312,7 +312,7 @@
   "replace": "if (false) {",
   "tests": [
    "--filter",
-   "testDeleteList_WaitsFor",
+   "testDeleteList_",
    "tests/Models/ItemTest.php"
   ]
  },
@@ -323,7 +323,7 @@
   "replace": "",
   "tests": [
    "--filter",
-   "WaitsFor|OpenDocument|Mention|Delete",
+   "WaitsFor",
    "tests/Models/ItemTest.php"
   ]
  },
@@ -334,7 +334,7 @@
   "replace": "false",
   "tests": [
    "--filter",
-   "WhileAnotherRequestHoldsItAndSaysSo",
+   "AfterTheSnapshotOfTheRequest|WhileAnotherRequestHoldsIt",
    "tests/Controllers/ItemsControllerTest.php"
   ]
  },
@@ -350,18 +350,7 @@
   ]
  },
  {
-  "name": "G34 an item found by two attributes is offered once",
-  "file": "app/Models/Item.php",
-  "find": "        $builder->select('items.*');\n        $builder->distinct();\n",
-  "replace": "        $builder->select('items.*');\n",
-  "tests": [
-   "--filter",
-   "testSuggestions_",
-   "tests/Models/ItemTest.php"
-  ]
- },
- {
-  "name": "G35 the attribute suggestions leave out inactive items when asked",
+  "name": "G34 the attribute suggestions leave out inactive items when asked",
   "file": "app/Models/Item.php",
   "find": "        $this->hideInactive($builder, $filters);\n        $constrain($builder);\n",
   "replace": "        $constrain($builder);\n",
@@ -372,7 +361,7 @@
   ]
  },
  {
-  "name": "G36 the item suggestions by attribute leave out kits",
+  "name": "G35 the item suggestions by attribute leave out kits",
   "file": "app/Models/Item.php",
   "find": "$builder->whereIn('items.item_type', $non_kit);",
   "replace": "$builder->where('items.item_type >=', 0);",
@@ -383,7 +372,7 @@
   ]
  },
  {
-  "name": "G37 the stock suggestions by attribute leave out items without stock",
+  "name": "G36 the stock suggestions by attribute leave out items without stock",
   "file": "app/Models/Item.php",
   "find": "$builder->where('items.stock_type', '0'); // Stocked items only",
   "replace": "$builder->where('items.stock_type >=', 0);",

@@ -1331,7 +1331,6 @@ class Item extends Model
     {
         $builder = $this->db->table('attribute_links');
         $builder->select('items.*');
-        $builder->distinct();
         $builder->join('items', 'items.item_id = attribute_links.item_id');
         $builder->join('attribute_values', 'attribute_links.attribute_id = attribute_values.attribute_id');
         $builder->join('attribute_definitions', 'attribute_definitions.definition_id = attribute_links.definition_id');

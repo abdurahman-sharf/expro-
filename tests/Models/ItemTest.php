@@ -1184,6 +1184,7 @@ class ItemTest extends CIUnitTestCase
         $this->whileAnotherRequestHoldsTheItems([$itemId], function () use ($model, $itemId): void {
             $this->assertFalse($model->delete($itemId));
             $this->assertSame(AccountingError::WriteFailed, $model->accountingFailure()->error);
+            $this->assertSame('0', (string) $this->accountingDb()->query('SELECT @@in_transaction AS open')->getRow()->open, 'the refused deletion leaves no transaction open');
         });
 
         $this->assertSame('0', (string) $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->deleted);
@@ -1200,9 +1201,65 @@ class ItemTest extends CIUnitTestCase
         $this->whileAnotherRequestHoldsTheItems([$held], function () use ($model, $first, $held): void {
             $this->assertFalse($model->delete_list([$first, $held]));
             $this->assertSame(AccountingError::WriteFailed, $model->accountingFailure()->error);
+            $this->assertSame('0', (string) $this->accountingDb()->query('SELECT @@in_transaction AS open')->getRow()->open, 'the refused deletion leaves no transaction open');
         });
 
         $this->assertSame(['0', '0'], [(string) $this->accountingDb()->table('items')->where('item_id', $first)->get()->getRow()->deleted, (string) $this->accountingDb()->table('items')->where('item_id', $held)->get()->getRow()->deleted]);
+        $this->cleanStatusFixtures();
+    }
+
+    /**
+     * A suspended sale that another request commits for the item after this request took its snapshot,
+     * which only a read under a lock still sees.
+     */
+    private function commitASuspendedSaleOnAnotherConnection(int $itemId): void
+    {
+        $other = $this->openSecondConnection();
+
+        $other->table('sales')->insert(['sale_status' => SUSPENDED, 'sale_type' => SALE_TYPE_INVOICE, 'employee_id' => 1, 'comment' => '', 'sale_time' => date('Y-m-d H:i:s')]);
+        $saleId = (int) $other->insertID();
+        $other->table('sales_items')->insert(['sale_id' => $saleId, 'item_id' => $itemId, 'line' => 1, 'quantity_purchased' => 3, 'item_cost_price' => 1, 'item_unit_price' => 5, 'item_location' => 1]);
+        $other->close();
+
+        $this->statusSales[] = $saleId;
+    }
+
+    public function testDelete_RefusesAnItemADocumentNamedAfterTheSnapshotOfTheRequest(): void
+    {
+        $model  = model(Item::class);
+        $itemId = $this->itemWithStatus(0, 'Raced ' . uniqid());
+
+        $this->startWithSnapshot($this->accountingDb());
+        $this->commitASuspendedSaleOnAnotherConnection($itemId);
+
+        try {
+            $this->assertFalse($model->delete($itemId));
+            $this->assertSame(AccountingError::ItemInOpenDocuments, $model->accountingFailure()->error);
+        } finally {
+            $this->releaseOpenTransactions();
+        }
+
+        $this->assertSame('0', (string) $this->accountingDb()->table('items')->where('item_id', $itemId)->get()->getRow()->deleted);
+        $this->cleanStatusFixtures();
+    }
+
+    public function testDeleteList_RefusesItemsADocumentNamedAfterTheSnapshotOfTheRequest(): void
+    {
+        $model = model(Item::class);
+        $free  = $this->itemWithStatus(0, 'Free ' . uniqid());
+        $named = $this->itemWithStatus(0, 'Raced ' . uniqid());
+
+        $this->startWithSnapshot($this->accountingDb());
+        $this->commitASuspendedSaleOnAnotherConnection($named);
+
+        try {
+            $this->assertFalse($model->delete_list([$free, $named]));
+            $this->assertSame(AccountingError::ItemInOpenDocuments, $model->accountingFailure()->error);
+        } finally {
+            $this->releaseOpenTransactions();
+        }
+
+        $this->assertSame(['0', '0'], [(string) $this->accountingDb()->table('items')->where('item_id', $free)->get()->getRow()->deleted, (string) $this->accountingDb()->table('items')->where('item_id', $named)->get()->getRow()->deleted]);
         $this->cleanStatusFixtures();
     }
 }
