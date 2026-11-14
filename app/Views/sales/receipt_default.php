@@ -127,10 +127,10 @@
                 <td colspan="3" style="text-align: right; border-top: 2px solid #000000;"><?= lang('Sales.sub_total') ?></td>
                 <td style="text-align: right; border-top: 2px solid #000000;"><?= to_currency($subtotal) ?></td>
             </tr>
-            <?php foreach ($taxes as $tax_group_index => $tax) { ?>
+            <?php foreach ($taxes as $tax) { ?>
                 <tr>
                     <td colspan="3" class="total-value"><?= (float)$tax['tax_rate'] . '% ' . esc($tax['tax_group']) ?>:</td>
-                    <td class="total-value"><?= to_currency_tax($tax['sale_tax_amount']) ?></td>
+                    <td class="total-value"><?= to_currency_tax($tax['sale_tax_amount'], $tax['tax_type'] ?? null) ?></td>
                 </tr>
         <?php
             }

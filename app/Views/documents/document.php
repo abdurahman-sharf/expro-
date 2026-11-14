@@ -169,7 +169,7 @@ $notes = array_filter([
                         <?php foreach ($sale['taxes'] ?? [] as $tax): ?>
                             <tr>
                                 <td class="<?= $alignStart ?>"><?= documentIsolate((float) $tax['tax_rate'] . '%') ?> <?= esc($tax['tax_group']) ?></td>
-                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency_tax($figure($tax['sale_tax_amount']))) ?></td>
+                                <td class="<?= $alignEnd ?>"><?= documentIsolate(to_currency_tax($figure($tax['sale_tax_amount']), $tax['tax_type'] ?? null)) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         <?php foreach (headerChargeRows($sale['header_charges'] ?? []) as [$chargeLabel, $chargeAmount]): ?>

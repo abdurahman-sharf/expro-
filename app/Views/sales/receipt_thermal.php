@@ -92,7 +92,7 @@ foreach ($payments as $payment) {
         <?php endif; ?>
         <?php if ($config['receipt_show_taxes']): ?>
             <?php foreach ($taxes as $tax): ?>
-                <div><dt><?= documentIsolate((float) $tax['tax_rate'] . '%') ?> <?= esc($tax['tax_group']) ?></dt><dd><?= documentIsolate(to_currency_tax($tax['sale_tax_amount'])) ?></dd></div>
+                <div><dt><?= documentIsolate((float) $tax['tax_rate'] . '%') ?> <?= esc($tax['tax_group']) ?></dt><dd><?= documentIsolate(to_currency_tax($tax['sale_tax_amount'], $tax['tax_type'] ?? null)) ?></dd></div>
             <?php endforeach; ?>
         <?php endif; ?>
         <?php foreach (headerChargeRows($header_charges ?? []) as [$chargeLabel, $chargeAmount]): ?>

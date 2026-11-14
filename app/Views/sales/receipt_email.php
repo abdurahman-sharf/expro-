@@ -122,7 +122,7 @@ $summaryRow = static fn (string $label, string $value, string $style = ''): stri
         <?php if ($config['receipt_show_taxes']): ?>
             <?= $summaryRow(lang('Sales.sub_total'), to_currency($subtotal), 'border-top: 2px solid #042359;') ?>
             <?php foreach ($taxes as $tax): ?>
-                <?= $summaryRow((float) $tax['tax_rate'] . '% ' . esc($tax['tax_group']), to_currency_tax($tax['sale_tax_amount'])) ?>
+                <?= $summaryRow((float) $tax['tax_rate'] . '% ' . esc($tax['tax_group']), to_currency_tax($tax['sale_tax_amount'], $tax['tax_type'] ?? null)) ?>
             <?php endforeach; ?>
         <?php endif; ?>
 

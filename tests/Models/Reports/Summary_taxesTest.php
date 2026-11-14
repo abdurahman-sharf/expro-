@@ -2,15 +2,18 @@
 
 namespace Tests\Models\Reports;
 
+use App\Libraries\Accounting\SaleAmounts;
 use App\Models\Appconfig;
 use App\Models\Reports\Summary_taxes;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
+use Tests\Support\RegisterFixtureTrait;
 use Tests\Support\ReportBranchFixtureTrait;
 use Tests\Support\ReportSaleFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
@@ -27,10 +30,12 @@ class Summary_taxesTest extends CIUnitTestCase
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use PurchaseAccountingFixtureTrait;
+    use RegisterFixtureTrait;
     use ReportBranchFixtureTrait;
     use ReportSaleFixtureTrait;
 
     private const MONTH = '2005-06-';
+    private const MEASURED_DAY = '2005-07-15';
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -178,5 +183,161 @@ class Summary_taxesTest extends CIUnitTestCase
         } finally {
             model(Appconfig::class)->save(['tax_included' => '0']);
         }
+    }
+
+    /**
+     * Rings a seeded batch of invoices of three lines up on the real register (rates, prices, quantities and
+     * discounts of every kind, one invoice in three with a discount on the whole of it), saves them with the books
+     * on, and sets what the legacy summary of taxes gives against what the journals took.
+     *
+     * @param array<string, string> $settings
+     *
+     * @return array{lines: int, legacy: string, summed: string, journal: string, stored: string, perLine: string}
+     */
+    private function measuredTaxSummary(array $settings, int $invoices): array
+    {
+        $this->startSelling();
+        $this->removeReportSales(self::MEASURED_DAY);
+        $this->dropReportTables();
+
+        mt_srand(95);
+
+        $items = [];
+
+        foreach (['15', '14', '5', '7.5', '12.5'] as $rate) {
+            $items[] = $this->taxedItem('0', false, $rate);
+        }
+
+        $quantities = ['1', '2', '3', '0.5', '1.5', '2.25', '7', '0.333'];
+        $discounts  = ['0', '0', '5', '10', '12.5'];
+        $saleIds    = [];
+
+        for ($number = 0; $number < $invoices; $number++) {
+            $lines = [];
+
+            for ($line = 0; $line < 3; $line++) {
+                $lines[] = [
+                    'item'     => $items[mt_rand(0, count($items) - 1)],
+                    'quantity' => $quantities[mt_rand(0, count($quantities) - 1)],
+                    'price'    => number_format(mt_rand(100, 99999) / 100, 2, '.', ''),
+                    'discount' => $discounts[mt_rand(0, count($discounts) - 1)],
+                ];
+            }
+
+            $sale = $this->ringUp($lines, $number % 3 === 0 ? ['type' => PERCENT, 'value' => '5'] : null, null, true, $settings);
+
+            $this->assertGreaterThan(0, $sale['sale']);
+
+            $saleIds[] = $sale['sale'];
+        }
+
+        $db = $this->accountingDb();
+
+        $db->table('sales')->whereIn('sale_id', $saleIds)->update(['sale_time' => self::MEASURED_DAY . ' 10:00:00']);
+
+        $inputs  = ['start_date' => self::MEASURED_DAY, 'end_date' => self::MEASURED_DAY];
+        $rows    = (new Summary_taxes())->getData($inputs);
+        $legacy  = '0';
+        $summed  = (new Summary_taxes())->getSummaryData($inputs)['tax'];
+        $journal = $db->query(
+            'SELECT COALESCE(SUM(l.credit - l.debit), 0) AS tax FROM ' . $db->prefixTable('accounting_journal_lines') . ' l JOIN ' . $db->prefixTable('accounting_journals') . ' j ON j.journal_id = l.journal_id WHERE j.status IN (?, ?) AND l.account_id = ?',
+            ['posted', 'reversed', $this->accountId('tax_output')],
+        )->getRow()->tax;
+
+        foreach ($rows as $row) {
+            $legacy = bcadd($legacy, (string) $row['tax'], 4);
+        }
+
+        $stored  = '0';
+        $perLine = '0';
+        $taxRows = $db->table('sales_items_taxes')->select('item_tax_amount')->whereIn('sale_id', $saleIds)->get()->getResultArray();
+
+        foreach ($taxRows as $taxRow) {
+            $stored  = bcadd($stored, (string) $taxRow['item_tax_amount'], 6);
+            $perLine = bcadd($perLine, SaleAmounts::round((string) $taxRow['item_tax_amount'], 2), 6);
+        }
+
+        $this->removeReportSales(self::MEASURED_DAY);
+
+        return ['lines' => count($taxRows), 'legacy' => $legacy, 'summed' => bcadd((string) $summed, '0', 4), 'journal' => bcadd((string) $journal, '0', 4), 'stored' => bcadd($stored, '0', 4), 'perLine' => bcadd($perLine, '0', 4)];
+    }
+
+    /**
+     * The settings of the measurement of section 8 of the report of W95, with the tax of the report the legacy
+     * summary gives and the journals took, for a hundred invoices and for a thousand.
+     *
+     * @return array<string, array{0: array<string, string>, 1: string, 2: string, 3: string, 4: string}>
+     */
+    public static function measuredSettings(): array
+    {
+        return [
+            'two decimals, tax added'             => [['tax_decimals' => '2', 'tax_included' => '0'], '31958.4800', '31958.4800', '320193.3700', '320193.3700'],
+            'three decimals, tax added'           => [['tax_decimals' => '3', 'tax_included' => '0'], '31958.5200', '31958.4550', '320194.2600', '320193.2860'],
+            'four decimals, tax added'            => [['tax_decimals' => '4', 'tax_included' => '0'], '31958.4800', '31958.4312', '320193.4000', '320193.0892'],
+            'two decimals, tax inside the price'  => [['tax_decimals' => '2', 'tax_included' => '1'], '28425.6000', '28425.5212', '285636.3800', '285636.1557'],
+            'four decimals, tax inside the price' => [['tax_decimals' => '4', 'tax_included' => '1'], '28425.5800', '28425.5107', '285636.3200', '285636.0442'],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $settings
+     */
+    private function assertMeasuredTaxSummary(array $settings, int $invoices, string $legacy, string $journal): void
+    {
+        $measured = $this->measuredTaxSummary($settings, $invoices);
+
+        $this->assertSame($measured['journal'], $measured['stored'], 'the journals take the tax of the lines as it is stored');
+        $this->assertSame($measured['perLine'], $measured['legacy'], 'the legacy summary adds the tax of each line rounded to the currency decimals');
+        $this->assertSame($measured['legacy'], $measured['summed']);
+        $this->assertSame([$legacy, $journal], [$measured['legacy'], $measured['journal']], 'the figures of section 8 of the report of W95');
+    }
+
+    #[DataProvider('measuredSettings')]
+    public function testGetData_GivesTheFiguresOfSectionEightForAHundredInvoicesAtEachSetting(array $settings, string $legacy, string $journal): void
+    {
+        $this->assertMeasuredTaxSummary($settings, 100, $legacy, $journal);
+    }
+
+    #[DataProvider('measuredSettings')]
+    public function testGetData_GivesTheFiguresOfSectionEightForAThousandInvoicesWhenTheLongMeasurementIsAsked(array $settings, string $hundredLegacy, string $hundredJournal, string $legacy, string $journal): void
+    {
+        if (getenv('MEASURE_TAX_SUMMARY') !== '1') {
+            $this->markTestSkipped('The long measurement of 1,000 invoices runs only with MEASURE_TAX_SUMMARY=1.');
+        }
+
+        $this->assertMeasuredTaxSummary($settings, 1000, $legacy, $journal);
+    }
+
+    public function testGetData_GivesTheTaxOfTheJournalsToTheCentWhileEveryLineTaxIsKeptToTheCurrencyDecimals(): void
+    {
+        $measured = $this->measuredTaxSummary(['tax_decimals' => '2', 'tax_included' => '0'], 60);
+
+        $this->assertGreaterThan(100, $measured['lines']);
+        $this->assertSame($measured['journal'], $measured['stored'], 'the journals take the tax of the lines as it is stored');
+        $this->assertSame($measured['journal'], $measured['legacy']);
+        $this->assertSame($measured['journal'], $measured['summed']);
+    }
+
+    public function testGetData_DiffersFromTheJournalsByWhatItRoundsOffTheTaxOfEveryLineWhenTheTaxIsKeptToFourDecimals(): void
+    {
+        $measured = $this->measuredTaxSummary(['tax_decimals' => '4', 'tax_included' => '0'], 60);
+
+        $difference = bcsub($measured['legacy'], $measured['journal'], 4);
+
+        $this->assertSame($measured['journal'], $measured['stored']);
+        $this->assertSame($measured['perLine'], $measured['legacy'], 'the legacy summary adds the tax of each line rounded to the currency decimals');
+        $this->assertNotSame('0.0000', $difference, 'with a tax of four decimals the rounding of every line is not nothing');
+        $this->assertLessThanOrEqual(0, bccomp(SaleAmounts::absolute($difference), bcmul('0.005', (string) $measured['lines'], 4), 4), 'never more than half a cent a line');
+    }
+
+    public function testGetData_DiffersFromTheJournalsByWhatItRoundsOffTheTaxInsideThePriceOfEveryLine(): void
+    {
+        $measured = $this->measuredTaxSummary(['tax_decimals' => '2', 'tax_included' => '1'], 60);
+
+        $difference = bcsub($measured['legacy'], $measured['journal'], 4);
+
+        $this->assertSame($measured['journal'], $measured['stored']);
+        $this->assertSame($measured['perLine'], $measured['legacy']);
+        $this->assertLessThanOrEqual(0, bccomp(SaleAmounts::absolute($difference), bcmul('0.005', (string) $measured['lines'], 4), 4), 'never more than half a cent a line');
     }
 }

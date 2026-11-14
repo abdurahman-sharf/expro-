@@ -679,6 +679,7 @@ return [
     'error_routing_item_accounts_invalid'        => 'بعض الأصناف تحدد لهذا البند حسابًا لم يعد يقبل قيودًا. غيّره من نموذج الصنف أولًا، وإلا توقف بيع هذه الأصناف.',
     'error_routing_key_unknown'                  => 'لا يُوجَّه هذا البند من هنا.',
     'error_routing_type_invalid'                 => 'نوع التوجيه هذا غير متاح لهذا البند.',
+    'error_sale_has_returns'                     => 'لا يُلغى بيع رُدَّت منه بضاعة ما دام مرتجعه قائمًا.',
     'error_sale_locked'                          => 'لا يتغير عميل البيع المرحَّل ولا تاريخه. يُصحَّح بمرتجع.',
     'error_sale_payment_not_on_sale'             => 'الدفعة لا تخص هذا البيع.',
     'error_sales_order_customer_invalid'         => 'عميل أمر البيع غير موجود.',

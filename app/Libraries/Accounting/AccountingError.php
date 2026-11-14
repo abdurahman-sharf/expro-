@@ -142,6 +142,7 @@ enum AccountingError: string
     case NumberingSourceInvalid  = 'numbering_source_invalid';
     case NumberingExhausted      = 'numbering_exhausted';
 
+    case SaleHasReturns       = 'sale_has_returns';
     case SaleLocked           = 'sale_locked';
     case SalePaymentNotOnSale = 'sale_payment_not_on_sale';
     case IssuedDocumentLocked = 'issued_document_locked';

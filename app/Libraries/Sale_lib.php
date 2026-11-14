@@ -2143,28 +2143,21 @@ class Sale_lib
     }
 
     /**
-     * @param string $external_item_kit_id
-     * @param int $item_location
-     * @param float $discount
-     * @param string $discount_type
-     * @param bool $kit_price_option
-     * @param bool $kit_print_option
-     * @param string $stock_warning
-     * @return bool
+     * @param int $kitPriceOption PRICE_OPTION_ALL, PRICE_OPTION_KIT or PRICE_OPTION_KIT_STOCK, handed on to every line as it is
+     * @param int $kitPrintOption PRINT_ALL, PRINT_PRICED or PRINT_KIT, handed on to every line as it is
      */
-    public function add_item_kit(string $external_item_kit_id, int $item_location, float $discount, string $discount_type, bool $kit_price_option, bool $kit_print_option, ?string &$stock_warning): bool
+    public function add_item_kit(string $externalItemKitId, int $itemLocation, float $discount, string $discountType, int $kitPriceOption, int $kitPrintOption, ?string &$stockWarning): bool
     {
         // KIT #
-        $pieces = explode(' ', $external_item_kit_id);
-        $item_kit_id = (count($pieces) > 1) ? $pieces[1] : $external_item_kit_id;
+        $pieces = explode(' ', $externalItemKitId);
+        $itemKitId = (count($pieces) > 1) ? $pieces[1] : $externalItemKitId;
         $result = true;
-        $applied_discount = $discount;
 
-        foreach ($this->item_kit_items->get_info($item_kit_id) as $item_kit_item) {
-            $result &= $this->add_item($item_kit_item['item_id'], $item_location, $item_kit_item['quantity'], $discount, $discount_type, PRICE_MODE_KIT, $kit_price_option, $kit_print_option);
+        foreach ($this->item_kit_items->get_info($itemKitId) as $itemKitItem) {
+            $result &= $this->add_item($itemKitItem['item_id'], $itemLocation, $itemKitItem['quantity'], $discount, $discountType, PRICE_MODE_KIT, $kitPriceOption, $kitPrintOption);
 
-            if ($stock_warning == null) {
-                $stock_warning = $this->out_of_stock($item_kit_item['item_id'], $item_location);
+            if ($stockWarning == null) {
+                $stockWarning = $this->out_of_stock($itemKitItem['item_id'], $itemLocation);
             }
         }
 

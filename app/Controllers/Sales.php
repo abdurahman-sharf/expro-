@@ -1215,7 +1215,9 @@ class Sales extends Secure_Controller
         $format        = (string) ($this->config['sales_invoice_format'] ?? '');
 
         if ($format !== '' && !(new DocumentNumbering())->isEnabled(DocumentType::SalesInvoice) && ($this->sale->getInvoiceNumber($saleId) ?? '') === '') {
-            $invoiceNumber = $this->token_lib->render($format);
+            $draft         = (new DraftInvoice())->find($saleId);
+            $draftCustomer = $this->customer->get_info($draft === null || $draft->customer_id === null ? null : (int) $draft->customer_id);
+            $invoiceNumber = $this->token_lib->render($format, [new Token_customer(['first_name' => $draftCustomer->first_name, 'last_name' => $draftCustomer->last_name])]);
 
             if ($this->sale->check_invoice_number_exists($invoiceNumber)) {
                 return $this->response->setJSON(['success' => false, 'message' => lang('Sales.invoice_number_duplicate', [$invoiceNumber]), 'id' => $saleId]);
@@ -1635,8 +1637,9 @@ class Sales extends Secure_Controller
 
         $priceFields = static fn (array $line): array => [$line['price'], $line['quantity'], $line['discount'], $line['discount_type']];
         $changed = [];
+        $cart = $this->sale_lib->get_cart();
 
-        foreach ($this->sale_lib->get_cart() as $key => $line) {
+        foreach ($cart as $key => $line) {
             if (!isset($cartBefore[$key]) || $priceFields($cartBefore[$key]) !== $priceFields($line)) {
                 $changed[$key] = $line;
             }
@@ -1645,7 +1648,7 @@ class Sales extends Secure_Controller
         $controls = new PriceControls();
 
         try {
-            $violations = $controls->isActive() && $changed !== [] ? $controls->violationsOf($changed, $this->sale_lib->currencyRate()) : [];
+            $violations = $controls->isActive() && $changed !== [] ? $controls->violationsOf($changed, $this->sale_lib->currencyRate(), $this->tax_lib->get_taxes($cart)[1]) : [];
         } catch (AccountingException $refusal) {
             $this->sale_lib->set_cart($cartBefore);
 

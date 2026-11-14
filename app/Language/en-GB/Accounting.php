@@ -679,6 +679,7 @@ return [
     'error_routing_item_accounts_invalid'        => 'Some items name an account for this row that cannot take entries any more. Change it on the item form first: a sale of one of those items would stop.',
     'error_routing_key_unknown'                  => 'This item cannot be routed here.',
     'error_routing_type_invalid'                 => 'This routing type is not available for this item.',
+    'error_sale_has_returns'                     => 'A sale that goods have been returned from cannot be cancelled while its return stands.',
     'error_sale_locked'                          => 'The customer and the date of a sale that has been posted cannot change. Correct it with a return.',
     'error_sale_payment_not_on_sale'             => 'The payment does not belong to this sale.',
     'error_sales_order_customer_invalid'         => 'The customer of the order does not exist.',

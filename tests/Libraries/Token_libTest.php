@@ -3,6 +3,9 @@
 namespace Tests\Libraries;
 
 use App\Libraries\Token_lib;
+use App\Models\Customer;
+use App\Models\Tokens\Token_customer;
+use CodeIgniter\Config\Factories;
 use CodeIgniter\Test\CIUnitTestCase;
 
 class Token_libTest extends CIUnitTestCase
@@ -310,5 +313,46 @@ class Token_libTest extends CIUnitTestCase
         $this->assertNotEmpty($result);
         $this->assertStringNotContainsString('%h', $result);
         $this->assertMatchesRegularExpression('/Month: [A-Za-z]{3}/', $result);
+    }
+
+    private function registerHoldingCustomer(int $customerId, string $firstName, string $lastName): void
+    {
+        $customer = $this->createStub(Customer::class);
+        $customer->method('get_info')->willReturn((object) ['first_name' => $firstName, 'last_name' => $lastName]);
+        Factories::injectMock('models', Customer::class, $customer);
+
+        session()->set('sales_customer', $customerId);
+    }
+
+    public function testRender_TakesTheCustomerOfTheRegisterForTheCustomerTokenWhenNoOtherIsGiven(): void
+    {
+        $this->registerHoldingCustomer(5, 'Mona', 'Zaki');
+
+        $this->assertSame('INV-Mona Zaki', $this->tokenLib->render('INV-{CU}', [], false));
+    }
+
+    public function testRender_TakesTheCustomerGivenForTheCustomerTokenAndNotTheOneOfTheRegister(): void
+    {
+        $this->registerHoldingCustomer(5, 'Mona', 'Zaki');
+
+        $given = new Token_customer(['first_name' => 'Omar', 'last_name' => 'Khaled']);
+
+        $this->assertSame('INV-Omar Khaled', $this->tokenLib->render('INV-{CU}', [$given], false));
+    }
+
+    public function testRender_LeavesTheCustomerTokenEmptyForADocumentWithNoCustomerWhateverTheRegisterHolds(): void
+    {
+        $this->registerHoldingCustomer(5, 'Mona', 'Zaki');
+
+        $given = new Token_customer(['first_name' => '', 'last_name' => '']);
+
+        $this->assertSame('INV-', $this->tokenLib->render('INV-{CU}', [$given], false));
+    }
+
+    public function testRender_LeavesTheCustomerTokenEmptyWhenTheRegisterHoldsNoCustomer(): void
+    {
+        $this->registerHoldingCustomer(NEW_ITEM, 'Mona', 'Zaki');
+
+        $this->assertSame('INV-', $this->tokenLib->render('INV-{CU}', [], false));
     }
 }

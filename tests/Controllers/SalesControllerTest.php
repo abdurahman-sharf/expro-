@@ -1358,6 +1358,27 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertCount(2, $this->standing($invoice['saleId']));
     }
 
+    public function testPostDelete_SaysThatASaleWhoseReturnStandsCannotBeCancelledAndCancelsNothing(): void
+    {
+        $sale    = $this->postedInvoice(true, SALE_TYPE_POS);
+        $perfume = $sale['perfume'];
+
+        $this->save([$this->line($perfume, 0, '-1', '220', '120.00')], [$this->tax($perfume, 0, '-33.00')], [], SALE_TYPE_RETURN, -1, true, $sale['saleId']);
+
+        $stock    = $this->stock($sale['cream']);
+        $journals = $this->countJournals();
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/delete', ['ids' => [(string) $sale['saleId']]]));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_sale_has_returns'), $result['message']);
+        $this->assertSame((string) COMPLETED, (string) $this->saleRow($sale['saleId'])->sale_status);
+        $this->assertEqualsWithDelta($stock, $this->stock($sale['cream']), 0.0001);
+        $this->assertSame($journals, $this->countJournals());
+    }
+
     public function testGetEdit_ShowsWhatIsOwedAndTheStatusOfEachPaymentOfAnIssuedInvoice(): void
     {
         $invoice = $this->postedInvoice();
@@ -2566,6 +2587,40 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->assertSame($sales, $this->countSales());
         $this->assertEqualsWithDelta($stock, $this->stock($item), 0.0001);
+    }
+
+    public function testPostComplete_RefusesAReturnOfASaleCancelledAfterTheReturnWasOpenedAndSavesNothing(): void
+    {
+        $this->startSelling();
+
+        $service = $this->item('0', false);
+        $origin  = $this->save([$this->line($service, 0, '1', '100.00')], [], [$this->payment(lang('Sales.cash'), '100.00')], SALE_TYPE_POS, -1);
+
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $this->grantStockLocationIn(1, $supervisorId);
+        $this->loginAs($supervisorId);
+        $this->seedCartLine(1, '100.00', $service);
+
+        $cart                        = $this->session['sales_cart'];
+        $cart[1]['quantity']         = '-1';
+        $cart[1]['total']            = '-100.00';
+        $cart[1]['discounted_total'] = '-100.00';
+
+        $this->withSession(array_merge($this->session, ['sale_id' => NEW_ENTRY, 'sales_mode' => 'return', 'sale_type' => SALE_TYPE_RETURN, 'sales_customer' => $this->customerId, 'sales_cart' => $cart, 'sales_payments' => [], 'sales_return_origin' => $origin]));
+        $this->post('/sales/addPayment', ['payment_type' => lang('Sales.cash'), 'amount_tendered' => '-100']);
+        $this->withSession(array_merge($this->session, ['sales_payments' => Services::session()->get('sales_payments')]));
+
+        $this->assertTrue($this->sales->delete($origin, false, true, $supervisorId));
+
+        $sales    = $this->countSales();
+        $journals = $this->countJournals();
+        $balance  = $this->balance($this->customerAccount());
+
+        $this->post('/sales/complete')->assertSee(lang('Accounting.posting_return_origin_invalid'));
+
+        $this->assertSame($sales, $this->countSales());
+        $this->assertSame($journals, $this->countJournals());
+        $this->assertSame($balance, $this->balance($this->customerAccount()));
     }
 
     public function testPostSetReturnOrigin_NamesTheSaleAndSelectsItsCustomer(): void
@@ -3949,6 +4004,109 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
             $receipt->assertSee('13.04');
             $receipt->assertSee('4.35');
         } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    /**
+     * Rings the register of registerWithTwoTaxes up with three decimals for the tax: the tax of 15% inside the price
+     * is saved as 13.043 and the service charge of 5% added to it as 4.35.
+     */
+    private function saleWithTaxInsideThePriceOfThreeDecimals(): int
+    {
+        $this->registerWithTwoTaxes();
+
+        config(OSPOS::class)->settings['tax_decimals'] = 3;
+
+        $this->post('/sales/complete');
+
+        $saleId = $this->lastSaleId();
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+        model(Appconfig::class)->save(['receipt_show_taxes' => '1']);
+        config(OSPOS::class)->settings['tax_decimals'] = 3;
+
+        return $saleId;
+    }
+
+    #[DataProvider('receiptTemplateProvider')]
+    public function testGetReceipt_PrintsATaxInsideThePriceWithTheDecimalsOfTheTaxAndOneAddedToItWithThoseOfTheCurrencyOnEveryReceiptTemplate(string $template): void
+    {
+        $before = $this->config()['tax_decimals'];
+
+        try {
+            $saleId = $this->saleWithTaxInsideThePriceOfThreeDecimals();
+
+            $this->withReceiptSettings(['receipt_template' => $template], function () use ($saleId): void {
+                $receipt = $this->get('/sales/receipt/' . $saleId);
+
+                $receipt->assertStatus(200);
+                $receipt->assertSee('13.043');
+                $receipt->assertSee('4.35');
+                $receipt->assertDontSee('4.350');
+            });
+        } finally {
+            config(OSPOS::class)->settings['tax_decimals'] = $before;
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testGetInvoice_PrintsATaxInsideThePriceWithTheDecimalsOfTheTax(): void
+    {
+        $before = $this->config()['tax_decimals'];
+
+        try {
+            $saleId = $this->saleWithTaxInsideThePriceOfThreeDecimals();
+
+            $invoice = $this->get('/sales/invoice/' . $saleId);
+
+            $invoice->assertStatus(200);
+            $invoice->assertSee('13.043');
+            $invoice->assertDontSee('4.350');
+        } finally {
+            config(OSPOS::class)->settings['tax_decimals'] = $before;
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testReceiptEmail_PrintsATaxInsideThePriceWithTheDecimalsOfTheTaxAndOneAddedToItWithThoseOfTheCurrency(): void
+    {
+        $before = $this->config()['tax_decimals'];
+
+        try {
+            $saleId = $this->saleWithTaxInsideThePriceOfThreeDecimals();
+
+            $controller = new Sales();
+            $controller->initController(service('request'), service('response'), service('logger'));
+
+            $load = new ReflectionMethod($controller, '_load_sale_data');
+            $html = view('sales/receipt_email', $load->invoke($controller, $saleId) + ['pdf' => false]);
+
+            $this->assertStringContainsString('13.043', $html);
+            $this->assertStringContainsString('4.35', $html);
+            $this->assertStringNotContainsString('4.350', $html);
+        } finally {
+            config(OSPOS::class)->settings['tax_decimals'] = $before;
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testGetIndex_PrintsATaxInsideThePriceOfTheRegisterWithTheDecimalsOfTheTax(): void
+    {
+        $before = $this->config()['tax_decimals'];
+
+        try {
+            $this->registerWithTwoTaxes();
+
+            config(OSPOS::class)->settings['tax_decimals'] = 3;
+
+            $register = $this->get('/sales');
+
+            $register->assertStatus(200);
+            $register->assertSee('13.043');
+            $register->assertDontSee('4.350');
+        } finally {
+            config(OSPOS::class)->settings['tax_decimals'] = $before;
             $this->forgetTheTaxList();
         }
     }
@@ -5580,6 +5738,28 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame(0, Database::connect()->table('document_numbers')->countAllResults());
     }
 
+    public function testPostIssue_NamesTheCustomerOfTheDraftInANumberFormatThatCarriesTheCustomerAndNotTheOneOfTheRegister(): void
+    {
+        $this->supervisorForDocuments();
+
+        $draft  = $this->draftInvoice($this->taxedLines());
+        $other  = $this->anotherCustomer('Mona', 'Zaki');
+        $marker = 'CU' . random_int(100000, 999999);
+        $before = $this->config()['sales_invoice_format'];
+
+        $this->withSession(array_merge($this->session, ['sales_customer' => $other]));
+        config(OSPOS::class)->settings['sales_invoice_format'] = $marker . '-{CU}';
+
+        try {
+            $answer = $this->jsonOf($this->post('/sales/issue/' . $draft));
+        } finally {
+            config(OSPOS::class)->settings['sales_invoice_format'] = $before;
+        }
+
+        $this->assertTrue($answer['success']);
+        $this->assertSame($marker . '-Omar Khaled', Database::connect()->table('sales')->where('sale_id', $draft)->get()->getRow()->invoice_number);
+    }
+
     public function testPostIssue_RejectsAFormatNumberThatAnotherInvoiceAlreadyHasAndLeavesTheDraft(): void
     {
         $this->supervisorForDocuments();
@@ -6412,6 +6592,29 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame(SUSPENDED, $this->saleStatusOf($converted));
     }
 
+    public function testPostSave_RefusesToEditAConvertedQuoteOpenedByItsIdAndKeepsItAsItWas(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items     = $this->taxedLines();
+        $open      = $this->quote(null, $items);
+        $converted = $this->quote(null, $items);
+
+        Database::connect()->table('sales')->where('sale_id', $converted)->update(['quote_status' => QuoteStatus::Converted->value]);
+
+        $form = fn (string $comment): array => ['date' => date($this->config()['dateformat'] . ' ' . $this->config()['timeformat']), 'customer_id' => (string) $this->customerId, 'employee_id' => (string) $this->employeeId, 'comment' => $comment, 'number_of_payments' => '0'];
+
+        $answer = $this->jsonOf($this->post('/sales/save/' . $converted, $form('changed')));
+
+        $this->assertFalse($answer['success']);
+        $this->assertSame(lang('Accounting.error_quote_locked'), $answer['message']);
+        $this->assertSame('test', $this->saleRow($converted)->comment);
+        $this->assertSame((string) QuoteStatus::Converted->value, $this->statusOfTheQuote($converted));
+
+        $this->assertTrue($this->jsonOf($this->post('/sales/save/' . $open, $form('changed')))['success'], 'a quote that was not converted is edited as before');
+        $this->assertSame('changed', $this->saleRow($open)->comment);
+    }
+
     public function testPostComplete_SaysWhyAQuoteOfAnotherBranchCannotBeConvertedAndSavesNothing(): void
     {
         $this->supervisorForDocuments();
@@ -6463,7 +6666,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame('draft-' . $draftQuote, $rows[$draftQuote]['doc_id']);
     }
 
-    public function testGetSuspended_NamesADraftQuoteByItsTemporaryNumberAndLeavesTheOtherDocumentsAsTheyWere(): void
+    public function testGetSuspended_NamesADraftQuoteAndASuspendedInvoiceByTheirTemporaryNumberAndKeepsTheNumberOfAnOpenQuote(): void
     {
         $this->supervisorForDocuments();
 
@@ -6478,8 +6681,38 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->assertSame('draft-' . $draft, $rows[$draft]);
         $this->assertSame('Q26-0099', $rows[$open]);
-        $this->assertSame((string) $number, (string) $rows[$number], 'a suspended invoice shows its id in the list of the register as it always did');
+        $this->assertSame('draft-' . $number, (string) $rows[$number], 'a suspended invoice is a draft and is known by its temporary number');
         $this->get('/sales/suspended')->assertSee('draft-' . $draft);
+    }
+
+    public function testGetAllSuspended_KeepsTheIdForASuspendedPointOfSaleSaleAndNamesAWorkOrderByItsNumber(): void
+    {
+        $this->supervisorForDocuments();
+
+        $items = $this->taxedLines();
+        $pos   = $this->save($items, [], [], SALE_TYPE_POS, -1, true, null, SUSPENDED);
+        $order = $this->save($items, [], [], SALE_TYPE_WORK_ORDER, -1, true, null, SUSPENDED);
+
+        Database::connect()->table('sales')->where('sale_id', $order)->update(['work_order_number' => 'WO-7']);
+
+        $rows = array_column($this->sales->get_all_suspended(NEW_ENTRY), 'doc_id', 'sale_id');
+
+        $this->assertSame((string) $pos, (string) $rows[$pos]);
+        $this->assertSame('WO-7', $rows[$order]);
+    }
+
+    public function testGetSuspended_ShowsTheNumberOfASuspendedDocumentAsTextAndNeverAsMarkup(): void
+    {
+        $this->supervisorForDocuments();
+
+        $quote = $this->quote(null, $this->taxedLines());
+
+        Database::connect()->table('sales')->where('sale_id', $quote)->update(['quote_number' => '<b onmouseover=alert(1)>Q-1</b>']);
+
+        $body = $this->get('/sales/suspended')->getBody();
+
+        $this->assertStringContainsString('&lt;b onmouseover=alert(1)&gt;Q-1&lt;/b&gt;', $body);
+        $this->assertStringNotContainsString('<b onmouseover=alert(1)>', $body);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -6852,6 +7085,107 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '90.00', '85.00']));
         $this->assertSame('100.00', (string) Services::session()->get('sales_cart')[1]['price']);
+    }
+
+    /**
+     * The register of registerWithPriceControls with a tax of 15% inside the price of its item.
+     *
+     * @param list<string> $grants
+     *
+     * @return array{item: int, employee: int}
+     */
+    private function registerWithTaxInsideThePrice(array $grants, string $price, string $minimum): array
+    {
+        $setup = $this->registerWithPriceControls($grants, $price, minimum: $minimum);
+
+        $taxes = [['name' => 'VAT', 'percent' => '15']];
+
+        model(Item_taxes::class)->save_value($taxes, $setup['item']);
+        Database::connect()->table('tax_definitions')->insert(['tax_name' => 'VAT', 'tax_included' => 1]);
+        $this->turnOnPriceControls(true);
+
+        return $setup;
+    }
+
+    public function testPostEditItem_HoldsAPriceWithTaxInsideItToTheMinimumWithoutTheTaxAndKeepsTheLineAsItWas(): void
+    {
+        try {
+            $this->registerWithTaxInsideThePrice(['sales_change_price'], '115.00', '100');
+
+            $response = $this->post('/sales/editItem/1', ['price' => '105', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
+
+            $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '100.00', '91.30']));
+            $this->assertSame('115.00', (string) Services::session()->get('sales_cart')[1]['price']);
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testPostEditItem_AcceptsAPriceWithTaxInsideItWhoseShareWithoutTheTaxIsExactlyTheMinimum(): void
+    {
+        try {
+            $this->registerWithTaxInsideThePrice(['sales_change_price'], '130.00', '100');
+
+            $this->post('/sales/editItem/1', ['price' => '115', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
+
+            $this->assertSame('115.00', (string) Services::session()->get('sales_cart')[1]['price'], '115 less the 15 inside it is exactly the minimum, and each request of the test starts from the cart seeded at 130');
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testPostComplete_RefusesALineWhoseTaxlessPriceIsUnderTheMinimumAndSavesNothing(): void
+    {
+        try {
+            $this->registerWithTaxInsideThePrice([], '105.00', '100');
+
+            $sales = $this->countSales();
+
+            $response = $this->post('/sales/complete');
+
+            $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '100.00', '91.30']));
+            $this->assertSame($sales, $this->countSales());
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testPostComplete_LetsAnEmployeeWhoMayOverridePricesSellALineWhoseTaxlessPriceIsUnderTheMinimumAndWritesThePriceWithoutTheTax(): void
+    {
+        try {
+            $setup = $this->registerWithTaxInsideThePrice([AccountingGuard::PRICE_OVERRIDE], '105.00', '100');
+
+            $sales = $this->countSales();
+
+            $this->post('/sales/complete');
+
+            $this->assertSame($sales + 1, $this->countSales());
+
+            $entry = $this->lastAudit('price_override');
+            $line  = json_decode($entry['details'], true)['lines'][0];
+
+            $this->assertSame($setup['employee'], (int) $entry['employee_id']);
+            $this->assertSame(['below_minimum', '91.3043', '100.0000'], [$line['rule'], $line['net'], $line['bound']]);
+            $this->assertSame(0, $this->auditEntries('price_refused'));
+        } finally {
+            $this->forgetTheTaxList();
+        }
+    }
+
+    public function testPostComplete_SellsALineWhoseTaxlessPriceEqualsTheMinimum(): void
+    {
+        try {
+            $this->registerWithTaxInsideThePrice([], '115.00', '100');
+
+            $sales = $this->countSales();
+
+            $this->post('/sales/complete');
+
+            $this->assertSame($sales + 1, $this->countSales());
+            $this->assertSame(0, $this->auditEntries('price_refused'));
+        } finally {
+            $this->forgetTheTaxList();
+        }
     }
 
     public function testPostEditItem_RefusesADiscountAboveTheHighestDiscountAndKeepsTheLineAsItWas(): void
@@ -7562,6 +7896,59 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
             $this->assertSame(['50.00', '30.00'], array_values(array_map(static fn (array $line): string => (string) $line['price'], Services::session()->get('sales_cart'))), 'choosing the customer prices no kit line again');
         } finally {
+            $this->accountingDb()->table('item_kits')->where('item_kit_id', $kitId)->delete();
+        }
+    }
+
+    /**
+     * @return array<string, array{int, array{kit: string, stock: string, service: string}}>
+     */
+    public static function kitPriceOptionProvider(): array
+    {
+        return [
+            'the kit and its stock items'  => [PRICE_OPTION_ALL, ['kit' => '90.00', 'stock' => '50.00', 'service' => '30.00']],
+            'the price of the kit'         => [PRICE_OPTION_KIT, ['kit' => '90.00', 'stock' => '0.00', 'service' => '0.00']],
+            'the stock items only'         => [PRICE_OPTION_KIT_STOCK, ['kit' => '0.00', 'stock' => '50.00', 'service' => '0.00']],
+        ];
+    }
+
+    /**
+     * @param array{kit: string, stock: string, service: string} $expected
+     */
+    #[DataProvider('kitPriceOptionProvider')]
+    public function testPostAdd_PricesAKitByItsPriceOptionAndPricesOnlyTheStockItemsForOptionTwo(int $priceOption, array $expected): void
+    {
+        $this->registerWithPriceControls();
+
+        $kitItem = $this->item('0', false);
+        $stock   = $this->item('0');
+        $service = $this->item('0', false);
+
+        $this->accountingDb()->table('items')->where('item_id', $kitItem)->update(['item_type' => ITEM_KIT, 'unit_price' => '90']);
+        $this->accountingDb()->table('items')->where('item_id', $stock)->update(['unit_price' => '50']);
+        $this->accountingDb()->table('items')->where('item_id', $service)->update(['unit_price' => '30']);
+        $this->accountingDb()->table('item_kits')->insert(['name' => 'Gift box', 'item_id' => $kitItem, 'description' => '', 'price_option' => $priceOption, 'print_option' => PRINT_ALL]);
+
+        $kitId = (int) $this->accountingDb()->insertID();
+
+        try {
+            $this->accountingDb()->table('item_kit_items')->insertBatch([
+                ['item_kit_id' => $kitId, 'item_id' => $stock, 'quantity' => '1', 'kit_sequence' => 1],
+                ['item_kit_id' => $kitId, 'item_id' => $service, 'quantity' => '1', 'kit_sequence' => 2],
+            ]);
+            $this->withSession(array_merge($this->session, ['sales_cart' => []]));
+
+            $this->post('/sales/add', ['item' => 'KIT ' . $kitId]);
+
+            $prices = [];
+
+            foreach (Services::session()->get('sales_cart') as $line) {
+                $prices[(int) $line['item_id']] = (string) $line['price'];
+            }
+
+            $this->assertSame([$kitItem => $expected['kit'], $stock => $expected['stock'], $service => $expected['service']], $prices);
+        } finally {
+            $this->accountingDb()->table('item_kit_items')->where('item_kit_id', $kitId)->delete();
             $this->accountingDb()->table('item_kits')->where('item_kit_id', $kitId)->delete();
         }
     }
