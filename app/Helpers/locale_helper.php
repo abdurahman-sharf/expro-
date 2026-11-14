@@ -1,6 +1,7 @@
 <?php
 
 use App\Libraries\Integrations\PaymentMethods;
+use App\Libraries\Tax_lib;
 use App\Models\Employee;
 use Config\OSPOS;
 
@@ -475,18 +476,23 @@ function to_unit_price(?string $number): string
 }
 
 /**
+ * A tax amount with the decimals it was rounded to: those of the tax for a tax inside the price, those of
+ * the currency for one added to it. The mode of the tax line decides when the line is given; without it
+ * (and for a shop that taxes by destination) the setting of the shop does.
+ *
  * @param string|null $number
+ * @param string|null $taxType Tax_lib::TAX_TYPE_INCLUDED or Tax_lib::TAX_TYPE_EXCLUDED, the tax_type of the tax line.
  * @return string
  */
-function to_currency_tax(?string $number): string
+function to_currency_tax(?string $number, ?string $taxType = null): string
 {
     $config = config(OSPOS::class)->settings;
 
-    if ($config['tax_included']) {    // TODO: ternary notation
-        return to_decimals($number, 'tax_decimals', NumberFormatter::CURRENCY);
-    } else {
-        return to_decimals($number, 'currency_decimals', NumberFormatter::CURRENCY);
-    }
+    $included = $taxType === null || !empty($config['use_destination_based_tax'])
+        ? !empty($config['tax_included'])
+        : (string) $taxType === Tax_lib::TAX_TYPE_INCLUDED;
+
+    return to_decimals($number, $included ? 'tax_decimals' : 'currency_decimals', NumberFormatter::CURRENCY);
 }
 
 /**

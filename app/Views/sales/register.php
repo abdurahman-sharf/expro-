@@ -475,7 +475,7 @@ $employee        = model(Employee::class);
                         <div><dt><?= lang("{$sectionName}.sub_total") ?></dt><dd><?= to_currency($subtotal) ?></dd></div>
                     <?php endif; ?>
                     <?php foreach ($taxes as $tax): ?>
-                        <div><dt><?= (float) $tax['tax_rate'] . '% ' . esc($tax['tax_group']) ?></dt><dd><?= to_currency_tax($tax['sale_tax_amount']) ?></dd></div>
+                        <div><dt><?= (float) $tax['tax_rate'] . '% ' . esc($tax['tax_group']) ?></dt><dd><?= to_currency_tax($tax['sale_tax_amount'], $tax['tax_type'] ?? null) ?></dd></div>
                     <?php endforeach; ?>
                     <?php foreach (headerChargeRows($header_charges) as [$chargeLabel, $chargeAmount]): ?>
                         <div class="pos-header-charge"><dt><?= esc($chargeLabel) ?></dt><dd><?= to_currency($chargeAmount) ?></dd></div>

@@ -3974,6 +3974,35 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         }
     }
 
+    public function testGetReceipt_PrintsATaxInsideThePriceWithTheDecimalsOfTheTaxAndOneAddedToItWithThoseOfTheCurrency(): void
+    {
+        $before = $this->config()['tax_decimals'];
+
+        try {
+            $this->registerWithTwoTaxes();
+
+            config(OSPOS::class)->settings['tax_decimals'] = 3;
+
+            $this->post('/sales/complete');
+
+            $saleId = $this->lastSaleId();
+
+            $this->loginAs($this->createBranchLimitedSupervisor(1));
+            model(Appconfig::class)->save(['receipt_show_taxes' => '1']);
+            config(OSPOS::class)->settings['tax_decimals'] = 3;
+
+            $receipt = $this->get('/sales/receipt/' . $saleId);
+
+            $receipt->assertStatus(200);
+            $receipt->assertSee('13.043');
+            $receipt->assertSee('4.35');
+            $receipt->assertDontSee('4.350');
+        } finally {
+            config(OSPOS::class)->settings['tax_decimals'] = $before;
+            $this->forgetTheTaxList();
+        }
+    }
+
     public function testPostComplete_RefusesALineWithNoTaxWhenTheSettingAsksForOneAndSavesNothing(): void
     {
         model(Appconfig::class)->save(['require_tax_1' => '1']);

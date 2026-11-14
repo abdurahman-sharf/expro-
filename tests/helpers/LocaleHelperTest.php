@@ -1,5 +1,6 @@
 <?php
 
+use App\Libraries\Tax_lib;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\OSPOS;
@@ -182,5 +183,51 @@ class LocaleHelperTest extends CIUnitTestCase
         foreach (['0.1250', '9.0000', '12.3456', '1234.5000'] as $stored) {
             $this->assertSame($stored, number_format((float) parse_decimals(to_currency_exact($stored)), 4, '.', ''), $stored);
         }
+    }
+
+    private function useTaxNumbers(bool $taxIncluded, bool $byDestination = false): void
+    {
+        $config           = new OSPOS();
+        $config->settings = ['dateformat' => 'Y-m-d', 'number_locale' => 'en_US', 'currency_symbol' => '$', 'currency_decimals' => 2, 'tax_decimals' => 3, 'thousands_separator' => '1', 'tax_included' => $taxIncluded ? '1' : '0', 'use_destination_based_tax' => $byDestination ? '1' : '0'];
+        Factories::injectMock('config', OSPOS::class, $config);
+    }
+
+    /**
+     * @return array<string, array{bool, ?string, string}>
+     */
+    public static function taxLineProvider(): array
+    {
+        return [
+            'a tax inside the price keeps the decimals of the tax, whatever the shop says' => [false, Tax_lib::TAX_TYPE_INCLUDED, '$13.044'],
+            'a tax added to the price keeps the decimals of the currency, whatever the shop says' => [true, Tax_lib::TAX_TYPE_EXCLUDED, '$13.04'],
+            'a line without a mode follows the shop when it taxes inside the price' => [true, null, '$13.044'],
+            'a line without a mode follows the shop when it adds the tax' => [false, null, '$13.04'],
+        ];
+    }
+
+    #[DataProvider('taxLineProvider')]
+    public function testToCurrencyTax_PrintsATaxLineWithTheDecimalsOfItsOwnModeAndTheShopOnesOnlyWhenTheLineHasNoMode(bool $shopIncludes, ?string $taxType, string $expected): void
+    {
+        $this->useTaxNumbers($shopIncludes);
+
+        $this->assertSame($expected, to_currency_tax('13.044', $taxType));
+    }
+
+    public function testToCurrencyTax_FollowsTheShopWhenItTaxesByDestinationWhateverTheModeOfTheLine(): void
+    {
+        $this->useTaxNumbers(false, true);
+
+        $this->assertSame('$13.04', to_currency_tax('13.044', Tax_lib::TAX_TYPE_INCLUDED));
+
+        $this->useTaxNumbers(true, true);
+
+        $this->assertSame('$13.044', to_currency_tax('13.044', Tax_lib::TAX_TYPE_EXCLUDED));
+    }
+
+    public function testToCurrencyTax_ShowsNothingForNothing(): void
+    {
+        $this->useTaxNumbers(true);
+
+        $this->assertSame('', to_currency_tax(null, Tax_lib::TAX_TYPE_INCLUDED));
     }
 }
