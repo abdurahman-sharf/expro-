@@ -941,4 +941,29 @@ class ReportsControllerTest extends CIUnitTestCase
             $this->pageOf('/reports/detailed_receivings/' . $this->hoursStillEncoded($this->reportDay . ' 09:30:00', $this->reportDay . ' 10:00:00') . '/all/all'),
         );
     }
+
+    public function testSpecificCustomerInput_EscapesTheNameAndTheCompanyOfEveryCustomer(): void
+    {
+        $this->insertCustomer('<img src=x onerror=alert(1)>', '"><svg onload=alert(2)>', '<b>Company</b>');
+        $employeeId = $this->createNonAdminEmployee([
+            'username' => 'customerreportviewer',
+            'email'    => 'customerreportviewer@test.com',
+            'grants'   => [
+                ['permission_id' => 'reports', 'menu_group' => 'home'],
+                ['permission_id' => 'reports_customers', 'menu_group' => 'home'],
+            ],
+        ]);
+        $this->loginAs($employeeId);
+
+        try {
+            $page = (string) $this->get('/reports/specific_customers')->response()->getBody();
+        } finally {
+            $this->removeInsertedEntities();
+        }
+
+        $this->assertStringNotContainsString('<img src=x', $page);
+        $this->assertStringNotContainsString('<svg onload', $page);
+        $this->assertStringNotContainsString('<b>Company</b>', $page);
+        $this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;', $page);
+    }
 }
