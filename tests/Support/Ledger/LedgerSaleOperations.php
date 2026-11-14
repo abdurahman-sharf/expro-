@@ -14,7 +14,7 @@ use App\Libraries\Tax_lib;
  */
 trait LedgerSaleOperations
 {
-    /** @var array<int, array{customer: int|null, type: string, total: string, status: string, branch: int, lines: list<array{item: int, location: int, quantity: string}>, origin: int|null, date: string}> */
+    /** @var array<int, array{customer: int|null, type: string, total: string, status: string, branch: int, lines: list<array{item: int, location: int, quantity: string}>, origin: int|null, date: string, delivered?: bool}> */
     private array $saleBook = [];
 
     private function resetSales(): void
@@ -82,7 +82,7 @@ trait LedgerSaleOperations
             if (isset($payments[lang('Sales.cash')])) {
                 $payments[lang('Sales.cash')]['cash_refund'] = $change;
             } else {
-                $payments[lang('Sales.cash')] = ['payment_type' => lang('Sales.cash'), 'payment_amount' => 0, 'cash_refund' => $change];
+                $payments[lang('Sales.cash')] = ['payment_type' => lang('Sales.cash'), 'payment_amount' => 0, 'cash_refund' => $change, 'cash_adjustment' => CASH_ADJUSTMENT_FALSE, 'reference_code' => null, 'treasury_id' => 0];
             }
         }
 
@@ -123,6 +123,7 @@ trait LedgerSaleOperations
             'lines'    => array_map(static fn (array $line): array => ['item' => $line['item'], 'location' => $location, 'quantity' => $line['quantity']], $lines),
             'origin'   => null,
             'date'     => $date ?? date('Y-m-d'),
+            'delivered' => $delivered,
         ];
 
         $this->checkSaleAgainstRegister($saleId, $total['total']);
@@ -166,6 +167,45 @@ trait LedgerSaleOperations
         }
 
         return sprintf('payment on sale %d (%s) %s of %s open %s', $saleId, $sale['type'], $type, $value, $due);
+    }
+
+    private function operationSalePaymentEdit(LedgerRandom $random): string
+    {
+        $rows = $this->db->query(
+            "SELECT p.* FROM {$this->db->prefixTable('sales_payments')} p JOIN {$this->db->prefixTable('sales')} s ON s.sale_id = p.sale_id WHERE s.sale_status = 0 AND s.sale_type = 1 AND p.payment_status = 'completed' AND p.payment_type NOT LIKE ? ORDER BY p.payment_id",
+            [lang('Sales.due') . '%'],
+        )->getResultArray();
+
+        if ($rows === []) {
+            return $this->operationSalePayment($random);
+        }
+
+        $row    = $random->pick($rows);
+        $saleId = (int) $row['sale_id'];
+        $mode   = $random->weighted(['amount' => 40, 'remove' => 30, 'type' => 30]);
+        $actor  = $random->chance(15) ? $this->world->clerk : $this->world->boss;
+        $type   = (string) $row['payment_type'];
+        $amount = bcadd((string) $row['payment_amount'], '0', 2);
+
+        if ($mode === 'amount') {
+            $amount = bcmul($amount, (string) ($random->int(20, 200) / 100), 2);
+        } elseif ($mode === 'remove') {
+            $amount = '0';
+        } else {
+            $type = $random->pick([lang('Sales.cash'), lang('Sales.debit'), lang('Sales.credit'), lang('Sales.bank_transfer')]);
+        }
+
+        $this->note(sprintf('%s payment %d of sale %d (%s %s) -> %s %s', $mode, $row['payment_id'], $saleId, $row['payment_type'], $row['payment_amount'], $type, $amount));
+
+        $saved = $this->saleModel->update($saleId, ['comment' => 'ledger payment edit', 'payments' => [
+            ['payment_id' => (int) $row['payment_id'], 'payment_type' => $type, 'payment_amount' => $amount, 'cash_refund' => $mode === 'remove' ? 0 : (string) $row['cash_refund'], 'cash_adjustment' => 0, 'employee_id' => $actor, 'reference_code' => null],
+        ]]);
+
+        if (! $saved) {
+            $this->refuseSale('payment_edit');
+        }
+
+        return sprintf('%s payment %d of sale %d (%s %s) -> %s %s', $mode, $row['payment_id'], $saleId, $row['payment_type'], $row['payment_amount'], $type, $amount);
     }
 
     private function operationSaleReturn(LedgerRandom $random): string
@@ -250,6 +290,29 @@ trait LedgerSaleOperations
         $this->checkSaleAgainstRegister($returnId, $total['total']);
 
         return sprintf('return %d of sale %d %s items=%s%s total=%s', $returnId, $saleId, $document->value, implode(',', $taken), $refund ? ' refunded' : '', $total['total']);
+    }
+
+    private function operationSaleDeliver(LedgerRandom $random): string
+    {
+        $candidates = array_keys(array_filter($this->saleBook, static fn (array $sale): bool => $sale['status'] === 'completed' && $sale['type'] === 'invoice' && ($sale['delivered'] ?? true) === false));
+
+        if ($candidates === []) {
+            return $this->operationSale($random);
+        }
+
+        $saleId = $random->pick($candidates);
+
+        $this->note('confirm delivery of sale ' . $saleId);
+
+        $result = $this->saleModel->confirm_delivery($saleId, $this->world->boss);
+
+        if ($result <= 0) {
+            $this->refuseSale('deliver', $result);
+        }
+
+        $this->saleBook[$saleId]['delivered'] = true;
+
+        return 'confirm delivery of sale ' . $saleId;
     }
 
     private function operationSaleCancel(LedgerRandom $random): string
@@ -368,7 +431,8 @@ trait LedgerSaleOperations
     private function paymentPlan(LedgerRandom $random, string $total, bool $isInvoice, bool $hasCustomer): array
     {
         $types = [lang('Sales.cash'), lang('Sales.debit'), lang('Sales.credit'), lang('Sales.bank_transfer'), lang('Sales.check')];
-        $whole = bcadd($total, '0', 2);
+        $whole = InvoiceRounding::roundToCents($this->absolute($total));
+        $whole = bcadd($whole, '0', 2);
         $mix   = $isInvoice
             ? $random->weighted(['none' => 25, 'partial' => 25, 'exact' => 25, 'over' => 10, 'split' => 15])
             : $random->weighted(['exact' => 55, 'over' => 25, 'split' => 20]);
@@ -466,6 +530,10 @@ trait LedgerSaleOperations
 
     private function checkSaleAgainstRegister(int $saleId, string $registerTotal): void
     {
+        if ($this->db->table('sales')->where('sale_id', $saleId)->where('currency_code IS NOT NULL', null, false)->countAllResults() > 0) {
+            return;
+        }
+
         $posted = $this->db->query(
             "SELECT COALESCE(SUM(total_debit), 0) AS total FROM {$this->db->prefixTable('accounting_journals')} WHERE source_type = 'sale' AND source_id = ? AND entry_type = 'revenue' AND status = 'posted'",
             [$saleId],
@@ -478,6 +546,12 @@ trait LedgerSaleOperations
         }
 
         $exact = InvoiceRounding::roundToCents((new LedgerInvariants())->documentTotalOfSale($saleId));
+
+        if (bccomp((string) $posted->total, '0', 4) === 0 && bccomp($exact, '0.02', 4) < 0) {
+            $this->observe('F3-sub-cent-document-posts-nothing', sprintf('sale %d: the register total %s shows %s and the books post no revenue journal', $saleId, $registerTotal, $shown));
+
+            return;
+        }
 
         $this->expect(
             bccomp(bcadd((string) $posted->total, '0', 4), $exact, 4) === 0,

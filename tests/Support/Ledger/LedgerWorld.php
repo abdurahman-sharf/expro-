@@ -3,10 +3,13 @@
 namespace Tests\Support\Ledger;
 
 use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\ChequeBooks;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\DefaultChart;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\SupplierAdvances;
+use App\Libraries\Accounting\TreasuryService;
 use App\Models\Employee;
 use App\Models\Item;
 use CodeIgniter\Database\BaseConnection;
@@ -52,6 +55,16 @@ final class LedgerWorld
     /** @var array<int, int> The branch of each treasury. */
     public array $treasuries = [];
 
+    public int $bankTreasury = 0;
+
+    public int $chequeBook = 0;
+
+    public int $expenseCategory = 0;
+
+    public int $revenueAccount = 0;
+
+    public bool $foreign = false;
+
     private BaseConnection $db;
 
     public function __construct(private readonly int $seed)
@@ -68,6 +81,8 @@ final class LedgerWorld
         $this->branchesAndLocations($random);
         $this->taxes();
         $this->customersAndSuppliers($random);
+        $this->treasuryBooks();
+        $this->dollars();
         $this->products($random);
     }
 
@@ -82,6 +97,7 @@ final class LedgerWorld
         $this->setConfig('accounting_start_date', '2020-01-01');
         $this->setConfig('accounting_enabled', '1');
         $this->setConfig('accounting_customer_opening', '1');
+        $this->setConfig('stock_transfer_permit_enabled', '1');
         $this->setConfig('negative_stock_option', $random->chance(50) ? 'refuse' : 'allow');
 
         $this->db->query('DELETE FROM ' . $this->db->prefixTable('accounting_fiscal_years') . ' WHERE company_id = 1');
@@ -216,6 +232,43 @@ final class LedgerWorld
 
             $this->suppliers[$personId] = ['opening' => $amount];
         }
+    }
+
+    private function treasuryBooks(): void
+    {
+        $treasuries = new TreasuryService();
+        $main       = $treasuries->ensureMain($this->boss);
+
+        $this->treasuries[$main] = 1;
+
+        foreach ($this->branches as $branchId) {
+            $id = $treasuries->create(['name' => 'Drawer B' . $branchId, 'kind' => 'cash', 'branch_id' => $branchId], $this->boss);
+
+            $this->treasuries[$id] = $branchId;
+        }
+
+        $this->bankTreasury = $treasuries->create(['name' => 'Ledger bank', 'kind' => 'bank', 'bank_code' => 'SA_RIYAD', 'account_number' => 'SA' . str_pad((string) (1000000 + $this->seed), 18, '0', STR_PAD_LEFT), 'branch_id' => 1], $this->boss);
+        $this->chequeBook   = (new ChequeBooks())->create(['treasury_id' => $this->bankTreasury, 'name' => 'Ledger cheque book', 'first_serial' => '1', 'last_serial' => '999999'], $this->boss);
+
+        $this->db->table('expense_categories')->insert(['category_name' => 'Ledger expenses', 'category_description' => '', 'deleted' => 0, 'account_id' => null]);
+        $this->expenseCategory = (int) $this->db->insertID();
+
+        $this->revenueAccount = (int) $this->db->table('accounting_accounts')->where('system_key', 'revenues_default')->get()->getRow()->account_id;
+    }
+
+    private function dollars(): void
+    {
+        if ($this->seed % 2 !== 0) {
+            return;
+        }
+
+        $currencies = new Currencies();
+
+        $currencies->setActive('USD', true);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.75', 'effective_date' => date('Y-m-d', strtotime('-60 days'))]);
+        $currencies->rates()->add(['currency_code' => 'USD', 'rate' => '3.60', 'effective_date' => date('Y-m-d', strtotime('-5 days'))]);
+
+        $this->foreign = true;
     }
 
     private function person(string $first, string $last): int

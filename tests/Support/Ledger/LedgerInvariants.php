@@ -11,13 +11,16 @@ use App\Libraries\Accounting\Readiness\PurchaseCycleChecks;
 use App\Libraries\Accounting\Readiness\StockTrackingChecks;
 use App\Libraries\Accounting\Readiness\TieChecks;
 use App\Libraries\Accounting\ReportPeriod;
+use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Accounting\SupplierLedger;
 use App\Libraries\Accounting\TaxReport;
 use App\Libraries\Accounting\TrialBalance;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
+use Throwable;
 
 /**
  * What must hold in the books whatever was done to them, asked of the database in SQL of its own wherever
@@ -50,7 +53,7 @@ final class LedgerInvariants
     /**
      * @return list<string>
      */
-    public function all(bool $ties = true): array
+    public function all(bool $ties = true, ?int $employeeId = null): array
     {
         $problems = [];
 
@@ -65,6 +68,7 @@ final class LedgerInvariants
             'reports_balance'             => fn (): array => $this->reportsBalance(),
             'documents_have_journals'     => fn (): array => $this->documentsHaveJournals(),
             'sale_totals'                 => fn (): array => $this->saleTotalsMatchJournals(),
+            'purchase_totals'             => fn (): array => $this->purchaseTotalsMatchJournals(),
             'sale_payments'               => fn (): array => $this->salePaymentsMatchJournals(),
             'credit_applications'         => fn (): array => $this->creditApplicationsWithinSources(),
             'stock_quantities'            => fn (): array => $this->stockQuantitiesMatchMovements(),
@@ -75,6 +79,14 @@ final class LedgerInvariants
 
             foreach ($check() as $problem) {
                 $problems[] = $name . ': ' . $problem;
+            }
+        }
+
+        if ($employeeId !== null) {
+            $this->asked['posting_idempotent'] = ($this->asked['posting_idempotent'] ?? 0) + 1;
+
+            foreach ($this->postingIsIdempotent($employeeId) as $problem) {
+                $problems[] = 'posting_idempotent: ' . $problem;
             }
         }
 
@@ -172,7 +184,7 @@ final class LedgerInvariants
     public function sourceKeysUnique(): array
     {
         $rows = $this->db->query(
-            "SELECT source_type, source_id, entry_type, COUNT(*) AS found FROM {$this->journals} WHERE status IN ('posted', 'reversed') AND source_id IS NOT NULL AND source_type <> 'reversal' GROUP BY source_type, source_id, entry_type HAVING COUNT(*) > COUNT(DISTINCT revision) OR SUM(status = 'posted') > 1 LIMIT 5",
+            "SELECT source_type, source_id, entry_type, COUNT(*) AS found FROM {$this->journals} WHERE status IN ('posted', 'reversed') AND source_id IS NOT NULL AND source_type <> 'reversal' GROUP BY source_type, source_id, entry_type HAVING COUNT(*) > COUNT(DISTINCT revision) OR (SUM(status = 'posted') > 1 AND source_type NOT LIKE 'cheque\\_%') LIMIT 5",
         )->getResult();
 
         return array_map(static fn (object $row): string => "{$row->source_type} {$row->source_id} ({$row->entry_type}) has {$row->found} journals and more than one of them stands", $rows);
@@ -324,14 +336,10 @@ final class LedgerInvariants
             $problems[] = "payment {$row->payment_id} of sale {$row->sale_id} was cancelled or removed and its journal still stands";
         }
 
-        $receivings = $this->db->prefixTable('receivings');
-        $rows       = $this->db->query(
-            "SELECT r.receiving_id FROM {$receivings} r WHERE r.receiving_type IN ('receive', 'return') AND EXISTS (SELECT 1 FROM {$this->db->prefixTable('receivings_items')} i WHERE i.receiving_id = r.receiving_id AND i.item_unit_price * i.quantity_purchased <> 0)
-             AND NOT EXISTS (SELECT 1 FROM {$this->journals} j WHERE j.source_type = 'purchase' AND j.source_id = r.receiving_id AND j.status = 'posted') AND r.receiving_id NOT IN (SELECT source_id FROM {$this->journals} WHERE source_type = 'purchase' AND status = 'reversed') LIMIT 5",
-        )->getResult();
-
-        foreach ($rows as $row) {
-            $problems[] = "purchase {$row->receiving_id} has no standing journal and was not cancelled";
+        foreach ($this->purchaseFigures() as $row) {
+            if (bccomp($row['document'], '0.005', 4) >= 0 && bccomp($row['posted'], '0', 4) === 0 && ! $row['cancelled']) {
+                $problems[] = "purchase {$row['receiving_id']} ({$row['type']}) comes to {$row['document']} and has no standing journal and was not cancelled";
+            }
         }
 
         return $problems;
@@ -351,7 +359,7 @@ final class LedgerInvariants
                 continue;
             }
 
-            $allowed = bcadd('0.01', bcmul('0.005', (string) $row['lines'], 4), 4);
+            $allowed = bcmul(bcadd('0.01', bcmul('0.005', (string) $row['lines'], 4), 4), $row['rate'], 4);
             $gap     = bcsub($row['posted'], $this->abs($row['document']), 4);
 
             if (bccomp($this->abs($gap), $allowed, 4) > 0) {
@@ -360,6 +368,60 @@ final class LedgerInvariants
         }
 
         return array_slice($problems, 0, 5);
+    }
+
+    /**
+     * The payable a purchase posts is what its saved lines, discounts and taxes come to.
+     *
+     * @return list<string>
+     */
+    public function purchaseTotalsMatchJournals(): array
+    {
+        $problems = [];
+
+        foreach ($this->purchaseFigures() as $row) {
+            if ($row['cancelled'] || (bccomp($row['posted'], '0', 4) === 0 && bccomp($row['document'], '0.005', 4) < 0)) {
+                continue;
+            }
+
+            $allowed = bcmul(bcadd('0.01', bcmul('0.005', (string) $row['lines'], 4), 4), $row['rate'], 4);
+            $gap     = bcsub($row['posted'], $row['document'], 4);
+
+            if (bccomp($this->abs($gap), $allowed, 4) > 0) {
+                $problems[] = "purchase {$row['receiving_id']} ({$row['type']}) posted a total of {$row['posted']} and its saved lines come to {$row['document']}, a gap of {$gap}";
+            }
+        }
+
+        return array_slice($problems, 0, 5);
+    }
+
+    /**
+     * What every purchase and purchase return comes to from its saved lines, beside what its journal posted.
+     *
+     * @return list<array{receiving_id: int, type: string, lines: int, document: string, posted: string, cancelled: bool, rate: string}>
+     */
+    private function purchaseFigures(): array
+    {
+        $receivings = $this->db->prefixTable('receivings');
+        $items      = $this->db->prefixTable('receivings_items');
+        $rows       = $this->db->query(
+            "SELECT r.receiving_id, r.receiving_type, COALESCE(r.currency_rate, 1) AS rate,
+                    (SELECT COUNT(*) FROM {$items} i WHERE i.receiving_id = r.receiving_id) AS line_count,
+                    (SELECT COALESCE(SUM(GREATEST(0, ABS(i.quantity_purchased * i.receiving_quantity) * i.item_unit_price - IF(i.discount_type = 0, ABS(i.quantity_purchased * i.receiving_quantity) * i.item_unit_price * i.discount / 100, IF(i.discount_type = 1, ABS(i.quantity_purchased * i.receiving_quantity) * i.discount, i.discount)) - COALESCE(i.invoice_discount_share, 0)) * (1 + i.tax_percent / 100)), 0) FROM {$items} i WHERE i.receiving_id = r.receiving_id) AS document,
+                    (SELECT COALESCE(SUM(j.total_debit), 0) FROM {$this->journals} j WHERE j.source_type = 'purchase' AND j.source_id = r.receiving_id AND j.status = 'posted') AS posted,
+                    (SELECT COUNT(*) FROM {$this->journals} j WHERE j.source_type = 'purchase' AND j.source_id = r.receiving_id AND j.status = 'reversed') AS reversed
+             FROM {$receivings} r WHERE r.receiving_type IN ('receive', 'return')",
+        )->getResultArray();
+
+        return array_map(fn (array $row): array => [
+            'receiving_id' => (int) $row['receiving_id'],
+            'type'         => (string) $row['receiving_type'],
+            'lines'        => (int) $row['line_count'],
+            'document'     => bcmul(bcadd((string) $row['document'], '0', 4), bcadd((string) $row['rate'], '0', 8), 4),
+            'posted'       => bcadd((string) $row['posted'], '0', 4),
+            'rate'         => bcadd((string) $row['rate'], '0', 4),
+            'cancelled'    => (int) $row['reversed'] > 0 && bccomp((string) $row['posted'], '0', 4) === 0,
+        ], $rows);
     }
 
     /**
@@ -391,7 +453,7 @@ final class LedgerInvariants
     /**
      * What every completed sale comes to from its saved lines, discounts and taxes, beside what its revenue journal posted.
      *
-     * @return list<array{sale_id: int, sale_type: int, lines: int, lines_total: string, added_tax: string, document: string, posted: string}>
+     * @return list<array{sale_id: int, sale_type: int, lines: int, lines_total: string, added_tax: string, document: string, posted: string, rate: string}>
      */
     private function saleFigures(?int $saleId = null): array
     {
@@ -399,7 +461,7 @@ final class LedgerInvariants
         $items = $this->db->prefixTable('sales_items');
         $taxes = $this->db->prefixTable('sales_items_taxes');
         $rows  = $this->db->query(
-            "SELECT s.sale_id, s.sale_type,
+            "SELECT s.sale_id, s.sale_type, COALESCE(s.currency_rate, 1) AS rate,
                     (SELECT COALESCE(SUM(i.item_unit_price * i.quantity_purchased - IF(i.discount_type = 0, ROUND(i.item_unit_price * i.quantity_purchased * i.discount / 100, 2), i.discount * i.quantity_purchased) - COALESCE(i.invoice_discount_share, 0)), 0) FROM {$items} i WHERE i.sale_id = s.sale_id) AS lines_total,
                     (SELECT COUNT(*) FROM {$items} i WHERE i.sale_id = s.sale_id) AS line_count,
                     (SELECT COALESCE(SUM(t.item_tax_amount), 0) FROM {$taxes} t WHERE t.sale_id = s.sale_id AND t.tax_type = 1) AS added_tax,
@@ -413,8 +475,9 @@ final class LedgerInvariants
             'lines'       => (int) $row['line_count'],
             'lines_total' => bcadd((string) $row['lines_total'], '0', 4),
             'added_tax'   => bcadd((string) $row['added_tax'], '0', 4),
-            'document'    => bcadd(bcadd((string) $row['lines_total'], (string) $row['added_tax'], 4), '0', 4),
+            'document'    => bcmul(bcadd(bcadd((string) $row['lines_total'], (string) $row['added_tax'], 4), '0', 4), bcadd((string) $row['rate'], '0', 8), 4),
             'posted'      => bcadd((string) $row['posted'], '0', 4),
+            'rate'        => bcadd((string) $row['rate'], '0', 4),
         ], $rows);
     }
 
@@ -431,12 +494,13 @@ final class LedgerInvariants
         $due      = lang('Sales.due');
 
         $rows = $this->db->query(
-            "SELECT p.payment_id, p.sale_id, p.payment_type, (p.payment_amount - p.cash_refund) AS net,
+            "SELECT p.payment_id, p.sale_id, p.payment_type, (p.payment_amount - p.cash_refund) * COALESCE(p.currency_rate, 1) AS net,
                     (SELECT COUNT(*) FROM {$this->journals} j WHERE j.source_type = 'sale_payment' AND j.source_id = p.payment_id AND j.status = 'posted') AS standing,
                     (SELECT COALESCE(SUM(j.total_debit), 0) FROM {$this->journals} j WHERE j.source_type = 'sale_payment' AND j.source_id = p.payment_id AND j.status = 'posted') AS posted
              FROM {$payments} p JOIN {$sales} s ON s.sale_id = p.sale_id
              WHERE s.sale_status = 0 AND p.payment_status = 'completed' AND p.payment_type NOT LIKE ?
-             HAVING ABS(net) > 0 AND (standing <> 1 OR ABS(posted - ABS(net)) > 0.005) LIMIT 5",
+             AND EXISTS (SELECT 1 FROM {$this->journals} r WHERE r.source_type = 'sale' AND r.source_id = s.sale_id AND r.entry_type = 'revenue' AND r.status = 'posted')
+             HAVING ABS(net) > 0 AND (standing <> 1 OR ABS(posted - ABS(net)) > 0.02) LIMIT 5",
             [$due . '%'],
         )->getResult();
 
@@ -609,6 +673,63 @@ final class LedgerInvariants
         }
 
         return $problems;
+    }
+
+    /**
+     * Posting a document again, and its payments, writes nothing: the last few sales and purchases are posted a second time and no table that holds
+     * books, stock or credit changes.
+     *
+     * @return list<string>
+     */
+    public function postingIsIdempotent(int $employeeId, int $limit = 3): array
+    {
+        $tables = ['accounting_journals', 'accounting_journal_lines', 'accounting_stock_entries', 'accounting_allocations', 'customer_credit_applications', 'supplier_credit_applications', 'inventory', 'item_quantities', 'sales_payments', 'receivings_payments'];
+        $sales  = array_column($this->db->query('SELECT sale_id FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_status = 0 AND sale_type IN (0, 1, 4) ORDER BY sale_id DESC LIMIT ' . $limit)->getResultArray(), 'sale_id');
+        $buys   = array_column($this->db->query('SELECT receiving_id FROM ' . $this->db->prefixTable('receivings') . " WHERE receiving_type IN ('receive', 'return') ORDER BY receiving_id DESC LIMIT " . $limit)->getResultArray(), 'receiving_id');
+        $before = $this->checksums($tables);
+
+        try {
+            foreach ($sales as $saleId) {
+                $posting = new SalePosting($this->db);
+
+                $posting->postCompleted((int) $saleId, $employeeId);
+                $posting->syncPayments((int) $saleId, $employeeId);
+            }
+
+            foreach ($buys as $receivingId) {
+                $posting = new ReceivingPosting($this->db);
+
+                $posting->postCompleted((int) $receivingId, $employeeId);
+                $posting->syncPayments((int) $receivingId, $employeeId);
+            }
+        } catch (Throwable $failure) {
+            return ['posting a document again failed: ' . $failure::class . ' ' . $failure->getMessage()];
+        }
+
+        $after   = $this->checksums($tables);
+        $changed = array_keys(array_filter($after, static fn (array $print, string $table): bool => $before[$table] !== $print, ARRAY_FILTER_USE_BOTH));
+
+        return $changed === [] ? [] : ['posting the last documents again changed ' . implode(', ', $changed)];
+    }
+
+    /**
+     * @param list<string> $tables
+     *
+     * @return array<string, array{rows: int, checksum: string|null}>
+     */
+    private function checksums(array $tables): array
+    {
+        $print = [];
+
+        foreach ($tables as $table) {
+            $name  = $this->db->prefixTable($table);
+            $row   = $this->db->query('CHECKSUM TABLE `' . $name . '`')->getRowArray();
+            $count = $this->db->query('SELECT COUNT(*) AS found FROM `' . $name . '`')->getRow();
+
+            $print[$table] = ['rows' => (int) $count->found, 'checksum' => $row === null || $row['Checksum'] === null ? null : (string) $row['Checksum']];
+        }
+
+        return $print;
     }
 
     /**

@@ -38,7 +38,7 @@ final class LedgerRunner
                 $this->scenario->run($count);
                 $done += $count;
 
-                $problems = $this->invariants->all();
+                $problems = $this->invariants->all(true, $this->scenario->world->boss);
 
                 if ($problems !== []) {
                     return 'after operation ' . ($done - 1) . ': ' . implode("\n  ", $problems);

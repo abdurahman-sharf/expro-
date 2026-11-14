@@ -24,6 +24,10 @@ final class LedgerScenario
     use DatabaseFingerprintTrait;
     use LedgerSaleOperations;
     use LedgerPurchaseOperations;
+    use LedgerMoneyOperations;
+    use LedgerStockOperations;
+    use LedgerBooksOperations;
+    use LedgerCurrencyOperations;
 
     /** @var list<string> Tables a refusal may write to: the notes the books keep of what they refused. */
     private const REFUSAL_MAY_WRITE = ['accounting_posting_failures', 'accounting_audit_log'];
@@ -73,6 +77,9 @@ final class LedgerScenario
         $this->position = 0;
         $this->resetSales();
         $this->resetPurchases();
+        $this->resetMoney();
+        $this->resetStock();
+        $this->resetBooks();
 
         $this->world = new LedgerWorld($this->seed);
         $this->world->build();
@@ -110,6 +117,7 @@ final class LedgerScenario
         $this->pending = '';
 
         $before    = $this->checkRefusals ? $this->databaseFingerprint() : [];
+        $accounts  = $this->checkRefusals ? $this->rowsOf('accounting_accounts', 'account_id') : [];
         $lastId    = $this->lastJournalId();
         $outcome   = 'ok';
         $detail    = '';
@@ -159,6 +167,10 @@ final class LedgerScenario
 
             if ($changed !== []) {
                 $violation = 'a refused operation left rows in ' . implode(', ', $changed);
+
+                if (in_array($this->db->prefixTable('accounting_accounts'), $changed, true)) {
+                    $violation .= ' (accounts: ' . $this->describeRowChanges($accounts, $this->rowsOf('accounting_accounts', 'account_id')) . ')';
+                }
             }
         }
 
@@ -212,6 +224,34 @@ final class LedgerScenario
             'purchase_payment'   => 6,
             'purchase_return'    => 4,
             'purchase_cancel'    => 3,
+            'customer_advance'   => 4,
+            'customer_advance_cancel' => 2,
+            'customer_refund'    => 3,
+            'supplier_advance'   => 3,
+            'supplier_advance_cancel' => 1,
+            'supplier_refund'    => 2,
+            'settle'             => 3,
+            'expense'            => 3,
+            'expense_delete'     => 1,
+            'cashup'             => 1,
+            'voucher'            => 2,
+            'voucher_delete'     => 1,
+            'transfer'           => 3,
+            'transfer_cancel'    => 1,
+            'cheque'             => 6,
+            'sale_deliver'       => 2,
+            'stock_permit'       => 4,
+            'stock_permit_cancel' => 1,
+            'stocktake'          => 2,
+            'manual_journal'     => 3,
+            'journal_reverse'    => 1,
+            'period_close'       => 1,
+            'period_reopen'      => 1,
+            'purchase_edit'      => 3,
+            'sale_payment_edit'  => 4,
+            'purchase_payment_edit' => 3,
+            'foreign_sale'       => $this->world->foreign ? 5 : 0,
+            'foreign_purchase'   => $this->world->foreign ? 3 : 0,
         ]);
     }
 
@@ -252,6 +292,43 @@ final class LedgerScenario
         }
 
         return $changed;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function rowsOf(string $table, string $key): array
+    {
+        $rows = [];
+
+        foreach ($this->db->table($table)->get()->getResultArray() as $row) {
+            $rows[(int) $row[$key]] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $before
+     * @param array<int, array<string, mixed>> $after
+     */
+    private function describeRowChanges(array $before, array $after): string
+    {
+        $parts = [];
+
+        foreach ($after as $id => $row) {
+            if (! isset($before[$id])) {
+                $parts[] = 'added ' . json_encode($row, JSON_UNESCAPED_UNICODE);
+            } elseif ($before[$id] !== $row) {
+                $parts[] = 'changed ' . $id . ' ' . json_encode(array_diff_assoc($row, $before[$id]), JSON_UNESCAPED_UNICODE);
+            }
+        }
+
+        foreach (array_diff_key($before, $after) as $id => $row) {
+            $parts[] = 'removed ' . $id;
+        }
+
+        return implode('; ', array_slice($parts, 0, 4));
     }
 
     private function lastJournalId(): int

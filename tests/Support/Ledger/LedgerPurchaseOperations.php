@@ -140,6 +140,43 @@ trait LedgerPurchaseOperations
         return sprintf('payment on purchase %d %s of %s (total %s paid %s)', $receivingId, $type, $value, $total, $paid);
     }
 
+    private function operationPurchasePaymentEdit(LedgerRandom $random): string
+    {
+        $rows = $this->db->query(
+            "SELECT p.* FROM {$this->db->prefixTable('receivings_payments')} p JOIN {$this->db->prefixTable('receivings')} r ON r.receiving_id = p.receiving_id WHERE p.payment_status = 'completed' AND r.receiving_type = 'receive' ORDER BY p.payment_id",
+        )->getResultArray();
+
+        if ($rows === []) {
+            return $this->operationPurchasePayment($random);
+        }
+
+        $row         = $random->pick($rows);
+        $receivingId = (int) $row['receiving_id'];
+        $mode        = $random->weighted(['amount' => 45, 'remove' => 30, 'type' => 25]);
+        $type        = (string) $row['payment_type'];
+        $amount      = bcadd((string) $row['payment_amount'], '0', 2);
+
+        if ($mode === 'amount') {
+            $amount = bcmul($amount, (string) ($random->int(20, 200) / 100), 2);
+        } elseif ($mode === 'remove') {
+            $amount = '0';
+        } else {
+            $type = $random->pick([lang('Sales.cash'), lang('Sales.debit'), lang('Sales.bank_transfer')]);
+        }
+
+        $this->note(sprintf('%s payment %d of purchase %d (%s %s) -> %s %s', $mode, $row['payment_id'], $receivingId, $row['payment_type'], $row['payment_amount'], $type, $amount));
+
+        $saved = $this->purchaseModel->update($receivingId, ['comment' => 'ledger payment edit', 'payments' => [
+            ['payment_id' => (int) $row['payment_id'], 'payment_type' => $type, 'payment_amount' => $amount, 'payment_status' => 'completed', 'employee_id' => $this->world->boss, 'reference_code' => ''],
+        ]]);
+
+        if (! $saved) {
+            $this->refusePurchase('payment_edit');
+        }
+
+        return sprintf('%s payment %d of purchase %d (%s %s) -> %s %s', $mode, $row['payment_id'], $receivingId, $row['payment_type'], $row['payment_amount'], $type, $amount);
+    }
+
     private function operationPurchaseReturn(LedgerRandom $random): string
     {
         $receivingId = $this->pickPurchase($random, ['receive']);
@@ -161,6 +198,17 @@ trait LedgerPurchaseOperations
 
             if (bccomp($quantity, '0', 3) <= 0) {
                 $quantity = (string) $row['quantity_purchased'];
+            }
+
+            $shelf = $this->db->table('item_quantities')->where(['item_id' => (int) $row['item_id'], 'location_id' => (int) $row['item_location']])->get()->getRow();
+            $held  = $shelf === null ? '0' : (string) $shelf->quantity;
+
+            if ($this->world->items[(int) $row['item_id']]['stock'] && bccomp($quantity, $held, 3) > 0) {
+                $quantity = $held;
+            }
+
+            if (bccomp($quantity, '0', 3) <= 0) {
+                continue;
             }
 
             $lines[] = [
