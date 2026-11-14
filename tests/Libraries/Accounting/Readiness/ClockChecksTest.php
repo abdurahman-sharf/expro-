@@ -275,8 +275,51 @@ final class ClockChecksTest extends CIUnitTestCase
         $this->assertSame(0, $result->data['difference_minutes']);
         $this->assertSame('Asia/Riyadh', $result->data['shop_zone']);
         $this->assertSame('America/New_York', $result->data['process_zone']);
-        $this->assertStringStartsWith('The command line runs in America/New_York while the shop works in Asia/Riyadh', $result->summary);
+        $this->assertStringStartsWith('The command line does not work in the zone of the shop (Asia/Riyadh): it works in America/New_York', $result->summary);
         $this->assertStringContainsString('app.appTimezone', $result->findings[0]);
+    }
+
+    public function testRun_ReviewsAShopZoneThatPhpAcceptsButTheCommandsIgnore(): void
+    {
+        $this->databaseWorksAt($this->offsetOf('Etc/GMT-11'));
+        $this->shopWorksIn('Etc/GMT-11');
+        date_default_timezone_set('Etc/GMT-11');
+
+        $result = $this->check();
+
+        $this->assertSame(CheckStatus::Review, $result->status);
+        $this->assertFalse($result->data['shop_zone_listed']);
+        $this->assertTrue($result->data['shop_zone_from_settings']);
+        $this->assertSame(0, $result->data['difference_minutes']);
+        $this->assertStringContainsString('accounting:generate_recurring and accounting:depreciate ignore it', implode("\n", $result->findings));
+    }
+
+    public function testRun_ReviewsAZoneOfTheSettingsScreenThatPhpDoesNotKnow(): void
+    {
+        $this->databaseWorksAt('+00:00');
+        $this->shopWorksIn('Asia/Katmandu');
+        date_default_timezone_set('UTC');
+
+        $result = $this->check();
+
+        $this->assertSame(CheckStatus::Review, $result->status);
+        $this->assertSame('Asia/Katmandu', $result->data['shop_zone_setting']);
+        $this->assertFalse($result->data['shop_zone_from_settings']);
+        $this->assertSame('UTC', $result->data['shop_zone']);
+        $this->assertStringStartsWith('The locale settings name a zone that PHP does not know (Asia/Katmandu): the shop works in UTC.', $result->summary);
+        $this->assertStringContainsString('The locale settings name the zone Asia/Katmandu, which the PHP of this server does not know', implode("\n", $result->findings));
+    }
+
+    public function testRun_PassesForAZoneThatPhpListsAsCurrent(): void
+    {
+        $this->databaseWorksAt($this->offsetOf('Asia/Kuwait'));
+        $this->shopWorksIn('Asia/Kuwait');
+        date_default_timezone_set('Asia/Kuwait');
+
+        $result = $this->check();
+
+        $this->assertSame(CheckStatus::Pass, $result->status);
+        $this->assertTrue($result->data['shop_zone_listed']);
     }
 
     public function testRun_FallsBackToTheZoneOfTheProcessWhenTheSettingNamesNone(): void
@@ -301,7 +344,7 @@ final class ClockChecksTest extends CIUnitTestCase
         $this->assertStringContainsString('the zone of the application because the locale settings name none', $result->findings[0]);
     }
 
-    public function testRun_IgnoresASettingThatNamesNoZone(): void
+    public function testRun_FallsBackToTheZoneOfTheProcessForASettingThatNamesNoZoneAtAll(): void
     {
         $this->databaseWorksAt('+00:00');
         $this->shopWorksIn('Mars/Olympus');
@@ -309,8 +352,9 @@ final class ClockChecksTest extends CIUnitTestCase
 
         $result = $this->check();
 
-        $this->assertSame(CheckStatus::Pass, $result->status);
+        $this->assertSame(CheckStatus::Review, $result->status);
         $this->assertSame('UTC', $result->data['shop_zone']);
+        $this->assertSame('Mars/Olympus', $result->data['shop_zone_setting']);
         $this->assertFalse($result->data['shop_zone_from_settings']);
     }
 

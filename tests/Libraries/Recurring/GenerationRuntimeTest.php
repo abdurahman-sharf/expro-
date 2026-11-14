@@ -53,6 +53,19 @@ final class GenerationRuntimeTest extends CIUnitTestCase
         $this->assertSame('Pacific/Kiritimati', date_default_timezone_get());
     }
 
+    public function testApply_SetsEachGulfAndIraqZoneThatTheSettingsScreenOffers(): void
+    {
+        require_once ROOTPATH . 'app/Helpers/locale_helper.php';
+
+        foreach (['Asia/Riyadh', 'Asia/Kuwait', 'Asia/Baghdad', 'Asia/Qatar', 'Asia/Bahrain', 'Asia/Muscat'] as $zone) {
+            $this->assertArrayHasKey($zone, get_timezones());
+
+            $this->applyWith(['timezone' => $zone]);
+
+            $this->assertSame($zone, date_default_timezone_get(), "{$zone} is applied to a console command.");
+        }
+    }
+
     public function testApply_SetsTheLanguageOfTheShop(): void
     {
         $this->applyWith(['language_code' => 'fr']);

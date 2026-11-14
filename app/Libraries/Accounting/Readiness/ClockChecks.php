@@ -36,8 +36,9 @@ final class ClockChecks extends CheckGroup
 
         $now             = new DateTimeImmutable('now', new DateTimeZone('UTC'));
         $processZone     = date_default_timezone_get();
-        $configured      = $this->configuredZone();
-        $shopZone        = $configured ?? $processZone;
+        $setting         = $this->zoneSetting();
+        $known           = $setting !== '' && $this->isZone($setting);
+        $shopZone        = $known ? $setting : $processZone;
         $databaseOffset  = (int) $database->offset_seconds;
         $shopOffset      = (new DateTimeZone($shopZone))->getOffset($now);
         $processOffset   = (new DateTimeZone($processZone))->getOffset($now);
@@ -52,7 +53,9 @@ final class ClockChecks extends CheckGroup
             'database_system_zone'    => (string) $database->system_zone,
             'database_offset'         => $this->offset($databaseOffset),
             'shop_zone'               => $shopZone,
-            'shop_zone_from_settings' => $configured !== null,
+            'shop_zone_setting'       => $setting,
+            'shop_zone_from_settings' => $known,
+            'shop_zone_listed'        => in_array($shopZone, timezone_identifiers_list(), true),
             'shop_offset'             => $this->offset($shopOffset),
             'process_zone'            => $processZone,
             'process_offset'          => $this->offset($processOffset),
@@ -71,7 +74,11 @@ final class ClockChecks extends CheckGroup
                 $data['database_system_zone'],
                 $shopZone,
                 $data['shop_offset'],
-                $configured === null ? ', the zone of the application because the locale settings name none' : ', from the locale settings',
+                match (true) {
+                    $known          => ', from the locale settings',
+                    $setting === '' => ', the zone of the application because the locale settings name none',
+                    default         => ', the zone of the application because the zone of the locale settings is not one PHP knows',
+                },
                 $this->hours(abs($difference)),
             );
             $findings[] = 'Where the dates come from: the date of an invoice, of a purchase and of a supplier payment, and every date the application computes, come from the application clock; the day of a payment on a sale (and so the date of its journal) comes from the database clock, because sales_payments.payment_time is stamped by the database.';
@@ -80,6 +87,14 @@ final class ClockChecks extends CheckGroup
 
         if ($processOffset !== $shopOffset) {
             $findings[] = sprintf('The command line runs in %s (%s) while the shop works in %s (%s): accounting:generate_recurring and accounting:depreciate apply the zone of the shop and every other php spark command dates what it writes in the zone of the process; set app.appTimezone in the .env file to the zone of the shop.', $processZone, $data['process_offset'], $shopZone, $data['shop_offset']);
+        }
+
+        if ($setting !== '' && ! $known) {
+            $findings[] = sprintf('The locale settings name the zone %s, which the PHP of this server does not know (the list of the settings screen is older or newer than its time zone database): the pages keep running in %s until a zone PHP knows is chosen.', $setting, $processZone);
+        }
+
+        if ($known && ! $data['shop_zone_listed']) {
+            $findings[] = sprintf('The zone %s of the shop is a name PHP accepts but does not list as a current zone: accounting:generate_recurring and accounting:depreciate ignore it and run in %s; choose the current name of the zone in the locale settings.', $setting, $processZone);
         }
 
         foreach ($future['listed'] as $payment) {
@@ -102,7 +117,8 @@ final class ClockChecks extends CheckGroup
             $summary = match (true) {
                 $difference !== 0                                     => sprintf('The database clock and the shop clock differ by %s: they name different days for part of every day.', $this->hours(abs($difference))),
                 $future['count'] > 0 || $beforeTheirSale['count'] > 0 => 'The clocks agree now, but payments are stamped on days that do not fit their sale or the calendar of the shop.',
-                default                                               => sprintf('The command line runs in %s while the shop works in %s.', $processZone, $shopZone),
+                $setting !== '' && ! $known                           => "The locale settings name a zone that PHP does not know ({$setting}): the shop works in {$processZone}.",
+                default                                               => sprintf('The command line does not work in the zone of the shop (%s): it works in %s.', $shopZone, $processZone),
             };
 
             return CheckResult::review($summary, array_slice($findings, 0, self::LISTED), $data);
@@ -111,22 +127,22 @@ final class ClockChecks extends CheckGroup
         return CheckResult::pass(sprintf('The database and the shop both work in %s (%s): they name the same day.', $shopZone, $data['shop_offset']), [], $data);
     }
 
-    private function configuredZone(): ?string
+    private function zoneSetting(): string
     {
-        $row  = $this->db->table('app_config')->select('value')->where('key', 'timezone')->get()->getRow();
-        $zone = trim((string) ($row->value ?? ''));
+        $row = $this->db->table('app_config')->select('value')->where('key', 'timezone')->get()->getRow();
 
-        if ($zone === '') {
-            return null;
-        }
+        return trim((string) ($row->value ?? ''));
+    }
 
+    private function isZone(string $zone): bool
+    {
         try {
             new DateTimeZone($zone);
         } catch (Throwable) {
-            return null;
+            return false;
         }
 
-        return $zone;
+        return true;
     }
 
     /**

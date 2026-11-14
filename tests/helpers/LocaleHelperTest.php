@@ -183,4 +183,52 @@ class LocaleHelperTest extends CIUnitTestCase
             $this->assertSame($stored, number_format((float) parse_decimals(to_currency_exact($stored)), 4, '.', ''), $stored);
         }
     }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function gulfZoneProvider(): array
+    {
+        return [
+            'Saudi Arabia' => ['Asia/Riyadh', '(GMT+03:00)'],
+            'Kuwait'       => ['Asia/Kuwait', '(GMT+03:00)'],
+            'Iraq'         => ['Asia/Baghdad', '(GMT+03:00)'],
+            'Qatar'        => ['Asia/Qatar', '(GMT+03:00)'],
+            'Bahrain'      => ['Asia/Bahrain', '(GMT+03:00)'],
+            'Oman'         => ['Asia/Muscat', '(GMT+04:00)'],
+        ];
+    }
+
+    #[DataProvider('gulfZoneProvider')]
+    public function testGetTimezones_OffersEachGulfAndIraqZoneUnderItsOwnOffset(string $zone, string $prefix): void
+    {
+        $zones = get_timezones();
+
+        $this->assertArrayHasKey($zone, $zones);
+        $this->assertStringStartsWith($prefix, $zones[$zone]);
+    }
+
+    #[DataProvider('gulfZoneProvider')]
+    public function testGetTimezones_LabelsEachGulfAndIraqZoneWithTheOffsetPhpGivesItInWinterAndInSummer(string $zone, string $prefix): void
+    {
+        $offset = (new DateTimeZone($zone))->getOffset(new DateTimeImmutable('2026-01-15 12:00:00', new DateTimeZone('UTC')));
+        $label  = sprintf('(GMT%s%02d:%02d)', $offset < 0 ? '-' : '+', intdiv(abs($offset), 3600), intdiv(abs($offset) % 3600, 60));
+
+        $this->assertSame($prefix, $label);
+        $this->assertSame($offset, (new DateTimeZone($zone))->getOffset(new DateTimeImmutable('2026-07-15 12:00:00', new DateTimeZone('UTC'))), 'These zones keep one offset all year.');
+    }
+
+    #[DataProvider('gulfZoneProvider')]
+    public function testGetTimezones_OffersOnlyGulfZonesThatPhpListsAsCurrent(string $zone): void
+    {
+        $this->assertContains($zone, timezone_identifiers_list());
+    }
+
+    public function testGetTimezones_KeepsOneEntryForEveryZone(): void
+    {
+        $zones = get_timezones();
+
+        $this->assertSame(array_keys($zones), array_values(array_unique(array_keys($zones))));
+        $this->assertCount(count($zones), array_unique($zones), 'No two zones carry the same label.');
+    }
 }
