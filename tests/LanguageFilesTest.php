@@ -812,4 +812,14 @@ class LanguageFilesTest extends CIUnitTestCase
             $this->assertNotSame('', $messages[$key] ?? '', "{$locale} {$file} lacks {$key}, which the empty table shows as it is");
         }
     }
+
+    #[DataProvider('arabicLocaleProvider')]
+    public function testLoginFile_SeparatesTheNameOfTheProductFromTheWordBeforeIt(string $locale): void
+    {
+        $messages = include __DIR__ . "/../app/Language/{$locale}/Login.php";
+
+        foreach (['welcome', 'migration_needed'] as $key) {
+            $this->assertMatchesRegularExpression('/\p{Arabic} \{0\}/u', $messages[$key], "{$locale} {$key} runs the name of the product into the word before it");
+        }
+    }
 }
