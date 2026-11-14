@@ -194,6 +194,7 @@ return [
     'tie_sales_tax'         => 'Tax of the documents and what their journals put on the accounts of tax',
     'tie_sales_total'       => 'Total of the documents and what their journals put on the accounts of customers',
     'ties'                  => 'Agrees',
+    'too_many_documents'    => 'The period holds {0} documents, more than this server can hold in memory for one report ({1}). Narrow the period or the filters.',
     'treasury'              => 'Treasury or account',
     'type'                  => 'Document type',
     'type_all'              => 'All',

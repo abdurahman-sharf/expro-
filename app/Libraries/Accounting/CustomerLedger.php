@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting;
 
+use App\Libraries\Organization\CompanyContext;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -135,6 +136,99 @@ final class CustomerLedger
     }
 
     /**
+     * The invoices of several customers as position() holds them now, for the customers who have an account,
+     * read in a few queries for all of them instead of a few for each: what each came to, what was paid into it,
+     * what credit was applied to it and what was taken back by credit notes.
+     *
+     * @param list<int> $customerIds
+     *
+     * @return array<int, array<int, InvoiceFigures>> By customer, then by sale.
+     */
+    public function invoicesOf(array $customerIds): array
+    {
+        $customerIds = array_values(array_unique(array_map('intval', $customerIds)));
+
+        if ($customerIds === []) {
+            return [];
+        }
+
+        $accounts = $this->db->prefixTable('accounting_accounts');
+        $lines    = $this->db->prefixTable('accounting_journal_lines');
+        $idList   = implode(',', $customerIds);
+
+        [$standing, $standingBindings] = StandingJournals::condition($this->db, 'j', null);
+
+        $sales = $this->db->query(
+            'SELECT s.sale_id, s.customer_id, s.sale_type, s.sale_time, s.return_of_sale_id, s.due_date, s.payment_terms_days, s.currency_code, s.currency_rate,
+                    COALESCE(s.invoice_date, DATE(s.sale_time)) AS doc_date,
+                    (SELECT COALESCE(SUM(l.debit - l.credit), 0) FROM ' . $lines . ' l WHERE l.journal_id = j.journal_id AND l.account_id = c.account_id) AS total
+             FROM ' . $this->db->prefixTable('sales') . ' s
+             JOIN ' . $accounts . ' c ON c.company_id = ? AND c.entity_type = ? AND c.entity_id = s.customer_id
+             JOIN ' . $this->db->prefixTable('accounting_journals') . " j ON j.source_type = ? AND j.source_id = s.sale_id AND j.entry_type = ? AND {$standing}
+             WHERE s.customer_id IN ({$idList}) AND s.sale_type IN (" . implode(',', self::SALE_TYPES) . ') AND s.sale_status = ?
+             ORDER BY doc_date ASC, s.sale_id ASC',
+            [CompanyContext::id(), EntityAccountService::CUSTOMER, SalePostingBuilder::SOURCE_SALE, JournalEntryType::Revenue->value, ...$standingBindings, COMPLETED],
+        )->getResult();
+
+        $paid = [];
+
+        foreach ($this->db->query(
+            'SELECT p.sale_id, SUM(l.credit - l.debit) AS paid
+             FROM ' . $this->db->prefixTable('sales_payments') . ' p
+             JOIN ' . $this->db->prefixTable('sales') . " s ON s.sale_id = p.sale_id AND s.customer_id IN ({$idList})
+             JOIN {$accounts} c ON c.company_id = ? AND c.entity_type = ? AND c.entity_id = s.customer_id
+             JOIN " . $this->db->prefixTable('accounting_journals') . " j ON j.source_type IN (?, ?) AND j.source_id = p.payment_id AND {$standing}
+             JOIN {$lines} l ON l.journal_id = j.journal_id AND l.account_id = c.account_id
+             GROUP BY p.sale_id",
+            [CompanyContext::id(), EntityAccountService::CUSTOMER, SalePostingBuilder::SOURCE_PAYMENT, SalePostingBuilder::SOURCE_PAYMENT_FX, ...$standingBindings],
+        )->getResult() as $row) {
+            $paid[(int) $row->sale_id] = bcadd($row->paid, '0', SaleAmounts::SCALE);
+        }
+
+        $applied = [];
+
+        foreach ($this->db->table('customer_credit_applications')->whereIn('customer_id', $customerIds)->where('released_at', null)->orderBy('application_id', 'ASC')->get()->getResult() as $application) {
+            $invoice           = self::targetOf($application);
+            $applied[$invoice] = bcadd($applied[$invoice] ?? '0', $application->amount, SaleAmounts::SCALE);
+        }
+
+        $returned = [];
+
+        foreach ($sales as $sale) {
+            if ((int) $sale->sale_type === SALE_TYPE_RETURN && $sale->return_of_sale_id !== null) {
+                $returned[(int) $sale->return_of_sale_id] = bcadd($returned[(int) $sale->return_of_sale_id] ?? '0', bcsub('0', $sale->total, SaleAmounts::SCALE), SaleAmounts::SCALE);
+            }
+        }
+
+        $invoices = [];
+
+        foreach ($sales as $sale) {
+            if ((int) $sale->sale_type === SALE_TYPE_RETURN) {
+                continue;
+            }
+
+            $saleId        = (int) $sale->sale_id;
+            [$code, $rate] = self::currencyOf($sale);
+
+            $invoices[(int) $sale->customer_id][$saleId] = new InvoiceFigures(
+                $saleId,
+                (string) $sale->doc_date,
+                (int) $sale->sale_type,
+                bcadd($sale->total, '0', SaleAmounts::SCALE),
+                $paid[$saleId] ?? '0.0000',
+                $applied[$saleId] ?? '0.0000',
+                $returned[$saleId] ?? '0.0000',
+                $sale->due_date === null ? (string) $sale->doc_date : (string) $sale->due_date,
+                $sale->payment_terms_days === null ? null : (int) $sale->payment_terms_days,
+                currencyCode: $code,
+                currencyRate: $rate,
+            );
+        }
+
+        return $invoices;
+    }
+
+    /**
      * The currency a sale was made in and the rate it was captured at, or nothing for a sale in the base currency.
      *
      * @return array{0: ?string, 1: ?string}
@@ -228,13 +322,11 @@ final class CustomerLedger
                     GROUP BY a.account_id, a.entity_id, a.name
                     HAVING balance <> 0";
 
-        $total = (int) $this->db->query("SELECT COUNT(*) AS found FROM ({$grouped}) t", $bindings)->getRow()->found;
-
         $column = $sort === 'customer_name' ? 'customer_name' : 'balance';
         $way    = strtolower($order) === 'asc' ? 'ASC' : 'DESC';
-        $rows   = $this->db->query("{$grouped} ORDER BY {$column} {$way}, customer_id ASC LIMIT " . max(1, $limit) . ' OFFSET ' . max(0, $offset), $bindings)->getResult();
+        $all    = $this->db->query("{$grouped} ORDER BY {$column} {$way}, customer_id ASC", $bindings)->getResult();
 
-        return ['total' => $total, 'rows' => $rows];
+        return ['total' => count($all), 'rows' => array_slice($all, max(0, $offset), max(1, $limit))];
     }
 
     /**

@@ -3,9 +3,12 @@
 namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\FamilyReports\StockAgingReport;
+use App\Libraries\Accounting\FamilyReports\StockEntries;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\StockLedger;
 use Tests\Support\FamilyReportTestCase;
+use Tests\Support\LegacyFamilyReports\LegacyStockAgingReport;
+use Tests\Support\StockHistoryFixtureTrait;
 
 /**
  * How long the stock on hand has been there: the quantity in four fixed stretches of age, with what
@@ -16,6 +19,8 @@ use Tests\Support\FamilyReportTestCase;
  */
 final class StockAgingReportTest extends FamilyReportTestCase
 {
+    use StockHistoryFixtureTrait;
+
     private StockAgingReport $report;
 
     protected function setUp(): void
@@ -152,5 +157,34 @@ final class StockAgingReportTest extends FamilyReportTestCase
         $this->assertCount(2, $this->rowsOf($split));
         $this->assertSame([], $this->rowsOf($found));
         $this->assertAmount('5', $this->grandOf($depots, 'available'));
+    }
+
+    public function testBuild_GivesTheTableTheReportGaveWhenItReadEveryMovementAtOnceWhateverTheSizeOfTheChunks(): void
+    {
+        $history = $this->stockHistory();
+        $legacy  = new LegacyStockAgingReport();
+        $queries = [
+            'today'    => [],
+            'ten days' => ['to' => $this->ago(10)],
+            'long ago' => ['to' => $this->ago(60)],
+            'split'    => ['split' => '1'],
+            'search'   => ['search' => 'SOAP'],
+            'item'     => ['item_id' => (string) $history['items']['soap']],
+            'category' => ['category' => 'Care'],
+            'depot'    => ['location_id' => (string) $history['depot'], 'split' => '1'],
+        ];
+
+        foreach ([1, 2, 3, StockEntries::CHUNK] as $chunk) {
+            $report = new StockAgingReport(new StockEntries(null, $chunk));
+
+            foreach ($queries as $name => $query) {
+                $input = $this->input($query);
+                $old   = $legacy->build($input);
+
+                $this->assertEquals($old, $report->build($input), "chunks of {$chunk}, {$name}");
+            }
+        }
+
+        $this->assertGreaterThan(3, $legacy->build($this->input(['split' => '1']))->rowCount());
     }
 }

@@ -29,29 +29,37 @@ final class StockAgingReport implements FamilyReport
         $split   = $input->flag('split');
         $filters = ['location_id' => $input->id('location_id'), 'item_id' => $input->id('item_id'), 'category' => $input->text('category')];
         $search  = mb_strtolower($input->text('search'));
-        $lots    = [];
-        $named   = [];
-        $nets    = [];
+        $pairs   = array_values(array_filter(
+            $this->entries->pairs($input->scope, null, $day, $filters),
+            static fn (object $pair): bool => $search === '' || str_contains(mb_strtolower($pair->item_name . ' ' . ($pair->item_number ?? '')), $search),
+        ));
+        $remaining = [];
+        $nets      = [];
 
-        foreach ($this->entries->movements($input->scope, null, $day, $filters) as $entry) {
-            if ($search !== '' && ! str_contains(mb_strtolower($entry->item_name . ' ' . ($entry->item_number ?? '')), $search)) {
-                continue;
+        foreach ($this->entries->stream($input->scope, null, $day, $filters, $pairs) as [$pair, $entries]) {
+            $key   = (int) $pair->item_id . ':' . (int) $pair->location_id;
+            $state = ['lots' => [], 'deficit' => '0'];
+            $net   = '0';
+
+            foreach ($entries as $entry) {
+                $net   = bcadd($net, (string) $entry->quantity, 3);
+                $state = $this->apply($state, $entry);
             }
 
-            $key         = (int) $entry->item_id . ':' . (int) $entry->location_id;
-            $named[$key] = $entry;
-            $nets[$key]  = bcadd($nets[$key] ?? '0', (string) $entry->quantity, 3);
-            $lots[$key]  = $this->apply($lots[$key] ?? ['lots' => [], 'deficit' => '0'], $entry);
+            $nets[$key]      = $net;
+            $remaining[$key] = array_values(array_filter($state['lots'], static fn (array $lot): bool => bccomp($lot['quantity'], '0', 3) > 0));
         }
+
+        usort($pairs, static fn (object $first, object $second): int => strcmp($first->first_seen, $second->first_seen));
 
         $items = [];
 
-        foreach ($lots as $key => $state) {
-            $remaining = $state['lots'];
-            $entry     = $named[$key];
-            $rowKey    = $split ? $key : (string) (int) $entry->item_id;
-            $items[$rowKey] ??= ['name' => (string) $entry->item_name, 'code' => (string) ($entry->item_number ?? ''), 'location' => $split ? (string) $entry->location_name : '', 'lots' => []];
-            $items[$rowKey]['lots'] = [...$items[$rowKey]['lots'], ...array_values($remaining)];
+        foreach ($pairs as $pair) {
+            $key    = (int) $pair->item_id . ':' . (int) $pair->location_id;
+            $rowKey = $split ? $key : (string) (int) $pair->item_id;
+
+            $items[$rowKey] ??= ['name' => (string) $pair->item_name, 'code' => (string) ($pair->item_number ?? ''), 'location' => $split ? (string) $pair->location_name : '', 'lots' => []];
+            $items[$rowKey]['lots'] = [...$items[$rowKey]['lots'], ...$remaining[$key]];
         }
 
         uasort($items, static fn (array $first, array $second): int => [mb_strtolower($first['name']), $first['location']] <=> [mb_strtolower($second['name']), $second['location']]);

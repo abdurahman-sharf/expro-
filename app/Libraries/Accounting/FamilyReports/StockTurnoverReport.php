@@ -46,21 +46,19 @@ final class StockTurnoverReport implements FamilyReport
             $sets[$key][$slot] = bcadd($sets[$key][$slot], $amount, SaleAmounts::SCALE);
         };
 
-        foreach ($this->entries->totals($input->scope, $period->from, null, $filters) as $row) {
+        foreach ($this->entries->totalsByItem($input->scope, $period->from, null, $filters) as $row) {
             $add($row, 'opening', (string) $row->value);
         }
 
-        foreach ($this->entries->totals($input->scope, null, $period->to, $filters) as $row) {
+        foreach ($this->entries->totalsByItem($input->scope, null, $period->to, $filters) as $row) {
             $add($row, 'closing', (string) $row->value);
         }
 
         $cogs = '0';
 
-        foreach ($this->entries->movements($input->scope, $period->from, $period->to, $filters) as $entry) {
-            if ($entry->source_type === self::SALE) {
-                $add($entry, 'cogs', bcsub('0', (string) $entry->value, SaleAmounts::SCALE));
-                $cogs = bcadd($cogs, bcsub('0', (string) $entry->value, SaleAmounts::SCALE), SaleAmounts::SCALE);
-            }
+        foreach ($this->entries->costOfSalesByItem($input->scope, $period->from, $period->to, self::SALE, $filters) as $row) {
+            $add($row, 'cogs', (string) $row->cost);
+            $cogs = bcadd($cogs, (string) $row->cost, SaleAmounts::SCALE);
         }
 
         uasort($sets, static fn (array $first, array $second): int => mb_strtolower($first['name']) <=> mb_strtolower($second['name']));

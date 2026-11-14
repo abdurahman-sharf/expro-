@@ -280,6 +280,9 @@ enum AccountingError: string
     case ReportTooManyPeriods = 'report_too_many_periods';
     case ReportFileTooLarge   = 'report_file_too_large';
 
+    case ReportRowsExceedScreen = 'report_rows_exceed_screen';
+    case ReportRowsExceedMemory = 'report_rows_exceed_memory';
+
     case ProfitBasisUnavailable = 'profit_basis_unavailable';
 
     case CashFlowLineInvalid    = 'cash_flow_line_invalid';

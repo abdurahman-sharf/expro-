@@ -4,15 +4,17 @@ namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
-use App\Libraries\Accounting\ExportsCsv;
+use App\Libraries\Accounting\Export\StreamedCsvResponse;
 use App\Libraries\Accounting\FamilyReports\FamilyReport;
 use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
 use App\Libraries\Accounting\FamilyReports\FilterChoices;
-use App\Libraries\Accounting\FamilyReports\ReportColumn;
+use App\Libraries\Accounting\FamilyReports\ReportCsv;
 use App\Libraries\Accounting\FamilyReports\ReportInput;
-use App\Libraries\Accounting\FamilyReports\ReportRow;
+use App\Libraries\Accounting\FamilyReports\ReportStream;
 use App\Libraries\Accounting\FamilyReports\ReportTable;
+use App\Libraries\Accounting\FamilyReports\StreamsReport;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\ReportSizeGuard;
 use App\Libraries\Accounting\ScopedReportRequest;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
@@ -27,7 +29,6 @@ use CodeIgniter\HTTP\ResponseInterface;
 class AccountingFamilyReports extends AccountingController
 {
     use ScopedReportRequest;
-    use ExportsCsv;
 
     public function __construct()
     {
@@ -41,22 +42,25 @@ class AccountingFamilyReports extends AccountingController
         $error      = null;
 
         try {
-            $table = $this->table($definition, $this->input($scope, $this->request->getGet()));
+            $screen = $this->screen($definition, $this->input($scope, $this->request->getGet()));
         } catch (AccountingException $refusal) {
             $error = $this->messageFor($refusal);
-            $table = $this->table($definition, $this->input($scope, []));
+
+            try {
+                $screen = $this->screen($definition, $this->input($scope, []));
+            } catch (AccountingException) {
+                $screen = $this->emptyScreen($definition, $this->input($scope, []));
+            }
         }
 
-        $page    = $this->input($scope, $this->request->getGet())->page();
-        $pages   = $table->pages(ReportInput::PAGE_SIZE);
-        $page    = min($page, $pages);
         $choices = new FilterChoices();
 
         return view('accounting_reports/family', [
             'key'         => $key,
             'family'      => $definition['family'],
-            'table'       => $table->page($page, ReportInput::PAGE_SIZE),
-            'all'         => $table,
+            'table'       => $screen['table'],
+            'all'         => $screen['table'],
+            'rows'        => $screen['rows'],
             'error'       => $error,
             'filters'     => $definition['filters'],
             'values'      => $this->values($definition['filters']),
@@ -65,8 +69,8 @@ class AccountingFamilyReports extends AccountingController
             'selected'    => $scope->ids,
             'scope'       => $scope,
             'scope_label' => $this->scopeLabel($scope),
-            'page'        => $page,
-            'pages'       => $pages,
+            'page'        => $screen['page'],
+            'pages'       => $screen['pages'],
             'csvUrl'      => base_url('accounting_reports/' . $key . '/csv') . $this->queryString($definition['filters'], $scope),
             'pageUrl'     => fn (int $target): string => base_url('accounting_reports/' . $key) . $this->queryString($definition['filters'], $scope, ['page' => $target]),
             'amount'      => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
@@ -78,17 +82,17 @@ class AccountingFamilyReports extends AccountingController
     public function getCsv(string $key): ResponseInterface
     {
         $definition = $this->definition($key);
+        $scope      = $this->requestedScope();
+        $input      = $this->input($scope, $this->request->getGet());
+        $label      = $this->scopeLabel($scope);
 
         try {
-            $table = $this->table($definition, $this->input($this->requestedScope(), $this->request->getGet()));
+            $source = $this->source($definition, $input);
         } catch (AccountingException $refusal) {
             return $this->response->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY)->setBody($this->messageFor($refusal));
         }
 
-        return $this->response
-            ->setContentType('text/csv', 'UTF-8')
-            ->setHeader('Content-Disposition', 'attachment; filename="' . $key . '_' . date('Y-m-d') . '.csv"')
-            ->setBody("\xEF\xBB\xBF" . $this->csv($table, $this->scopeLabel($this->requestedScope())));
+        return new StreamedCsvResponse($key . '_' . date('Y-m-d') . '.csv', fn (): iterable => ReportCsv::rows($source instanceof ReportStream ? $this->source($definition, $input) : $source, $label));
     }
 
     /**
@@ -120,9 +124,49 @@ class AccountingFamilyReports extends AccountingController
     /**
      * @param array{class: class-string<FamilyReport>} $definition
      */
-    private function table(array $definition, ReportInput $input): ReportTable
+    private function source(array $definition, ReportInput $input): ReportStream|ReportTable
     {
-        return (new $definition['class']())->build($input);
+        $report = new $definition['class']();
+
+        return $report instanceof StreamsReport ? $report->stream($input) : $report->build($input);
+    }
+
+    /**
+     * @param array{class: class-string<FamilyReport>} $definition
+     *
+     * @return array{table: ReportTable, rows: int, page: int, pages: int}
+     */
+    private function screen(array $definition, ReportInput $input): array
+    {
+        $source = $this->source($definition, $input);
+
+        if ($source instanceof ReportStream) {
+            $rows = $source->rowCount();
+
+            ReportSizeGuard::require($rows, ReportSizeGuard::screenRows());
+
+            $pages = $source->pages(ReportInput::PAGE_SIZE);
+            $page  = min($input->page(), $pages);
+
+            return ['table' => $source->page($page, ReportInput::PAGE_SIZE), 'rows' => $rows, 'page' => $page, 'pages' => $pages];
+        }
+
+        $pages = $source->pages(ReportInput::PAGE_SIZE);
+        $page  = min($input->page(), $pages);
+
+        return ['table' => $source->page($page, ReportInput::PAGE_SIZE), 'rows' => $source->rowCount(), 'page' => $page, 'pages' => $pages];
+    }
+
+    /**
+     * @param array{class: class-string<FamilyReport>} $definition
+     *
+     * @return array{table: ReportTable, rows: int, page: int, pages: int}
+     */
+    private function emptyScreen(array $definition, ReportInput $input): array
+    {
+        $source = $this->source($definition, $input);
+
+        return ['table' => $source instanceof ReportStream ? $source->empty() : new ReportTable($source->title, $source->columns, []), 'rows' => 0, 'page' => 1, 'pages' => 1];
     }
 
     /**
@@ -164,44 +208,5 @@ class AccountingFamilyReports extends AccountingController
         $query = [...$query, ...$extra];
 
         return $query === [] ? '' : '?' . http_build_query($query);
-    }
-
-    private function csv(ReportTable $table, ?string $scopeLabel): string
-    {
-        $handle = fopen('php://temp', 'r+b');
-
-        $this->csvRow($handle, [$table->title]);
-        $this->csvNote($handle, $scopeLabel);
-        $this->csvRow($handle, array_map(static fn (ReportColumn $column): string => $column->label, $table->columns));
-
-        $cells = static fn (ReportRow $row): array => array_map(static fn (ReportColumn $column): string => $row->cell($column->key), $table->columns);
-
-        foreach ($table->blocks as $block) {
-            if ($block->title !== null) {
-                $this->csvRow($handle, [$block->title]);
-            }
-
-            foreach ($block->rows as $row) {
-                $this->csvRow($handle, $cells($row));
-            }
-
-            if ($block->total !== null) {
-                $this->csvRow($handle, $cells($block->total));
-            }
-        }
-
-        if ($table->grand !== null) {
-            $this->csvRow($handle, $cells($table->grand));
-        }
-
-        foreach ($table->ties as $tie) {
-            $this->csvRow($handle, $tie->isRefused() ? [$tie->label, '', '', (string) $tie->refusal] : [$tie->label, $tie->reported, $tie->book, $tie->difference()]);
-        }
-
-        foreach ($table->notes as $note) {
-            $this->csvNote($handle, $note);
-        }
-
-        return $this->csvText($handle);
     }
 }

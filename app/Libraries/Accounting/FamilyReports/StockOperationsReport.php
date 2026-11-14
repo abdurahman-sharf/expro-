@@ -23,14 +23,17 @@ final class StockOperationsReport implements FamilyReport
         $filters = ['location_id' => $input->id('location_id'), 'item_id' => $input->id('item_id'), 'category' => $input->text('category')];
         $items   = [];
         $raw     = '0';
+        $groups  = $this->entries->byItemAndOperation($input->scope, $period->from, $period->to, $filters);
 
-        foreach ($this->entries->movements($input->scope, $period->from, $period->to, $filters) as $entry) {
-            $raw              = bcadd($raw, (string) $entry->quantity, 3);
-            [$key, $quantity] = StockOperation::of((string) $entry->source_type, (string) $entry->kind, (string) $entry->quantity);
+        usort($groups, static fn (object $first, object $second): int => strcmp($first->first_seen, $second->first_seen));
 
-            $items[(int) $entry->item_id]['name']       = (string) $entry->item_name;
-            $items[(int) $entry->item_id]['code']       = (string) ($entry->item_number ?? '');
-            $items[(int) $entry->item_id]['sums'][$key] = bcadd($items[(int) $entry->item_id]['sums'][$key] ?? '0', $quantity, 3);
+        foreach ($groups as $group) {
+            $raw                        = bcadd($raw, (string) $group->quantity, 3);
+            [$key]                      = StockOperation::of((string) $group->source_type, (string) $group->kind, (int) $group->positive === 1 ? '1.000' : '-1.000');
+            $item                       = (int) $group->item_id;
+            $items[$item]['name']       = (string) $group->item_name;
+            $items[$item]['code']       = (string) ($group->item_number ?? '');
+            $items[$item]['sums'][$key] = bcadd($items[$item]['sums'][$key] ?? '0', (string) $group->quantity, 3);
         }
 
         uasort($items, static fn (array $first, array $second): int => mb_strtolower($first['name']) <=> mb_strtolower($second['name']));

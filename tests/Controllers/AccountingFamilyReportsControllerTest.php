@@ -7,7 +7,9 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\CostCenterService;
 use App\Libraries\Accounting\FamilyReports\ChartReport;
 use App\Libraries\Accounting\FamilyReports\FamilyReportCatalog;
+use App\Libraries\Accounting\FamilyReports\JournalMovementsReport;
 use App\Libraries\Accounting\JournalService;
+use App\Libraries\Accounting\ReportSizeGuard;
 use App\Libraries\Roles\RoleService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -501,5 +503,93 @@ final class AccountingFamilyReportsControllerTest extends FamilyReportTestCase
 
         $this->assertEqualsWithDelta(100.0, $limited, 0.001);
         $this->assertEqualsWithDelta(200.0, $everyone, 0.001);
+    }
+
+    /**
+     * @return list<int> The journals, of two lines each, put on the books today.
+     */
+    private function manualJournals(int $count): array
+    {
+        $service = new JournalService();
+        $cash    = $this->accountId('cash');
+        $other   = $this->accountId('opening_balance');
+        $ids     = [];
+
+        for ($index = 1; $index <= $count; $index++) {
+            $ids[] = $service->postNew(['date' => $this->today(), 'description' => 'Streamed ' . $index, 'lines' => [['account_id' => $cash, 'debit' => $index . '.00'], ['account_id' => $other, 'credit' => $index . '.00']]]);
+        }
+
+        return $ids;
+    }
+
+    public function testGetShow_PagesAReportThatIsReadOneRowAfterTheOtherAndKeepsTheTotalsOnEveryPage(): void
+    {
+        $this->manualJournals(60);
+        $this->viewer($this->everyReportPermission());
+
+        $address = '/accounting_reports/journal_movements?group=day&' . http_build_query($this->thisDay());
+        $total   = 120;
+        $first   = $this->get($address)->getBody();
+        $second  = $this->get($address . '&page=2')->getBody();
+
+        $this->assertStringContainsString('id="report_pages"', $first);
+        $this->assertSame(100, substr_count($first, '<tr><td'));
+        $this->assertSame($total - 100, substr_count($second, '<tr><td'));
+        $this->assertSame($total - 100, substr_count($this->get($address . '&page=999')->getBody(), '<tr><td'));
+        $this->assertStringContainsString('id="report_grand"', $first);
+        $this->assertStringContainsString('id="report_grand"', $second);
+        $this->assertStringContainsString('data-tie="0" data-status="ties"', $second);
+    }
+
+    public function testGetShow_RefusesAReportOfMoreRowsThanAScreenScansByNameWithTheCountAndGivesTheFileWhole(): void
+    {
+        $this->manualJournals(6);
+        $this->viewer($this->everyReportPermission());
+
+        $_SERVER['reports.scanRows'] = $_ENV['reports.scanRows'] = '5';
+
+        try {
+            $this->assertSame(5, ReportSizeGuard::screenRows());
+
+            foreach (['journal_movements', 'journals'] as $key) {
+                $screen = $this->get('/accounting_reports/' . $key . '?from=2000-01-01&to=' . $this->today());
+
+                $screen->assertStatus(200);
+                $screen->assertSee('id="report_error"');
+            }
+
+            $refused = $this->get('/accounting_reports/journal_movements?' . http_build_query($this->thisDay()))->getBody();
+
+            $rows = (new JournalMovementsReport())->stream($this->input($this->thisDay()))->rowCount();
+
+            $this->assertGreaterThanOrEqual(12, $rows);
+            $this->assertStringContainsString(lang('Accounting.error_report_rows_exceed_screen', ['5', (string) $rows]), html_entity_decode($refused));
+            $this->assertStringNotContainsString('id="report_grand"', $refused);
+
+            $csv = $this->get('/accounting_reports/journal_movements/csv?' . http_build_query($this->thisDay()));
+
+            $csv->assertStatus(200);
+            $this->assertGreaterThan($rows, count($this->csvRows($csv)));
+        } finally {
+            unset($_SERVER['reports.scanRows'], $_ENV['reports.scanRows']);
+        }
+    }
+
+    public function testGetCsv_GivesAReportThatIsReadOneRowAfterTheOtherInTheOtherFormatsToo(): void
+    {
+        $this->manualJournals(3);
+        $this->viewer($this->everyReportPermission());
+
+        $query = http_build_query($this->thisDay());
+
+        $csv  = $this->get('/accounting_reports/journal_movements/csv?' . $query);
+        $xlsx = $this->get('/accounting_reports/journal_movements/xlsx?' . $query);
+
+        $csv->assertStatus(200);
+        $xlsx->assertStatus(200);
+        $this->assertSame('text/csv; charset=UTF-8', $csv->response()->getHeaderLine('Content-Type'));
+        $this->assertStringContainsString('spreadsheetml', $xlsx->response()->getHeaderLine('Content-Type'));
+        $this->assertStringStartsWith('PK', $xlsx->response()->getBody());
+        $this->get('/accounting_reports/stock_movements/xlsx?' . $query)->assertStatus(200);
     }
 }

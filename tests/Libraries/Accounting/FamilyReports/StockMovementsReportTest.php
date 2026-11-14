@@ -2,10 +2,14 @@
 
 namespace Tests\Libraries\Accounting\FamilyReports;
 
+use App\Libraries\Accounting\FamilyReports\ReportCsv;
+use App\Libraries\Accounting\FamilyReports\StockEntries;
 use App\Libraries\Accounting\FamilyReports\StockMovementsReport;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\StockLedger;
 use Tests\Support\FamilyReportTestCase;
+use Tests\Support\LegacyFamilyReports\LegacyStockMovementsReport;
+use Tests\Support\StockHistoryFixtureTrait;
 
 /**
  * The movements of each item in each location, in order, after the quantity it held before the first
@@ -16,6 +20,8 @@ use Tests\Support\FamilyReportTestCase;
  */
 final class StockMovementsReportTest extends FamilyReportTestCase
 {
+    use StockHistoryFixtureTrait;
+
     private StockMovementsReport $report;
 
     protected function setUp(): void
@@ -121,5 +127,75 @@ final class StockMovementsReportTest extends FamilyReportTestCase
         $this->assertCount(1, $this->rowsOf($limited));
         $this->assertReportTies($limited);
         $this->assertSame([], $narrow->ties);
+    }
+
+    public function testBuild_GivesTheTableTheReportGaveWhenItReadEveryMovementAtOnceWhateverTheSizeOfTheChunks(): void
+    {
+        $history = $this->stockHistory();
+        $legacy  = new LegacyStockMovementsReport();
+        $periods = [
+            'whole'   => ['from' => $history['from'], 'to' => $history['to']],
+            'month'   => ['from' => $this->ago(30), 'to' => $history['to']],
+            'middle'  => ['from' => $this->ago(50), 'to' => $this->ago(10)],
+            'day'     => $this->thisDay(),
+            'to only' => ['to' => $this->ago(10)],
+        ];
+        $filters = [
+            'none'     => [],
+            'location' => ['location_id' => (string) $history['depot']],
+            'item'     => ['item_id' => (string) $history['items']['soap']],
+            'category' => ['category' => 'Care'],
+        ];
+
+        foreach ([1, 2, 3, StockEntries::CHUNK] as $chunk) {
+            $report = new StockMovementsReport(new StockEntries(null, $chunk));
+
+            foreach (['plain', 'valued'] as $view) {
+                foreach ($periods as $periodName => $period) {
+                    foreach ($filters as $filterName => $filter) {
+                        $input = $this->input([...$period, ...$filter, 'view' => $view]);
+                        $label = "chunks of {$chunk}, {$view}, {$periodName}, {$filterName}";
+                        $old   = $legacy->build($input);
+                        $new   = $report->build($input);
+
+                        $this->assertEquals($old, $new, $label);
+                        $this->assertSame(iterator_to_array(ReportCsv::rows($old, null), false), iterator_to_array(ReportCsv::rows($report->stream($input), null), false), $label);
+                        $this->assertSame($old->rowCount(), $report->stream($input)->rowCount(), $label);
+                    }
+                }
+            }
+        }
+
+        $this->assertGreaterThan(8, $legacy->build($this->input([...$periods['whole'], 'view' => 'valued']))->rowCount());
+    }
+
+    public function testBuild_GivesEveryPageTheRowsOfThePageOfTheTableThatHoldsThem(): void
+    {
+        $history = $this->stockHistory();
+        $legacy  = new LegacyStockMovementsReport();
+        $report  = new StockMovementsReport(new StockEntries(null, 2));
+        $input   = $this->input(['from' => $this->ago(50), 'to' => $history['to'], 'view' => 'valued']);
+        $old     = $legacy->build($input);
+
+        foreach ([1, 2, 3, 5, 9] as $page) {
+            $this->assertEquals($old->page($page, 3), $report->stream($input)->page($page, 3), "page {$page}");
+        }
+    }
+
+    public function testBuild_ShowsTheCurrentMonthAndSaysSoWhenNoPeriodIsChosen(): void
+    {
+        $item = $this->named('Dated');
+
+        $this->bookStock($this->ago(70), 1, $item, '4', '40.00');
+        $this->bookStock($this->today(), 1, $item, '2', '20.00');
+
+        $table = $this->built($this->report);
+        $rows  = $this->rowsOf($table);
+
+        $this->assertCount(2, $rows);
+        $this->assertStringContainsString(date('Y-m-01'), $rows[0]->cell('kind'));
+        $this->assertSame('4.000', $rows[0]->cell('quantity_after'));
+        $this->assertSame('6.000', $rows[1]->cell('quantity_after'));
+        $this->assertStringContainsString(lang('Accounting_family_reports.note_default_month', [date('Y-m-01')]), implode(' ', $table->notes));
     }
 }

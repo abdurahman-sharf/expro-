@@ -284,4 +284,58 @@ class ReportDocumentsTest extends CIUnitTestCase
         $this->assertSame(['20.0000'], $totals($this->read(null, date('Y-m-d'))));
         $this->assertSame([], $this->read(null, date('Y-m-d', strtotime('+1 day')), date('Y-m-d', strtotime('+2 days'))));
     }
+
+    private function someSales(): void
+    {
+        $other   = $this->anotherCustomer();
+        $invoice = $this->invoiceOf('115', $this->customerId, [$this->payment(lang('Sales.cash'), '90')]);
+
+        $this->invoiceOf('230', $other);
+        $this->creditNoteOf($invoice, '30', $this->customerId);
+        $this->refundInvoiceOf($invoice, '20', $this->customerId);
+        $this->invoiceOf('40', $other, [$this->payment(lang('Sales.cash'), '40')]);
+    }
+
+    public function testChunks_GiveTheDocumentsReadGivesInTheSameOrderWhateverTheSizeOfTheChunks(): void
+    {
+        $this->someSales();
+
+        $scope = ReportScope::resolve(null, null);
+        $all   = (new ReportDocuments())->read($scope, '2020-01-01', date('Y-m-d'), [], null, null, true);
+
+        $this->assertCount(5, $all);
+
+        foreach ([1, 2, 3, 400] as $size) {
+            $chunks = iterator_to_array((new ReportDocuments(null, $size))->chunks($scope, '2020-01-01', date('Y-m-d'), [], null, null, true), false);
+
+            $this->assertEquals($all, array_merge(...$chunks), "chunks of {$size}");
+            $this->assertSame((int) ceil(5 / $size), count($chunks), "chunks of {$size}");
+            $this->assertEquals($all, (new ReportDocuments(null, $size))->read($scope, '2020-01-01', date('Y-m-d'), [], null, null, true), "read in chunks of {$size}");
+        }
+    }
+
+    public function testCount_CountsTheDocumentsOfTheKindsWithoutReadingThemAndRefusalNamesTheLimit(): void
+    {
+        $this->someSales();
+
+        $scope     = ReportScope::resolve(null, null);
+        $documents = new ReportDocuments();
+
+        $this->assertSame(5, $documents->count($scope, '2020-01-01', date('Y-m-d')));
+        $this->assertSame(3, $documents->count($scope, '2020-01-01', date('Y-m-d'), [DocumentKind::Invoice]));
+        $this->assertSame(1, $documents->count($scope, '2020-01-01', date('Y-m-d'), [DocumentKind::CreditNote]));
+        $this->assertSame(0, $documents->count($scope, '2020-01-01', date('Y-m-d'), [], 999999));
+        $this->assertSame(0, $documents->count(ReportScope::resolve(null, []), '2020-01-01', date('Y-m-d')));
+        $this->assertNull($documents->refusal($scope, '2020-01-01', date('Y-m-d')));
+        $this->assertNull((new ReportDocuments(null, 400, 5))->refusal($scope, '2020-01-01', date('Y-m-d')));
+
+        $refused = (new ReportDocuments(null, 400, 4))->refusal($scope, '2020-01-01', date('Y-m-d'));
+
+        $this->assertNotNull($refused);
+        $this->assertTrue($refused->isRefused());
+        $this->assertSame('Accounting_operational_reports.too_many_documents', $refused->refusal);
+        $this->assertSame(['5', '4'], $refused->refusalArguments);
+        $this->assertStringContainsString('5', lang($refused->refusal, $refused->refusalArguments));
+        $this->assertStringContainsString('4', lang($refused->refusal, $refused->refusalArguments));
+    }
 }

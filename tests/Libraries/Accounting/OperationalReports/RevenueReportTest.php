@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting\OperationalReports;
 
 use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
+use App\Libraries\Accounting\OperationalReports\ReportDocuments;
 use App\Libraries\Accounting\OperationalReports\RevenueGroup;
 use App\Libraries\Accounting\OperationalReports\RevenueReport;
 use App\Libraries\Accounting\OperationalReports\StatusFilter;
@@ -398,5 +399,17 @@ class RevenueReportTest extends CIUnitTestCase
         foreach ($table->ties as $tie) {
             $this->assertFalse($tie->isRefused(), $tie->labelKey);
         }
+    }
+
+    public function testBuild_RefusesAPeriodOfMoreDocumentsThanTheServerCanHoldByNameWithTheCount(): void
+    {
+        $this->invoiceOf('100', $this->customerId);
+        $this->invoiceOf('50', $this->customerId);
+
+        $table = (new RevenueReport(null, new ReportDocuments(null, 400, 1)))->build(ReportScope::resolve(null, null), RevenueGroup::Customer, false, '2020-01-01', date('Y-m-d'), date('Y-m-d'));
+
+        $this->assertTrue($table->isRefused());
+        $this->assertSame(['2', '1'], $table->refusalArguments);
+        $this->assertSame('Accounting_operational_reports.too_many_documents', $table->refusal);
     }
 }

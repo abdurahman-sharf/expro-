@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Accounting\OperationalReports;
 
 use App\Libraries\Accounting\OperationalReports\ItemGroup;
+use App\Libraries\Accounting\OperationalReports\ProfitMovements;
 use App\Libraries\Accounting\OperationalReports\ItemProfitReport;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
 use App\Libraries\Accounting\ReportScope;
@@ -189,5 +190,17 @@ class ItemProfitReportTest extends CIUnitTestCase
 
         $this->assertFalse($this->untilTomorrow(ItemGroup::Item, $this->customerId)->isRefused());
         $this->assertTrue($this->untilTomorrow(ItemGroup::Item, $other)->isRefused());
+    }
+
+    public function testBuild_RefusesAPeriodOfMoreMovementsThanTheServerCanHoldByNameWithTheCount(): void
+    {
+        $this->save([$this->line($this->itemA, 0, '2', '75', '40')], [], [], SALE_TYPE_INVOICE, $this->customerId);
+        $this->save([$this->line($this->itemB, 0, '1', '30', '20')], [], [], SALE_TYPE_INVOICE, $this->customerId);
+
+        $table = (new ItemProfitReport(null, new ProfitMovements(null, null, 1)))->build(ReportScope::resolve(null, null), ItemGroup::Item, '2020-01-01', date('Y-m-d'));
+
+        $this->assertTrue($table->isRefused());
+        $this->assertSame('1', $table->refusalArguments[1]);
+        $this->assertGreaterThanOrEqual(2, (int) $table->refusalArguments[0]);
     }
 }

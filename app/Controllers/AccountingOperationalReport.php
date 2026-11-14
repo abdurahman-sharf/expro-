@@ -5,9 +5,11 @@ namespace App\Controllers;
 use App\Libraries\Accounting\AccountPicker;
 use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\OperationalReports\DateFilter;
+use App\Libraries\Accounting\OperationalReports\ReportBlock;
 use App\Libraries\Accounting\OperationalReports\ReportColumn;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\ReportSizeGuard;
 use App\Libraries\Accounting\ScopedReportRequest;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -157,6 +159,10 @@ abstract class AccountingOperationalReport extends AccountingController
      */
     protected function page(array $page): string
     {
+        if (($page['table'] ?? null) instanceof ReportTable) {
+            $page['table'] = $this->screened($page['table']);
+        }
+
         return view('accounting_operational/report', [
             'amount'   => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
             'quantity' => fn (string $value): string => $this->amountCell(to_quantity_decimals($value)),
@@ -164,6 +170,22 @@ abstract class AccountingOperationalReport extends AccountingController
             'date'     => fn (string $value): string => $this->formatDate($value),
             ...$page,
         ]);
+    }
+
+    /**
+     * A report of more rows than a screen can write into its page is not shown, and says how many it holds and that the
+     * file has no such limit.
+     */
+    private function screened(ReportTable $table): ReportTable
+    {
+        if ($table->isRefused()) {
+            return $table;
+        }
+
+        $rows = array_sum(array_map(static fn (ReportBlock $block): int => count($block->rows), $table->blocks));
+        $most = ReportSizeGuard::renderRows();
+
+        return $rows <= $most ? $table : ReportTable::refused($table->scope, $table->from, $table->to, 'Accounting.error_report_rows_exceed_screen', [(string) $most, (string) $rows]);
     }
 
     protected function csvResponse(string $name, ReportTable $table, string $titleKey): ResponseInterface

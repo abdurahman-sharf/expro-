@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Accounting\OperationalReports;
 
 use App\Libraries\Accounting\OperationalReports\ItemGroup;
+use App\Libraries\Accounting\OperationalReports\ProfitMovements;
 use App\Libraries\Accounting\OperationalReports\ProfitReport;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
 use App\Libraries\Accounting\ReportScope;
@@ -350,5 +351,46 @@ class ProfitReportTest extends CIUnitTestCase
         $this->assertFalse($mine->isRefused());
         $this->assertSame('-10.0000', $mine->total['profit']);
         $this->assertTrue($theirs->isRefused());
+    }
+
+    private function variedProfits(): void
+    {
+        $cycle = $this->referenceInvoice();
+        $other = $this->anotherCustomer();
+
+        $this->save($cycle['items'], $cycle['taxes'], [], SALE_TYPE_INVOICE, $this->customerId);
+        $this->save([$this->line($this->item('5'), 0, '3', '20', '5'), $this->line($this->item('7'), 1, '2', '15', '7')], [], [], SALE_TYPE_POS, $other);
+        $this->save([$this->line($cycle['cream'], 0, '1', '80', '40')], [], [], SALE_TYPE_INVOICE, $other);
+    }
+
+    public function testBuild_GivesTheSameTableWhateverTheNumberOfDocumentsReadAtATime(): void
+    {
+        $this->variedProfits();
+
+        $scope = ReportScope::resolve(null, null);
+
+        foreach ([ItemGroup::Item, ItemGroup::Customer, ItemGroup::Day, ItemGroup::Category] as $group) {
+            foreach ([true, false] as $details) {
+                $whole = (new ProfitReport())->build($scope, $group, $details, '2020-01-01', date('Y-m-d'));
+
+                foreach ([1, 2] as $chunk) {
+                    $this->assertEquals($whole, (new ProfitReport(null, new ProfitMovements(null, null, null, $chunk)))->build($scope, $group, $details, '2020-01-01', date('Y-m-d')), "{$group->value}, chunks of {$chunk}");
+                }
+            }
+        }
+
+        $this->assertGreaterThan(3, (new ProfitReport())->build($scope, ItemGroup::Item, true, '2020-01-01', date('Y-m-d'))->documents);
+    }
+
+    public function testBuild_RefusesAPeriodOfMoreMovementsThanTheServerCanHoldByNameWithTheCount(): void
+    {
+        $this->variedProfits();
+
+        $table = (new ProfitReport(null, new ProfitMovements(null, null, 2)))->build(ReportScope::resolve(null, null), ItemGroup::Item, false, '2020-01-01', date('Y-m-d'));
+
+        $this->assertTrue($table->isRefused());
+        $this->assertSame('Accounting_operational_reports.too_many_documents', $table->refusal);
+        $this->assertSame('2', $table->refusalArguments[1]);
+        $this->assertGreaterThan(2, (int) $table->refusalArguments[0]);
     }
 }

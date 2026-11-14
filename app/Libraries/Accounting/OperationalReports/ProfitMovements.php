@@ -2,8 +2,10 @@
 
 namespace App\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\JournalEntryType;
 use App\Libraries\Accounting\ReportScope;
+use App\Libraries\Accounting\ReportSizeGuard;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\SalePostingBuilder;
 use CodeIgniter\Database\BaseConnection;
@@ -19,10 +21,13 @@ use Config\Database;
  */
 final class ProfitMovements
 {
+    public const BYTES_PER_ROW = 1_800;
+    private const CHUNK        = 400;
+
     private BaseConnection $db;
     private ReportDocuments $documents;
 
-    public function __construct(?BaseConnection $db = null, ?ReportDocuments $documents = null)
+    public function __construct(?BaseConnection $db = null, ?ReportDocuments $documents = null, private readonly ?int $maxRows = null, private readonly int $chunk = self::CHUNK)
     {
         $this->db        = $db ?? Database::connect();
         $this->documents = $documents ?? new ReportDocuments($this->db);
@@ -37,25 +42,30 @@ final class ProfitMovements
             return [];
         }
 
+        ReportSizeGuard::require($this->movementCount($from, $to, $itemId), $this->maxRows ?? ReportSizeGuard::memoryRows(self::BYTES_PER_ROW), AccountingError::ReportRowsExceedMemory);
+
         $movements = $this->movements($from, $to, $itemId);
 
         if ($movements === []) {
             return [];
         }
 
-        $documents = $this->documents->byIds($scope, array_map(static fn (object $movement): int => (int) $movement->sale_id, $movements), true);
-        $items     = $this->items(array_map(static fn (object $movement): int => (int) $movement->item_id, $movements));
-        $rows      = [];
+        $items = $this->items(array_map(static fn (object $movement): int => (int) $movement->item_id, $movements));
+        $rows  = [];
 
-        foreach ($movements as $movement) {
-            $document = $documents[(int) $movement->sale_id] ?? null;
-            $item     = $items[(int) $movement->item_id] ?? ['name' => '', 'number' => '', 'category' => ''];
+        foreach (array_chunk($movements, $this->chunk) as $chunk) {
+            $documents = $this->documents->byIds($scope, array_map(static fn (object $movement): int => (int) $movement->sale_id, $chunk), true);
 
-            if ($document === null || ($customerId !== null && $document->customerId !== $customerId) || ($employeeId !== null && $document->employeeId !== $employeeId) || ($category !== '' && $item['category'] !== $category)) {
-                continue;
+            foreach ($chunk as $movement) {
+                $document = $documents[(int) $movement->sale_id] ?? null;
+                $item     = $items[(int) $movement->item_id] ?? ['name' => '', 'number' => '', 'category' => ''];
+
+                if ($document === null || ($customerId !== null && $document->customerId !== $customerId) || ($employeeId !== null && $document->employeeId !== $employeeId) || ($category !== '' && $item['category'] !== $category)) {
+                    continue;
+                }
+
+                $rows[] = $this->row($document, $movement, $item);
             }
-
-            $rows[] = $this->row($document, $movement, $item);
         }
 
         usort($rows, static fn (ProfitRow $a, ProfitRow $b): int => [$a->date, $a->saleId, $a->itemId] <=> [$b->date, $b->saleId, $b->itemId]);
@@ -100,6 +110,23 @@ final class ProfitMovements
      */
     private function movements(?string $from, string $to, ?int $itemId): array
     {
+        [$grouped, $bindings] = $this->movementsQuery($from, $to, $itemId);
+
+        return $this->db->query($grouped . ' ORDER BY e.entry_date ASC, e.source_id ASC, e.item_id ASC', $bindings)->getResult();
+    }
+
+    private function movementCount(?string $from, string $to, ?int $itemId): int
+    {
+        [$grouped, $bindings] = $this->movementsQuery($from, $to, $itemId);
+
+        return (int) $this->db->query("SELECT COUNT(*) AS found FROM ({$grouped}) grouped_movements", $bindings)->getRow()->found;
+    }
+
+    /**
+     * @return array{0: string, 1: list<mixed>} The query that groups the movements, without its order, and what it is bound to.
+     */
+    private function movementsQuery(?string $from, string $to, ?int $itemId): array
+    {
         $entries  = $this->db->prefixTable('accounting_stock_entries');
         $where    = ['e.source_type = ?', 'e.entry_type = ?', "e.kind = 'posting'", 'r.entry_id IS NULL', 'e.entry_date <= ?'];
         $bindings = [SalePostingBuilder::SOURCE_SALE, JournalEntryType::Cogs->value, $to];
@@ -114,15 +141,14 @@ final class ProfitMovements
             $bindings[] = $itemId;
         }
 
-        return $this->db->query(
+        return [
             "SELECT e.source_id AS sale_id, e.item_id, e.entry_date, SUM(e.quantity) AS quantity, SUM(e.value) AS value
              FROM {$entries} e
              LEFT JOIN {$entries} r ON r.source_type = e.source_type AND r.source_id = e.source_id AND r.entry_type = e.entry_type AND r.revision = e.revision AND r.line_no = e.line_no AND r.kind = 'reversal' AND r.entry_id <> e.entry_id
              WHERE " . implode(' AND ', $where) . '
-             GROUP BY e.source_id, e.item_id, e.entry_date
-             ORDER BY e.entry_date ASC, e.source_id ASC, e.item_id ASC',
+             GROUP BY e.source_id, e.item_id, e.entry_date',
             $bindings,
-        )->getResult();
+        ];
     }
 
     /**

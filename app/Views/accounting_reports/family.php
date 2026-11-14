@@ -4,6 +4,7 @@
  * @var string                     $family
  * @var ReportTable                $table
  * @var ReportTable                $all
+ * @var int                        $rows
  * @var string|null                $error
  * @var list<array<string, mixed>> $filters
  * @var array<string, string>      $values
@@ -168,7 +169,7 @@ $head = static function (array $columns): string {
         </section>
     <?php endif; ?>
 
-    <?php if ($all->rowCount() === 0): ?>
+    <?php if ($rows === 0): ?>
         <p class="text-body-secondary" id="report_empty"><?= lang('Accounting_family_reports.empty') ?></p>
     <?php endif; ?>
 
@@ -195,7 +196,7 @@ $head = static function (array $columns): string {
         </section>
     <?php endforeach; ?>
 
-    <?php if ($table->grand !== null && $all->rowCount() > 0): ?>
+    <?php if ($table->grand !== null && $rows > 0): ?>
         <div class="table-responsive">
             <table class="table table-sm family-table acc-lines" id="report_grand">
                 <tbody><?= $rowHtml($table->grand, $table->columns) ?></tbody>

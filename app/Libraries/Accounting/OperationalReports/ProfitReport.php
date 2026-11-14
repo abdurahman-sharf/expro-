@@ -2,6 +2,7 @@
 
 namespace App\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\ReportScope;
 use CodeIgniter\Database\BaseConnection;
 
@@ -32,7 +33,11 @@ final class ProfitReport
         $period = $group->period();
         $from ??= $allDates ? null : $period?->defaultFrom($to);
 
-        $profits = $this->movements->read($scope, $from, $to, $customerId, $employeeId, $itemId, $category);
+        try {
+            $profits = $this->movements->read($scope, $from, $to, $customerId, $employeeId, $itemId, $category);
+        } catch (AccountingException $refusal) {
+            return ReportTable::refused($scope, $from, $to, 'Accounting_operational_reports.too_many_documents', [(string) $refusal->context['count'], (string) $refusal->context['max']]);
+        }
         $refused = ForeignAmounts::refuseProfit($profits, $scope, $from, $to);
 
         if ($refused !== null) {
@@ -45,8 +50,12 @@ final class ProfitReport
         $all     = [];
 
         foreach ($groups as $key => $members) {
-            $rows  = array_map(fn (ProfitRow $row): array => $this->row($row), $members);
-            $all   = [...$all, ...$rows];
+            $rows = array_map(fn (ProfitRow $row): array => $this->row($row), $members);
+
+            foreach ($rows as $row) {
+                $all[] = $row;
+            }
+
             $sums  = $this->addUp($rows, ['quantity', ...self::FIGURES]);
             $label = $this->label($group, $key, $members);
 

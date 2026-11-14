@@ -53,7 +53,18 @@ final class ForeignAmounts
      */
     public static function guard(array $ties, array $documents): array
     {
-        $foreign = self::documentsOf($documents);
+        return self::guardForeign($ties, self::documentsOf($documents));
+    }
+
+    /**
+     * @param list<TieCheck>        $ties
+     * @param list<ForeignDocument> $foreign The documents in a currency other than the base, each once or more.
+     *
+     * @return list<TieCheck>
+     */
+    public static function guardForeign(array $ties, array $foreign): array
+    {
+        $foreign = ForeignDocuments::unique($foreign);
 
         if ($foreign === []) {
             return $ties;

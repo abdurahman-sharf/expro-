@@ -6,6 +6,8 @@ use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\OperationalReports\DocumentKind;
 use App\Libraries\Accounting\OperationalReports\ItemGroup;
 use App\Libraries\Accounting\OperationalReports\ItemSalesReport;
+use App\Libraries\Accounting\OperationalReports\ReportDocuments;
+use App\Libraries\Accounting\OperationalReports\StatusFilter;
 use App\Libraries\Accounting\OperationalReports\ReportTable;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\HeaderCharges;
@@ -16,6 +18,7 @@ use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
+use Tests\Support\LegacyOperationalReports\LegacyItemSalesReport;
 use Tests\Support\SaleAccountingFixtureTrait;
 
 /**
@@ -262,5 +265,64 @@ class ItemSalesReportTest extends CIUnitTestCase
         $this->assertCount(1, $table->ties);
         $this->assertTrue($table->ties[0]->isRefused());
         $this->assertSame(['POS ' . $invoice . ' (USD)'], $table->ties[0]->refusalArguments);
+    }
+
+    private function variedSales(): void
+    {
+        $other = $this->anotherCustomer();
+        $sale  = $this->save([$this->line($this->cream, 0, '4', '75', '40', '10'), $this->line($this->oil, 1, '3', '20', '20')], [$this->tax($this->cream, 0, '40.50')], [$this->payment(lang('Sales.cash'), '100')], SALE_TYPE_INVOICE, $this->customerId);
+
+        $this->save([$this->line($this->cream, 0, '-1', '75', '40', '10')], [$this->tax($this->cream, 0, '-10.125')], [], SALE_TYPE_RETURN, $this->customerId, true, $sale);
+        $this->save([$this->line($this->oil, 0, '5', '22', '20'), $this->line($this->service, 1, '1', '30', '0')], [], [], SALE_TYPE_INVOICE, $other);
+        $this->save([$this->line($this->cream, 0, '2', '80', '40')], [], [$this->payment(lang('Sales.cash'), '160')], SALE_TYPE_INVOICE, -1);
+    }
+
+    public function testBuild_GivesTheTableTheReportGaveWhenItReadEveryDocumentAtOnceWhateverTheSizeOfTheChunks(): void
+    {
+        $this->variedSales();
+
+        $scope  = ReportScope::resolve(null, null);
+        $legacy = new LegacyItemSalesReport();
+        $today  = date('Y-m-d');
+        $calls  = [
+            'item'       => [ItemGroup::Item, false, null, [], null, null, null, '', null],
+            'category'   => [ItemGroup::Category, false, null, [], null, null, null, '', null],
+            'customer'   => [ItemGroup::Customer, true, null, [], null, null, null, '', null],
+            'user'       => [ItemGroup::User, false, null, [], null, null, null, '', null],
+            'day'        => [ItemGroup::Day, false, null, [], null, null, null, '', null],
+            'month'      => [ItemGroup::Month, true, null, [], null, null, null, '', null],
+            'invoices'   => [ItemGroup::Item, true, DocumentKind::Invoice, [], null, null, null, '', null],
+            'credit'     => [ItemGroup::Item, true, DocumentKind::CreditNote, [], null, null, null, '', null],
+            'paid only'  => [ItemGroup::Item, false, null, [StatusFilter::Paid], null, null, null, '', null],
+            'one item'   => [ItemGroup::Customer, false, null, [], null, null, $this->oil, '', null],
+            'category c' => [ItemGroup::Item, true, null, [], null, null, null, 'Creams', null],
+            'location'   => [ItemGroup::Item, false, null, [], null, null, null, '', self::LOCATION_ID],
+            'one buyer'  => [ItemGroup::Item, false, null, [], $this->customerId, null, null, '', null],
+        ];
+
+        foreach ([1, 2, 400] as $size) {
+            $report = new ItemSalesReport(null, new ReportDocuments(null, $size));
+
+            foreach ($calls as $name => [$group, $details, $kind, $statuses, $customer, $user, $item, $category, $location]) {
+                $arguments = [$scope, $group, $details, '2020-01-01', $today, $today, $kind, $statuses, $customer, $user, $item, $category, $location];
+                $old       = $legacy->build(...$arguments);
+
+                $this->assertEquals($old, $report->build(...$arguments), "chunks of {$size}, {$name}");
+            }
+        }
+
+        $this->assertGreaterThan(3, $legacy->build($scope, ItemGroup::Item, true, '2020-01-01', $today, $today)->documents);
+    }
+
+    public function testBuild_RefusesAPeriodOfMoreDocumentsThanTheServerCanHoldByNameWithTheCount(): void
+    {
+        $this->variedSales();
+
+        $table = (new ItemSalesReport(null, new ReportDocuments(null, 400, 2)))->build(ReportScope::resolve(null, null), ItemGroup::Item, false, '2020-01-01', date('Y-m-d'), date('Y-m-d'));
+
+        $this->assertTrue($table->isRefused());
+        $this->assertSame('Accounting_operational_reports.too_many_documents', $table->refusal);
+        $this->assertSame(['4', '2'], $table->refusalArguments);
+        $this->assertSame([], $table->blocks);
     }
 }

@@ -630,4 +630,30 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $this->assertContains(lang('Accounting_operational_reports.col_shipping'), array_merge(...$rows));
         $this->assertContains('-57.5000', array_merge(...$rows));
     }
+
+    public function testGetRevenue_RefusesAScreenOfMoreRowsThanAPageCanCarryByNameAndStillGivesTheFileWhole(): void
+    {
+        $this->sell();
+        $this->reader();
+
+        $_SERVER['reports.renderRows'] = $_ENV['reports.renderRows'] = '2';
+
+        try {
+            $period = 'from=2020-01-01&to=' . date('Y-m-d');
+            $screen = $this->fetch(self::REVENUE . '?show=1&view=details&' . $period);
+
+            $screen->assertStatus(200);
+            $screen->assertSee('id="report_refused"');
+            $this->assertStringContainsString(lang('Accounting.error_report_rows_exceed_screen', ['2', '3']), html_entity_decode($screen->getBody()));
+
+            $summary = $this->fetch(self::REVENUE . '?show=1&group=customer&' . $period);
+
+            $summary->assertStatus(200);
+            $summary->assertDontSee('id="report_refused"');
+
+            $this->fetch(self::REVENUE . '/csv?show=1&view=details&' . $period)->assertStatus(200);
+        } finally {
+            unset($_SERVER['reports.renderRows'], $_ENV['reports.renderRows']);
+        }
+    }
 }

@@ -68,6 +68,11 @@ final readonly class ReportInput
         return ReportPeriod::of($from === '' ? null : $from, $to === '' ? $this->today : $to);
     }
 
+    public function defaultsToTheMonth(): bool
+    {
+        return $this->text('from') === '' && $this->text('to') === '';
+    }
+
     public function readsOwnRecordsOnly(): bool
     {
         return (new RecordScope())->ownOnly($this->viewerId ?? RecordScope::sessionEmployee());
