@@ -2,7 +2,6 @@
 
 namespace App\Libraries\Accounting\Readiness;
 
-use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Accounting\SupplierAdvances;
 use CodeIgniter\Database\BaseConnection;
 
@@ -47,7 +46,6 @@ final class Wave3Checks extends CheckGroup
 
         $data = [
             'with_document'              => count($rows),
-            'refund_invoices'            => count(array_filter($rows, static fn (object $row): bool => $row->return_document === ReturnDocument::RefundInvoice->value)),
             'not_returns'                => count($notReturns),
             'dated_before_the_migration' => count($older),
         ];

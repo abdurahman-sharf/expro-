@@ -134,6 +134,8 @@ final class AccountingReadinessCompareTest extends CIUnitTestCase
         $this->assertSame(0, $exit);
         $this->assertStringContainsString('RESULT: NO DIFFERENCE FLAGGED', $output);
         $this->assertStringContainsString('READINESS COMPARISON', $output);
+        $this->assertStringContainsString('database ospos, 2026-11-14 01:00:00, phase pre-migration.', $output);
+        $this->assertStringContainsString('database ospos, 2026-11-14 02:00:00, phase post-migration.', $output);
     }
 
     public function testRun_ExitsOneAndNamesTheChangedAgingTotal(): void

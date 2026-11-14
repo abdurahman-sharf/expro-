@@ -81,10 +81,10 @@
     ]
   },
   {
-    "name": "W93-10 only the documents of a return count as refund invoices in the data (every document counts)",
+    "name": "W93-10 the number of sales that carry a document of a return is kept in the data (the count is dropped)",
     "file": "app/Libraries/Accounting/Readiness/Wave3Checks.php",
-    "find": "$row->return_document === ReturnDocument::RefundInvoice->value",
-    "replace": "true",
+    "find": "'with_document'              => count($rows),",
+    "replace": "'with_document'              => 0,",
     "tests": [
       "tests/Libraries/Accounting/Readiness/Wave3ChecksTest.php"
     ]
@@ -309,7 +309,7 @@
     "name": "W93-35 a check of the clocks that writes a row is caught (a probe row is written into the settings)",
     "file": "app/Libraries/Accounting/Readiness/ClockChecks.php",
     "find": "        $now             = new DateTimeImmutable('now', new DateTimeZone('UTC'));",
-    "replace": "        $this->db->table('app_config')->replace(['key' => 'w93_probe', 'value' => '1']);\n        $now             = new DateTimeImmutable('now', new DateTimeZone('UTC'));",
+    "replace": "        $this->db->table('app_config')->replace(['key' => 'w93_probe', 'value' => (string) hrtime(true)]);\n        $now             = new DateTimeImmutable('now', new DateTimeZone('UTC'));",
     "tests": [
       "tests/Libraries/Accounting/Readiness/ClockChecksTest.php"
     ]
@@ -318,7 +318,7 @@
     "name": "W93-36 a check of the data facts that writes a row is caught (a probe row is written into the settings)",
     "file": "app/Libraries/Accounting/Readiness/Wave3Checks.php",
     "find": "        $today     = date('Y-m-d');",
-    "replace": "        $this->db->table('app_config')->replace(['key' => 'w93_probe', 'value' => '1']);\n        $today     = date('Y-m-d');",
+    "replace": "        $this->db->table('app_config')->replace(['key' => 'w93_probe', 'value' => (string) hrtime(true)]);\n        $today     = date('Y-m-d');",
     "tests": [
       "tests/Libraries/Accounting/Readiness/Wave3ChecksTest.php"
     ]
@@ -873,6 +873,15 @@
       "--filter",
       "testAfter_PdfTextCases",
       "tests/Filters/ReportExportTest.php"
+    ]
+  },
+  {
+    "name": "W93-91 the payments named as before their sale are the ones on an earlier day (the listing names the ones on the same day too)",
+    "file": "app/Libraries/Accounting/Readiness/ClockChecks.php",
+    "find": "->where('DATE(p.payment_time) < DATE(s.sale_time)', null, false)\n            ->orderBy('p.payment_id', 'ASC')",
+    "replace": "->where('DATE(p.payment_time) <= DATE(s.sale_time)', null, false)\n            ->orderBy('p.payment_id', 'ASC')",
+    "tests": [
+      "tests/Libraries/Accounting/Readiness/ClockChecksTest.php"
     ]
   }
 ]

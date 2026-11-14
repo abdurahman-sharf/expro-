@@ -727,8 +727,8 @@
  {
   "name": "G76 a customer whose account differs from invoices and credit fails",
   "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
-  "find": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));\n\n            if ($position->agrees() && ",
-  "replace": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));\n\n            if (",
+  "find": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));\n\n            $totals[$customerId] = $aged;\n\n            if ($position->agrees() && ",
+  "replace": "            $position = $ledger->position($customerId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));\n\n            $totals[$customerId] = $aged;\n\n            if (",
   "tests": [
    "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
    "tests/Commands/AccountingReadinessTest.php"
@@ -747,8 +747,8 @@
  {
   "name": "G78 a supplier whose account differs from purchases and credit fails",
   "file": "app/Libraries/Accounting/Readiness/TieChecks.php",
-  "find": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));\n\n            if ($position->agrees() && ",
-  "replace": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));\n\n            if (",
+  "find": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));\n\n            $totals[$supplierId] = $aged;\n\n            if ($position->agrees() && ",
+  "replace": "            $position = $ledger->position($supplierId);\n            $aged     = $this->agedTotal($position->aging(self::AS_OF));\n\n            $totals[$supplierId] = $aged;\n\n            if (",
   "tests": [
    "tests/Libraries/Accounting/Readiness/TieChecksTest.php",
    "tests/Commands/AccountingReadinessTest.php"

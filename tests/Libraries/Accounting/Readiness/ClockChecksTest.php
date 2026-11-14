@@ -263,6 +263,7 @@ final class ClockChecksTest extends CIUnitTestCase
 
         $this->assertSame(CheckStatus::Pass, $result->status);
         $this->assertSame(0, $result->data['payments_dated_ahead']);
+        $this->assertSame(0, $result->data['payments_before_sale'], 'A payment on the day of its sale is not before it.');
     }
 
     public function testRun_ReviewsAPaymentStampedOnTheDayBeforeItsSale(): void
@@ -278,6 +279,24 @@ final class ClockChecksTest extends CIUnitTestCase
         $this->assertSame(CheckStatus::Review, $result->status);
         $this->assertSame(1, $result->data['payments_before_sale']);
         $this->assertStringContainsString("payment #{$paymentId} is stamped", implode("\n", $result->findings));
+    }
+
+    public function testRun_NamesOnlyThePaymentOnTheDayBeforeItsSaleAndNotTheOneOnTheSameDay(): void
+    {
+        $this->databaseWorksAt('+00:00');
+        $this->shopWorksIn('Asia/Riyadh');
+        date_default_timezone_set('Asia/Riyadh');
+        $early = $this->paidSale();
+        $same  = $this->paidSale();
+        $this->stampPayment($early, $this->dayOfTheShop('Asia/Riyadh', '-1 day') . ' 22:00:00');
+        $this->stampPayment($same, $this->dayOfTheShop('Asia/Riyadh') . ' 00:00:01');
+
+        $result = $this->check();
+        $named  = implode("\n", $result->findings);
+
+        $this->assertSame(1, $result->data['payments_before_sale']);
+        $this->assertStringContainsString("payment #{$early} is stamped", $named);
+        $this->assertStringNotContainsString("payment #{$same} is stamped", $named);
     }
 
     public function testRun_ReadsTheZoneOfTheShopFromTheLocaleSettingAndNotFromTheProcess(): void

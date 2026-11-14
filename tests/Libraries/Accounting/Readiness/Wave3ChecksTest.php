@@ -132,7 +132,6 @@ final class Wave3ChecksTest extends CIUnitTestCase
 
         $this->assertSame(CheckStatus::Review, $result->status);
         $this->assertSame(1, $result->data['with_document']);
-        $this->assertSame(1, $result->data['refund_invoices']);
         $this->assertSame(0, $result->data['dated_before_the_migration']);
         $this->assertStringContainsString("sale #{$refundId}, return of sale #{$invoiceId}", $result->findings[0]);
     }
