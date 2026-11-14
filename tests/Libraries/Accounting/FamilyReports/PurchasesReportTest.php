@@ -229,4 +229,32 @@ final class PurchasesReportTest extends FamilyReportTestCase
 
         $this->built($this->report, ['group' => 'day', 'from' => '2000-01-01', 'to' => $this->today()]);
     }
+
+    public function testBuild_NamesThePurchaseInDollarsPostedByTheModelWhenTheCheckIsNotRun(): void
+    {
+        $this->enableDollars();
+        $id = $this->foreignPurchase();
+
+        $this->assertGreaterThan(0, $id);
+
+        $table = $this->built($this->report, ['from' => $this->ago(30), 'to' => $this->today()]);
+
+        $this->assertCount(1, $table->ties);
+        $this->assertTrue($table->ties[0]->isRefused());
+        $this->assertFalse($table->ties[0]->ties());
+        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['RECV ' . $id . ' (USD)']), $table->ties[0]->refusal);
+    }
+
+    public function testBuild_RunsTheCheckWhenTheDaysHoldNoPurchaseInDollars(): void
+    {
+        $this->enableDollars();
+        $this->assertGreaterThan(0, $this->foreignPurchase());
+        $this->assertGreaterThan(0, $this->purchaseOf('100.00'));
+
+        $table = $this->built($this->report, ['from' => $this->ago(5), 'to' => $this->today()]);
+
+        $this->assertCount(1, $table->ties);
+        $this->assertFalse($table->ties[0]->isRefused());
+        $this->assertTrue($table->ties[0]->ties());
+    }
 }

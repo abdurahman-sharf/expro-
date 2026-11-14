@@ -2,6 +2,8 @@
 
 namespace Tests\Libraries\Accounting\OperationalReports;
 
+use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\CreditSource;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\OperationalReports\AdvancePaymentsReport;
@@ -161,5 +163,38 @@ class AdvancePaymentsReportTest extends CIUnitTestCase
         $this->assertSame('120.0000', $of(ReportScope::resolve(null, null)));
         $this->assertSame('50.0000', $of(ReportScope::resolve([1], null)));
         $this->assertSame('70.0000', $of(ReportScope::resolve(null, [$second])));
+    }
+
+    public function testBuild_ListsAnAdvanceInTheBaseAndTiesItForACustomerWhoseInvoiceInDollarsIsPaid(): void
+    {
+        $this->enableDollars();
+        $this->assertGreaterThan(0, $this->foreignInvoice('100', [$this->payment(lang('Sales.cash'), '100')]));
+        (new CustomerAdvances())->receive($this->customerId, '200', date('Y-m-d'), 'Cash', null, '', '', $this->teller());
+
+        $table = $this->table();
+        $row   = $table->blocks[0]->rows[0];
+
+        $this->assertSame(['200.0000', '0.0000', '200.0000'], [$row['amount'], $row['applied'], $row['unsettled']]);
+        $this->assertCount(1, $table->ties);
+        $this->assertFalse($table->ties[0]->isRefused());
+        $this->assertTrue($table->ties());
+    }
+
+    public function testBuild_ListsNoAdvanceSpentOnAnInvoiceInDollarsBecauseTheBooksRefuseIt(): void
+    {
+        $this->enableDollars();
+        $this->assertGreaterThan(0, $this->foreignInvoice('100'));
+
+        try {
+            (new CustomerAdvances())->receive($this->customerId, '200', date('Y-m-d'), 'Cash', null, '', '', $this->teller());
+            $this->fail('The advance was taken although it would have been spent on an invoice in dollars.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::CreditInForeignCurrency, $refusal->error);
+        }
+
+        $table = $this->table();
+
+        $this->assertSame([], $table->blocks[0]->rows);
+        $this->assertTrue($table->ties());
     }
 }

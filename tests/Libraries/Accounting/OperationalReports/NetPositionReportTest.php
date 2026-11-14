@@ -281,4 +281,21 @@ class NetPositionReportTest extends CIUnitTestCase
 
         $this->assertTrue($table->isEmpty());
     }
+
+    public function testBuild_NamesTheInvoiceInDollarsAndItsPaymentWhenTheChecksAreNotRun(): void
+    {
+        $this->enableDollars();
+        $invoice = $this->foreignInvoice('100', [$this->payment(lang('Sales.cash'), '100')]);
+
+        $this->assertGreaterThan(0, $invoice);
+
+        $table = $this->table();
+
+        $this->assertCount(2, $table->ties);
+
+        foreach ($table->ties as $tie) {
+            $this->assertTrue($tie->isRefused());
+            $this->assertSame(['POS ' . $invoice . ' (USD)'], $tie->refusalArguments);
+        }
+    }
 }

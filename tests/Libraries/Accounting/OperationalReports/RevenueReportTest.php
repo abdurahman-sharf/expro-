@@ -343,4 +343,42 @@ class RevenueReportTest extends CIUnitTestCase
         $this->assertSame('816.50', $this->balance($this->customerAccount()));
         $this->assertSame('816.5000', $table->total['total']);
     }
+
+    public function testBuild_SaysTheThreeChecksWereNotRunAndNamesAnInvoiceInDollarsPostedByTheModel(): void
+    {
+        $this->enableDollars();
+        $ids     = $this->sales();
+        $invoice = $this->foreignInvoice('100', [$this->payment(lang('Sales.cash'), '100')]);
+
+        $this->assertGreaterThan(0, $invoice);
+
+        $table = $this->table(RevenueGroup::Customer);
+
+        $this->assertCount(3, $table->ties);
+
+        foreach ($table->ties as $tie) {
+            $this->assertTrue($tie->isRefused(), $tie->labelKey);
+            $this->assertFalse($tie->ties());
+            $this->assertSame(['POS ' . $invoice . ' (USD)'], $tie->refusalArguments);
+        }
+
+        $this->assertNotEmpty($ids);
+    }
+
+    public function testBuild_RunsTheThreeChecksWhenTheDaysHoldNoDocumentInDollars(): void
+    {
+        $this->enableDollars();
+        $this->assertGreaterThan(0, $this->invoiceDated('115', $this->today(), null, $this->customerId, [$this->payment(lang('Sales.cash'), '100')]));
+        $invoice = $this->foreignInvoice('100', [], null, '1', 28);
+
+        $this->assertGreaterThan(0, $invoice);
+
+        $table = $this->table(RevenueGroup::Customer, false, $this->daysAgo(20));
+
+        $this->assertCount(3, $table->ties);
+
+        foreach ($table->ties as $tie) {
+            $this->assertFalse($tie->isRefused(), $tie->labelKey);
+        }
+    }
 }

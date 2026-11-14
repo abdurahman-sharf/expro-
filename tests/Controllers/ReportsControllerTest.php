@@ -699,4 +699,80 @@ class ReportsControllerTest extends CIUnitTestCase
         $this->assertStringNotContainsString('accounting_reports/supplier_balances', $this->reportsIndexOf(['reports_suppliers', 'accounting_reports'], '0'));
         $this->assertStringNotContainsString('accounting_reports/supplier_balances', $this->reportsIndexOf(['reports_suppliers', 'accounting_journals'], '1'));
     }
+
+    private function inDollars(int $saleId): void
+    {
+        $this->accountingDb()->table('sales')->where('sale_id', $saleId)->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+    }
+
+    public function testSummarySales_SaysUnderTheHeaderThatTheDaysHoldADocumentInAForeignCurrency(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->inDollars($this->reportSales['a']);
+
+        $page = $this->pageOf('/reports/summary_sales/' . $this->reportDay . '/' . $this->reportDay . '/sales/all');
+
+        $this->assertStringContainsString('id="report_foreign_currency"', $page);
+        $this->assertStringContainsString('POS ' . $this->reportSales['a'] . ' (USD)', $page);
+        $this->assertStringNotContainsString('POS ' . $this->reportSales['b'] . ' (', $page);
+    }
+
+    public function testSummaryReports_SayItWhateverTheReportAddsUp(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->inDollars($this->reportSales['b']);
+
+        $range = $this->reportDay . '/' . $this->reportDay . '/sales/all';
+
+        foreach (['summary_sales', 'summary_categories', 'summary_customers', 'summary_taxes', 'summary_sales_taxes', 'graphical_summary_sales', 'graphical_summary_categories', 'detailed_sales'] as $report) {
+            $this->assertStringContainsString('POS ' . $this->reportSales['b'] . ' (USD)', $this->pageOf('/reports/' . $report . '/' . $range), $report);
+        }
+    }
+
+    public function testSummarySales_SaysNothingOfCurrenciesWhenEveryDocumentOfTheDaysIsInTheBase(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+
+        $page = $this->pageOf('/reports/summary_sales/' . $this->reportDay . '/' . $this->reportDay . '/sales/all');
+
+        $this->assertStringNotContainsString('report_foreign_currency', $page);
+        $this->assertStringNotContainsString('(USD)', $page);
+    }
+
+    public function testSummarySales_SaysNothingOfADocumentInAForeignCurrencyOfAnotherDay(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->inDollars($this->reportSales['a']);
+
+        $page = $this->pageOf('/reports/summary_sales/2031-03-15/2031-03-15/sales/all');
+
+        $this->assertStringNotContainsString('report_foreign_currency', $page);
+    }
+
+    public function testSummaryExpensesCategories_SaysNothingOfCurrenciesBecauseExpensesAreInTheBase(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->inDollars($this->reportSales['a']);
+
+        $page = $this->pageOf('/reports/summary_expenses_categories/' . $this->reportDay . '/' . $this->reportDay . '/sales');
+
+        $this->assertStringNotContainsString('report_foreign_currency', $page);
+    }
+
+    public function testDetailedReceivings_NamesTheReceivingsInAForeignCurrencyOfTheDays(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $this->reportReceivings['a'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+
+        $page = $this->pageOf('/reports/detailed_receivings/' . $this->reportDay . '/' . $this->reportDay . '/all/all');
+
+        $this->assertStringContainsString('RECV ' . $this->reportReceivings['a'] . ' (USD)', $page);
+        $this->assertStringNotContainsString('RECV ' . $this->reportReceivings['b'] . ' (', $page);
+    }
 }

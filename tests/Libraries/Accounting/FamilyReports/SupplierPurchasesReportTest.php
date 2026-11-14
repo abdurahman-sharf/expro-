@@ -97,4 +97,17 @@ final class SupplierPurchasesReportTest extends FamilyReportTestCase
         $this->assertCount(1, $this->rowsOf($limited));
         $this->assertReportTies($limited);
     }
+
+    public function testBuild_NamesThePurchaseInDollarsPostedByTheModelWhenTheCheckIsNotRun(): void
+    {
+        $this->enableDollars();
+        $id = $this->foreignPurchase();
+
+        $this->assertGreaterThan(0, $id);
+
+        $table = $this->built($this->report, ['from' => $this->ago(30), 'to' => $this->today()]);
+
+        $this->assertCount(1, $table->ties);
+        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['RECV ' . $id . ' (USD)']), $table->ties[0]->refusal);
+    }
 }

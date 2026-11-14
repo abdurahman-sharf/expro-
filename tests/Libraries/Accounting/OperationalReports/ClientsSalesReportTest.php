@@ -177,4 +177,21 @@ class ClientsSalesReportTest extends CIUnitTestCase
 
         $this->assertTrue($table->isEmpty());
     }
+
+    public function testBuild_NamesTheInvoiceInDollarsPostedByTheModelInTheThreeChecksThatWereNotRun(): void
+    {
+        $this->enableDollars();
+        $invoice = $this->foreignInvoice('100');
+
+        $this->assertGreaterThan(0, $invoice);
+
+        $table = $this->table();
+
+        $this->assertCount(3, $table->ties);
+
+        foreach ($table->ties as $tie) {
+            $this->assertTrue($tie->isRefused(), $tie->labelKey);
+            $this->assertSame(['POS ' . $invoice . ' (USD)'], $tie->refusalArguments);
+        }
+    }
 }

@@ -249,4 +249,18 @@ class ItemSalesReportTest extends CIUnitTestCase
 
         $this->accountingDb()->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accounting_sales_shipping', 'accounting_shipping_tax_percent'])->delete();
     }
+
+    public function testBuild_NamesTheInvoiceInDollarsPostedByTheModelWhenTheCheckIsNotRun(): void
+    {
+        $this->enableDollars();
+        $invoice = $this->foreignInvoice('100', [], '40.00', '2');
+
+        $this->assertGreaterThan(0, $invoice);
+
+        $table = $this->table();
+
+        $this->assertCount(1, $table->ties);
+        $this->assertTrue($table->ties[0]->isRefused());
+        $this->assertSame(['POS ' . $invoice . ' (USD)'], $table->ties[0]->refusalArguments);
+    }
 }
