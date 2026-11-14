@@ -33,6 +33,12 @@ final class ProfitReport
         $from ??= $allDates ? null : $period?->defaultFrom($to);
 
         $profits = $this->movements->read($scope, $from, $to, $customerId, $employeeId, $itemId, $category);
+        $refused = ForeignAmounts::refuseProfit($profits, $scope, $from, $to);
+
+        if ($refused !== null) {
+            return $refused;
+        }
+
         $groups  = $this->grouped($profits, $group, $from, $to);
         $blocks  = [];
         $summary = [];

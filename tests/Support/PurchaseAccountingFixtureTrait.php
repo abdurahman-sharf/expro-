@@ -328,6 +328,21 @@ trait PurchaseAccountingFixtureTrait
     }
 
     /**
+     * A purchase in dollars, dated ten days ago when the dollar was at 3.75 (see SaleAccountingFixtureTrait::enableDollars),
+     * of an item that costs nothing, left on credit unless a way of payment is given.
+     */
+    protected function foreignPurchase(string $quantity = '4', string $price = '50.00', ?string $paymentType = null, int $daysAgo = 10): int
+    {
+        $this->grantPurchaseDate();
+
+        $item = $this->item('0.00');
+
+        $this->purchases->useCurrency('USD');
+
+        return $this->buy([$this->purchaseLine($item, 0, $quantity, $price)], -1, $paymentType, null, null, date('Y-m-d', strtotime("-{$daysAgo} days")));
+    }
+
+    /**
      * Adds a payment to a purchase the way the edit form does, and returns its id.
      */
     protected function payPurchase(int $receivingId, string $amount, ?string $type = null, string $status = 'completed'): int

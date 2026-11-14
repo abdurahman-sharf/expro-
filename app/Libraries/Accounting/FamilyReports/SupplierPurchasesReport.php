@@ -72,7 +72,7 @@ final class SupplierPurchasesReport implements FamilyReport
             $columns,
             $blocks,
             $this->totalRow($all, self::KEYS, 'number', $this->text('grand_total')),
-            ForeignAmounts::guard([new TieCheck($this->text('tie_net_purchases'), PurchaseDocuments::net($docs), $this->documents->booked($input->scope, $period, $input->viewerId, $filter))], ForeignAmounts::codesOf($docs)),
+            ForeignAmounts::guard([new TieCheck($this->text('tie_net_purchases'), PurchaseDocuments::net($docs), $this->documents->booked($input->scope, $period, $input->viewerId, $filter))], ForeignAmounts::documentsOf($docs)),
             $notes,
         );
     }

@@ -27,6 +27,7 @@ final readonly class ProfitRow
         public string $cost,
         public string $salePrice,
         public string $discount,
+        public ?string $currencyCode = null,
     ) {
     }
 

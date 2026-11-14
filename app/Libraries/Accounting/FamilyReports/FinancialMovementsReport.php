@@ -107,7 +107,7 @@ final class FinancialMovementsReport implements FamilyReport
                 }
             }
 
-            $ties[] = new TieCheck($this->text('tie_supplier_payments'), bcsub('0', $out, SaleAmounts::SCALE), bcadd($paid, '0', SaleAmounts::SCALE));
+            $ties = [...$ties, ...ForeignAmounts::guard([new TieCheck($this->text('tie_supplier_payments'), bcsub('0', $out, SaleAmounts::SCALE), bcadd($paid, '0', SaleAmounts::SCALE))], ForeignAmounts::paymentsOf($supplierRows))];
         }
 
         $columns = [$this->column('date', ColumnKind::Date), $this->column('description'), $this->column('source'), $this->column('amount', ColumnKind::Amount), $this->column('balance', ColumnKind::Amount, 'col_balance_after')];

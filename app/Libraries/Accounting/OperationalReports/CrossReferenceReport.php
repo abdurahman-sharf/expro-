@@ -116,10 +116,26 @@ final class CrossReferenceReport
             columns: $this->columns($byCustomer && ! $details, $scope),
             blocks: $blocks,
             total: $total,
-            ties: $kind === null && $states === [] && $customerId === null ? [$this->tie($entries)] : [],
+            ties: $kind === null && $states === [] && $customerId === null ? ForeignAmounts::guard([$this->tie($entries)], $this->documentsOf($entries)) : [],
             notes: ['Accounting_operational_reports.note_cross_reference'],
             documents: count($entries),
         );
+    }
+
+    /**
+     * @param list<array{0: ReportDocument, 1: list<ReportDocument>}> $entries
+     *
+     * @return list<ReportDocument>
+     */
+    private function documentsOf(array $entries): array
+    {
+        $documents = [];
+
+        foreach ($entries as [$invoice, $listed]) {
+            $documents = [...$documents, $invoice, ...$listed];
+        }
+
+        return $documents;
     }
 
     /**

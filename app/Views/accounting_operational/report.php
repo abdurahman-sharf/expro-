@@ -67,7 +67,7 @@ foreach ($table?->columns ?? [] as $column) {
     <button type="button" class="btn btn-outline-secondary btn-sm float-end" onclick="window.print()">
         <span class="bi bi-printer" aria-hidden="true">&nbsp;</span><?= lang('Common.print') ?>
     </button>
-    <?php if ($table !== null): ?>
+    <?php if ($table !== null && ! $table->isRefused()): ?>
         <a class="btn btn-outline-secondary btn-sm float-end" id="report_csv" href="<?= esc($csvUrl, 'attr') ?>">
             <span class="bi bi-filetype-csv" aria-hidden="true">&nbsp;</span><?= lang('Accounting_reports.csv') ?>
         </a>
@@ -177,6 +177,8 @@ foreach ($table?->columns ?? [] as $column) {
 
     <?php if ($table === null): ?>
         <p class="text-body-secondary" id="report_not_run"><?= lang('Accounting_operational_reports.not_run') ?></p>
+    <?php elseif ($table->isRefused()): ?>
+        <p class="alert alert-warning" id="report_refused" role="alert"><span class="bi bi-exclamation-triangle" aria-hidden="true">&nbsp;</span><?= esc(lang((string) $table->refusal, $table->refusalArguments)) ?></p>
     <?php else: ?>
         <p class="text-body-secondary mb-2" id="report_period">
             <?= $table->from === null ? lang('Accounting_operational_reports.all_dates_until') : lang('Accounting_reports.from') . ': ' . esc($date($table->from)) . ' &middot; ' . lang('Accounting_reports.to') ?>: <?= esc($date($table->to)) ?>

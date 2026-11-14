@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'Porez',
     'expenses_total_amount'                   => 'Ukupno',
     'expenses_total_tax_amount'               => 'Ukupan porez',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Grafički izvještaji',
     'group_finance'                           => '',
     'group_sales'                             => '',

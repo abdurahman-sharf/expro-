@@ -72,7 +72,7 @@ final class PurchasePaymentsReportTest extends FamilyReportTestCase
 
         $this->assertCount(1, $table->ties);
         $this->assertTrue($table->ties[0]->isRefused());
-        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['USD']), $table->ties[0]->refusal);
+        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['RECV ' . $ids['other'] . ' (USD)']), $table->ties[0]->refusal);
     }
 
     public function testBuild_TiesWhatIsLeftLessTheCreditToTheAccountsOfTheSuppliers(): void
@@ -130,5 +130,18 @@ final class PurchasePaymentsReportTest extends FamilyReportTestCase
         $this->assertAmount('90.00', $this->grandOf($limited, 'net'));
         $this->assertAmount('90.00', $this->grandOf($limited, 'remaining'));
         $this->assertCount(1, $this->rowsOf($limited));
+    }
+
+    public function testBuild_NamesThePurchaseInDollarsPostedByTheModelWhenTheCheckIsNotRun(): void
+    {
+        $this->enableDollars();
+        $id = $this->foreignPurchase();
+
+        $this->assertGreaterThan(0, $id);
+
+        $table = $this->built($this->report, ['to' => $this->today()]);
+
+        $this->assertCount(1, $table->ties);
+        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['RECV ' . $id . ' (USD)']), $table->ties[0]->refusal);
     }
 }

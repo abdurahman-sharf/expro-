@@ -285,4 +285,35 @@ class PaymentsReportTest extends CIUnitTestCase
         $this->assertSame('100.0000', $of(ReportScope::resolve([1], null)));
         $this->assertSame('70.0000', $of(ReportScope::resolve(null, [$second])));
     }
+
+    public function testBuild_ShowsAPaymentInDollarsAsWhatItPutOnTheAccountsInTheBaseAndTiesItToTheTreasury(): void
+    {
+        $this->enableDollars();
+        $invoice = $this->foreignInvoice('100');
+        $payment = $this->addPayment($invoice, '50.00');
+        $until   = date('Y-m-d', strtotime('+1 day'));
+
+        $table = $this->table(PaymentGroup::Customer, true, ['to' => $until]);
+        $rows  = array_merge([], ...array_map(static fn ($block): array => $block->rows, $table->blocks));
+
+        $this->assertSame([(string) $payment], array_column($rows, 'payment'));
+        $this->assertSame('180.0000', $rows[0]['amount'], 'fifty dollars at the 3.60 of the day of the payment');
+        $this->assertSame('180.0000', $table->total['amount'], 'the exchange difference of the payment is not a payment');
+        $this->assertCount(1, $table->ties);
+        $this->assertFalse($table->ties[0]->isRefused());
+        $this->assertTrue($table->ties[0]->ties());
+        $this->assertSame('180.0000', $table->ties[0]->ledger);
+    }
+
+    public function testBuild_TiesTheTotalOfPaymentsInTheBaseAndInDollarsTogether(): void
+    {
+        $this->enableDollars();
+        $this->assertGreaterThan(0, $this->addPayment($this->foreignInvoice('100'), '100.00'));
+        $this->assertGreaterThan(0, $this->invoiceOf('80', $this->second, [$this->payment(lang('Sales.cash'), '80')]));
+
+        $table = $this->table(PaymentGroup::Method, false, ['to' => date('Y-m-d', strtotime('+1 day'))]);
+
+        $this->assertSame('440.0000', $table->total['amount']);
+        $this->assertTrue($table->ties());
+    }
 }

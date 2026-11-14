@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'Kodi',
     'expenses_total_amount'                   => 'Jumla ya Kiasi',
     'expenses_total_tax_amount'               => 'Jumla ya Kodi',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Ripoti za Picha',
     'group_finance'                           => '',
     'group_sales'                             => '',

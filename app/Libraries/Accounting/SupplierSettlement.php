@@ -16,6 +16,11 @@ use Config\Database;
  *
  * The caller holds the lock of the supplier (SupplierLock) and is inside a transaction, so the
  * ledger it reads is the ledger as the last change left it.
+ *
+ * Credit is kept in the base currency, and a purchase in another currency is settled by payments in its
+ * own currency, each with the exchange difference it causes. Credit applied to such a purchase would settle
+ * it with none, so it is refused by name, except a debit note of the same currency taken at the same rate,
+ * which is the purchase's own figures in the other direction.
  */
 final class SupplierSettlement
 {
@@ -145,10 +150,12 @@ final class SupplierSettlement
     {
         $position = $this->ledger->position($supplierId);
         $open     = [];
+        $figures  = [];
 
         foreach ($position->purchases as $invoice) {
             if (bccomp($invoice->open(), '0', SaleAmounts::SCALE) > 0) {
-                $open[$invoice->receivingId] = $invoice->open();
+                $open[$invoice->receivingId]    = $invoice->open();
+                $figures[$invoice->receivingId] = $invoice;
             }
         }
 
@@ -162,6 +169,8 @@ final class SupplierSettlement
             $available = $source->available();
 
             if ($source->originId !== null && isset($open[$source->originId])) {
+                $this->assertSameCurrency($supplierId, $source, $figures[$source->originId]);
+
                 $available = $this->give($supplierId, $source, $source->originId, $available, $open, $employeeId);
             }
 
@@ -174,9 +183,35 @@ final class SupplierSettlement
                     continue;
                 }
 
+                $this->assertSameCurrency($supplierId, $source, $figures[$invoiceId]);
+
                 $available = $this->give($supplierId, $source, $invoiceId, $available, $open, $employeeId);
             }
         }
+    }
+
+    /**
+     * @throws AccountingException
+     */
+    private function assertSameCurrency(int $supplierId, CreditSource $source, PurchaseFigures $purchase): void
+    {
+        if ($purchase->currencyCode === null) {
+            return;
+        }
+
+        $mirror = $source->currencyCode === $purchase->currencyCode
+            && $purchase->currencyRate !== null
+            && bccomp((string) $source->currencyRate, $purchase->currencyRate, 8) === 0;
+
+        if ($mirror) {
+            return;
+        }
+
+        throw new AccountingException(
+            AccountingError::CreditInForeignPurchase,
+            'Credit cannot be applied to a purchase in a foreign currency.',
+            ['supplier_id' => $supplierId, 'receiving_id' => $purchase->receivingId, 'code' => $purchase->currencyCode, 'name' => 'RECV ' . $purchase->receivingId],
+        );
     }
 
     /**

@@ -164,6 +164,7 @@ final class ProfitMovements
             cost: Amounts::negate(bcadd((string) $movement->value, '0', SaleAmounts::SCALE)),
             salePrice: Amounts::add($this->scaled($value, $share), $this->scaled($reduce, $share)),
             discount: $this->scaled($reduce, $share),
+            currencyCode: $document->currencyCode,
         );
     }
 

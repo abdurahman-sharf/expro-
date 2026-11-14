@@ -42,7 +42,7 @@ final class PurchasesReport implements FamilyReport
         $this->noteIfAny($notes, $status !== 'all', 'note_status_filter');
         $notes[] = $this->text('note_net_purchases');
 
-        return new ReportTable($this->text('purchases_title'), $table['columns'], $table['blocks'], $table['grand'], $status === 'all' ? ForeignAmounts::guard($ties, ForeignAmounts::codesOf($all)) : [], $notes);
+        return new ReportTable($this->text('purchases_title'), $table['columns'], $table['blocks'], $table['grand'], $status === 'all' ? ForeignAmounts::guard($ties, ForeignAmounts::documentsOf($all)) : [], $notes);
     }
 
     private function wanted(PurchaseDocument $document, string $status): bool

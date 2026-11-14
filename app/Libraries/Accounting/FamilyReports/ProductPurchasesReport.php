@@ -84,7 +84,7 @@ final class ProductPurchasesReport implements FamilyReport
             $filtered ? [] : ForeignAmounts::guard([
                 new TieCheck($this->text('tie_lines_documents'), $this->sumOf($entries), PurchaseDocuments::net($all)),
                 new TieCheck($this->text('tie_net_purchases'), PurchaseDocuments::net($all), $this->documents->booked($input->scope, $period, $input->viewerId, $filter)),
-            ], ForeignAmounts::codesOf($all)),
+            ], ForeignAmounts::documentsOf($all)),
             $notes,
         );
     }

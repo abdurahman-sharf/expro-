@@ -437,6 +437,8 @@ return [
     'error_cost_center_not_found'                => 'The cost center does not exist.',
     'error_cost_center_required'                 => 'Line {0} needs a cost center, because the books ask for one on every income and expense line.',
     'error_country_code_invalid'                 => '«{0}» is not a country code: it is two letters, such as SA.',
+    'error_credit_in_foreign_currency'           => 'The credit of this customer cannot be applied to invoice {1} in {0}: the credit is kept in the base currency, so applying it would settle an invoice in another currency with no exchange difference. Pay that invoice in its own currency, or pay the credit back first.',
+    'error_credit_in_foreign_purchase'           => 'The credit held with this supplier cannot be applied to purchase {1} in {0}: the credit is kept in the base currency, so applying it would settle a purchase in another currency with no exchange difference. Pay that purchase in its own currency, or take the credit back first.',
     'error_credit_journal_locked'                => 'The journal of an advance payment or a cash refund is taken back by cancelling the document, not by reversing the journal.',
     'error_credit_limit_exceeded'                => 'The credit limit of {0} is {1}. With this sale they would owe {2}. Only an employee who may override the credit limit can issue it.',
     'error_credit_payment_unknown'               => 'This way of payment cannot be used here.',

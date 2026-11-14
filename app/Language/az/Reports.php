@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'Vergi',
     'expenses_total_amount'                   => 'Ümumi Məbləğ',
     'expenses_total_tax_amount'               => 'Ümumi Vergi',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Qrafik Hesabatlar',
     'group_finance'                           => '',
     'group_sales'                             => '',

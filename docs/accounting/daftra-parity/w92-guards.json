@@ -1,0 +1,877 @@
+[
+    {
+        "name": "G01 a credit is not applied to an open invoice in a foreign currency without the check of its currency",
+        "file": "app/Libraries/Accounting/CreditSettlement.php",
+        "find": "                $this->assertSameCurrency($customerId, $source, $figures[$invoiceId]);\n\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAnInvoiceInDollars|AppliesTheCreditNoteOfAnInvoiceInDollars|PaysACreditNoteOfAnInvoiceInDollars|PaysACreditNoteIntoTheInvoiceItCameFrom)",
+            "tests/Libraries/Accounting/CreditSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G02 an invoice in the base currency is not exempt from the check, so the check must know the base apart",
+        "file": "app/Libraries/Accounting/CreditSettlement.php",
+        "find": "        if ($invoice->currencyCode === null) {\n            return;\n        }\n\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAnInvoiceInDollars|AppliesTheCreditNoteOfAnInvoiceInDollars|PaysACreditNoteOfAnInvoiceInDollars|PaysACreditNoteIntoTheInvoiceItCameFrom)",
+            "tests/Libraries/Accounting/CreditSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G03 a credit note at another rate than the invoice is refused",
+        "file": "app/Libraries/Accounting/CreditSettlement.php",
+        "find": "            && bccomp((string) $source->currencyRate, $invoice->currencyRate, 8) === 0;",
+        "replace": "            && true;",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAnInvoiceInDollars|AppliesTheCreditNoteOfAnInvoiceInDollars|PaysACreditNoteOfAnInvoiceInDollars|PaysACreditNoteIntoTheInvoiceItCameFrom)",
+            "tests/Libraries/Accounting/CreditSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G04 a credit note in another currency than the invoice is refused even at the same rate",
+        "file": "app/Libraries/Accounting/CreditSettlement.php",
+        "find": "        $mirror = $source->currencyCode === $invoice->currencyCode\n            && $invoice->currencyRate !== null",
+        "replace": "        $mirror = $invoice->currencyRate !== null",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAnInvoiceInDollars|AppliesTheCreditNoteOfAnInvoiceInDollars|PaysACreditNoteOfAnInvoiceInDollars|PaysACreditNoteIntoTheInvoiceItCameFrom)",
+            "tests/Libraries/Accounting/CreditSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G05 a credit note is refused when neither it nor the invoice has a stored rate",
+        "file": "app/Libraries/Accounting/CreditSettlement.php",
+        "find": "            && $invoice->currencyRate !== null\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAnInvoiceInDollars|AppliesTheCreditNoteOfAnInvoiceInDollars|PaysACreditNoteOfAnInvoiceInDollars|PaysACreditNoteIntoTheInvoiceItCameFrom)",
+            "tests/Libraries/Accounting/CreditSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G06 the refusal of a credit on an invoice in a foreign currency is thrown",
+        "file": "app/Libraries/Accounting/CreditSettlement.php",
+        "find": "        throw new AccountingException(\n            AccountingError::CreditInForeignCurrency,",
+        "replace": "        return;\n        throw new AccountingException(\n            AccountingError::CreditInForeignCurrency,",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAnInvoiceInDollars|AppliesTheCreditNoteOfAnInvoiceInDollars|PaysACreditNoteOfAnInvoiceInDollars|PaysACreditNoteIntoTheInvoiceItCameFrom)",
+            "tests/Libraries/Accounting/CreditSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G07 the refusal names the invoice",
+        "file": "app/Libraries/Accounting/CreditSettlement.php",
+        "find": "'name' => $this->numberOf($invoice->saleId)",
+        "replace": "'name' => ''",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAnInvoiceInDollars|AppliesTheCreditNoteOfAnInvoiceInDollars|PaysACreditNoteOfAnInvoiceInDollars|PaysACreditNoteIntoTheInvoiceItCameFrom)",
+            "tests/Libraries/Accounting/CreditSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G08 the refusal names the currency",
+        "file": "app/Libraries/Accounting/CreditSettlement.php",
+        "find": "'code' => $invoice->currencyCode, 'name' => $this->numberOf",
+        "replace": "'code' => 'XXX', 'name' => $this->numberOf",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAnInvoiceInDollars|AppliesTheCreditNoteOfAnInvoiceInDollars|PaysACreditNoteOfAnInvoiceInDollars|PaysACreditNoteIntoTheInvoiceItCameFrom)",
+            "tests/Libraries/Accounting/CreditSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G09 the invoices of the position carry their currency and rate",
+        "file": "app/Libraries/Accounting/CustomerLedger.php",
+        "find": "                currencyCode: $code,\n                currencyRate: $rate,\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAnInvoiceInDollars|AppliesTheCreditNoteOfAnInvoiceInDollars|PaysACreditNoteOfAnInvoiceInDollars|PaysACreditNoteIntoTheInvoiceItCameFrom)",
+            "tests/Libraries/Accounting/CreditSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G10 the credit notes of the position carry their currency and rate",
+        "file": "app/Libraries/Accounting/CustomerLedger.php",
+        "find": "            $currency[CreditSource::CREDIT_NOTE . ':' . $sale->sale_id] = self::currencyOf($sale);\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAnInvoiceInDollars|AppliesTheCreditNoteOfAnInvoiceInDollars|PaysACreditNoteOfAnInvoiceInDollars|PaysACreditNoteIntoTheInvoiceItCameFrom)",
+            "tests/Libraries/Accounting/CreditSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G11 the sales of the position are read with their currency",
+        "file": "app/Libraries/Accounting/CustomerLedger.php",
+        "find": "s.payment_terms_days, s.currency_code, s.currency_rate,\n",
+        "replace": "s.payment_terms_days,\n",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAnInvoiceInDollars|AppliesTheCreditNoteOfAnInvoiceInDollars|PaysACreditNoteOfAnInvoiceInDollars|PaysACreditNoteIntoTheInvoiceItCameFrom)",
+            "tests/Libraries/Accounting/CreditSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G12 a sale without a currency is in the base currency",
+        "file": "app/Libraries/Accounting/CustomerLedger.php",
+        "find": "        if ($sale->currency_code === null) {\n            return [null, null];\n        }\n\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAnInvoiceInDollars|AppliesTheCreditNoteOfAnInvoiceInDollars|PaysACreditNoteOfAnInvoiceInDollars|PaysACreditNoteIntoTheInvoiceItCameFrom)",
+            "tests/Libraries/Accounting/CreditSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G13 credit is not applied to the purchase a debit note came from without the check of its currency",
+        "file": "app/Libraries/Accounting/SupplierSettlement.php",
+        "find": "                $this->assertSameCurrency($supplierId, $source, $figures[$source->originId]);\n\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
+            "tests/Libraries/Accounting/SupplierSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G14 credit is not applied to an open purchase in a foreign currency without the check of its currency",
+        "file": "app/Libraries/Accounting/SupplierSettlement.php",
+        "find": "                $this->assertSameCurrency($supplierId, $source, $figures[$invoiceId]);\n\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
+            "tests/Libraries/Accounting/SupplierSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G15 a purchase in the base currency is not exempt from the check",
+        "file": "app/Libraries/Accounting/SupplierSettlement.php",
+        "find": "        if ($purchase->currencyCode === null) {\n            return;\n        }\n\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
+            "tests/Libraries/Accounting/SupplierSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G16 a debit note at another rate than the purchase is refused",
+        "file": "app/Libraries/Accounting/SupplierSettlement.php",
+        "find": "            && bccomp((string) $source->currencyRate, $purchase->currencyRate, 8) === 0;",
+        "replace": "            && true;",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
+            "tests/Libraries/Accounting/SupplierSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G17 a debit note in another currency than the purchase is refused even at the same rate",
+        "file": "app/Libraries/Accounting/SupplierSettlement.php",
+        "find": "        $mirror = $source->currencyCode === $purchase->currencyCode\n            && $purchase->currencyRate !== null",
+        "replace": "        $mirror = $purchase->currencyRate !== null",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
+            "tests/Libraries/Accounting/SupplierSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G18 a debit note is refused when neither it nor the purchase has a stored rate",
+        "file": "app/Libraries/Accounting/SupplierSettlement.php",
+        "find": "            && $purchase->currencyRate !== null\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
+            "tests/Libraries/Accounting/SupplierSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G19 the refusal of credit on a purchase in a foreign currency is thrown",
+        "file": "app/Libraries/Accounting/SupplierSettlement.php",
+        "find": "        throw new AccountingException(\n            AccountingError::CreditInForeignPurchase,",
+        "replace": "        return;\n        throw new AccountingException(\n            AccountingError::CreditInForeignPurchase,",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
+            "tests/Libraries/Accounting/SupplierSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G20 the refusal names the purchase",
+        "file": "app/Libraries/Accounting/SupplierSettlement.php",
+        "find": "'name' => 'RECV ' . $purchase->receivingId",
+        "replace": "'name' => ''",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
+            "tests/Libraries/Accounting/SupplierSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G21 the purchases of the position carry their currency and rate",
+        "file": "app/Libraries/Accounting/SupplierLedger.php",
+        "find": "                $code,\n                $rate,\n            );",
+        "replace": "            );",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
+            "tests/Libraries/Accounting/SupplierSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G22 the debit notes of the position carry their currency and rate",
+        "file": "app/Libraries/Accounting/SupplierLedger.php",
+        "find": "            $currency[CreditSource::DEBIT_NOTE . ':' . $purchase->receiving_id] = self::currencyOf($purchase);\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
+            "tests/Libraries/Accounting/SupplierSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G23 the purchases of the position are read with their currency",
+        "file": "app/Libraries/Accounting/SupplierLedger.php",
+        "find": "r.payment_terms_days, r.currency_code, r.currency_rate,\n",
+        "replace": "r.payment_terms_days,\n",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
+            "tests/Libraries/Accounting/SupplierSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G24 a purchase without a currency is in the base currency",
+        "file": "app/Libraries/Accounting/SupplierLedger.php",
+        "find": "        if ($purchase->currency_code === null) {\n            return [null, null];\n        }\n\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSettle_(RefusesBy|RefusesA|RefusesThe|SettlesAPurchaseInDollars|AppliesTheDebitNoteOfAPurchaseInDollars|SettlesANewPurchaseFromTheCreditOfADebitNote)",
+            "tests/Libraries/Accounting/SupplierSettlementTest.php"
+        ]
+    },
+    {
+        "name": "G25 a check over documents in the base currency is left as it is",
+        "file": "app/Libraries/Accounting/OperationalReports/ForeignAmounts.php",
+        "find": "        if ($foreign === []) {\n            return $ties;\n        }\n\n",
+        "replace": "",
+        "tests": [
+            "tests/Libraries/Accounting/OperationalReports/ForeignAmountsTest.php"
+        ]
+    },
+    {
+        "name": "G26 only a document in another currency is named",
+        "file": "app/Libraries/Accounting/OperationalReports/ForeignAmounts.php",
+        "find": "            if ($document->currencyCode !== null) {",
+        "replace": "            if (true) {",
+        "tests": [
+            "tests/Libraries/Accounting/OperationalReports/ForeignAmountsTest.php"
+        ]
+    },
+    {
+        "name": "G27 the check of a sales report is refused by name with the documents named",
+        "file": "app/Libraries/Accounting/OperationalReports/ForeignAmounts.php",
+        "find": "TieCheck::refused($tie->labelKey, 'Accounting_operational_reports.tie_foreign_currency', [ForeignDocuments::describe($foreign)])",
+        "replace": "TieCheck::refused($tie->labelKey, 'Accounting_operational_reports.tie_foreign_currency', [])",
+        "tests": [
+            "tests/Libraries/Accounting/OperationalReports/ForeignAmountsTest.php"
+        ]
+    },
+    {
+        "name": "G28 the profit is not reported when a document in another currency moved goods",
+        "file": "app/Libraries/Accounting/OperationalReports/ForeignAmounts.php",
+        "find": "return $foreign === [] ? null : ReportTable::refused(",
+        "replace": "return ReportTable::refused(",
+        "tests": [
+            "--filter",
+            "testBuild_(Reports|Refuses|Names|DoesNotRefuse)",
+            "tests/Libraries/Accounting/OperationalReports/ProfitReportTest.php"
+        ]
+    },
+    {
+        "name": "G29 the profit report returns the refusal instead of the figures",
+        "file": "app/Libraries/Accounting/OperationalReports/ProfitReport.php",
+        "find": "        if ($refused !== null) {\n            return $refused;\n        }\n\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testBuild_(Refuses|Names)",
+            "tests/Libraries/Accounting/OperationalReports/ProfitReportTest.php"
+        ]
+    },
+    {
+        "name": "G30 the profit by item returns the refusal instead of the figures",
+        "file": "app/Libraries/Accounting/OperationalReports/ItemProfitReport.php",
+        "find": "        if ($refused !== null) {\n            return $refused;\n        }\n\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testBuild_(Refuses|Reports)",
+            "tests/Libraries/Accounting/OperationalReports/ItemProfitReportTest.php"
+        ]
+    },
+    {
+        "name": "G31 a movement of goods knows the currency of its document",
+        "file": "app/Libraries/Accounting/OperationalReports/ProfitMovements.php",
+        "find": "            currencyCode: $document->currencyCode,\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testBuild_(Refuses|Names)",
+            "tests/Libraries/Accounting/OperationalReports/ProfitReportTest.php"
+        ]
+    },
+    {
+        "name": "G32 the cross-reference of returns is not compared when a document is in another currency",
+        "file": "app/Libraries/Accounting/OperationalReports/CrossReferenceReport.php",
+        "find": "ForeignAmounts::guard([$this->tie($entries)], $this->documentsOf($entries))",
+        "replace": "[$this->tie($entries)]",
+        "tests": [
+            "--filter",
+            "testBuild_(Says|Agrees)",
+            "tests/Libraries/Accounting/OperationalReports/CrossReferenceReportTest.php"
+        ]
+    },
+    {
+        "name": "G33 a report that was refused says so and holds no figure",
+        "file": "app/Libraries/Accounting/OperationalReports/ReportTable.php",
+        "find": "        return $this->refusal !== null;",
+        "replace": "        return false;",
+        "tests": [
+            "tests/Libraries/Accounting/OperationalReports/ReportTableTest.php"
+        ]
+    },
+    {
+        "name": "G34 the file of a report that was refused is refused",
+        "file": "app/Controllers/AccountingOperationalReport.php",
+        "find": "        if ($table->isRefused()) {\n            return $this->refused(lang((string) $table->refusal, $table->refusalArguments));\n        }\n\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testGet(Index|Items)_(Says|Shows)",
+            "tests/Controllers/AccountingProfitReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G35 the screen of a report that was refused shows the refusal",
+        "file": "app/Views/accounting_operational/report.php",
+        "find": "<?php elseif ($table->isRefused()): ?>",
+        "replace": "<?php elseif (false): ?>",
+        "tests": [
+            "--filter",
+            "testGet(Index|Items)_(Says|Shows)",
+            "tests/Controllers/AccountingProfitReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G36 the screen of a report that was refused offers no file",
+        "file": "app/Views/accounting_operational/report.php",
+        "find": "<?php if ($table !== null && ! $table->isRefused()): ?>",
+        "replace": "<?php if ($table !== null): ?>",
+        "tests": [
+            "--filter",
+            "testGet(Index|Items)_(Says|Shows)",
+            "tests/Controllers/AccountingProfitReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G37 a check over purchases in the base currency is left as it is",
+        "file": "app/Libraries/Accounting/FamilyReports/ForeignAmounts.php",
+        "find": "        if ($foreign === []) {\n            return $ties;\n        }\n\n",
+        "replace": "",
+        "tests": [
+            "tests/Libraries/Accounting/FamilyReports/ForeignAmountsTest.php"
+        ]
+    },
+    {
+        "name": "G38 only a purchase in another currency is named",
+        "file": "app/Libraries/Accounting/FamilyReports/ForeignAmounts.php",
+        "find": "            if ($document->currencyCode !== null) {",
+        "replace": "            if (true) {",
+        "tests": [
+            "tests/Libraries/Accounting/FamilyReports/ForeignAmountsTest.php"
+        ]
+    },
+    {
+        "name": "G39 only a payment in another currency is named",
+        "file": "app/Libraries/Accounting/FamilyReports/ForeignAmounts.php",
+        "find": "            if ($payment->currency_code !== null) {",
+        "replace": "            if (true) {",
+        "tests": [
+            "tests/Libraries/Accounting/FamilyReports/ForeignAmountsTest.php"
+        ]
+    },
+    {
+        "name": "G40 the check of a purchases report is refused with the documents named",
+        "file": "app/Libraries/Accounting/FamilyReports/ForeignAmounts.php",
+        "find": "lang('Accounting_family_reports.tie_foreign_currency', [ForeignDocuments::describe($foreign)])",
+        "replace": "lang('Accounting_family_reports.tie_foreign_currency', [''])",
+        "tests": [
+            "tests/Libraries/Accounting/FamilyReports/ForeignAmountsTest.php"
+        ]
+    },
+    {
+        "name": "G41 the check of the supplier payments of the financial movements is not made for a payment in another currency",
+        "file": "app/Libraries/Accounting/FamilyReports/FinancialMovementsReport.php",
+        "find": "ForeignAmounts::paymentsOf($supplierRows))",
+        "replace": "[])",
+        "tests": [
+            "--filter",
+            "testBuild_(Names|Compares)",
+            "tests/Libraries/Accounting/FamilyReports/FinancialMovementsReportTest.php"
+        ]
+    },
+    {
+        "name": "G42 the check of the supplier payments report names the payment in another currency",
+        "file": "app/Libraries/Accounting/FamilyReports/SupplierPaymentsReport.php",
+        "find": "ForeignAmounts::paymentsOf($rows)",
+        "replace": "[]",
+        "tests": [
+            "--filter",
+            "testBuild_(Names|Runs)",
+            "tests/Libraries/Accounting/FamilyReports/SupplierPaymentsReportTest.php"
+        ]
+    },
+    {
+        "name": "G43 the purchases report is refused with the purchases named",
+        "file": "app/Libraries/Accounting/FamilyReports/PurchasesReport.php",
+        "find": "ForeignAmounts::documentsOf($all)",
+        "replace": "[]",
+        "tests": [
+            "--filter",
+            "testBuild_(Names|Runs)",
+            "tests/Libraries/Accounting/FamilyReports/PurchasesReportTest.php"
+        ]
+    },
+    {
+        "name": "G44 the supplier purchases report is refused with the purchases named",
+        "file": "app/Libraries/Accounting/FamilyReports/SupplierPurchasesReport.php",
+        "find": "ForeignAmounts::documentsOf($docs)",
+        "replace": "[]",
+        "tests": [
+            "--filter",
+            "testBuild_Names",
+            "tests/Libraries/Accounting/FamilyReports/SupplierPurchasesReportTest.php"
+        ]
+    },
+    {
+        "name": "G45 the product purchases report is refused with the purchases named",
+        "file": "app/Libraries/Accounting/FamilyReports/ProductPurchasesReport.php",
+        "find": "ForeignAmounts::documentsOf($all)",
+        "replace": "[]",
+        "tests": [
+            "--filter",
+            "testBuild_Names",
+            "tests/Libraries/Accounting/FamilyReports/ProductPurchasesReportTest.php"
+        ]
+    },
+    {
+        "name": "G46 the purchase payments report is refused with the purchases named",
+        "file": "app/Libraries/Accounting/FamilyReports/PurchasePaymentsReport.php",
+        "find": "ForeignAmounts::documentsOf($docs)",
+        "replace": "[]",
+        "tests": [
+            "--filter",
+            "testBuild_Names",
+            "tests/Libraries/Accounting/FamilyReports/PurchasePaymentsReportTest.php"
+        ]
+    },
+    {
+        "name": "G47 a document is named once",
+        "file": "app/Libraries/Accounting/ForeignDocuments.php",
+        "find": "$unique[$document->label()] ??= $document;",
+        "replace": "$unique[] = $document;",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentsTest.php"
+        ]
+    },
+    {
+        "name": "G48 the first five documents are named and the rest counted",
+        "file": "app/Libraries/Accounting/ForeignDocuments.php",
+        "find": "count($documents) > self::NAMED ? $named",
+        "replace": "count($documents) >= self::NAMED ? $named",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentsTest.php"
+        ]
+    },
+    {
+        "name": "G49 no more than the first five documents are named",
+        "file": "app/Libraries/Accounting/ForeignDocuments.php",
+        "find": "array_slice($documents, 0, self::NAMED)",
+        "replace": "array_slice($documents, 0, self::NAMED + 1)",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentsTest.php"
+        ]
+    },
+    {
+        "name": "G50 a report of expenses says nothing of the currency of sales",
+        "file": "app/Controllers/Reports.php",
+        "find": "        if ($documents === '') {\n            return $subtitle;\n        }\n\n",
+        "replace": "",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G51 the report of purchases looks for purchases in a foreign currency and not for sales",
+        "file": "app/Controllers/Reports.php",
+        "find": "$documents === 'receivings'\n            ? $reader->receivings($from, $to, $withTime, $branchIds, $locationId)\n            : $reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId);",
+        "replace": "$reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId);",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G52 the legacy report says under its header that its days hold documents in a foreign currency",
+        "file": "app/Views/reports/_head.php",
+        "find": "<?php if ($foreignNote !== ''): ?>",
+        "replace": "<?php if (false): ?>",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G53 a report of the completed sales leaves out a sale that was not completed",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "'sales'       => $builder->where('sales.sale_status', COMPLETED)->whereIn(",
+        "replace": "'sales'       => $builder->whereIn(",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G54 only the days of the report are read",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "        $builder->where(\"DATE({$column}) BETWEEN \" . $this->db->escape($from) . ' AND ' . $this->db->escape($to), null, false);",
+        "replace": "        $builder->where('1 = 1');",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G55 a report asked by the hour is read by the hour",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "        if ($withTime) {",
+        "replace": "        if (false) {",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G56 only a sale with a currency is read",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "->where('sales.currency_code IS NOT NULL', null, false)->where('sales.currency_code !=', '')",
+        "replace": "",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G57 a sale is named by its invoice number when it has one",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "trim((string) $row->invoice_number) !== '' ? (string) $row->invoice_number : 'POS ' . $row->sale_id",
+        "replace": "'POS ' . $row->sale_id",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G58 only a purchase with a currency is read",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "->where('receivings.currency_code IS NOT NULL', null, false)->where('receivings.currency_code !=', '')",
+        "replace": "",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G59 the kind of sale of the report is applied to the sales read",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "        $this->ofTheSaleType($builder, $saleType);\n",
+        "replace": "",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G60 the complete sales are the completed sales of the three kinds",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "'complete'    => $builder->where('sales.sale_status', COMPLETED)->whereIn('sales.sale_type', [SALE_TYPE_POS, SALE_TYPE_INVOICE, SALE_TYPE_RETURN]),",
+        "replace": "'complete'    => null,",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G61 the quotes are the suspended quotes",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "'quotes'      => $builder->where('sales.sale_status', SUSPENDED)->where('sales.sale_type', SALE_TYPE_QUOTE),",
+        "replace": "'quotes'      => null,",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G62 the work orders are the suspended work orders",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "'work_orders' => $builder->where('sales.sale_status', SUSPENDED)->where('sales.sale_type', SALE_TYPE_WORK_ORDER),",
+        "replace": "'work_orders' => null,",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G63 the canceled sales are the canceled ones",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "'canceled'    => $builder->where('sales.sale_status', CANCELED),",
+        "replace": "'canceled'    => null,",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G64 the returns are the completed returns",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "'returns'     => $builder->where('sales.sale_status', COMPLETED)->where('sales.sale_type', SALE_TYPE_RETURN),",
+        "replace": "'returns'     => null,",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G65 the branches of the report limit the sales read",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "        $this->ofTheBranches($builder, 'sales.branch_id', $branchIds);\n",
+        "replace": "",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G66 an employee who works in no branch reads no sale",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "$branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->whereIn($column, array_map('intval', $branchIds));",
+        "replace": "$builder->whereIn($column, array_map('intval', $branchIds));",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G67 the branches of the report limit the purchases read",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "$branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->where(\"(receivings.branch_id IN ({$list}) OR receivings.to_branch_id IN ({$list}))\", null, false);",
+        "replace": "null;",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G68 a purchase is read in the branch it goes to as the report does",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "(receivings.branch_id IN ({$list}) OR receivings.to_branch_id IN ({$list}))",
+        "replace": "receivings.branch_id IN ({$list})",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G69 an employee who works in no branch reads no purchase",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "$branchIds === [] ? $builder->where('1 = 0', null, false) : $builder->where(\"(receivings.branch_id IN",
+        "replace": "$builder->where(\"(receivings.branch_id IN",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G70 the location of the report limits the sales read",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "scoped_items.sale_id = sales.sale_id AND scoped_items.item_location = ' . $this->db->escape($locationId) . ')'",
+        "replace": "scoped_items.sale_id = sales.sale_id)'",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G71 the location of the report limits the purchases read",
+        "file": "app/Libraries/Accounting/ForeignDocumentReader.php",
+        "find": "scoped_items.receiving_id = receivings.receiving_id AND scoped_items.item_location = ' . $this->db->escape($locationId) . ')'",
+        "replace": "scoped_items.receiving_id = receivings.receiving_id)'",
+        "tests": [
+            "tests/Libraries/Accounting/ForeignDocumentReaderTest.php"
+        ]
+    },
+    {
+        "name": "G72 the first day of a report asked by time is decoded",
+        "file": "app/Controllers/Reports.php",
+        "find": "$from       = $withTime ? rawurldecode($inputs['start_date']) : $inputs['start_date'];",
+        "replace": "$from       = $inputs['start_date'];",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G73 the last day of a report asked by time is decoded",
+        "file": "app/Controllers/Reports.php",
+        "find": "$to         = $withTime ? rawurldecode($inputs['end_date']) : $inputs['end_date'];",
+        "replace": "$to         = $inputs['end_date'];",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G74 the sales of a report asked by time are read by the hour",
+        "file": "app/Controllers/Reports.php",
+        "find": "$reader->sales($from, $to, $withTime, $branchIds,",
+        "replace": "$reader->sales($from, $to, false, $branchIds,",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G75 the purchases of a report asked by time are read by the hour",
+        "file": "app/Controllers/Reports.php",
+        "find": "$reader->receivings($from, $to, $withTime, $branchIds, $locationId)",
+        "replace": "$reader->receivings($from, $to, false, $branchIds, $locationId)",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G76 the note is limited to the branches of the employee",
+        "file": "app/Controllers/Reports.php",
+        "find": "$branchIds  = $employeeId < 1 ? null : (new BranchGuard())->allowedBranchIds($employeeId);",
+        "replace": "$branchIds  = null;",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G77 the note follows the kind of sale of the report",
+        "file": "app/Controllers/Reports.php",
+        "find": "(string) ($inputs['sale_type'] ?? 'all')",
+        "replace": "'all'",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G78 the note follows the location of the report",
+        "file": "app/Controllers/Reports.php",
+        "find": "$locationId = (string) ($inputs['location_id'] ?? 'all');",
+        "replace": "$locationId = 'all';",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G79 the summary of payments has the note",
+        "file": "app/Controllers/Reports.php",
+        "find": "'title'        => lang('Reports.payments_summary_report'),\n            'subtitle'     => $this->_get_subtitle_report($inputs),",
+        "replace": "'title'        => lang('Reports.payments_summary_report'),\n            'subtitle'     => '',",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G80 the report of a customer has the note",
+        "file": "app/Controllers/Reports.php",
+        "find": "'title'                => $customer_info->first_name . ' ' . $customer_info->last_name . ' ' . lang('Reports.report'),\n            'subtitle'             => $this->_get_subtitle_report($inputs),",
+        "replace": "'title'                => $customer_info->first_name . ' ' . $customer_info->last_name . ' ' . lang('Reports.report'),\n            'subtitle'             => '',",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G81 the report of an employee has the note",
+        "file": "app/Controllers/Reports.php",
+        "find": "'title'                => $employee_info->first_name . ' ' . $employee_info->last_name . ' ' . lang('Reports.report'),\n            'subtitle'             => $this->_get_subtitle_report($inputs),",
+        "replace": "'title'                => $employee_info->first_name . ' ' . $employee_info->last_name . ' ' . lang('Reports.report'),\n            'subtitle'             => '',",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G82 the report of a discount has the note",
+        "file": "app/Controllers/Reports.php",
+        "find": "'title'                => $discount . '% ' . lang('Reports.discount') . ' ' . lang('Reports.report'),\n            'subtitle'             => $this->_get_subtitle_report($inputs),",
+        "replace": "'title'                => $discount . '% ' . lang('Reports.discount') . ' ' . lang('Reports.report'),\n            'subtitle'             => '',",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G83 the report of a supplier has the note",
+        "file": "app/Controllers/Reports.php",
+        "find": "'title'        => $supplier_info->company_name . ' (' . $supplier_info->first_name . ' ' . $supplier_info->last_name . ') ' . lang('Reports.report'),\n            'subtitle'     => $this->_get_subtitle_report($inputs),",
+        "replace": "'title'        => $supplier_info->company_name . ' (' . $supplier_info->first_name . ' ' . $supplier_info->last_name . ') ' . lang('Reports.report'),\n            'subtitle'     => '',",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G84 the detailed report of the items sold has the note",
+        "file": "app/Controllers/Reports.php",
+        "find": "'title'        => lang('Reports.detailed_item_sales_report'),\n            'subtitle'     => $this->_get_subtitle_report($inputs),",
+        "replace": "'title'        => lang('Reports.detailed_item_sales_report'),\n            'subtitle'     => '',",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    },
+    {
+        "name": "G85 the chart of a graphical report is named by its title and dates and not by the note",
+        "file": "app/Views/reports/graphical.php",
+        "find": "explode(\"\\n\", (string) $subtitle, 2)[0]",
+        "replace": "$subtitle",
+        "tests": [
+            "--filter",
+            "testSummarySales_|testSummaryExpensesCategories_|testDetailedReceivings_|testGetSubtitleReport_|testGraphicalSummarySales_",
+            "tests/Controllers/ReportsControllerTest.php"
+        ]
+    }
+]

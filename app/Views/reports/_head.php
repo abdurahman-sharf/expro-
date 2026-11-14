@@ -7,17 +7,18 @@ use App\Libraries\Accounting\ReportScopeKind;
  * @var string $subtitle
  * @var bool   $sensitiveToggle
  */
-$scope      = reportScope();
-$scopeLabel = $scope->label();
+$scope                 = reportScope();
+$scopeLabel            = $scope->label();
+[$dates, $foreignNote] = array_pad(explode("\n", (string) ($subtitle ?? ''), 2), 2, '');
 ?>
 
 <header class="report-head">
     <div>
         <h2 class="report-title"><?= esc($title) ?></h2>
-        <?php if (($subtitle ?? '') !== ''): ?>
+        <?php if ($dates !== ''): ?>
             <p class="report-subtitle">
                 <span class="bi bi-calendar3" aria-hidden="true"></span>
-                <bdi dir="ltr"><?= esc($subtitle) ?></bdi>
+                <bdi dir="ltr"><?= esc($dates) ?></bdi>
             </p>
         <?php endif; ?>
     </div>
@@ -34,6 +35,10 @@ $scopeLabel = $scope->label();
         </a>
     </div>
 </header>
+
+<?php if ($foreignNote !== ''): ?>
+    <p class="alert alert-warning" id="report_foreign_currency" role="note"><span class="bi bi-exclamation-triangle" aria-hidden="true"></span> <?= esc($foreignNote) ?></p>
+<?php endif; ?>
 
 <?php if ($scopeLabel !== null): ?>
     <?php if ($scope->kind === ReportScopeKind::Partial): ?>

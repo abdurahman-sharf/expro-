@@ -17,8 +17,9 @@ final readonly class ReportTable
      * @param list<ReportBlock>          $blocks
      * @param array<string, string>      $total
      * @param list<TieCheck>             $ties
-     * @param list<string>               $notes   Language keys of what the reader should know about the figures.
-     * @param array<string, string>|null $detail  Extra figures shown beside the table, by language key.
+     * @param list<string>               $notes            Language keys of what the reader should know about the figures.
+     * @param array<string, string>|null $detail           Extra figures shown beside the table, by language key.
+     * @param list<string>               $refusalArguments
      */
     public function __construct(
         public ReportScope $scope,
@@ -31,7 +32,24 @@ final readonly class ReportTable
         public array $notes = [],
         public int $documents = 0,
         public ?array $detail = null,
+        public ?string $refusal = null,
+        public array $refusalArguments = [],
     ) {
+    }
+
+    /**
+     * A report that is not made, for the reason the language key gives, so that no figure of it can be read.
+     *
+     * @param list<string> $refusalArguments
+     */
+    public static function refused(ReportScope $scope, ?string $from, string $to, string $refusal, array $refusalArguments = []): self
+    {
+        return new self($scope, $from, $to, [], [], [], refusal: $refusal, refusalArguments: $refusalArguments);
+    }
+
+    public function isRefused(): bool
+    {
+        return $this->refusal !== null;
     }
 
     public function ties(): bool

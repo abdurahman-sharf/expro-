@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'Belasting',
     'expenses_total_amount'                   => 'Totale hoeveelheid',
     'expenses_total_tax_amount'               => 'Totale belasting',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Grafische rapporten',
     'group_finance'                           => '',
     'group_sales'                             => '',

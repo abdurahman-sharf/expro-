@@ -22,6 +22,8 @@ final readonly class PurchaseFigures
         public string $dueDate,
         public ?int $termsDays = null,
         public bool $opening = false,
+        public ?string $currencyCode = null,
+        public ?string $currencyRate = null,
     ) {
     }
 

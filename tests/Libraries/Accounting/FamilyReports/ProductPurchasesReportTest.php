@@ -37,7 +37,7 @@ final class ProductPurchasesReportTest extends FamilyReportTestCase
 
         foreach ($table->ties as $tie) {
             $this->assertTrue($tie->isRefused());
-            $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['USD']), $tie->refusal);
+            $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['RECV ' . $facts['other'] . ' (USD)']), $tie->refusal);
         }
     }
 
@@ -146,5 +146,21 @@ final class ProductPurchasesReportTest extends FamilyReportTestCase
         $this->assertAmount('160.00', $this->grandOf($this->built($this->report, $this->thisDay()), 'total'));
         $this->assertAmount('60.00', $this->grandOf($this->built($this->report, $this->thisDay(), $this->limitedTo($branch)), 'total'));
         $this->assertSame([], $this->rowsOf($this->built($this->report, $this->thisDay(), $this->limitedTo())));
+    }
+
+    public function testBuild_NamesThePurchaseInDollarsPostedByTheModelInBothChecks(): void
+    {
+        $this->enableDollars();
+        $id = $this->foreignPurchase();
+
+        $this->assertGreaterThan(0, $id);
+
+        $table = $this->built($this->report, ['from' => $this->ago(30), 'to' => $this->today()]);
+
+        $this->assertCount(2, $table->ties);
+
+        foreach ($table->ties as $tie) {
+            $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['RECV ' . $id . ' (USD)']), $tie->refusal);
+        }
     }
 }

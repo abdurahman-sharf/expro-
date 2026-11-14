@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'מס',
     'expenses_total_amount'                   => 'סהכ סכום',
     'expenses_total_tax_amount'               => 'סהכ מס',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'דוחות גרפיים',
     'group_finance'                           => '',
     'group_sales'                             => '',

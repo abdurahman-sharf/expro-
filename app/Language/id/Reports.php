@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'Pajak',
     'expenses_total_amount'                   => 'Jumlah Total',
     'expenses_total_tax_amount'               => 'Total Pajak',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Laporan Dalam Bentuk Grafis',
     'group_finance'                           => '',
     'group_sales'                             => '',

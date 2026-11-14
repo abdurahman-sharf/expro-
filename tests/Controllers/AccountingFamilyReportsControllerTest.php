@@ -371,7 +371,7 @@ final class AccountingFamilyReportsControllerTest extends FamilyReportTestCase
         $screen->assertDontSee('data-status="differs"');
         $screen->assertDontSee('data-status="ties"');
 
-        $refusal = lang('Accounting_family_reports.tie_foreign_currency', ['USD']);
+        $refusal = lang('Accounting_family_reports.tie_foreign_currency', ['RECV ' . $ids['other'] . ' (USD)']);
         $rows    = array_values(array_filter($this->csvRows($this->get('/accounting_reports/purchases/csv?from=' . $this->today() . '&to=' . $this->today())), static fn (array $row): bool => in_array($refusal, $row, true)));
 
         $this->assertCount(1, $rows);

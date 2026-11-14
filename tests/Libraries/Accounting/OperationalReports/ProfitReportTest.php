@@ -262,4 +262,93 @@ class ProfitReportTest extends CIUnitTestCase
         $this->assertSame(1, $table->documents);
         $this->assertTrue($table->ties());
     }
+
+    private function tomorrow(): string
+    {
+        return date('Y-m-d', strtotime('+1 day'));
+    }
+
+    public function testBuild_RefusesByNameWhenAnInvoiceInDollarsHasGoodsThatMoved(): void
+    {
+        $this->enableDollars();
+        $invoice = $this->foreignInvoice('100', [], '40.00', '2');
+        $base    = $this->save([$this->line($this->item('10'), 0, '1', '30', '10')], [], [], SALE_TYPE_POS, $this->customerId);
+
+        $this->assertGreaterThan(0, $invoice);
+        $this->assertGreaterThan(0, $base);
+
+        foreach (ItemGroup::cases() as $group) {
+            foreach ([true, false] as $details) {
+                $table = $this->table($group, $details, '2020-01-01', $this->tomorrow());
+
+                $this->assertTrue($table->isRefused(), $group->value);
+                $this->assertSame('Accounting_operational_reports.profit_foreign_docs', $table->refusal);
+                $this->assertSame(['POS ' . $invoice . ' (USD)'], $table->refusalArguments);
+                $this->assertSame([], $table->blocks);
+                $this->assertSame([], $table->total);
+            }
+        }
+
+        $this->assertStringContainsString('POS ' . $invoice . ' (USD)', lang((string) $table->refusal, $table->refusalArguments));
+    }
+
+    public function testBuild_NamesTheCreditNoteOfAnInvoiceInDollarsThatTookGoodsBackAsWell(): void
+    {
+        $this->enableDollars();
+        $invoice = $this->foreignInvoice('100', [], '40.00', '2');
+        $item    = (int) $this->accountingDb()->table('sales_items')->where('sale_id', $invoice)->get()->getRow()->item_id;
+        $note    = $this->save([$this->line($item, 0, '-1', '100', '40.00')], [], [], SALE_TYPE_RETURN, $this->customerId, true, $invoice);
+
+        $this->assertGreaterThan(0, $note);
+
+        $table = $this->table(ItemGroup::Item, true, '2020-01-01', $this->tomorrow());
+
+        $this->assertTrue($table->isRefused());
+        $this->assertStringContainsString('POS ' . $invoice . ' (USD)', $table->refusalArguments[0]);
+        $this->assertStringContainsString('POS ' . $note . ' (USD)', $table->refusalArguments[0], 'the credit note takes its currency from the invoice');
+    }
+
+    public function testBuild_ReportsTheSameWhenNoDocumentIsInAForeignCurrency(): void
+    {
+        $this->enableDollars();
+        $this->assertGreaterThan(0, $this->save([$this->line($this->item('10'), 0, '2', '30', '10')], [], [], SALE_TYPE_POS, $this->customerId));
+
+        $table = $this->table(ItemGroup::Item, true, '2020-01-01', $this->tomorrow());
+
+        $this->assertFalse($table->isRefused());
+        $this->assertSame(['20.0000', '40.0000'], [$table->total['cost'], $table->total['profit']]);
+        $this->assertTrue($table->ties());
+    }
+
+    public function testBuild_DoesNotRefuseWhenTheDocumentInDollarsIsOfServicesThatNeverMove(): void
+    {
+        $this->enableDollars();
+        $this->assertGreaterThan(0, $this->foreignInvoice('100'));
+        $this->assertGreaterThan(0, $this->save([$this->line($this->item('10'), 0, '2', '30', '10')], [], [], SALE_TYPE_POS, $this->customerId));
+
+        $table = $this->table(ItemGroup::Item, true, '2020-01-01', $this->tomorrow());
+
+        $this->assertFalse($table->isRefused());
+        $this->assertSame('40.0000', $table->total['profit']);
+        $this->assertTrue($table->ties());
+    }
+
+    public function testBuild_ReportsTheCustomersWhoseDocumentsAreAllInTheBaseWhenAnotherCustomerHasOneInDollars(): void
+    {
+        $this->enableDollars();
+        $other = $this->anotherCustomer('Hind', 'Saad');
+        $this->grantInvoiceDate();
+        $item = $this->item('40.00');
+
+        $this->sales->useCurrency('USD');
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '1', '100', '40.00')], [], [], SALE_TYPE_INVOICE, $other, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10)));
+        $this->assertGreaterThan(0, $this->save([$this->line($item, 0, '1', '30', '40.00')], [], [], SALE_TYPE_POS, $this->customerId));
+
+        $mine   = $this->table(ItemGroup::Item, true, '2020-01-01', $this->tomorrow(), $this->customerId);
+        $theirs = $this->table(ItemGroup::Item, true, '2020-01-01', $this->tomorrow(), $other);
+
+        $this->assertFalse($mine->isRefused());
+        $this->assertSame('-10.0000', $mine->total['profit']);
+        $this->assertTrue($theirs->isRefused());
+    }
 }

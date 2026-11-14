@@ -78,6 +78,7 @@ class ReportsControllerTest extends CIUnitTestCase
 
         $this->dropReportTables();
         $this->removeReportSales(self::REPORT_MONTH);
+        config(OSPOS::class)->update_settings();
 
         parent::tearDown();
     }
@@ -255,6 +256,7 @@ class ReportsControllerTest extends CIUnitTestCase
     {
         $personId = $this->employeeWithGrants([
             'reports', 'reports_sales', 'reports_categories', 'reports_taxes', 'reports_inventory', 'reports_receivings', 'reports_expenses_categories', 'reports_customers', 'reports_discounts',
+            'reports_items', 'reports_suppliers', 'reports_employees', 'reports_payments',
         ], $branchIds);
 
         $this->loginAs($personId);
@@ -698,5 +700,245 @@ class ReportsControllerTest extends CIUnitTestCase
     {
         $this->assertStringNotContainsString('accounting_reports/supplier_balances', $this->reportsIndexOf(['reports_suppliers', 'accounting_reports'], '0'));
         $this->assertStringNotContainsString('accounting_reports/supplier_balances', $this->reportsIndexOf(['reports_suppliers', 'accounting_journals'], '1'));
+    }
+
+    /**
+     * The two ends of a range of hours encoded so many times that they reach the controller still encoded once,
+     * which the report models decode a last time and so must the note.
+     */
+    private function hoursStillEncoded(string $from, string $to): string
+    {
+        return rawurlencode(rawurlencode(rawurlencode($from))) . '/' . rawurlencode(rawurlencode(rawurlencode($to)));
+    }
+
+    private function inDollars(int $saleId): void
+    {
+        $this->accountingDb()->table('sales')->where('sale_id', $saleId)->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+    }
+
+    public function testSummarySales_SaysUnderTheHeaderThatTheDaysHoldADocumentInAForeignCurrency(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->inDollars($this->reportSales['a']);
+
+        $page = $this->pageOf('/reports/summary_sales/' . $this->reportDay . '/' . $this->reportDay . '/sales/all');
+
+        $this->assertStringContainsString('id="report_foreign_currency"', $page);
+        $this->assertStringContainsString('POS ' . $this->reportSales['a'] . ' (USD)', $page);
+        $this->assertStringNotContainsString('POS ' . $this->reportSales['b'] . ' (', $page);
+    }
+
+    /**
+     * @return list<string> The address of every legacy screen that adds up the documents of the days, for the second sale.
+     */
+    private function legacyScreens(): array
+    {
+        $range = $this->reportDay . '/' . $this->reportDay;
+        $paths = [];
+
+        foreach (['summary_sales', 'summary_categories', 'summary_customers', 'summary_suppliers', 'summary_items', 'summary_employees', 'summary_taxes', 'summary_sales_taxes'] as $report) {
+            $paths[] = "/reports/{$report}/{$range}/sales/all";
+            $paths[] = "/reports/graphical_{$report}/{$range}/sales/all";
+        }
+
+        return array_merge($paths, [
+            "/reports/summary_discounts/{$range}/sales/all/0",
+            "/reports/graphical_summary_discounts/{$range}/sales/all/0",
+            "/reports/summary_payments/{$range}",
+            "/reports/graphical_summary_payments/{$range}/sales/all",
+            "/reports/detailed_sales/{$range}/sales/all",
+            "/reports/detailed_item_sales/{$range}/sales/all/all",
+            "/reports/specific_customers/{$range}/{$this->customerB}/sales/all",
+            "/reports/specific_employees/{$range}/{$this->employeeId}/sales",
+            "/reports/specific_suppliers/{$range}/{$this->supplierB}/sales",
+            "/reports/specific_discounts/{$range}/0/sales/0",
+        ]);
+    }
+
+    public function testGetSubtitleReport_NamesTheForeignDocumentOnEveryLegacyScreen(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->inDollars($this->reportSales['b']);
+
+        foreach ($this->legacyScreens() as $path) {
+            $page = $this->pageOf($path);
+
+            $this->assertStringContainsString('id="report_foreign_currency"', $page, $path);
+            $this->assertStringContainsString('POS ' . $this->reportSales['b'] . ' (USD)', $page, $path);
+        }
+    }
+
+    public function testGetSubtitleReport_SaysNothingOnAnyLegacyScreenWhenTheDaysHoldOnlyBaseDocuments(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+
+        foreach ($this->legacyScreens() as $path) {
+            $this->assertStringNotContainsString('report_foreign_currency', $this->pageOf($path), $path);
+        }
+    }
+
+    public function testGraphicalSummarySales_NamesTheChartByItsTitleAndDatesAndShowsTheNoteApart(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->inDollars($this->reportSales['b']);
+
+        $page = $this->pageOf('/reports/graphical_summary_sales/' . $this->reportDay . '/' . $this->reportDay . '/sales/all');
+
+        $this->assertSame(1, preg_match('/<canvas[^>]*aria-label="([^"]*)"/', $page, $found));
+
+        $label = html_entity_decode($found[1]);
+
+        $this->assertStringNotContainsString("\n", $label);
+        $this->assertStringNotContainsString('USD', $label);
+        $this->assertStringStartsWith(lang('Reports.sales_summary_report') . ' — ', $label);
+        $this->assertSame(1, substr_count($label, ' — '));
+        $this->assertStringContainsString('id="report_foreign_currency"', $page);
+    }
+
+    public function testSummarySales_SaysNothingOfCurrenciesWhenEveryDocumentOfTheDaysIsInTheBase(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+
+        $page = $this->pageOf('/reports/summary_sales/' . $this->reportDay . '/' . $this->reportDay . '/sales/all');
+
+        $this->assertStringNotContainsString('report_foreign_currency', $page);
+        $this->assertStringNotContainsString('(USD)', $page);
+    }
+
+    public function testSummarySales_SaysNothingOfADocumentInAForeignCurrencyOfAnotherDay(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->inDollars($this->reportSales['a']);
+
+        $page = $this->pageOf('/reports/summary_sales/2031-03-15/2031-03-15/sales/all');
+
+        $this->assertStringNotContainsString('report_foreign_currency', $page);
+    }
+
+    public function testSummaryExpensesCategories_SaysNothingOfCurrenciesBecauseExpensesAreInTheBase(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->inDollars($this->reportSales['a']);
+
+        $page = $this->pageOf('/reports/summary_expenses_categories/' . $this->reportDay . '/' . $this->reportDay . '/sales');
+
+        $this->assertStringNotContainsString('report_foreign_currency', $page);
+    }
+
+    public function testDetailedReceivings_NamesTheReceivingsInAForeignCurrencyOfTheDays(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $this->reportReceivings['a'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+
+        $page = $this->pageOf('/reports/detailed_receivings/' . $this->reportDay . '/' . $this->reportDay . '/all/all');
+
+        $this->assertStringContainsString('RECV ' . $this->reportReceivings['a'] . ' (USD)', $page);
+        $this->assertStringNotContainsString('RECV ' . $this->reportReceivings['b'] . ' (', $page);
+    }
+
+    public function testSummarySales_NamesNoForeignDocumentOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $this->openTheBooks();
+        $this->inDollars($this->reportSales['b']);
+        $path = '/reports/summary_sales/' . $this->reportDay . '/' . $this->reportDay . '/sales/all';
+        $name = 'POS ' . $this->reportSales['b'] . ' (USD)';
+
+        foreach ([[1], []] as $branchIds) {
+            $this->readerOfTheBranches($branchIds);
+            $page = $this->pageOf($path);
+
+            $this->assertStringNotContainsString('report_foreign_currency', $page);
+            $this->assertStringNotContainsString($name, $page);
+        }
+
+        foreach ([[$this->branchB], [1, $this->branchB], null] as $branchIds) {
+            $this->readerOfTheBranches($branchIds);
+
+            $this->assertStringContainsString($name, $this->pageOf($path));
+        }
+    }
+
+    public function testDetailedReceivings_NamesNoForeignReceivingOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        $this->openTheBooks();
+        $this->accountingDb()->table('receivings')->where('receiving_id', $this->reportReceivings['b'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+        $path = '/reports/detailed_receivings/' . $this->reportDay . '/' . $this->reportDay . '/all/all';
+        $name = 'RECV ' . $this->reportReceivings['b'] . ' (USD)';
+
+        $this->readerOfTheBranches([1]);
+        $this->assertStringNotContainsString('report_foreign_currency', $this->pageOf($path));
+
+        $this->readerOfTheBranches([$this->branchB]);
+        $this->assertStringContainsString($name, $this->pageOf($path));
+
+        $this->readerOfTheBranches(null);
+        $this->assertStringContainsString($name, $this->pageOf($path));
+    }
+
+    public function testSummarySales_NamesTheForeignDocumentsOfTheKindOfSaleOfTheReportOnly(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->inDollars($this->reportSales['a']);
+        $this->accountingDb()->table('sales')->where('sale_id', $this->reportSales['a'])->update(['sale_status' => CANCELED]);
+        $range = $this->reportDay . '/' . $this->reportDay;
+        $name  = 'POS ' . $this->reportSales['a'] . ' (USD)';
+
+        $this->assertStringContainsString($name, $this->pageOf("/reports/summary_sales/{$range}/canceled/all"));
+        $this->assertStringNotContainsString('report_foreign_currency', $this->pageOf("/reports/summary_sales/{$range}/sales/all"));
+        $this->assertStringNotContainsString('report_foreign_currency', $this->pageOf("/reports/summary_sales/{$range}/complete/all"));
+    }
+
+    public function testSummarySales_NamesTheForeignDocumentsOfTheLocationOfTheReportOnly(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->inDollars($this->reportSales['b']);
+        $range = $this->reportDay . '/' . $this->reportDay;
+
+        $this->assertStringContainsString('POS ' . $this->reportSales['b'] . ' (USD)', $this->pageOf("/reports/summary_sales/{$range}/sales/{$this->storeB}"));
+        $this->assertStringNotContainsString('report_foreign_currency', $this->pageOf("/reports/summary_sales/{$range}/sales/" . self::LOCATION_ID));
+    }
+
+    public function testSummarySales_ReadsTheHoursOfTheNoteWhenTheReportIsAskedByTime(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->inDollars($this->reportSales['b']);
+        config(OSPOS::class)->settings['date_or_time_format'] = '1';
+
+        $this->assertStringContainsString(
+            'POS ' . $this->reportSales['b'] . ' (USD)',
+            $this->pageOf('/reports/summary_sales/' . $this->hoursStillEncoded($this->reportDay . ' 09:00:00', $this->reportDay . ' 11:00:00') . '/sales/all'),
+        );
+        $this->assertStringNotContainsString(
+            'report_foreign_currency',
+            $this->pageOf('/reports/summary_sales/' . $this->hoursStillEncoded($this->reportDay . ' 10:30:00', $this->reportDay . ' 11:00:00') . '/sales/all'),
+        );
+    }
+
+    public function testDetailedReceivings_ReadsTheHoursOfTheNoteWhenTheReportIsAskedByTime(): void
+    {
+        $this->openTheBooks();
+        $this->readerOfTheBranches(null);
+        $this->accountingDb()->table('receivings')->where('receiving_id', $this->reportReceivings['a'])->update(['currency_code' => 'USD', 'currency_rate' => '3.75000000']);
+        config(OSPOS::class)->settings['date_or_time_format'] = '1';
+
+        $this->assertStringContainsString(
+            'RECV ' . $this->reportReceivings['a'] . ' (USD)',
+            $this->pageOf('/reports/detailed_receivings/' . $this->hoursStillEncoded($this->reportDay . ' 08:00:00', $this->reportDay . ' 10:00:00') . '/all/all'),
+        );
+        $this->assertStringNotContainsString(
+            'report_foreign_currency',
+            $this->pageOf('/reports/detailed_receivings/' . $this->hoursStillEncoded($this->reportDay . ' 09:30:00', $this->reportDay . ' 10:00:00') . '/all/all'),
+        );
     }
 }

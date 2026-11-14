@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'DPH',
     'expenses_total_amount'                   => 'Množství celkem',
     'expenses_total_tax_amount'               => 'Celkem DPH',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Grafy',
     'group_finance'                           => '',
     'group_sales'                             => '',

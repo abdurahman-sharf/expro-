@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'Taxe',
     'expenses_total_amount'                   => 'Montant total',
     'expenses_total_tax_amount'               => 'Taxe total',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Rapports graphiques',
     'group_finance'                           => '',
     'group_sales'                             => '',

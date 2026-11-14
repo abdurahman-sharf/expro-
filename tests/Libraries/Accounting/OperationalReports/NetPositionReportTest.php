@@ -254,7 +254,11 @@ class NetPositionReportTest extends CIUnitTestCase
 
         foreach ($table->ties as $tie) {
             $this->assertTrue($tie->isRefused());
-            $this->assertSame(['USD'], $tie->refusalArguments);
+            $this->assertCount(1, $tie->refusalArguments);
+
+            foreach ([$ids['paid'], $ids['returned'], $ids['orphan']] as $id) {
+                $this->assertStringContainsString('POS ' . $id . ' (USD)', $tie->refusalArguments[0]);
+            }
         }
     }
 
@@ -276,5 +280,22 @@ class NetPositionReportTest extends CIUnitTestCase
         $table = (new NetPositionReport())->build(ReportScope::resolve(null, []), false, '2020-01-01', date('Y-m-d'));
 
         $this->assertTrue($table->isEmpty());
+    }
+
+    public function testBuild_NamesTheInvoiceInDollarsAndItsPaymentWhenTheChecksAreNotRun(): void
+    {
+        $this->enableDollars();
+        $invoice = $this->foreignInvoice('100', [$this->payment(lang('Sales.cash'), '100')]);
+
+        $this->assertGreaterThan(0, $invoice);
+
+        $table = $this->table();
+
+        $this->assertCount(2, $table->ties);
+
+        foreach ($table->ties as $tie) {
+            $this->assertTrue($tie->isRefused());
+            $this->assertSame(['POS ' . $invoice . ' (USD)'], $tie->refusalArguments);
+        }
     }
 }

@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'Thuế',
     'expenses_total_amount'                   => 'Số tiền tổng cộng',
     'expenses_total_tax_amount'               => 'Thuế tổng cộng',
+    'foreign_documents_label'                 => '',
     'graphical_reports'                       => 'Báo cáo bằng đồ thị',
     'group_finance'                           => '',
     'group_sales'                             => '',

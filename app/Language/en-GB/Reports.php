@@ -55,6 +55,7 @@ return [
     'expenses_tax_amount'                     => 'Tax',
     'expenses_total_amount'                   => 'Total Amount',
     'expenses_total_tax_amount'               => 'Total Tax',
+    'foreign_documents_label'                 => 'These days hold documents in a foreign currency ({0}). The amounts of such documents are in that currency and are added to the amounts in the base currency without conversion, so read the totals with that in mind.',
     'graphical_reports'                       => 'Graphical Reports',
     'group_finance'                           => 'Taxes and expenses',
     'group_sales'                             => 'Sales and customers',

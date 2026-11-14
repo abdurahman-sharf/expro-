@@ -241,6 +241,59 @@ final class CreditLimitTest extends CIUnitTestCase
         $this->assertSame('Omar Khaled', $refusal->context['name']);
     }
 
+    public function testRefusalFor_CountsAnInvoiceInDollarsByWhatItOwesInTheBaseAndNotByItsAmountInDollars(): void
+    {
+        $this->enableDollars();
+        $this->giveTerms('500');
+
+        $dollars = $this->foreignInvoice('140');
+
+        $this->turnOn();
+
+        $refusal = $this->credit->refusalFor($this->customerId, $dollars, date('Y-m-d'));
+
+        $this->assertInstanceOf(AccountingException::class, $refusal, 'a hundred and forty dollars at 3.75 are 525 against a limit of 500 riyals');
+        $this->assertSame(AccountingError::CreditLimitExceeded, $refusal->error);
+        $this->assertSame(['500.00', '525.00'], [$refusal->context['limit'], $refusal->context['balance']]);
+    }
+
+    public function testRefusalFor_AcceptsAnInvoiceInDollarsThatFitsTheLimitInTheBase(): void
+    {
+        $this->enableDollars();
+        $this->giveTerms('500');
+
+        $this->assertNull($this->credit->refusalFor($this->customerId, $this->foreignInvoice('130'), date('Y-m-d')), 'a hundred and thirty dollars at 3.75 are 487.50');
+    }
+
+    public function testRefusalFor_AddsAnInvoiceInDollarsAndOneInTheBaseInTheBaseBeforeTheLimit(): void
+    {
+        $this->enableDollars();
+        $this->giveTerms('500');
+
+        $this->foreignInvoice('100');
+        $second = $this->invoiceOf('125.01');
+
+        $this->turnOn();
+
+        $refusal = $this->credit->refusalFor($this->customerId, $second, date('Y-m-d'));
+
+        $this->assertSame(AccountingError::CreditLimitExceeded, $refusal?->error);
+        $this->assertSame('500.01', $refusal->context['balance']);
+    }
+
+    public function testOpenOf_ReadsWhatAnInvoiceInDollarsOwesInTheBaseAfterAPaymentAtAnotherRate(): void
+    {
+        $this->enableDollars();
+
+        $invoice = $this->foreignInvoice('100');
+
+        $this->assertSame('375.0000', bcadd($this->credit->openOf($this->customerId, $invoice), '0', 4));
+
+        $this->addPayment($invoice, '50.00');
+
+        $this->assertSame('187.5000', bcadd($this->credit->openOf($this->customerId, $invoice), '0', 4), 'fifty dollars at 3.60 and their exchange difference settle 187.50');
+    }
+
     public function testRefusalFor_CountsWhatIsStillOpenAndNotWhatWasPaid(): void
     {
         $this->giveTerms('150');

@@ -159,4 +159,38 @@ class CrossReferenceReportTest extends CIUnitTestCase
 
         $this->assertTrue($table->isEmpty());
     }
+
+    private function untilTomorrow(): ReportTable
+    {
+        return (new CrossReferenceReport())->build(ReportScope::resolve(null, null), true, false, '2020-01-01', date('Y-m-d', strtotime('+1 day')));
+    }
+
+    public function testBuild_SaysTheCheckWasNotRunAndNamesTheInvoiceAndItsReturnWhenTheInvoiceIsInDollars(): void
+    {
+        $this->enableDollars();
+        $invoice = $this->foreignInvoice('100', [$this->payment(lang('Sales.cash'), '100')]);
+        $note    = $this->creditNoteOf($invoice, '40');
+
+        $this->assertGreaterThan(0, $note);
+
+        $table = $this->untilTomorrow();
+
+        $this->assertCount(1, $table->ties);
+        $this->assertTrue($table->ties[0]->isRefused());
+        $this->assertFalse($table->ties[0]->ties());
+        $this->assertSame('Accounting_operational_reports.tie_foreign_currency', $table->ties[0]->refusal);
+        $this->assertSame(['POS ' . $invoice . ' (USD), POS ' . $note . ' (USD)'], $table->ties[0]->refusalArguments);
+    }
+
+    public function testBuild_AgreesWithTheLedgerForTheInvoicesInTheBaseWhileAnotherIsInDollars(): void
+    {
+        $this->enableDollars();
+        $this->assertGreaterThan(0, $this->foreignInvoice('100'));
+
+        $table = $this->untilTomorrow();
+
+        $this->assertTrue($table->ties[0]->ties());
+        $this->assertFalse($table->ties[0]->isRefused());
+        $this->assertSame(2, $table->documents);
+    }
 }

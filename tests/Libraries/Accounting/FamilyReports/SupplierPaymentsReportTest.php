@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\FamilyReports\SupplierPaymentRows;
 use App\Libraries\Accounting\FamilyReports\SupplierPaymentsReport;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\TreasuryService;
@@ -87,7 +88,11 @@ final class SupplierPaymentsReportTest extends FamilyReportTestCase
 
         $this->assertCount(1, $table->ties);
         $this->assertTrue($table->ties[0]->isRefused());
-        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', ['USD']), $table->ties[0]->refusal);
+
+        $foreign = array_values(array_filter((new SupplierPaymentRows())->read($this->everyBranch(), $this->input($this->thisDay())->period()), static fn (object $row): bool => $row->currency_code === 'USD'));
+
+        $this->assertCount(1, $foreign);
+        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', [$foreign[0]->number . ' (USD)']), $table->ties[0]->refusal);
     }
 
     public function testBuild_DoesNotListACancelledPaymentNorTheCreditAppliedFromTheBalance(): void
@@ -178,5 +183,35 @@ final class SupplierPaymentsReportTest extends FamilyReportTestCase
         $this->assertAmount('330.00', $this->grandOf($table, 'amount'));
         $this->assertReportTies($table);
         $this->assertAmount('330.00', $table->ties[0]->book);
+    }
+
+    public function testBuild_NamesThePaymentInDollarsPostedByTheModelWhenTheCheckIsNotRun(): void
+    {
+        $this->enableDollars();
+        $purchase = $this->foreignPurchase();
+        $payment  = $this->payPurchase($purchase, '100.00');
+        $range    = ['from' => $this->ago(30), 'to' => date('Y-m-d', strtotime('+1 day'))];
+
+        $table = $this->built($this->report, $range);
+        $rows  = (new SupplierPaymentRows())->read($this->everyBranch(), $this->input($range)->period());
+        $named = array_values(array_filter($rows, static fn (object $row): bool => $row->currency_code === 'USD'));
+
+        $this->assertCount(1, $named);
+        $this->assertSame((string) $payment, (string) $named[0]->source_id);
+        $this->assertCount(1, $table->ties);
+        $this->assertTrue($table->ties[0]->isRefused());
+        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', [$named[0]->number . ' (USD)']), $table->ties[0]->refusal);
+    }
+
+    public function testBuild_RunsTheCheckForAPaymentMadeWhenAPurchaseInDollarsWasSaved(): void
+    {
+        $this->enableDollars();
+        $this->assertGreaterThan(0, $this->foreignPurchase('4', '50.00', lang('Sales.cash')));
+
+        $table = $this->built($this->report, ['from' => $this->ago(30), 'to' => date('Y-m-d', strtotime('+1 day'))]);
+
+        $this->assertCount(1, $table->ties);
+        $this->assertFalse($table->ties[0]->isRefused(), 'the payment made with the purchase is read from its journal in the base');
+        $this->assertTrue($table->ties[0]->ties());
     }
 }

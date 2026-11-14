@@ -3,6 +3,7 @@
 namespace Tests\Libraries\Accounting\FamilyReports;
 
 use App\Libraries\Accounting\FamilyReports\FinancialMovementsReport;
+use App\Libraries\Accounting\FamilyReports\SupplierPaymentRows;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\PostingService;
@@ -145,5 +146,34 @@ final class FinancialMovementsReportTest extends FamilyReportTestCase
 
         $this->assertAmount('-35.00', $this->rowWhere($limited, 'description', lang('Accounting_family_reports.closing_balance'))->cell('balance'));
         $this->assertCount(1, $limited->ties);
+    }
+
+    public function testBuild_NamesThePaymentInDollarsInTheCheckOfThePaymentsAndStillTiesTheClosingBalance(): void
+    {
+        $this->enableDollars();
+        $purchase = $this->foreignPurchase();
+        $payment  = $this->payPurchase($purchase, '100.00');
+        $range    = ['from' => $this->ago(30), 'to' => date('Y-m-d', strtotime('+1 day'))];
+
+        $table = $this->built($this->report, $range);
+        $named = array_values(array_filter((new SupplierPaymentRows())->read($this->everyBranch(), $this->input($range)->period()), static fn (object $row): bool => $row->currency_code === 'USD'));
+
+        $this->assertCount(2, $table->ties);
+        $this->assertFalse($table->ties[0]->isRefused());
+        $this->assertTrue($table->ties[0]->ties(), 'the closing balance is the treasuries in the base, whatever the currency of the payment');
+        $this->assertTrue($table->ties[1]->isRefused());
+        $this->assertSame(lang('Accounting_family_reports.tie_foreign_currency', [$named[0]->number . ' (USD)']), $table->ties[1]->refusal);
+        $this->assertSame((string) $payment, (string) $named[0]->source_id);
+    }
+
+    public function testBuild_ComparesThePaymentsWhenNoneIsInAForeignCurrency(): void
+    {
+        $this->enableDollars();
+        $this->assertGreaterThan(0, $this->foreignPurchase());
+        $this->movements();
+
+        $table = $this->built($this->report, ['from' => $this->ago(1), 'to' => date('Y-m-d', strtotime('+1 day'))]);
+
+        $this->assertFalse($table->ties[1]->isRefused());
     }
 }
