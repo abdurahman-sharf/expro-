@@ -85,6 +85,7 @@ return [
     'credit_notes'          => 'Credit notes',
     'cross_title'           => 'Invoices and returns',
     'customer'              => 'Customer',
+    'customer_choose'       => 'Choose a customer from the list, or clear the box to include every customer.',
     'date_mode'             => 'Dates',
     'differs'               => 'Differs',
     'grand_total'           => 'Grand total',

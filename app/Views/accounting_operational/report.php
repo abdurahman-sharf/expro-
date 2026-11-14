@@ -139,6 +139,13 @@ foreach ($table?->columns ?? [] as $column) {
                         <?php endforeach; ?>
                     </select>
                 </div>
+            <?php elseif ($field['type'] === 'picker'): ?>
+                <div class="acc-filter">
+                    <label class="form-label" for="f_<?= esc($field['name'], 'attr') ?>_text"><?= lang($field['labelKey']) ?></label>
+                    <input type="text" id="f_<?= esc($field['name'], 'attr') ?>_text" class="form-control form-control-sm" autocomplete="off" value="<?= esc($field['picker']['initial'][0]['label'] ?? '', 'attr') ?>" placeholder="<?= esc(lang($field['allKey']), 'attr') ?>">
+                    <input type="hidden" id="f_<?= esc($field['name'], 'attr') ?>" name="<?= esc($field['name'], 'attr') ?>" value="<?= esc((string) ($field['picker']['initial'][0]['id'] ?? ''), 'attr') ?>">
+                    <div class="invalid-feedback" role="alert"><?= esc(lang($field['chooseKey'])) ?></div>
+                </div>
             <?php elseif ($field['type'] === 'multi'): ?>
                 <fieldset class="acc-filter acc-filter-status" id="f_<?= esc($field['name'], 'attr') ?>">
                     <legend class="form-label"><?= lang($field['labelKey']) ?></legend>
@@ -283,5 +290,46 @@ foreach ($table?->columns ?? [] as $column) {
         <?php endforeach; ?>
     <?php endif; ?>
 </div>
+
+<?php $pickerFields = array_values(array_filter($fields, static fn (array $field): bool => $field['type'] === 'picker')); ?>
+<?php if ($pickerFields !== []): ?>
+    <script type="text/javascript">
+        $(function() {
+            const fields = <?= json_encode(array_map(static fn (array $field): array => ['name' => $field['name'], 'picker' => $field['picker']], $pickerFields), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+            const pickers = {};
+
+            const flag = function($text) {
+                $text.attr('aria-invalid', $text.hasClass('is-invalid') ? 'true' : 'false');
+            };
+
+            $.each(fields, function(index, field) {
+                const $text = $('#f_' + field.name + '_text');
+                const $hidden = $('#f_' + field.name);
+                pickers[field.name] = accounting_support.accountPicker('f_' + field.name + '_list', field.picker);
+
+                $text.on('input change blur', function(event) {
+                    event.type === 'blur' ? pickers[field.name].complete($(this), $hidden) : pickers[field.name].sync($(this), $hidden);
+                    flag($(this));
+                });
+            });
+
+            $('#report_filters').on('submit', function(event) {
+                $.each(fields, function(index, field) {
+                    const $text = $('#f_' + field.name + '_text');
+
+                    pickers[field.name].sync($text, $('#f_' + field.name));
+                    flag($text);
+
+                    if ($text.hasClass('is-invalid')) {
+                        event.preventDefault();
+                        $text.trigger('focus');
+
+                        return false;
+                    }
+                });
+            });
+        });
+    </script>
+<?php endif; ?>
 
 <?= view('partial/footer') ?>

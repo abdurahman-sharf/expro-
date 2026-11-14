@@ -62,7 +62,7 @@ class AccountingSalesReports extends AccountingOperationalReport
             'offersView'    => true,
             'fields'        => $this->permittedFields([
                 ['type' => 'multi', 'name' => 'status', 'labelKey' => 'Accounting_operational_reports.status', 'options' => $this->statusChoices(), 'value' => array_map(static fn (StatusFilter $filter): string => $filter->value, StatusFilter::fromRequest($this->request->getGet('status')))],
-                ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
+                $this->customerField(),
                 ['type' => 'select', 'name' => 'user', 'labelKey' => 'Accounting_operational_reports.user', 'options' => $this->employeeChoices(), 'value' => $this->query('user')],
                 ['type' => 'check', 'name' => 'not_taxed', 'labelKey' => 'Accounting_operational_reports.show_not_taxed', 'value' => $this->flag('not_taxed')],
             ], self::REVENUE_FILTERS),
@@ -111,7 +111,7 @@ class AccountingSalesReports extends AccountingOperationalReport
             'offersView'    => true,
             'fields'        => [
                 ['type' => 'select', 'name' => 'type', 'labelKey' => 'Accounting_operational_reports.type', 'options' => $this->typeChoices(), 'value' => $this->query('type')],
-                ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
+                $this->customerField(),
                 ['type' => 'select', 'name' => 'order', 'labelKey' => 'Accounting_operational_reports.order', 'options' => $this->orderChoices(), 'value' => $this->choice('order', ClientsSalesReport::ORDERS, 'date_desc')],
             ],
             'csvUrl'   => base_url('accounting_reports/clients_sales/csv') . $this->queryString(self::CLIENTS_CARRIED, $scope),

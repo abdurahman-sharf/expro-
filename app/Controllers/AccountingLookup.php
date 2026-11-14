@@ -15,7 +15,7 @@ class AccountingLookup extends AccountingController
 {
     private const SCREENS = [
         AccountPicker::ACCOUNT  => ['accounting_journals', 'accounting_periods', 'accounting_chart', 'accounting_reports', 'accounting_routing'],
-        AccountPicker::CUSTOMER => ['accounting_receivables', 'customers', 'sales'],
+        AccountPicker::CUSTOMER => ['accounting_receivables', 'customers', 'sales', 'reports_customers'],
         AccountPicker::SUPPLIER => ['accounting_payables', 'suppliers', 'receivings', 'recurring_expenses'],
     ];
 
@@ -30,7 +30,7 @@ class AccountingLookup extends AccountingController
         $mode = $this->request->getGet('mode');
         $term = $this->request->getGet('term') ?? '';
 
-        if (! in_array($kind, AccountPicker::KINDS, true) || ! in_array($mode, AccountPicker::MODES, true) || ! is_string($term)) {
+        if (! is_string($kind) || ! is_string($mode) || ! is_string($term) || ! AccountPicker::accepts($kind, $mode)) {
             return $this->response->setStatusCode(400);
         }
 

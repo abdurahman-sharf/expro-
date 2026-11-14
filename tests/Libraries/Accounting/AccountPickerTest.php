@@ -4,6 +4,7 @@ namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AccountPicker;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\OpeningBalanceService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -67,6 +68,15 @@ final class AccountPickerTest extends CIUnitTestCase
         }
 
         return $ids;
+    }
+
+    private function ledgerCustomer(string $firstName, string $lastName, ?string $company = null): int
+    {
+        $customer = $this->insertCustomer($firstName, $lastName, $company);
+
+        (new EntityAccountService())->ensure(EntityAccountService::CUSTOMER, $customer, $company ?? trim($firstName . ' ' . $lastName));
+
+        return $customer;
     }
 
     private function postable(): int
@@ -311,6 +321,99 @@ final class AccountPickerTest extends CIUnitTestCase
         $this->setConfigValue('accounting_enabled', '0');
 
         $this->assertNull($this->picker->partyScreen(AccountPicker::SUPPLIER, null, 'http://x/search', '#box'));
+    }
+
+    public function testSearch_FindsCustomerFiveHundredAndOneOfTheLedgerThatTheOldListCutOff(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $ids = [];
+
+        for ($index = 1; $index <= 505; $index++) {
+            $ids[$index] = $this->insertCustomer('Ledger', sprintf('Buyer %04d', $index));
+        }
+
+        (new EntityAccountService())->fill();
+
+        $screen = $this->picker->partyScreen(AccountPicker::CUSTOMER, $ids[503], 'http://x/search', '#f_customer_text', AccountPicker::LEDGER);
+
+        $this->assertNotNull($screen, 'More customers than the threshold make a search box');
+        $this->assertSame(['kind' => 'customer', 'mode' => 'ledger'], $screen['params']);
+        $this->assertSame([$ids[503]], array_column($screen['initial'], 'id'));
+        $this->assertSame('Ledger Buyer 0503', $screen['initial'][0]['label']);
+
+        foreach ([501, 502, 505] as $position) {
+            $found = $this->picker->search(AccountPicker::CUSTOMER, AccountPicker::LEDGER, sprintf('Buyer %04d', $position), null);
+
+            $this->assertSame([$ids[$position]], array_column($found['results'], 'id'), "Customer {$position} is found by name");
+            $this->assertFalse($found['more']);
+        }
+
+        $this->assertSame($ids[501], $this->picker->find(AccountPicker::CUSTOMER, AccountPicker::LEDGER, $ids[501], null)['id']);
+    }
+
+    public function testPartyScreen_KeepsTheListOfTheLedgerBelowTheThreshold(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $this->setConfigValue('accounting_picker_threshold', '100000');
+        $this->ledgerCustomer('Ledger', 'Few');
+
+        $this->assertNull($this->picker->partyScreen(AccountPicker::CUSTOMER, null, 'http://x/search', '#box', AccountPicker::LEDGER));
+    }
+
+    public function testPartyScreen_CountsTheCustomersOfTheLedgerAtTheThresholdAsAList(): void
+    {
+        $this->setConfigValue('accounting_enabled', '1');
+        $before = $this->picker->count(AccountPicker::CUSTOMER, AccountPicker::LEDGER, null);
+
+        $this->ledgerCustomer('Ledger', 'Boundary One');
+        $this->ledgerCustomer('Ledger', 'Boundary Two');
+        $this->setConfigValue('accounting_picker_threshold', (string) ($before + 2));
+
+        $this->assertNull($this->picker->partyScreen(AccountPicker::CUSTOMER, null, 'http://x/search', '#box', AccountPicker::LEDGER), 'As many customers as the threshold is still a list');
+
+        $this->ledgerCustomer('Ledger', 'Boundary Three');
+
+        $this->assertNotNull($this->picker->partyScreen(AccountPicker::CUSTOMER, null, 'http://x/search', '#box', AccountPicker::LEDGER), 'One more makes a search box');
+    }
+
+    public function testSearch_OffersACustomerDeletedAfterItsAccountWasOpenedOnlyInTheLedger(): void
+    {
+        $gone = $this->ledgerCustomer('Ledger', 'Departed');
+        $this->accountingDb()->table('customers')->where('person_id', $gone)->update(['deleted' => 1]);
+
+        $this->assertSame([$gone], array_column($this->picker->search(AccountPicker::CUSTOMER, AccountPicker::LEDGER, 'Departed', null)['results'], 'id'), 'The books still hold the sales of a deleted customer');
+        $this->assertSame([], $this->picker->search(AccountPicker::CUSTOMER, AccountPicker::EVERY, 'Departed', null)['results']);
+    }
+
+    public function testSearch_LeavesOutACustomerWithoutAnAccountInTheLedger(): void
+    {
+        $this->insertCustomer('Ledger', 'Unbooked');
+        $booked = $this->ledgerCustomer('Ledger', 'Booked');
+
+        $this->assertSame([$booked], array_column($this->picker->search(AccountPicker::CUSTOMER, AccountPicker::LEDGER, 'Ledger Boo', null)['results'], 'id'));
+        $this->assertSame([], $this->picker->search(AccountPicker::CUSTOMER, AccountPicker::LEDGER, 'Unbooked', null)['results']);
+        $this->assertNotSame([], $this->picker->search(AccountPicker::CUSTOMER, AccountPicker::EVERY, 'Unbooked', null)['results']);
+        $this->assertNull($this->picker->find(AccountPicker::CUSTOMER, AccountPicker::LEDGER, $this->insertCustomer('Ledger', 'Unbooked Too'), null));
+    }
+
+    public function testSearch_OffersNothingOfTheLedgerToSomeoneWhoWorksInNoBranch(): void
+    {
+        $booked = $this->ledgerCustomer('Ledger', 'Branchless');
+
+        $this->assertSame([], $this->picker->search(AccountPicker::CUSTOMER, AccountPicker::LEDGER, 'Branchless', [])['results']);
+        $this->assertNull($this->picker->find(AccountPicker::CUSTOMER, AccountPicker::LEDGER, $booked, []));
+        $this->assertSame([$booked], array_column($this->picker->search(AccountPicker::CUSTOMER, AccountPicker::LEDGER, 'Branchless', [1])['results'], 'id'));
+    }
+
+    public function testAccepts_AllowsTheLedgerForCustomersAndNoOtherKind(): void
+    {
+        $this->assertTrue(AccountPicker::accepts(AccountPicker::CUSTOMER, AccountPicker::LEDGER));
+        $this->assertTrue(AccountPicker::accepts(AccountPicker::CUSTOMER, AccountPicker::EVERY));
+        $this->assertTrue(AccountPicker::accepts(AccountPicker::ACCOUNT, AccountPicker::OPENING));
+        $this->assertFalse(AccountPicker::accepts(AccountPicker::SUPPLIER, AccountPicker::LEDGER));
+        $this->assertFalse(AccountPicker::accepts(AccountPicker::ACCOUNT, AccountPicker::LEDGER));
+        $this->assertFalse(AccountPicker::accepts(AccountPicker::CUSTOMER, 'secret'));
+        $this->assertFalse(AccountPicker::accepts('employee', AccountPicker::EVERY));
     }
 
     public function testThresholdSetting_IsReadByTheSettingsOfTheBooks(): void
