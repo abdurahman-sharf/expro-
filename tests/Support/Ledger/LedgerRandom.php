@@ -12,15 +12,14 @@ use Random\Randomizer;
  */
 final class LedgerRandom
 {
-    private const PRICES = ['0.01', '0.02', '0.05', '0.33', '0.99', '1.00', '1.01', '2.67', '3.33', '9.99', '10.05', '12.50', '19.99', '33.33', '33.34', '49.95', '100.00', '250.75', '999.99', '1000000.01'];
-
+    private const PRICES     = ['0.01', '0.02', '0.05', '0.33', '0.99', '1.00', '1.01', '2.67', '3.33', '9.99', '10.05', '12.50', '19.99', '33.33', '33.34', '49.95', '100.00', '250.75', '999.99', '1000000.01'];
     private const QUANTITIES = ['1', '1', '1', '2', '3', '5', '0.5', '0.125', '1.333', '2.5', '0.001', '7.250', '12', '0.333', '3.333', '10', '100'];
 
     private Randomizer $generator;
 
     public function __construct(int $seed, int $position)
     {
-        $this->generator = new Randomizer(new Mt19937(($seed * 1000003 + $position * 7919) & 0x7fffffff));
+        $this->generator = new Randomizer(new Mt19937(($seed * 1000003 + $position * 7919) & 0x7FFFFFFF));
     }
 
     public function int(int $min, int $max): int

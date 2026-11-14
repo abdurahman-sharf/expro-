@@ -12,10 +12,14 @@ use Config\Database;
  */
 final class LedgerDatabase
 {
-    /** @var array<string, list<array<string, mixed>>> */
+    /**
+     * @var array<string, list<array<string, mixed>>>
+     */
     private static array $pristine = [];
 
-    /** @var array<string, list<string>> */
+    /**
+     * @var array<string, list<string>>
+     */
     private static array $storedColumns = [];
 
     private BaseConnection $db;

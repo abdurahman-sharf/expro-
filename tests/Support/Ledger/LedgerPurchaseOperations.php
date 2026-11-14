@@ -8,7 +8,9 @@ namespace Tests\Support\Ledger;
  */
 trait LedgerPurchaseOperations
 {
-    /** @var array<int, array{supplier: int, type: string, status: string, branch: int, lines: list<array{item: int, location: int, quantity: string, price: string}>, origin: int|null}> */
+    /**
+     * @var array<int, array{supplier: int, type: string, status: string, branch: int, lines: list<array{item: int, location: int, quantity: string, price: string}>, origin: int|null}>
+     */
     private array $purchaseBook = [];
 
     private function resetPurchases(): void

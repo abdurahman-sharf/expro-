@@ -10,8 +10,8 @@ use App\Models\Receiving;
 use App\Models\Sale;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
-use Throwable;
 use Tests\Support\DatabaseFingerprintTrait;
+use Throwable;
 
 /**
  * A seeded, replayable run of mixed operations on the real services. Each operation draws its choices from a
@@ -29,33 +29,37 @@ final class LedgerScenario
     use LedgerBooksOperations;
     use LedgerCurrencyOperations;
 
-    /** @var list<string> Tables a refusal may write to: the notes the books keep of what they refused. */
+    /**
+     * @var list<string> Tables a refusal may write to: the notes the books keep of what they refused.
+     */
     private const REFUSAL_MAY_WRITE = ['accounting_posting_failures', 'accounting_audit_log'];
 
-    /** @var list<string> */
+    /**
+     * @var list<string>
+     */
     public array $log = [];
 
-    /** @var array<string, int> */
+    /**
+     * @var array<string, int>
+     */
     public array $outcomes = [];
 
-    /** @var array<string, int> */
+    /**
+     * @var array<string, int>
+     */
     public array $refusals = [];
 
-    /** @var array<string, array{count: int, example: string}> What the runs met that is a finding of its own and not a failure of the run. */
+    /**
+     * @var array<string, array{count: int, example: string}> What the runs met that is a finding of its own and not a failure of the run.
+     */
     public array $observed = [];
 
     public LedgerWorld $world;
-
     private BaseConnection $db;
-
     private Sale $saleModel;
-
     private Receiving $purchaseModel;
-
-    private int $position = 0;
-
+    private int $position   = 0;
     private string $pending = '';
-
     private bool $persisted = false;
 
     /**
@@ -155,7 +159,7 @@ final class LedgerScenario
                 $this->refusals[$domain->reason] = ($this->refusals[$domain->reason] ?? 0) + 1;
             } else {
                 $outcome   = 'crash';
-                $detail    = $this->pending . ' => ' . get_class($crash) . ': ' . $crash->getMessage() . ' at ' . basename($crash->getFile()) . ':' . $crash->getLine();
+                $detail    = $this->pending . ' => ' . $crash::class . ': ' . $crash->getMessage() . ' at ' . basename($crash->getFile()) . ':' . $crash->getLine();
                 $violation = 'the operation crashed: ' . $detail;
             }
         }
@@ -163,7 +167,7 @@ final class LedgerScenario
         (new LedgerDatabase())->releaseTransactions();
 
         $this->outcomes[$name . ':' . $outcome] = ($this->outcomes[$name . ':' . $outcome] ?? 0) + 1;
-        $this->log[] = sprintf('#%d %s %s %s', $position, $name, $outcome, $detail);
+        $this->log[]                            = sprintf('#%d %s %s %s', $position, $name, $outcome, $detail);
 
         if ($violation === null && $outcome === 'refused' && $this->checkRefusals && ! $this->persisted) {
             $changed = $this->tablesChangedSince($before);
@@ -219,42 +223,42 @@ final class LedgerScenario
         }
 
         return $random->weighted([
-            'sale'               => 30,
-            'sale_payment'       => 8,
-            'sale_return'        => 8,
-            'sale_cancel'        => 5,
-            'purchase'           => 12,
-            'purchase_payment'   => 6,
-            'purchase_return'    => 4,
-            'purchase_cancel'    => 3,
-            'customer_advance'   => 4,
+            'sale'                    => 30,
+            'sale_payment'            => 8,
+            'sale_return'             => 8,
+            'sale_cancel'             => 5,
+            'purchase'                => 12,
+            'purchase_payment'        => 6,
+            'purchase_return'         => 4,
+            'purchase_cancel'         => 3,
+            'customer_advance'        => 4,
             'customer_advance_cancel' => 2,
-            'customer_refund'    => 3,
-            'supplier_advance'   => 3,
+            'customer_refund'         => 3,
+            'supplier_advance'        => 3,
             'supplier_advance_cancel' => 1,
-            'supplier_refund'    => 2,
-            'settle'             => 3,
-            'expense'            => 3,
-            'expense_delete'     => 1,
-            'cashup'             => 1,
-            'voucher'            => 2,
-            'voucher_delete'     => 1,
-            'transfer'           => 3,
-            'transfer_cancel'    => 1,
-            'cheque'             => 6,
-            'sale_deliver'       => 2,
-            'stock_permit'       => 4,
-            'stock_permit_cancel' => 1,
-            'stocktake'          => 2,
-            'manual_journal'     => 3,
-            'journal_reverse'    => 1,
-            'period_close'       => 1,
-            'period_reopen'      => 1,
-            'purchase_edit'      => 3,
-            'sale_payment_edit'  => 4,
-            'purchase_payment_edit' => 3,
-            'foreign_sale'       => $this->world->foreign ? 5 : 0,
-            'foreign_purchase'   => $this->world->foreign ? 3 : 0,
+            'supplier_refund'         => 2,
+            'settle'                  => 3,
+            'expense'                 => 3,
+            'expense_delete'          => 1,
+            'cashup'                  => 1,
+            'voucher'                 => 2,
+            'voucher_delete'          => 1,
+            'transfer'                => 3,
+            'transfer_cancel'         => 1,
+            'cheque'                  => 6,
+            'sale_deliver'            => 2,
+            'stock_permit'            => 4,
+            'stock_permit_cancel'     => 1,
+            'stocktake'               => 2,
+            'manual_journal'          => 3,
+            'journal_reverse'         => 1,
+            'period_close'            => 1,
+            'period_reopen'           => 1,
+            'purchase_edit'           => 3,
+            'sale_payment_edit'       => 4,
+            'purchase_payment_edit'   => 3,
+            'foreign_sale'            => $this->world->foreign ? 5 : 0,
+            'foreign_purchase'        => $this->world->foreign ? 3 : 0,
         ]);
     }
 

@@ -14,7 +14,9 @@ use App\Libraries\Tax_lib;
  */
 trait LedgerSaleOperations
 {
-    /** @var array<int, array{customer: int|null, type: string, total: string, status: string, branch: int, lines: list<array{item: int, location: int, quantity: string}>, origin: int|null, date: string, delivered?: bool}> */
+    /**
+     * @var array<int, array{customer: int|null, type: string, total: string, status: string, branch: int, lines: list<array{item: int, location: int, quantity: string}>, origin: int|null, date: string, delivered?: bool}>
+     */
     private array $saleBook = [];
 
     private function resetSales(): void
@@ -37,7 +39,7 @@ trait LedgerSaleOperations
         $register = $this->openRegister($isInvoice ? 'sale_invoice' : 'sale', $customerId);
 
         foreach ($lines as $line) {
-            $itemId   = (string) $line['item'];
+            $itemId        = (string) $line['item'];
             $discountValue = $line['discount'];
 
             $added = $register->add_item($itemId, $location, $line['quantity'], $discountValue, $line['discount_type'], PRICE_MODE_STANDARD, null, null, $line['price']);
@@ -115,14 +117,14 @@ trait LedgerSaleOperations
         $this->saleOutcome($saleId);
 
         $this->saleBook[$saleId] = [
-            'customer' => $customerId,
-            'type'     => $isInvoice ? 'invoice' : 'pos',
-            'total'    => bcadd($total['total'], '0', 4),
-            'status'   => 'completed',
-            'branch'   => $branchId,
-            'lines'    => array_map(static fn (array $line): array => ['item' => $line['item'], 'location' => $location, 'quantity' => $line['quantity']], $lines),
-            'origin'   => null,
-            'date'     => $date ?? date('Y-m-d'),
+            'customer'  => $customerId,
+            'type'      => $isInvoice ? 'invoice' : 'pos',
+            'total'     => bcadd($total['total'], '0', 4),
+            'status'    => 'completed',
+            'branch'    => $branchId,
+            'lines'     => array_map(static fn (array $line): array => ['item' => $line['item'], 'location' => $location, 'quantity' => $line['quantity']], $lines),
+            'origin'    => null,
+            'date'      => $date ?? date('Y-m-d'),
             'delivered' => $delivered,
         ];
 
@@ -581,7 +583,7 @@ trait LedgerSaleOperations
             $rows[] = sprintf('  tax line %d %s %s%% type %d amount %s', $tax['line'], $tax['name'], $tax['percent'], $tax['tax_type'], $tax['item_tax_amount']);
         }
 
-        $sale = $this->db->table('sales')->where('sale_id', $saleId)->get()->getRowArray();
+        $sale   = $this->db->table('sales')->where('sale_id', $saleId)->get()->getRowArray();
         $rows[] = sprintf('  sale type %s status %s origin %s document %s invoice_discount %s/%s', $sale['sale_type'], $sale['sale_status'], $sale['return_of_sale_id'] ?? 'null', $sale['return_document'] ?? 'null', $sale['invoice_discount_type'] ?? 'null', $sale['invoice_discount'] ?? 'null');
 
         foreach ($this->db->query(

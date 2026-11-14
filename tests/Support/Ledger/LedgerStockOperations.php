@@ -11,10 +11,14 @@ use App\Libraries\Stock\Stocktake;
  */
 trait LedgerStockOperations
 {
-    /** @var array<int, string> */
+    /**
+     * @var array<int, string>
+     */
     private array $permitBook = [];
 
-    /** @var array<int, string> */
+    /**
+     * @var array<int, string>
+     */
     private array $stocktakeBook = [];
 
     private function resetStock(): void
@@ -143,7 +147,7 @@ trait LedgerStockOperations
         $stocktakeId = $takes->create(['location_id' => $location, 'date' => date('Y-m-d'), 'item_ids' => $items], $this->world->boss);
 
         $this->persisted();
-        $counted     = [];
+        $counted = [];
 
         foreach ($items as $itemId) {
             $delta = $random->weighted(['same' => 30, 'less' => 35, 'more' => 35]);

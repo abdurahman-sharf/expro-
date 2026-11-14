@@ -4,15 +4,15 @@ namespace Tests\Support\Ledger;
 
 use App\Libraries\Accounting\BalanceSheet;
 use App\Libraries\Accounting\CustomerLedger;
+use App\Libraries\Accounting\ProfitAndLoss;
 use App\Libraries\Accounting\Readiness\CheckGroup;
 use App\Libraries\Accounting\Readiness\CheckStatus;
 use App\Libraries\Accounting\Readiness\LedgerChecks;
 use App\Libraries\Accounting\Readiness\PurchaseCycleChecks;
 use App\Libraries\Accounting\Readiness\StockTrackingChecks;
 use App\Libraries\Accounting\Readiness\TieChecks;
-use App\Libraries\Accounting\ReportPeriod;
-use App\Libraries\Accounting\ProfitAndLoss;
 use App\Libraries\Accounting\ReceivingPosting;
+use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\SalePosting;
 use App\Libraries\Accounting\StockLedger;
@@ -32,18 +32,19 @@ final class LedgerInvariants
 {
     private const TOLERANCE = '0.00005';
 
-    /** @var array<string, int> How many times each invariant was asked. */
+    /**
+     * @var array<string, int> How many times each invariant was asked.
+     */
     public array $asked = [];
 
-    /** @var array<string, array{count: int, example: string}> */
+    /**
+     * @var array<string, array{count: int, example: string}>
+     */
     public array $observed = [];
 
     private BaseConnection $db;
-
     private string $journals;
-
     private string $lines;
-
     private string $accounts;
 
     public function __construct()
@@ -62,22 +63,22 @@ final class LedgerInvariants
         $problems = [];
 
         foreach ([
-            'journals_balance'            => fn (): array => $this->journalsBalance(),
-            'lines_wellformed'            => fn (): array => $this->linesWellFormed(),
-            'accounts_and_periods'        => fn (): array => $this->accountsAndFiscalYears(),
-            'no_drafts'                   => fn (): array => $this->noPreviewsOrDrafts(),
-            'source_keys_unique'          => fn (): array => $this->sourceKeysUnique(),
-            'reversal_pairs'              => fn (): array => $this->reversalPairs(),
-            'trial_balance_zero'          => fn (): array => $this->trialBalanceIsZero(),
-            'reports_balance'             => fn (): array => $this->reportsBalance(),
-            'documents_have_journals'     => fn (): array => $this->documentsHaveJournals(),
-            'sale_totals'                 => fn (): array => $this->saleTotalsMatchJournals(),
-            'purchase_totals'             => fn (): array => $this->purchaseTotalsMatchJournals(),
-            'sale_payments'               => fn (): array => $this->salePaymentsMatchJournals(),
-            'credit_applications'         => fn (): array => $this->creditApplicationsWithinSources(),
-            'stock_quantities'            => fn (): array => $this->stockQuantitiesMatchMovements(),
-            'stock_value'                 => fn (): array => $this->stockValueMatchesInventoryAccounts(),
-            'tax_accounts'                => fn (): array => $this->taxAccountsMatchTaxRows(),
+            'journals_balance'        => fn (): array => $this->journalsBalance(),
+            'lines_wellformed'        => fn (): array => $this->linesWellFormed(),
+            'accounts_and_periods'    => fn (): array => $this->accountsAndFiscalYears(),
+            'no_drafts'               => fn (): array => $this->noPreviewsOrDrafts(),
+            'source_keys_unique'      => fn (): array => $this->sourceKeysUnique(),
+            'reversal_pairs'          => fn (): array => $this->reversalPairs(),
+            'trial_balance_zero'      => fn (): array => $this->trialBalanceIsZero(),
+            'reports_balance'         => fn (): array => $this->reportsBalance(),
+            'documents_have_journals' => fn (): array => $this->documentsHaveJournals(),
+            'sale_totals'             => fn (): array => $this->saleTotalsMatchJournals(),
+            'purchase_totals'         => fn (): array => $this->purchaseTotalsMatchJournals(),
+            'sale_payments'           => fn (): array => $this->salePaymentsMatchJournals(),
+            'credit_applications'     => fn (): array => $this->creditApplicationsWithinSources(),
+            'stock_quantities'        => fn (): array => $this->stockQuantitiesMatchMovements(),
+            'stock_value'             => fn (): array => $this->stockValueMatchesInventoryAccounts(),
+            'tax_accounts'            => fn (): array => $this->taxAccountsMatchTaxRows(),
         ] as $name => $check) {
             $this->asked[$name] = ($this->asked[$name] ?? 0) + 1;
 
@@ -430,7 +431,7 @@ final class LedgerInvariants
              FROM {$receivings} r WHERE r.receiving_type IN ('receive', 'return')",
         )->getResultArray();
 
-        return array_map(fn (array $row): array => [
+        return array_map(static fn (array $row): array => [
             'receiving_id' => (int) $row['receiving_id'],
             'type'         => (string) $row['receiving_type'],
             'lines'        => (int) $row['line_count'],
@@ -486,7 +487,7 @@ final class LedgerInvariants
              FROM {$sales} s WHERE s.sale_status = 0 AND s.sale_type IN (0, 1, 4)" . ($saleId === null ? '' : ' AND s.sale_id = ' . $saleId),
         )->getResultArray();
 
-        return array_map(fn (array $row): array => [
+        return array_map(static fn (array $row): array => [
             'sale_id'     => (int) $row['sale_id'],
             'sale_type'   => (int) $row['sale_type'],
             'lines'       => (int) $row['line_count'],

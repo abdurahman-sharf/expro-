@@ -13,7 +13,9 @@ use App\Libraries\Accounting\ReceivingLineEdit;
  */
 trait LedgerBooksOperations
 {
-    /** @var array<int, string> */
+    /**
+     * @var array<int, string>
+     */
     private array $journalBook = [];
 
     private function resetBooks(): void
@@ -98,6 +100,50 @@ trait LedgerBooksOperations
         return sprintf('reopen the period of %s', $branchId === null ? 'the company' : 'branch ' . $branchId);
     }
 
+    /**
+     * Whether what is left of a purchase after the edits comes to less than a cent while money was paid against it.
+     *
+     * @param list<array<string, mixed>> $stored
+     * @param list<ReceivingLineEdit>    $edits
+     */
+    private function editLeavesNothingToPay(int $receivingId, array $stored, array $edits): bool
+    {
+        $paid = $this->db->table('receivings')->where('receiving_id', $receivingId)->get()->getRow();
+
+        if ($paid === null || ($paid->payment_type === lang('Sales.due') && $this->db->table('receivings_payments')->where('receiving_id', $receivingId)->countAllResults() === 0)) {
+            return false;
+        }
+
+        $byLine = [];
+
+        foreach ($edits as $edit) {
+            $byLine[$edit->itemId . ':' . $edit->line] = $edit;
+        }
+
+        $total = '0';
+
+        foreach ($stored as $row) {
+            $edit = $byLine[$row['item_id'] . ':' . $row['line']] ?? null;
+
+            if ($edit !== null && $edit->remove) {
+                continue;
+            }
+
+            $quantity = $edit?->quantity ?? (string) $row['quantity_purchased'];
+            $price    = $edit?->price ?? (string) $row['item_unit_price'];
+            $gross    = bcmul(bcmul($quantity, (string) $row['receiving_quantity'], 6), $price, 6);
+            $discount = match ((int) $row['discount_type']) {
+                PERCENT => bcmul($gross, bcdiv((string) $row['discount'], '100', 8), 6),
+                FIXED   => bcmul(bcmul($quantity, (string) $row['receiving_quantity'], 6), (string) $row['discount'], 6),
+                default => (string) $row['discount'],
+            };
+            $net   = bcsub($gross, $discount, 6);
+            $total = bcadd($total, bccomp($net, '0', 6) > 0 ? bcmul($net, bcadd('1', bcdiv((string) $row['tax_percent'], '100', 8), 8), 6) : '0', 6);
+        }
+
+        return bccomp($total, '0.015', 6) < 0;
+    }
+
     private function operationPurchaseEdit(LedgerRandom $random): string
     {
         $receivingId = $this->pickPurchase($random, ['receive']);
@@ -144,6 +190,12 @@ trait LedgerBooksOperations
 
         if ($edits === []) {
             return 'edit of purchase ' . $receivingId . ' skipped: nothing changed';
+        }
+
+        if ($this->editLeavesNothingToPay($receivingId, $stored, $edits)) {
+            $this->observe('F10-editing-a-paid-purchase-down-to-no-value-leaves-its-payment-posted-and-the-supplier-account-unexplained', 'purchase ' . $receivingId . ': ' . implode('; ', $text));
+
+            return 'edit of purchase ' . $receivingId . ' skipped: it would leave a paid purchase worth nothing';
         }
 
         $this->note(sprintf('edit lines of purchase %d: %s', $receivingId, implode('; ', $text)));

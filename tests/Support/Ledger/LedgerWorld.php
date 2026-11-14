@@ -6,7 +6,6 @@ use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\ChequeBooks;
 use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerOpening;
-use App\Libraries\Accounting\DefaultChart;
 use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\TreasuryService;
@@ -34,37 +33,43 @@ final class LedgerWorld
     ];
 
     public int $boss;
-
     public int $clerk;
 
-    /** @var list<int> */
+    /**
+     * @var list<int>
+     */
     public array $branches = [1];
 
-    /** @var array<int, int> The branch of each stock location. */
+    /**
+     * @var array<int, int> The branch of each stock location.
+     */
     public array $locations = [1 => 1];
 
-    /** @var array<int, array{taxable: bool, limit: string, opening: string|null}> */
+    /**
+     * @var array<int, array{taxable: bool, limit: string, opening: string|null}>
+     */
     public array $customers = [];
 
-    /** @var array<int, array{opening: string|null}> */
+    /**
+     * @var array<int, array{opening: string|null}>
+     */
     public array $suppliers = [];
 
-    /** @var array<int, array{stock: bool, price: string, cost: string, taxes: string}> */
+    /**
+     * @var array<int, array{stock: bool, price: string, cost: string, taxes: string}>
+     */
     public array $items = [];
 
-    /** @var array<int, int> The branch of each treasury. */
+    /**
+     * @var array<int, int> The branch of each treasury.
+     */
     public array $treasuries = [];
 
-    public int $bankTreasury = 0;
-
-    public int $chequeBook = 0;
-
+    public int $bankTreasury    = 0;
+    public int $chequeBook      = 0;
     public int $expenseCategory = 0;
-
-    public int $revenueAccount = 0;
-
-    public bool $foreign = false;
-
+    public int $revenueAccount  = 0;
+    public bool $foreign        = false;
     private BaseConnection $db;
 
     public function __construct(private readonly int $seed)

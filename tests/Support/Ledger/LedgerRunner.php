@@ -9,7 +9,6 @@ namespace Tests\Support\Ledger;
 final class LedgerRunner
 {
     public LedgerScenario $scenario;
-
     public LedgerInvariants $invariants;
 
     /**
@@ -82,7 +81,7 @@ final class LedgerRunner
                 if ($text !== null && self::signature($text) === $signature) {
                     $keep    = $left;
                     $reduced = true;
-                    $start  -= $size;
+                    $start -= $size;
                 }
             }
 

@@ -10,7 +10,9 @@ use RuntimeException;
  */
 final class LedgerRefusal extends RuntimeException
 {
-    /** @var list<string> The codes that mean a journal or an entity was malformed, not that a rule said no. */
+    /**
+     * @var list<string> The codes that mean a journal or an entity was malformed, not that a rule said no.
+     */
     private const INTERNAL = [
         'too_few_lines', 'invalid_amount', 'line_on_both_sides', 'line_without_amount', 'unbalanced', 'invalid_source',
         'entity_account_missing', 'account_not_found', 'account_not_postable', 'party_account_mismatch', 'routing_account_unusable',

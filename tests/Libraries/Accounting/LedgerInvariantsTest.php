@@ -15,8 +15,10 @@ use Tests\Support\Ledger\LedgerScenario;
  * batch and at the end. LEDGER_PROFILE picks the size: quick (3 seeds of 80 operations, the default), full
  * (20 of 300) or long (one run of 3000). LEDGER_SEED and LEDGER_OPS replay one run, and LEDGER_SKIP lists
  * positions to leave out of the replay.
+ *
+ * @internal
  */
-class LedgerInvariantsTest extends CIUnitTestCase
+final class LedgerInvariantsTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
 
@@ -25,8 +27,7 @@ class LedgerInvariantsTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = false;
-    protected $namespace   = null;
-
+    protected $namespace;
     private int $bcScale;
 
     public static function setUpBeforeClass(): void
@@ -60,34 +61,8 @@ class LedgerInvariantsTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    /**
-     * @return array<string, array{int, int}>
-     */
-    public static function runs(): array
-    {
-        $seed = getenv('LEDGER_SEED');
-
-        if ($seed !== false && $seed !== '') {
-            return ['seed ' . $seed => [(int) $seed, (int) (getenv('LEDGER_OPS') ?: 300)]];
-        }
-
-        [$count, $operations, $first] = match (getenv('LEDGER_PROFILE') ?: 'quick') {
-            'full'  => [20, 300, (int) (getenv('LEDGER_FIRST') ?: 1)],
-            'long'  => [1, 3000, (int) (getenv('LEDGER_FIRST') ?: 9001)],
-            default => [3, 80, 1],
-        };
-
-        $runs = [];
-
-        for ($index = 0; $index < $count; $index++) {
-            $runs['seed ' . ($first + $index)] = [$first + $index, $operations];
-        }
-
-        return $runs;
-    }
-
-    #[DataProvider('runs')]
-    public function testRun_KeepsEveryInvariantAcrossMixedOperations(int $seed, int $operations): void
+    #[DataProvider('provideRun_KeepsEveryInvariantAcrossMixedOperations')]
+    public function testRunKeepsEveryInvariantAcrossMixedOperations(int $seed, int $operations): void
     {
         $listed = trim((string) getenv('LEDGER_SKIP'));
         $skip   = $listed === '' ? [] : array_map('intval', explode(',', $listed));
@@ -111,6 +86,32 @@ class LedgerInvariantsTest extends CIUnitTestCase
         fwrite(STDERR, sprintf("seed %d: %d operations, invariants asked %s, outcomes %s, refusals %s, observed %s\n", $seed, $operations, json_encode($runner->invariants->asked), json_encode($runner->scenario->outcomes), json_encode($runner->scenario->refusals), json_encode($runner->scenario->observed)));
 
         $this->assertCount($operations, $runner->scenario->log);
+    }
+
+    /**
+     * @return array<string, array{int, int}>
+     */
+    public static function provideRun_KeepsEveryInvariantAcrossMixedOperations(): iterable
+    {
+        $seed = getenv('LEDGER_SEED');
+
+        if ($seed !== false && $seed !== '') {
+            return ['seed ' . $seed => [(int) $seed, (int) (getenv('LEDGER_OPS') ?: 300)]];
+        }
+
+        [$count, $operations, $first] = match (getenv('LEDGER_PROFILE') ?: 'quick') {
+            'full'  => [20, 300, (int) (getenv('LEDGER_FIRST') ?: 1)],
+            'long'  => [1, 3000, (int) (getenv('LEDGER_FIRST') ?: 9001)],
+            default => [3, 80, 1],
+        };
+
+        $runs = [];
+
+        for ($index = 0; $index < $count; $index++) {
+            $runs['seed ' . ($first + $index)] = [$first + $index, $operations];
+        }
+
+        return $runs;
     }
 
     private function writeLog(int $seed, LedgerScenario $scenario): void

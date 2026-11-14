@@ -19,25 +19,39 @@ use App\Models\Expense;
  */
 trait LedgerMoneyOperations
 {
-    /** @var array<int, array{customer: int, status: string}> */
+    /**
+     * @var array<int, array{customer: int, status: string}>
+     */
     private array $advanceBook = [];
 
-    /** @var array<int, array{supplier: int, status: string}> */
+    /**
+     * @var array<int, array{supplier: int, status: string}>
+     */
     private array $supplierAdvanceBook = [];
 
-    /** @var array<int, array{party: string, status: string}> */
+    /**
+     * @var array<int, array{party: string, status: string}>
+     */
     private array $refundBook = [];
 
-    /** @var array<int, string> */
+    /**
+     * @var array<int, string>
+     */
     private array $expenseBook = [];
 
-    /** @var array<int, string> */
+    /**
+     * @var array<int, string>
+     */
     private array $voucherBook = [];
 
-    /** @var array<int, string> */
+    /**
+     * @var array<int, string>
+     */
     private array $transferBook = [];
 
-    /** @var array<int, array{status: string, direction: string}> */
+    /**
+     * @var array<int, array{status: string, direction: string}>
+     */
     private array $chequeBook = [];
 
     private function resetMoney(): void
@@ -429,7 +443,7 @@ trait LedgerMoneyOperations
         $cheque   = $service->find($chequeId);
         $actions  = $service->actionsOf($cheque);
 
-        $action   = $random->pick($actions);
+        $action = $random->pick($actions);
 
         $this->note(sprintf('cheque %d (%s) action %s', $chequeId, $cheque->status, $action));
 
