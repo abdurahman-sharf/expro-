@@ -75,7 +75,7 @@ final class Wave3ChecksTest extends CIUnitTestCase
         $db->query('SET FOREIGN_KEY_CHECKS = 0');
         $db->table('supplier_credit_applications')->truncate();
         $db->table('supplier_advances')->truncate();
-        $db->table('receivings')->where('receiving_type', SupplierAdvances::OPENING_TYPE)->delete();
+        $db->table('receivings')->where('employee_id', $this->clerk)->delete();
         $db->query('SET FOREIGN_KEY_CHECKS = 1');
 
         $this->stopBuying();
@@ -175,7 +175,8 @@ final class Wave3ChecksTest extends CIUnitTestCase
     public function testSupplierOpening_PassesForOpeningBalancesDatedUpToToday(): void
     {
         $this->advances->openingBalance($this->supplierId, SupplierAdvances::WE_OWE, '1000.00', date('Y-m-d'), '', $this->clerk);
-        $this->advances->openingBalance($this->supplierId, SupplierAdvances::THEY_OWE, '250.00', '2026-01-01', '', $this->clerk);
+        $this->advances->openingBalance($this->supplierId, SupplierAdvances::THEY_OWE, '250.00', date('Y-m-d'), '', $this->clerk);
+        $this->advances->openingBalance($this->supplierId, SupplierAdvances::THEY_OWE, '75.00', '2026-01-01', '', $this->clerk);
 
         $result = $this->check('supplier_opening_dates');
 
@@ -224,6 +225,20 @@ final class Wave3ChecksTest extends CIUnitTestCase
         $this->assertSame(CheckStatus::Pass, $this->check('supplier_opening_dates')->status);
     }
 
+    public function testSupplierOpening_LeavesAPurchaseDatedAfterTodayAloneWhenItIsNotAnOpeningBalance(): void
+    {
+        $this->accountingDb()->table('receivings')->insert([
+            'receiving_time' => $this->tomorrow() . ' 00:00:00',
+            'supplier_id'    => $this->supplierId,
+            'employee_id'    => $this->clerk,
+            'comment'        => '',
+            'receiving_type' => 'receive',
+            'branch_id'      => 1,
+        ]);
+
+        $this->assertSame(CheckStatus::Pass, $this->check('supplier_opening_dates')->status);
+    }
+
     public function testSupplierOpening_IsSkippedBeforeTheMigrationOfTheSupplierAdvances(): void
     {
         $this->accountingDb()->query('RENAME TABLE ospos_supplier_advances TO ospos_supplier_advances_hold');
@@ -231,7 +246,7 @@ final class Wave3ChecksTest extends CIUnitTestCase
         $result = $this->check('supplier_opening_dates');
 
         $this->assertSame(CheckStatus::Skipped, $result->status);
-        $this->assertContains('supplier_advances.kind', $result->data['missing']);
+        $this->assertSame(['supplier_advances.kind', 'supplier_advances.advance_date'], $result->data['missing']);
     }
 
     public function testRun_ChangesNoRow(): void

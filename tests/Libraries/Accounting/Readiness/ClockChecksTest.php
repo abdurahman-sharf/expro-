@@ -5,6 +5,8 @@ namespace Tests\Libraries\Accounting\Readiness;
 use App\Libraries\Accounting\Readiness\CheckResult;
 use App\Libraries\Accounting\Readiness\CheckStatus;
 use App\Libraries\Accounting\Readiness\ClockChecks;
+use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -201,7 +203,22 @@ final class ClockChecksTest extends CIUnitTestCase
 
         $this->assertSame(CheckStatus::Review, $result->status);
         $this->assertSame(330, $result->data['difference_minutes']);
+        $this->assertSame('+05:30', $result->data['database_offset']);
         $this->assertStringContainsString('differ by 5.5 hour(s)', $result->summary);
+    }
+
+    public function testRun_WritesAnOffsetWestOfGreenwichWithItsSign(): void
+    {
+        $this->databaseWorksAt('-05:00');
+        $this->shopWorksIn('UTC');
+        date_default_timezone_set('UTC');
+
+        $result = $this->check();
+
+        $this->assertSame(CheckStatus::Review, $result->status);
+        $this->assertSame('-05:00', $result->data['database_offset']);
+        $this->assertSame(-300, $result->data['difference_minutes']);
+        $this->assertStringContainsString('The database stamps times in -05:00', $result->findings[0]);
     }
 
     public function testRun_FailsWhenTheDatabaseIsAheadAndAPaymentIsStampedOnADayThatHasNotCome(): void
@@ -356,6 +373,38 @@ final class ClockChecksTest extends CIUnitTestCase
         $this->assertSame('UTC', $result->data['shop_zone']);
         $this->assertSame('Mars/Olympus', $result->data['shop_zone_setting']);
         $this->assertFalse($result->data['shop_zone_from_settings']);
+    }
+
+    public function testRun_ReadsASettingWrittenWithSpacesAround(): void
+    {
+        $this->databaseWorksAt($this->offsetOf('Asia/Riyadh'));
+        $this->shopWorksIn('  Asia/Riyadh ');
+        date_default_timezone_set('Asia/Riyadh');
+
+        $result = $this->check();
+
+        $this->assertSame(CheckStatus::Pass, $result->status);
+        $this->assertSame('Asia/Riyadh', $result->data['shop_zone_setting']);
+        $this->assertTrue($result->data['shop_zone_from_settings']);
+    }
+
+    public function testRun_IsSkippedWhenTheDatabaseDoesNotReportTheOffsetOfItsClock(): void
+    {
+        $connection = $this->createMock(BaseConnection::class);
+        $connection->method('tableExists')->willReturn(true);
+        $connection->method('prefixTable')->willReturnArgument(0);
+        $connection->method('query')->willReturnCallback(function (string $sql): ResultInterface {
+            $result = $this->createMock(ResultInterface::class);
+            $result->method('getNumRows')->willReturn(1);
+            $result->method('getRow')->willReturn((object) ['session_zone' => 'SYSTEM', 'global_zone' => 'SYSTEM', 'system_zone' => 'UTC', 'offset_seconds' => null]);
+
+            return $result;
+        });
+
+        $result = (new ClockChecks($connection))->run()[0];
+
+        $this->assertSame(CheckStatus::Skipped, $result->status);
+        $this->assertStringContainsString('the database did not report the time zone of its clock', $result->summary);
     }
 
     public function testRun_IsSkippedBeforeThePaymentsExist(): void
