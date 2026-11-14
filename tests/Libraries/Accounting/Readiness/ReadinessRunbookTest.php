@@ -141,6 +141,64 @@ class ReadinessRunbookTest extends CIUnitTestCase
         $this->assertStringContainsString('TIE-SUPPLIERS and TIE-CUSTOMERS', $notes);
     }
 
+    public function testSteps_RehearsesWithAReportTakenOnTheRestoredCopyAndSaysNoRehearsalIsRecorded(): void
+    {
+        $step = ReadinessRunbook::steps([])[0];
+
+        $this->assertSame('mysql -u USER -p SCRATCH < backup-before-release.sql', $step['commands'][1]);
+        $this->assertSame('MYSQL_DB_NAME=SCRATCH php spark accounting:readiness --json --no-header > readiness-rehearsal.json', $step['commands'][2]);
+        $this->assertStringContainsString('nothing in this repository records that a restore was ever rehearsed', implode("\n", $step['notes']));
+    }
+
+    public function testSteps_AsksForTheClockOfTheDatabaseBeforeTheMigrationsAndNamesTheZoneOfTheCommandLine(): void
+    {
+        $step  = ReadinessRunbook::steps([])[1];
+        $notes = implode("\n", $step['notes']);
+
+        $this->assertStringContainsString('@@session.time_zone', implode("\n", $step['commands']));
+        $this->assertStringContainsString('W93-CLOCK: the clock of the database and the clock of the shop must name the same day', $notes);
+        $this->assertStringContainsString('sales_payments.payment_time', $notes);
+        $this->assertStringContainsString('default-time-zone', $notes);
+        $this->assertStringContainsString('only accounting:generate_recurring and accounting:depreciate apply the zone of the shop', $notes);
+        $this->assertStringContainsString('app.appTimezone', $notes);
+    }
+
+    public function testSteps_ComparesTheTwoReportsWithTheComparisonCommandRightAfterTheSecondOne(): void
+    {
+        $commands = ReadinessRunbook::steps([])[4]['commands'];
+        $notes    = implode("\n", ReadinessRunbook::steps([])[4]['notes']);
+        $after    = array_search('php spark accounting:readiness --json --no-header > readiness-after.json', $commands, true);
+
+        $this->assertNotFalse($after);
+        $this->assertSame('php spark accounting:readiness_compare readiness-before.json readiness-after.json', $commands[$after + 1]);
+        $this->assertStringContainsString('exits 0 when nothing is flagged, 1 when something is and 7 for a file it cannot read', $notes);
+        $this->assertStringContainsString('data.aging_totals', $notes);
+    }
+
+    public function testSteps_NamesTheCronLinesAndWhatTheReportDoesNotCheck(): void
+    {
+        $notes = implode("\n", ReadinessRunbook::steps([])[6]['notes']);
+
+        $this->assertStringContainsString('accounting:generate_recurring once a day at least', $notes);
+        $this->assertStringContainsString('accounting:depreciate is run from cron only as the preview', $notes);
+        $this->assertStringContainsString('accounting:ai_scan and accounting:ai_propose are left unscheduled until the owner switches the agent on', $notes);
+        $this->assertStringContainsString('The report has no check for fixed assets, e-invoicing, the AI agent, the customer portal or API keys', $notes);
+    }
+
+    public function testSteps_SaysNoRunOnOlderEnginesIsRecorded(): void
+    {
+        $this->assertStringContainsString('No run of these migrations on MySQL 5.7 or MariaDB 10.5 is recorded', implode("\n", ReadinessRunbook::steps([])[3]['notes']));
+    }
+
+    public function testSteps_AgreeWithTheRunbookDocumentOnTheClockTheRehearsalTheComparisonAndTheCron(): void
+    {
+        $document = (string) file_get_contents(ROOTPATH . 'docs/accounting/readiness-runbook.md');
+
+        foreach (['W93-CLOCK', 'app.appTimezone', 'default-time-zone', 'sales_payments.payment_time', 'MYSQL_DB_NAME', 'readiness-rehearsal.json', 'accounting:readiness_compare', 'data.aging_totals', 'accounting:depreciate', 'accounting:ai_scan', 'MySQL 5.7'] as $token) {
+            $this->assertStringContainsString($token, $document, "The runbook document says nothing of {$token}, which the printed runbook does.");
+        }
+    }
+
     /**
      * @param list<string> $commands
      */
