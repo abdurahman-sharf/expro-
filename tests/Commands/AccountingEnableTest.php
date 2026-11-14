@@ -88,6 +88,15 @@ class AccountingEnableTest extends CIUnitTestCase
         $this->assertTrue((new AccountingSettings())->isEnabled());
     }
 
+    public function testRun_AcceptsTheEqualsFormOfTheOptions(): void
+    {
+        $output = $this->runEnable('--currency=SAR --start-date=2026-07-01 --fiscal-year-end=2027-06-30');
+
+        $this->assertStringContainsString('Accounting is enabled', $output);
+        $this->assertTrue((new AccountingSettings())->isEnabled());
+        $this->assertSame('2027-06-30', $this->accountingDb()->table('accounting_fiscal_years')->get()->getRow()->end_date);
+    }
+
     public function testRun_RejectsAMalformedCurrencyAndStartDate(): void
     {
         $this->assertStringContainsString('three capital letters', $this->runEnable('--currency sar'));
