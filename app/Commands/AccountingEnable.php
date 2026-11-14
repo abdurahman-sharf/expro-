@@ -17,7 +17,7 @@ class AccountingEnable extends BaseCommand
 {
     protected $group       = 'Accounting';
     protected $name        = 'accounting:enable';
-    protected $usage       = 'accounting:enable [--currency=SAR] [--start-date=YYYY-MM-DD] [--fiscal-year-end=YYYY-MM-DD]';
+    protected $usage       = 'accounting:enable [--currency SAR] [--start-date YYYY-MM-DD] [--fiscal-year-end YYYY-MM-DD]';
     protected $description = 'Sets the base currency and start date, creates the first fiscal year when none exists, and enables accounting once its settings are complete.';
     protected $options     = [
         '--currency'        => 'Three-letter base currency code.',

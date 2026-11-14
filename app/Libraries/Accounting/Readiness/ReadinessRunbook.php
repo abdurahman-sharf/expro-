@@ -104,7 +104,7 @@ final class ReadinessRunbook
                 'title'    => 'Turn accounting on only when the owner orders it (E26)',
                 'commands' => [
                     'php spark accounting:fill_accounts',
-                    'php spark accounting:enable --currency=SAR --start-date=YYYY-MM-DD --fiscal-year-end=YYYY-MM-DD',
+                    'php spark accounting:enable --currency SAR --start-date YYYY-MM-DD --fiscal-year-end YYYY-MM-DD',
                 ],
                 'notes' => [
                     'Accounting stays disabled on a real business until then. After enabling, the opening stock is posted from the opening balances screen, one location at a time (E26).',
