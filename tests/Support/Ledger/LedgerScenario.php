@@ -1,0 +1,397 @@
+<?php
+
+namespace Tests\Support\Ledger;
+
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Documents\DocumentException;
+use App\Libraries\Organization\BranchException;
+use App\Models\Receiving;
+use App\Models\Sale;
+use CodeIgniter\Database\BaseConnection;
+use Config\Database;
+use Tests\Support\DatabaseFingerprintTrait;
+use Throwable;
+
+/**
+ * A seeded, replayable run of mixed operations on the real services. Each operation draws its choices from a
+ * generator seeded by the seed and its position, runs through the entry point a screen would use, and is
+ * logged. A refusal must leave the books byte-identical; anything else that goes wrong is a violation, and the
+ * log up to it is what a replay needs.
+ */
+final class LedgerScenario
+{
+    use DatabaseFingerprintTrait;
+    use LedgerSaleOperations;
+    use LedgerPurchaseOperations;
+    use LedgerMoneyOperations;
+    use LedgerStockOperations;
+    use LedgerBooksOperations;
+    use LedgerCurrencyOperations;
+
+    /**
+     * @var list<string> Tables a refusal may write to: the notes the books keep of what they refused.
+     */
+    private const REFUSAL_MAY_WRITE = ['accounting_posting_failures', 'accounting_audit_log'];
+
+    /**
+     * @var list<string>
+     */
+    public array $log = [];
+
+    /**
+     * @var array<string, int>
+     */
+    public array $outcomes = [];
+
+    /**
+     * @var array<string, int>
+     */
+    public array $refusals = [];
+
+    /**
+     * @var array<string, array{count: int, example: string}> What the runs met that is a finding of its own and not a failure of the run.
+     */
+    public array $observed = [];
+
+    public LedgerWorld $world;
+    private BaseConnection $db;
+    private Sale $saleModel;
+    private Receiving $purchaseModel;
+    private int $position   = 0;
+    private string $pending = '';
+    private bool $persisted = false;
+
+    /**
+     * @param list<int> $skip Positions left out of the run, to shrink a failing replay.
+     */
+    public function __construct(public readonly int $seed, private readonly array $skip = [], private readonly bool $checkRefusals = true)
+    {
+        $this->db = Database::connect();
+    }
+
+    public function prepare(): void
+    {
+        $store = new LedgerDatabase();
+        $store->remember();
+        $store->restore();
+
+        $this->log      = [];
+        $this->outcomes = [];
+        $this->refusals = [];
+        $this->observed = [];
+        $this->position = 0;
+        $this->resetSales();
+        $this->resetPurchases();
+        $this->resetMoney();
+        $this->resetStock();
+        $this->resetBooks();
+
+        $this->world = new LedgerWorld($this->seed);
+        $this->world->build();
+
+        $this->saleModel     = model(Sale::class);
+        $this->purchaseModel = model(Receiving::class);
+    }
+
+    public function position(): int
+    {
+        return $this->position;
+    }
+
+    public function run(int $operations): void
+    {
+        $end = $this->position + $operations;
+
+        while ($this->position < $end) {
+            $this->step($this->position);
+            $this->position++;
+        }
+    }
+
+    public function step(int $position): void
+    {
+        $random = new LedgerRandom($this->seed, $position);
+        $name   = $this->choose($random, $position);
+
+        if (in_array($position, $this->skip, true)) {
+            $this->log[] = sprintf('#%d %s skipped', $position, $name);
+
+            return;
+        }
+
+        $this->pending   = '';
+        $this->persisted = false;
+
+        $before    = $this->checkRefusals ? $this->databaseFingerprint() : [];
+        $accounts  = $this->checkRefusals ? $this->rowsOf('accounting_accounts', 'account_id') : [];
+        $lastId    = $this->lastJournalId();
+        $outcome   = 'ok';
+        $detail    = '';
+        $violation = null;
+
+        try {
+            $detail = $this->{'operation' . str_replace('_', '', ucwords($name, '_'))}($random);
+        } catch (LedgerRefusal $refusal) {
+            $outcome = 'refused';
+            $detail  = $this->pending . ' => ' . $refusal->getMessage();
+
+            if ($refusal->isInternal() && ! $this->isKnownRefusal($name, $refusal, $detail)) {
+                $violation = 'the books refused a normal operation with an internal code (' . $refusal->getMessage() . ')';
+            }
+
+            $this->refusals[$refusal->reason] = ($this->refusals[$refusal->reason] ?? 0) + 1;
+        } catch (LedgerViolation $found) {
+            $outcome   = 'violation';
+            $detail    = $this->pending . ' => ' . $found->getMessage();
+            $violation = $found->getMessage();
+        } catch (Throwable $crash) {
+            $domain = $this->refusalOf($crash);
+
+            if ($domain !== null) {
+                $outcome = 'refused';
+                $detail  = $this->pending . ' => ' . $domain->getMessage();
+
+                if ($domain->isInternal() && ! $this->isKnownRefusal($name, $domain, $detail)) {
+                    $violation = 'the books refused a normal operation with an internal code (' . $domain->getMessage() . ')';
+                }
+
+                $this->refusals[$domain->reason] = ($this->refusals[$domain->reason] ?? 0) + 1;
+            } else {
+                $outcome   = 'crash';
+                $detail    = $this->pending . ' => ' . $crash::class . ': ' . $crash->getMessage() . ' at ' . basename($crash->getFile()) . ':' . $crash->getLine();
+                $violation = 'the operation crashed: ' . $detail;
+            }
+        }
+
+        (new LedgerDatabase())->releaseTransactions();
+
+        $this->outcomes[$name . ':' . $outcome] = ($this->outcomes[$name . ':' . $outcome] ?? 0) + 1;
+        $this->log[]                            = sprintf('#%d %s %s %s', $position, $name, $outcome, $detail);
+
+        if ($violation === null && $outcome === 'refused' && $this->checkRefusals && ! $this->persisted) {
+            $changed = $this->tablesChangedSince($before);
+
+            if ($changed !== []) {
+                $violation = 'a refused operation left rows in ' . implode(', ', $changed);
+
+                if (in_array($this->db->prefixTable('accounting_accounts'), $changed, true)) {
+                    $violation .= ' (accounts: ' . $this->describeRowChanges($accounts, $this->rowsOf('accounting_accounts', 'account_id')) . ')';
+                }
+            }
+        }
+
+        if ($violation === null && $outcome === 'ok') {
+            $violation = $this->newJournalsProblem($lastId);
+        }
+
+        if ($violation !== null) {
+            throw new LedgerViolation($violation);
+        }
+    }
+
+    public function db(): BaseConnection
+    {
+        return $this->db;
+    }
+
+    /**
+     * A purchase return refused as unbalanced while a location holds units valued at less than nothing is the finding
+     * about the cost of goods sold, not a new failure.
+     */
+    private function isKnownRefusal(string $name, LedgerRefusal $refusal, string $detail): bool
+    {
+        if ($refusal->reason === 'purchase_not_postable' && str_contains($refusal->getMessage(), 'too small')) {
+            $this->observe('F12-a-purchase-worth-less-than-a-cent-is-refused-while-a-sale-of-the-same-size-is-accepted-and-posts-nothing', $detail);
+
+            return true;
+        }
+
+        if ($name !== 'purchase_return' || $refusal->reason !== 'unbalanced') {
+            return false;
+        }
+
+        $below = (new LedgerInvariants())->locationsValuedBelowNothing();
+
+        if ($below === []) {
+            return false;
+        }
+
+        $this->observe('F1-purchase-return-refused-after-location-value-went-negative', $detail . ' | ' . $below[0]);
+
+        return true;
+    }
+
+    private function choose(LedgerRandom $random, int $position): string
+    {
+        if ($position < 6) {
+            return 'purchase';
+        }
+
+        return $random->weighted([
+            'sale'                    => 30,
+            'sale_payment'            => 8,
+            'sale_return'             => 8,
+            'sale_cancel'             => 5,
+            'purchase'                => 12,
+            'purchase_payment'        => 6,
+            'purchase_return'         => 4,
+            'purchase_cancel'         => 3,
+            'customer_advance'        => 4,
+            'customer_advance_cancel' => 2,
+            'customer_refund'         => 3,
+            'supplier_advance'        => 3,
+            'supplier_advance_cancel' => 1,
+            'supplier_refund'         => 2,
+            'settle'                  => 3,
+            'expense'                 => 3,
+            'expense_delete'          => 1,
+            'cashup'                  => 1,
+            'voucher'                 => 2,
+            'voucher_delete'          => 1,
+            'transfer'                => 3,
+            'transfer_cancel'         => 1,
+            'cheque'                  => 6,
+            'sale_deliver'            => 2,
+            'stock_permit'            => 4,
+            'stock_permit_cancel'     => 1,
+            'stocktake'               => 2,
+            'manual_journal'          => 3,
+            'journal_reverse'         => 1,
+            'period_close'            => 1,
+            'period_reopen'           => 1,
+            'purchase_edit'           => 3,
+            'sale_payment_edit'       => 4,
+            'purchase_payment_edit'   => 3,
+            'foreign_sale'            => $this->world->foreign ? 5 : 0,
+            'foreign_purchase'        => $this->world->foreign ? 3 : 0,
+        ]);
+    }
+
+    private function refusalOf(Throwable $failure): ?LedgerRefusal
+    {
+        if ($failure instanceof LedgerRefusal) {
+            return $failure;
+        }
+
+        if ($failure instanceof AccountingException || $failure instanceof PostingException) {
+            return new LedgerRefusal($failure->error->value, $failure->getMessage() . ($failure->context === [] ? '' : ' ' . json_encode($failure->context)));
+        }
+
+        if ($failure instanceof BranchException) {
+            return new LedgerRefusal($failure->error->value, $failure->getMessage());
+        }
+
+        if ($failure instanceof DocumentException) {
+            return new LedgerRefusal('document', $failure->getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, array{rows: int, checksum: string|null}> $before
+     *
+     * @return list<string>
+     */
+    private function tablesChangedSince(array $before): array
+    {
+        $changed = [];
+
+        foreach ($this->databaseFingerprint() as $table => $print) {
+            if (($before[$table] ?? null) !== $print && ! in_array($table, array_map(fn (string $name): string => $this->db->DBPrefix . $name, self::REFUSAL_MAY_WRITE), true)) {
+                $changed[] = $table;
+            }
+        }
+
+        return $changed;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function rowsOf(string $table, string $key): array
+    {
+        $rows = [];
+
+        foreach ($this->db->table($table)->get()->getResultArray() as $row) {
+            $rows[(int) $row[$key]] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $before
+     * @param array<int, array<string, mixed>> $after
+     */
+    private function describeRowChanges(array $before, array $after): string
+    {
+        $parts = [];
+
+        foreach ($after as $id => $row) {
+            if (! isset($before[$id])) {
+                $parts[] = 'added ' . json_encode($row, JSON_UNESCAPED_UNICODE);
+            } elseif ($before[$id] !== $row) {
+                $parts[] = 'changed ' . $id . ' ' . json_encode(array_diff_assoc($row, $before[$id]), JSON_UNESCAPED_UNICODE);
+            }
+        }
+
+        foreach (array_diff_key($before, $after) as $id => $row) {
+            $parts[] = 'removed ' . $id;
+        }
+
+        return implode('; ', array_slice($parts, 0, 4));
+    }
+
+    private function lastJournalId(): int
+    {
+        return (int) $this->db->query('SELECT COALESCE(MAX(journal_id), 0) AS last FROM ' . $this->db->prefixTable('accounting_journals'))->getRow()->last;
+    }
+
+    /**
+     * The journals an operation wrote must not be dated inside a period that was closed, whichever branch they belong to.
+     */
+    private function newJournalsProblem(int $afterId): ?string
+    {
+        $journals = $this->db->prefixTable('accounting_journals');
+        $closed   = $this->db->prefixTable('accounting_closed_periods');
+
+        $row = $this->db->query(
+            "SELECT j.journal_id, j.journal_date, j.branch_id, j.source_type FROM {$journals} j WHERE j.journal_id > ? AND j.entry_type <> 'year_end' AND EXISTS (SELECT 1 FROM {$closed} c WHERE c.active = 1 AND (c.branch_id IS NULL OR c.branch_id = j.branch_id) AND j.journal_date BETWEEN c.date_from AND c.date_to) LIMIT 1",
+            [$afterId],
+        )->getRow();
+
+        return $row === null ? null : sprintf('journal %d (%s, branch %d) was written on %s, inside a closed period', $row->journal_id, $row->source_type, $row->branch_id, $row->journal_date);
+    }
+
+    /**
+     * An operation that does one thing after another has changed the books by the first before the second is refused.
+     */
+    protected function persisted(): void
+    {
+        $this->persisted = true;
+    }
+
+    protected function observe(string $code, string $example): void
+    {
+        $this->observed[$code] = ['count' => ($this->observed[$code]['count'] ?? 0) + 1, 'example' => $this->observed[$code]['example'] ?? $example];
+    }
+
+    protected function note(string $text): void
+    {
+        $this->pending = $text;
+    }
+
+    protected function refuse(string $code, string $message = ''): never
+    {
+        throw new LedgerRefusal($code, $message);
+    }
+
+    protected function expect(bool $condition, string $message): void
+    {
+        if (! $condition) {
+            throw new LedgerViolation($message);
+        }
+    }
+}

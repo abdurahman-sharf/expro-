@@ -3,6 +3,7 @@
 namespace App\Libraries\Accounting\Readiness;
 
 use App\Libraries\Accounting\AccountingSettings;
+use App\Libraries\Accounting\ChequeSources;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Numbering\DocumentNumbering;
@@ -150,7 +151,7 @@ final class LedgerChecks extends CheckGroup
             ->where('source_id IS NOT NULL', null, false)
             ->whereNotIn('source_type', [JournalDraft::SOURCE_MANUAL, JournalDraft::SOURCE_REVERSAL])
             ->groupBy('source_type, source_id, entry_type')
-            ->having('COUNT(*) > 1', null, false)
+            ->having('COUNT(*) > IF(source_type = ' . $this->db->escape(ChequeSources::DEPOSIT_REJECTED) . ', 2, 1)', null, false)
             ->orderBy('source_type', 'ASC')
             ->orderBy('source_id', 'ASC')
             ->limit(self::LIMIT + 1)
