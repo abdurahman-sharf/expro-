@@ -464,6 +464,17 @@ class LedgerChecksTest extends CIUnitTestCase
         $this->assertSame(1, $result->data['reversed_twice']);
     }
 
+    public function testSourceKeys_FailsWhenAChequeStatusChangeThatPostsOneJournalStandsTwice(): void
+    {
+        $first  = $this->journal(['source_type' => 'cheque_in_deposited', 'source_id' => 7, 'revision' => 1]);
+        $second = $this->journal(['source_type' => 'cheque_in_deposited', 'source_id' => 7, 'revision' => 2]);
+
+        $result = $this->check('source_keys');
+
+        $this->assertSame(CheckStatus::Fail, $result->status);
+        $this->assertSame(["cheque_in_deposited 7 (general) stands as 2 posted journals: {$first},{$second}"], $result->findings);
+    }
+
     public function testSourceKeys_IgnoresTheJournalsOfAnotherCompany(): void
     {
         $db = $this->accountingDb();

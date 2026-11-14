@@ -17,6 +17,11 @@ final class BankAccountPlacement
 {
     use RunsInTransaction;
 
+    /**
+     * The tables and columns the placement reads, which a database that the migrations have not reached does not have.
+     */
+    public const REQUIRES = ['treasuries.bank_name', 'treasuries.account_number', 'accounting_accounts', 'accounting_routing', 'accounting_journal_lines'];
+
     private BaseConnection $db;
     private EntityAccountService $accounts;
 

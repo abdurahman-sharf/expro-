@@ -43,6 +43,7 @@ final class ReadinessRunner
             new StockTrackingChecks($this->db),
             new Wave3Checks($this->db, $this->migrations),
             new ClockChecks($this->db),
+            new DeploymentChecks($this->db),
         ];
     }
 

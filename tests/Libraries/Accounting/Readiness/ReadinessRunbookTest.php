@@ -34,12 +34,44 @@ class ReadinessRunbookTest extends CIUnitTestCase
         $this->assertStringStartsWith('Roll back by restoring the backup', $titles[7]);
     }
 
-    public function testSteps_BacksUpBeforeAnythingElseWithADumpAndTheFiles(): void
+    public function testSteps_BacksUpBeforeAnythingElseWithTheBackupToolThatTakesADumpAndTheFiles(): void
     {
-        $step = ReadinessRunbook::steps([])[0];
+        $step  = ReadinessRunbook::steps([])[0];
+        $notes = implode(' ', $step['notes']);
 
-        $this->assertStringStartsWith('mysqldump --single-transaction', $step['commands'][0]);
-        $this->assertStringContainsString('writable/', implode(' ', $step['notes']));
+        $this->assertSame('tools/ops/backup.sh --keep 14', $step['commands'][0]);
+        $this->assertStringContainsString('mysqldump --single-transaction --routines --triggers', $notes);
+        $this->assertStringContainsString('writable/', $notes);
+        $this->assertStringContainsString('writable/accounting_attachments', $notes);
+        $this->assertStringContainsString('manifest', $notes);
+        $this->assertStringContainsString('Copy the dated folder off the server', $notes);
+    }
+
+    public function testSteps_NamesTheCronLineOfTheBackupAndTheWeeklyVerification(): void
+    {
+        $notes = implode("\n", ReadinessRunbook::steps([])[6]['notes']);
+
+        $this->assertStringContainsString('17 3 * * * cd /path/to/expro && tools/ops/backup.sh --keep 14', $notes);
+        $this->assertStringContainsString('tools/ops/backup.sh --verify', $notes);
+    }
+
+    public function testSteps_AsksForANewPasswordOfTheInstallerAccountAndForTheFirstRunSettings(): void
+    {
+        $notes = implode("\n", ReadinessRunbook::steps([])[1]['notes']);
+
+        $this->assertStringContainsString('ADMIN-DEFAULT-PASSWORD fails while any account still has the password the installer gave it', $notes);
+        $this->assertStringContainsString('FIRST-RUN-SETTINGS only asks for review', $notes);
+        $this->assertStringContainsString('CI_ENVIRONMENT=production', $notes);
+        $this->assertStringContainsString('cookie.secure=true', $notes);
+    }
+
+    public function testSteps_TellsToRunTheMigrationsBeforeTheSiteIsOpenedBecauseTheLoginPageWouldStartThem(): void
+    {
+        $notes = implode("\n", ReadinessRunbook::steps([])[3]['notes']);
+
+        $this->assertStringContainsString('the login page starts them with no account', $notes);
+        $this->assertStringContainsString('before the site is opened', $notes);
+        $this->assertStringContainsString('GET_LOCK', $notes);
     }
 
     public function testSteps_ChecksReadinessBeforeAndAfterTheMigrations(): void
@@ -106,22 +138,31 @@ class ReadinessRunbookTest extends CIUnitTestCase
     {
         $step = ReadinessRunbook::steps([])[7];
 
-        $this->assertStringStartsWith('mysql ', end($step['commands']));
-        $this->assertStringContainsString('< backup-before-release.sql', end($step['commands']));
+        $this->assertStringStartsWith('tools/ops/restore.sh --yes-empty-database DATABASE', end($step['commands']));
         $this->assertStringContainsString('down() is not a rollback for the data migrations', implode("\n", $step['notes']));
     }
 
     public function testSteps_RollsBackIntoAnEmptyDatabaseSoThatNoTableOfTheReleaseSurvives(): void
     {
         $commands = ReadinessRunbook::steps([])[7]['commands'];
-        $keeps    = $this->positionOf($commands, 'state-after-failed-release.sql');
+        $keeps    = $this->positionOf($commands, 'state-after-failed-release');
         $drops    = $this->positionOf($commands, 'DROP DATABASE DATABASE');
-        $restores = $this->positionOf($commands, '< backup-before-release.sql');
+        $restores = $this->positionOf($commands, 'tools/ops/restore.sh --yes-empty-database DATABASE');
 
         $this->assertLessThan($drops, $keeps, 'What the failed release left is kept before the database is dropped.');
         $this->assertLessThan($restores, $drops, 'The database is dropped before the backup is restored.');
         $this->assertStringContainsString('CREATE DATABASE DATABASE CHARACTER SET utf8mb4', $commands[$drops]);
         $this->assertStringContainsString('restoring over the live database leaves the tables the release created', implode("\n", ReadinessRunbook::steps([])[7]['notes']));
+    }
+
+    public function testSteps_RestoresWithTheToolThatRefusesADatabaseThatIsNotEmpty(): void
+    {
+        $notes = implode("\n", ReadinessRunbook::steps([])[7]['notes']);
+
+        $this->assertStringContainsString('tools/ops/restore.sh refuses a database that holds anything', $notes);
+        $this->assertStringContainsString('wants the name of the empty database written out (--yes-empty-database)', $notes);
+        $this->assertStringContainsString('leaves the live .env alone', $notes);
+        $this->assertStringContainsString('Without the tools: mysqldump --single-transaction -u USER -p DATABASE > state-after-failed-release.sql', $notes);
     }
 
     public function testSteps_RehearsesTheRestoreInAScratchDatabaseAndNeverTheLiveOne(): void
@@ -145,7 +186,7 @@ class ReadinessRunbookTest extends CIUnitTestCase
     {
         $step = ReadinessRunbook::steps([])[0];
 
-        $this->assertSame('mysql -u USER -p SCRATCH < backup-before-release.sql', $step['commands'][1]);
+        $this->assertSame('tools/ops/backup.sh --verify --keep-scratch --scratch SCRATCH', $step['commands'][1]);
         $this->assertSame('MYSQL_DB_NAME=SCRATCH php spark accounting:readiness --json --no-header > readiness-rehearsal.json', $step['commands'][2]);
         $this->assertStringContainsString('nothing in this repository records that a restore was ever rehearsed', implode("\n", $step['notes']));
     }
@@ -214,8 +255,30 @@ class ReadinessRunbookTest extends CIUnitTestCase
     {
         $document = (string) file_get_contents(ROOTPATH . 'docs/accounting/readiness-runbook.md');
 
-        foreach (['W93-CLOCK', 'app.appTimezone', 'default-time-zone', 'sales_payments.payment_time', 'MYSQL_DB_NAME', 'readiness-rehearsal.json', 'accounting:readiness_compare', 'data.aging_totals', 'accounting:depreciate', 'accounting:ai_scan', 'MySQL 5.7', 'CONVERT_TZ', 'TIMESTAMP', 'sales.sale_time', 'readiness-after.json --json --no-header', 'data.unknown'] as $token) {
+        foreach (['W93-CLOCK', 'app.appTimezone', 'default-time-zone', 'sales_payments.payment_time', 'MYSQL_DB_NAME', 'readiness-rehearsal.json', 'accounting:readiness_compare', 'data.aging_totals', 'accounting:depreciate', 'accounting:ai_scan', 'MySQL 5.7', 'CONVERT_TZ', 'TIMESTAMP', 'sales.sale_time', 'readiness-after.json --json --no-header', 'data.unknown', 'tools/ops/backup.sh --keep 14', 'tools/ops/restore.sh --yes-empty-database', 'ADMIN-DEFAULT-PASSWORD', 'FIRST-RUN-SETTINGS', 'GET_LOCK', 'logger.threshold', 'cookie.secure', 'FORCE_HTTPS'] as $token) {
             $this->assertStringContainsString($token, $document, "The runbook document says nothing of {$token}, which the printed runbook does.");
+        }
+    }
+
+    public function testSteps_AgreeWithTheDeployChecklistOnTheSettingsThatTheFirstRunCheckNames(): void
+    {
+        $checklist = (string) file_get_contents(ROOTPATH . 'docs/ui-redesign/deploy-checklist.md');
+
+        foreach (['company', 'address', 'phone', 'email', 'return_policy', 'invoice_default_comments', 'quote_default_comments', 'currency_symbol', 'dateformat', 'timezone', 'tax_id'] as $setting) {
+            $this->assertStringContainsString("`{$setting}`", $checklist, "The first-run checklist does not name the setting {$setting}.");
+        }
+
+        foreach (['app.appTimezone', 'ADMIN-DEFAULT-PASSWORD', 'FIRST-RUN-SETTINGS', 'tools/ops/backup.sh --keep 14', 'tools/ops/restore.sh --yes-empty-database', 'رقم بدء', 'قالب الإيصال', 'الأرصدة الافتتاحية', 'الأدوار', 'الخزائن'] as $token) {
+            $this->assertStringContainsString($token, $checklist, "The deploy checklist says nothing of {$token}.");
+        }
+    }
+
+    public function testSteps_AgreeWithTheRunbookDocumentOnTheProductionSettingsTheBackupCronLineAndWhatToDoIf(): void
+    {
+        $document = (string) file_get_contents(ROOTPATH . 'docs/accounting/readiness-runbook.md');
+
+        foreach (['CI_ENVIRONMENT = production', 'app.allowedHostnames', 'app.forceGlobalSecureRequests = true', 'cookie.secure = true', 'FORCE_HTTPS = true', 'chmod 600 /path/to/expro/.env', '17 3 * * * cd /path/to/expro && tools/ops/backup.sh --keep 14', 'tools/ops/backup.sh --verify', '## 7.', 'كيف أعرف أن الترحيلات توقفت في منتصفها', 'php spark migrate:status', 'Unknown column', 'R1-10', 'POST /login', 'Another request is migrating this database', 'Not available yet', 'accounting:purchase_discount resolve'] as $token) {
+            $this->assertStringContainsString($token, $document, "The runbook document says nothing of {$token}.");
         }
     }
 

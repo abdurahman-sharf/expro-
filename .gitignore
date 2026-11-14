@@ -91,3 +91,7 @@ auth.json
 
 # Brand images are committed
 !public/assets/img/*
+
+# Backups made by tools/ops/backup.sh
+/backups/
+/state-after-failed-release/
