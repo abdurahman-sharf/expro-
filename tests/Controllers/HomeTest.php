@@ -834,4 +834,34 @@ class HomeTest extends CIUnitTestCase
         $this->assertFalse($result['success']);
         $this->assertTrue(session()->get(Employee::MUST_CHANGE_KEY));
     }
+    public function testPostSave_AuditsTheChangeOfTheOwnPassword(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'audit-own']);
+        $this->withSession(['person_id' => $personId]);
+
+        $this->post('/home/save', ['username' => 'audit-own', 'current_password' => 'password123', 'password' => 'a-better-password']);
+
+        $entry = Database::connect()->table('accounting_audit_log')->where(['action' => 'employee_password_changed', 'entity_id' => $personId])->get()->getRow();
+        $this->assertSame((string) $personId, (string) $entry->employee_id);
+    }
+
+    public function testPostSave_AuditsNothingWhenThePasswordIsRefused(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'audit-refused']);
+        $this->withSession(['person_id' => $personId]);
+
+        $this->post('/home/save', ['username' => 'audit-refused', 'current_password' => 'password123', 'password' => 'short']);
+
+        $this->assertSame(0, Database::connect()->table('accounting_audit_log')->where('entity_id', $personId)->whereIn('action', ['employee_password_changed', 'employee_password_reset'])->countAllResults());
+    }
+
+    public function testGetLogout_AuditsTheSignOut(): void
+    {
+        $personId = $this->createNonAdminEmployee(['username' => 'audit-logout']);
+        $this->withSession(['person_id' => $personId]);
+
+        $this->get('/home/logout');
+
+        $this->assertSame(1, Database::connect()->table('accounting_audit_log')->where(['action' => 'employee_logout', 'employee_id' => $personId])->countAllResults());
+    }
 }

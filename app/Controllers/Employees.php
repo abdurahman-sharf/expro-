@@ -14,6 +14,7 @@ use App\Libraries\Roles\RoleException;
 use App\Libraries\Roles\RoleService;
 use App\Libraries\Roles\RoleTables;
 use App\Libraries\Security\PasswordPolicy;
+use App\Libraries\Security\SecurityAudit;
 use App\Models\Module;
 use App\Models\Stock_location;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
@@ -240,6 +241,7 @@ class Employees extends Persons
         }
 
         $targetId          = $employeeId == NEW_ENTRY ? null : (int) $employeeId;
+        $grantsBefore      = $targetId === null ? [] : $this->directPermissionIds($targetId);
         $previousScope     = $targetId === null ? null : $this->branchScopes->scopeOf($targetId);
         $requestedScope    = $this->requestedBranchScope($currentUser->person_id, $targetId);
         $requestedRoles    = $mayChangeSecurity ? $this->requestedRoles((int) $currentUser->person_id) : null;
@@ -319,6 +321,8 @@ class Employees extends Persons
                 $mayChangeSecurity ? array_values(array_filter(array_column($grantsArray, 'permission_id'), [SensitivePermissions::class, 'isSensitive'])) : $sensitiveHeld,
             );
 
+            $this->auditSave($actorId, (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $employeeId == NEW_ENTRY, $employeeId == NEW_ENTRY ? '' : (string) $targetEmployee->username, (string) $employeeData['username'], $grantsBefore, $password !== '');
+
             try {
                 $this->branchScopes->afterEmployeeSave($currentUser->person_id, (int) ($employeeId == NEW_ENTRY ? $employeeData['person_id'] : $employeeId), $previousScope, $requestedScope);
             } catch (BranchException $exception) {
@@ -361,6 +365,34 @@ class Employees extends Persons
                 'id'      => NEW_ENTRY
             ]);
         }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function directPermissionIds(int $personId): array
+    {
+        return array_values(array_diff(array_column($this->employee->getDirectGrants($personId), 'permission_id'), [BranchGuard::ALL_BRANCHES]));
+    }
+
+    /**
+     * @param list<string> $grantsBefore
+     */
+    private function auditSave(int $actorId, int $savedId, bool $isNew, string $usernameBefore, string $usernameAfter, array $grantsBefore, bool $passwordSent): void
+    {
+        $audit = new SecurityAudit();
+
+        if ($isNew) {
+            $audit->employeeCreated($actorId, $savedId, $usernameAfter);
+        } else {
+            $audit->usernameChanged($actorId, $savedId, $usernameBefore, $usernameAfter);
+
+            if ($passwordSent) {
+                $audit->passwordChanged($actorId, $savedId);
+            }
+        }
+
+        $audit->permissionsChanged($actorId, $savedId, $grantsBefore, $this->directPermissionIds($savedId));
     }
 
     private function asksToChangeLogin(string $storedUsername): bool
@@ -616,6 +648,10 @@ class Employees extends Persons
         if ($this->employee->delete_list($employees_to_delete)) {    // TODO: this is passing a string, but delete_list expects an array
             foreach ($sensitiveHeld as $employeeId => $held) {
                 $this->sensitivePermissions->recordChange($current_user->person_id, $employeeId, $held, []);
+            }
+
+            foreach ((array) $employees_to_delete as $employeeId) {
+                (new SecurityAudit())->employeeDeleted((int) $current_user->person_id, (int) $employeeId);
             }
 
             return $this->response->setJSON([

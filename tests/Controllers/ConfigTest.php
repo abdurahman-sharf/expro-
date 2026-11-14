@@ -46,6 +46,7 @@ class ConfigTest extends CIUnitTestCase
         $db->table('accounting_audit_log')->where('action', 'sales_tax_settings_updated')->delete();
         $db->table('app_config')->whereIn('key', DocumentTerms::settingKeys())->delete();
         $db->table('accounting_audit_log')->where('action', 'document_terms_updated')->delete();
+        $db->table('accounting_audit_log')->where('action', 'security_settings_changed')->delete();
 
         parent::tearDown();
     }
@@ -996,5 +997,69 @@ class ConfigTest extends CIUnitTestCase
 
         $this->assertStringContainsString('Valid for 14 days &lt;b&gt;only&lt;/b&gt;', $body);
         $this->assertStringNotContainsString('<b>only</b>', $body);
+    }
+    /**
+     * @return list<object>
+     */
+    private function securitySettingsEntries(): array
+    {
+        return Database::connect()->table('accounting_audit_log')->where('action', 'security_settings_changed')->orderBy('audit_id')->get()->getResult();
+    }
+
+    public function testSaveEmail_AuditsTheSettingsOfTheEmailServerThatChangedByNameAndNeverByValue(): void
+    {
+        $this->resetSession();
+        $host = 'mail-' . uniqid() . '.example.com';
+
+        $result = json_decode($this->post('/config/saveEmail', ['protocol' => 'smtp', 'mailpath' => '', 'smtp_host' => $host, 'smtp_user' => 'mailer', 'smtp_pass' => 'super-secret-pass'])->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $entries = $this->securitySettingsEntries();
+        $this->assertCount(1, $entries);
+        $this->assertSame('1', (string) $entries[0]->employee_id);
+        $settings = json_decode((string) $entries[0]->details, true)['settings'];
+        $this->assertContains('smtp_host', $settings);
+        $this->assertContains('smtp_pass', $settings);
+        $this->assertStringNotContainsString('super-secret-pass', (string) $entries[0]->details);
+        $this->assertStringNotContainsString($host, (string) $entries[0]->details);
+    }
+
+    public function testSaveEmail_AuditsNothingWhenTheSettingsAreSavedAsTheyWere(): void
+    {
+        $this->resetSession();
+        $payload = ['protocol' => 'smtp', 'mailpath' => '', 'smtp_host' => 'mail-same.example.com', 'smtp_user' => 'mailer', 'smtp_pass' => '', 'smtp_port' => '25', 'smtp_timeout' => '5', 'smtp_crypto' => ''];
+
+        $this->post('/config/saveEmail', $payload);
+        Database::connect()->table('accounting_audit_log')->where('action', 'security_settings_changed')->delete();
+        $this->post('/config/saveEmail', $payload);
+
+        $this->assertSame([], $this->securitySettingsEntries());
+    }
+
+    public function testSaveMessage_AuditsTheChangeOfTheGatewayAccountByName(): void
+    {
+        $this->resetSession();
+
+        $this->post('/config/saveMessage', ['msg_msg' => 'Hello', 'msg_uid' => 'gateway-' . uniqid(), 'msg_pwd' => '', 'msg_src' => 'SHOP']);
+
+        $entries = $this->securitySettingsEntries();
+        $this->assertCount(1, $entries);
+        $this->assertContains('msg_uid', json_decode((string) $entries[0]->details, true)['settings']);
+    }
+
+    public function testSaveGeneral_AuditsTheSwitchingOnOfTheCaptchaAndTheChangeOfTheAllowedImageTypes(): void
+    {
+        $this->resetSession();
+        $base = ['login_form' => 'floating_labels', 'lines_per_page' => '25', 'notify_horizontal_position' => 'center', 'notify_vertical_position' => 'top', 'image_max_width' => '800', 'image_max_height' => '600', 'image_max_size' => '100', 'gcaptcha_secret_key' => '', 'gcaptcha_site_key' => '', 'suggestions_first_column' => 'name', 'suggestions_second_column' => '', 'suggestions_third_column' => '', 'giftcard_number' => 'series', 'default_sales_discount' => '0', 'default_receivings_discount' => '0'];
+
+        $this->post('/config/saveGeneral', $base + ['image_allowed_types' => ['gif', 'jpg', 'png']]);
+        Database::connect()->table('accounting_audit_log')->where('action', 'security_settings_changed')->delete();
+        $this->post('/config/saveGeneral', $base + ['image_allowed_types' => ['gif', 'jpg', 'png', 'svg'], 'gcaptcha_enable' => 'gcaptcha_enable']);
+
+        $entries = $this->securitySettingsEntries();
+        $this->assertCount(1, $entries);
+        $this->assertSame(['gcaptcha_enable', 'image_allowed_types'], json_decode((string) $entries[0]->details, true)['settings']);
+
+        $this->post('/config/saveGeneral', $base + ['image_allowed_types' => ['gif', 'jpg', 'png']]);
     }
 }

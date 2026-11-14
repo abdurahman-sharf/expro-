@@ -822,4 +822,27 @@ class LanguageFilesTest extends CIUnitTestCase
             $this->assertMatchesRegularExpression('/\p{Arabic} \{0\}/u', $messages[$key], "{$locale} {$key} runs the name of the product into the word before it");
         }
     }
+    #[DataProvider('translatedLocaleProvider')]
+    public function testEmployeesAndAccountingFiles_SayWhyASecurityChangeIsRefusedAndLabelEveryEntryTheSecurityAuditWrites(string $locale): void
+    {
+        $employees = include __DIR__ . "/../app/Language/{$locale}/Employees.php";
+        $audit     = include __DIR__ . "/../app/Language/{$locale}/Accounting.php";
+        $english   = include __DIR__ . '/../app/Language/en/Employees.php';
+
+        foreach (['error_security_beyond_permissions', 'security_locked_note', 'password_same_as_username', 'password_is_default', 'must_change_password', 'must_change_password_title'] as $key) {
+            $this->assertNotSame('', $employees[$key] ?? '', "{$locale} lacks {$key}");
+
+            if (str_starts_with($locale, 'ar-')) {
+                $this->assertNotSame($english[$key], $employees[$key], "{$locale} shows English for {$key}");
+            }
+        }
+
+        foreach (['employee_created', 'employee_deleted', 'employee_login_failed', 'employee_login_succeeded', 'employee_logout', 'employee_password_changed', 'employee_password_reset', 'employee_permissions_changed', 'employee_username_changed', 'security_settings_changed'] as $action) {
+            $this->assertNotSame('', $audit['action_' . $action] ?? '', "{$locale} lacks the audit action {$action}");
+        }
+
+        foreach (['employee_session', 'employee', 'security_settings'] as $entity) {
+            $this->assertNotSame('', $audit['entity_' . $entity] ?? '', "{$locale} lacks the audit record kind {$entity}");
+        }
+    }
 }

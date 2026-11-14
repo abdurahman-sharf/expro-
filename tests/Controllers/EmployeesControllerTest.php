@@ -1713,4 +1713,113 @@ class EmployeesControllerTest extends CIUnitTestCase
         $this->assertTrue($result['success']);
         $this->assertSame($before, $this->storedPasswordHash($target));
     }
+    /**
+     * @return list<object>
+     */
+    private function auditEntriesOf(int $targetId, string $action): array
+    {
+        return $this->db->table('accounting_audit_log')->where('entity_id', $targetId)->where('action', $action)->orderBy('audit_id')->get()->getResult();
+    }
+
+    public function testPostSave_AuditsANewEmployeeAndWhatTheyWereGiven(): void
+    {
+        $this->loginAsAdmin();
+        $username = 'audcreate' . uniqid();
+
+        $result = json_decode($this->post('/employees/save/-1', $this->formFor($username, ['password' => 'password123', 'grant_employees' => 'employees', 'grant_customers' => 'customers']))->getJSON(), true);
+
+        $created = $this->auditEntriesOf((int) $result['id'], 'employee_created');
+        $this->assertCount(1, $created);
+        $this->assertSame('1', (string) $created[0]->employee_id);
+        $this->assertSame(['username' => $username], json_decode($created[0]->details, true));
+        $given = json_decode($this->auditEntriesOf((int) $result['id'], 'employee_permissions_changed')[0]->details, true);
+        $this->assertEqualsCanonicalizing(['employees', 'customers'], $given['added']);
+        $this->assertSame([], $given['removed']);
+    }
+
+    public function testPostSave_AuditsTheChangeOfThePermissionsOfAnEmployeeWhateverTheirKind(): void
+    {
+        $target = $this->employeeHolding(['employees', 'customers', 'sales']);
+        $this->loginAsAdmin();
+
+        $this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), ['grant_employees' => 'employees', 'grant_customers' => 'customers', 'grant_giftcards' => 'giftcards']));
+
+        $entry = $this->auditEntriesOf($target, 'employee_permissions_changed')[0];
+        $this->assertSame(['added' => ['giftcards'], 'removed' => ['sales']], json_decode($entry->details, true));
+        $this->assertSame('1', (string) $entry->employee_id);
+    }
+
+    public function testPostSave_AuditsNothingOfThePermissionsWhenTheyDoNotChange(): void
+    {
+        $target = $this->employeeHolding(['employees', 'customers']);
+        $this->loginAsAdmin();
+
+        $this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), ['grant_employees' => 'employees', 'grant_customers' => 'customers']));
+
+        $this->assertSame([], $this->auditEntriesOf($target, 'employee_permissions_changed'));
+    }
+
+    public function testPostSave_AuditsTheChangeOfTheUsername(): void
+    {
+        $target = $this->employeeHolding(['employees']);
+        $before = $this->usernameOf($target);
+        $after  = 'renamed' . uniqid();
+        $this->loginAsAdmin();
+
+        $this->post('/employees/save/' . $target, $this->formFor($after, ['grant_employees' => 'employees']));
+
+        $this->assertSame(['before' => $before, 'after' => $after], json_decode($this->auditEntriesOf($target, 'employee_username_changed')[0]->details, true));
+    }
+
+    public function testPostSave_AuditsAPasswordResetByAnAdministratorAndAnOwnPasswordChangeApart(): void
+    {
+        $target = $this->employeeHolding(['employees']);
+        $this->loginAsAdmin();
+
+        $this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), ['grant_employees' => 'employees', 'password' => 'reset-by-admin-1']));
+        $this->saveAs($target, $target, ['grant_employees' => 'employees', 'password' => 'changed-by-me-1']);
+
+        $reset = $this->auditEntriesOf($target, 'employee_password_reset');
+        $own   = $this->auditEntriesOf($target, 'employee_password_changed');
+        $this->assertCount(1, $reset);
+        $this->assertSame('1', (string) $reset[0]->employee_id);
+        $this->assertCount(1, $own);
+        $this->assertSame((string) $target, (string) $own[0]->employee_id);
+    }
+
+    public function testPostSave_AuditsNoPasswordChangeWhenThePasswordIsRefused(): void
+    {
+        $target = $this->employeeHolding(['employees']);
+        $this->loginAsAdmin();
+
+        $this->post('/employees/save/' . $target, $this->formFor($this->usernameOf($target), ['password' => 'abc']));
+
+        $this->assertSame([], $this->auditEntriesOf($target, 'employee_password_reset'));
+    }
+
+    public function testPostDelete_AuditsEachEmployeeThatWasDeleted(): void
+    {
+        $first  = $this->employeeHolding(['customers']);
+        $second = $this->employeeHolding(['customers']);
+        $this->loginAsAdmin();
+
+        $this->post('/employees/delete', ['ids' => [(string) $first, (string) $second]]);
+
+        foreach ([$first, $second] as $target) {
+            $entries = $this->auditEntriesOf($target, 'employee_deleted');
+            $this->assertCount(1, $entries);
+            $this->assertSame('1', (string) $entries[0]->employee_id);
+        }
+    }
+
+    public function testPostDelete_AuditsNothingWhenTheDeleteIsRefused(): void
+    {
+        $editor     = $this->employeeHolding(['employees', 'home', 'office']);
+        $accountant = $this->accountant();
+        $this->loginAsNonAdmin($editor);
+
+        $this->post('/employees/delete', ['ids' => [(string) $accountant]]);
+
+        $this->assertSame([], $this->auditEntriesOf($accountant, 'employee_deleted'));
+    }
 }

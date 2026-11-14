@@ -944,4 +944,80 @@ class EmployeeTest extends CIUnitTestCase
 
         $this->assertFalse(model(Employee::class)->mustChangePassword());
     }
+    /**
+     * @return list<object>
+     */
+    private function sessionEntries(string $action): array
+    {
+        return $this->db->table('accounting_audit_log')->where('action', $action)->orderBy('audit_id')->get()->getResult();
+    }
+
+    public function testLogin_AuditsTheSignInOfTheEmployee(): void
+    {
+        $username = 'audited-' . uniqid();
+        $person   = $this->createEmployee(username: $username);
+
+        $this->assertTrue(model(Employee::class)->login($username, 'password123'));
+
+        $entry = array_values(array_filter($this->sessionEntries('employee_login_succeeded'), static fn (object $row): bool => (int) $row->employee_id === $person))[0];
+        $this->assertSame('employee_session', $entry->entity_type);
+    }
+
+    public function testLogin_AuditsAFailedSignInWithTheNameAndNoPassword(): void
+    {
+        $username = 'wrongpass-' . uniqid();
+        $this->createEmployee(username: $username);
+
+        $this->assertFalse(model(Employee::class)->login($username, 'the-wrong-password'));
+
+        $entries = array_values(array_filter($this->sessionEntries('employee_login_failed'), static fn (object $row): bool => str_contains((string) $row->details, $username)));
+        $this->assertCount(1, $entries);
+        $this->assertNull($entries[0]->employee_id);
+        $this->assertStringNotContainsString('the-wrong-password', (string) $entries[0]->details);
+    }
+
+    public function testLogin_AuditsAFailedSignInOfANameThatIsNotAnEmployee(): void
+    {
+        $username = 'nobody-' . uniqid();
+
+        $this->assertFalse(model(Employee::class)->login($username, 'whatever-pass'));
+
+        $this->assertCount(1, array_filter($this->sessionEntries('employee_login_failed'), static fn (object $row): bool => str_contains((string) $row->details, $username)));
+    }
+
+    public function testLogin_WritesAFailedSignInOfTheSameNameOnceWhateverTheNumberOfTries(): void
+    {
+        $username = 'repeat-' . uniqid();
+
+        for ($attempt = 0; $attempt < 4; $attempt++) {
+            model(Employee::class)->login($username, 'whatever-pass');
+        }
+
+        $written = array_filter($this->sessionEntries('employee_login_failed'), static fn (object $row): bool => str_contains((string) $row->details, $username));
+        $this->assertLessThanOrEqual(2, count($written), 'one a minute, two only when the minute turned during the test');
+        $this->assertNotEmpty($written);
+    }
+
+    public function testLogout_AuditsTheSignOutOfTheEmployee(): void
+    {
+        $username = 'leaving-' . uniqid();
+        $person   = $this->createEmployee(username: $username);
+        $model    = model(Employee::class);
+        $model->login($username, 'password123');
+
+        $model->logout();
+
+        $entries = array_filter($this->sessionEntries('employee_logout'), static fn (object $row): bool => (int) $row->employee_id === $person);
+        $this->assertCount(1, $entries);
+    }
+
+    public function testLogout_AuditsNothingWhenNobodyIsSignedIn(): void
+    {
+        session()->remove('person_id');
+        $before = count($this->sessionEntries('employee_logout'));
+
+        model(Employee::class)->logout();
+
+        $this->assertCount($before, $this->sessionEntries('employee_logout'));
+    }
 }

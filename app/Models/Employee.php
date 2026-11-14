@@ -6,6 +6,7 @@ use App\Libraries\Organization\EmployeeBranchService;
 use App\Libraries\Roles\RoleGrants;
 use App\Libraries\Roles\RoleService;
 use App\Libraries\Security\PasswordPolicy;
+use App\Libraries\Security\SecurityAudit;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Session\Session;
 use stdClass;
@@ -411,6 +412,7 @@ class Employee extends Person
                     }
                     $this->session->set('person_id', $row->person_id);
                     $this->flagInstallerPassword($password);
+                    $this->audit()->loginSucceeded((int) $row->person_id, $this->address());
                 }
 
                 return $updated;
@@ -420,6 +422,7 @@ class Employee extends Person
                 }
                 $this->session->set('person_id', $row->person_id);
                 $this->flagInstallerPassword($password);
+                $this->audit()->loginSucceeded((int) $row->person_id, $this->address());
 
                 return true;
             }
@@ -427,7 +430,19 @@ class Employee extends Person
             $this->spendAPasswordVerification($password);
         }
 
+        $this->audit()->loginFailed($username, $this->address());
+
         return false;
+    }
+
+    private function audit(): SecurityAudit
+    {
+        return new SecurityAudit($this->db);
+    }
+
+    private function address(): string
+    {
+        return service('request')->getIPAddress();
     }
 
     private function flagInstallerPassword(string $password): void
@@ -477,6 +492,12 @@ class Employee extends Person
      */
     public function logout(): void
     {
+        $personId = (int) $this->session->get('person_id');
+
+        if ($personId > 0) {
+            $this->audit()->logout($personId);
+        }
+
         session()->destroy();
     }
 

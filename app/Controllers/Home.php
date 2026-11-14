@@ -6,6 +6,7 @@ use App\Libraries\Dashboard_lib;
 use App\Libraries\Organization\BranchContext;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Security\PasswordPolicy;
+use App\Libraries\Security\SecurityAudit;
 use App\Models\Employee;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -156,6 +157,8 @@ class Home extends Secure_Controller
                     if ($employeeId === $currentPersonId) {
                         session()->remove(Employee::MUST_CHANGE_KEY);
                     }
+
+                    (new SecurityAudit())->passwordChanged($currentPersonId, $employeeId);
 
                     return $this->response->setJSON([
                         'success' => true,
