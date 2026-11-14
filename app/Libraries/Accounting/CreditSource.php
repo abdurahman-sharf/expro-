@@ -9,7 +9,8 @@ namespace App\Libraries\Accounting;
  * before the books began, the advance of a customer, or a cheque received from a customer or delivered
  * to a supplier. Applying it to an invoice writes no journal, because the account of the customer or of
  * the supplier already carries it. Paying it back in cash writes a journal of its own and takes it out
- * of what is available, as applying it to an invoice does.
+ * of what is available, as applying it to an invoice does. A credit note or a debit note of a document in another
+ * currency carries that currency and the rate it was taken at; every other credit is in the base currency and carries none.
  */
 final readonly class CreditSource
 {

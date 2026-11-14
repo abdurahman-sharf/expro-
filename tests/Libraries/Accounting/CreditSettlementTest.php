@@ -548,6 +548,64 @@ class CreditSettlementTest extends CIUnitTestCase
         $this->assertTies();
     }
 
+    public function testSettle_RefusesByNameACreditNoteInEurosOnAnInvoiceInDollarsEvenAtTheSameRate(): void
+    {
+        $this->dollarsAt('3.75');
+        (new Currencies())->setActive('EUR', true);
+        (new Currencies())->rates()->add(['currency_code' => 'EUR', 'rate' => '3.75', 'effective_date' => $this->daysAgo(30)]);
+        $this->grantInvoiceDate();
+
+        $this->sales->useCurrency('USD');
+        $dollars = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(10));
+        $this->sales->useCurrency('EUR');
+        $euros = $this->save([$this->line($this->item('0', false), 0, '1', '100')], [], [$this->payment(lang('Sales.cash'), '100.00')], SALE_TYPE_INVOICE, -1, true, null, COMPLETED, NEW_ENTRY, null, invoiceDate: $this->daysAgo(8));
+
+        $this->assertSame(['USD', 'EUR'], [$this->saleRow($dollars)->currency_code, $this->saleRow($euros)->currency_code]);
+        $this->assertSame(ACCOUNTING_FAILED, $this->creditNoteOf($euros, '40.00'));
+        $this->assertSame(AccountingError::CreditInForeignCurrency, $this->sales->accountingFailure()->error);
+        $this->assertSame([], $this->applications());
+    }
+
+    public function testSettle_RefusesACreditNoteInDollarsWhenTheRateOfNeitherItNorTheInvoiceWasStored(): void
+    {
+        $this->dollarsAt('3.75');
+
+        $invoice = $this->foreignInvoice('100');
+        $note    = $this->creditNoteOf($invoice, '40.00');
+
+        $this->accountingDb()->table('customer_credit_applications')->where('customer_id', $this->customerId)->delete();
+        $this->accountingDb()->table('sales')->whereIn('sale_id', [$invoice, $note])->update(['currency_rate' => null]);
+
+        try {
+            $this->settle();
+            $this->fail('The credit note went to the invoice although the rate of one of them is not known.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::CreditInForeignCurrency, $refusal->error);
+        }
+
+        $this->assertSame([], $this->applications());
+    }
+
+    public function testSettle_RefusesTheCreditNoteInDollarsOfAnInvoiceWhoseRateWasNotStored(): void
+    {
+        $this->dollarsAt('3.75');
+
+        $invoice = $this->foreignInvoice('100');
+        $this->creditNoteOf($invoice, '40.00');
+
+        $this->accountingDb()->table('customer_credit_applications')->where('customer_id', $this->customerId)->delete();
+        $this->accountingDb()->table('sales')->where('sale_id', $invoice)->update(['currency_rate' => null]);
+
+        try {
+            $this->settle();
+            $this->fail('The credit note went to the invoice although the rate of one of them is not known.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::CreditInForeignCurrency, $refusal->error);
+        }
+
+        $this->assertSame([], $this->applications());
+    }
+
     public function testSettle_AppliesTheCreditNoteOfAnInvoiceInDollarsToAnOlderInvoiceInTheBase(): void
     {
         $this->dollarsAt('3.75');

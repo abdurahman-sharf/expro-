@@ -244,4 +244,58 @@ class AccountingProfitReportsControllerTest extends CIUnitTestCase
         $this->assertContains('480.0000', $flat);
         $this->assertContains(lang('Accounting_operational_reports.ties'), $flat);
     }
+
+    public function testGetIndex_SaysByNameThatTheProfitIsNotReportedWhenADocumentIsInAForeignCurrencyAndOffersNoFile(): void
+    {
+        $this->enableDollars();
+        $invoice = $this->foreignInvoice('100', [], '40.00', '2');
+        $this->reader();
+
+        $response = $this->fetch(self::PROFIT . '?show=1&group=item&mode=between&from=2020-01-01&to=' . date('Y-m-d'));
+
+        $response->assertStatus(200);
+        $response->assertSee('id="report_refused"');
+        $response->assertSee('POS ' . $invoice . ' (USD)');
+        $response->assertDontSee('id="report_table"');
+        $response->assertDontSee('id="report_csv"');
+
+        $file = $this->fetch(self::PROFIT . '/csv?group=item&mode=between&from=2020-01-01&to=' . date('Y-m-d'));
+
+        $this->assertSame(422, $file->response()->getStatusCode());
+        $this->assertStringContainsString('POS ' . $invoice . ' (USD)', $file->response()->getBody());
+    }
+
+    public function testGetItems_SaysByNameThatTheProfitByItemIsNotReportedWhenADocumentIsInAForeignCurrencyAndOffersNoFile(): void
+    {
+        $this->enableDollars();
+        $invoice = $this->foreignInvoice('100', [], '40.00', '2');
+        $this->reader();
+
+        $response = $this->fetch(self::ITEMS . '?show=1&group=item&mode=between&from=2020-01-01&to=' . date('Y-m-d'));
+
+        $response->assertStatus(200);
+        $response->assertSee('id="report_refused"');
+        $response->assertSee('POS ' . $invoice . ' (USD)');
+        $response->assertDontSee('id="report_table"');
+        $response->assertDontSee('id="report_csv"');
+
+        $file = $this->fetch(self::ITEMS . '/csv?group=item&mode=between&from=2020-01-01&to=' . date('Y-m-d'));
+
+        $this->assertSame(422, $file->response()->getStatusCode());
+    }
+
+    public function testGetIndex_ShowsTheProfitAndItsFileWhenNoDocumentIsInAForeignCurrency(): void
+    {
+        $this->enableDollars();
+        $this->sell();
+        $this->reader();
+
+        $query    = '?show=1&group=item&mode=between&from=2020-01-01&to=' . date('Y-m-d');
+        $response = $this->fetch(self::PROFIT . $query);
+
+        $response->assertDontSee('id="report_refused"');
+        $response->assertSee('id="report_table"');
+        $response->assertSee('id="report_csv"');
+        $this->assertSame(200, $this->fetch(self::PROFIT . '/csv?group=item&mode=between&from=2020-01-01&to=' . date('Y-m-d'))->response()->getStatusCode());
+    }
 }

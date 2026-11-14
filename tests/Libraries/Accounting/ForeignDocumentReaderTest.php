@@ -122,6 +122,23 @@ final class ForeignDocumentReaderTest extends CIUnitTestCase
         $this->assertSame([], (new ForeignDocumentReader())->sales('2031-03-14', '2031-03-14', false));
     }
 
+    public function testSales_TakesASaleWithABlankCurrencyForOneInTheBase(): void
+    {
+        $sale = $this->invoiceOf('10');
+        $this->saleTimeIs($sale, '2031-03-14 10:00:00');
+        $this->accountingDb()->table('sales')->where('sale_id', $sale)->update(['currency_code' => '']);
+
+        $this->assertSame([], (new ForeignDocumentReader())->sales('2031-03-14', '2031-03-14', false));
+    }
+
+    public function testReceivings_TakesAPurchaseWithABlankCurrencyForOneInTheBase(): void
+    {
+        $purchase = $this->purchaseOf('100.00');
+        $this->accountingDb()->table('receivings')->where('receiving_id', $purchase)->update(['receiving_time' => '2031-03-14 09:00:00', 'currency_code' => '']);
+
+        $this->assertSame([], (new ForeignDocumentReader())->receivings('2031-03-14', '2031-03-14', false));
+    }
+
     public function testReceivings_ListsThePurchasesInAForeignCurrencyOfTheDaysAndNoneInTheBase(): void
     {
         $foreign = $this->foreignPurchase();

@@ -123,7 +123,7 @@ final class SupplierLedger
      */
     private static function currencyOf(object $purchase): array
     {
-        if ($purchase->currency_code === null || $purchase->currency_code === '') {
+        if ($purchase->currency_code === null) {
             return [null, null];
         }
 

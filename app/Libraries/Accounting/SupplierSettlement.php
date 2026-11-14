@@ -199,11 +199,9 @@ final class SupplierSettlement
             return;
         }
 
-        $mirror = $source->type === CreditSource::DEBIT_NOTE
-            && $source->currencyCode === $purchase->currencyCode
-            && $source->currencyRate !== null
+        $mirror = $source->currencyCode === $purchase->currencyCode
             && $purchase->currencyRate !== null
-            && bccomp($source->currencyRate, $purchase->currencyRate, 8) === 0;
+            && bccomp((string) $source->currencyRate, $purchase->currencyRate, 8) === 0;
 
         if ($mirror) {
             return;

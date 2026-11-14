@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingGuard;
 use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\SupplierAdvances;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -581,6 +582,63 @@ class SupplierSettlementTest extends CIUnitTestCase
         $this->assertGreaterThan(0, $note);
         $this->assertSame(['debit_note:' . $note . '->' . $purchase . ':187.50'], $this->supplierApplications());
         $this->assertSupplierTies();
+    }
+
+    public function testSettle_RefusesByNameADebitNoteInEurosOnAPurchaseInDollarsEvenAtTheSameRate(): void
+    {
+        $this->enableDollars();
+        (new Currencies())->setActive('EUR', true);
+        (new Currencies())->rates()->add(['currency_code' => 'EUR', 'rate' => '3.75', 'effective_date' => $this->daysAgo(30)]);
+
+        $dollars = $this->foreignPurchase();
+        $this->purchases->useCurrency('EUR');
+        $euros = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '2', '50.00')], -1, lang('Sales.cash'), null, null, $this->daysAgo(8));
+
+        $this->assertSame(['USD', 'EUR'], [$this->accountingDb()->table('receivings')->where('receiving_id', $dollars)->get()->getRow()->currency_code, $this->accountingDb()->table('receivings')->where('receiving_id', $euros)->get()->getRow()->currency_code]);
+
+        $item = (int) $this->accountingDb()->table('receivings_items')->where('receiving_id', $euros)->get()->getRow()->item_id;
+
+        $this->assertSame(ACCOUNTING_FAILED, $this->buy([$this->purchaseLine($item, 0, '-1', '50.00')], -1, null, $euros));
+        $this->assertSame(AccountingError::CreditInForeignPurchase, $this->purchases->accountingFailure()->error);
+        $this->assertSame([], $this->supplierApplications());
+    }
+
+    public function testSettle_RefusesADebitNoteInDollarsWhenTheRateOfNeitherItNorThePurchaseWasStored(): void
+    {
+        $this->enableDollars();
+        $purchase = $this->foreignPurchase();
+        $note     = $this->debitNoteOf($purchase, '50.00');
+
+        $this->accountingDb()->table('supplier_credit_applications')->where('supplier_id', $this->supplierId)->delete();
+        $this->accountingDb()->table('receivings')->whereIn('receiving_id', [$purchase, $note])->update(['currency_rate' => null]);
+
+        try {
+            $this->settleSupplier();
+            $this->fail('The debit note went to the purchase although the rate of one of them is not known.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::CreditInForeignPurchase, $refusal->error);
+        }
+
+        $this->assertSame([], $this->supplierApplications());
+    }
+
+    public function testSettle_RefusesTheDebitNoteInDollarsOfAPurchaseWhoseRateWasNotStored(): void
+    {
+        $this->enableDollars();
+        $purchase = $this->foreignPurchase();
+        $this->debitNoteOf($purchase, '50.00');
+
+        $this->accountingDb()->table('supplier_credit_applications')->where('supplier_id', $this->supplierId)->delete();
+        $this->accountingDb()->table('receivings')->where('receiving_id', $purchase)->update(['currency_rate' => null]);
+
+        try {
+            $this->settleSupplier();
+            $this->fail('The debit note went to the purchase although the rate of one of them is not known.');
+        } catch (AccountingException $refusal) {
+            $this->assertSame(AccountingError::CreditInForeignPurchase, $refusal->error);
+        }
+
+        $this->assertSame([], $this->supplierApplications());
     }
 
     public function testSettle_SettlesAPurchaseInDollarsPaidInFullAtOnceWithoutTouchingTheAdvance(): void

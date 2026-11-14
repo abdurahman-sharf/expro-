@@ -194,11 +194,9 @@ final class CreditSettlement
             return;
         }
 
-        $mirror = $source->type === CreditSource::CREDIT_NOTE
-            && $source->currencyCode === $invoice->currencyCode
-            && $source->currencyRate !== null
+        $mirror = $source->currencyCode === $invoice->currencyCode
             && $invoice->currencyRate !== null
-            && bccomp($source->currencyRate, $invoice->currencyRate, 8) === 0;
+            && bccomp((string) $source->currencyRate, $invoice->currencyRate, 8) === 0;
 
         if ($mirror) {
             return;

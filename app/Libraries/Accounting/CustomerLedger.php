@@ -141,7 +141,7 @@ final class CustomerLedger
      */
     private static function currencyOf(object $sale): array
     {
-        if ($sale->currency_code === null || $sale->currency_code === '') {
+        if ($sale->currency_code === null) {
             return [null, null];
         }
 

@@ -24,7 +24,7 @@ final class ForeignAmounts
         $foreign = [];
 
         foreach ($documents as $document) {
-            if ($document->currencyCode !== null && $document->currencyCode !== '') {
+            if ($document->currencyCode !== null) {
                 $foreign[] = new ForeignDocument($document->number, $document->currencyCode);
             }
         }
