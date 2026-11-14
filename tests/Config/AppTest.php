@@ -23,7 +23,7 @@ class AppTest extends CIUnitTestCase
         putenv('CI_ENVIRONMENT');
         putenv('app.allowedHostnames');
         putenv('ALLOWED_HOSTNAMES');
-        unset($_SERVER['HTTP_HOST']);
+        unset($_SERVER['HTTP_HOST'], $_SERVER['HTTPS'], $_ENV['FORCE_HTTPS']);
         unset($_ENV['app.allowedHostnames'], $_ENV['ALLOWED_HOSTNAMES']);
         unset($_SERVER['app.allowedHostnames'], $_SERVER['ALLOWED_HOSTNAMES']);
         $_SERVER['CI_ENVIRONMENT'] = 'testing';
@@ -438,5 +438,57 @@ class AppTest extends CIUnitTestCase
 
         putenv('app.allowedHostnames');
         putenv('CI_ENVIRONMENT');
+    }
+    private function appServedAs(?string $https, bool $declaredHttps = false): App
+    {
+        putenv('ALLOWED_HOSTNAMES=shop.example.com');
+        $_SERVER['HTTP_HOST'] = 'shop.example.com';
+
+        if ($https === null) {
+            unset($_SERVER['HTTPS']);
+        } else {
+            $_SERVER['HTTPS'] = $https;
+        }
+
+        if ($declaredHttps) {
+            $_ENV['FORCE_HTTPS'] = 'true';
+        }
+
+        return new App();
+    }
+
+    public function testConstruct_ForcesSecureRequestsWhenThePageIsServedOverHttps(): void
+    {
+        $app = $this->appServedAs('on');
+
+        $this->assertStringStartsWith('https://shop.example.com/', $app->baseURL);
+        $this->assertTrue($app->forceGlobalSecureRequests);
+        $this->assertTrue($app->isSecureBase());
+    }
+
+    public function testConstruct_LeavesSecureRequestsAloneWhenThePageIsServedOverHttp(): void
+    {
+        $app = $this->appServedAs(null);
+
+        $this->assertStringStartsWith('http://shop.example.com/', $app->baseURL);
+        $this->assertFalse($app->forceGlobalSecureRequests);
+        $this->assertFalse($app->isSecureBase());
+    }
+
+    public function testConstruct_TreatsAnOffValueOfTheServerVariableAsHttp(): void
+    {
+        $app = $this->appServedAs('off');
+
+        $this->assertFalse($app->forceGlobalSecureRequests);
+        $this->assertFalse($app->isSecureBase());
+    }
+
+    public function testConstruct_DoesNotRedirectWhenHttpsIsOnlyDeclaredForAProxy(): void
+    {
+        $app = $this->appServedAs(null, true);
+
+        $this->assertStringStartsWith('https://shop.example.com/', $app->baseURL);
+        $this->assertTrue($app->isSecureBase());
+        $this->assertFalse($app->forceGlobalSecureRequests, 'a proxy that does not tell the application the request was secure would be redirected for ever');
     }
 }

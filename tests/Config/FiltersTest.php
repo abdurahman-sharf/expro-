@@ -191,4 +191,12 @@ class FiltersTest extends CIUnitTestCase
 
         (new CSRF())->before($this->postRequest());
     }
+    public function testInitialize_RunsTheTransportHeadersBeforeAndAfterEveryRoute(): void
+    {
+        $filters = new Filters($this->productionConfig(), service('incomingrequest', null, false), service('response'));
+        $filters->initialize('sales/index');
+
+        $this->assertContains('transport', $filters->getFilters()['before']);
+        $this->assertContains('transport', $filters->getFilters()['after']);
+    }
 }
