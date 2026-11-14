@@ -843,6 +843,8 @@ class Items extends Secure_Controller
             }
         }
 
+        $this->dropEmptyTaxRows();
+
         $taxNamesInput = $this->request->getPost('tax_names');
         $taxPercentsInput = $this->request->getPost('tax_percents');
 
@@ -869,6 +871,36 @@ class Items extends Secure_Controller
         }
 
         return $this->validatePurchaseTaxes($itemId) ?? $this->validatePricingFields($itemId);
+    }
+
+    /**
+     * The form always posts two tax rows, and a shop that has not set default taxes leaves both empty. A row with
+     * neither a name nor a rate is not a tax, so it is taken out of the request before the rows are checked.
+     */
+    private function dropEmptyTaxRows(): void
+    {
+        $names    = $this->request->getPost('tax_names');
+        $percents = $this->request->getPost('tax_percents');
+
+        if (!is_array($names) || !is_array($percents)) {
+            return;
+        }
+
+        $keptNames    = [];
+        $keptPercents = [];
+
+        foreach ($percents as $index => $percent) {
+            $name = $names[$index] ?? '';
+
+            if (trim((string) $name) === '' && trim((string) $percent) === '') {
+                continue;
+            }
+
+            $keptNames[]    = $name;
+            $keptPercents[] = $percent;
+        }
+
+        $this->request->setGlobal('post', ['tax_names' => $keptNames, 'tax_percents' => $keptPercents] + $this->request->getPost());
     }
 
     /**

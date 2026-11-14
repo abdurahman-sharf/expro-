@@ -5,6 +5,7 @@ use CodeIgniter\Router\RouteCollection;
 
 /** @var RouteCollection $routes */
 $routes->setDefaultController('Login');
+$routes->addPlaceholder('entry', '-?[0-9]{1,9}');
 
 $reportFiles = static function (RouteCollection $routes, string $handler, string $titleKey, string $prefix = ''): void {
     foreach (['xlsx', 'pdf'] as $format) {
@@ -53,9 +54,9 @@ $routes->group('branches', static function (RouteCollection $routes): void {
     $routes->get('search', 'Branches::getSearch');
     $routes->get('row/(:num)', 'Branches::getRow/$1');
     $routes->get('view', 'Branches::getView');
-    $routes->get('view/(:segment)', 'Branches::getView/$1');
+    $routes->get('view/(:entry)', 'Branches::getView/$1');
     $routes->post('save', 'Branches::postSave');
-    $routes->post('save/(:segment)', 'Branches::postSave/$1');
+    $routes->post('save/(:entry)', 'Branches::postSave/$1');
     $routes->post('deactivate/(:num)', 'Branches::postDeactivate/$1');
     $routes->post('activate/(:num)', 'Branches::postActivate/$1');
     $routes->post('delete/(:num)', 'Branches::postDeleteBranch/$1');
@@ -66,9 +67,9 @@ $routes->group('roles', static function (RouteCollection $routes): void {
     $routes->get('search', 'Roles::getSearch');
     $routes->get('row/(:num)', 'Roles::getRow/$1');
     $routes->get('view', 'Roles::getView');
-    $routes->get('view/(:segment)', 'Roles::getView/$1');
+    $routes->get('view/(:entry)', 'Roles::getView/$1');
     $routes->post('save', 'Roles::postSave');
-    $routes->post('save/(:segment)', 'Roles::postSave/$1');
+    $routes->post('save/(:entry)', 'Roles::postSave/$1');
     $routes->post('delete/(:num)', 'Roles::postDeleteRole/$1');
 });
 
@@ -154,7 +155,7 @@ $routes->group('accounting_cheques', static function (RouteCollection $routes) u
     $routes->get('form/(:segment)', 'AccountingCheques::getForm/$1');
     $routes->get('form/(:segment)/(:num)', 'AccountingCheques::getForm/$1/$2');
     $routes->post('save/(:segment)', 'AccountingCheques::postSaveCheque/$1');
-    $routes->post('save/(:segment)/(:num)', 'AccountingCheques::postSaveCheque/$1/$2');
+    $routes->post('save/(:segment)/(:entry)', 'AccountingCheques::postSaveCheque/$1/$2');
     $routes->get('action_form/(:segment)/(:num)', 'AccountingCheques::getActionForm/$1/$2');
     $routes->post('act/(:segment)/(:num)', 'AccountingCheques::postAct/$1/$2');
     $routes->post('cancel/(:num)', 'AccountingCheques::postCancel/$1');
@@ -164,7 +165,7 @@ $routes->group('accounting_cheques', static function (RouteCollection $routes) u
     $routes->get('book_form', 'AccountingCheques::getBookForm');
     $routes->get('book_form/(:num)', 'AccountingCheques::getBookForm/$1');
     $routes->post('save_book', 'AccountingCheques::postSaveBook');
-    $routes->post('save_book/(:num)', 'AccountingCheques::postSaveBook/$1');
+    $routes->post('save_book/(:entry)', 'AccountingCheques::postSaveBook/$1');
     $routes->post('book_active/(:num)/(:num)', 'AccountingCheques::postBookActive/$1/$2');
     $routes->post('delete_book/(:num)', 'AccountingCheques::postDeleteBook/$1');
     $routes->get('report/(:segment)', 'AccountingCheques::getReport/$1');
@@ -327,7 +328,7 @@ $routes->group('receipt_vouchers', static function (RouteCollection $routes): vo
     $routes->get('print/(:num)', 'Receipt_vouchers::getPrint/$1');
     $routes->get('pdf/(:num)', 'Receipt_vouchers::getPdf/$1');
     $routes->post('save', 'Receipt_vouchers::postSave');
-    $routes->post('save/(:num)', 'Receipt_vouchers::postSave/$1');
+    $routes->post('save/(:entry)', 'Receipt_vouchers::postSave/$1');
     $routes->post('delete', 'Receipt_vouchers::postDelete');
 });
 
@@ -338,7 +339,7 @@ $routes->group('revenue_categories', static function (RouteCollection $routes): 
     $routes->get('view', 'Revenue_categories::getView');
     $routes->get('view/(:num)', 'Revenue_categories::getView/$1');
     $routes->post('save', 'Revenue_categories::postSave');
-    $routes->post('save/(:num)', 'Revenue_categories::postSave/$1');
+    $routes->post('save/(:entry)', 'Revenue_categories::postSave/$1');
     $routes->post('delete', 'Revenue_categories::postDelete');
 });
 
@@ -349,7 +350,7 @@ $routes->group('tax_definitions', static function (RouteCollection $routes): voi
     $routes->get('view', 'Tax_definitions::getView');
     $routes->get('view/(:num)', 'Tax_definitions::getView/$1');
     $routes->post('save', 'Tax_definitions::postSave');
-    $routes->post('save/(:num)', 'Tax_definitions::postSave/$1');
+    $routes->post('save/(:entry)', 'Tax_definitions::postSave/$1');
     $routes->post('delete', 'Tax_definitions::postDelete');
 });
 
@@ -360,7 +361,7 @@ $routes->group('custom_fields', static function (RouteCollection $routes): void 
     $routes->get('view', 'Custom_fields::getView');
     $routes->get('view/(:num)', 'Custom_fields::getView/$1');
     $routes->post('save', 'Custom_fields::postSave');
-    $routes->post('save/(:num)', 'Custom_fields::postSave/$1');
+    $routes->post('save/(:entry)', 'Custom_fields::postSave/$1');
     $routes->post('status/(:num)/(:num)', 'Custom_fields::postStatus/$1/$2');
 });
 
@@ -404,7 +405,7 @@ $routes->group('price_lists', static function (RouteCollection $routes): void {
     $routes->get('view', 'Price_lists::getView');
     $routes->get('view/(:num)', 'Price_lists::getView/$1');
     $routes->post('save', 'Price_lists::postSave');
-    $routes->post('save/(:num)', 'Price_lists::postSave/$1');
+    $routes->post('save/(:entry)', 'Price_lists::postSave/$1');
     $routes->post('status/(:num)/(:num)', 'Price_lists::postStatus/$1/$2');
     $routes->post('delete', 'Price_lists::postDelete');
 });
@@ -417,7 +418,7 @@ foreach (['customer_classifications' => 'Customer_classifications', 'item_brands
         $routes->get('view', $lookupController . '::getView');
         $routes->get('view/(:num)', $lookupController . '::getView/$1');
         $routes->post('save', $lookupController . '::postSave');
-        $routes->post('save/(:num)', $lookupController . '::postSave/$1');
+        $routes->post('save/(:entry)', $lookupController . '::postSave/$1');
         $routes->post('status/(:num)/(:num)', $lookupController . '::postStatus/$1/$2');
         $routes->post('delete', $lookupController . '::postDelete');
     });
@@ -499,9 +500,9 @@ $routes->group('accounting_treasuries', static function (RouteCollection $routes
     $reportFiles($routes, 'AccountingTreasuries::getStatementCsv/$1', 'Accounting_treasuries.statement', 'statement/(:num)/');
     $routes->get('banks', 'AccountingTreasuries::getBanks');
     $routes->get('view', 'AccountingTreasuries::getView');
-    $routes->get('view/(:segment)', 'AccountingTreasuries::getView/$1');
+    $routes->get('view/(:entry)', 'AccountingTreasuries::getView/$1');
     $routes->post('save', 'AccountingTreasuries::postSave');
-    $routes->post('save/(:segment)', 'AccountingTreasuries::postSave/$1');
+    $routes->post('save/(:entry)', 'AccountingTreasuries::postSave/$1');
     $routes->post('deactivate/(:num)', 'AccountingTreasuries::postDeactivate/$1');
     $routes->post('activate/(:num)', 'AccountingTreasuries::postActivate/$1');
     $routes->post('delete/(:num)', 'AccountingTreasuries::postDeleteTreasury/$1');
@@ -553,9 +554,9 @@ $routes->group('accounting_periods', static function (RouteCollection $routes) u
     $routes->get('search', 'AccountingPeriods::getSearch');
     $routes->get('row/(:num)', 'AccountingPeriods::getRow/$1');
     $routes->get('view', 'AccountingPeriods::getView');
-    $routes->get('view/(:segment)', 'AccountingPeriods::getView/$1');
+    $routes->get('view/(:entry)', 'AccountingPeriods::getView/$1');
     $routes->post('save', 'AccountingPeriods::postSave');
-    $routes->post('save/(:segment)', 'AccountingPeriods::postSave/$1');
+    $routes->post('save/(:entry)', 'AccountingPeriods::postSave/$1');
     $routes->post('delete/(:num)', 'AccountingPeriods::postDeleteYear/$1');
 
     $routes->get('closings', 'AccountingClosings::getIndex');
@@ -605,10 +606,10 @@ $routes->group('accounting_chart', static function (RouteCollection $routes): vo
     $routes->get('search', 'AccountingChart::getSearch');
     $routes->get('row/(:num)', 'AccountingChart::getRow/$1');
     $routes->get('view', 'AccountingChart::getView');
-    $routes->get('view/(:segment)', 'AccountingChart::getView/$1');
+    $routes->get('view/(:entry)', 'AccountingChart::getView/$1');
     $routes->get('suggest_code/(:num)', 'AccountingChart::getSuggestCode/$1');
     $routes->post('save', 'AccountingChart::postSave');
-    $routes->post('save/(:segment)', 'AccountingChart::postSave/$1');
+    $routes->post('save/(:entry)', 'AccountingChart::postSave/$1');
     $routes->post('deactivate/(:num)', 'AccountingChart::postDeactivate/$1');
     $routes->post('activate/(:num)', 'AccountingChart::postActivate/$1');
     $routes->post('delete/(:num)', 'AccountingChart::postDeleteAccount/$1');
@@ -638,9 +639,9 @@ $routes->group('accounting_cost_centers', static function (RouteCollection $rout
     $routes->get('search', 'AccountingCostCenters::getSearch');
     $routes->get('row/(:num)', 'AccountingCostCenters::getRow/$1');
     $routes->get('view', 'AccountingCostCenters::getView');
-    $routes->get('view/(:segment)', 'AccountingCostCenters::getView/$1');
+    $routes->get('view/(:entry)', 'AccountingCostCenters::getView/$1');
     $routes->post('save', 'AccountingCostCenters::postSave');
-    $routes->post('save/(:segment)', 'AccountingCostCenters::postSave/$1');
+    $routes->post('save/(:entry)', 'AccountingCostCenters::postSave/$1');
     $routes->get('defaults', 'AccountingCostCenters::getDefaults');
     $routes->get('defaults/(:num)', 'AccountingCostCenters::getDefaults/$1');
     $routes->post('save_defaults/(:num)', 'AccountingCostCenters::postSaveDefaults/$1');

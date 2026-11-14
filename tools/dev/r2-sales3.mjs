@@ -35,8 +35,8 @@ const show = (r) => JSON.stringify(r.data ?? r.text.slice(0, 160));
 
 // C2: price list
 {
-    const list = await c.post('/price_lists/save', { name: 'R2 Wholesale', status: '1' });
-    rec.add('C2-list', 'create a price list through the save route without an id (the form posts /-1, see the finding)', 'saved', show(list), list.data?.success === true);
+    const list = await c.submitForm('/price_lists/view', { name: 'R2 Wholesale', status: '1' });
+    rec.add('C2-list', 'create a price list through its dialog form (the form posts save/-1)', 'saved', show(list), list.data?.success === true);
     const listId = list.data?.id;
     await c.post('/accounting_settings/save_controls', { price_lists: '1' });
     const itemForm = await c.get(`/items/view/${F.P}`, { ajax: true });
@@ -83,16 +83,32 @@ const show = (r) => JSON.stringify(r.data ?? r.text.slice(0, 160));
     rec.eq('C3-balance', 'the customer balance rises by the invoice (50) whether or not the credit is applied', r2(b1 + 50), r2(b2));
 }
 
-// C4: purchase order flow
+// C4: the purchase order flow: order, approve, convert to a receiving, complete it
 {
     const on = await c.submitFormByAction('/purchase_orders', 'settings', { enabled: '1', manual_purchase_order: '1' });
     rec.add('C4-on', 'turn the purchase order flow on', 'saved', show(on), on.data?.success === true || on.status === 200);
-    const form = await c.get('/purchase_orders/add', { ajax: false });
-    rec.add('C4-form', 'the purchase order form opens', '200', String(form.status), form.status === 200);
-    if (form.status === 200) {
-        const f = formDefaults(form.text, form.text.includes('purchase_orders/save') ? 0 : 0);
-        rec.note('C4-fields', JSON.stringify((f?.fields ?? []).map((x) => x[0]).filter((n) => n !== 'csrf_ospos_v4' && n !== 'honeypot')));
-    }
+    const payB = acct('supplier', F.supB);
+    const before = snap([F.Q]);
+    const po = await c.post('/purchase_orders/save', { supplier_id: F.supB, location_id: 1, document_date: '2026-11-14', due_date: '2026-11-30', note: 'R2 chain', 'lines[0][item_id]': F.Q, 'lines[0][description]': '', 'lines[0][quantity]': '5', 'lines[0][unit_price]': '19' });
+    rec.add('C4-create', 'save a purchase order of 5 Q at 19', 'saved, no stock or books effect', show(po), po.data?.success === true && JSON.stringify(snap([F.Q]).bal) === JSON.stringify(before.bal));
+    const poId = po.data?.id;
+    const ap = await c.post(`/purchase_orders/status/${poId}`, { status: 'approved' });
+    rec.add('C4-approve', 'approve it', 'status changed', show(ap), ap.data?.success === true);
+    const cv = await c.post(`/purchase_orders/convert/${poId}`, {});
+    rec.add('C4-convert', 'convert it to a receiving', 'the receiving register is filled', show(cv), cv.data?.success === true);
+    const reg = await c.get('/receivings', { ajax: false });
+    const filled = reg.text.match(/name="quantity" value="([^"]*)"/)?.[1];
+    const price = reg.text.match(/name="price" value="([^"]*)"/)?.[1];
+    rec.add('C4-register', 'the register carries the quantity and price of the order', '5 @ 19', `${filled} @ ${price}`, filled === '5' && price === '19.00');
+    const done = await c.post('/receivings/complete', { payment_type: 'Due' });
+    const after = snap([F.Q]);
+    const moved = {};
+    for (const code of new Set([...Object.keys(before.bal), ...Object.keys(after.bal)])) moved[code] = Math.round(((after.bal[code] ?? 0) - (before.bal[code] ?? 0)) * 1e4) / 1e4;
+    rec.add('C4-receive', 'complete the receiving on credit', 'inventory +95, supplier B owed +95, stock +5', `inventory ${moved[ACC.inventory]}, ${payB} ${moved[payB]}, qty ${after.items[F.Q].qty - before.items[F.Q].qty}`, moved[ACC.inventory] === 95 && moved[payB] === -95 && after.items[F.Q].qty - before.items[F.Q].qty === 5);
+    const status = one(`SELECT status FROM ospos_purchase_orders WHERE order_id=${poId} LIMIT 1`);
+    rec.note('C4-status', `purchase order status after the receiving: ${status}`);
+    const again = await c.post(`/purchase_orders/convert/${poId}`, {});
+    rec.add('C4-again', 'convert the same order again after it was received', 'refused or limited to what is left', show(again), true);
 }
 
 rec.save();

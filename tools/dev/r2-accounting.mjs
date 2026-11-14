@@ -112,6 +112,9 @@ let jid = null;
 
 // ---- period lock ----
 {
+    const rentId = one("SELECT account_id FROM ospos_accounting_accounts WHERE code='5201'");
+    const cashId = one("SELECT account_id FROM ospos_accounting_accounts WHERE code='120101'");
+    await c.post('/accounting_journals/post', { date: '2026-11-14', description: 'R2 kept for the lock test', 'lines[0][account_id]': rentId, 'lines[0][debit]': '7', 'lines[1][account_id]': cashId, 'lines[1][credit]': '7' });
     const rent = one("SELECT account_id FROM ospos_accounting_accounts WHERE code='5201'");
     const cash = one("SELECT account_id FROM ospos_accounting_accounts WHERE code='120101'");
     const cut = await tryLock();
@@ -135,11 +138,11 @@ let jid = null;
     rec.add('E19', 'a customer advance inside the lock', 'refused in words', show(adv), adv.data?.success === false);
     const exp = await c.submitForm('/expenses/view', { amount: '5.00', payment_type: 'Cash', expense_category_id: 1, description: 'R2 in lock' });
     rec.add('E20', 'an expense inside the lock', 'refused in words', show(exp), exp.data?.success === false);
-    const voucher = await c.submitForm('/receipt_vouchers/view', { amount: '5.00', payment_type: 'Cash', treasury_id: 0, category_id: 0, account_id: 0 }, { action: '/receipt_vouchers/save' });
+    const voucher = await c.submitForm('/receipt_vouchers/view', { amount: '5.00', payment_type: 'Cash', treasury_id: 0, category_id: 0, account_id: 0 });
     rec.add('E21', 'a receipt voucher inside the lock', 'refused in words', show(voucher), voucher.data?.success === false);
     const tr = await c.submitForm('/accounting_treasuries/transfer_form', { from_treasury_id: 1, to_treasury_id: 3, amount: '1', note: 'R2' });
     rec.add('E22', 'a treasury transfer inside the lock', 'refused in words', show(tr), tr.data?.success === false);
-    const lastJ = num("SELECT MAX(journal_id) FROM ospos_accounting_journals WHERE source_type='manual' AND status IN ('posted','reversed')");
+    const lastJ = num("SELECT MAX(journal_id) FROM ospos_accounting_journals WHERE source_type='manual' AND status='posted'");
     const rv2 = await c.post(`/accounting_journals/reverse/${lastJ}`, { date: '2026-11-14', reason: 'R2 inside lock' });
     rec.add('E23', 'reverse a journal into the closed period', 'refused', show(rv2), rv2.data?.success === false);
     const sid = num("SELECT MAX(sale_id) FROM ospos_sales WHERE sale_type=0 AND sale_status=0");

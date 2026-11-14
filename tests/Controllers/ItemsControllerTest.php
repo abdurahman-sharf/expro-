@@ -209,6 +209,35 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertTrue($result['success']);
     }
 
+    public function testPostSave_AcceptsTheEmptyTaxRowsOfAFormLeftAsItWasOpened(): void
+    {
+        $employeeId = $this->createItemsEmployee();
+        $this->loginAsItemsEmployee($employeeId);
+
+        $postData                 = $this->baseItemPostData();
+        $postData['tax_names']    = ['', ''];
+        $postData['tax_percents'] = ['', ''];
+
+        $result = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+        $this->assertSame([], $this->accountingDb()->table('items_taxes')->where('item_id', $result['id'])->get()->getResultArray());
+    }
+
+    public function testPostSave_RejectsATaxRateThatHasNoName(): void
+    {
+        $employeeId = $this->createItemsEmployee();
+        $this->loginAsItemsEmployee($employeeId);
+
+        $postData                 = $this->baseItemPostData();
+        $postData['tax_names']    = ['', ''];
+        $postData['tax_percents'] = ['15', ''];
+
+        $result = json_decode($this->post('/items/save', $postData)->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+    }
+
     public function testPostSave_KeepsTheCostOfAnItemThatIsPostedAsItWasShown(): void
     {
         $employeeId = $this->createItemsEmployee();

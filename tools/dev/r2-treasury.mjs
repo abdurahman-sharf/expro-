@@ -67,7 +67,7 @@ const bankAcct = acct('treasury', BANK);
 // T5: revenue voucher
 {
     const before = snap(items);
-    const r = await c.submitForm('/receipt_vouchers/view', { amount: '200.00', tax_amount: '0.00', payment_type: 'Cash', treasury_id: 0, category_id: 0, account_id: 0, description: 'R2 other income' }, { action: '/receipt_vouchers/save' });
+    const r = await c.submitForm('/receipt_vouchers/view', { amount: '200.00', tax_amount: '0.00', payment_type: 'Cash', treasury_id: 0, category_id: 0, account_id: 0, description: 'R2 other income' });
     const after = snap(items);
     rec.add('T5-http', 'receipt voucher 200 cash, automatic revenue account', 'saved', show(r), ok(r));
     deltaCheck(rec, 'T5', 'voucher: cash up 200, other revenue up 200', before, after, { [cashAcct]: 200, [sysCode('revenues_default')]: -200 });
@@ -77,7 +77,7 @@ const bankAcct = acct('treasury', BANK);
 {
     const form = '/accounting_cheques/form/received';
     const b0 = snap(items);
-    const r = await c.submitForm(form, { party_id: F.cust1, treasury_id: BANK, cheque_number: 'CHQ-R2-1', amount: '300', issue_date: '2026-11-14', due_date: '2026-11-14', drawer_name: 'R2Cust One', description: 'R2 cheque' }, { action: '/accounting_cheques/save/received' });
+    const r = await c.submitForm(form, { party_id: F.cust1, treasury_id: BANK, cheque_number: 'CHQ-R2-1', amount: '300', issue_date: '2026-11-14', due_date: '2026-11-14', drawer_name: 'R2Cust One', description: 'R2 cheque' });
     rec.add('T6-save', 'receive a cheque of 300 from customer 1', 'saved', show(r), ok(r));
     const chequeId = num("SELECT MAX(cheque_id) FROM ospos_cheques");
     const a0 = snap(items);
@@ -100,7 +100,7 @@ const bankAcct = acct('treasury', BANK);
 // T7: a rejected cheque goes back to the customer
 {
     const b0 = snap(items);
-    const r = await c.submitForm('/accounting_cheques/form/received', { party_id: F.cust2, treasury_id: BANK, cheque_number: 'CHQ-R2-2', amount: '150', issue_date: '2026-11-14', due_date: '2026-11-14', drawer_name: 'R2Cust Two' }, { action: '/accounting_cheques/save/received' });
+    const r = await c.submitForm('/accounting_cheques/form/received', { party_id: F.cust2, treasury_id: BANK, cheque_number: 'CHQ-R2-2', amount: '150', issue_date: '2026-11-14', due_date: '2026-11-14', drawer_name: 'R2Cust Two' });
     const id = num('SELECT MAX(cheque_id) FROM ospos_cheques');
     await c.submitForm(`/accounting_cheques/action_form/deposit/${id}`, { date: '2026-11-14' }, { action: `/accounting_cheques/act/deposit/${id}` });
     const rj = await c.submitForm(`/accounting_cheques/action_form/reject/${id}`, { date: '2026-11-14' }, { action: `/accounting_cheques/act/reject/${id}` });
@@ -114,11 +114,11 @@ const bankAcct = acct('treasury', BANK);
 
 // T8: a cheque paid to a supplier: book, issue, deliver
 {
-    const book = await c.submitForm('/accounting_cheques/book_form', { treasury_id: BANK, name: 'R2 book', first_serial: '1000', last_serial: '1020' }, { action: '/accounting_cheques/save_book' });
+    const book = await c.submitForm('/accounting_cheques/book_form', { treasury_id: BANK, name: 'R2 book', first_serial: '1000', last_serial: '1020' });
     rec.add('T8-book', 'open a cheque book 1000-1020 on Bank Alpha', 'saved', show(book), ok(book));
     const bookId = num('SELECT MAX(book_id) FROM ospos_cheque_books');
     const b0 = snap(items);
-    const r = await c.submitForm('/accounting_cheques/form/paid', { party_id: F.supA, book_id: bookId, cheque_number: '1000', amount: '120', issue_date: '2026-11-14', due_date: '2026-11-14', drawer_name: '', deliver: '' }, { action: '/accounting_cheques/save/paid' });
+    const r = await c.submitForm('/accounting_cheques/form/paid', { party_id: F.supA, book_id: bookId, cheque_number: '1000', amount: '120', issue_date: '2026-11-14', due_date: '2026-11-14', drawer_name: '', deliver: '' });
     rec.add('T8-issue', 'issue paid cheque 1000 of 120 to supplier A', 'saved', show(r), ok(r));
     const id = num('SELECT MAX(cheque_id) FROM ospos_cheques');
     const del = await c.submitForm(`/accounting_cheques/action_form/deliver/${id}`, { date: '2026-11-14' }, { action: `/accounting_cheques/act/deliver/${id}` });
