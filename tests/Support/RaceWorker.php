@@ -11,13 +11,20 @@
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\Backfill\BackfillService;
+use App\Libraries\Accounting\CreditRefunds;
+use App\Libraries\Accounting\CrossBranchPayments;
+use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\InterBranchSettlements;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\OpeningBalanceService;
 use App\Libraries\Accounting\OpeningStock;
 use App\Libraries\Accounting\OpeningStockResult;
 use App\Libraries\Accounting\OpeningStockStatus;
 use App\Libraries\Accounting\ReceivingLineEdit;
+use App\Libraries\Accounting\SalePostingBuilder;
+use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\Accounting\YearEndClosing;
 use App\Libraries\EInvoicing\EInvoiceService;
 use App\Libraries\Stock\StockPermit;
@@ -29,7 +36,9 @@ use App\Libraries\PurchaseCycle\PurchaseDocumentKind;
 use App\Libraries\PurchaseCycle\PurchaseDocuments;
 use App\Libraries\PurchaseCycle\PurchaseOrderReceipts;
 use App\Libraries\Recurring\RecurringGenerator;
+use App\Models\Cashup;
 use App\Models\Customer;
+use App\Models\Expense;
 use App\Models\Giftcard;
 use App\Models\Item_quantity;
 use App\Models\Receiving;
@@ -43,8 +52,9 @@ chdir($root);
 $loader     = require $root . '/vendor/autoload.php';
 $vendorHome = dirname((string) realpath($root . '/vendor'));
 
-// A git worktree shares the vendor directory of the main checkout, whose class map points App\
-// at the main checkout. The worker must run the code of the checkout it sits in.
+// Composer builds its class map and its prefix paths from the real path of the vendor directory it is read
+// from. A vendor directory that is a link to another checkout therefore points App\ at that checkout, and
+// the worker would race the code of another checkout than the one the test runs in.
 if ($vendorHome !== $root) {
     $classMap = [];
 
@@ -64,19 +74,11 @@ require $root . '/vendor/codeigniter4/framework/system/Test/bootstrap.php';
 
 date_default_timezone_set('America/New_York');
 
-// A checkout whose vendor directory is another checkout's gets that checkout's classes from Composer, so
-// the worker puts the application of the checkout it runs in first and races the code under test.
-spl_autoload_register(static function (string $class): void {
-    if (! str_starts_with($class, 'App\\')) {
-        return;
-    }
+if (APPPATH !== (string) realpath($root . '/app') . '/' || ! str_starts_with((string) realpath((string) $loader->findFile(Sale::class)), $root . '/app/')) {
+    fwrite(STDERR, 'The race worker would load the application from outside ' . $root . "\n");
 
-    $file = APPPATH . str_replace('\\', '/', substr($class, 4)) . '.php';
-
-    if (is_file($file)) {
-        require_once $file;
-    }
-}, true, true);
+    exit(3);
+}
 
 $method = $argv[1];
 $args   = array_slice($argv, 2);
@@ -96,6 +98,18 @@ $attempt = static function (callable $action, string $outcomeFile): bool {
         $outcome = 'done';
     } catch (AccountingException $exception) {
         $outcome = $exception->error->value;
+    } catch (Throwable $exception) {
+        $outcome = get_class($exception) . ' ' . $exception->getMessage();
+    }
+
+    file_put_contents($outcomeFile, $outcome);
+
+    return $outcome === 'done';
+};
+
+$attemptModel = static function (callable $action, string $outcomeFile): bool {
+    try {
+        $outcome = $action() === true ? 'done' : 'refused';
     } catch (Throwable $exception) {
         $outcome = get_class($exception) . ' ' . $exception->getMessage();
     }
@@ -428,6 +442,72 @@ $result = match ($method) {
     'payPurchase'       => model(Receiving::class)->update((int) $args[0], ['payments' => [
         ['payment_id' => NEW_ENTRY, 'payment_type' => 'Cash', 'payment_amount' => (string) $args[1], 'employee_id' => (int) $args[2], 'payment_status' => 'completed', 'reference_code' => ''],
     ]]),
+    'loadedFrom' => (static function (): never {
+        echo (string) (new ReflectionClass(Sale::class))->getFileName();
+
+        exit(0);
+    })(),
+    'refundCredit'          => $attempt(static fn () => (new CreditRefunds((string) $args[0]))->refund((int) $args[1], (string) $args[2], (string) $args[3], 'Cash', null, '', '', (int) $args[4]), (string) $args[5]),
+    'cancelRefund'          => $attempt(static fn () => (new CreditRefunds((string) $args[0]))->cancel((int) $args[1], 'race', (int) $args[2]), (string) $args[3]),
+    'cancelCustomerAdvance' => $attempt(static fn () => (new CustomerAdvances())->cancel((int) $args[0], 'race', (int) $args[1]), (string) $args[2]),
+    'cancelSupplierAdvance' => $attempt(static fn () => (new SupplierAdvances())->cancel((int) $args[0], 'race', (int) $args[1]), (string) $args[2]),
+    'saveExpense'           => $attemptModel(static function () use ($args): bool {
+        $data = [
+            'date'                => '2026-10-20 10:00:00',
+            'supplier_id'         => null,
+            'supplier_tax_code'   => '',
+            'amount'              => (string) $args[1],
+            'tax_amount'          => '0',
+            'payment_type'        => 'Cash',
+            'expense_category_id' => (int) $args[2],
+            'description'         => 'Race expense',
+            'employee_id'         => (int) $args[3],
+            'deleted'             => 0,
+        ];
+
+        return model(Expense::class)->save_value($data, (int) $args[0], (int) $args[3]);
+    }, (string) $args[4]),
+    'deleteExpense' => $attemptModel(static fn (): bool => model(Expense::class)->delete_list([(int) $args[0]], (int) $args[1]), (string) $args[2]),
+    'saveCashup'    => $attemptModel(static function () use ($args): bool {
+        $data = [
+            'open_date'            => '2026-10-20 08:00:00',
+            'close_date'           => '2026-10-20 18:00:00',
+            'open_amount_cash'     => '100',
+            'transfer_amount_cash' => '0',
+            'closed_amount_cash'   => (string) $args[1],
+            'closed_amount_due'    => '0',
+            'closed_amount_card'   => '0',
+            'closed_amount_check'  => '0',
+            'closed_amount_total'  => bcsub((string) $args[1], '100', 2),
+            'note'                 => 0,
+            'description'          => 'Race cash-up',
+            'open_employee_id'     => (int) $args[2],
+            'close_employee_id'    => (int) $args[2],
+            'deleted'              => 0,
+        ];
+
+        return model(Cashup::class)->save_value($data, (int) $args[0], (int) $args[2]);
+    }, (string) $args[3]),
+    'deleteCashup'      => $attemptModel(static fn (): bool => model(Cashup::class)->delete_list([(int) $args[0]], (int) $args[1]), (string) $args[2]),
+    'postCrossBranch'   => $attempt(static function () use ($args): void {
+        $payments = new CrossBranchPayments();
+        $amount   = (string) $args[1];
+        $treasury = (int) $args[7];
+        $customer = (int) $args[6];
+
+        $draft = new JournalDraft(
+            date: '2026-10-21',
+            lines: $args[2] === '1'
+                ? [new JournalLineDraft($treasury, debit: $amount), new JournalLineDraft($customer, credit: $amount)]
+                : [new JournalLineDraft($customer, debit: $amount), new JournalLineDraft($treasury, credit: $amount)],
+            sourceType: SalePostingBuilder::SOURCE_PAYMENT,
+            sourceId: (int) $args[0],
+            description: 'Race payment #' . $args[0],
+            branchId: (int) $args[5],
+        );
+
+        $payments->post($payments->drafts($draft, (int) $args[3], (int) $args[4]));
+    }, (string) $args[8]),
     default => throw new InvalidArgumentException("Unknown race method: {$method}"),
 };
 
