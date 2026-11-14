@@ -1039,7 +1039,7 @@ class Receiving extends Model
      *
      * @throws ReflectionException
      */
-    public function save_value(array $items, int $supplierId, int $employeeId, string $comment, string $reference, ?string $paymentType, int $receivingId = NEW_ENTRY, ?int $returnOfReceivingId = null, ?InvoiceDiscount $invoiceDiscount = null, ?string $invoiceDate = null, int|string|null $paymentTerms = null, ?int $purchaseOrderId = null): int    // TODO: $receivingId gets overwritten before it's evaluated. It doesn't make sense to pass this here.
+    public function save_value(array $items, int $supplierId, int $employeeId, string $comment, string $reference, ?string $paymentType, int $receivingId = NEW_ENTRY, ?int $returnOfReceivingId = null, ?InvoiceDiscount $invoiceDiscount = null, ?string $invoiceDate = null, int|string|null $paymentTerms = null, ?int $purchaseOrderId = null, ?string $amountPaid = null): int    // TODO: $receivingId gets overwritten before it's evaluated. It doesn't make sense to pass this here.
     {
         $this->accountingFailure = null;
 
@@ -1051,7 +1051,7 @@ class Receiving extends Model
         $this->currencyChoice = null;
 
         try {
-            return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplierId > 0 ? $supplierId : null, fn (): int => $this->saveValueLocked($items, $supplierId, $employeeId, $comment, $reference, $paymentType, $receivingId, $returnOfReceivingId, $invoiceDiscount ?? InvoiceDiscount::none(), $invoiceDate, $paymentTerms, $purchaseOrderId));
+            return (new SupplierLock($this->db, $this->supplierLockWait))->run($supplierId > 0 ? $supplierId : null, fn (): int => $this->saveValueLocked($items, $supplierId, $employeeId, $comment, $reference, $paymentType, $receivingId, $returnOfReceivingId, $invoiceDiscount ?? InvoiceDiscount::none(), $invoiceDate, $paymentTerms, $purchaseOrderId, $amountPaid));
         } catch (AccountingException $busy) {
             if ($busy->error !== AccountingError::SupplierBusy) {
                 throw $busy;
@@ -1068,7 +1068,7 @@ class Receiving extends Model
     /**
      * @throws ReflectionException
      */
-    private function saveValueLocked(array $items, int $supplierId, int $employeeId, string $comment, string $reference, ?string $paymentType, int $receivingId, ?int $returnOfReceivingId, InvoiceDiscount $invoiceDiscount, ?string $invoiceDate, int|string|null $paymentTerms, ?int $purchaseOrderId): int
+    private function saveValueLocked(array $items, int $supplierId, int $employeeId, string $comment, string $reference, ?string $paymentType, int $receivingId, ?int $returnOfReceivingId, InvoiceDiscount $invoiceDiscount, ?string $invoiceDate, int|string|null $paymentTerms, ?int $purchaseOrderId, ?string $amountPaid): int
     {
         $attribute    = model(Attribute::class);
         $inventory    = model('Inventory');
@@ -1213,6 +1213,8 @@ class Receiving extends Model
 
             $this->applyInvoiceDiscount((int) $receivingId, $type, $receivingsData['return_of_receiving_id'], $invoiceDiscount);
 
+            $partPayment = $this->leaveWhatWasNotPaidOnAccount((int) $receivingId, $type, $supplierId, $paymentType, $amountPaid);
+
             if ($type === ReceivingType::Receive && ($accountingOn || $config['receiving_calculate_average_price'])) {
                 $this->averageTheCost($receivingId, $item);
             }
@@ -1225,6 +1227,17 @@ class Receiving extends Model
                 if ($timing['invoice_date'] !== null) {
                     (new AuditLog($this->db))->write('receiving', (int) $receivingId, 'invoice_date_typed', $employeeId, JournalOrigin::User, ['date' => $timing['invoice_date'], 'saved_on' => date('Y-m-d')], $branchId);
                 }
+            }
+
+            if ($partPayment !== null) {
+                $this->savePayments((int) $receivingId, [[
+                    'payment_id'     => NEW_ENTRY,
+                    'payment_type'   => (string) $paymentType,
+                    'payment_amount' => $partPayment,
+                    'employee_id'    => $employeeId,
+                    'payment_status' => PaymentStatus::Completed->value,
+                    'reference_code' => '',
+                ]], $accountingOn);
             }
 
             foreach ($items as $line => $itemData) {
@@ -1272,6 +1285,37 @@ class Receiving extends Model
         $this->db->transComplete();
 
         return $this->db->transStatus() ? $receivingId : -1;
+    }
+
+    /**
+     * Pays only what was typed when the amount paid is less than what the purchase comes to: the purchase
+     * is saved on account, as if its way of payment were due, and what was paid is the payment of the
+     * purchase to the supplier, made with the way of payment chosen, which the caller records once the
+     * purchase is posted. An amount that covers the purchase leaves it paid at once, as it always was,
+     * and a refund for a return is paid whole or not at all, so only an amount of zero leaves it on account.
+     *
+     * @param numeric-string|null $amountPaid What was typed in the amount tendered, or null when it was left empty.
+     *
+     * @return numeric-string|null The payment to record against the purchase, if any.
+     */
+    private function leaveWhatWasNotPaidOnAccount(int $receivingId, ReceivingType $type, int $supplierId, ?string $paymentType, ?string $amountPaid): ?string
+    {
+        $way = $paymentType === null ? null : PaymentType::fromLabel($paymentType);
+
+        if ($amountPaid === null || $supplierId <= 0 || $type === ReceivingType::Requisition || $way === null || ! $way->usesTreasury()) {
+            return null;
+        }
+
+        $purchase = (new ReceivingLoader($this->db))->load($receivingId, false);
+        $owed     = ReceivingAmounts::totals($purchase->lines, $purchase->currency?->decimals ?? 2)['total'];
+
+        if (bccomp($amountPaid, $owed, 2) >= 0 || ($type === ReceivingType::Return && bccomp($amountPaid, '0', 2) > 0)) {
+            return null;
+        }
+
+        $this->db->table('receivings')->where('receiving_id', $receivingId)->update(['payment_type' => lang(PaymentType::Due->languageKey()), 'treasury_id' => null]);
+
+        return $type === ReceivingType::Receive && bccomp($amountPaid, '0', 2) > 0 ? bcadd($amountPaid, '0', 2) : null;
     }
 
     /**

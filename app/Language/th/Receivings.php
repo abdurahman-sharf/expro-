@@ -64,6 +64,7 @@ return [
     'mode'                         => 'ประเภทธุรกรรม',
     'new_supplier'                 => 'ผู้ผลิตรายใหม่',
     'one_or_multiple'              => 'ใบรับสินค้า',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

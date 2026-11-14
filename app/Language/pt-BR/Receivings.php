@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Tipo Recebimento',
     'new_supplier'                 => 'Novo Fornecedor',
     'one_or_multiple'              => 'recebimento(s)',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

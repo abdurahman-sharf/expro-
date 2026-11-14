@@ -64,6 +64,7 @@ return [
     'mode'                         => '进货方式',
     'new_supplier'                 => '新建供应商',
     'one_or_multiple'              => '收货记录',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

@@ -64,6 +64,7 @@ return [
     'mode'                         => 'របៀបទទួល',
     'new_supplier'                 => 'អ្នកផ្គត់ផ្គង់ថ្មី',
     'one_or_multiple'              => 'ការទទួល(s)',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

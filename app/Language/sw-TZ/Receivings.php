@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Hali ya Manunuzi',
     'new_supplier'                 => 'Msambazaji Mpya',
     'one_or_multiple'              => 'Manunuzi',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

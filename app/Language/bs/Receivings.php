@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Način prijema',
     'new_supplier'                 => 'Novi dobavljač',
     'one_or_multiple'              => 'Ulaz(i)',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

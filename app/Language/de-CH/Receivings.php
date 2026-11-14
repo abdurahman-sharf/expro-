@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Eingangsmodus',
     'new_supplier'                 => 'Neuer Lieferant',
     'one_or_multiple'              => 'Wareneingäng(e)',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

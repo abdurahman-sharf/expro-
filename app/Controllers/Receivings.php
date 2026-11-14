@@ -9,12 +9,14 @@ use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\InvoiceDiscount;
 use App\Libraries\Accounting\InvoiceTiming;
 use App\Libraries\Accounting\PaymentStatus;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\ReceivingAmounts;
 use App\Libraries\Accounting\ReceivingLineEdit;
 use App\Libraries\Accounting\ReceivingLoader;
 use App\Libraries\Accounting\ReceivingPosting;
 use App\Libraries\Accounting\ReceivingType;
+use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\SupplierLedger;
 use App\Libraries\Accounting\SupplierPaymentDate;
 use App\Libraries\Accounting\TreasuryScopes;
@@ -647,9 +649,10 @@ class Receivings extends Secure_Controller
         $data['invoiceDiscount']       = $this->receiving_lib->getInvoiceDiscount();
         $data['invoiceDiscountAmount'] = $this->receiving_lib->getInvoiceDiscountAmount();
 
-        if ($this->request->getPost('amount_tendered') != null) {
-            $data['amount_tendered'] = parse_decimals($this->request->getPost('amount_tendered'));
-            $data['amount_change']   = to_currency($data['amount_tendered'] - $data['total_with_tax']);
+        $amountPaid = $this->amountTendered($data['payment_type'], $data['mode'], $data['total_with_tax']);
+
+        if (is_array($amountPaid)) {
+            return $this->_reload(['error' => $amountPaid['error']]);
         }
 
         $employeeId      = $this->employee->get_logged_in_employee_info()->person_id;
@@ -673,7 +676,7 @@ class Receivings extends Secure_Controller
         }
 
         // SAVE receiving to database
-        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoiceDiscount'] : null, $this->receiving_lib->getInvoiceDate(), $this->receiving_lib->getPaymentTerms(), $this->receiving_lib->getOrderSource());
+        $saved = $this->receiving->save_value($data['cart'], $supplierId, $employeeId, $data['comment'], $data['reference'], $data['payment_type'], $data['stock_location'], $origin, $data['mode'] === 'receive' ? $data['invoiceDiscount'] : null, $this->receiving_lib->getInvoiceDate(), $this->receiving_lib->getPaymentTerms(), $this->receiving_lib->getOrderSource(), $amountPaid);
 
         if ($saved === ACCOUNTING_FAILED) {
             return $this->_reload(['error' => $this->accountingFailureMessage() ?? lang('Receivings.transaction_failed')]);
@@ -686,6 +689,7 @@ class Receivings extends Secure_Controller
         $data['receiving_id'] = 'RECV ' . $saved;
         $data['barcode']      = $this->barcode_lib->generate_receipt_barcode($data['receiving_id']);
         $data += $this->documentNumberOf((int) $saved);
+        $data += $this->tenderedFigures($amountPaid, $data['total_with_tax']);
 
         $timing               = $this->receiving->getInvoiceTiming((int) $saved);
         $data['invoice_date'] = $timing['invoice_date'] === null ? null : to_date(strtotime($timing['invoice_date']));
@@ -698,6 +702,66 @@ class Receivings extends Secure_Controller
         $this->receiving_lib->clear_all();
 
         return $view;
+    }
+
+    /**
+     * What was typed in the box of the amount tendered, which is what the purchase is paid with: null when
+     * the box was left empty or the purchase is left on account, so that the whole purchase is paid with
+     * the way of payment chosen, as it always was. A refund of a return is received whole or not at all.
+     * An amount that cannot be taken is returned as the error to show.
+     *
+     * @return numeric-string|array{error: string}|null
+     */
+    private function amountTendered(?string $paymentType, string $mode, string $totalWithTax): string|array|null
+    {
+        $typed = trim((string) $this->request->getPost('amount_tendered'));
+        $way   = $paymentType === null ? null : PaymentType::fromLabel($paymentType);
+
+        if ($typed === '' || $way === null || ! $way->usesTreasury()) {
+            return null;
+        }
+
+        $parsed = parse_decimals($typed);
+
+        if ($parsed === false) {
+            return ['error' => lang('Sales.must_enter_numeric')];
+        }
+
+        if ((float) $parsed < 0) {
+            return ['error' => lang('Sales.negative_amount_tendered')];
+        }
+
+        $amount = number_format((float) $parsed, 4, '.', '');
+        $owed   = ltrim(SaleAmounts::round($totalWithTax, 2), '-');
+
+        if ($mode === 'return' && bccomp($amount, '0', 2) > 0 && bccomp($amount, $owed, 2) < 0) {
+            return ['error' => lang('Receivings.part_refund_not_supported')];
+        }
+
+        return $amount;
+    }
+
+    /**
+     * What the receipt shows of the amount tendered: what was paid and either the change that goes back or
+     * the part of the purchase that is still owed.
+     *
+     * @param numeric-string|null $amountPaid
+     *
+     * @return array<string, float|string>
+     */
+    private function tenderedFigures(?string $amountPaid, string $totalWithTax): array
+    {
+        if ($amountPaid === null) {
+            return [];
+        }
+
+        $owed       = ltrim(SaleAmounts::round($totalWithTax, 2), '-');
+        $difference = bcsub($amountPaid, $owed, 2);
+        $figures    = ['amount_tendered' => (float) $amountPaid];
+
+        return bccomp($difference, '0', 2) >= 0
+            ? $figures + ['amount_change' => to_currency((float) $difference)]
+            : $figures + ['amount_due' => to_currency((float) ltrim($difference, '-'))];
     }
 
     /**
@@ -1068,10 +1132,15 @@ class Receivings extends Secure_Controller
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => $this->scopeMessage()]);
         }
 
-        $newdate = $this->request->getPost('date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);    // TODO: newdate does not follow naming conventions
+        $newDate = $this->request->getPost('date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-        $date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $newdate);
-        $receiving_time = $date_formatter->format('Y-m-d H:i:s');
+        $dateFormatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $newDate);
+
+        if ($dateFormatter === false) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Accounting.error_invalid_date'), 'id' => $receiving_id]);
+        }
+
+        $receivingTime = $dateFormatter->format('Y-m-d H:i:s');
 
         $current_employee_id   = $this->employee->get_logged_in_employee_info()->person_id;
         $submitted_employee_id = $this->request->getPost('employee_id', FILTER_SANITIZE_NUMBER_INT);
@@ -1084,7 +1153,7 @@ class Receivings extends Secure_Controller
         }
 
         $receiving_data = [
-            'receiving_time' => $receiving_time,
+            'receiving_time' => $receivingTime,
             'supplier_id'    => $this->request->getPost('supplier_id') ? $this->request->getPost('supplier_id', FILTER_SANITIZE_NUMBER_INT) : null,
             'employee_id'    => $employee_id,
             'comment'        => $this->request->getPost('comment', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
@@ -1116,7 +1185,7 @@ class Receivings extends Secure_Controller
         }
 
         if ($this->receiving->update($receiving_id, $receiving_data)) {
-            $this->inventory->update('RECV ' . $receiving_id, ['trans_date' => $receiving_time]);
+            $this->inventory->update('RECV ' . $receiving_id, ['trans_date' => $receivingTime]);
 
             return $this->response->setJSON([
                 'success' => true,

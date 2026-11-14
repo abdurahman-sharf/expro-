@@ -64,6 +64,7 @@ return [
     'mode'                         => '進貨模式',
     'new_supplier'                 => '新供應商',
     'one_or_multiple'              => '進貨',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',
