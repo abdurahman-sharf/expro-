@@ -683,6 +683,7 @@ return [
     'error_routing_type_invalid'                 => 'This routing type is not available for this item.',
     'error_sale_has_returns'                     => 'A sale that goods have been returned from cannot be cancelled while its return stands.',
     'error_sale_locked'                          => 'The customer and the date of a sale that has been posted cannot change. Correct it with a return.',
+    'error_sale_payment_below_change'            => 'A payment cannot be edited to less than the change already given back to the customer.',
     'error_sale_payment_not_on_sale'             => 'The payment does not belong to this sale.',
     'error_sales_order_customer_invalid'         => 'The customer of the order does not exist.',
     'error_sales_order_customer_mismatch'        => 'The invoice is for another customer than sales order {0}.',

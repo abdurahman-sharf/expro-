@@ -683,6 +683,7 @@ return [
     'error_routing_type_invalid'                 => '',
     'error_sale_has_returns'                     => '',
     'error_sale_locked'                          => '',
+    'error_sale_payment_below_change'            => '',
     'error_sale_payment_not_on_sale'             => '',
     'error_sales_order_customer_invalid'         => '',
     'error_sales_order_customer_mismatch'        => '',

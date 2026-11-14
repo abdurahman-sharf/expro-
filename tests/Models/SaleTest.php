@@ -2714,4 +2714,89 @@ class SaleTest extends CIUnitTestCase
         $this->assertSame(COMPLETED, (int) model(Sale::class)->getSaleStatus($saleId));
         $this->assertEqualsWithDelta(60.00, $this->getGiftcardValue($card), 0.001);
     }
+
+    /**
+     * A sale of 10.00 paid with the cash given in full and the change handed back.
+     */
+    private function saleWithChange(string $paid = '20.00', string $change = '10.00'): int
+    {
+        $saleId = $this->saveSale(SALE_TYPE_POS, [['payment_type' => lang('Sales.cash'), 'payment_amount' => $paid, 'cash_refund' => $change, 'cash_adjustment' => 0, 'reference_code' => null]]);
+
+        $this->assertGreaterThan(0, $saleId);
+
+        return $saleId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function editedPayment(int $saleId, array $changes): array
+    {
+        $row = Database::connect()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        return ['payment_id' => (int) $row->payment_id, 'payment_type' => $row->payment_type, 'payment_amount' => $row->payment_amount, 'cash_refund' => $row->cash_refund, 'cash_adjustment' => 0, 'employee_id' => $this->createEmployee(), 'reference_code' => null, ...$changes];
+    }
+
+    private function storedPayment(int $saleId): object
+    {
+        return Database::connect()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+    }
+
+    public function testUpdate_RejectsAPaymentEditThatLeavesTheAmountBelowTheChangeAlreadyGiven(): void
+    {
+        $saleId = $this->saleWithChange();
+        $model  = model(Sale::class);
+
+        $this->assertFalse($model->update($saleId, ['comment' => 'edited', 'payments' => [$this->editedPayment($saleId, ['payment_amount' => '8.30'])]]));
+        $this->assertSame(AccountingError::SalePaymentBelowChange, $model->accountingFailure()->error);
+        $this->assertSame('20.00', bcadd((string) $this->storedPayment($saleId)->payment_amount, '0', 2));
+    }
+
+    public function testUpdate_RejectsAPaymentEditThatLeavesTheChangeLargerThanWhatWasPaidAboveTheTotal(): void
+    {
+        $saleId = $this->saleWithChange();
+        $model  = model(Sale::class);
+
+        $this->assertFalse($model->update($saleId, ['comment' => 'edited', 'payments' => [$this->editedPayment($saleId, ['payment_amount' => '15.00'])]]));
+        $this->assertSame(AccountingError::SalePaymentBelowChange, $model->accountingFailure()->error);
+        $this->assertSame('20.00', bcadd((string) $this->storedPayment($saleId)->payment_amount, '0', 2));
+    }
+
+    public function testUpdate_RejectsRemovingThePaymentThatLeftTheChangeUncoveredWhileAnotherKeepsIt(): void
+    {
+        $saleId = $this->saveSale(SALE_TYPE_POS, [
+            ['payment_type' => lang('Sales.debit'), 'payment_amount' => '10.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'reference_code' => 'ABC123'],
+            ['payment_type' => lang('Sales.cash'), 'payment_amount' => '20.00', 'cash_refund' => '20.00', 'cash_adjustment' => 0, 'reference_code' => null],
+        ]);
+        $model = model(Sale::class);
+        $card  = Database::connect()->table('sales_payments')->where('sale_id', $saleId)->like('payment_type', lang('Sales.debit'))->get()->getRow();
+
+        $this->assertFalse($model->update($saleId, ['comment' => 'edited', 'payments' => [['payment_id' => (int) $card->payment_id, 'payment_type' => $card->payment_type, 'payment_amount' => '0', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->createEmployee(), 'reference_code' => null]]]));
+        $this->assertSame(AccountingError::SalePaymentBelowChange, $model->accountingFailure()->error);
+        $this->assertSame(2, Database::connect()->table('sales_payments')->where('sale_id', $saleId)->countAllResults());
+    }
+
+    public function testUpdate_AcceptsAPaymentEditThatKeepsTheChangeCovered(): void
+    {
+        $saleId = $this->saleWithChange();
+
+        $this->assertTrue(model(Sale::class)->update($saleId, ['comment' => 'edited', 'payments' => [$this->editedPayment($saleId, ['payment_amount' => '18.00', 'cash_refund' => '8.00'])]]));
+        $this->assertSame('18.00', bcadd((string) $this->storedPayment($saleId)->payment_amount, '0', 2));
+    }
+
+    public function testUpdate_AcceptsAChangeOfTheTypeAloneWhateverTheAmountsOfAnOldSaleAre(): void
+    {
+        $saleId = $this->saleWithChange('12.00', '10.00');
+
+        $this->assertTrue(model(Sale::class)->update($saleId, ['comment' => 'edited', 'payments' => [$this->editedPayment($saleId, ['payment_type' => lang('Sales.debit')])]]));
+        $this->assertSame(lang('Sales.debit'), $this->storedPayment($saleId)->payment_type);
+    }
+
+    public function testUpdate_AcceptsAPaymentLoweredOnASaleThatGaveNoChange(): void
+    {
+        $saleId = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment(10.00)]);
+
+        $this->assertTrue(model(Sale::class)->update($saleId, ['comment' => 'edited', 'payments' => [$this->editedPayment($saleId, ['payment_amount' => '6.00'])]]));
+        $this->assertSame('6.00', bcadd((string) $this->storedPayment($saleId)->payment_amount, '0', 2));
+    }
 }

@@ -144,6 +144,7 @@ enum AccountingError: string
 
     case SaleHasReturns       = 'sale_has_returns';
     case SaleLocked           = 'sale_locked';
+    case SalePaymentBelowChange = 'sale_payment_below_change';
     case SalePaymentNotOnSale = 'sale_payment_not_on_sale';
     case IssuedDocumentLocked = 'issued_document_locked';
     case CustomerBusy         = 'customer_busy';

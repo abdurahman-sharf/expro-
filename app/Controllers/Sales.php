@@ -3608,6 +3608,12 @@ class Sales extends Secure_Controller
             }
         }
 
+        $storedPayments = [];
+
+        foreach ($this->sale->get_sale_payments($saleId)->getResult() as $payment) {
+            $storedPayments[(int) $payment->payment_id] = $payment;
+        }
+
         // In order to maintain tradition the only element that can change on prior payments is the payment type
         $amountTendered = 0;
         $numberOfPayments = $this->request->getPost('number_of_payments', FILTER_SANITIZE_NUMBER_INT);
@@ -3619,6 +3625,19 @@ class Sales extends Secure_Controller
             $cashRefund = parse_decimals($this->request->getPost("refund_amount_$i"));
             $referenceCode = $this->request->getPost("reference_code_$i", FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?: null;
             $paymentStatus = $this->request->getPost("payment_status_$i", FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+
+            $storedRow = $storedPayments[(int) $paymentId] ?? null;
+
+            if ($storedRow !== null) {
+                $paymentAmount = (float) $storedRow->payment_amount;
+                $cashRefund = (float) $storedRow->cash_refund;
+                $referenceCode = $storedRow->reference_code ?: null;
+
+                if (PaymentType::fromLabel((string) $storedRow->payment_type) === PaymentType::Giftcard) {
+                    $paymentType = $storedRow->payment_type;
+                    $refundType = lang('Sales.cash');
+                }
+            }
 
             $cashAdjustment = PaymentLabels::isCashAdjustment((string) $paymentType) ? CASH_ADJUSTMENT_TRUE : CASH_ADJUSTMENT_FALSE;
 
@@ -3679,11 +3698,7 @@ class Sales extends Secure_Controller
             ];
         }
 
-        $stored = [];
-
-        foreach ($this->sale->get_sale_payments($saleId)->getResult() as $payment) {
-            $stored[(int) $payment->payment_id] = (string) $payment->payment_type;
-        }
+        $stored = array_map(static fn (object $payment): string => (string) $payment->payment_type, $storedPayments);
 
         $refusal = (new PaymentMethods())->refusalOfPayments($saleData['payments'] ?? [], $stored);
 

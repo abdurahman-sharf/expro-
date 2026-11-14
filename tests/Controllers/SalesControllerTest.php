@@ -1065,6 +1065,70 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertEqualsWithDelta(150.00, $this->getGiftcardValue($held['card']), 0.001);
     }
 
+    public function testPostSave_KeepsTheAmountAndTheChangeOfAStoredPaymentWhateverTheReadOnlyFieldsCarried(): void
+    {
+        $invoice   = $this->postedInvoice();
+        $paymentId = $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $row       = $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow();
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], $this->savedPayment($row, ['payment_amount_0' => '1.00', 'refund_amount_0' => '999.00'])));
+
+        $stored = $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow();
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('300.00', bcadd((string) $stored->payment_amount, '0', 2));
+        $this->assertSame('0.00', bcadd((string) $stored->cash_refund, '0', 2));
+    }
+
+    public function testPostSave_KeepsTheChangeOfAPaymentThatGaveChangeWhateverTheFormCarried(): void
+    {
+        $this->startSelling();
+        $service = $this->item('0', false);
+        $saleId  = $this->save([$this->line($service, 0, '1', '10')], [], [$this->payment('Cash', '20.00', '10.00')], SALE_TYPE_POS, -1);
+        $row     = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, $this->savedPayment($row, ['payment_amount_0' => '8.30', 'refund_amount_0' => '10.00'])));
+
+        $stored = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(['20.00', '10.00'], [bcadd((string) $stored->payment_amount, '0', 2), bcadd((string) $stored->cash_refund, '0', 2)]);
+    }
+
+    public function testPostSave_KeepsTheTypeOfAGiftCardPaymentWhateverTheFormCarried(): void
+    {
+        $this->startSelling();
+        $card    = $this->createGiftcard(500.00);
+        $service = $this->item('0', false);
+        $saleId  = $this->save([$this->line($service, 0, '1', '100')], [], [$this->payment('Gift Card:' . $card, '100.00')], SALE_TYPE_POS, -1);
+        $row     = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, $this->savedPayment($row, ['payment_type_0' => 'Cash'])));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Gift Card:' . $card, $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->payment_type);
+    }
+
+    public function testPostSave_StillChangesTheTypeOfAStoredPaymentThatIsNotAGiftCard(): void
+    {
+        $invoice   = $this->postedInvoice();
+        $paymentId = $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $row       = $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow();
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], $this->savedPayment($row, ['payment_type_0' => 'Check'])));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Check', $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow()->payment_type);
+    }
+
     public function testPostCompleteRejectsSaleWithInsufficientPayments(): void
     {
         $cashierId = $this->createCashierEmployee();
@@ -8127,6 +8191,17 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame(0, $this->auditEntries('credit_limit_refused'));
     }
 
+    /**
+     * The edit form cannot take a payment away: it shows the amount read only and the server keeps the stored one.
+     * Taking a payment away is the model's, and the credit limit is held there.
+     */
+    private function takePaymentAway(int $saleId, object $payment, int $employeeId): bool
+    {
+        return $this->sales->update($saleId, ['comment' => 'payment taken away', 'payments' => [
+            ['payment_id' => (int) $payment->payment_id, 'payment_type' => $payment->payment_type, 'payment_amount' => '0', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $employeeId, 'reference_code' => null],
+        ]]);
+    }
+
     public function testPostSave_RefusesTakingAPaymentAwayThatTakesTheCustomerOverTheCreditLimitAndKeepsThePayment(): void
     {
         $invoice   = $this->postedInvoice();
@@ -8141,10 +8216,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->loginAs($supervisor);
 
-        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], $this->savedPayment($row, ['payment_amount_0' => '0.00'])));
-
-        $this->assertFalse($result['success']);
-        $this->assertSame(lang('Accounting.error_credit_limit_exceeded', ['Omar Khaled', '50.00', $open]), $result['message']);
+        $this->assertFalse($this->takePaymentAway($invoice['saleId'], $row, $supervisor));
+        $this->assertSame(AccountingError::CreditLimitExceeded, $this->sales->accountingFailure()->error);
         $this->assertSame(1, $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->countAllResults());
         $this->assertSame($supervisor, (int) $this->lastAudit('credit_limit_refused')['employee_id']);
     }
@@ -8163,7 +8236,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->loginAs($supervisor);
 
-        $this->assertTrue($this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], $this->savedPayment($row, ['payment_amount_0' => '0.00'])))['success']);
+        $this->assertTrue($this->takePaymentAway($invoice['saleId'], $row, $supervisor));
 
         $entry = $this->lastAudit('credit_limit_override');
 

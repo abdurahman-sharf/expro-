@@ -878,6 +878,8 @@ class Sale extends Model
             // Touch payment only if update sale is successful and there is a payments object otherwise the result would be to delete all the payments associated to the sale
             if ($success && !empty($saleData['payments'])) {
                 $builder = $this->db->table('sales_payments');
+                $amountsEdited = false;
+                $isReturn = (int) ($this->db->table('sales')->select('sale_type')->where('sale_id', $saleId)->get()->getRow()->sale_type ?? SALE_TYPE_POS) === SALE_TYPE_RETURN;
 
                 // Add new payments
                 foreach ($saleData['payments'] as $payment) {
@@ -889,6 +891,8 @@ class Sale extends Model
                     $employeeId = $payment['employee_id'];
 
                     if ($paymentId == NEW_ENTRY && $paymentAmount != 0) {
+                        $amountsEdited = true;
+                        $this->assertAmountCoversChange($payment, $isReturn);
                         [$treasuryId, $treasuryBranchId] = $this->treasuryOfPayment($payment, $employeeId === null ? null : (int) $employeeId, (int) $this->getBranchId((int) $saleId));
 
                         // Add a new payment transaction
@@ -912,13 +916,19 @@ class Sale extends Model
                             (new DocumentNumbering($this->db))->assign(DocumentType::CustomerPayment, 'sales_payments', $newPaymentId, (int) $this->getBranchId((int) $saleId));
                         }
                     } elseif ($paymentId != NEW_ENTRY) {
-                        $stored = $this->db->table('sales_payments')->select('sale_id')->where('payment_id', $paymentId)->get()->getRow();
+                        $stored = $this->db->table('sales_payments')->select('sale_id, payment_amount, cash_refund')->where('payment_id', $paymentId)->get()->getRow();
 
                         if ($stored === null || (int) $stored->sale_id !== (int) $saleId) {
                             throw new AccountingException(AccountingError::SalePaymentNotOnSale, 'The payment does not belong to this sale.', ['sale_id' => (int) $saleId]);
                         }
 
+                        if ($paymentAmount == 0 || bccomp((string) $stored->payment_amount, (string) $paymentAmount, 4) !== 0 || bccomp((string) $stored->cash_refund, (string) $cashRefund, 4) !== 0) {
+                            $amountsEdited = true;
+                        }
+
                         if ($paymentAmount != 0) {
+                            $this->assertAmountCoversChange($payment, $isReturn);
+
                             // Update existing payment transactions (payment_type only)
                             $salesPaymentsData = [
                                 'payment_type'    => $paymentType,
@@ -948,6 +958,10 @@ class Sale extends Model
                     }
                 }
 
+                if ($amountsEdited && ! $isReturn) {
+                    $this->assertChangeStaysCovered((int) $saleId, $this->employeeOfEdit($saleData));
+                }
+
                 $accounting?->syncPayments((int) $saleId, isset($employeeId) ? (int) $employeeId : null);
 
                 if ($openBefore !== null) {
@@ -975,6 +989,54 @@ class Sale extends Model
         $this->db->transComplete();
 
         return (bool) $success && $this->db->transStatus();
+    }
+
+    /**
+     * The change handed back to the customer is part of the payment that took it: a payment cannot be
+     * edited to less than the change it gave.
+     *
+     * @param array<string, mixed> $payment
+     *
+     * @throws AccountingException
+     */
+    private function assertAmountCoversChange(array $payment, bool $isReturn): void
+    {
+        if ($isReturn || ! empty($payment['cash_adjustment'])) {
+            return;
+        }
+
+        if (bccomp((string) $payment['payment_amount'], (string) ($payment['cash_refund'] ?? 0), 4) < 0) {
+            throw new AccountingException(AccountingError::SalePaymentBelowChange, 'A payment cannot be less than the change already given back.', ['payment_id' => (int) $payment['payment_id']]);
+        }
+    }
+
+    /**
+     * After payments of a sale were edited, the change given back may not be more than what was paid above
+     * what the sale comes to, as the register gives it: otherwise the sale would stand paid for less than
+     * its payments show and the customer would be left owing or crediting what was never due.
+     *
+     * @throws AccountingException
+     */
+    private function assertChangeStaysCovered(int $saleId, ?int $viewerId): void
+    {
+        foreach (['sales_items_temp', 'sales_payments_temp', 'sales_items_taxes_temp'] as $table) {
+            $this->db->query('DROP TEMPORARY TABLE IF EXISTS ' . $this->db->prefixTable($table));
+        }
+
+        $sale = $this->get_info($saleId, $viewerId)->getRowArray();
+
+        if ($sale === [] || $sale === null) {
+            return;
+        }
+
+        $decimals  = max(totals_decimals(), 0);
+        $paidAbove = bcsub((string) $sale['amount_tendered'], (string) $sale['amount_due'], 4);
+        $covered   = bccomp($paidAbove, '0', 4) > 0 ? $paidAbove : '0';
+        $excess    = bcsub((string) $sale['cash_refund'], $covered, 4);
+
+        if (bccomp($excess, bcdiv('1', bcpow('10', (string) $decimals, 0), 4), 4) > 0) {
+            throw new AccountingException(AccountingError::SalePaymentBelowChange, 'The change given back is more than what was paid above the total of the sale.', ['sale_id' => $saleId]);
+        }
     }
 
     /**
