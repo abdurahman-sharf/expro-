@@ -29,9 +29,9 @@ class AccountingEnable extends BaseCommand
     {
         $config = model(Appconfig::class);
 
-        $currency = $params['currency'] ?? CLI::getOption('currency');
-        $start    = $params['start-date'] ?? CLI::getOption('start-date');
-        $end      = $params['fiscal-year-end'] ?? CLI::getOption('fiscal-year-end');
+        $currency = $this->optionValue($params, 'currency');
+        $start    = $this->optionValue($params, 'start-date');
+        $end      = $this->optionValue($params, 'fiscal-year-end');
 
         if (is_string($currency)) {
             if (preg_match('/^[A-Z]{3}$/', $currency) !== 1) {
@@ -67,6 +67,29 @@ class AccountingEnable extends BaseCommand
         }
 
         CLI::write('Accounting is enabled.', 'green');
+    }
+
+    /**
+     * The spark parser takes "--currency SAR" as a value and "--currency=SAR" as an option named "currency=SAR", so the
+     * second form the runbook prints is read here.
+     *
+     * @param array<int|string, mixed> $params
+     */
+    private function optionValue(array $params, string $name): mixed
+    {
+        $value = $params[$name] ?? CLI::getOption($name);
+
+        if (is_string($value)) {
+            return $value;
+        }
+
+        foreach (array_keys($params + CLI::getOptions()) as $key) {
+            if (is_string($key) && str_starts_with($key, $name . '=')) {
+                return substr($key, strlen($name) + 1);
+            }
+        }
+
+        return $value;
     }
 
     private function createFirstFiscalYear(string $start, ?string $end): void
