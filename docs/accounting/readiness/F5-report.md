@@ -6,7 +6,7 @@
 
 | البند | الحكم | ما فُعل |
 |---|---|---|
-| R2-05 أ (`source_keys`) | **الفحص خاطئ: أُصلح** | شيك مودَع ثم مرفوض قيدان بمفتاح واحد بتصميم `ChequePostingBuilder` |
+| R2-05 أ (`source_keys`) | **الفحص خاطئ: أُصلح** (وأصلحه R4 أيضًا في `26af6f6`: أخذتُ شيفرته) | شيك مودَع ثم مرفوض قيدان بمفتاح واحد بتصميم `ChequePostingBuilder` |
 | R2-05 ب (`payment_stamping`) | **الفحص خاطئ: أُصلح** | الدفعة بلا خزينة التي ما زالت على حساب توجيهها وضع عادي؛ الفشل للانجراف فقط |
 | R2-05 ج (`treasury_ties`) | **الفحص خاطئ: أُصلح (تعديل على افتراض E68 رقم 4: انظر 2.3)** | القيد اليدوي على حساب خزينة مسموح فصار REVIEW؛ خزينة بلا حساب تبقى FAIL |
 | R3-B2 | **أُنجز** | فحص `ADMIN-DEFAULT-PASSWORD` (FAIL) |
@@ -22,8 +22,7 @@
 ## 2. R2-05: القرار لكل حالة (من الشيفرة والوثائق)
 
 ### 2.1 `source_keys` (أ)
-`ChequePostingBuilder::drafts` يبني **قيدين** لانتقال `DepositReject` (العميل ← أوراق القبض، ثم أوراق القبض ← تحت التحصيل) بمراجعتين `n` و`n+1` تحت مفتاح المصدر `cheque_in_dep_rejected` نفسه، والمفتاح الفريد `(source_type, source_id, entry_type, revision)` يسمح بذلك. وكل انتقال شيك آخر قيد واحد. **الفحص خاطئ للحالة، لا الدفاتر.** الإصلاح: المسموح لهذا المصدر وحده اثنان (`LedgerChecks::JOURNALS_PER_SOURCE`)، وثالث يُفشل، واثنان تحت مصدر آخر (`cheque_in_deposited`) يُفشلان، والاختبار القديم لمستند بيع بقيدين ما زال يفشل.
-**اختبارات** (`LedgerChecksTest`): `testSourceKeys_PassesForADepositedChequeThatWasRejected` (فشل قبل الإصلاح ثم نجح)، `…FailsWhenTheRejectionOfADepositedChequeStandsMoreThanOnce`، `…FailsWhenAChequeStatusChangeThatPostsOneJournalStandsTwice`. الملف 46 اختبارًا بلا فشل.
+`ChequePostingBuilder::drafts` يبني **قيدين** لانتقال `DepositReject` (العميل ← أوراق القبض، ثم أوراق القبض ← تحت التحصيل) بمراجعتين `n` و`n+1` تحت مفتاح المصدر `cheque_in_dep_rejected` نفسه، والمفتاح الفريد `(source_type, source_id, entry_type, revision)` يسمح بذلك. وكل انتقال شيك آخر قيد واحد. **الفحص خاطئ للحالة، لا الدفاتر.** الإصلاح: المسموح لهذا المصدر وحده اثنان وثالث يُفشل. **بعد طلب المنسّق دمجتُ `int/r1`:** إصلاح R4 (`26af6f6`: `HAVING COUNT(*) > IF(source_type = 'cheque_in_dep_rejected', 2, 1)`) **مطابق لإصلاحي في السلوك** فتركتُ شيفرته كما هي في `LedgerChecks` (ألغيتُ ثابتي ودالتي)، واختباراه (`PassesForTheTwoLegsOfAChequeRejectedAfterItsDeposit` و`FailsWhenAChequeRejectedAfterItsDepositStandsAsMoreThanItsTwoLegs`) يغطيان حالتي (قيدان ← PASS، ثلاثة ← FAIL) فحذفتُ اختباريّ المكرَّرين؛ **وأبقيتُ اختبارًا ثالثًا ليس عندهم:** قيدان تحت مصدر آخر (`cheque_in_deposited`) ما زالا يُفشلان (`testSourceKeys_FailsWhenAChequeStatusChangeThatPostsOneJournalStandsTwice`). نجحت 46 اختبارًا في `LedgerChecksTest` بعد الدمج (ضمن 118 اختبارًا شغّلتُها بعده: `phpunit-after-merge.log`).
 
 ### 2.2 `payment_stamping` (ب)
 `TreasuryService::ofPayment/placeOfPayment` يكتب `treasury_id = NULL` **عمدًا** لكل دفعة لم تُسمَّ لها خزينة ولم يكن لموظفها خزينة افتراضية («تذهب إلى حساب نوعها كما كانت»)، والخزينة الرئيسية **تُنشأ كسولًا** (`ensureMain`) عند أول خزينة إضافية أو أول فتح لشاشة الخزائن فتصير الدفعات الموجودة «دخلت خزينة» في ربط الفحص. والمشكلة التي وُضع الوسم لها (E41: انجراف التوجيه W4) أن إعادة المستند إلى الدفاتر تنقل الدفعة إلى حساب **توجيه نوعها الحالي**؛ و`RoutingService` **يوسم قبل أن يحرّك توجيه وسيلة دفع**. فالدفعة بلا خزينة التي ما زالت على حساب توجيهها **لا تتحرك** (وضع عادي يتكرر مع كل بيع)، والفشل الحقيقي أن يكون توجيه نوعها صار إلى حساب غير حساب قيدها.
@@ -69,8 +68,10 @@ REVIEW (لا يفشل أبدًا): يسرد بالاسم ما بقي من قيم
 - **R1-10:** `restore.sh` يرفض غير الفارغة (كان كذلك) وصارت رسالته تقول: «ترحيل لاحق يفشل في منتصفه (الترحيل 59 `invoice_date` و58 من 116)» ويؤكدها `selftest.sh`؛ والدليل (الخطوة 8 والقسم 7) يقولها بدقة ويوصي بالاستعادة **في قاعدة فارغة فقط**.
 
 ## 8. ما شُغِّل
-- `tests/Libraries/Accounting/Readiness` (يشمل `Wave3ChecksTest` و`ClockChecksTest` و`ReadinessRunnerTest` و`ReadinessRunbookTest` و`DeploymentChecksTest`) + `tests/Commands/AccountingReadinessTest` و`…CompareTest` و`AccountingStampPaymentsTest` و`AccountingBankAccountsTest`: النتيجة في `phpunit-final-1.log` (انظر 10).
-- `tests/Controllers/LoginTest` و`tests/Libraries/MigrationLockTest` و`MigrationPreflightTest` و`WebMigrationTest` و`tests/LanguageFilesTest` (3854 اختبارًا) و`DeploymentChecksTest`: **كلها نجحت** (`phpunit-final-2.log`).
+- `tests/Libraries/Accounting/Readiness` كلها (يشمل `Wave3ChecksTest` و`ClockChecksTest` و`ReadinessRunnerTest` و`ReadinessRunbookTest` و`DeploymentChecksTest`) + `tests/Commands/AccountingReadinessTest` و`AccountingReadinessCompareTest` و`AccountingStampPaymentsTest` و`AccountingBankAccountsTest`: **443 اختبارًا، 1962 تأكيدًا، بلا فشل** (34 دقيقة: الجهاز مشترك)، `phpunit-final-1.log`.
+- `tests/Controllers/LoginTest` و`tests/Libraries/MigrationLockTest` و`MigrationPreflightTest` و`WebMigrationTest` و`tests/LanguageFilesTest` و`DeploymentChecksTest`: **3854 اختبارًا بلا فشل** (`phpunit-final-2.log`).
+- بعد دمج `int/r1` الثاني (R4): `LedgerChecksTest` و`ReadinessRunnerTest` و`ReadinessRunbookTest` و`AccountingReadinessTest`: **118 اختبارًا، 482 تأكيدًا، بلا فشل** (`phpunit-after-merge.log`).
+- `tools/ops/selftest.sh`: 49 تأكيدًا نجح (`selftest-final.log`).
 - لم أُشغّل المجموعة الكاملة.
 
 ## 9. ما لم أستطع التحقق منه أو تركتُه
@@ -82,4 +83,4 @@ REVIEW (لا يفشل أبدًا): يسرد بالاسم ما بقي من قيم
 6. السلسلة الإنجليزية «Another request is migrating…» لا ترجمة لها (قرار مذكور في 6 أ).
 
 ## 10. الالتزامات
-`c3dd4fa` (الفحوص والقفل والأدوات ونصوص الدليل الأولى)، `a0ecd70` (دمج `int/r1`)، `3e3c6d5` (R1-01 وR1-08 وR1-09 وR1-10 والأقسام 5 إلى 7 وقائمة التهيئة)، ثم التقرير.
+`c3dd4fa` (الفحوص والقفل والأدوات ونصوص الدليل الأولى)، `a0ecd70` (دمج `int/r1` الأول)، `3e3c6d5` (R1-01 وR1-08 وR1-09 وR1-10 والأقسام 5 إلى 7 وقائمة التهيئة)، `481123f` (هذا التقرير)، `dedd653` (دمج `int/r1` الثاني: شيفرة R4 في `LedgerChecks`).
