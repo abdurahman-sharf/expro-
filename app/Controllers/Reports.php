@@ -176,7 +176,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'        => lang('Reports.sales_summary_report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'     => $this->_get_subtitle_report($inputs),
             'headers'      => $this->summary_sales->getDataColumns(),
             'data'         => $tabular_data,
             'summary_data' => $summary
@@ -222,7 +222,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'        => lang('Reports.categories_summary_report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'     => $this->_get_subtitle_report($inputs),
             'headers'      => $this->summary_categories->getDataColumns(),
             'data'         => $tabular_data,
             'summary_data' => $summary
@@ -313,7 +313,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'        => lang('Reports.customers_summary_report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'     => $this->_get_subtitle_report($inputs),
             'headers'      => $this->summary_customers->getDataColumns(),
             'data'         => $tabular_data,
             'summary_data' => $summary
@@ -359,7 +359,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'        => lang('Reports.suppliers_summary_report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'     => $this->_get_subtitle_report($inputs),
             'headers'      => $this->summary_suppliers->getDataColumns(),
             'data'         => $tabular_data,
             'summary_data' => $summary
@@ -409,7 +409,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'        => lang('Reports.items_summary_report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'     => $this->_get_subtitle_report($inputs),
             'headers'      => $this->summary_items->getDataColumns(),
             'data'         => $tabular_data,
             'summary_data' => $summary
@@ -457,7 +457,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'        => lang('Reports.employees_summary_report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'     => $this->_get_subtitle_report($inputs),
             'headers'      => $this->summary_employees->getDataColumns(),
             'data'         => $tabular_data,
             'summary_data' => $summary
@@ -503,7 +503,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'        => lang('Reports.taxes_summary_report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'     => $this->_get_subtitle_report($inputs),
             'headers'      => $this->summary_taxes->getDataColumns(),
             'data'         => $tabular_data,
             'summary_data' => $summary
@@ -543,7 +543,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'        => lang('Reports.sales_taxes_summary_report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'     => $this->_get_subtitle_report($inputs),
             'headers'      => $this->summary_sales_taxes->getDataColumns(),
             'data'         => $tabular_data,
             'summary_data' => $summary
@@ -602,7 +602,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'        => lang('Reports.discounts_summary_report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'     => $this->_get_subtitle_report($inputs),
             'headers'      => $this->summary_discounts->getDataColumns(),
             'data'         => $tabular_data,
             'summary_data' => $summary
@@ -661,7 +661,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'        => lang('Reports.payments_summary_report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'     => $this->_get_subtitle_report($inputs),
             'headers'      => $this->summary_payments->getDataColumns(),
             'data'         => $tabular_data,
             'summary_data' => $summary
@@ -837,7 +837,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'          => lang('Reports.sales_summary_report'),
-            'subtitle'       => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'       => $this->_get_subtitle_report($inputs),
             'chart_type'     => 'reports/graphs/line',
             'labels_1'       => $labels,
             'series_data_1'  => $series,
@@ -884,7 +884,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'          => lang('Reports.items_summary_report'),
-            'subtitle'       => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'       => $this->_get_subtitle_report($inputs),
             'chart_type'     => 'reports/graphs/hbar',
             'labels_1'       => $labels,
             'series_data_1'  => $series,
@@ -929,7 +929,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'          => lang('Reports.categories_summary_report'),
-            'subtitle'       => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'       => $this->_get_subtitle_report($inputs),
             'chart_type'     => 'reports/graphs/pie',
             'labels_1'       => $labels,
             'series_data_1'  => $series,
@@ -974,7 +974,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'          => lang('Reports.suppliers_summary_report'),
-            'subtitle'       => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'       => $this->_get_subtitle_report($inputs),
             'chart_type'     => 'reports/graphs/pie',
             'labels_1'       => $labels,
             'series_data_1'  => $series,
@@ -1018,7 +1018,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'          => lang('Reports.employees_summary_report'),
-            'subtitle'       => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'       => $this->_get_subtitle_report($inputs),
             'chart_type'     => 'reports/graphs/pie',
             'labels_1'       => $labels,
             'series_data_1'  => $series,
@@ -1062,7 +1062,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'          => lang('Reports.taxes_summary_report'),
-            'subtitle'       => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'       => $this->_get_subtitle_report($inputs),
             'chart_type'     => 'reports/graphs/pie',
             'labels_1'       => $labels,
             'series_data_1'  => $series,
@@ -1106,7 +1106,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'          => lang('Reports.sales_taxes_summary_report'),
-            'subtitle'       => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'       => $this->_get_subtitle_report($inputs),
             'chart_type'     => 'reports/graphs/pie',
             'labels_1'       => $labels,
             'series_data_1'  => $series,
@@ -1150,7 +1150,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'          => lang('Reports.customers_summary_report'),
-            'subtitle'       => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'       => $this->_get_subtitle_report($inputs),
             'chart_type'     => 'reports/graphs/hbar',
             'labels_1'       => $labels,
             'series_data_1'  => $series,
@@ -1199,7 +1199,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'          => lang('Reports.discounts_summary_report'),
-            'subtitle'       => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'       => $this->_get_subtitle_report($inputs),
             'chart_type'     => 'reports/graphs/bar',
             'labels_1'       => $labels,
             'series_data_1'  => $series,
@@ -1247,7 +1247,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'          => lang('Reports.payments_summary_report'),
-            'subtitle'       => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'       => $this->_get_subtitle_report($inputs),
             'chart_type'     => 'reports/graphs/pie',
             'labels_1'       => $labels,
             'series_data_1'  => $series,
@@ -1396,7 +1396,7 @@ class Reports extends Secure_Controller
         // TODO: Duplicated Code
         $data = [
             'title'                => $customer_info->first_name . ' ' . $customer_info->last_name . ' ' . lang('Reports.report'),
-            'subtitle'             => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'             => $this->_get_subtitle_report($inputs),
             'headers'              => $headers,
             'editable'             => 'sales',
             'summary_data'         => $summary_data,
@@ -1519,7 +1519,7 @@ class Reports extends Secure_Controller
         // TODO: Duplicated Code
         $data = [
             'title'                => $employee_info->first_name . ' ' . $employee_info->last_name . ' ' . lang('Reports.report'),
-            'subtitle'             => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'             => $this->_get_subtitle_report($inputs),
             'headers'              => $headers,
             'editable'             => 'sales',
             'summary_data'         => $summary_data,
@@ -1651,7 +1651,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'                => $discount . '% ' . lang('Reports.discount') . ' ' . lang('Reports.report'),
-            'subtitle'             => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'             => $this->_get_subtitle_report($inputs),
             'headers'              => $headers,
             'summary_data'         => $summary_data,
             'details_data'         => $details_data,
@@ -1789,7 +1789,7 @@ class Reports extends Secure_Controller
         $supplier_info = $this->supplier->get_info((int) $supplier_id);
         $data = [
             'title'        => $supplier_info->company_name . ' (' . $supplier_info->first_name . ' ' . $supplier_info->last_name . ') ' . lang('Reports.report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'     => $this->_get_subtitle_report($inputs),
             'headers'      => $specific_supplier->getDataColumns(),
             'data'         => $tabular_data,
             'summary_data' => $specific_supplier->getSummaryData($inputs)
@@ -1926,7 +1926,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'                => lang('Reports.detailed_sales_report'),
-            'subtitle'             => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date]),
+            'subtitle'             => $this->_get_subtitle_report($inputs),
             'headers'              => $headers,
             'editable'             => 'sales',
             'summary_data'         => $summary_data,
@@ -1984,7 +1984,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'        => lang('Reports.detailed_item_sales_report'),
-            'subtitle'     => $this->_get_subtitle_report(['start_date' => $startDate, 'end_date' => $endDate]),
+            'subtitle'     => $this->_get_subtitle_report($inputs),
             'headers'      => $this->detailed_item_sales->getDataColumns(),
             'data'         => $tabularData,
             'summary_data' => $summary
@@ -2115,7 +2115,7 @@ class Reports extends Secure_Controller
 
         $data = [
             'title'                => lang('Reports.detailed_receivings_report'),
-            'subtitle'             => $this->_get_subtitle_report(['start_date' => $start_date, 'end_date' => $end_date], 'receivings'),
+            'subtitle'             => $this->_get_subtitle_report($inputs, 'receivings'),
             'headers'              => $headers,
             'editable'             => 'receivings',
             'summary_data'         => $summary_data,
@@ -2238,9 +2238,11 @@ class Reports extends Secure_Controller
 
     /**
      * Returns subtitle for the reports, with a second line that says so when the days hold documents in a
-     * currency other than the base: the reports add up their amounts as they were typed.
+     * currency other than the base: the reports add up their amounts as they were typed. The documents named
+     * are the ones the report holds, within the branches of the employee, the kind of sale and the location.
      *
-     * @param string $documents The documents the report adds up, sales or receivings, or none for a report of expenses.
+     * @param array<string, mixed> $inputs    The inputs the report model is given.
+     * @param string               $documents The documents the report adds up, sales or receivings, or none for a report of expenses.
      */
     private function _get_subtitle_report(array $inputs, string $documents = 'sales'): string    // TODO: Hungarian Notation
     {
@@ -2257,10 +2259,15 @@ class Reports extends Secure_Controller
             return $subtitle;
         }
 
-        $from    = $withTime ? rawurldecode($inputs['start_date']) : $inputs['start_date'];
-        $to      = $withTime ? rawurldecode($inputs['end_date']) : $inputs['end_date'];
-        $reader  = new ForeignDocumentReader();
-        $foreign = $documents === 'receivings' ? $reader->receivings($from, $to, $withTime) : $reader->sales($from, $to, $withTime);
+        $from       = $withTime ? rawurldecode($inputs['start_date']) : $inputs['start_date'];
+        $to         = $withTime ? rawurldecode($inputs['end_date']) : $inputs['end_date'];
+        $locationId = (string) ($inputs['location_id'] ?? 'all');
+        $employeeId = (int) $this->session->get('person_id');
+        $branchIds  = $employeeId < 1 ? null : (new BranchGuard())->allowedBranchIds($employeeId);
+        $reader     = new ForeignDocumentReader();
+        $foreign    = $documents === 'receivings'
+            ? $reader->receivings($from, $to, $withTime, $branchIds, $locationId)
+            : $reader->sales($from, $to, $withTime, $branchIds, (string) ($inputs['sale_type'] ?? 'all'), $locationId);
 
         return $foreign === [] ? $subtitle : $subtitle . "\n" . lang('Reports.foreign_documents_label', [ForeignDocuments::describe($foreign)]);
     }

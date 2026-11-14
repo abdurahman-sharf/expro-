@@ -43,7 +43,7 @@ $spec = [
 <?php else: ?>
     <section class="card chart-card">
         <div class="chart-box" data-kind="<?= esc($kind, 'attr') ?>">
-            <canvas id="chart1" role="img" aria-label="<?= esc($title . ' — ' . $subtitle, 'attr') ?>" data-chart="<?= esc(json_encode($spec, JSON_UNESCAPED_UNICODE), 'attr') ?>"></canvas>
+            <canvas id="chart1" role="img" aria-label="<?= esc($title . ' — ' . explode("\n", (string) $subtitle, 2)[0], 'attr') ?>" data-chart="<?= esc(json_encode($spec, JSON_UNESCAPED_UNICODE), 'attr') ?>"></canvas>
         </div>
 
         <details class="chart-data">
