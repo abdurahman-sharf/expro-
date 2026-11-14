@@ -958,14 +958,12 @@ final class LegacyDataGenerator
                 $discount = 0.0;
             }
 
-            $gross = abs($quantity) * $price;
-
-            if ($discountType === 1 && $discount > $gross) {
-                $discount = round($gross, 2);
+            if ($discountType === 1 && $discount > $price) {
+                $discount = $price;
             }
 
             $location = $item['stockType'] === 0 ? $this->pickLocation() : 1;
-            $discountAmount = $discountType === 0 ? $this->truncate4($quantity * $price * $discount / 100) : ($quantity < 0 ? -$discount : $discount);
+            $discountAmount = $this->roundHalfUp($discountType === 0 ? $quantity * $price * $discount / 100 : $quantity * $discount, 2);
             $basis = $this->truncate4($quantity * $price) - $discountAmount;
             $lines[] = [
                 'item' => $itemId,
