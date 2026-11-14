@@ -7,7 +7,7 @@
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 <ul id="error_message_box" class="error_message_box"></ul>
 
-<p><?= lang('Accounting_journals.reverse_hint', [$journal->number]) ?></p>
+<p><?= lang('Accounting_journals.reverse_hint', [esc($journal->number)]) ?></p>
 
 <?= form_open('accounting_journals/reverse/' . (int) $journal->journal_id, ['id' => 'reverse_form', 'class' => 'app-form']) ?>
     <fieldset id="reverse_fields">
