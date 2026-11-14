@@ -191,6 +191,11 @@ trait LedgerSaleOperations
 
         if ($mode === 'amount') {
             $amount = bcmul($amount, (string) ($random->int(20, 200) / 100), 2);
+
+            if (bccomp($amount, (string) $row['cash_refund'], 2) < 0) {
+                $amount = bcadd((string) $row['cash_refund'], '0.01', 2);
+                $this->observe('F11-the-model-accepts-a-payment-edit-that-leaves-the-amount-below-the-change-given-and-the-run-keeps-the-amount-at-the-change', 'payment ' . $row['payment_id'] . ' of sale ' . $saleId);
+            }
         } elseif ($mode === 'remove') {
             $amount = '0';
         } else {

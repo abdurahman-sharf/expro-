@@ -103,6 +103,11 @@ final class LedgerWorld
         $this->setConfig('accounting_enabled', '1');
         $this->setConfig('accounting_customer_opening', '1');
         $this->setConfig('stock_transfer_permit_enabled', '1');
+        $this->setConfig('accounting_credit_limit_enabled', $this->seed % 3 === 0 ? '0' : '1');
+        $this->setConfig('accounting_credit_period_enabled', $this->seed % 3 === 0 ? '0' : '1');
+        $this->setConfig('sales_minimum_price_enabled', $this->seed % 2 === 1 ? '1' : '0');
+        $this->setConfig('sales_max_discount_enabled', $this->seed % 2 === 1 ? '1' : '0');
+        $this->setConfig('sales_max_discount_percent', '30');
         $this->setConfig('negative_stock_option', $random->chance(50) ? 'refuse' : 'allow');
 
         $this->db->query('DELETE FROM ' . $this->db->prefixTable('accounting_fiscal_years') . ' WHERE company_id = 1');
@@ -314,6 +319,10 @@ final class LedgerWorld
 
             foreach (self::TAXES[$taxes] as $name => $percent) {
                 $this->db->table('items_taxes')->insert(['item_id' => $itemId, 'name' => $name, 'percent' => $percent]);
+            }
+
+            if ($this->seed % 2 === 1 && $index % 3 === 0) {
+                $this->db->table('items')->where('item_id', $itemId)->update(['minimum_price' => bcmul($price, '0.5', 2)]);
             }
 
             $this->items[$itemId] = ['stock' => $stock, 'price' => $price, 'cost' => $cost, 'taxes' => $taxes];

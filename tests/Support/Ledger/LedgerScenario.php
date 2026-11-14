@@ -201,6 +201,12 @@ final class LedgerScenario
      */
     private function isKnownRefusal(string $name, LedgerRefusal $refusal, string $detail): bool
     {
+        if ($refusal->reason === 'purchase_not_postable' && str_contains($refusal->getMessage(), 'too small')) {
+            $this->observe('F12-a-purchase-worth-less-than-a-cent-is-refused-while-a-sale-of-the-same-size-is-accepted-and-posts-nothing', $detail);
+
+            return true;
+        }
+
         if ($name !== 'purchase_return' || $refusal->reason !== 'unbalanced') {
             return false;
         }
