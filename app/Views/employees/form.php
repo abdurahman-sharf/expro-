@@ -1,20 +1,20 @@
 <?php
 /**
- * @var string $controller_name
- * @var object $person_info
- * @var array $all_modules
- * @var array $all_subpermissions
- * @var list<string> $sensitive_permissions
- * @var bool $is_admin
- * @var int $employee_id
- * @var array{scope: array{all: bool, branch_ids: list<int>, default_branch_id: ?int}, branches: list<object>, can_all: bool, locked: bool, hidden: bool}|null $branch_tab
+ * @var string                                                                                                                                                                                      $controller_name
+ * @var object                                                                                                                                                                                      $person_info
+ * @var array                                                                                                                                                                                       $all_modules
+ * @var array                                                                                                                                                                                       $all_subpermissions
+ * @var list<string>                                                                                                                                                                                $sensitive_permissions
+ * @var bool                                                                                                                                                                                        $is_admin
+ * @var int                                                                                                                                                                                         $employee_id
+ * @var array{scope: array{all: bool, branch_ids: list<int>, default_branch_id: ?int}, branches: list<object>, can_all: bool, locked: bool, hidden: bool}|null                                      $branch_tab
  * @var array{roles: list<object>, held: list<int>, can_manage: bool, record_scope: string, locations: list<object>, default_location_id: ?int, role_permissions: array<string, list<string>>}|null $roles_tab
  */
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
 
-<?= form_open("$controller_name/save/$person_info->person_id", ['id' => 'employee_form', 'class' => 'app-form']) ?>
+<?= form_open("{$controller_name}/save/{$person_info->person_id}", ['id' => 'employee_form', 'class' => 'app-form']) ?>
 
     <ul class="nav nav-tabs nav-justified" role="tablist">
         <li class="nav-item" role="presentation">
@@ -60,12 +60,12 @@
                                 'id'           => 'username',
                                 'class'        => 'form-control form-control-sm',
                                 'value'        => $person_info->username,
-                                'autocomplete' => 'off'
+                                'autocomplete' => 'off',
                             ]) ?>
                         </div>
                     </div>
 
-                    <?php $passwordLabelClass = $person_info->person_id == '' ? 'form-label text-danger required' : 'form-label'; ?>
+                    <?php $passwordLabelClass = $person_info->person_id === '' ? 'form-label text-danger required' : 'form-label'; ?>
 
                     <div class="field">
                         <?= form_label(lang('Employees.password'), 'password', ['class' => $passwordLabelClass]) ?>
@@ -75,7 +75,7 @@
                                 'name'         => 'password',
                                 'id'           => 'password',
                                 'class'        => 'form-control form-control-sm',
-                                'autocomplete' => 'new-password'
+                                'autocomplete' => 'new-password',
                             ]) ?>
                         </div>
                     </div>
@@ -88,7 +88,7 @@
                                 'name'         => 'repeat_password',
                                 'id'           => 'repeat_password',
                                 'class'        => 'form-control form-control-sm',
-                                'autocomplete' => 'new-password'
+                                'autocomplete' => 'new-password',
                             ]) ?>
                         </div>
                     </div>
@@ -97,22 +97,22 @@
                         <?= form_label(lang('Employees.language'), 'language', ['class' => 'form-label']) ?>
                         <?php
                         $languages = get_languages();
-                        $languages[':'] = lang('Employees.system_language');
-                        $languageCode = current_language_code();
-                        $language = current_language();
+$languages[':']                    = lang('Employees.system_language');
+$languageCode                      = current_language_code();
+$language                          = current_language();
 
-                        if ($languageCode === current_language_code(true)) {
-                            $languageCode = '';
-                            $language = '';
-                        }
+if ($languageCode === current_language_code(true)) {
+    $languageCode = '';
+    $language     = '';
+}
 
-                        echo form_dropdown(
-                            'language',
-                            $languages,
-                            "$languageCode:$language",
-                            ['class' => 'form-select form-select-sm', 'id' => 'language']
-                        );
-                        ?>
+echo form_dropdown(
+    'language',
+    $languages,
+    "{$languageCode}:{$language}",
+    ['class' => 'form-select form-select-sm', 'id' => 'language'],
+);
+?>
                     </div>
                 </div>
             </fieldset>
@@ -135,24 +135,24 @@
                         <section class="perm-module">
                             <div class="perm-head form-check form-switch">
                                 <?php
-                                $moduleAttributes = [
-                                    'name'    => "grant_$module->module_id",
-                                    'id'      => "grant_$module->module_id",
-                                    'value'   => $module->module_id,
-                                    'checked' => $module->grant == 1,
-                                    'class'   => 'form-check-input module-toggle' . (in_array($module->module_id, $sensitive_permissions, true) ? ' sensitive-permission' : ''),
-                                    'role'    => 'switch'
-                                ];
+        $moduleAttributes = [
+            'name'    => "grant_{$module->module_id}",
+            'id'      => "grant_{$module->module_id}",
+            'value'   => $module->module_id,
+            'checked' => $module->grant === 1,
+            'class'   => 'form-check-input module-toggle' . (in_array($module->module_id, $sensitive_permissions, true) ? ' sensitive-permission' : ''),
+            'role'    => 'switch',
+        ];
 
-                                if (in_array($module->module_id, $sensitive_permissions, true) && ! $is_admin) {
-                                    $moduleAttributes += ['disabled' => 'disabled', 'data-locked' => '1', 'title' => lang('Employees.sensitive_locked')];
-                                }
-                                ?>
+                        if (in_array($module->module_id, $sensitive_permissions, true) && ! $is_admin) {
+                            $moduleAttributes += ['disabled' => 'disabled', 'data-locked' => '1', 'title' => lang('Employees.sensitive_locked')];
+                        }
+                        ?>
                                 <?= form_checkbox($moduleAttributes) ?>
-                                <?= form_hidden("menu_group_$module->module_id", $module->menu_group) ?>
+                                <?= form_hidden("menu_group_{$module->module_id}", $module->menu_group) ?>
                                 <label class="form-check-label" for="grant_<?= esc($module->module_id) ?>">
-                                    <span class="perm-title"><?= lang("Module.$module->module_id") ?></span>
-                                    <span class="perm-note"><?= lang("Module.$module->module_id" . '_desc') ?></span>
+                                    <span class="perm-title"><?= lang("Module.{$module->module_id}") ?></span>
+                                    <span class="perm-note"><?= lang("Module.{$module->module_id}_desc") ?></span>
                                     <?php if (isset($roles_tab['role_permissions'][$module->module_id])): ?>
                                         <span class="badge text-bg-info"><?= esc(lang('Roles.via_role', [implode(', ', $roles_tab['role_permissions'][$module->module_id])])) ?></span>
                                     <?php endif; ?>
@@ -161,36 +161,36 @@
                             <?php
                             $subpermissions = [];
 
-                            foreach ($all_subpermissions as $permission) {
-                                if ($permission->module_id != $module->module_id) {
-                                    continue;
-                                }
-
-                                $explodedPermission = explode('_', $permission->permission_id, 2);
-                                $langKey = $module->module_id . '.' . $explodedPermission[1];
-                                $langLine = lang(ucfirst($langKey));
-
-                                if ($langLine === '' || $langLine === ucfirst($langKey)) {
-                                    $langLine = ucwords(str_replace('_', ' ', $explodedPermission[1]));
-                                }
-
-                                if (!empty($langLine)) {
-                                    $subpermissions[] = ['permission' => $permission, 'label' => $langLine];
-                                }
+                        foreach ($all_subpermissions as $permission) {
+                            if ($permission->module_id !== $module->module_id) {
+                                continue;
                             }
-                            ?>
+
+                            $explodedPermission = explode('_', $permission->permission_id, 2);
+                            $langKey            = $module->module_id . '.' . $explodedPermission[1];
+                            $langLine           = lang(ucfirst($langKey));
+
+                            if ($langLine === '' || $langLine === ucfirst($langKey)) {
+                                $langLine = ucwords(str_replace('_', ' ', $explodedPermission[1]));
+                            }
+
+                            if (! empty($langLine)) {
+                                $subpermissions[] = ['permission' => $permission, 'label' => $langLine];
+                            }
+                        }
+                        ?>
                             <?php if ($subpermissions) { ?>
                                 <ul class="perm-subs">
                                     <?php foreach ($subpermissions as $subpermission) { ?>
                                         <?php
-                                        $permission = $subpermission['permission'];
+                                    $permission     = $subpermission['permission'];
                                         $sensitive  = in_array($permission->permission_id, $sensitive_permissions, true);
                                         $locked     = $sensitive && ! $is_admin;
                                         $attributes = [
-                                            'name'    => "grant_$permission->permission_id",
-                                            'id'      => "grant_$permission->permission_id",
+                                            'name'    => "grant_{$permission->permission_id}",
+                                            'id'      => "grant_{$permission->permission_id}",
                                             'value'   => $permission->permission_id,
-                                            'checked' => $permission->grant == 1,
+                                            'checked' => $permission->grant === 1,
                                             'class'   => 'form-check-input' . ($sensitive ? ' sensitive-permission' : ''),
                                         ];
 
@@ -200,7 +200,7 @@
                                         ?>
                                         <li class="form-check">
                                             <?= form_checkbox($attributes) ?>
-                                            <?= form_hidden("menu_group_$permission->permission_id", '--') ?>
+                                            <?= form_hidden("menu_group_{$permission->permission_id}", '--') ?>
                                             <label class="form-check-label" for="grant_<?= esc($permission->permission_id) ?>">
                                                 <?= esc($subpermission['label']) ?>
                                                 <?php if ($sensitive) { ?>
@@ -414,10 +414,10 @@
 
                     required: true,
                     minlength: 5,
-                    remote: '<?= esc("$controller_name/checkUsername/$employee_id") ?>'
+                    remote: '<?= esc("{$controller_name}/checkUsername/{$employee_id}") ?>'
                 },
                 password: {
-                    <?php if ($person_info->person_id == '') { ?>
+                    <?php if ($person_info->person_id === '') { ?>
                         required: true,
                     <?php } ?>
                     minlength: 8
@@ -437,7 +437,7 @@
                     remote: "<?= lang('Employees.username_duplicate') ?>"
                 },
                 password: {
-                    <?php if ($person_info->person_id == "") { ?>
+                    <?php if ($person_info->person_id === '') { ?>
                         required: "<?= lang('Employees.password_required') ?>",
                     <?php } ?>
                     minlength: "<?= lang('Employees.password_minlength') ?>"

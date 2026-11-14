@@ -65,12 +65,17 @@ class Receiving extends Model
     private ?Throwable $accountingFailure = null;
     private int $supplierLockWait         = 15;
 
-    /** @var array{string, ?string}|null The currency the next purchase saved is in, and the rate typed for it. */
+    /**
+     * @var array{string, ?string}|null The currency the next purchase saved is in, and the rate typed for it.
+     */
     private ?array $currencyChoice = null;
 
-    /** @var array{string, ?string}|null */
+    /**
+     * @var array{string, ?string}|null
+     */
     private ?array $savingCurrency = null;
-    private ?RecordScope $recordScope     = null;
+
+    private ?RecordScope $recordScope = null;
 
     /**
      * How long a change to a purchase waits for another change to the same supplier to finish
@@ -172,6 +177,9 @@ class Receiving extends Model
      * made against it, when the data carry them, are saved with it and posted again where they
      * changed, and the credit of the supplier is settled, all in the transaction of the update
      * and under the lock of the supplier.
+     *
+     * @param mixed|null $receivingId
+     * @param mixed|null $receivingData
      */
     public function update($receivingId = null, $receivingData = null): bool
     {
@@ -336,7 +344,7 @@ class Receiving extends Model
     }
 
     /**
-     * @param array<string, mixed>|null $receivingData
+     * @param array<string, mixed>|null  $receivingData
      * @param list<array<string, mixed>> $payments
      */
     private function employeeOfEdit(?array $receivingData, array $payments): ?int
@@ -486,7 +494,7 @@ class Receiving extends Model
             }
 
             $this->moveStock($deltas, 'Editing receiving ' . $receivingId, $employeeId);
-        } catch (AccountingException|PostingException|BranchException $failure) {
+        } catch (AccountingException|BranchException|PostingException $failure) {
             $this->db->transRollback();
             $this->accountingFailure = $failure;
 
@@ -682,7 +690,7 @@ class Receiving extends Model
                 continue;
             }
 
-            $shelf = $this->db->query('SELECT quantity FROM ' . $this->db->prefixTable('item_quantities') . ' WHERE item_id = ? AND location_id = ? FOR UPDATE', [$delta['itemId'], $delta['locationId']]);
+            $shelf  = $this->db->query('SELECT quantity FROM ' . $this->db->prefixTable('item_quantities') . ' WHERE item_id = ? AND location_id = ? FOR UPDATE', [$delta['itemId'], $delta['locationId']]);
             $onHand = $shelf === false || $shelf->getRow() === null ? '0' : (string) $shelf->getRow()->quantity;
 
             if (bccomp(bcadd($onHand, $delta['delta'], 3), '0', 3) < 0) {
@@ -789,7 +797,7 @@ class Receiving extends Model
      *
      * @param list<ReceivingLine> $taken
      * @param list<ReceivingLine> $given
-     * @param numeric-string|null $rate   The rate of a purchase in a foreign currency, which the cost of the items is kept in the base by.
+     * @param numeric-string|null $rate  The rate of a purchase in a foreign currency, which the cost of the items is kept in the base by.
      */
     private function correctTheCost(Item $item, array $taken, array $given, ?string $rate = null): void
     {
@@ -1089,9 +1097,9 @@ class Receiving extends Model
             return ACCOUNTING_FAILED;
         }
 
-        $config       = config(OSPOS::class)->settings;
-        $type         = ReceivingType::ofQuantities(array_map(static fn (array $line): string => self::unitsOf($line), $items));
-        $tracking     = new StockTracking($this->db);
+        $config   = config(OSPOS::class)->settings;
+        $type     = ReceivingType::ofQuantities(array_map(static fn (array $line): string => self::unitsOf($line), $items));
+        $tracking = new StockTracking($this->db);
 
         try {
             if ($type !== ReceivingType::Receive) {
@@ -1248,7 +1256,7 @@ class Receiving extends Model
                 $inventory->insert($invData, false);
                 $attribute->copy_attribute_links($itemData['item_id'], 'receiving_id', $receivingId);
             }
-        } catch (AccountingException|PostingException|BranchException $failure) {
+        } catch (AccountingException|BranchException|PostingException $failure) {
             $this->db->transRollback();
             $this->accountingFailure = $failure;
 
@@ -1285,7 +1293,7 @@ class Receiving extends Model
     /**
      * @param array<int|string, array<string, mixed>> $items
      *
-     * @return array<int|string, array<string, string|int|null>> The columns that remember the unit of each line, by the key of the line.
+     * @return array<int|string, array<string, int|string|null>> The columns that remember the unit of each line, by the key of the line.
      *
      * @throws AccountingException
      */

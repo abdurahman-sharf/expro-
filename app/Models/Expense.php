@@ -24,11 +24,11 @@ use Throwable;
  */
 class Expense extends Model
 {
-    protected $table = 'expenses';
-    protected $primaryKey = 'expense_id';
+    protected $table            = 'expenses';
+    protected $primaryKey       = 'expense_id';
     protected $useAutoIncrement = true;
-    protected $useSoftDeletes = false;
-    protected $allowedFields = [
+    protected $useSoftDeletes   = false;
+    protected $allowedFields    = [
         'date',
         'amount',
         'payment_type',
@@ -40,7 +40,7 @@ class Expense extends Model
         'tax_amount',
         'supplier_id',
         'branch_id',
-        'treasury_id'
+        'treasury_id',
     ];
     private ?Throwable $accountingFailure = null;
     private ?RecordScope $recordScope     = null;
@@ -84,7 +84,7 @@ class Expense extends Model
         $builder = $this->db->table('expenses');
         $builder->where('expense_id', $expense_id);
 
-        return ($builder->get()->getNumRows() == 1);    // TODO: ===
+        return $builder->get()->getNumRows() === 1;    // TODO: ===
     }
 
     /**
@@ -96,6 +96,7 @@ class Expense extends Model
         $builder->where('expense_id', $expense_id);
 
         $expense_category = model(Expense_category::class);
+
         return $expense_category->get_info($builder->get()->getRow()->expense_category_id);    // TODO: refactor out the nested function call.
     }
 
@@ -112,10 +113,6 @@ class Expense extends Model
         return $employee->get_info($builder->get()->getRow()->employee_id);    // TODO: refactor out the nested function call.
     }
 
-    /**
-     * @param array $expense_ids
-     * @return ResultInterface
-     */
     public function get_multiple_info(array $expense_ids, ?int $viewerId = null): ResultInterface
     {
         $cut     = $this->viewerCut($viewerId);
@@ -141,24 +138,25 @@ class Expense extends Model
 
     /**
      * Searches expenses
-     *
-     * @param string $search
-     * @param array $filters
-     * @param int|null $rows
-     * @param int|null $limit_from
-     * @param string|null $sort
-     * @param string|null $order
-     * @param bool|null $count_only
-     * @return ResultInterface|false|string
      */
-    public function search(string $search, array $filters, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'expense_id', ?string $order = 'asc', ?bool $count_only = false, ?int $viewerId = null): false|string|ResultInterface
+    public function search(string $search, array $filters, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'expense_id', ?string $order = 'asc', ?bool $count_only = false, ?int $viewerId = null): false|ResultInterface|string
     {
         // Set default values
-        if ($rows == null) $rows = 0;
-        if ($limit_from == null) $limit_from = 0;
-        if ($sort == null) $sort = 'expense_id';
-        if ($order == null) $order = 'asc';
-        if ($count_only == null) $count_only = false;
+        if ($rows === null) {
+            $rows = 0;
+        }
+        if ($limit_from === null) {
+            $limit_from = 0;
+        }
+        if ($sort === null) {
+            $sort = 'expense_id';
+        }
+        if ($order === null) {
+            $order = 'asc';
+        }
+        if ($count_only === null) {
+            $count_only = false;
+        }
 
         $cut          = $this->viewerCut($viewerId);
         $config       = config(OSPOS::class)->settings;
@@ -193,13 +191,13 @@ class Expense extends Model
         $builder->join('suppliers AS suppliers', 'suppliers.person_id = expenses.supplier_id', 'LEFT');
 
         $builder->groupStart();
-            $builder->like('employees.first_name', $search);
-            $builder->orLike('expenses.date', $search);
-            $builder->orLike('employees.last_name', $search);
-            $builder->orLike('expenses.payment_type', $search);
-            $builder->orLike('expenses.amount', $search);
-            $builder->orLike('expense_categories.category_name', $search);
-            $builder->orLike('CONCAT(employees.first_name, " ", employees.last_name)', $search);
+        $builder->like('employees.first_name', $search);
+        $builder->orLike('expenses.date', $search);
+        $builder->orLike('employees.last_name', $search);
+        $builder->orLike('expenses.payment_type', $search);
+        $builder->orLike('expenses.amount', $search);
+        $builder->orLike('expense_categories.category_name', $search);
+        $builder->orLike('CONCAT(employees.first_name, " ", employees.last_name)', $search);
         $builder->groupEnd();
 
         $builder->where('expenses.deleted', $filters['is_deleted']);
@@ -237,7 +235,7 @@ class Expense extends Model
             $builder->like('expenses.payment_type', lang('Expenses.check'));
         }
 
-        if ($accountingOn && !empty($filters['only_unposted'])) {
+        if ($accountingOn && ! empty($filters['only_unposted'])) {
             $builder->where($this->ledgerState('expenses') . ' = 0', null, false);
         }
 
@@ -300,14 +298,14 @@ class Expense extends Model
 
         $query = $builder->get();
 
-        if ($query->getNumRows() == 1) {    // TODO: ===
+        if ($query->getNumRows() === 1) {    // TODO: ===
             return $query->getRow();
         }
 
-        $empty_obj = $this->getEmptyObject('expenses');
+        $empty_obj                = $this->getEmptyObject('expenses');
         $empty_obj->supplier_name = null;
-        $empty_obj->first_name = null;
-        $empty_obj->last_name = null;
+        $empty_obj->first_name    = null;
+        $empty_obj->last_name     = null;
 
         return $empty_obj;
     }
@@ -325,8 +323,6 @@ class Expense extends Model
 
     /**
      * Initializes an empty object based on database definitions
-     * @param string $table_name
-     * @return object
      */
     private function getEmptyObject(string $table_name): object
     {
@@ -337,10 +333,10 @@ class Expense extends Model
         foreach ($this->db->getFieldData($table_name) as $field) {
             $field_name = $field->name;
 
-            if (in_array($field->type, ['int', 'tinyint', 'decimal'])) {
-                $empty_obj->$field_name = ($field->primary_key == 1) ? NEW_ENTRY : 0;
+            if (in_array($field->type, ['int', 'tinyint', 'decimal'], true)) {
+                $empty_obj->{$field_name} = ($field->primary_key === 1) ? NEW_ENTRY : 0;
             } else {
-                $empty_obj->$field_name = null;
+                $empty_obj->{$field_name} = null;
             }
         }
 
@@ -423,7 +419,7 @@ class Expense extends Model
     {
         $builder = $this->db->table('expenses');
 
-        if ($expenseId == NEW_ENTRY || !$this->exists($expenseId)) {
+        if ($expenseId === NEW_ENTRY || ! $this->exists($expenseId)) {
             $this->db->transStart();
 
             $inserted = $builder->insert($expenseData);

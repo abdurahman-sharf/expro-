@@ -1,10 +1,9 @@
 <?php
 /**
- * @var object|null $branch
- * @var string $suggested_code
+ * @var object|null  $branch
+ * @var string       $suggested_code
  * @var list<object> $locations
  */
-
 $isNew     = $branch === null;
 $isDefault = ! $isNew && (int) $branch->is_default === 1;
 $value     = static fn (string $field): string => $isNew ? '' : (string) ($branch->{$field} ?? '');

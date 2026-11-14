@@ -36,10 +36,10 @@ class Token_customer extends Token
 
         $customerId = $this->saleLib->get_customer();
 
-        if ($customerId != NEW_ITEM) {
+        if ($customerId !== NEW_ITEM) {
             $customerInfo = model(Customer::class)->get_info($customerId);
 
-            if ($customerInfo != '') {
+            if ($customerInfo !== '') {
                 return trim($customerInfo->first_name . ' ' . $customerInfo->last_name);
             }
         }

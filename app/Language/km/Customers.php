@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'account_number'                => 'លេខ​គណនី',
+    'account_number'                => "លេខ\u{200b}គណនី",
     'account_number_automatic'      => '',
     'account_number_duplicate'      => 'លេខគណនី មានវត្តមាននៅក្នុងមូលដ្ឋានទិន្នន័យរួចទៅហើយ',
     'area'                          => '',
@@ -17,7 +17,7 @@ return [
     'billing_method'                => '',
     'billing_method_help'           => '',
     'billing_print'                 => '',
-    'cannot_be_deleted'             => 'មិនអាចលុបអតិថិជនដែលបានជ្រើសរើសហើយទេ, អតិថិជនមួយឬច្រើន​ មានការលក់​',
+    'cannot_be_deleted'             => "មិនអាចលុបអតិថិជនដែលបានជ្រើសរើសហើយទេ, អតិថិជនមួយឬច្រើន\u{200b} មានការលក់\u{200b}",
     'classification'                => '',
     'classification_none'           => '',
     'classifications_manage'        => '',
@@ -60,7 +60,7 @@ return [
     'einvoice_not_saved'            => '',
     'email_duplicate'               => 'អ៊ីមែលមានរួចហើយនៅក្នុងមូលដ្ឋានទិន្នន័យ',
     'employee'                      => 'បុគ្គលិក',
-    'error_adding_updating'         => 'ការបន្ថែមឬការធ្វើ​ឲ្យ​ទាន់សម័យរបស់អតិថិជន បរាជ័យ',
+    'error_adding_updating'         => "ការបន្ថែមឬការធ្វើ\u{200b}ឲ្យ\u{200b}ទាន់សម័យរបស់អតិថិជន បរាជ័យ",
     'filters'                       => '',
     'filters_reset'                 => '',
     'government_entity'             => '',
@@ -81,7 +81,7 @@ return [
     'master_data'                   => '',
     'max'                           => 'ចំណាយអតិបរមា',
     'min'                           => 'ចំណាយអប្បបរមា',
-    'new'                           => 'អតិថិជន​ថ្មី',
+    'new'                           => "អតិថិជន\u{200b}ថ្មី",
     'none_selected'                 => 'អ្នកមិនបានជ្រើសរើសអតិថិជនណាមួយដើម្បីលុប',
     'one_or_multiple'               => 'អតិថិជន',
     'opening_amount'                => '',

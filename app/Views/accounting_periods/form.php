@@ -1,11 +1,10 @@
 <?php
 /**
- * @var object|null $year
+ * @var object|null                                               $year
  * @var array{name: string, start_date: string, end_date: string} $suggested
- * @var bool $start_locked
- * @var bool $end_locked
+ * @var bool                                                      $start_locked
+ * @var bool                                                      $end_locked
  */
-
 $isNew = $year === null;
 ?>
 

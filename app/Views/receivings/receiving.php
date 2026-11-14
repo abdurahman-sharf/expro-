@@ -1,33 +1,36 @@
 <?php
+
+use App\Libraries\Accounting\InvoiceDiscount;
+
 /**
- * @var string $controller_name
- * @var array  $modes
- * @var string $mode
- * @var bool   $show_stock_locations
- * @var array  $stock_locations
- * @var int    $stock_source
- * @var string $stock_destination
- * @var array  $cart
- * @var bool   $items_module_allowed
- * @var float  $total
- * @var string $comment
- * @var bool   $print_after_sale
- * @var string $reference
- * @var array  $payment_options
- * @var array  $config
- * @var string $tax_total
- * @var string $total_with_tax
- * @var App\Libraries\Accounting\InvoiceDiscount $invoiceDiscount
- * @var string $invoiceDiscountAmount
- * @var int|null $return_origin
- * @var string|null $order_source
+ * @var string                               $controller_name
+ * @var array                                $modes
+ * @var string                               $mode
+ * @var bool                                 $show_stock_locations
+ * @var array                                $stock_locations
+ * @var int                                  $stock_source
+ * @var string                               $stock_destination
+ * @var array                                $cart
+ * @var bool                                 $items_module_allowed
+ * @var float                                $total
+ * @var string                               $comment
+ * @var bool                                 $print_after_sale
+ * @var string                               $reference
+ * @var array                                $payment_options
+ * @var array                                $config
+ * @var string                               $tax_total
+ * @var string                               $total_with_tax
+ * @var InvoiceDiscount                      $invoiceDiscount
+ * @var string                               $invoiceDiscountAmount
+ * @var int|null                             $return_origin
+ * @var string|null                          $order_source
  * @var array{from: string, to: string}|null $between_branches
- * @var bool $accounting_enabled
- * @var string|null $invoice_date
- * @var string|null $payment_terms
- * @var string $due_date_label
- * @var bool $can_type_invoice_date
- * @var string $today
+ * @var bool                                 $accounting_enabled
+ * @var string|null                          $invoice_date
+ * @var string|null                          $payment_terms
+ * @var string                               $due_date_label
+ * @var bool                                 $can_type_invoice_date
+ * @var string                               $today
  */
 $sectionName = ucfirst($controller_name);
 $hasCart     = count($cart) > 0;
@@ -67,7 +70,7 @@ $hasCart     = count($cart) > 0;
                         <?= form_dropdown('stock_source', $stock_locations, $stock_source, ['id' => 'register_stock_source', 'onchange' => "$('#mode_form').submit();", 'class' => 'form-select form-select-sm']) ?>
                     </div>
 
-                    <?php if ($mode == 'requisition'): ?>
+                    <?php if ($mode === 'requisition'): ?>
                         <div class="pos-field">
                             <label for="register_stock_destination" class="pos-label"><?= lang("{$sectionName}.stock_destination") ?></label>
                             <?= form_dropdown('stock_destination', $stock_locations, $stock_destination, ['id' => 'register_stock_destination', 'onchange' => "$('#mode_form').submit();", 'class' => 'form-select form-select-sm']) ?>
@@ -83,7 +86,7 @@ $hasCart     = count($cart) > 0;
         <?= form_open("{$controller_name}/add", ['id' => 'add_item_form', 'class' => 'app-form card']) ?>
             <div class="card-body">
                 <label for="item" class="pos-label">
-                    <?= lang($sectionName . (($mode == 'receive' || $mode == 'requisition') ? '.find_or_scan_item' : '.find_or_scan_item_or_receipt')) ?>
+                    <?= lang($sectionName . (($mode === 'receive' || $mode === 'requisition') ? '.find_or_scan_item' : '.find_or_scan_item_or_receipt')) ?>
                 </label>
                 <div class="pos-scan">
                     <span class="bi bi-upc-scan pos-scan-icon" aria-hidden="true"></span>
@@ -130,7 +133,7 @@ $hasCart     = count($cart) > 0;
 
                 <div id="cart_contents">
                     <?php foreach (array_reverse($cart, true) as $line => $item): ?>
-                        <?php $canEditCost = $items_module_allowed && $mode != 'requisition'; ?>
+                        <?php $canEditCost = $items_module_allowed && $mode !== 'requisition'; ?>
                         <?= form_open("{$controller_name}/editItem/{$line}", ['class' => 'app-form cart-row cart-row-receiving cart-line', 'id' => "cart_{$line}"]) ?>
                             <?= form_hidden('location', (string) $item['item_location']) ?>
 
@@ -178,7 +181,7 @@ $hasCart     = count($cart) > 0;
                                 <?php if ($canEditCost): ?>
                                     <div class="input-group input-group-sm">
                                         <?= form_input(['name' => 'discount', 'class' => 'form-control form-control-sm', 'value' => $item['discount_type'] ? to_currency_no_money($item['discount']) : to_decimals($item['discount']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.discount"), 'onClick' => 'this.select();']) ?>
-                                        <?= toggleButton(['id' => "discount_toggle_{$line}", 'name' => 'discount_toggle', 'value' => 1, 'data-line' => $line, 'checked' => $item['discount_type'] == 1], $config['currency_symbol'], '%') ?>
+                                        <?= toggleButton(['id' => "discount_toggle_{$line}", 'name' => 'discount_toggle', 'value' => 1, 'data-line' => $line, 'checked' => $item['discount_type'] === 1], $config['currency_symbol'], '%') ?>
                                     </div>
                                 <?php else: ?>
                                     <span class="num"><?= esc($item['discount']) ?></span>
@@ -190,7 +193,7 @@ $hasCart     = count($cart) > 0;
                                 <?php if ($canEditCost): ?>
                                     <?= form_input(['name' => 'tax_percent', 'class' => 'form-control form-control-sm', 'value' => to_decimals($item['tax_percent'] ?? 0), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.tax"), 'onClick' => 'this.select();']) ?>
                                 <?php else: ?>
-                                    <span class="num"><?= $mode == 'requisition' ? '' : esc(to_decimals($item['tax_percent'] ?? 0)) ?></span>
+                                    <span class="num"><?= $mode === 'requisition' ? '' : esc(to_decimals($item['tax_percent'] ?? 0)) ?></span>
                                     <?= form_hidden('tax_percent', (string) ($item['tax_percent'] ?? 0)) ?>
                                 <?php endif; ?>
                             </div>
@@ -217,9 +220,9 @@ $hasCart     = count($cart) > 0;
                                     <?= form_input(['name' => 'batch_number', 'class' => 'form-control form-control-sm', 'dir' => 'ltr', 'value' => $item['tracking']['batches'][0]['number'] ?? '', 'aria-label' => lang('Stock_units.batch_number'), 'placeholder' => lang('Stock_units.batch_number')]) ?>
                                     <?= form_input(['name' => 'batch_expiry', 'type' => 'date', 'class' => 'form-control form-control-sm', 'value' => $item['tracking']['batches'][0]['expiry'] ?? '', 'aria-label' => lang('Stock_units.batch_expiry')]) ?>
                                 <?php endif; ?>
-                                <?php if ($item['allow_alt_description'] == 1): ?>
+                                <?php if ($item['allow_alt_description'] === 1): ?>
                                     <?= form_input(['name' => 'description', 'class' => 'form-control form-control-sm', 'value' => $item['description'], 'aria-label' => lang('Sales.description_abbrv'), 'placeholder' => lang('Sales.description_abbrv')]) ?>
-                                <?php elseif ($item['description'] != ''): ?>
+                                <?php elseif ($item['description'] !== ''): ?>
                                     <span class="text-secondary"><?= esc($item['description']) ?></span>
                                     <?= form_hidden('description', $item['description']) ?>
                                 <?php else: ?>
@@ -279,7 +282,7 @@ $hasCart     = count($cart) > 0;
             </div>
         </div>
 
-        <?php if ($mode == 'return'): ?>
+        <?php if ($mode === 'return'): ?>
             <div class="card">
                 <div class="card-body">
                     <label for="return_origin" class="pos-label"><?= lang("{$sectionName}.return_origin") ?></label>
@@ -289,7 +292,7 @@ $hasCart     = count($cart) > 0;
             </div>
         <?php endif; ?>
 
-        <?php if ($mode == 'receive' && $hasCart): ?>
+        <?php if ($mode === 'receive' && $hasCart): ?>
             <div class="card">
                 <div class="card-body">
                     <?= form_open("{$controller_name}/setInvoiceDiscount", ['id' => 'invoice_discount_form', 'class' => 'app-form']) ?>
@@ -308,7 +311,7 @@ $hasCart     = count($cart) > 0;
             </div>
         <?php endif; ?>
 
-        <?php if ($mode != 'requisition'): ?>
+        <?php if ($mode !== 'requisition'): ?>
             <?php $hasInvoiceDiscount = bccomp((string) $invoiceDiscountAmount, '0', 4) !== 0; ?>
             <?php $showsTax           = bccomp((string) $tax_total, '0', 8) > 0 || ($hasInvoiceDiscount && bccomp((string) $tax_total, '0', 8) !== 0); ?>
             <div class="card">
@@ -318,7 +321,7 @@ $hasCart     = count($cart) > 0;
                             <div><dt><?= lang("{$sectionName}.sub_total") ?></dt><dd><?= to_currency($total) ?></dd></div>
                         <?php endif; ?>
                         <?php if ($hasInvoiceDiscount): ?>
-                            <div id="receiving_invoice_discount"><dt><?= lang($mode == 'receive' ? "{$sectionName}.invoice_discount_amount" : "{$sectionName}.invoice_discount_share") ?><?= $invoiceDiscount->type === PERCENT && ! $invoiceDiscount->isNone() ? ' (' . to_decimals($invoiceDiscount->value) . '%)' : '' ?></dt><dd><?= to_currency($invoiceDiscountAmount) ?></dd></div>
+                            <div id="receiving_invoice_discount"><dt><?= lang($mode === 'receive' ? "{$sectionName}.invoice_discount_amount" : "{$sectionName}.invoice_discount_share") ?><?= $invoiceDiscount->type === PERCENT && ! $invoiceDiscount->isNone() ? ' (' . to_decimals($invoiceDiscount->value) . '%)' : '' ?></dt><dd><?= to_currency($invoiceDiscountAmount) ?></dd></div>
                         <?php endif; ?>
                         <?php if ($showsTax): ?>
                             <div id="receiving_tax"><dt><?= lang("{$sectionName}.tax_total") ?></dt><dd><?= to_currency($tax_total) ?></dd></div>
@@ -331,7 +334,7 @@ $hasCart     = count($cart) > 0;
 
         <?php if ($hasCart): ?>
             <div id="finish_sale">
-                <?= form_open($mode == 'requisition' ? "{$controller_name}/requisitionComplete" : "{$controller_name}/complete", ['id' => 'finish_receiving_form', 'class' => 'app-form pos-actions']) ?>
+                <?= form_open($mode === 'requisition' ? "{$controller_name}/requisitionComplete" : "{$controller_name}/complete", ['id' => 'finish_receiving_form', 'class' => 'app-form pos-actions']) ?>
                     <div class="card">
                         <div class="card-body pos-options" id="payment_details">
                             <div>
@@ -339,8 +342,8 @@ $hasCart     = count($cart) > 0;
                                 <?= form_textarea(['name' => 'comment', 'id' => 'comment', 'class' => 'form-control', 'value' => $comment, 'rows' => '3']) ?>
                             </div>
 
-                            <?php if ($mode != 'requisition'): ?>
-                                <?php if ($mode == 'receive'): ?>
+                            <?php if ($mode !== 'requisition'): ?>
+                                <?php if ($mode === 'receive'): ?>
                                     <div>
                                         <label for="recv_reference" class="pos-label"><?= lang("{$sectionName}.reference") ?></label>
                                         <?= form_input(['name' => 'recv_reference', 'id' => 'recv_reference', 'class' => 'form-control', 'value' => $reference]) ?>
@@ -376,7 +379,7 @@ $hasCart     = count($cart) > 0;
                                 </div>
 
                                 <label for="recv_print_after_sale" class="choice">
-                                    <?= form_checkbox(['name' => 'recv_print_after_sale', 'id' => 'recv_print_after_sale', 'value' => 1, 'checked' => $print_after_sale == 1]) ?>
+                                    <?= form_checkbox(['name' => 'recv_print_after_sale', 'id' => 'recv_print_after_sale', 'value' => 1, 'checked' => $print_after_sale === 1]) ?>
                                     <?= lang("{$sectionName}.print_after_sale") ?>
                                 </label>
                             <?php endif; ?>
@@ -399,7 +402,7 @@ $hasCart     = count($cart) > 0;
     <?php if ($hasCart): ?>
         <div class="pos-total-bar" id="pos_total_bar">
             <div class="pos-total-text">
-                <?php if ($mode != 'requisition'): ?>
+                <?php if ($mode !== 'requisition'): ?>
                     <span><?= lang('Sales.total') ?></span>
                     <strong id="pos_total_value"><?= to_currency($total_with_tax) ?></strong>
                 <?php endif; ?>

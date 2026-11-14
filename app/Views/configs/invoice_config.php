@@ -6,6 +6,7 @@
  */
 
 use App\Libraries\Documents\DocumentTerms;
+
 ?>
 
 <?= form_open('config/saveInvoice/', ['id' => 'invoice_config_form', 'class' => 'app-form']) ?>
@@ -22,7 +23,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'name'    => 'invoice_enable',
                         'value'   => 'invoice_enable',
                         'id'      => 'invoice_enable',
-                        'checked' => $config['invoice_enable'] == 1
+                        'checked' => $config['invoice_enable'] === 1,
                     ]) ?>
                 </div>
             </div>
@@ -34,7 +35,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'invoice_type',
                         $invoice_type_options,
                         $config['invoice_type'],
-                        'id="invoice_type" class="form-select form-select-sm"'
+                        'id="invoice_type" class="form-select form-select-sm"',
                     ) ?>
                 </div>
             </div>
@@ -46,7 +47,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'name'  => 'recv_invoice_format',
                         'id'    => 'recv_invoice_format',
                         'class' => 'form-control form-control-sm',
-                        'value' => $config['recv_invoice_format']
+                        'value' => $config['recv_invoice_format'],
                     ]) ?>
                 </div>
             </div>
@@ -59,7 +60,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'id'    => 'invoice_default_comments',
                         'class' => 'form-control form-control-sm',
                         'style' => 'resize: vertical',
-                        'value' => $config['invoice_default_comments']
+                        'value' => $config['invoice_default_comments'],
                     ]) ?>
                 </div>
             </div>
@@ -74,7 +75,7 @@ use App\Libraries\Documents\DocumentTerms;
                             'class'     => 'form-control form-control-sm',
                             'style'     => 'resize: vertical',
                             'maxlength' => DocumentTerms::MAX_LENGTH,
-                            'value'     => $config['document_terms_' . $termsFamily] ?? ''
+                            'value'     => $config['document_terms_' . $termsFamily] ?? '',
                         ]) ?>
                         <?php if ($termsFamily === 'invoice'): ?>
                             <div class="form-text"><?= lang('Config.document_terms_help') ?></div>
@@ -91,7 +92,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'id'    => 'invoice_email_message',
                         'class' => 'form-control form-control-sm',
                         'style' => 'resize: vertical',
-                        'value' => $config['invoice_email_message']
+                        'value' => $config['invoice_email_message'],
                     ]) ?>
                 </div>
             </div>
@@ -103,7 +104,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'line_sequence',
                         $line_sequence_options,
                         $config['line_sequence'],
-                        'id="line_sequence" class="form-select form-select-sm"'
+                        'id="line_sequence" class="form-select form-select-sm"',
                     ) ?>
                 </div>
             </div>
@@ -115,7 +116,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'name'  => 'sales_invoice_format',
                         'id'    => 'sales_invoice_format',
                         'class' => 'form-control form-control-sm',
-                        'value' => $config['sales_invoice_format']
+                        'value' => $config['sales_invoice_format'],
                     ]) ?>
                 </div>
             </div>
@@ -128,7 +129,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'name'  => 'last_used_invoice_number',
                         'id'    => 'last_used_invoice_number',
                         'class' => 'form-control form-control-sm required',
-                        'value' => $config['last_used_invoice_number']
+                        'value' => $config['last_used_invoice_number'],
                     ]) ?>
                 </div>
             </div>
@@ -140,7 +141,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'name'  => 'sales_quote_format',
                         'id'    => 'sales_quote_format',
                         'class' => 'form-control form-control-sm',
-                        'value' => $config['sales_quote_format']
+                        'value' => $config['sales_quote_format'],
                     ]) ?>
                 </div>
             </div>
@@ -153,7 +154,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'name'  => 'last_used_quote_number',
                         'id'    => 'last_used_quote_number',
                         'class' => 'form-control form-control-sm required',
-                        'value' => $config['last_used_quote_number']
+                        'value' => $config['last_used_quote_number'],
                     ]) ?>
                 </div>
             </div>
@@ -166,7 +167,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'id'    => 'quote_default_comments',
                         'class' => 'form-control form-control-sm',
                         'style' => 'resize: vertical',
-                        'value' => $config['quote_default_comments']
+                        'value' => $config['quote_default_comments'],
                     ]) ?>
                 </div>
             </div>
@@ -178,7 +179,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'name'    => 'work_order_enable',
                         'value'   => 'work_order_enable',
                         'id'      => 'work_order_enable',
-                        'checked' => $config['work_order_enable'] == 1
+                        'checked' => $config['work_order_enable'] === 1,
                     ]) ?>
                 </div>
             </div>
@@ -190,7 +191,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'name'  => 'work_order_format',
                         'id'    => 'work_order_format',
                         'class' => 'form-control form-control-sm',
-                        'value' => $config['work_order_format']
+                        'value' => $config['work_order_format'],
                     ]) ?>
                 </div>
             </div>
@@ -203,7 +204,7 @@ use App\Libraries\Documents\DocumentTerms;
                         'name'  => 'last_used_work_order_number',
                         'id'    => 'last_used_work_order_number',
                         'class' => 'form-control form-control-sm required',
-                        'value' => $config['last_used_work_order_number']
+                        'value' => $config['last_used_work_order_number'],
                     ]) ?>
                 </div>
             </div>
@@ -213,7 +214,7 @@ use App\Libraries\Documents\DocumentTerms;
                     'name'  => 'submit_invoice',
                     'id'    => 'submit_invoice',
                     'value' => lang('Common.submit'),
-                    'class' => 'btn btn-primary'
+                    'class' => 'btn btn-primary',
                 ]) ?>
             </div>
 

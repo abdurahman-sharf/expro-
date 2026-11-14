@@ -1,7 +1,7 @@
 <?php
 /**
  * @var string $dbVersion
- * @var array $config
+ * @var array  $config
  */
 
 use Config\OSPOS;
@@ -20,16 +20,15 @@ use Config\OSPOS;
                 Language Code: <?= current_language_code() ?><br><br>
                 <div id="timeerror"></div>
                 Extensions & Modules:<br>
-                <?php
-                    echo "&#187; GD: ", extension_loaded('gd') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
-                    echo "&#187; BC Math: ", extension_loaded('bcmath') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
-                    echo "&#187; intl: ", extension_loaded('intl') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
-                    echo "&#187; OpenSSL: ", extension_loaded('openssl') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
-                    echo "&#187; Multibyte String: ", extension_loaded('mbstring') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
-                    echo "&#187; cURL: ", extension_loaded('curl') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
-                    echo "&#187; JSON: ", extension_loaded('json') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
-                    echo "&#187; XML: ", extension_loaded('xml') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br><br>';
-                ?>
+                <?= '&#187; GD: ', extension_loaded('gd') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
+echo '&#187; BC Math: ', extension_loaded('bcmath') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
+echo '&#187; intl: ', extension_loaded('intl') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
+echo '&#187; OpenSSL: ', extension_loaded('openssl') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
+echo '&#187; Multibyte String: ', extension_loaded('mbstring') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
+echo '&#187; cURL: ', extension_loaded('curl') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
+echo '&#187; JSON: ', extension_loaded('json') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br>';
+echo '&#187; XML: ', extension_loaded('xml') ? '<span class="text-success">&#x2713 Enabled</span>' : '<span class="text-danger">&#x2717 Disabled</span>', '<br><br>';
+?>
             </div>
         </div>
 
@@ -38,31 +37,31 @@ use Config\OSPOS;
             <div class="text-start col-9 col-md-10">
                 Browser:
                 <?php
-                $browserNameAndVersion = static function (string $userAgent): string {
-                    $browser = match (true) {
-                        strpos($userAgent, 'Opera')   !== false || strpos($userAgent, 'OPR/') !== false => 'Opera',
-                        strpos($userAgent, 'Edge')    !== false => 'Edge',
-                        strpos($userAgent, 'Chrome')  !== false => 'Chrome',
-                        strpos($userAgent, 'Safari')  !== false => 'Safari',
-                        strpos($userAgent, 'Firefox') !== false => 'Firefox',
-                        strpos($userAgent, 'MSIE')    !== false || strpos($userAgent, 'Trident/7') !== false => 'Internet Explorer',
-                        default                       => 'Other',
-                    };
+$browserNameAndVersion = static function (string $userAgent): string {
+    $browser = match (true) {
+        str_contains($userAgent, 'Opera') || str_contains($userAgent, 'OPR/')      => 'Opera',
+        str_contains($userAgent, 'Edge')                                               => 'Edge',
+        str_contains($userAgent, 'Chrome')                                             => 'Chrome',
+        str_contains($userAgent, 'Safari')                                             => 'Safari',
+        str_contains($userAgent, 'Firefox')                                            => 'Firefox',
+        str_contains($userAgent, 'MSIE') || str_contains($userAgent, 'Trident/7') => 'Internet Explorer',
+        default                                                                        => 'Other',
+    };
 
-                    $version = match ($browser) {
-                        'Opera'             => preg_match('/(Opera|OPR)\/([0-9.]+)/', $userAgent, $matches) ? $matches[2] : '',
-                        'Edge'              => preg_match('/Edge\/([0-9.]+)/', $userAgent, $matches) ? $matches[1] : '',
-                        'Chrome'            => preg_match('/Chrome\/([0-9.]+)/', $userAgent, $matches) ? $matches[1] : '',
-                        'Safari'            => preg_match('/Version\/([0-9.]+)/', $userAgent, $matches) ? $matches[1] : '',
-                        'Firefox'           => preg_match('/Firefox\/([0-9.]+)/', $userAgent, $matches) ? $matches[1] : '',
-                        'Internet Explorer' => preg_match('/(MSIE|rv:)([0-9.]+)/', $userAgent, $matches) ? $matches[2] : '',
-                        default             => '',
-                    };
+    $version = match ($browser) {
+        'Opera'             => preg_match('/(Opera|OPR)\/([0-9.]+)/', $userAgent, $matches) ? $matches[2] : '',
+        'Edge'              => preg_match('/Edge\/([0-9.]+)/', $userAgent, $matches) ? $matches[1] : '',
+        'Chrome'            => preg_match('/Chrome\/([0-9.]+)/', $userAgent, $matches) ? $matches[1] : '',
+        'Safari'            => preg_match('/Version\/([0-9.]+)/', $userAgent, $matches) ? $matches[1] : '',
+        'Firefox'           => preg_match('/Firefox\/([0-9.]+)/', $userAgent, $matches) ? $matches[1] : '',
+        'Internet Explorer' => preg_match('/(MSIE|rv:)([0-9.]+)/', $userAgent, $matches) ? $matches[2] : '',
+        default             => '',
+    };
 
-                    return $browser . ($version ? ' ' . $version : '');
-                };
-                echo esc($browserNameAndVersion($_SERVER['HTTP_USER_AGENT']));
-                ?><br>
+    return $browser . ($version ? ' ' . $version : '');
+};
+echo esc($browserNameAndVersion($_SERVER['HTTP_USER_AGENT']));
+?><br>
                 Server Software: <?= esc($_SERVER['SERVER_SOFTWARE']) ?><br>
                 PHP Version: <?= PHP_VERSION ?><br>
                 DB Version: <?= esc($dbVersion) ?><br>
@@ -76,108 +75,108 @@ use Config\OSPOS;
             <div class="text-start col-9 col-md-10">
                 &#187; <code>[writable/logs]</code>
                 <?php $logs = WRITEPATH . 'logs/';
-                $uploads = FCPATH. 'uploads/';
-                $images = FCPATH. 'uploads/item_pics/';
-                $importCustomers = WRITEPATH . '/uploads/importCustomers.csv';    // TODO: This variable does not follow naming conventions for the project.
+$uploads                    = FCPATH . 'uploads/';
+$images                     = FCPATH . 'uploads/item_pics/';
+$importCustomers            = WRITEPATH . '/uploads/importCustomers.csv';    // TODO: This variable does not follow naming conventions for the project.
 
-                if (is_writable($logs)) {
-                    echo substr(sprintf("%o", fileperms($logs)), -4) . ' · ' . '<span class="text-success">&#x2713 Writable</span>';
-                } else {
-                    echo substr(sprintf("%o", fileperms($logs)), -4) . ' · ' . '<span class="text-danger">&#x2717 Not Writable</span>';
-                }
+if (is_writable($logs)) {
+    echo substr(sprintf('%o', fileperms($logs)), -4) . ' · <span class="text-success">&#x2713 Writable</span>';
+} else {
+    echo substr(sprintf('%o', fileperms($logs)), -4) . ' · <span class="text-danger">&#x2717 Not Writable</span>';
+}
 
-                clearstatcache();
-                if (is_writable($logs) && substr(decoct(fileperms($logs)), -4) != 750) {
-                    echo ' · <span class="text-danger">&#x2717 Vulnerable or Incorrect Permissions</span>';
-                } else {
-                    echo ' · <span class="text-success">&#x2713 Security Check Passed</span>';
-                }
-                clearstatcache();
-                ?>
+clearstatcache();
+if (is_writable($logs) && substr(decoct(fileperms($logs)), -4) !== 750) {
+    echo ' · <span class="text-danger">&#x2717 Vulnerable or Incorrect Permissions</span>';
+} else {
+    echo ' · <span class="text-success">&#x2713 Security Check Passed</span>';
+}
+clearstatcache();
+?>
                 <br>
                 &#187; <code>[public/uploads]</code>
                 <?php
-                if (is_writable($uploads)) {
-                    echo substr(sprintf("%o", fileperms($uploads)), -4) . ' · ' . '<span class="text-success">&#x2713 Writable</span>';
-                } else {
-                    echo substr(sprintf("%o", fileperms($uploads)), -4) . ' · ' . '<span class="text-danger">&#x2717 Not Writable</span>';
-                }
+if (is_writable($uploads)) {
+    echo substr(sprintf('%o', fileperms($uploads)), -4) . ' · <span class="text-success">&#x2713 Writable</span>';
+} else {
+    echo substr(sprintf('%o', fileperms($uploads)), -4) . ' · <span class="text-danger">&#x2717 Not Writable</span>';
+}
 
-                clearstatcache();
+clearstatcache();
 
-                if (is_writable($uploads) && substr(decoct(fileperms($uploads)), -4) != 750) {
-                    echo ' · <span class="text-danger">&#x2717 Vulnerable or Incorrect Permissions</span>';
-                } else {
-                    echo ' · <span class="text-success">&#x2713 Security Check Passed</span>';
-                }
+if (is_writable($uploads) && substr(decoct(fileperms($uploads)), -4) !== 750) {
+    echo ' · <span class="text-danger">&#x2717 Vulnerable or Incorrect Permissions</span>';
+} else {
+    echo ' · <span class="text-success">&#x2713 Security Check Passed</span>';
+}
 
-                clearstatcache();
-                ?>
+clearstatcache();
+?>
                 <br>
                 &#187; <code>[public/uploads/item_pics]</code>
                 <?php
-                if (is_writable($images)) {
-                    echo substr(sprintf("%o", fileperms($images)), -4) . ' · ' . '<span class="text-success">&#x2713 Writable</span>';
-                } else {
-                    echo substr(sprintf("%o", fileperms($images)), -4) . ' · ' . '<span class="text-danger">&#x2717 Not Writable</span>';
-                }
+if (is_writable($images)) {
+    echo substr(sprintf('%o', fileperms($images)), -4) . ' · <span class="text-success">&#x2713 Writable</span>';
+} else {
+    echo substr(sprintf('%o', fileperms($images)), -4) . ' · <span class="text-danger">&#x2717 Not Writable</span>';
+}
 
-                clearstatcache();
+clearstatcache();
 
-                if (substr(decoct(fileperms($images)), -4) != 750) {
-                    echo ' · <span class="text-danger">&#x2717 Vulnerable or Incorrect Permissions</span>';
-                } else {
-                    echo ' · <span class="text-success">&#x2713 Security Check Passed</span>';
-                }
+if (substr(decoct(fileperms($images)), -4) !== 750) {
+    echo ' · <span class="text-danger">&#x2717 Vulnerable or Incorrect Permissions</span>';
+} else {
+    echo ' · <span class="text-success">&#x2713 Security Check Passed</span>';
+}
 
-                clearstatcache();
-                ?>
+clearstatcache();
+?>
                 <br>
                 &#187; <code>[importCustomers.csv]</code>
                 <?php
-                if (is_readable($importCustomers)) {
-                    echo substr(sprintf("%o", fileperms($importCustomers)), -4) . ' · ' . '<span class="text-success">&#x2713 Readable</span>';
-                } else {
-                    echo substr(sprintf("%o", fileperms($importCustomers)), -4) . ' · ' . '<span class="text-danger">&#x2717 Not Readable</span>';
-                }
-                clearstatcache();
+if (is_readable($importCustomers)) {
+    echo substr(sprintf('%o', fileperms($importCustomers)), -4) . ' · <span class="text-success">&#x2713 Readable</span>';
+} else {
+    echo substr(sprintf('%o', fileperms($importCustomers)), -4) . ' · <span class="text-danger">&#x2717 Not Readable</span>';
+}
+clearstatcache();
 
-                if (!((substr(decoct(fileperms($importCustomers)), -4) == 640) || (substr(decoct(fileperms($importCustomers)), -4) == 660))) {
-                    echo ' · <span class="text-danger">&#x2717 Vulnerable or Incorrect Permissions</span>';
-                } else {
-                    echo ' · <span class="text-success">&#x2713 Security Check Passed</span>';
-                }
-                clearstatcache();
-                ?>
+if (! ((substr(decoct(fileperms($importCustomers)), -4) === 640) || (substr(decoct(fileperms($importCustomers)), -4) === 660))) {
+    echo ' · <span class="text-danger">&#x2717 Vulnerable or Incorrect Permissions</span>';
+} else {
+    echo ' · <span class="text-success">&#x2713 Security Check Passed</span>';
+}
+clearstatcache();
+?>
                 <br>
                 <?php
-                if (!((substr(decoct(fileperms($logs)), -4) == 750)
-                    && (substr(decoct(fileperms($uploads)), -4) == 750)
-                    && (substr(decoct(fileperms($images)), -4) == 750)
-                    && ((substr(decoct(fileperms($importCustomers)), -4) == 640)
-                        || (substr(decoct(fileperms($importCustomers)), -4) == 660)))) {
-                    echo '<br><span class="text-danger"><strong>' . lang('Config.security_issue') . '</strong><br>' . lang('Config.perm_risk') . '</span><br>';
-                } else {
-                    echo '<br><span class="text-success"><strong>' . lang('Config.no_risk') . '</strong></span><br>';
-                }
+if (! ((substr(decoct(fileperms($logs)), -4) === 750)
+    && (substr(decoct(fileperms($uploads)), -4) === 750)
+    && (substr(decoct(fileperms($images)), -4) === 750)
+    && ((substr(decoct(fileperms($importCustomers)), -4) === 640)
+        || (substr(decoct(fileperms($importCustomers)), -4) === 660)))) {
+    echo '<br><span class="text-danger"><strong>' . lang('Config.security_issue') . '</strong><br>' . lang('Config.perm_risk') . '</span><br>';
+} else {
+    echo '<br><span class="text-success"><strong>' . lang('Config.no_risk') . '</strong></span><br>';
+}
 
-                if (substr(decoct(fileperms($logs)), -4) != 750) {
-                    echo '<br><span class="text-danger">&#187; <code>[writable/logs]</code> ' . lang('Config.is_writable') . '</span>';
-                }
+if (substr(decoct(fileperms($logs)), -4) !== 750) {
+    echo '<br><span class="text-danger">&#187; <code>[writable/logs]</code> ' . lang('Config.is_writable') . '</span>';
+}
 
-                if (substr(decoct(fileperms($uploads)), -4) != 750) {
-                    echo '<br><span class="text-danger">&#187; <code>[public/uploads]</code> ' . lang('Config.is_writable') . '</span>';
-                }
+if (substr(decoct(fileperms($uploads)), -4) !== 750) {
+    echo '<br><span class="text-danger">&#187; <code>[public/uploads]</code> ' . lang('Config.is_writable') . '</span>';
+}
 
-                if (substr(decoct(fileperms($images)), -4) != 750) {
-                    echo '<br><span class="text-danger">&#187; <code>[public/uploads/item_pics]</code> ' . lang('Config.is_writable') . '</span>';
-                }
+if (substr(decoct(fileperms($images)), -4) !== 750) {
+    echo '<br><span class="text-danger">&#187; <code>[public/uploads/item_pics]</code> ' . lang('Config.is_writable') . '</span>';
+}
 
-                if (!((substr(decoct(fileperms($importCustomers)), -4) == 640)
-                    || (substr(decoct(fileperms($importCustomers)), -4) == 660))) {
-                    echo '<br><span class="text-danger">&#187; <code>[importCustomers.csv]</code> ' . lang('Config.is_readable') . '</span>';
-                }
-                ?>
+if (! ((substr(decoct(fileperms($importCustomers)), -4) === 640)
+    || (substr(decoct(fileperms($importCustomers)), -4) === 660))) {
+    echo '<br><span class="text-danger">&#187; <code>[importCustomers.csv]</code> ' . lang('Config.is_readable') . '</span>';
+}
+?>
             </div>
         </div>
     </div>
@@ -209,7 +208,7 @@ use Config\OSPOS;
             });
 
             const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const osTimezone = '<?= esc(!empty($config['timezone']) ? $config['timezone'] : date_default_timezone_get()) ?>';
+            const osTimezone = '<?= esc(! empty($config['timezone']) ? $config['timezone'] : date_default_timezone_get()) ?>';
 
             if (userTimezone !== osTimezone) {
                 document.getElementById("timeerror").innerHTML = '<div><span class="text-danger"><?= lang('Config.timezone_error') ?></span><br><?= lang('Config.user_timezone') ?> <strong>' + userTimezone + '</strong><br><?= lang('Config.os_timezone') ?> <strong>' + osTimezone + '</strong></div><br>';

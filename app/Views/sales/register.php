@@ -1,85 +1,87 @@
 <?php
 /**
- * @var string    $controller_name
- * @var array     $modes
- * @var array     $mode
- * @var array     $empty_tables
- * @var array     $selected_table
- * @var array     $stock_locations
- * @var array     $stock_location
- * @var array     $cart
- * @var bool      $items_module_allowed
- * @var bool      $change_price
- * @var int       $customer_id
- * @var int       $customer_discount_type
- * @var float     $customer_discount
- * @var float     $customer_total
- * @var string    $customer_required
- * @var float|int $item_count
- * @var float|int $total_units
- * @var float     $subtotal
- * @var string    $invoice_discount
- * @var array|null $invoice_discount_entry
- * @var bool      $can_invoice_discount
- * @var array     $header_charges
- * @var bool      $can_adjustment
- * @var bool      $can_shipping
- * @var list<object> $shipping_companies
- * @var string    $shipping_tax_percent
- * @var bool      $shipping_taxed
- * @var \App\Libraries\HeaderCharges $header_charges_entry
- * @var array     $taxes
- * @var float     $total
- * @var float     $payments_total
- * @var float     $amount_due
- * @var bool      $payments_cover_total
- * @var array     $payment_options
- * @var array     $selected_payment_type
- * @var bool      $pos_mode
- * @var array     $payments
- * @var array<int, string> $treasury_options
- * @var list<string> $treasury_free_types
- * @var string    $mode_label
- * @var string    $comment
- * @var list<App\Libraries\Documents\CustomFieldDefinition>|null $custom_fields
- * @var array<int, string>|null $custom_values
- * @var bool      $print_after_sale
- * @var bool      $accounting_enabled
- * @var bool      $delivered
- * @var string|null $invoice_date
- * @var string|null $payment_terms
- * @var string|null $due_date
- * @var bool      $can_type_invoice_date
- * @var string    $today
- * @var int|null  $return_origin
- * @var bool      $can_override_return
- * @var string|null $return_override
- * @var array{options: array<int, string>, selected: int}|null $priceListSelector
+ * @var string                                                       $controller_name
+ * @var array                                                        $modes
+ * @var array                                                        $mode
+ * @var array                                                        $empty_tables
+ * @var array                                                        $selected_table
+ * @var array                                                        $stock_locations
+ * @var array                                                        $stock_location
+ * @var array                                                        $cart
+ * @var bool                                                         $items_module_allowed
+ * @var bool                                                         $change_price
+ * @var int                                                          $customer_id
+ * @var int                                                          $customer_discount_type
+ * @var float                                                        $customer_discount
+ * @var float                                                        $customer_total
+ * @var string                                                       $customer_required
+ * @var float|int                                                    $item_count
+ * @var float|int                                                    $total_units
+ * @var float                                                        $subtotal
+ * @var string                                                       $invoice_discount
+ * @var array|null                                                   $invoice_discount_entry
+ * @var bool                                                         $can_invoice_discount
+ * @var array                                                        $header_charges
+ * @var bool                                                         $can_adjustment
+ * @var bool                                                         $can_shipping
+ * @var list<object>                                                 $shipping_companies
+ * @var string                                                       $shipping_tax_percent
+ * @var bool                                                         $shipping_taxed
+ * @var HeaderCharges                                                $header_charges_entry
+ * @var array                                                        $taxes
+ * @var float                                                        $total
+ * @var float                                                        $payments_total
+ * @var float                                                        $amount_due
+ * @var bool                                                         $payments_cover_total
+ * @var array                                                        $payment_options
+ * @var array                                                        $selected_payment_type
+ * @var bool                                                         $pos_mode
+ * @var array                                                        $payments
+ * @var array<int, string>                                           $treasury_options
+ * @var list<string>                                                 $treasury_free_types
+ * @var string                                                       $mode_label
+ * @var string                                                       $comment
+ * @var list<CustomFieldDefinition>|null                             $custom_fields
+ * @var array<int, string>|null                                      $custom_values
+ * @var bool                                                         $print_after_sale
+ * @var bool                                                         $accounting_enabled
+ * @var bool                                                         $delivered
+ * @var string|null                                                  $invoice_date
+ * @var string|null                                                  $payment_terms
+ * @var string|null                                                  $due_date
+ * @var bool                                                         $can_type_invoice_date
+ * @var string                                                       $today
+ * @var int|null                                                     $return_origin
+ * @var bool                                                         $can_override_return
+ * @var string|null                                                  $return_override
+ * @var array{options: array<int, string>, selected: int}|null       $priceListSelector
  * @var array{options: array<string, string>, selected: string}|null $currencySelector
- * @var bool      $has_cart_items
- * @var string    $return_document
- * @var bool      $email_receipt
- * @var bool      $price_work_orders
- * @var string    $invoice_number
- * @var int       $cash_mode
- * @var float     $non_cash_total
- * @var float     $cash_amount_due
- * @var array     $config
+ * @var bool                                                         $has_cart_items
+ * @var string                                                       $return_document
+ * @var bool                                                         $email_receipt
+ * @var bool                                                         $price_work_orders
+ * @var string                                                       $invoice_number
+ * @var int                                                          $cash_mode
+ * @var float                                                        $non_cash_total
+ * @var float                                                        $cash_amount_due
+ * @var array                                                        $config
  */
 
+use App\Libraries\Documents\CustomFieldDefinition;
+use App\Libraries\HeaderCharges;
 use App\Models\Employee;
 
 $keyboardShortcuts ??= [];
 $priceListSelector ??= null;
-$currencySelector  ??= null;
-$has_cart_items    ??= false;
+$currencySelector ??= null;
+$has_cart_items ??= false;
 $sectionName   = ucfirst($controller_name);
 $shortcutLabel = static fn (string $name): string => $keyboardShortcuts[$name]['label'] ?? '';
 $hasCart       = count($cart) > 0;
 $hasDuePayment = false;
 
 foreach ($payments as $payment) {
-    if ($payment['payment_type'] == lang("{$sectionName}.due")) {
+    if ($payment['payment_type'] === lang("{$sectionName}.due")) {
         $hasDuePayment = true;
     }
 }
@@ -149,7 +151,7 @@ $employee        = model(Employee::class);
             </div>
         <?= form_close() ?>
 
-        <?php if ($mode == 'return'): ?>
+        <?php if ($mode === 'return'): ?>
             <?= form_open("{$controller_name}/setReturnDocument", ['id' => 'return_document_form', 'class' => 'app-form card']) ?>
                 <div class="card-body pos-bar">
                     <div class="pos-field">
@@ -160,7 +162,7 @@ $employee        = model(Employee::class);
             <?= form_close() ?>
         <?php endif; ?>
 
-        <?php if ($mode == 'return' && $accounting_enabled): ?>
+        <?php if ($mode === 'return' && $accounting_enabled): ?>
             <?= form_open("{$controller_name}/setReturnOrigin", ['id' => 'return_origin_form', 'class' => 'app-form card']) ?>
                 <div class="card-body pos-bar">
                     <div class="pos-field">
@@ -253,7 +255,7 @@ $employee        = model(Employee::class);
             </div>
         <?= form_close() ?>
 
-        <?php if (!empty($quick_items)): ?>
+        <?php if (! empty($quick_items)): ?>
             <section class="pos-top" aria-labelledby="quick_items_title">
                 <h2 id="quick_items_title" class="pos-label"><?= lang('Sales.quick_items') ?></h2>
                 <div class="pos-top-tiles">
@@ -297,14 +299,14 @@ $employee        = model(Employee::class);
                             <?= form_input(['type' => 'hidden', 'name' => 'item_id', 'value' => $item['item_id']]) ?>
 
                             <div class="cart-name">
-                                <?php if ($item['item_type'] == ITEM_TEMP): ?>
+                                <?php if ($item['item_type'] === ITEM_TEMP): ?>
                                     <?= form_input(['name' => 'item_number', 'class' => 'form-control form-control-sm', 'value' => $item['item_number'], 'aria-label' => lang("{$sectionName}.item_number"), 'placeholder' => lang("{$sectionName}.item_number")]) ?>
                                     <?= form_input(['name' => 'name', 'class' => 'form-control form-control-sm', 'value' => $item['name'], 'aria-label' => lang("{$sectionName}.item_name"), 'placeholder' => lang("{$sectionName}.item_name")]) ?>
                                 <?php else: ?>
                                     <span class="cart-title"><?= esc($item['name']) . ' ' . esc(implode(' ', [$item['attribute_values'], $item['attribute_dtvalues']])) ?></span>
                                     <span class="cart-sub">
                                         <span class="ltr"><?= esc($item['item_number']) ?></span>
-                                        <?php if ($item['stock_type'] == '0'): ?>
+                                        <?php if ($item['stock_type'] === '0'): ?>
                                             <span class="cart-stock"><?= esc($item['stock_name']) ?>: <?= to_quantity_decimals($item['in_stock']) ?></span>
                                         <?php endif; ?>
                                     </span>
@@ -337,12 +339,12 @@ $employee        = model(Employee::class);
                             <div class="cart-field" data-label="<?= lang("{$sectionName}.discount") ?>">
                                 <div class="input-group input-group-sm">
                                     <?= form_input(['name' => 'discount', 'class' => 'form-control form-control-sm', 'value' => $item['discount_type'] ? to_currency_no_money($item['discount']) : to_decimals($item['discount']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.discount"), 'onClick' => 'this.select();']) ?>
-                                    <?= toggleButton(['id' => "discount_toggle_{$line}", 'name' => 'discount_toggle', 'value' => 1, 'data-line' => $line, 'checked' => $item['discount_type'] == 1], $config['currency_symbol'], '%') ?>
+                                    <?= toggleButton(['id' => "discount_toggle_{$line}", 'name' => 'discount_toggle', 'value' => 1, 'data-line' => $line, 'checked' => $item['discount_type'] === 1], $config['currency_symbol'], '%') ?>
                                 </div>
                             </div>
 
                             <div class="cart-field cart-total" data-label="<?= lang("{$sectionName}.total") ?>">
-                                <?php if ($item['item_type'] == ITEM_AMOUNT_ENTRY): ?>
+                                <?php if ($item['item_type'] === ITEM_AMOUNT_ENTRY): ?>
                                     <?= form_input(['name' => 'discounted_total', 'class' => 'form-control form-control-sm', 'value' => to_currency_no_money($item['discounted_total']), 'inputmode' => 'decimal', 'aria-label' => lang("{$sectionName}.total"), 'onClick' => 'this.select();']) ?>
                                 <?php else: ?>
                                     <span class="num"><?= to_currency($item['discounted_total']) ?></span>
@@ -364,12 +366,12 @@ $employee        = model(Employee::class);
                                 <?php if (isset($unit_choices[(int) $item['item_id']])): ?>
                                     <?= form_dropdown('unit_id', $unit_choices[(int) $item['item_id']], (string) ($item['unit_id'] ?? ''), ['class' => 'form-select form-select-sm', 'aria-label' => lang('Stock_units.unit')]) ?>
                                 <?php endif; ?>
-                                <?php if ($item['item_type'] == ITEM_TEMP): ?>
+                                <?php if ($item['item_type'] === ITEM_TEMP): ?>
                                     <?= form_input(['name' => 'item_description', 'class' => 'form-control form-control-sm', 'value' => $item['description'], 'aria-label' => lang("{$sectionName}.description_abbrv"), 'placeholder' => lang("{$sectionName}.description_abbrv")]) ?>
                                 <?php else: ?>
                                     <?php if ($item['allow_alt_description']): ?>
                                         <?= form_input(['name' => 'description', 'class' => 'form-control form-control-sm', 'value' => $item['description'], 'aria-label' => lang("{$sectionName}.description_abbrv"), 'placeholder' => lang("{$sectionName}.description_abbrv"), 'onClick' => 'this.select();']) ?>
-                                    <?php elseif ($item['description'] != ''): ?>
+                                    <?php elseif ($item['description'] !== ''): ?>
                                         <span class="text-secondary"><?= esc($item['description']) ?></span>
                                         <?= form_hidden('description', $item['description']) ?>
                                     <?php else: ?>
@@ -415,7 +417,7 @@ $employee        = model(Employee::class);
                             <?= anchor("customers/view/{$customer_id}", esc($customer), ['class' => 'modal-dlg fw-bold', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Customers.update')]) ?>
                         </div>
                         <dl class="pos-dl">
-                            <div><dt><?= lang("{$sectionName}.customer_discount") ?></dt><dd><?= ($customer_discount_type == FIXED) ? to_currency($customer_discount) : $customer_discount . '%' ?></dd></div>
+                            <div><dt><?= lang("{$sectionName}.customer_discount") ?></dt><dd><?= ($customer_discount_type === FIXED) ? to_currency($customer_discount) : $customer_discount . '%' ?></dd></div>
                             <?php if ($config['customer_reward_enable'] && ! empty($customer_rewards)): ?>
                                 <div><dt><?= lang("{$sectionName}.rewards_package") ?></dt><dd><?= esc($customer_rewards['package_name']) ?></dd></div>
                                 <div><dt><?= lang('Customers.available_points') ?></dt><dd><?= esc($customer_rewards['points']) ?></dd></div>
@@ -470,7 +472,7 @@ $employee        = model(Employee::class);
                     <div><dt><?= lang("{$sectionName}.quantity_of_items", [$item_count]) ?></dt><dd><?= $total_units ?></dd></div>
                     <?php if (bccomp($invoice_discount, '0') !== 0): ?>
                         <div><dt><?= lang("{$sectionName}.sub_total") ?></dt><dd><?= to_currency(bcadd($subtotal, $invoice_discount)) ?></dd></div>
-                        <div id="invoice_discount_total"><dt><?= lang("{$sectionName}.invoice_discount") . (isset($invoice_discount_entry) && $invoice_discount_entry['type'] == PERCENT ? ' (' . esc(to_decimals($invoice_discount_entry['value'])) . '%)' : '') ?></dt><dd><?= to_currency($invoice_discount * -1) ?></dd></div>
+                        <div id="invoice_discount_total"><dt><?= lang("{$sectionName}.invoice_discount") . (isset($invoice_discount_entry) && $invoice_discount_entry['type'] === PERCENT ? ' (' . esc(to_decimals($invoice_discount_entry['value'])) . '%)' : '') ?></dt><dd><?= to_currency($invoice_discount * -1) ?></dd></div>
                     <?php else: ?>
                         <div><dt><?= lang("{$sectionName}.sub_total") ?></dt><dd><?= to_currency($subtotal) ?></dd></div>
                     <?php endif; ?>
@@ -656,21 +658,21 @@ $employee        = model(Employee::class);
                             </label>
                         <?php endif; ?>
 
-                        <?php if ($mode == 'sale_work_order'): ?>
+                        <?php if ($mode === 'sale_work_order'): ?>
                             <label for="price_work_orders" class="choice">
                                 <?= form_checkbox(['name' => 'price_work_orders', 'id' => 'price_work_orders', 'value' => 1, 'checked' => $price_work_orders]) ?>
                                 <?= lang("{$sectionName}.include_prices") ?>
                             </label>
                         <?php endif; ?>
 
-                        <?php if ($mode == 'sale_invoice' && $accounting_enabled): ?>
+                        <?php if ($mode === 'sale_invoice' && $accounting_enabled): ?>
                             <label for="sales_delivered" class="choice">
                                 <?= form_checkbox(['name' => 'sales_delivered', 'id' => 'sales_delivered', 'value' => 1, 'checked' => $delivered]) ?>
                                 <?= lang("{$sectionName}.goods_delivered") ?>
                             </label>
                         <?php endif; ?>
 
-                        <?php if ($mode == 'sale_invoice' && $accounting_enabled): ?>
+                        <?php if ($mode === 'sale_invoice' && $accounting_enabled): ?>
                             <?php if ($can_type_invoice_date): ?>
                                 <div>
                                     <label for="sales_invoice_date" class="pos-label"><?= lang("{$sectionName}.invoice_date") ?></label>
@@ -688,7 +690,7 @@ $employee        = model(Employee::class);
                             </div>
                         <?php endif; ?>
 
-                        <?php if (($mode == 'sale_invoice') && $config['invoice_enable']): ?>
+                        <?php if (($mode === 'sale_invoice') && $config['invoice_enable']): ?>
                             <div>
                                 <label for="sales_invoice_number" class="pos-label"><?= lang("{$sectionName}.invoice_enable") ?></label>
                                 <div class="input-group">

@@ -25,8 +25,8 @@ use App\Libraries\Accounting\ReturnOverride;
 use App\Libraries\Accounting\SaleAmounts;
 use App\Libraries\Accounting\SaleLoader;
 use App\Libraries\Accounting\SalePosting;
-use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Accounting\SalesTaxSettings;
+use App\Libraries\Accounting\ShippingCompanies;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Accounting\UndeliveredReturns;
@@ -41,6 +41,7 @@ use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
 use App\Libraries\Pricing\PriceControls;
 use App\Libraries\Roles\RecordScope;
+use App\Libraries\Sale_lib;
 use App\Libraries\SalesOrders\SalesOrders;
 use App\Libraries\ShippingTaxOption;
 use App\Libraries\Stock\NegativeStockGuard;
@@ -50,7 +51,6 @@ use App\Libraries\Stock\UnitLines;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
-use App\Libraries\Sale_lib;
 use Config\OSPOS;
 use ReflectionException;
 use Throwable;
@@ -60,11 +60,11 @@ use Throwable;
  */
 class Sale extends Model
 {
-    protected $table = 'sales';
-    protected $primaryKey = 'sale_id';
+    protected $table            = 'sales';
+    protected $primaryKey       = 'sale_id';
     protected $useAutoIncrement = true;
-    protected $useSoftDeletes = false;
-    protected $allowedFields = [
+    protected $useSoftDeletes   = false;
+    protected $allowedFields    = [
         'sale_time',
         'customer_id',
         'employee_id',
@@ -74,19 +74,21 @@ class Sale extends Model
         'invoice_number',
         'dinner_table_id',
         'work_order_number',
-        'sale_type'
+        'sale_type',
     ];
-
     private ?Throwable $accountingFailure                   = null;
     private bool $datedBySchedule                           = false;
     private ?InvoiceDiscountProblem $invoiceDiscountProblem = null;
+    private ?RecordScope $recordScope                       = null;
 
-    private ?RecordScope $recordScope = null;
-
-    /** @var array{string, ?string}|null The currency the next sale saved is in, and the rate typed for it. */
+    /**
+     * @var array{string, ?string}|null The currency the next sale saved is in, and the rate typed for it.
+     */
     private ?array $currencyChoice = null;
 
-    /** @var array{string, ?string}|null */
+    /**
+     * @var array{string, ?string}|null
+     */
     private ?array $savingCurrency = null;
 
     public function __construct()
@@ -139,7 +141,7 @@ class Sale extends Model
     /**
      * @param array<int|string, array<string, mixed>> $items
      *
-     * @return array<int|string, array<string, string|int|null>> The columns that remember the unit of each line, by the key of the line.
+     * @return array<int|string, array<string, int|string|null>> The columns that remember the unit of each line, by the key of the line.
      *
      * @throws AccountingException
      */
@@ -164,15 +166,15 @@ class Sale extends Model
      */
     private function taxOneRefusal(int $saleType, string $saleStatus, int $customerId, array $items, ?array $salesTaxes): ?AccountingException
     {
-        if ($saleStatus != COMPLETED || !in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) || (config(OSPOS::class)->settings['use_destination_based_tax'] ?? false)) {
+        if ($saleStatus !== COMPLETED || ! in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) || (config(OSPOS::class)->settings['use_destination_based_tax'] ?? false)) {
             return null;
         }
 
-        if (!(new SalesTaxSettings($this->db))->requireTaxOne()) {
+        if (! (new SalesTaxSettings($this->db))->requireTaxOne()) {
             return null;
         }
 
-        if ($customerId != NEW_ENTRY && !model(Customer::class)->get_info($customerId)->taxable) {
+        if ($customerId !== NEW_ENTRY && ! model(Customer::class)->get_info($customerId)->taxable) {
             return null;
         }
 
@@ -244,14 +246,14 @@ class Sale extends Model
         $cut = $this->viewerCut($viewerId);
         $this->create_temp_table(['sale_id' => $saleId]);
 
-        $decimals = totals_decimals();
-        $salesTax = 'IFNULL(SUM(sales_items_taxes.sales_tax), 0)';
+        $decimals       = totals_decimals();
+        $salesTax       = 'IFNULL(SUM(sales_items_taxes.sales_tax), 0)';
         $cashAdjustment = 'IFNULL(SUM(payments.sale_cash_adjustment), 0)';
-        $salePrice = 'CASE WHEN sales_items.discount_type = ' . PERCENT
-            . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, $decimals) "
+        $salePrice      = 'CASE WHEN sales_items.discount_type = ' . PERCENT
+            . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, {$decimals}) "
             . 'ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END - ' . InvoiceDiscount::sqlShare('sales_items');
 
-        $saleTotal = "ROUND(SUM($salePrice), $decimals) + $salesTax + $cashAdjustment";
+        $saleTotal = "ROUND(SUM({$salePrice}), {$decimals}) + {$salesTax} + {$cashAdjustment}";
         $saleTotal = $this->withHeaderCharges($saleTotal, $decimals);
 
         $sql = 'sales.sale_id AS sale_id,
@@ -274,9 +276,9 @@ class Sale extends Model
                 MAX(IFnull(payments.sale_cash_adjustment, 0)) AS cash_adjustment,
                 MAX(IFnull(payments.sale_cash_refund, 0)) AS cash_refund,
                 ' . "
-                $saleTotal AS amount_due,
+                {$saleTotal} AS amount_due,
                 MAX(IFnull(payments.sale_payment_amount, 0)) AS amount_tendered,
-                (MAX(payments.sale_payment_amount)) - ($saleTotal) AS change_due,
+                (MAX(payments.sale_payment_amount)) - ({$saleTotal}) AS change_due,
                 " . '
                 MAX(payments.payment_type) AS payment_type,
                 MAX(payments.reference_code) AS reference_code';
@@ -291,7 +293,7 @@ class Sale extends Model
         $builder->join(
             'sales_items_taxes_temp AS sales_items_taxes',
             'sales_items.sale_id = sales_items_taxes.sale_id AND sales_items.item_id = sales_items_taxes.item_id AND sales_items.line = sales_items_taxes.line',
-            'LEFT OUTER'
+            'LEFT OUTER',
         );
 
         $builder->where('sales.sale_id', $saleId);
@@ -320,15 +322,25 @@ class Sale extends Model
     public function search(?string $search, array $filters, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'sales.sale_time', ?string $order = 'desc', ?bool $count_only = false, ?int $viewerId = null)
     {
         // Set default values
-        if ($rows == null) $rows = 0;
-        if ($limit_from == null) $limit_from = 0;
-        if ($sort == null) $sort = 'sales.sale_time';
-        if ($order == null) $order = 'desc';
-        if ($count_only == null) $count_only = false;
+        if ($rows === null) {
+            $rows = 0;
+        }
+        if ($limit_from === null) {
+            $limit_from = 0;
+        }
+        if ($sort === null) {
+            $sort = 'sales.sale_time';
+        }
+        if ($order === null) {
+            $order = 'desc';
+        }
+        if ($count_only === null) {
+            $count_only = false;
+        }
 
-        $config = config(OSPOS::class)->settings;
+        $config    = config(OSPOS::class)->settings;
         $db_prefix = $this->db->getPrefix();
-        $decimals = totals_decimals();
+        $decimals  = totals_decimals();
 
         // Only non-suspended records
         $where = 'sales.sale_status = 0 AND ';
@@ -345,18 +357,18 @@ class Sale extends Model
         $this->create_temp_table_sales_payments_data($where);
 
         $sale_price = 'CASE WHEN `sales_items`.`discount_type` = ' . PERCENT
-            . " THEN `sales_items`.`quantity_purchased` * `sales_items`.`item_unit_price` - ROUND(`sales_items`.`quantity_purchased` * `sales_items`.`item_unit_price` * `sales_items`.`discount` / 100, $decimals) "
+            . " THEN `sales_items`.`quantity_purchased` * `sales_items`.`item_unit_price` - ROUND(`sales_items`.`quantity_purchased` * `sales_items`.`item_unit_price` * `sales_items`.`discount` / 100, {$decimals}) "
             . 'ELSE `sales_items`.`quantity_purchased` * (`sales_items`.`item_unit_price` - `sales_items`.`discount`) END - ' . InvoiceDiscount::sqlShare('`sales_items`');
 
         $sale_cost = 'SUM(`sales_items`.`item_cost_price` * `sales_items`.`quantity_purchased`)';
 
-        $tax = 'IFNULL(SUM(`sales_items_taxes`.`tax`), 0)';
-        $sales_tax = 'IFNULL(SUM(`sales_items_taxes`.`sales_tax`), 0)';
-        $internal_tax = 'IFNULL(SUM(`sales_items_taxes`.`internal_tax`), 0)';
+        $tax             = 'IFNULL(SUM(`sales_items_taxes`.`tax`), 0)';
+        $sales_tax       = 'IFNULL(SUM(`sales_items_taxes`.`sales_tax`), 0)';
+        $internal_tax    = 'IFNULL(SUM(`sales_items_taxes`.`internal_tax`), 0)';
         $cash_adjustment = 'IFNULL(SUM(`payments`.`sale_cash_adjustment`), 0)';
 
-        $sale_subtotal = "ROUND(SUM($sale_price), $decimals) - $internal_tax";
-        $sale_total = "ROUND(SUM($sale_price), $decimals) + $sales_tax + $cash_adjustment";
+        $sale_subtotal = "ROUND(SUM({$sale_price}), {$decimals}) - {$internal_tax}";
+        $sale_total    = "ROUND(SUM({$sale_price}), {$decimals}) + {$sales_tax} + {$cash_adjustment}";
 
         $this->create_temp_table_sales_items_taxes_data($where);
 
@@ -383,7 +395,7 @@ class Sale extends Model
                 $sale_total . ' AS amount_due',
                 'MAX(`payments`.`sale_payment_amount`) AS amount_tendered',
                 '(MAX(`payments`.`sale_payment_amount`)) - (' . $sale_total . ') AS change_due',
-                'MAX(`payments`.`payment_type`) AS payment_type'
+                'MAX(`payments`.`payment_type`) AS payment_type',
             ], false);
         }
 
@@ -394,7 +406,7 @@ class Sale extends Model
         $builder->join(
             'sales_items_taxes_temp AS sales_items_taxes',
             'sales_items.sale_id = sales_items_taxes.sale_id AND sales_items.item_id = sales_items_taxes.item_id AND sales_items.line = sales_items_taxes.line',
-            'LEFT OUTER'
+            'LEFT OUTER',
         );
 
         $builder->where($where);
@@ -445,7 +457,7 @@ class Sale extends Model
             $builder->where('sales.sale_time BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date'])));
         }
 
-        if (!empty($search)) {    // TODO: duplicated code.  We should think about refactoring out a method.
+        if (! empty($search)) {    // TODO: duplicated code.  We should think about refactoring out a method.
             if ($filters['is_valid_receipt']) {
                 $pieces = explode(' ', $search);
                 $builder->where('sales.sale_id', $pieces[1]);
@@ -463,13 +475,13 @@ class Sale extends Model
         }
 
         // TODO: This needs to be converted to a switch statement
-        if ($filters['sale_type'] == 'sales') {    // TODO: we need to think about refactoring this block to a switch statement.
+        if ($filters['sale_type'] === 'sales') {    // TODO: we need to think about refactoring this block to a switch statement.
             $builder->where('sales.sale_status = ' . COMPLETED . ' AND payment_amount > 0');
-        } elseif ($filters['sale_type'] == 'quotes') {
+        } elseif ($filters['sale_type'] === 'quotes') {
             $builder->where('sales.sale_status = ' . SUSPENDED . ' AND sales.quote_number IS NOT NULL');
-        } elseif ($filters['sale_type'] == 'returns') {
+        } elseif ($filters['sale_type'] === 'returns') {
             $builder->where('sales.sale_status = ' . COMPLETED . ' AND payment_amount < 0');
-        } elseif ($filters['sale_type'] == 'all') {
+        } elseif ($filters['sale_type'] === 'all') {
             $builder->where('sales.sale_status = ' . COMPLETED);
         }
 
@@ -511,12 +523,12 @@ class Sale extends Model
         $payments = $builder->get()->getResultArray();
 
         // Consider Gift Card as only one type of payment and do not show "Gift Card: 1, Gift Card: 2, etc." in the total
-        $gift_card_count = 0;
+        $gift_card_count  = 0;
         $gift_card_amount = 0;
 
         foreach ($payments as $key => $payment) {
             if (strstr($payment['payment_type'], lang('Sales.giftcard'))) {
-                $gift_card_count  += $payment['count'];
+                $gift_card_count += $payment['count'];
                 $gift_card_amount += $payment['payment_amount'];
 
                 // Remove the "Gift Card: 1", "Gift Card: 2", etc. payment string
@@ -548,7 +560,7 @@ class Sale extends Model
     {
         $suggestions = [];
 
-        if (!$this->isValidReceipt($search)) {
+        if (! $this->isValidReceipt($search)) {
             $builder = $this->db->table('sales');
             $builder->distinct()->select('first_name, last_name');
             $builder->join('people', 'people.person_id = sales.customer_id');
@@ -590,21 +602,11 @@ class Sale extends Model
         return $builder->get();
     }
 
-    /**
-     * @param string $year
-     * @param int $start_from
-     * @return int
-     */
     public function get_invoice_number_for_year(string $year = '', int $start_from = 0): int
     {
         return $this->get_number_for_year('invoice_number', $year, $start_from);
     }
 
-    /**
-     * @param string $year
-     * @param int $start_from
-     * @return int
-     */
     public function get_quote_number_for_year(string $year = '', int $start_from = 0): int
     {
         return $this->get_number_for_year('quote_number', $year, $start_from);
@@ -615,31 +617,32 @@ class Sale extends Model
      */
     private function get_number_for_year(string $field, string $year = '', int $start_from = 0): int
     {
-        $year = $year == '' ? date('Y') : $year;
+        $year = $year === '' ? date('Y') : $year;
 
         $builder = $this->db->table('sales');
         $builder->select('COUNT( 1 ) AS number_year');
         $builder->where('DATE_FORMAT(sale_time, "%Y" ) = ', $year);
-        $builder->where("$field IS NOT NULL");
+        $builder->where("{$field} IS NOT NULL");
         $result = $builder->get()->getRowArray();
 
-        return ($start_from + $result['number_year']);
+        return $start_from + $result['number_year'];
     }
 
     /**
      * Checks if valid receipt
      */
-    public function isValidReceipt(string|null &$receiptSaleId): bool    // TODO: like the others, maybe this should be an array rather than a delimited string... either that or the parameter name needs to be changed. $receipt_sale_id implies that it's an int.
+    public function isValidReceipt(?string &$receiptSaleId): bool    // TODO: like the others, maybe this should be an array rather than a delimited string... either that or the parameter name needs to be changed. $receipt_sale_id implies that it's an int.
     {
         $config = config(OSPOS::class)->settings;
 
-        if (!empty($receiptSaleId)) {
+        if (! empty($receiptSaleId)) {
             // POS #
             $pieces = explode(' ', trim($receiptSaleId));
 
-            if (count($pieces) == 2 && strtoupper($pieces[0]) === 'POS' && ctype_digit($pieces[1])) {
+            if (count($pieces) === 2 && strtoupper($pieces[0]) === 'POS' && ctype_digit($pieces[1])) {
                 return $this->exists((int) $pieces[1]) && ! $this->outsideRecordScope((int) $pieces[1]);
-            } elseif ($config['invoice_enable']) {
+            }
+            if ($config['invoice_enable']) {
                 $saleInfo = $this->get_sale_by_invoice_number($receiptSaleId);
 
                 if ($saleInfo->getNumRows() > 0 && ! $this->outsideRecordScope((int) $saleInfo->getRow()->sale_id)) {
@@ -661,7 +664,7 @@ class Sale extends Model
         $builder = $this->db->table('sales');
         $builder->where('sale_id', $sale_id);
 
-        return ($builder->get()->getNumRows() == 1);    // TODO: ===
+        return $builder->get()->getNumRows() === 1;    // TODO: ===
     }
 
     /**
@@ -785,6 +788,9 @@ class Sale extends Model
      * Update sale. When accounting is on, a sale that has been posted keeps its customer and
      * its date, and every payment that changes is posted again with the change, all in the
      * transaction of the update.
+     *
+     * @param mixed|null $sale_id
+     * @param mixed|null $sale_data
      */
     public function update($sale_id = null, $sale_data = null): bool
     {
@@ -876,19 +882,19 @@ class Sale extends Model
             $success = $updateData === [] ? true : $builder->update($updateData);
 
             // Touch payment only if update sale is successful and there is a payments object otherwise the result would be to delete all the payments associated to the sale
-            if ($success && !empty($saleData['payments'])) {
+            if ($success && ! empty($saleData['payments'])) {
                 $builder = $this->db->table('sales_payments');
 
                 // Add new payments
                 foreach ($saleData['payments'] as $payment) {
-                    $paymentId = $payment['payment_id'];
-                    $paymentType = $payment['payment_type'];
-                    $paymentAmount = $payment['payment_amount'];
-                    $cashRefund = $payment['cash_refund'];
+                    $paymentId      = $payment['payment_id'];
+                    $paymentType    = $payment['payment_type'];
+                    $paymentAmount  = $payment['payment_amount'];
+                    $cashRefund     = $payment['cash_refund'];
                     $cashAdjustment = $payment['cash_adjustment'];
-                    $employeeId = $payment['employee_id'];
+                    $employeeId     = $payment['employee_id'];
 
-                    if ($paymentId == NEW_ENTRY && $paymentAmount != 0) {
+                    if ($paymentId === NEW_ENTRY && $paymentAmount !== 0) {
                         [$treasuryId, $treasuryBranchId] = $this->treasuryOfPayment($payment, $employeeId === null ? null : (int) $employeeId, (int) $this->getBranchId((int) $saleId));
 
                         // Add a new payment transaction
@@ -908,23 +914,23 @@ class Sale extends Model
                         $success      = $builder->insert($salesPaymentsData);
                         $newPaymentId = (int) $this->db->insertID();
 
-                        if ($success && $this->isPaymentDocument($payment) && $this->getSaleStatus((int) $saleId) == COMPLETED) {
+                        if ($success && $this->isPaymentDocument($payment) && $this->getSaleStatus((int) $saleId) === COMPLETED) {
                             (new DocumentNumbering($this->db))->assign(DocumentType::CustomerPayment, 'sales_payments', $newPaymentId, (int) $this->getBranchId((int) $saleId));
                         }
-                    } elseif ($paymentId != NEW_ENTRY) {
+                    } elseif ($paymentId !== NEW_ENTRY) {
                         $stored = $this->db->table('sales_payments')->select('sale_id')->where('payment_id', $paymentId)->get()->getRow();
 
                         if ($stored === null || (int) $stored->sale_id !== (int) $saleId) {
                             throw new AccountingException(AccountingError::SalePaymentNotOnSale, 'The payment does not belong to this sale.', ['sale_id' => (int) $saleId]);
                         }
 
-                        if ($paymentAmount != 0) {
+                        if ($paymentAmount !== 0) {
                             // Update existing payment transactions (payment_type only)
                             $salesPaymentsData = [
                                 'payment_type'    => $paymentType,
                                 'payment_amount'  => $paymentAmount,
                                 'cash_refund'     => $cashRefund,
-                                'cash_adjustment' => $cashAdjustment
+                                'cash_adjustment' => $cashAdjustment,
                             ];
 
                             if (isset($payment['payment_status']) && PaymentStatus::tryFrom((string) $payment['payment_status']) !== null) {
@@ -1117,25 +1123,26 @@ class Sale extends Model
     /**
      * Save the sale information after the sales is complete but before the final document is printed
      * The sales_taxes variable needs to be initialized to an empty array before calling
+     *
      * @throws ReflectionException
      */
     public function save_value(
-        int     $saleId,
-        string  &$saleStatus,
-        array   &$items,
-        int     $customerId,
-        int     $employeeId,
-        string  $comment,
+        int $saleId,
+        string &$saleStatus,
+        array &$items,
+        int $customerId,
+        int $employeeId,
+        string $comment,
         ?string $invoiceNumber,
         ?string $workOrderNumber,
         ?string $quoteNumber,
-        int     $saleType,
-        ?array  $payments,
-        ?int    $dinnerTableId,
-        ?array  &$salesTaxes,
-        bool    $delivered = true,
-        ?int    $returnOfSaleId = null,
-        ?array  $invoiceDiscount = null,
+        int $saleType,
+        ?array $payments,
+        ?int $dinnerTableId,
+        ?array &$salesTaxes,
+        bool $delivered = true,
+        ?int $returnOfSaleId = null,
+        ?array $invoiceDiscount = null,
         ReturnDocument $returnDocument = ReturnDocument::CreditNote,
         ?string $invoiceDate = null,
         int|string|null $paymentTerms = null,
@@ -1179,22 +1186,22 @@ class Sale extends Model
     }
 
     private function saveValueLocked(
-        int     $saleId,
-        string  &$saleStatus,
-        array   &$items,
-        int     $customerId,
-        int     $employeeId,
-        string  $comment,
+        int $saleId,
+        string &$saleStatus,
+        array &$items,
+        int $customerId,
+        int $employeeId,
+        string $comment,
         ?string $invoiceNumber,
         ?string $workOrderNumber,
         ?string $quoteNumber,
-        int     $saleType,
-        ?array  $payments,
-        ?int    $dinnerTableId,
-        ?array  &$salesTaxes,
-        bool    $delivered,
-        ?int    $returnOfSaleId,
-        ?array  $invoiceDiscount,
+        int $saleType,
+        ?array $payments,
+        ?int $dinnerTableId,
+        ?array &$salesTaxes,
+        bool $delivered,
+        ?int $returnOfSaleId,
+        ?array $invoiceDiscount,
         ReturnDocument $returnDocument,
         ?string $invoiceDate,
         int|string|null $paymentTerms,
@@ -1206,20 +1213,20 @@ class Sale extends Model
         ?int $priceListId,
         ?int $orderSourceId,
     ): int {
-        $config = config(OSPOS::class)->settings;
+        $config    = config(OSPOS::class)->settings;
         $attribute = model(Attribute::class);
-        $customer = model(Customer::class);
-        $giftcard = model(Giftcard::class);
+        $customer  = model(Customer::class);
+        $giftcard  = model(Giftcard::class);
         $inventory = model('Inventory');
-        $item = model(Item::class);
+        $item      = model(Item::class);
 
         $itemQuantity = model(Item_quantity::class);
 
-        if (count($items) == 0) {    // TODO: ===
+        if (count($items) === 0) {    // TODO: ===
             return -1;    // TODO: Replace -1 with a constant
         }
 
-        $this->accountingFailure = null;
+        $this->accountingFailure      = null;
         $this->invoiceDiscountProblem = null;
 
         $taxRefusal = $this->taxOneRefusal($saleType, $saleStatus, $customerId, $items, $salesTaxes);
@@ -1243,7 +1250,7 @@ class Sale extends Model
 
         $tracking = new StockTracking($this->db);
 
-        if ($saleStatus == COMPLETED && $saleType === SALE_TYPE_INVOICE && ! $delivered) {
+        if ($saleStatus === COMPLETED && $saleType === SALE_TYPE_INVOICE && ! $delivered) {
             try {
                 $tracking->requireUntracked(array_map(static fn (array $line): int => (int) $line['item_id'], $items));
             } catch (AccountingException $refusal) {
@@ -1284,20 +1291,20 @@ class Sale extends Model
         $storedDate = $saleId === NEW_ENTRY ? null : $this->storedInvoiceDate($saleId);
 
         $salesData = [
-            'sale_time'         => date('Y-m-d H:i:s'),
-            'customer_id'       => $customer->exists($customerId) ? $customerId : null,
-            'employee_id'       => $employeeId,
-            'comment'           => $comment,
-            'sale_status'       => $saleStatus,
-            'invoice_number'    => $invoiceNumber,
-            'quote_number'      => $quoteNumber,
-            'work_order_number' => $workOrderNumber,
-            'dinner_table_id'   => $dinnerTableId,
-            'sale_type'         => $saleType,
-            'branch_id'         => $this->branchIdOfItems($items),
-            'delivered'         => $delivered ? 1 : 0,
-            'return_of_sale_id' => $saleType === SALE_TYPE_RETURN ? $returnOfSaleId : null,
-            'return_document'   => $saleType === SALE_TYPE_RETURN ? $returnDocument->storedValue() : null,
+            'sale_time'            => date('Y-m-d H:i:s'),
+            'customer_id'          => $customer->exists($customerId) ? $customerId : null,
+            'employee_id'          => $employeeId,
+            'comment'              => $comment,
+            'sale_status'          => $saleStatus,
+            'invoice_number'       => $invoiceNumber,
+            'quote_number'         => $quoteNumber,
+            'work_order_number'    => $workOrderNumber,
+            'dinner_table_id'      => $dinnerTableId,
+            'sale_type'            => $saleType,
+            'branch_id'            => $this->branchIdOfItems($items),
+            'delivered'            => $delivered ? 1 : 0,
+            'return_of_sale_id'    => $saleType === SALE_TYPE_RETURN ? $returnOfSaleId : null,
+            'return_document'      => $saleType === SALE_TYPE_RETURN ? $returnDocument->storedValue() : null,
             'adjustment_label'     => null,
             'adjustment_amount'    => null,
             'shipping_amount'      => null,
@@ -1348,7 +1355,7 @@ class Sale extends Model
             $origin = $locked === false ? null : $locked->getRow();
 
             // A return staged while its sale stood is refused if the sale was cancelled meanwhile: the cancel already put the goods and the books back
-            if ($saleStatus == COMPLETED && ($origin === null || (int) $origin->sale_status !== COMPLETED || (int) $origin->sale_type === SALE_TYPE_RETURN)) {
+            if ($saleStatus === COMPLETED && ($origin === null || (int) $origin->sale_status !== COMPLETED || (int) $origin->sale_type === SALE_TYPE_RETURN)) {
                 $this->db->transRollback();
                 $this->accountingFailure = new PostingException(PostingError::ReturnOriginInvalid, 'A return can only be taken from a completed sale.', ['origin_id' => (int) $salesData['return_of_sale_id']]);
 
@@ -1356,7 +1363,7 @@ class Sale extends Model
             }
         }
 
-        $discountPlan = $this->invoiceDiscountPlan($items, $saleType, $salesData['return_of_sale_id'], $invoiceDiscount, $saleId, $saleStatus == COMPLETED);
+        $discountPlan = $this->invoiceDiscountPlan($items, $saleType, $salesData['return_of_sale_id'], $invoiceDiscount, $saleId, $saleStatus === COMPLETED);
 
         if ($discountPlan instanceof InvoiceDiscountProblem) {
             $this->db->transRollback();
@@ -1365,13 +1372,13 @@ class Sale extends Model
             return INVOICE_DISCOUNT_INVALID;
         }
 
-        $items = $discountPlan->applyTo($items);
+        $items                              = $discountPlan->applyTo($items);
         $salesData['invoice_discount_type'] = $discountPlan->type;
-        $salesData['invoice_discount'] = $discountPlan->value;
+        $salesData['invoice_discount']      = $discountPlan->value;
 
-        $priceViolations = $saleStatus == COMPLETED && in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) ? (new PriceControls($this->db))->violationsOf($items, $currencyColumns['currency_rate'] ?? '1', $salesTaxes[1] ?? []) : [];
+        $priceViolations = $saleStatus === COMPLETED && in_array($saleType, [SALE_TYPE_POS, SALE_TYPE_INVOICE], true) ? (new PriceControls($this->db))->violationsOf($items, $currencyColumns['currency_rate'] ?? '1', $salesTaxes[1] ?? []) : [];
 
-        if ($priceViolations !== [] && !(new PriceControls($this->db))->mayOverride($employeeId)) {
+        if ($priceViolations !== [] && ! (new PriceControls($this->db))->mayOverride($employeeId)) {
             $this->db->transRollback();
             $this->accountingFailure = $priceViolations[0]->toException();
             (new PriceControls($this->db))->recordRefusal((int) $salesData['branch_id'], $employeeId, $priceViolations);
@@ -1379,12 +1386,12 @@ class Sale extends Model
             return ACCOUNTING_FAILED;
         }
 
-        if ($saleId != NEW_ENTRY) {
+        if ($saleId !== NEW_ENTRY) {
             $this->clear_suspended_sale_detail($saleId);
         }
 
         $builder = $this->db->table('sales');
-        if ($saleId == NEW_ENTRY) {
+        if ($saleId === NEW_ENTRY) {
             $builder->insert($salesData);
             $saleId = $this->db->insertID();
         } else {
@@ -1394,12 +1401,12 @@ class Sale extends Model
 
         $goodsNeverLeft = $this->goodsNeverLeft($saleType, $returnDocument, $salesData['return_of_sale_id']);
 
-        $totalAmount = 0;
+        $totalAmount     = 0;
         $totalAmountUsed = 0;
-        $paymentIds = [];
+        $paymentIds      = [];
 
         foreach ($payments as $paymentId => $payment) {
-            $splitPayment = explode(':', $payment['payment_type'], 2);
+            $splitPayment  = explode(':', $payment['payment_type'], 2);
             $paymentPrefix = $splitPayment[0];
 
             if ($paymentPrefix === lang('Sales.giftcard')) {
@@ -1415,7 +1422,7 @@ class Sale extends Model
                     return INSUFFICIENT_REWARD_POINTS;
                 }
 
-                $totalAmountUsed = floatval($totalAmountUsed) + floatval($payment['payment_amount']);
+                $totalAmountUsed = (float) $totalAmountUsed + (float) ($payment['payment_amount']);
             }
 
             try {
@@ -1447,7 +1454,7 @@ class Sale extends Model
                 $paymentIds[] = (int) $this->db->insertID();
             }
 
-            $totalAmount = floatval($totalAmount) + floatval($payment['payment_amount']) - floatval($payment['cash_refund']);
+            $totalAmount = (float) $totalAmount + (float) ($payment['payment_amount']) - (float) ($payment['cash_refund']);
         }
 
         $this->save_customer_rewards($customerId, $saleId, $currencyColumns['currency_rate'] === null ? $totalAmount : (float) bcmul((string) $totalAmount, $currencyColumns['currency_rate'], 4), $totalAmountUsed);
@@ -1457,7 +1464,7 @@ class Sale extends Model
         foreach ($items as $line => $itemData) {
             $curItemInfo = $item->get_info($itemData['item_id']);
 
-            if ($itemData['price'] == 0.00) {
+            if ($itemData['price'] === 0.00) {
                 $itemData['discount'] = 0.00;
             }
 
@@ -1481,7 +1488,7 @@ class Sale extends Model
             $builder = $this->db->table('sales_items');
             $builder->insert($salesItemsData);
 
-            if ($curItemInfo->stock_type == HAS_STOCK && $saleStatus == COMPLETED && $delivered && ! $goodsNeverLeft) {    // TODO: === ?
+            if ($curItemInfo->stock_type === HAS_STOCK && $saleStatus === COMPLETED && $delivered && ! $goodsNeverLeft) {    // TODO: === ?
                 // Update stock quantity if item type is a standard stock item and the sale is a standard sale
                 try {
                     if ($tracking->handles((int) $itemData['item_id'])) {
@@ -1513,13 +1520,13 @@ class Sale extends Model
 
                 // Inventory Count Details
                 $saleRemarks = 'POS ' . $saleId;    // TODO: Use string interpolation here.
-                $invData = [
+                $invData     = [
                     'trans_date'      => date('Y-m-d H:i:s'),
                     'trans_items'     => $itemData['item_id'],
                     'trans_user'      => $employeeId,
                     'trans_location'  => $itemData['item_location'],
                     'trans_comment'   => $saleRemarks,
-                    'trans_inventory' => -$itemData['quantity']
+                    'trans_inventory' => -$itemData['quantity'],
                 ];
 
                 $inventory->insert($invData, false);
@@ -1528,7 +1535,7 @@ class Sale extends Model
             $attribute->copy_attribute_links($itemData['item_id'], 'sale_id', $saleId);
         }
 
-        if ($customerId == NEW_ENTRY || $customer->taxable) {
+        if ($customerId === NEW_ENTRY || $customer->taxable) {
             $this->save_sales_tax($saleId, $salesTaxes[0]);
             $this->save_sales_items_taxes($saleId, $salesTaxes[1]);
         }
@@ -1544,14 +1551,14 @@ class Sale extends Model
 
         if ($config['dinner_table_enable']) {
             $dinnerTable = model(Dinner_table::class);
-            if ($saleStatus == COMPLETED) {    // TODO: === ?
+            if ($saleStatus === COMPLETED) {    // TODO: === ?
                 $dinnerTable->release($dinnerTableId);
             } else {
                 $dinnerTable->occupy($dinnerTableId);
             }
         }
 
-        if ($saleStatus == COMPLETED && $salesData['return_of_sale_id'] !== null) {
+        if ($saleStatus === COMPLETED && $salesData['return_of_sale_id'] !== null) {
             try {
                 (new ReturnLimit($this->db))->assertSaleReturnWithin($saleId);
             } catch (PostingException $failure) {
@@ -1576,7 +1583,7 @@ class Sale extends Model
         }
 
         try {
-            $this->numberDocuments($saleId, $saleType, $saleStatus == COMPLETED, $invoiceNumber, $quoteNumber, $paymentIds, (int) $salesData['branch_id'], $returnDocument, $salesData['quote_status'] === QuoteStatus::Draft->value);
+            $this->numberDocuments($saleId, $saleType, $saleStatus === COMPLETED, $invoiceNumber, $quoteNumber, $paymentIds, (int) $salesData['branch_id'], $returnDocument, $salesData['quote_status'] === QuoteStatus::Draft->value);
         } catch (AccountingException $failure) {
             log_message('error', 'Numbering sale ' . $saleId . ' failed: ' . $failure->getMessage());
             $this->db->transRollback();
@@ -1591,7 +1598,7 @@ class Sale extends Model
 
             if ($orderOfInvoice !== null) {
                 try {
-                    $saleStatus == COMPLETED
+                    $saleStatus === COMPLETED
                         ? $orders->recordInvoice($saleId, $orderOfInvoice, $items, $customerId, $employeeId, (int) $salesData['branch_id'])
                         : $orders->link($saleId, $orderOfInvoice);
                 } catch (AccountingException|BranchException $refusal) {
@@ -1609,7 +1616,7 @@ class Sale extends Model
             (new QuoteLifecycle($this->db))->recordChange($saleId, $statusBefore, $statusAfter, $employeeId, (int) $salesData['branch_id'], $statusBefore === QuoteStatus::Draft ? $this->get_quote_number($saleId) : null);
         }
 
-        if ($saleStatus == COMPLETED) {
+        if ($saleStatus === COMPLETED) {
             $failure = $this->postToAccounting($saleId, $employeeId);
 
             if ($failure !== null) {
@@ -2074,7 +2081,7 @@ class Sale extends Model
             . " + CASE WHEN MAX(sales.shipping_tax_option) = '" . ShippingTaxOption::Added->value . "' THEN IFNULL(MAX(sales.shipping_tax_amount), 0) ELSE 0 END";
         $sign = 'CASE WHEN MAX(sales.sale_type) = ' . SALE_TYPE_RETURN . ' THEN -1 ELSE 1 END';
 
-        return "CASE WHEN MAX(sales.adjustment_amount) IS NULL AND MAX(sales.shipping_amount) IS NULL THEN ($total) ELSE ROUND(($total) + ($sign) * ($added), $decimals) END";
+        return "CASE WHEN MAX(sales.adjustment_amount) IS NULL AND MAX(sales.shipping_amount) IS NULL THEN ({$total}) ELSE ROUND(({$total}) + ({$sign}) * ({$added}), {$decimals}) END";
     }
 
     /**
@@ -2154,7 +2161,7 @@ class Sale extends Model
         }
 
         $resolved = $charges->resolve($running);
-        $zero     = fn (string $amount): ?string => bccomp($amount, '0', SaleAmounts::SCALE) === 0 ? null : $amount;
+        $zero     = static fn (string $amount): ?string => bccomp($amount, '0', SaleAmounts::SCALE) === 0 ? null : $amount;
         $taxed    = bccomp($resolved->shipping, '0', SaleAmounts::SCALE) !== 0 && $charges->shippingTaxOption !== ShippingTaxOption::None;
 
         $this->db->table('sales')->where('sale_id', $saleId)->update([
@@ -2446,6 +2453,7 @@ class Sale extends Model
 
     /**
      * Deletes list of sales
+     *
      * @throws ReflectionException
      */
     public function delete_list(array $sale_ids, int $employee_id, bool $update_inventory = true): bool
@@ -2493,6 +2501,10 @@ class Sale extends Model
      * Delete sale.  Hard deletes are not supported for sales transactions.
      * When a sale is "deleted" it is simply changed to a status of canceled.
      * However, if applicable the inventory still needs to be updated
+     *
+     * @param mixed|null $sale_id
+     * @param mixed|null $employee_id
+     *
      * @throws ReflectionException
      */
     public function delete($sale_id = null, bool $purge = false, bool $update_inventory = true, $employee_id = null): bool
@@ -2542,9 +2554,9 @@ class Sale extends Model
         $this->db->transStart();
 
         // The lock of the sale comes first, so two requests cancelling it never run side by side
-        $locked      = $this->db->query('SELECT sale_status, delivered, sale_type, return_of_sale_id, return_document FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$saleId]);
-        $sale        = $locked === false ? null : $locked->getRow();
-        $saleStatus  = $sale === null ? null : (int) $sale->sale_status;
+        $locked     = $this->db->query('SELECT sale_status, delivered, sale_type, return_of_sale_id, return_document FROM ' . $this->db->prefixTable('sales') . ' WHERE sale_id = ? FOR UPDATE', [$saleId]);
+        $sale       = $locked === false ? null : $locked->getRow();
+        $saleStatus = $sale === null ? null : (int) $sale->sale_status;
 
         try {
             (new QuoteLifecycle($this->db))->assertUnlocked((int) $saleId);
@@ -2560,8 +2572,8 @@ class Sale extends Model
         if ($updateInventory && $saleStatus === COMPLETED && (int) $sale->delivered === 1 && ! $this->goodsNeverLeft((int) $sale->sale_type, ReturnDocument::fromStored($sale->return_document), $sale->return_of_sale_id === null ? null : (int) $sale->return_of_sale_id)) {
             // Defect, not all item deletions will be undone?
             // Get array with all the items involved in the sale to update the inventory tracking
-            $inventory = model('Inventory');
-            $item = model(Item::class);
+            $inventory    = model('Inventory');
+            $item         = model(Item::class);
             $itemQuantity = model(Item_quantity::class);
 
             $items = $this->get_sale_items($saleId)->getResultArray();
@@ -2581,7 +2593,7 @@ class Sale extends Model
             foreach ($items as $itemData) {
                 $itemInfo = $item->get_info($itemData['item_id']);
 
-                if ($itemInfo->stock_type == HAS_STOCK) {
+                if ($itemInfo->stock_type === HAS_STOCK) {
                     // Create query to update inventory tracking
                     $inventoryRow = [
                         'trans_date'      => date('Y-m-d H:i:s'),
@@ -2589,7 +2601,7 @@ class Sale extends Model
                         'trans_user'      => $employeeId,
                         'trans_comment'   => 'Deleting sale ' . $saleId,
                         'trans_location'  => $itemData['item_location'],
-                        'trans_inventory' => $itemData['quantity_purchased']
+                        'trans_inventory' => $itemData['quantity_purchased'],
                     ];
                     // Update inventory
                     $inventory->insert($inventoryRow, false);
@@ -2675,7 +2687,7 @@ class Sale extends Model
         foreach ($this->get_sale_items($saleId)->getResultArray() as $line) {
             $info = $item->get_info($line['item_id']);
 
-            if ($info->stock_type != HAS_STOCK) {
+            if ($info->stock_type !== HAS_STOCK) {
                 continue;
             }
 
@@ -2745,7 +2757,7 @@ class Sale extends Model
     public function get_sale_items_ordered(int $sale_id): ResultInterface
     {
         $config = config(OSPOS::class)->settings;
-        $item = model(Item::class);
+        $item   = model(Item::class);
 
         $builder = $this->db->table('sales_items AS sales_items');
         $builder->select('
@@ -2774,18 +2786,18 @@ class Sale extends Model
         $builder->where('sales_items.sale_id', $sale_id);
 
         // Entry sequence (this will render kits in the expected sequence)
-        if ($config['line_sequence'] == '0') {    // TODO: Replace these with constants and this should be converted to a switch.
+        if ($config['line_sequence'] === '0') {    // TODO: Replace these with constants and this should be converted to a switch.
             $builder->orderBy('line', 'asc');
         }
         // Group by Stock Type (nonstock first - type 1, stock next - type 0)
-        elseif ($config['line_sequence'] == '1') {
+        elseif ($config['line_sequence'] === '1') {
             $builder->orderBy('stock_type', 'desc');
             $builder->orderBy('sales_items.description', 'asc');
             $builder->orderBy('items.name', 'asc');
             $builder->orderBy('items.qty_per_pack', 'asc');
         }
         // Group by Item Category
-        elseif ($config['line_sequence'] == '2') {
+        elseif ($config['line_sequence'] === '2') {
             $builder->orderBy('category', 'asc');
             $builder->orderBy('sales_items.description', 'asc');
             $builder->orderBy('items.name', 'asc');
@@ -2825,8 +2837,8 @@ class Sale extends Model
             $payments[lang('Sales.rewards')] = lang('Sales.rewards');
         }
         $sale_lib = new Sale_lib();
-        if ($sale_lib->get_mode() == 'sale_work_order') {
-            $payments[lang('Sales.cash_deposit')] = lang('Sales.cash_deposit');
+        if ($sale_lib->get_mode() === 'sale_work_order') {
+            $payments[lang('Sales.cash_deposit')]   = lang('Sales.cash_deposit');
             $payments[lang('Sales.credit_deposit')] = lang('Sales.credit_deposit');
         }
 
@@ -2867,11 +2879,11 @@ class Sale extends Model
         $builder = $this->db->table('sales');
         $builder->where('quote_number', $quote_number);
 
-        if (!empty($sale_id)) {
+        if (! empty($sale_id)) {
             $builder->where('sale_id !=', $sale_id);
         }
 
-        return ($builder->get()->getNumRows() == 1);    // TODO: ===
+        return $builder->get()->getNumRows() === 1;    // TODO: ===
     }
 
     /**
@@ -2882,11 +2894,11 @@ class Sale extends Model
         $builder = $this->db->table('sales');
         $builder->where('invoice_number', $invoice_number);
 
-        if (!empty($sale_id)) {
+        if (! empty($sale_id)) {
             $builder->where('sale_id !=', $sale_id);
         }
 
-        return ($builder->get()->getNumRows() == 1);    // TODO: ===
+        return $builder->get()->getNumRows() === 1;    // TODO: ===
     }
 
     /**
@@ -2896,11 +2908,11 @@ class Sale extends Model
     {
         $builder = $this->db->table('sales');
         $builder->where('invoice_number', $work_order_number);
-        if (!empty($sale_id)) {
+        if (! empty($sale_id)) {
             $builder->where('sale_id !=', $sale_id);
         }
 
-        return ($builder->get()->getNumRows() == 1);    // TODO: ===
+        return $builder->get()->getNumRows() === 1;    // TODO: ===
     }
 
     /**
@@ -2910,7 +2922,7 @@ class Sale extends Model
     {
         $giftcard = model(Giftcard::class);
 
-        if (!$giftcard->exists($giftcard->getGiftcardId($giftcardNumber))) {    // TODO: camelCase is used here for the variable name but we are using _ everywhere else. CI4 moved to camelCase... we should pick one and do that.
+        if (! $giftcard->exists($giftcard->getGiftcardId($giftcardNumber))) {    // TODO: camelCase is used here for the variable name but we are using _ everywhere else. CI4 moved to camelCase... we should pick one and do that.
             return 0;
         }
 
@@ -2945,18 +2957,18 @@ class Sale extends Model
         $decimals = totals_decimals();
 
         $salePrice = 'CASE WHEN sales_items.discount_type = ' . PERCENT
-            . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, $decimals) "
+            . " THEN sales_items.quantity_purchased * sales_items.item_unit_price - ROUND(sales_items.quantity_purchased * sales_items.item_unit_price * sales_items.discount / 100, {$decimals}) "
             . 'ELSE sales_items.quantity_purchased * (sales_items.item_unit_price - sales_items.discount) END - ' . InvoiceDiscount::sqlShare('sales_items');
 
         $saleCost = 'SUM(sales_items.item_cost_price * sales_items.quantity_purchased)';
 
-        $tax = 'IFNULL(SUM(sales_items_taxes.tax), 0)';
-        $salesTax = 'IFNULL(SUM(sales_items_taxes.sales_tax), 0)';
-        $internalTax = 'IFNULL(SUM(sales_items_taxes.internal_tax), 0)';
+        $tax            = 'IFNULL(SUM(sales_items_taxes.tax), 0)';
+        $salesTax       = 'IFNULL(SUM(sales_items_taxes.sales_tax), 0)';
+        $internalTax    = 'IFNULL(SUM(sales_items_taxes.internal_tax), 0)';
         $cashAdjustment = 'IFNULL(SUM(payments.sale_cash_adjustment), 0)';
 
-        $saleSubtotal = "ROUND(SUM($salePrice), $decimals) - $internalTax + $cashAdjustment";
-        $saleTotal = "ROUND(SUM($salePrice), $decimals) + $salesTax + $cashAdjustment";
+        $saleSubtotal = "ROUND(SUM({$salePrice}), {$decimals}) - {$internalTax} + {$cashAdjustment}";
+        $saleTotal    = "ROUND(SUM({$salePrice}), {$decimals}) + {$salesTax} + {$cashAdjustment}";
 
         // Create a temporary table to contain all the sum of taxes per sale item
         $sql = 'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_items_taxes_temp') .
@@ -2998,7 +3010,7 @@ class Sale extends Model
 
         $this->db->query($sql);
         $item = model(Item::class);
-        $sql = 'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_items_temp') .
+        $sql  = 'CREATE TEMPORARY TABLE IF NOT EXISTS ' . $this->db->prefixTable('sales_items_temp') .
             ' (INDEX(sale_date), INDEX(sale_time), INDEX(sale_id))
             (
                 SELECT
@@ -3020,7 +3032,7 @@ class Sale extends Model
                     MAX(sales.employee_id) AS employee_id,
                     MAX(CONCAT(employee.first_name, " ", employee.last_name)) AS employee_name,
                     items.item_id AS item_id,
-                    MAX(' . $item->get_item_name() . ') AS name,
+                    MAX(' . $item->get_item_name() . ") AS name,
                     MAX(items.item_number) AS item_number,
                     MAX(items.category) AS category,
                     MAX(items.supplier_id) AS supplier_id,
@@ -3036,12 +3048,12 @@ class Sale extends Model
                     MAX(sales_items.description) AS description,
                     MAX(payments.payment_type) AS payment_type,
                     MAX(payments.sale_payment_amount) AS sale_payment_amount,
-                    ' . "
-                    $saleSubtotal AS subtotal,
-                    $tax AS tax,
-                    $saleTotal AS total,
-                    $saleCost AS cost,
-                    ($saleSubtotal - $saleCost) AS profit
+
+                    {$saleSubtotal} AS subtotal,
+                    {$tax} AS tax,
+                    {$saleTotal} AS total,
+                    {$saleCost} AS cost,
+                    ({$saleSubtotal} - {$saleCost}) AS profit
                     " . '
                 FROM ' . $this->db->prefixTable('sales_items') . ' AS sales_items
                 INNER JOIN ' . $this->db->prefixTable('sales') . ' AS sales
@@ -3077,7 +3089,7 @@ class Sale extends Model
 
         $documentId = "case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN IF(quote_status = " . QuoteStatus::Draft->value . " AND (quote_number IS NULL OR quote_number = ''), CONCAT('" . DraftInvoice::PREFIX . "', sale_id), quote_number) WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number WHEN sale_type = '" . SALE_TYPE_INVOICE . "' THEN CONCAT('" . DraftInvoice::PREFIX . "', sale_id) else sale_id end as doc_id";
 
-        if ($customer_id == NEW_ENTRY) {
+        if ($customer_id === NEW_ENTRY) {
             $query = $this->db->query("SELECT sale_id, {$documentId}, sale_id as suspended_sale_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment, branch_id FROM "
                 . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED . $mineOnly);
         } else {
@@ -3093,7 +3105,7 @@ class Sale extends Model
      */
     public function get_dinner_table(int $sale_id)    // TODO: this is returning null or the table_id.  We can keep it this way but multiple return types can't be declared until PHP 8.x
     {
-        if ($sale_id == NEW_ENTRY) {
+        if ($sale_id === NEW_ENTRY) {
             return null;
         }
 
@@ -3127,11 +3139,6 @@ class Sale extends Model
         return $row === null ? null : $row->sale_status;
     }
 
-    /**
-     * @param int $sale_id
-     * @param int $sale_status
-     * @return void
-     */
     public function update_sale_status(int $sale_id, int $sale_status): void
     {
         $builder = $this->db->table('sales');
@@ -3157,7 +3164,7 @@ class Sale extends Model
 
         $row = $builder->get()->getRow();
 
-        if ($row != null) {
+        if ($row !== null) {
             return $row->quote_number;
         }
 
@@ -3174,7 +3181,7 @@ class Sale extends Model
 
         $row = $builder->get()->getRow();
 
-        if ($row != null) {    // TODO: === ?
+        if ($row !== null) {    // TODO: === ?
             return $row->work_order_number;
         }
 
@@ -3191,7 +3198,7 @@ class Sale extends Model
 
         $row = $builder->get()->getRow();
 
-        if ($row != null) {    // TODO: === ?
+        if ($row !== null) {    // TODO: === ?
             return $row->comment;
         }
 
@@ -3235,7 +3242,7 @@ class Sale extends Model
         $config = config(OSPOS::class)->settings;
 
         if ($config['dinner_table_enable']) {
-            $dinner_table = model(Dinner_table::class);
+            $dinner_table    = model(Dinner_table::class);
             $dinner_table_id = $this->get_dinner_table($sale_id);
             $dinner_table->release($dinner_table_id);
         }
@@ -3261,7 +3268,7 @@ class Sale extends Model
         $config = config(OSPOS::class)->settings;
 
         if ($config['dinner_table_enable']) {
-            $dinner_table = model(Dinner_table::class);
+            $dinner_table    = model(Dinner_table::class);
             $dinner_table_id = $this->get_dinner_table($sale_id);
             $dinner_table->release($dinner_table_id);
         }
@@ -3302,20 +3309,14 @@ class Sale extends Model
         return $builder->get();
     }
 
-    /**
-     * @param int $customer_id
-     * @param int $sale_id
-     * @param float $total_amount
-     * @param float $total_amount_used
-     */
     private function save_customer_rewards(int $customer_id, int $sale_id, float $total_amount, float $total_amount_used): void
     {
         $config = config(OSPOS::class)->settings;
 
-        if (!empty($customer_id) && $config['customer_reward_enable']) {
-            $customer = model(Customer::class);
+        if (! empty($customer_id) && $config['customer_reward_enable']) {
+            $customer        = model(Customer::class);
             $customerRewards = model(Customer_rewards::class);
-            $rewards = model(Rewards::class);
+            $rewards         = model(Rewards::class);
 
             $packageId = $customer->get_info($customer_id)->package_id;
 
@@ -3336,7 +3337,6 @@ class Sale extends Model
     /**
      * Creates a temporary table to store the sales_payments data
      *
-     * @param string $where
      * @return array
      */
     private function create_temp_table_sales_payments_data(string $where): void
@@ -3348,7 +3348,7 @@ class Sale extends Model
             'SUM(CASE WHEN `payments`.`cash_adjustment` = 1 THEN `payments`.`payment_amount` ELSE 0 END) AS sale_cash_adjustment',
             'SUM(`payments`.`cash_refund`) AS sale_cash_refund',
             'GROUP_CONCAT(CONCAT(`payments`.`payment_type`, " ", (`payments`.`payment_amount` - `payments`.`cash_refund`)) SEPARATOR ", ") AS payment_type',
-            'GROUP_CONCAT(NULLIF(`payments`.`reference_code`, "") SEPARATOR ", ") AS reference_code'
+            'GROUP_CONCAT(NULLIF(`payments`.`reference_code`, "") SEPARATOR ", ") AS reference_code',
         ]);
         $builder->join('sales', 'sales.sale_id = payments.sale_id', 'inner');
         $builder->where($where);
@@ -3365,12 +3365,10 @@ class Sale extends Model
     /**
      * Temporary table to store the sales_items_taxes data
      *
-     * @param string $where
-     * @return \CodeIgniter\Database\BaseBuilder
+     * @return BaseBuilder
      */
     private function create_temp_table_sales_items_taxes_data(string $where): void
     {
-
         $builder = $this->db->table('sales_items_taxes AS sales_items_taxes');
         $builder->select([
             'sales_items_taxes.sale_id AS sale_id',
@@ -3378,7 +3376,7 @@ class Sale extends Model
             'sales_items_taxes.line AS line',
             'SUM(sales_items_taxes.item_tax_amount) AS tax',
             'SUM(CASE WHEN sales_items_taxes.tax_type = 0 THEN sales_items_taxes.item_tax_amount ELSE 0 END) AS internal_tax',
-            'SUM(CASE WHEN sales_items_taxes.tax_type = 1 THEN sales_items_taxes.item_tax_amount ELSE 0 END) AS sales_tax'
+            'SUM(CASE WHEN sales_items_taxes.tax_type = 1 THEN sales_items_taxes.item_tax_amount ELSE 0 END) AS sales_tax',
         ]);
         $builder->join('sales', 'sales.sale_id = sales_items_taxes.sale_id', 'inner');
         $builder->join('sales_items', 'sales_items.sale_id = sales_items_taxes.sale_id AND sales_items.line = sales_items_taxes.line', 'inner');
@@ -3391,15 +3389,9 @@ class Sale extends Model
             . ' (INDEX(sale_id), INDEX(item_id)) ENGINE=MEMORY AS (' . $sub_query . ')');
     }
 
-    /**
-     * @param string $search
-     * @param array $filters
-     * @param BaseBuilder $builder
-     * @return void
-     */
     private function add_filters_to_query(?string $search, array $filters, BaseBuilder $builder): void
     {
-        if (!empty($search)) {    // TODO: this is duplicated code.  We should think about refactoring out a method
+        if (! empty($search)) {    // TODO: this is duplicated code.  We should think about refactoring out a method
             if ($filters['is_valid_receipt']) {
                 $pieces = explode(' ', $search);
                 $builder->where('sales.sale_id', $pieces[1]);
@@ -3420,15 +3412,14 @@ class Sale extends Model
             }
         }
 
-        if ($filters['location_id'] != 'all') {
+        if ($filters['location_id'] !== 'all') {
             $builder->where('sales_items.item_location', $filters['location_id']);
         }
 
-        if ($filters['selected_customer'] != false) {
+        if ($filters['selected_customer'] !== false) {
             $sale_lib = new Sale_lib();
             $builder->where('sales.customer_id', $sale_lib->get_customer());
         }
-
 
         if ($filters['only_invoices']) {
             $builder->where('sales.invoice_number IS NOT NULL');

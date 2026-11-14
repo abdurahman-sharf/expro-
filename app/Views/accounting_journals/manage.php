@@ -1,19 +1,18 @@
 <?php
 /**
- * @var string $table_headers
- * @var list<object> $accounts
- * @var array<string, mixed>|null $picker The search box that replaces the list of accounts when there are many.
- * @var list<object> $branches
- * @var int|null $current_branch
- * @var list<object> $creators
+ * @var string                                   $table_headers
+ * @var list<object>                             $accounts
+ * @var array<string, mixed>|null                $picker The search box that replaces the list of accounts when there are many.
+ * @var list<object>                             $branches
+ * @var int|null                                 $current_branch
+ * @var list<object>                             $creators
  * @var list<array{code: string, label: string}> $sources
- * @var bool $can_draft
- * @var bool $can_post
- * @var bool $can_audit
- * @var string|null $notice
- * @var array $config
+ * @var bool                                     $can_draft
+ * @var bool                                     $can_post
+ * @var bool                                     $can_audit
+ * @var string|null                              $notice
+ * @var array                                    $config
  */
-
 $messages = [
     'post'   => lang('Accounting_journals.confirm_post_drafts'),
     'delete' => lang('Accounting_journals.confirm_delete_drafts'),

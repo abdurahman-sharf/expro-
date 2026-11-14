@@ -7,16 +7,16 @@ use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\AgedLedgerTable;
 use App\Libraries\Accounting\CreditLimit;
 use App\Libraries\Accounting\CreditRefunds;
+use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerBalanceReport;
-use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerDocuments;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
 use App\Libraries\Accounting\CustomerPosition;
+use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\PartyReportCsv;
 use App\Libraries\Accounting\PartyReportQuery;
-use App\Libraries\Accounting\Money;
 use App\Libraries\Accounting\PaymentStatus;
 use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\ReturnDocument;
@@ -114,27 +114,27 @@ class AccountingReceivables extends AccountingController
         }
 
         return view('accounting_receivables/customer', [
-            'customer_name'   => $this->customerName($customerId),
-            'position'        => $position,
-            'today'           => $query->day(),
-            'error'           => $query->refusal === null ? null : $this->messageFor($query->refusal),
-            'to'              => $query->to,
-            'applications'    => $this->ledger->applications($customerId, true),
-            'refund_invoices' => $this->documents->refundInvoiceIds($customerId),
-            'customer_id'     => $customerId,
-            'openings'        => $this->openings->history($customerId),
-            'can_open'        => $this->can(AccountingGuard::OPENING_MANAGE) && (new AccountingSettings())->customerOpeningEnabled() && $this->openings->standingFor($customerId) === null,
-            'can_change'      => $this->can(AccountingGuard::OPENING_MANAGE),
-            'can_revise'      => (new AccountingSettings())->customerOpeningEnabled(),
-            'advances'        => $this->advances->forCustomer($customerId),
-            'refunds'         => $this->refunds->forParty($customerId),
-            'can_manage'      => $this->can(AccountingGuard::RECEIVABLES_MANAGE),
-            'can_refund'      => $this->can(AccountingGuard::RECEIVABLES_REFUND),
-            'creditTerms'     => $this->creditTermsShown($customerId),
-            'contacts'        => (new PartyContacts())->forParty(PartyContacts::CUSTOMER, $customerId),
-            'amount'          => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
-            'date'            => fn (string $value): string => $this->formatDate($value),
-            'debit_note_of'   => static fn (int $key): string => (new SalesDebitNotes())->numberOf((int) SalesDebitNotes::idOfKey($key)),
+            'customer_name'     => $this->customerName($customerId),
+            'position'          => $position,
+            'today'             => $query->day(),
+            'error'             => $query->refusal === null ? null : $this->messageFor($query->refusal),
+            'to'                => $query->to,
+            'applications'      => $this->ledger->applications($customerId, true),
+            'refund_invoices'   => $this->documents->refundInvoiceIds($customerId),
+            'customer_id'       => $customerId,
+            'openings'          => $this->openings->history($customerId),
+            'can_open'          => $this->can(AccountingGuard::OPENING_MANAGE) && (new AccountingSettings())->customerOpeningEnabled() && $this->openings->standingFor($customerId) === null,
+            'can_change'        => $this->can(AccountingGuard::OPENING_MANAGE),
+            'can_revise'        => (new AccountingSettings())->customerOpeningEnabled(),
+            'advances'          => $this->advances->forCustomer($customerId),
+            'refunds'           => $this->refunds->forParty($customerId),
+            'can_manage'        => $this->can(AccountingGuard::RECEIVABLES_MANAGE),
+            'can_refund'        => $this->can(AccountingGuard::RECEIVABLES_REFUND),
+            'creditTerms'       => $this->creditTermsShown($customerId),
+            'contacts'          => (new PartyContacts())->forParty(PartyContacts::CUSTOMER, $customerId),
+            'amount'            => fn (string $value): string => $this->amountCell($this->formatAmount($value)),
+            'date'              => fn (string $value): string => $this->formatDate($value),
+            'debit_note_of'     => static fn (int $key): string => (new SalesDebitNotes())->numberOf((int) SalesDebitNotes::idOfKey($key)),
             'debit_note_number' => static fn (int $debitNoteId): string => (new SalesDebitNotes())->numberOf($debitNoteId),
         ]);
     }
@@ -545,7 +545,6 @@ class AccountingReceivables extends AccountingController
         }
     }
 
-
     private function requireOpeningManage(int $customerId): void
     {
         $this->requireCompanyScope();
@@ -554,7 +553,6 @@ class AccountingReceivables extends AccountingController
             throw PageNotFoundException::forPageNotFound();
         }
     }
-
 
     private function standingOpening(int $openingId): object
     {
@@ -708,8 +706,8 @@ class AccountingReceivables extends AccountingController
         $inBase  = $foreign ? bcadd((string) $payment->amount_base, '0', SaleAmounts::SCALE) : $amount;
         $posted  = bcadd((string) $payment->posted, '0', SaleAmounts::SCALE);
         $number  = $payment->document_number !== null ? (string) $payment->document_number : (string) $payment->payment_id;
-        $type   = PaymentType::fromLabel((string) $payment->payment_type);
-        $status = PaymentStatus::fromStored((string) $payment->payment_status);
+        $type    = PaymentType::fromLabel((string) $payment->payment_type);
+        $status  = PaymentStatus::fromStored((string) $payment->payment_status);
 
         $tie = match (true) {
             bccomp($posted, $inBase, SaleAmounts::SCALE) === 0 && bccomp($posted, '0', SaleAmounts::SCALE) !== 0 => 'booked',

@@ -1,17 +1,18 @@
 <?php
 /**
- * @var string $controller_name
- * @var string $table_headers
- * @var array $filters
- * @var array $stock_locations
- * @var int $stock_location
- * @var array $config
+ * @var string      $controller_name
+ * @var string      $table_headers
+ * @var array       $filters
+ * @var array       $stock_locations
+ * @var int         $stock_location
+ * @var array       $config
  * @var string|null $start_date
  * @var string|null $end_date
- * @var array $selected_filters
+ * @var array       $selected_filters
  */
 
 use App\Models\Employee;
+
 ?>
 
 <?= view('partial/header') ?>
@@ -55,10 +56,9 @@ use App\Models\Employee;
         end_date = "<?= esc($end_date) ?>";
         <?php endif; ?>
 
-        <?php
-        echo view('partial/bootstrap_tables_locale');
-        $employee = model(Employee::class);
-        ?>
+        <?= view('partial/bootstrap_tables_locale');
+$employee = model(Employee::class);
+?>
 
         table_support.init({
             employee_id: <?= $employee->get_logged_in_employee_info()->person_id ?>,
@@ -93,7 +93,7 @@ use App\Models\Employee;
 <?= view('partial/table_filter_persistence', ['additional_params' => ['stock_location']]) ?>
 
 <div id="title_bar" class="btn-toolbar print_hide">
-    <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "$controller_name/csvImport" ?>" title="<?= lang('Items.import_items_csv') ?>">
+    <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "{$controller_name}/csvImport" ?>" title="<?= lang('Items.import_items_csv') ?>">
         <span class="bi bi-box-arrow-in-down" aria-hidden="true">&nbsp;</span><?= lang('Common.import_csv') ?>
     </button>
 
@@ -101,7 +101,7 @@ use App\Models\Employee;
         <span class="bi bi-bookmark" aria-hidden="true">&nbsp;</span><?= lang('Items.brands_manage') ?>
     </a>
 
-    <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-new="<?= lang('Common.new') ?>" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "$controller_name/view" ?>" title="<?= lang(ucfirst($controller_name) . '.new') ?>">
+    <button class="btn btn-primary btn-sm float-end modal-dlg" data-btn-new="<?= lang('Common.new') ?>" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "{$controller_name}/view" ?>" title="<?= lang(ucfirst($controller_name) . '.new') ?>">
         <span class="bi bi-tag" aria-hidden="true">&nbsp;</span><?= lang(ucfirst($controller_name) . '.new') ?>
     </button>
 </div>
@@ -111,38 +111,38 @@ use App\Models\Employee;
         <button id="delete" class="btn btn-outline-secondary btn-sm print_hide">
             <span class="bi bi-trash" aria-hidden="true">&nbsp;</span><?= lang('Common.delete') ?>
         </button>
-        <button id="bulk_edit" class="btn btn-outline-secondary btn-sm modal-dlg print_hide" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "items/bulkEdit" ?>" title="<?= lang('Items.edit_multiple_items') ?>">
+        <button id="bulk_edit" class="btn btn-outline-secondary btn-sm modal-dlg print_hide" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= 'items/bulkEdit' ?>" title="<?= lang('Items.edit_multiple_items') ?>">
             <span class="bi bi-pencil-square" aria-hidden="true">&nbsp;</span><?= lang('Items.bulk_edit') ?>
         </button>
-        <button id="generate_barcodes" class="btn btn-outline-secondary btn-sm print_hide" data-href="<?= "$controller_name/generateBarcodes" ?>" title="<?= lang('Items.generate_barcodes') ?>">
+        <button id="generate_barcodes" class="btn btn-outline-secondary btn-sm print_hide" data-href="<?= "{$controller_name}/generateBarcodes" ?>" title="<?= lang('Items.generate_barcodes') ?>">
             <span class="bi bi-upc-scan" aria-hidden="true">&nbsp;</span><?= lang('Items.generate_barcodes') ?>
         </button>
         <?= form_input(['name' => 'daterangepicker', 'class' => 'form-control form-control-sm', 'id' => 'daterangepicker', 'aria-label' => lang('Reports.date_range')]) ?>
         <?= form_multiselect('filters[]', $filters, $selected_filters ?? [], [
-            'id'                        => 'filters',
-            'aria-label'                => lang('Common.search_options'),
-            'class'                     => 'selectpicker show-menu-arrow',
-            'data-none-selected-text'   => lang('Common.none_selected_text'),
-            'data-selected-text-format' => 'count > 1',
-            'data-style'                => 'btn-outline-secondary btn-sm',
-            'data-width'                => 'fit'
-        ]) ?>
+    'id'                        => 'filters',
+    'aria-label'                => lang('Common.search_options'),
+    'class'                     => 'selectpicker show-menu-arrow',
+    'data-none-selected-text'   => lang('Common.none_selected_text'),
+    'data-selected-text-format' => 'count > 1',
+    'data-style'                => 'btn-outline-secondary btn-sm',
+    'data-width'                => 'fit',
+]) ?>
         <?php
-        if (count($stock_locations) > 1) {
-            echo form_dropdown(
-                'stock_location',
-                $stock_locations,
-                $stock_location,
-                [
-                    'id'         => 'stock_location',
-                    'aria-label' => lang('Items.stock_location'),
-                    'class'      => 'selectpicker show-menu-arrow',
-                    'data-style' => 'btn-outline-secondary btn-sm',
-                    'data-width' => 'fit'
-                ]
-            );
-        }
-        ?>
+if (count($stock_locations) > 1) {
+    echo form_dropdown(
+        'stock_location',
+        $stock_locations,
+        $stock_location,
+        [
+            'id'         => 'stock_location',
+            'aria-label' => lang('Items.stock_location'),
+            'class'      => 'selectpicker show-menu-arrow',
+            'data-style' => 'btn-outline-secondary btn-sm',
+            'data-width' => 'fit',
+        ],
+    );
+}
+?>
     </div>
 </div>
 

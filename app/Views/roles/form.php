@@ -1,14 +1,13 @@
 <?php
 /**
- * @var object|null $role
- * @var list<string> $held
+ * @var object|null                                                                                                                                                                              $role
+ * @var list<string>                                                                                                                                                                             $held
  * @var list<array{module_id: string, label: string, description: string, selectable: bool, permissions: list<array{permission_id: string, label: string, sensitive: bool, role_locked: bool}>}> $modules
- * @var bool $is_admin
- * @var list<string> $my_grants
+ * @var bool                                                                                                                                                                                     $is_admin
+ * @var list<string>                                                                                                                                                                             $my_grants
  */
-
-$isNew = $role === null;
-$scope = $isNew ? 'all' : (string) $role->record_scope;
+$isNew   = $role === null;
+$scope   = $isNew ? 'all' : (string) $role->record_scope;
 $mayGive = static fn (string $permissionId): bool => $is_admin || in_array($permissionId, $my_grants, true);
 ?>
 
@@ -84,7 +83,7 @@ $mayGive = static fn (string $permissionId): bool => $is_admin || in_array($perm
                                         $permissionId = $permission['permission_id'];
                                         $isHeld       = in_array($permissionId, $held, true);
                                         $refused      = $permission['sensitive'] || $permission['role_locked'];
-                                        $locked       = $refused || ! $mayGive($permissionId);
+                                        $locked       = $refused                 || ! $mayGive($permissionId);
                                         ?>
                                         <li class="form-check">
                                             <?php if ($locked && $isHeld && ! $refused): ?>
