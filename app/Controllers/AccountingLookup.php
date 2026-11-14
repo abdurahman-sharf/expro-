@@ -19,7 +19,6 @@ class AccountingLookup extends AccountingController
         AccountPicker::CUSTOMER => ['accounting_receivables', 'customers', 'sales'],
         AccountPicker::SUPPLIER => ['accounting_payables', 'suppliers', 'receivings', 'recurring_expenses'],
     ];
-
     private const LEDGER_SCREENS = ['reports_customers', 'reports_payments', 'reports_sales'];
 
     public function __construct()
