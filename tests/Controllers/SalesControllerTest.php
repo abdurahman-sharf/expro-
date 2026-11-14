@@ -6709,7 +6709,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         Database::connect()->table('sales')->where('sale_id', $quote)->update(['quote_number' => '<b onmouseover=alert(1)>Q-1</b>']);
 
-        $body = $this->get('/sales/suspended')->getBody();
+        $body = $this->get('/sales/suspended')->response()->getBody();
 
         $this->assertStringContainsString('&lt;b onmouseover=alert(1)&gt;Q-1&lt;/b&gt;', $body);
         $this->assertStringNotContainsString('<b onmouseover=alert(1)>', $body);
