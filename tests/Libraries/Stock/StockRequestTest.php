@@ -7,6 +7,8 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Stock\NegativeStockOption;
+use App\Libraries\Stock\StockOptions;
 use App\Libraries\Stock\StockPermissions;
 use App\Libraries\Stock\StockPermit;
 use App\Libraries\Stock\StockPermitSources;
@@ -278,6 +280,22 @@ class StockRequestTest extends CIUnitTestCase
         $this->switchOnTransferPermit();
 
         $this->refusedWith(AccountingError::StockDocumentOff, fn () => $this->requests->fulfil($requestId, $this->keeperId));
+    }
+
+    public function testFulfil_RefusesWhatTheLocationThatGivesDoesNotHoldWhateverTheSettingForASaleSays(): void
+    {
+        $itemId    = $this->stocked('10', '50');
+        $requestId = $this->ask([['item_id' => $itemId, 'quantity' => '11']]);
+
+        $this->requests->approve($requestId, $this->keeperId);
+
+        foreach ([NegativeStockOption::Allow, NegativeStockOption::Refuse, NegativeStockOption::RefuseAvailable] as $option) {
+            $this->setConfigValue(StockOptions::NEGATIVE_STOCK, $option->value);
+
+            $this->refusedWith(AccountingError::PurchaseStockWouldGoNegative, fn () => $this->requests->fulfil($requestId, $this->keeperId));
+        }
+
+        $this->assertSame(['approved', '10.000', '0.000'], [$this->requests->find($requestId)->status, $this->onHand($itemId), $this->onHand($itemId, $this->second)]);
     }
 
     public function testFulfil_RejectsWhenTheLocationThatGivesHoldsLessThanAskedAndLeavesTheRequestApproved(): void

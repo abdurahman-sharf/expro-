@@ -217,6 +217,7 @@ return [
     'key_system'                        => '',
     'key_tendered'                      => 'Edit Amount Tendered',
     'key_title'                         => 'Sales Keyboard Shortcuts',
+    'line_not_a_number'                 => '',
     'mc'                                => '',
     'mixed_branches'                    => '',
     'mode'                              => 'Режим на регистрация',

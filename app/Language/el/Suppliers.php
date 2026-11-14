@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Αριθμός Λογαριασμού',
     'agency_name'           => 'Όνομα Πρακτορείου',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Αδυναμία διαγραφής Προμηθευτή/ων. Ένας οι περισσότεροι έχουν Πωλήσεις.',
     'category'              => 'Κατηγορία',
     'commercial_registry'   => '',

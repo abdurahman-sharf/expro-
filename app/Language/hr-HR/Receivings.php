@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Ulazni mod',
     'new_supplier'                 => 'Novi dobavljač',
     'one_or_multiple'              => 'Primka(e)',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

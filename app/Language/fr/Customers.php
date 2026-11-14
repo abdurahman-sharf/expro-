@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Moyenne dépensée',
     'avg_discount'                  => 'Rabais moyen',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Information',
     'billing_email'                 => '',
     'billing_method'                => '',

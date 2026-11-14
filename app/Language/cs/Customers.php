@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Průměrná útrata',
     'avg_discount'                  => 'Průměrná sleva',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Informace',
     'billing_email'                 => '',
     'billing_method'                => '',

@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Leveringsmodus',
     'new_supplier'                 => 'Nieuwe leverancier',
     'one_or_multiple'              => 'levering(en)',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

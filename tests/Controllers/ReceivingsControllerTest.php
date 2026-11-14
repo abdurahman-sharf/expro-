@@ -3,7 +3,9 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\InvoiceDiscount;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\ReceivingType;
+use App\Libraries\Accounting\SupplierLedger;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Documents\CustomFields;
 use App\Libraries\Integrations\EntityTranslations;
@@ -427,6 +429,141 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $ids = $this->accountingDb()->table('receivings')->select('receiving_id')->where('comment', '')->orderBy('receiving_id', 'DESC')->limit(2)->get()->getResultArray();
         $this->receivingIds = array_merge($this->receivingIds, array_map('intval', array_column($ids, 'receiving_id')));
         $this->assertCount(2, $ids);
+    }
+
+    /**
+     * What a purchase of 300 comes to when it is completed with a way of payment and an amount typed
+     * in the box of the amount tendered: the saved receiving, the books and the receipt.
+     *
+     * @return array{receiving: object, body: string, payments: list<object>}
+     */
+    private function completeAPurchaseOf300(string $paymentType, string $amountTendered): array
+    {
+        $itemId = $this->item('0.00');
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '3', '100')]));
+
+        $response = $this->post('/receivings/complete', $this->completeForm($paymentType, $amountTendered));
+
+        $response->assertSee('RECV ');
+
+        $receiving = $this->newestReceiving();
+
+        return ['receiving' => $receiving, 'body' => (string) $response->response()->getBody(), 'payments' => $this->purchases->get_payments((int) $receiving->receiving_id)];
+    }
+
+    public function testPostComplete_BooksOnlyTheAmountTypedWhenItIsLessThanTheTotalAndLeavesTheRestOwed(): void
+    {
+        $done = $this->completeAPurchaseOf300(lang('Sales.cash'), '100.00');
+
+        $this->assertSame('-200.00', $this->balance($this->supplierAccount()), 'What is still owed to the supplier');
+        $this->assertSame('-100.00', $this->balance($this->accountId('cash')), 'What went out of the cash');
+        $this->assertCount(1, $done['payments']);
+        $this->assertSame(['100.00', 'completed'], [$done['payments'][0]->payment_amount, $done['payments'][0]->payment_status]);
+        $this->assertSame(PaymentType::Cash, PaymentType::fromLabel($done['payments'][0]->payment_type));
+        $this->assertSame(PaymentType::Due, PaymentType::fromLabel((string) $done['receiving']->payment_type));
+        $this->assertNull($done['receiving']->treasury_id);
+        $this->assertSame('200.0000', (new SupplierLedger())->position($this->supplierId)->open(), 'The supplier ledger shows what is left to pay');
+        $this->assertStockTies();
+    }
+
+    public function testPostComplete_BooksTheWholePurchaseOnAccountWhenZeroIsTyped(): void
+    {
+        $done = $this->completeAPurchaseOf300(lang('Sales.cash'), '0');
+
+        $this->assertSame('-300.00', $this->balance($this->supplierAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')));
+        $this->assertSame([], $done['payments']);
+        $this->assertSame(PaymentType::Due, PaymentType::fromLabel((string) $done['receiving']->payment_type));
+    }
+
+    public function testPostComplete_BooksTheWholePurchaseAsPaidWhenNoAmountIsTyped(): void
+    {
+        $done = $this->completeAPurchaseOf300(lang('Sales.cash'), '');
+
+        $this->assertSame('0.00', $this->balance($this->supplierAccount()));
+        $this->assertSame('-300.00', $this->balance($this->accountId('cash')));
+        $this->assertSame([], $done['payments']);
+        $this->assertSame(PaymentType::Cash, PaymentType::fromLabel((string) $done['receiving']->payment_type));
+    }
+
+    public function testPostComplete_BooksTheWholePurchaseAsPaidAndShowsTheChangeWhenMoreIsTyped(): void
+    {
+        $done = $this->completeAPurchaseOf300(lang('Sales.cash'), '500.00');
+
+        $this->assertSame('0.00', $this->balance($this->supplierAccount()));
+        $this->assertSame('-300.00', $this->balance($this->accountId('cash')));
+        $this->assertSame([], $done['payments']);
+        $this->assertStringContainsString(lang('Sales.change_due'), $done['body']);
+        $this->assertStringContainsString(to_currency('200'), $done['body']);
+        $this->assertStringNotContainsString(lang('Sales.amount_due'), $done['body']);
+    }
+
+    public function testPostComplete_ShowsTheAmountPaidAndTheAmountStillDueOnTheReceiptOfAPartPayment(): void
+    {
+        $done = $this->completeAPurchaseOf300(lang('Sales.cash'), '100.00');
+
+        $this->assertStringContainsString(lang('Sales.amount_tendered'), $done['body']);
+        $this->assertStringContainsString(to_currency('100'), $done['body']);
+        $this->assertStringContainsString(lang('Sales.amount_due'), $done['body']);
+        $this->assertStringContainsString(to_currency('200'), $done['body']);
+        $this->assertStringNotContainsString(lang('Sales.change_due'), $done['body']);
+    }
+
+    public function testPostComplete_LeavesThePurchaseWhollyOnAccountWhenItsWayOfPaymentIsDueWhateverIsTyped(): void
+    {
+        $done = $this->completeAPurchaseOf300(lang('Sales.due'), '100.00');
+
+        $this->assertSame('-300.00', $this->balance($this->supplierAccount()));
+        $this->assertSame('0.00', $this->balance($this->accountId('cash')));
+        $this->assertSame([], $done['payments']);
+        $this->assertStringNotContainsString(lang('Sales.amount_tendered'), $done['body']);
+    }
+
+    public function testPostComplete_RefusesAnAmountTenderedThatIsNegativeOrNotANumberAndSavesNothing(): void
+    {
+        $itemId = $this->item('0.00');
+        $before = $this->countRows('receivings');
+
+        foreach (['-5' => lang('Sales.negative_amount_tendered'), 'abc' => lang('Sales.must_enter_numeric')] as $typed => $message) {
+            $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '3', '100')]));
+
+            $this->post('/receivings/complete', $this->completeForm(lang('Sales.cash'), (string) $typed))->assertSee($message);
+            $this->assertSame($before, $this->countRows('receivings'));
+            $this->assertNotEmpty(session()->get('recv_cart'), 'What was entered is still in the cart');
+        }
+    }
+
+    public function testPostComplete_BooksAPartPaymentOfAPurchaseWhileAccountingIsOffToo(): void
+    {
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $done = $this->completeAPurchaseOf300(lang('Sales.cash'), '100.00');
+
+        $this->assertCount(1, $done['payments']);
+        $this->assertSame('100.00', $done['payments'][0]->payment_amount);
+        $this->assertSame(PaymentType::Due, PaymentType::fromLabel((string) $done['receiving']->payment_type));
+        $this->assertSame(0, $this->countRows('accounting_journals'));
+    }
+
+    public function testPostComplete_BooksAReturnOnTheAccountOfTheSupplierWhenZeroIsTypedAndRefusesAPartRefund(): void
+    {
+        $itemId   = $this->item('0.00');
+        $purchase = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')], -1, lang('Sales.cash'));
+        $before   = $this->countRows('receivings');
+
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '-4', '50')], 'return', -1, $purchase));
+        $this->post('/receivings/complete', $this->completeForm(lang('Sales.cash'), '50.00'))->assertSee(lang('Receivings.part_refund_not_supported'));
+        $this->assertSame($before, $this->countRows('receivings'));
+
+        $this->loginAs($this->buyer(), $this->cart([$this->cartLine($itemId, 1, '-4', '50')], 'return', -1, $purchase));
+        $this->post('/receivings/complete', $this->completeForm(lang('Sales.cash'), '0'))->assertSee('RECV ');
+
+        $return = $this->newestReceiving();
+
+        $this->assertSame('return', $return->receiving_type);
+        $this->assertSame(PaymentType::Due, PaymentType::fromLabel((string) $return->payment_type));
+        $this->assertSame('200.00', $this->balance($this->supplierAccount()), 'The refund is left on the account of the supplier');
+        $this->assertSame('-500.00', $this->balance($this->accountId('cash')));
     }
 
     public function testPostComplete_SaysWhyTheBooksRefusedTheReceivingAndKeepsTheCart(): void
@@ -1157,6 +1294,20 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $response = $this->post('/receivings/save/' . $receivingId, ['date' => date($this->dateFormat()), 'comment' => 'changed', 'supplier_id' => $this->supplierId, 'employee_id' => $this->employeeId, 'reference' => 'X']);
 
         $response->assertStatus(403);
+        $this->assertSame('test', $this->receivingRow($receivingId)->comment);
+    }
+
+    public function testPostSave_SaysTheDateIsNotValidWhenItIsNotADateAndChangesNothing(): void
+    {
+        $itemId      = $this->item('0.00');
+        $receivingId = $this->buy([$this->purchaseLine($itemId, 0, '10', '50')]);
+        $this->loginAs($this->buyer());
+
+        $response = $this->post('/receivings/save/' . $receivingId, ['date' => 'not a date', 'comment' => 'changed', 'supplier_id' => $this->supplierId, 'employee_id' => $this->employeeId, 'reference' => 'X']);
+        $result   = $this->jsonOf($response);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_invalid_date'), $result['message']);
         $this->assertSame('test', $this->receivingRow($receivingId)->comment);
     }
 

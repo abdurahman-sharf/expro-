@@ -217,6 +217,7 @@ return [
     'key_system'                        => 'Sistem Qısayolları',
     'key_tendered'                      => 'Təklif olunan məbləği dəyişdirin',
     'key_title'                         => 'Satış üçün klaviatura qısa yolları',
+    'line_not_a_number'                 => '',
     'mc'                                => '',
     'mixed_branches'                    => '',
     'mode'                              => 'Qeydiyyat Rejimi',

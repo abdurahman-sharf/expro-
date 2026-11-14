@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Jenis Pembelian',
     'new_supplier'                 => 'Pemasok Baru',
     'one_or_multiple'              => 'penerimaan',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

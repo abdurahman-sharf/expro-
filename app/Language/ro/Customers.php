@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Cheltuit mediu',
     'avg_discount'                  => 'Reducere medie',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Informatii',
     'billing_email'                 => '',
     'billing_method'                => '',

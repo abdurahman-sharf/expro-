@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Harcanan ortalama',
     'avg_discount'                  => 'Ortalama indirim',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Bilgi',
     'billing_email'                 => '',
     'billing_method'                => '',

@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Kontonummer',
     'agency_name'           => 'Name der Agentur',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Kann gewählte Lieferanten nicht löschen, einer oder mehrere weisen Verkäufe aus.',
     'category'              => 'Kategorie',
     'commercial_registry'   => '',

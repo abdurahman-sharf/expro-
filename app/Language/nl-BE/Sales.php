@@ -217,6 +217,7 @@ return [
     'key_system'                        => 'Systeem Sneltoetsen',
     'key_tendered'                      => 'Wijziging Aangeboden Bedrag',
     'key_title'                         => 'Sneltoetsen Verkoop',
+    'line_not_a_number'                 => '',
     'mc'                                => '',
     'mixed_branches'                    => '',
     'mode'                              => 'Type Registratie',

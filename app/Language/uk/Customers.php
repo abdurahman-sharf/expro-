@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Середнє витрачене',
     'avg_discount'                  => 'Середня знижка',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Інформація',
     'billing_email'                 => '',
     'billing_method'                => '',

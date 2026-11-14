@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Hesap No',
     'agency_name'           => 'Ajans Adı',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Sağlayıcı silinemedi, bazı sağlayıcıların satışı var.',
     'category'              => 'Kategori',
     'commercial_registry'   => '',

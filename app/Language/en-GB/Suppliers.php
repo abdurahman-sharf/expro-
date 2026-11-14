@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Account #',
     'agency_name'           => 'Agency Name',
+    'balance_not_settled'   => 'Not deleted: the account of {0} is not settled (balance {1}). Settle it first.',
     'cannot_be_deleted'     => 'Could not delete the selected Supplier(s). One or more have Sales.',
     'category'              => 'Category',
     'commercial_registry'   => 'Commercial registry',

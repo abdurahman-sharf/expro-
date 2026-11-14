@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Order type',
     'new_supplier'                 => 'N. Leverancier',
     'one_or_multiple'              => 'order(s)',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

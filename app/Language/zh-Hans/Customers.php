@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => '平均花费',
     'avg_discount'                  => '',
+    'balance_not_settled'           => '',
     'basic_information'             => '个人信息',
     'billing_email'                 => '',
     'billing_method'                => '',

@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Orta xərclənən',
     'avg_discount'                  => 'Orta endirim',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Məlumat',
     'billing_email'                 => '',
     'billing_method'                => '',

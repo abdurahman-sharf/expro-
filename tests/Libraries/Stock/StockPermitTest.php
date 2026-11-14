@@ -12,6 +12,7 @@ use App\Libraries\Accounting\PostingException;
 use App\Libraries\Accounting\StockLedger;
 use App\Libraries\Numbering\DocumentType;
 use App\Libraries\Organization\BranchException;
+use App\Libraries\Stock\NegativeStockOption;
 use App\Libraries\Stock\StockDocumentSettings;
 use App\Libraries\Stock\StockOptions;
 use App\Libraries\Stock\StockPermissions;
@@ -308,6 +309,23 @@ class StockPermitTest extends CIUnitTestCase
         $this->assertSame([], $this->journalsOfSource(StockPermitSources::TRANSFER, $permitId));
         $this->assertSame('3.000', $this->onHand($itemId));
         $this->assertSame('2.000', $this->onHand($itemId, $second));
+    }
+
+    public function testCreate_RefusesAnIssueAndATransferBelowNothingWhateverTheSettingForASaleSays(): void
+    {
+        $this->switchOnTransferPermit();
+
+        $second = $this->openLocation();
+        $itemId = $this->stocked('10', '50');
+
+        foreach ([NegativeStockOption::Allow, NegativeStockOption::Refuse, NegativeStockOption::RefuseAvailable] as $option) {
+            $this->setConfigValue(StockOptions::NEGATIVE_STOCK, $option->value);
+
+            $this->refusedWith(AccountingError::PurchaseStockWouldGoNegative, fn () => $this->issue($itemId, '11'));
+            $this->refusedWith(AccountingError::PurchaseStockWouldGoNegative, fn () => $this->permits->create($this->input(StockPermitType::Transfer, [['item_id' => $itemId, 'quantity' => '11']], ['to_location_id' => $second]), $this->keeperId));
+        }
+
+        $this->assertSame(['10.000', '0.000'], [$this->onHand($itemId), $this->onHand($itemId, $second)]);
     }
 
     public function testCreate_RejectsATransferOfMoreThanTheSourceHoldsOrToTheSameLocation(): void

@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
+use App\Libraries\Accounting\PartyDeletion;
 use App\Libraries\MasterData\CustomerFields;
 use App\Libraries\MasterData\PartyContacts;
 use App\Libraries\MasterData\PartyLengths;
@@ -243,15 +244,43 @@ class Suppliers extends Persons
      */
     public function postDelete(): ResponseInterface
     {
-        $suppliers_to_delete = $this->request->getPost('ids', FILTER_SANITIZE_NUMBER_INT);
+        $suppliersToDelete = $this->request->getPost('ids', FILTER_SANITIZE_NUMBER_INT);
+        $deletion = new PartyDeletion();
 
-        if ($this->supplier->delete_list($suppliers_to_delete)) {
+        $count = 0;
+        $refusals = [];
+
+        $suppliers = $this->supplier->get_multiple_info($suppliersToDelete)->getResult();
+
+        foreach ($suppliers as $info) {
+            try {
+                $outcome = $deletion->deleteIfSettled(PartyDeletion::SUPPLIER, (int) $info->person_id, fn (): bool => $this->supplier->delete($info->person_id));
+            } catch (AccountingException) {
+                continue;
+            }
+
+            if ($outcome['amount'] !== null) {
+                $refusals[] = lang('Suppliers.balance_not_settled', [$info->company_name, to_currency($outcome['amount'])]);
+
+                continue;
+            }
+
+            if ($outcome['deleted']) {
+                $count++;
+            }
+        }
+
+        if ($count === count($suppliers)) {
             return $this->response->setJSON([
                 'success' => true,
-                'message' => lang('Suppliers.successful_deleted') . ' ' . count($suppliers_to_delete) . ' ' . lang('Suppliers.one_or_multiple')
+                'message' => lang('Suppliers.successful_deleted') . ' ' . count($suppliersToDelete) . ' ' . lang('Suppliers.one_or_multiple')
             ]);
-        } else {
-            return $this->response->setJSON(['success' => false, 'message' => lang('Suppliers.cannot_be_deleted')]);
         }
+
+        if ($refusals !== []) {
+            return $this->response->setJSON(['success' => false, 'message' => trim(($count > 0 ? lang('Suppliers.successful_deleted') . ' ' . $count . ' ' . lang('Suppliers.one_or_multiple') . '. ' : '') . implode(' ', $refusals))]);
+        }
+
+        return $this->response->setJSON(['success' => false, 'message' => lang('Suppliers.cannot_be_deleted')]);
     }
 }

@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Számla #',
     'agency_name'           => 'Ügynökség neve',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Nem lehet törölni a beszállítót, mert már van eladásuk.',
     'category'              => '',
     'commercial_registry'   => '',

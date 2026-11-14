@@ -7,10 +7,12 @@ use App\Libraries\Accounting\TreasuryService;
 use App\Models\Cashup;
 use CodeIgniter\Config\Factories;
 use CodeIgniter\Database\Config;
+use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\OSPOS;
+use Config\Services;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
@@ -207,6 +209,93 @@ class CashupControllerTest extends CIUnitTestCase
             $this->postedLines('cashup', (int) $result['id']),
         );
         $this->assertSame('-14.5000', $this->accountingDb()->table('cash_up')->where('cashup_id', $result['id'])->get()->getRow()->cash_difference);
+    }
+
+    public function testPostSave_PostsOnlyTheMiscountOfADayOfEveryKindOfCash(): void
+    {
+        $cashierId = $this->accountingCashier();
+        $this->startBuying();
+
+        try {
+            $today = date('Y-m-d');
+            $db    = $this->accountingDb();
+
+            $this->sellFor('400.00', 'Cash', $today . ' 09:00:00');
+            $this->sellFor('250.00', 'Debit Card', $today . ' 09:30:00');
+            $db->table('revenues')->insert(['date' => $today, 'amount' => '20.00', 'payment_type' => 'Cash', 'description' => 'Voucher', 'employee_id' => $this->clerkId, 'deleted' => 0, 'branch_id' => 1]);
+            $expense = $this->expenseData('45.00', '0', 'Cash', null, $today . ' 10:00:00');
+
+            $this->assertTrue($this->expenses->save_value($expense, NEW_ENTRY, $this->clerkId));
+
+            $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($this->item('0.00'), 0, '2', '100')], -1, 'Cash'));
+
+            $onAccount = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '3', '100')], -1, lang('Sales.due'));
+
+            $this->assertGreaterThan(0, $onAccount);
+            $this->assertTrue($this->purchases->update($onAccount, ['payments' => [[
+                'payment_id' => NEW_ENTRY, 'payment_type' => 'Cash', 'payment_amount' => '150.00', 'employee_id' => $this->employeeId, 'payment_status' => 'completed', 'reference_code' => '',
+            ]]]));
+
+            $db->table('customer_credit_refunds')->insert(['branch_id' => 1, 'customer_id' => $this->customerId, 'amount' => '35.00', 'refund_date' => $today, 'payment_type' => 'Cash', 'status' => 'completed']);
+
+            $this->loginAs($cashierId);
+
+            $window = ['open_date' => $today . ' 00:00:00', 'close_date' => $today . ' 23:59:59'];
+            $closed = $this->saveClosing($this->closingForm('86.50', $window));
+            $row    = $db->table('cash_up')->where('cashup_id', $closed['id'])->get()->getRow();
+
+            $this->assertTrue($closed['success']);
+            $this->assertSame('90.0000', $row->expected_amount_cash);
+            $this->assertSame('-3.5000', $row->cash_difference);
+            $this->assertSame(
+                [$this->accountId('cash_difference') . '=3.50/0.00', $this->accountId('cash') . '=0.00/3.50'],
+                $this->postedLines('cashup', (int) $closed['id']),
+            );
+        } finally {
+            $db->table('revenues')->emptyTable();
+            $db->table('customer_credit_refunds')->emptyTable();
+            $this->stopBuying();
+        }
+    }
+
+    public function testPostSave_PostsNothingWhenTheCountIsTheCashOfADayOfEveryKind(): void
+    {
+        $cashierId = $this->accountingCashier();
+        $this->startBuying();
+
+        try {
+            $today = date('Y-m-d');
+            $db    = $this->accountingDb();
+
+            $this->sellFor('400.00', 'Cash', $today . ' 09:00:00');
+            $this->assertGreaterThan(0, $this->buy([$this->purchaseLine($this->item('0.00'), 0, '2', '100')], -1, 'Cash'));
+            $db->table('customer_credit_refunds')->insert(['branch_id' => 1, 'customer_id' => $this->customerId, 'amount' => '35.00', 'refund_date' => $today, 'payment_type' => 'Cash', 'status' => 'completed']);
+
+            $this->loginAs($cashierId);
+
+            $closed = $this->saveClosing($this->closingForm('265.00', ['open_date' => $today . ' 00:00:00', 'close_date' => $today . ' 23:59:59']));
+
+            $this->assertTrue($closed['success']);
+            $this->assertSame('265.0000', $db->table('cash_up')->where('cashup_id', $closed['id'])->get()->getRow()->expected_amount_cash);
+            $this->assertSame(0, $this->accountingDb()->table('accounting_journals')->where('source_type', 'cashup')->countAllResults());
+        } finally {
+            $db->table('customer_credit_refunds')->emptyTable();
+            $this->stopBuying();
+        }
+    }
+
+    public function testPostSave_SaysTheDateIsNotValidWhenItIsNotADateAndSavesNothing(): void
+    {
+        $this->accountingCashier();
+
+        foreach (['open_date', 'close_date'] as $field) {
+            $result = $this->saveClosing($this->closingForm('485.50', [$field => 'not a date']));
+
+            $this->assertFalse($result['success']);
+            $this->assertSame(lang('Accounting.error_invalid_date'), $result['message']);
+        }
+
+        $this->assertSame(0, $this->countRows('cash_up'));
     }
 
     public function testPostSave_PostsNothingWhenTheCountIsWhatWasExpected(): void
@@ -459,37 +548,73 @@ class CashupControllerTest extends CIUnitTestCase
         return $value[1];
     }
 
-    public function testGetView_PrefillsTheClosingAmountsFromTheSalesOfEveryBranchForAnEmployeeOfOneBranch(): void
+    /**
+     * @param callable(): int $reader the employee who reads the screen, made when the cash-up is there
+     *
+     * @return array{cash: string, card: string} the amounts the closing screen prefills for a cash-up of the branch given
+     */
+    private function prefilledClosingOf(callable $reader, ?int $branchId): array
     {
+        $db = $this->accountingDb();
+
+        $db->table('cash_up')->insert([
+            'open_date' => date('Y-m-d H:i:s', strtotime('-1 day')), 'close_date' => date('Y-m-d H:i:s', strtotime('-1 day')),
+            'open_amount_cash' => '0', 'transfer_amount_cash' => '0', 'closed_amount_cash' => '0', 'closed_amount_due' => '0',
+            'closed_amount_card' => '0', 'closed_amount_check' => '0', 'closed_amount_total' => '0',
+            'description' => 'branch cash-up', 'open_employee_id' => $this->employeeId, 'close_employee_id' => $this->employeeId, 'deleted' => 0,
+            'branch_id' => $branchId,
+        ]);
+
+        $cashupId = (int) $db->insertID();
+
+        $this->loginAs($reader());
+        $this->dropEveryReportTable();
+
+        $body = $this->get('/cashups/view/' . $cashupId)->getBody();
+
+        return ['cash' => $this->closedAmount($body, 'closed_amount_cash'), 'card' => $this->closedAmount($body, 'closed_amount_card')];
+    }
+
+    private function inTheBusinessOfTwoBranches(callable $test): void
+    {
+        $this->startExpenses();
         Factories::reset('config');
+        Services::language()->setLocale('en');
         $this->startBuying();
         $this->businessInTwoBranches();
 
         try {
-            $db = $this->accountingDb();
-            $db->table('sales')->whereIn('sale_id', [$this->reportSales['a'], $this->reportSales['b']])->update(['sale_time' => date('Y-m-d H:i:s')]);
-            $db->table('cash_up')->insert([
-                'open_date' => date('Y-m-d H:i:s', strtotime('-1 day')), 'close_date' => date('Y-m-d H:i:s', strtotime('-1 day')),
-                'open_amount_cash' => '0', 'transfer_amount_cash' => '0', 'closed_amount_cash' => '0', 'closed_amount_due' => '0',
-                'closed_amount_card' => '0', 'closed_amount_check' => '0', 'closed_amount_total' => '0',
-                'description' => 'branch cash-up', 'open_employee_id' => $this->employeeId, 'close_employee_id' => $this->employeeId, 'deleted' => 0,
-            ]);
+            $this->accountingDb()->table('sales')->whereIn('sale_id', [$this->reportSales['a'], $this->reportSales['b']])->update(['sale_time' => date('Y-m-d H:i:s')]);
 
-            $cashupId = (int) $db->insertID();
-
-            $this->loginAs($this->employeeWithGrants(['cashups'], [1]));
-            $this->dropEveryReportTable();
-
-            $body = $this->get('/cashups/view/' . $cashupId)->getBody();
-
-            $this->assertSame('207.00', $this->closedAmount($body, 'closed_amount_cash'));
-            $this->assertSame('126.00', $this->closedAmount($body, 'closed_amount_card'));
+            $test();
         } finally {
             $this->accountingDb()->table('cash_up')->where('description', 'branch cash-up')->delete();
             $this->forgetTheReportBusiness();
             $this->stopBuying();
             $this->removeTheReportItems();
         }
+    }
+
+    public function testGetView_PrefillsTheClosingAmountsFromTheSalesOfEveryBranchForAnEmployeeOfEveryBranch(): void
+    {
+        $this->inTheBusinessOfTwoBranches(function (): void {
+            $amounts = $this->prefilledClosingOf(fn (): int => $this->employeeWithGrants(['cashups']), 1);
+
+            $this->assertSame(['cash' => '207.00', 'card' => '126.00'], $amounts);
+        });
+    }
+
+    public function testGetView_PrefillsTheClosingAmountsFromTheSalesOfTheBranchesOfAnEmployeeLimitedToThem(): void
+    {
+        $this->inTheBusinessOfTwoBranches(function (): void {
+            $first  = $this->prefilledClosingOf(fn (): int => $this->employeeWithGrants(['cashups'], [1]), 1);
+            $second = $this->prefilledClosingOf(fn (): int => $this->employeeWithGrants(['cashups'], [$this->branchB]), $this->branchB);
+            $both   = $this->prefilledClosingOf(fn (): int => $this->employeeWithGrants(['cashups'], [1, $this->branchB]), 1);
+
+            $this->assertSame(['cash' => '207.00', 'card' => '0.00'], $first);
+            $this->assertSame(['cash' => '0.00', 'card' => '126.00'], $second);
+            $this->assertSame(['cash' => '207.00', 'card' => '126.00'], $both);
+        });
     }
 
     public function testGetView_ShowsTheExpectedCashTheDifferenceAndTheNoteOnceEach(): void
@@ -541,31 +666,121 @@ class CashupControllerTest extends CIUnitTestCase
         $this->assertSame([(string) $second, (string) $first], array_column(json_decode($response->getJSON(), true)['rows'], 'cashup_id'));
     }
 
-    public function testGetRow_HidesACashUpOfABranchTheEmployeeDoesNotWorkIn(): void
-    {
-        $this->markTestSkipped('Open finding R3-I6: cashups/row and cashups/view give a cash-up of another branch to an employee who does not work in it. Remove this line when they refuse it.');
+    private const DATED_SEARCH = '?search=&start_date=2026-10-01&end_date=2026-10-31&limit=50&offset=0&sort=cashup_id&order=asc';
 
+    private function assertNotFound(string $uri): void
+    {
+        try {
+            $this->get($uri);
+        } catch (PageNotFoundException) {
+            $this->addToAssertionCount(1);
+
+            return;
+        }
+
+        $this->fail("{$uri} was shown to an employee who does not work in the branch of the cash-up");
+    }
+
+    /**
+     * @return array{int, int} the id of a cash-up saved by an employee of a second branch, and the id of that branch
+     */
+    private function cashUpOfASecondBranch(string $counted = '90.75'): array
+    {
         $this->accountingCashier();
 
         $second = $this->createBranch('B2');
-        $remote = $this->employeeWithGrants(['cashups'], [$second]);
 
-        $this->loginAs($remote);
+        $this->loginAs($this->employeeWithGrants(['cashups'], [$second]));
 
-        $created = $this->saveClosing($this->closingForm('90.75'));
+        $created = $this->saveClosing($this->closingForm($counted));
 
         $this->assertTrue($created['success']);
 
+        return [(int) $created['id'], $second];
+    }
+
+    public function testGetRow_HidesACashUpOfABranchTheEmployeeDoesNotWorkIn(): void
+    {
+        [$cashupId] = $this->cashUpOfASecondBranch();
+
         $this->loginAs($this->employeeWithGrants(['cashups'], [1]));
 
-        $screens = [
-            'row'    => (string) $this->get('/cashups/row/' . $created['id'])->response()->getBody(),
-            'view'   => (string) $this->get('/cashups/view/' . $created['id'])->response()->getBody(),
-            'search' => (string) $this->get('/cashups/search?limit=50&offset=0&search=&order=asc')->response()->getBody(),
-        ];
+        $search = $this->get('/cashups/search' . self::DATED_SEARCH);
 
-        $leaks = array_keys(array_filter($screens, static fn (string $body): bool => str_contains($body, '90.75')));
+        $this->assertNotFound('/cashups/row/' . $cashupId);
+        $this->assertNotFound('/cashups/view/' . $cashupId);
+        $this->assertStringNotContainsString('90.75', (string) $search->response()->getBody());
+        $this->assertSame([], json_decode($search->getJSON(), true)['rows']);
+    }
 
-        $this->assertSame([], $leaks, 'Screens that show the cash-up of a branch the employee does not work in');
+    public function testGetRow_ShowsACashUpOfABranchTheEmployeeWorksInAndToAnEmployeeOfEveryBranch(): void
+    {
+        [$cashupId, $second] = $this->cashUpOfASecondBranch();
+
+        foreach ([$this->employeeWithGrants(['cashups'], [$second]), $this->employeeWithGrants(['cashups'], [1, $second]), $this->employeeWithGrants(['cashups'])] as $reader) {
+            $this->loginAs($reader);
+
+            $row  = $this->get('/cashups/row/' . $cashupId);
+            $view = $this->get('/cashups/view/' . $cashupId);
+
+            $row->assertStatus(200);
+            $row->assertSee('90.75');
+            $view->assertStatus(200);
+            $view->assertSee('90.75');
+            $this->assertSame([(string) $cashupId], array_column(json_decode($this->get('/cashups/search' . self::DATED_SEARCH)->getJSON(), true)['rows'], 'cashup_id'));
+        }
+    }
+
+    public function testGetSearch_ListsOnlyTheCashUpsOfTheBranchesTheEmployeeWorksIn(): void
+    {
+        [$remoteId] = $this->cashUpOfASecondBranch('90.75');
+
+        $this->loginAs($this->employeeWithGrants(['cashups'], [1]));
+
+        $ownId = (int) $this->saveClosing($this->closingForm('60.25'))['id'];
+
+        $search = json_decode($this->get('/cashups/search' . self::DATED_SEARCH)->getJSON(), true);
+
+        $this->assertSame([(string) $ownId], array_column($search['rows'], 'cashup_id'));
+        $this->assertSame(1, (int) $search['total']);
+    }
+
+    public function testGetRow_TreatsACashUpWithNoBranchAsOneOfTheDefaultBranch(): void
+    {
+        $this->accountingCashier();
+        $this->setConfigValue('accounting_enabled', '0');
+
+        $legacyId = (int) $this->saveClosing($this->closingForm('77.77'))['id'];
+
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $second = $this->createBranch('B3');
+
+        $this->loginAs($this->employeeWithGrants(['cashups'], [$second]));
+
+        $this->assertNotFound('/cashups/row/' . $legacyId);
+        $this->assertNotFound('/cashups/view/' . $legacyId);
+        $this->assertSame([], json_decode($this->get('/cashups/search' . self::DATED_SEARCH)->getJSON(), true)['rows']);
+
+        $this->loginAs($this->employeeWithGrants(['cashups'], [1]));
+
+        $row = $this->get('/cashups/row/' . $legacyId);
+
+        $row->assertStatus(200);
+        $row->assertSee('77.77');
+        $this->assertSame([(string) $legacyId], array_column(json_decode($this->get('/cashups/search' . self::DATED_SEARCH)->getJSON(), true)['rows'], 'cashup_id'));
+    }
+
+    public function testPostDelete_RefusesCashUpsOfABranchTheEmployeeDoesNotWorkInAndDeletesNone(): void
+    {
+        [$remoteId] = $this->cashUpOfASecondBranch();
+
+        $this->loginAs($this->employeeWithGrants(['cashups'], [1]));
+
+        $ownId    = (int) $this->saveClosing($this->closingForm('60.25'))['id'];
+        $response = json_decode($this->post('/cashups/delete', ['ids' => [(string) $ownId, (string) $remoteId]])->getJSON(), true);
+
+        $this->assertFalse($response['success']);
+        $this->assertSame(0, $this->accountingDb()->table('cash_up')->where('deleted', 1)->countAllResults());
     }
 }

@@ -217,6 +217,7 @@ return [
     'key_system'                        => 'Raccourcis systèmes',
     'key_tendered'                      => 'Modifier le montant remis',
     'key_title'                         => 'Raccourcis Claviers des Ventes',
+    'line_not_a_number'                 => '',
     'mc'                                => '',
     'mixed_branches'                    => '',
     'mode'                              => 'Mode d\'Enregistrement',

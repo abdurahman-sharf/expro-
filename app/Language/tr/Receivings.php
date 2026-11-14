@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Alım Türü',
     'new_supplier'                 => 'Yeni Sağlayıcı',
     'one_or_multiple'              => 'alıcı (lar)',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

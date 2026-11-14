@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Número de Cuenta',
     'agency_name'           => 'Nombre de Agencia',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'No se puede borrar el/los Proveedor(es) seleccionado(s). Uno o más tienen Ventas.',
     'category'              => 'Categoría',
     'commercial_registry'   => '',

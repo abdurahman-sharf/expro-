@@ -64,6 +64,7 @@ return [
     'mode'                         => '',
     'new_supplier'                 => '',
     'one_or_multiple'              => '',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

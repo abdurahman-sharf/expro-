@@ -217,6 +217,7 @@ return [
     'key_system'                        => 'System-genvägar',
     'key_tendered'                      => 'Redigera det remitterade beloppet',
     'key_title'                         => 'Tangentbordsgenvägar för försäljning',
+    'line_not_a_number'                 => '',
     'mc'                                => '',
     'mixed_branches'                    => '',
     'mode'                              => 'Registrera läge',

@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'លេខគណនី',
     'agency_name'           => 'លេខភ្នាក់ងារ',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'មិនអាចលុបអ្នកផ្គត់ផ្គងដែលបានជ្រើសរើស​ ។ មានទំនិញកំពុងដាក់លក់',
     'category'              => 'ប្រភេទទំនិញ',
     'commercial_registry'   => '',

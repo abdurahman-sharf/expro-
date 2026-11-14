@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Số hiệu tài khoản',
     'agency_name'           => 'Tên đại lý',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Không thể xóa các Nhà cung cấp đã chọn. Một hay nhiều có Bán hàng.',
     'category'              => 'Thể loại',
     'commercial_registry'   => '',

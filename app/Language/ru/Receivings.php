@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Режим закупок',
     'new_supplier'                 => 'Новый поставщик',
     'one_or_multiple'              => 'закупка(и)',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

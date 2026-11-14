@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Átvétel módja',
     'new_supplier'                 => 'Új beszállitó',
     'one_or_multiple'              => 'átvétel(ek)',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

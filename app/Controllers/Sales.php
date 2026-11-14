@@ -1683,9 +1683,14 @@ class Sales extends Secure_Controller
 
         $messages = [
             'price' => [
+                'decimal_locale'     => lang('Sales.line_not_a_number'),
                 'nonNegativeDecimal' => lang('Sales.negative_price_invalid'),
             ],
+            'quantity' => [
+                'decimal_locale' => lang('Sales.line_not_a_number'),
+            ],
             'discount' => [
+                'decimal_locale'     => lang('Sales.line_not_a_number'),
                 'nonNegativeDecimal' => lang('Sales.negative_discount_invalid'),
             ],
         ];
@@ -3489,6 +3494,11 @@ class Sales extends Secure_Controller
         $employeeId = $this->employee->get_logged_in_employee_info()->person_id;
         $inventory = model(Inventory::class);
         $dateFormatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $newdate);
+
+        if ($dateFormatter === false) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Accounting.error_invalid_date'), 'id' => $saleId]);
+        }
+
         $saleTime = $dateFormatter->format('Y-m-d H:i:s');
 
         $saleData = [

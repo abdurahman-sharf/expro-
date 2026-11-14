@@ -3,6 +3,7 @@
 return [
     'account_number'        => '帳號 #',
     'agency_name'           => ' ',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => '無法刪除所選擇的供應商，選定的供應商中至少有一家已有銷售紀錄。',
     'category'              => '',
     'commercial_registry'   => '',

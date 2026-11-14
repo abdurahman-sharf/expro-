@@ -237,6 +237,17 @@ class ExpensesControllerTest extends CIUnitTestCase
         $this->assertSame('-230.00', $this->assertTreasuryTiesToItsAccount($treasury));
     }
 
+    public function testPostSave_SaysTheDateIsNotValidWhenItIsNotADateAndSavesNothing(): void
+    {
+        $this->actAsWith();
+
+        $result = $this->save($this->form(['date' => 'not a date']));
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_invalid_date'), $result['message']);
+        $this->assertSame(0, $this->countRows('expenses'));
+    }
+
     public function testPostSave_SaysInWordsThatTheDateIsInAClosedPeriod(): void
     {
         $this->actAsWith();

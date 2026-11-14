@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Accountnummer',
     'agency_name'           => 'Agentschapnaam',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Kan geselecteerde leverancier(s) niet verwijderen. Eén of meer bevatten verkopen.',
     'category'              => 'Categorie',
     'commercial_registry'   => '',

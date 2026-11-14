@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Средние траты',
     'avg_discount'                  => 'Средняя скидка',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Информация',
     'billing_email'                 => '',
     'billing_method'                => '',

@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Chế độ nhập hàng',
     'new_supplier'                 => 'Nhà cung cấp mới',
     'one_or_multiple'              => 'nhập hàng',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

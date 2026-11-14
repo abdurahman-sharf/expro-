@@ -14,7 +14,8 @@
  * @var string $mode
  * @var string $payment_type
  * @var float $amount_tendered
- * @var float $amount_change
+ * @var string $amount_change
+ * @var string $amount_due
  * @var string $barcode
  * @var array $config
  * @var string|null $documentLabel
@@ -155,7 +156,7 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
                 </td>
             </tr>
 
-            <?php if (isset($amount_change)) { ?>
+            <?php if (isset($amount_change) || isset($amount_due)) { ?>
                 <tr>
                     <td colspan="3" style="text-align: right;"><?= lang('Sales.amount_tendered') ?></td>
                     <td>
@@ -163,12 +164,21 @@ echo view('partial/print_receipt', ['print_after_sale', $print_after_sale, 'sele
                     </td>
                 </tr>
 
-                <tr>
-                    <td colspan="3" style="text-align: right;"><?= lang('Sales.change_due') ?></td>
-                    <td>
-                        <div class="total-value"><?= $amount_change ?></div>
-                    </td>
-                </tr>
+                <?php if (isset($amount_change)) { ?>
+                    <tr>
+                        <td colspan="3" style="text-align: right;"><?= lang('Sales.change_due') ?></td>
+                        <td>
+                            <div class="total-value"><?= $amount_change ?></div>
+                        </td>
+                    </tr>
+                <?php } else { ?>
+                    <tr>
+                        <td colspan="3" style="text-align: right;"><?= lang('Sales.amount_due') ?></td>
+                        <td>
+                            <div class="total-value"><?= $amount_due ?></div>
+                        </td>
+                    </tr>
+                <?php } ?>
             <?php } ?>
         <?php } ?>
     </table>

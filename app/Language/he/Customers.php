@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'הוצאה ממוצעת',
     'avg_discount'                  => 'הנחה ממוצעת',
+    'balance_not_settled'           => '',
     'basic_information'             => 'מידע',
     'billing_email'                 => '',
     'billing_method'                => '',

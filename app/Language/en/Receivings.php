@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Receiving Mode',
     'new_supplier'                 => 'New Supplier',
     'one_or_multiple'              => 'receiving(s)',
+    'part_refund_not_supported'    => 'A return is refunded in full or left on the account of the supplier: type the whole amount, or 0, or leave the amount empty.',
     'payable'                      => 'What is owed to the supplier',
     'payable_credit_applied'       => 'Supplier credit applied',
     'payable_excess'               => 'Paid beyond the purchase',

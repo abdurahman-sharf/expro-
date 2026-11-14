@@ -217,6 +217,7 @@ return [
     'key_system'                        => 'Pemintas Sistem',
     'key_tendered'                      => 'Edit jumlah yang dibayarkan',
     'key_title'                         => 'Pintasan Papan Ketik Penjualan',
+    'line_not_a_number'                 => '',
     'mc'                                => '',
     'mixed_branches'                    => '',
     'mode'                              => 'Jenis Transaksi',

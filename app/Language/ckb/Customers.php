@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'تێکڕای خەرجکراو',
     'avg_discount'                  => 'تێکڕای داشکان',
+    'balance_not_settled'           => '',
     'basic_information'             => 'زانیاری',
     'billing_email'                 => '',
     'billing_method'                => '',

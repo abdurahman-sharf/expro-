@@ -64,6 +64,7 @@ return [
     'mode'                         => 'دۆخی وەرگرتن',
     'new_supplier'                 => 'دابینکەری نوێ',
     'one_or_multiple'              => 'وەرگرتن(ەکان)',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

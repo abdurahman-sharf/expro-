@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Nomor Akun Pemasok',
     'agency_name'           => 'Nama',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Tidak bisa dihapus pemasok yang dipilih, satu atau lebih dari pemasok yang dipilih memiliki penjualan.',
     'category'              => 'Kategori',
     'commercial_registry'   => '',

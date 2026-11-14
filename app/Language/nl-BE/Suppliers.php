@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Btw nummer',
     'agency_name'           => 'Agencynaam',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'De geselecteeerde leveranciers konden niet worden verwijderd. Eén of meerdere leveranciers hebben ordergegevens in de database zitten.',
     'category'              => 'Categorie',
     'commercial_registry'   => '',

@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'Kontonummer',
     'agency_name'           => 'Namn på agentur',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'Kunde inte radera valda leverantör (er). En eller flera har försäljning.',
     'category'              => 'Kategori',
     'commercial_registry'   => '',

@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'معدل الصرف',
     'avg_discount'                  => 'معدل الخصم',
+    'balance_not_settled'           => 'لم يُحذف: حساب {0} غير مسوّى (الرصيد {1}). سوِّه أولًا.',
     'basic_information'             => 'معلومات الزبون',
     'billing_email'                 => 'إرسال عبر البريد',
     'billing_method'                => 'طريقة الفوترة',

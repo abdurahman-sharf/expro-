@@ -64,6 +64,7 @@ return [
     'mode'                         => 'Τρόπος Παραλαβής',
     'new_supplier'                 => 'Νέος Προμηθευτής',
     'one_or_multiple'              => 'παραλαβή/ες',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',

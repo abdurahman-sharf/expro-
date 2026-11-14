@@ -217,6 +217,7 @@ return [
     'key_system'                        => '',
     'key_tendered'                      => '',
     'key_title'                         => '',
+    'line_not_a_number'                 => '',
     'mc'                                => '',
     'mixed_branches'                    => '',
     'mode'                              => '',

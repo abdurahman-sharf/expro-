@@ -242,6 +242,10 @@ class Expenses extends Secure_Controller
 
         $dateFormatter = date_create_from_format($config['dateformat'] . ' ' . $config['timeformat'], $newDate);
 
+        if ($dateFormatter === false) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Accounting.error_invalid_date'), 'id' => NEW_ENTRY]);
+        }
+
         $currentEmployeeId = $this->employee->get_logged_in_employee_info()->person_id;
         $submittedEmployeeId = $this->request->getPost('employee_id', FILTER_SANITIZE_NUMBER_INT);
 

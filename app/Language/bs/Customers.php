@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Prosječna potrošnja',
     'avg_discount'                  => 'Prosječni popust',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Informacija',
     'billing_email'                 => '',
     'billing_method'                => '',

@@ -12,6 +12,7 @@ return [
     'available_points_value'        => '',
     'average'                       => 'Rata-rata yang dihabiskan',
     'avg_discount'                  => 'Rata-rata diskon',
+    'balance_not_settled'           => '',
     'basic_information'             => 'Informasi',
     'billing_email'                 => '',
     'billing_method'                => '',

@@ -1137,6 +1137,19 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame('test sale', Database::connect()->table('sales')->where('sale_id', $saleId)->get()->getRow()->comment);
     }
 
+    public function testPostSave_SaysTheDateIsNotValidWhenItIsNotADateAndChangesNothing(): void
+    {
+        $supervisorId = $this->createBranchLimitedSupervisor(1);
+        $saleId       = $this->createSale($supervisorId);
+        $this->loginAs($supervisorId);
+
+        $result = json_decode($this->post('/sales/save/' . $saleId, ['date' => 'not a date', 'comment' => 'changed'])->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Accounting.error_invalid_date'), $result['message']);
+        $this->assertSame('test sale', Database::connect()->table('sales')->where('sale_id', $saleId)->get()->getRow()->comment);
+    }
+
     public function testPostDelete_RefusesASaleOfABranchTheEmployeeDoesNotWorkIn(): void
     {
         $supervisorId = $this->createBranchLimitedSupervisor($this->createSecondBranch());
@@ -7170,6 +7183,22 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $response = $this->post('/sales/editItem/1', ['price' => '85', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1']);
 
         $response->assertSee(lang('Accounting.error_price_below_minimum', [1, 'Test Item', '90.00', '85.00']));
+        $this->assertSame('100.00', (string) Services::session()->get('sales_cart')[1]['price']);
+    }
+
+    public function testPostEditItem_SaysInWordsThatTheQuantityPriceAndDiscountMustBeNumbers(): void
+    {
+        $this->registerWithPriceControls(['sales_change_price'], '100.00', minimum: '90');
+        $this->turnOnPriceControls(true);
+
+        foreach (['quantity' => 'abc', 'price' => '1,5x', 'discount' => 'ten'] as $field => $typed) {
+            $form     = ['price' => '100', 'quantity' => '1', 'discount' => '0', 'discount_type' => (string) PERCENT, 'description' => '', 'serialnumber' => '', 'location' => '1', $field => $typed];
+            $response = $this->post('/sales/editItem/1', $form);
+
+            $response->assertSee(lang('Sales.line_not_a_number'));
+            $response->assertDontSee('Validation.');
+        }
+
         $this->assertSame('100.00', (string) Services::session()->get('sales_cart')[1]['price']);
     }
 

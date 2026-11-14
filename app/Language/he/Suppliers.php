@@ -3,6 +3,7 @@
 return [
     'account_number'        => 'מספר חשבון',
     'agency_name'           => 'שם הסוכנות',
+    'balance_not_settled'   => '',
     'cannot_be_deleted'     => 'לא ניתן למחוק את הספקים שנבחרו. לאחד או יותר יש מכירות.',
     'category'              => 'קטגוריה',
     'commercial_registry'   => '',

@@ -2,6 +2,8 @@
 
 namespace Tests\Controllers;
 
+use App\Libraries\Accounting\AccountingGuard;
+use App\Libraries\Accounting\SupplierAdvances;
 use App\Libraries\MasterData\PartyContacts;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -349,6 +351,111 @@ class SuppliersControllerTest extends CIUnitTestCase
         $this->assertSame([], $this->contactsOf($supplierId));
         $this->assertSame(['One', 'Two'], array_column($this->contactsOf($supplierId, true), 'first_name'));
         $this->assertSame(1, $this->accountingDb()->table('accounting_audit_log')->where(['entity_type' => 'supplier', 'entity_id' => $supplierId, 'action' => 'party_contacts_hidden'])->countAllResults());
+    }
+
+    private function isDeleted(int $supplierId): bool
+    {
+        return (int) $this->accountingDb()->table('suppliers')->where('person_id', $supplierId)->get()->getRow()->deleted === 1;
+    }
+
+    private function startAccountingWithASupplierWeOwe(string $amount): int
+    {
+        $this->reinstallChart();
+        $this->setConfigValue('accounting_base_currency', 'SAR');
+        $this->setConfigValue('accounting_start_date', '2020-01-01');
+        $this->setConfigValue('accounting_enabled', '1');
+
+        $supplierId = $this->saveSupplier($this->form());
+
+        (new SupplierAdvances())->openingBalance($supplierId, SupplierAdvances::WE_OWE, $amount, date('Y-m-d'), '', $this->employeeWithGrants([AccountingGuard::PAYABLES_MANAGE]));
+
+        return $supplierId;
+    }
+
+    private function stopAccounting(): void
+    {
+        $db = $this->accountingDb();
+
+        $this->setConfigValue('accounting_enabled', '0');
+        $db->query('SET FOREIGN_KEY_CHECKS = 0');
+
+        foreach ($this->supplierIds as $supplierId) {
+            $db->table('receivings')->where('supplier_id', $supplierId)->delete();
+        }
+
+        $db->query('SET FOREIGN_KEY_CHECKS = 1');
+        $this->clearJournals();
+    }
+
+    public function testPostDelete_RefusesASupplierWhoseAccountIsNotSettledAndNamesTheAmount(): void
+    {
+        $owed = $this->startAccountingWithASupplierWeOwe('270.00');
+
+        try {
+            $deleted = json_decode($this->post('/suppliers/delete', ['ids' => [(string) $owed]])->getJSON(), true);
+
+            $this->assertFalse($deleted['success']);
+            $this->assertStringContainsString(to_currency('270.00'), $deleted['message']);
+            $this->assertStringContainsString($this->companyOf($owed), $deleted['message']);
+            $this->assertFalse($this->isDeleted($owed));
+        } finally {
+            $this->stopAccounting();
+        }
+    }
+
+    public function testPostDelete_RefusesTheSuppliersWithABalanceOneByOneAndDeletesTheRest(): void
+    {
+        $owed = $this->startAccountingWithASupplierWeOwe('270.00');
+
+        try {
+            $free = $this->saveSupplier($this->form());
+
+            $deleted = json_decode($this->post('/suppliers/delete', ['ids' => [(string) $owed, (string) $free]])->getJSON(), true);
+
+            $this->assertFalse($deleted['success']);
+            $this->assertStringContainsString(lang('Suppliers.successful_deleted') . ' 1 ' . lang('Suppliers.one_or_multiple'), $deleted['message']);
+            $this->assertStringContainsString(to_currency('270.00'), $deleted['message']);
+            $this->assertSame([false, true], [$this->isDeleted($owed), $this->isDeleted($free)]);
+        } finally {
+            $this->stopAccounting();
+        }
+    }
+
+    public function testPostDelete_DeletesASupplierWhoseAccountHoldsNothing(): void
+    {
+        $this->startAccountingWithASupplierWeOwe('1.00');
+
+        try {
+            $free = $this->saveSupplier($this->form());
+
+            $deleted = json_decode($this->post('/suppliers/delete', ['ids' => [(string) $free]])->getJSON(), true);
+
+            $this->assertTrue($deleted['success']);
+            $this->assertTrue($this->isDeleted($free));
+        } finally {
+            $this->stopAccounting();
+        }
+    }
+
+    public function testPostDelete_DeletesASupplierWithABalanceWhileAccountingIsOff(): void
+    {
+        $owed = $this->startAccountingWithASupplierWeOwe('270.00');
+
+        try {
+            $this->setConfigValue('accounting_enabled', '0');
+
+            $deleted = json_decode($this->post('/suppliers/delete', ['ids' => [(string) $owed]])->getJSON(), true);
+
+            $this->assertTrue($deleted['success']);
+            $this->assertTrue($this->isDeleted($owed));
+        } finally {
+            $this->stopAccounting();
+        }
+    }
+
+    private function companyOf(int $supplierId): string
+    {
+        return (string) $this->accountingDb()->table('suppliers')->select('company_name')->where('person_id', $supplierId)->get()->getRow()->company_name;
     }
 
     public function testGetView_ShowsTheContactPanelWithTheValuesEscaped(): void

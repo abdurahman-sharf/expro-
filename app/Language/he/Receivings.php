@@ -64,6 +64,7 @@ return [
     'mode'                         => 'סוג החזרה',
     'new_supplier'                 => 'ספק חדש',
     'one_or_multiple'              => 'החזרה(ות)',
+    'part_refund_not_supported'    => '',
     'payable'                      => '',
     'payable_credit_applied'       => '',
     'payable_excess'               => '',
