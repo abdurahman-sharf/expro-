@@ -3,8 +3,10 @@
 namespace App\Commands;
 
 use App\Libraries\Accounting\PaymentTreasuryStamping;
+use App\Libraries\Accounting\Readiness\SchemaProbe;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
+use Config\Database;
 
 class AccountingStampPayments extends BaseCommand
 {
@@ -18,6 +20,14 @@ class AccountingStampPayments extends BaseCommand
 
     public function run(array $params): int
     {
+        $missing = (new SchemaProbe(Database::connect()))->missing(PaymentTreasuryStamping::REQUIRES);
+
+        if ($missing !== []) {
+            CLI::error('Not available yet: the database does not have ' . implode(', ', $missing) . ' (the migrations of the release are pending). Nothing was read or changed: run "php spark migrate -n App" first, then this command.');
+
+            return EXIT_ERROR;
+        }
+
         $stamping = new PaymentTreasuryStamping();
 
         if (array_key_exists('apply', $params) || CLI::getOption('apply') !== null) {

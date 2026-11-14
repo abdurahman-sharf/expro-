@@ -2,7 +2,9 @@
 
 namespace App\Controllers;
 
+use App\Libraries\MigrationPreflight;
 use App\Libraries\MY_Migration;
+use App\Libraries\WebMigration;
 use App\Models\Employee;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -57,13 +59,20 @@ class Login extends BaseController
             ];
 
             if ($this->request->getMethod() !== 'POST') {
-                return view('login', $data);
+                $data['migrationRefusal'] = $data['isLatest'] ? null : (new MigrationPreflight())->refusal();
+
+                return $this->pageOf($data);
             }
 
             if (!$data['isLatest'] || $data['isNewInstall']) {
                 set_time_limit(3600);
 
-                $migration->setNamespace('App')->latest();
+                $data['migrationRefusal'] = (new WebMigration())->run(static fn () => $migration->setNamespace('App')->latest());
+
+                if ($data['migrationRefusal'] !== null) {
+                    return $this->pageOf($data);
+                }
+
                 return redirect()->to('login');
             }
 
@@ -83,6 +92,21 @@ class Login extends BaseController
         }
 
         return redirect()->to('home');
+    }
+
+    /**
+     * The login page, as a page of maintenance (503) while a message says why the migrations are not
+     * started.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function pageOf(array $data): string|ResponseInterface
+    {
+        if (($data['migrationRefusal'] ?? null) === null) {
+            return view('login', $data);
+        }
+
+        return $this->response->setStatusCode(503)->setHeader('Retry-After', '30')->setBody(view('login', $data));
     }
 
     public function migrate(): ResponseInterface
@@ -121,7 +145,15 @@ class Login extends BaseController
             $migration->migrateToCI4();
 
             set_time_limit(3600);
-            $migration->setNamespace('App')->latest();
+
+            $stopped = (new WebMigration())->run(static fn () => $migration->setNamespace('App')->latest());
+
+            if ($stopped !== null) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => $stopped
+                ])->setStatusCode(503);
+            }
 
             return $this->response->setJSON([
                 'success' => true,

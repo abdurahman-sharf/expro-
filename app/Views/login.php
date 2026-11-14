@@ -7,6 +7,7 @@
  * @var bool $gcaptchaEnabled
  * @var array $config
  * @var $validation
+ * @var string|null $migrationRefusal
  */
 
 $formStyle = $config['login_form'] ?? '';
@@ -70,6 +71,12 @@ $formStyle = $config['login_form'] ?? '';
                         <?= $error ?>
                     </div>
                 <?php endforeach; ?>
+            <?php endif; ?>
+
+            <?php if (!empty($migrationRefusal)): ?>
+                <div id="migration-refusal" class="alert alert-danger" role="alert">
+                    <?= esc($migrationRefusal) ?>
+                </div>
             <?php endif; ?>
 
             <div id="migration-success" class="alert alert-success d-none">

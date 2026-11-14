@@ -399,25 +399,80 @@ class HistoricalDataChecksTest extends CIUnitTestCase
         $this->assertStringContainsString('1 bank treasury exists', $this->check('bank_details')->summary);
     }
 
-    public function testPaymentStamping_FailsAndListsThePaymentsThatNameNoTreasury(): void
+    private function routeCashElsewhere(bool $active = true): int
+    {
+        $elsewhere = $this->customAccount('1201', '120199', 'Cash moved elsewhere');
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.cash')->update(['account_id' => $elsewhere]);
+
+        if (! $active) {
+            $this->accountingDb()->table('accounting_accounts')->where('account_id', $elsewhere)->update(['active' => 0]);
+        }
+
+        return $elsewhere;
+    }
+
+    public function testPaymentStamping_PassesForPaymentsThatNameNoTreasuryWhileTheirWayOfPaymentIsStillRoutedToTheAccountOfTheirJournal(): void
+    {
+        $this->saleWithCashPayment();
+        $purchaseId = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '4', '50')]);
+        $this->payPurchase($purchaseId, '60.00');
+
+        $result = $this->check('payment_stamping');
+
+        $this->assertSame(CheckStatus::Pass, $result->status);
+        $this->assertSame(0, $result->data['stamp']);
+        $this->assertSame(2, $result->data['in_place']);
+        $this->assertNull($result->apply);
+        $this->assertCount(2, $result->findings);
+    }
+
+    public function testPaymentStamping_FailsAndListsThePaymentsWhoseWayOfPaymentIsNowRoutedToAnotherAccount(): void
     {
         $salePaymentId = $this->saleWithCashPayment();
         $purchaseId    = $this->buy([$this->purchaseLine($this->item('0.00'), 0, '4', '50')]);
         $supplierPayId = $this->payPurchase($purchaseId, '60.00');
+        $this->routeCashElsewhere();
 
         $result = $this->check('payment_stamping');
 
         $this->assertSame(CheckStatus::Fail, $result->status);
-        $this->assertContains("sales_payments #{$salePaymentId} would take treasury " . $this->treasuries->ensureMain(), $result->findings);
-        $this->assertContains("receivings_payments #{$supplierPayId} would take treasury " . $this->treasuries->ensureMain(), $result->findings);
+        $this->assertContains("sales_payments #{$salePaymentId} would take treasury " . $this->treasuries->ensureMain() . ': its way of payment is now routed to another account than its journal', $result->findings);
+        $this->assertContains("receivings_payments #{$supplierPayId} would take treasury " . $this->treasuries->ensureMain() . ': its way of payment is now routed to another account than its journal', $result->findings);
         $this->assertSame(2, $result->data['stamp']);
+        $this->assertSame(0, $result->data['in_place']);
         $this->assertSame('accounting:stamp_payments --apply', $result->applyCommand());
+    }
+
+    public function testPaymentStamping_FailsOnlyForTheWayOfPaymentThatWasRoutedElsewhere(): void
+    {
+        $item = $this->item('10.00');
+        $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '60.00'), $this->payment(lang('Sales.debit'), '40.00')]);
+        $this->routeCashElsewhere();
+
+        $result = $this->check('payment_stamping');
+
+        $this->assertSame(CheckStatus::Fail, $result->status);
+        $this->assertSame(1, $result->data['stamp']);
+        $this->assertSame(1, $result->data['in_place']);
+    }
+
+    public function testPaymentStamping_FailsWhenTheWayOfPaymentIsRoutedToAnAccountThatCannotTakeEntries(): void
+    {
+        $this->saleWithCashPayment();
+        $this->routeCashElsewhere(false);
+
+        $result = $this->check('payment_stamping');
+
+        $this->assertSame(CheckStatus::Fail, $result->status);
+        $this->assertSame(1, $result->data['stamp']);
     }
 
     public function testPaymentStamping_WritesNothing(): void
     {
         $paymentId = $this->saleWithCashPayment();
-        $before    = $this->databaseFingerprint();
+        $this->routeCashElsewhere();
+        $before = $this->databaseFingerprint();
 
         $this->check('payment_stamping');
 
@@ -428,9 +483,16 @@ class HistoricalDataChecksTest extends CIUnitTestCase
     public function testPaymentStamping_PassesAfterThePaymentsAreStamped(): void
     {
         $this->saleWithCashPayment();
+        $this->routeCashElsewhere();
+
+        $this->assertSame(CheckStatus::Fail, $this->check('payment_stamping')->status);
+
         (new PaymentTreasuryStamping())->stamp();
 
-        $this->assertSame(CheckStatus::Pass, $this->check('payment_stamping')->status);
+        $result = $this->check('payment_stamping');
+
+        $this->assertSame(CheckStatus::Pass, $result->status);
+        $this->assertSame(0, $result->data['in_place']);
     }
 
     public function testPaymentStamping_PassesForAPaymentThatNamesItsTreasury(): void

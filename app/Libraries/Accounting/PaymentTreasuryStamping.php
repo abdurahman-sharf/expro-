@@ -23,6 +23,11 @@ final class PaymentTreasuryStamping
         'receivings_payments' => ReceivingPostingBuilder::SOURCE_SUPPLIER_PAYMENT,
     ];
 
+    /**
+     * The tables and columns the scan and the stamp read, which a database that the migrations have not reached does not have.
+     */
+    public const REQUIRES = ['treasuries', 'accounting_journals', 'accounting_journal_lines', 'accounting_accounts.entity_type', 'sales_payments.treasury_id', 'sales_payments.cash_adjustment', 'receivings_payments.treasury_id'];
+
     private BaseConnection $db;
     private RoutingResolver $resolver;
     private AuditLog $audit;

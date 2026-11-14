@@ -4,15 +4,21 @@ namespace Tests\Commands;
 
 use App\Commands\AccountingReadiness;
 use App\Libraries\Accounting\EntityAccountService;
+use App\Libraries\Accounting\JournalDraft;
+use App\Libraries\Accounting\JournalLineDraft;
 use App\Libraries\Accounting\LegacyPurchaseDiscount;
+use App\Libraries\Accounting\PostingService;
+use App\Libraries\Accounting\Readiness\DeploymentChecks;
 use App\Libraries\Accounting\TreasuryService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\StreamFilterTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
+use Tests\Support\InstallerPasswordFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\MigrationHistoryFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
@@ -26,7 +32,9 @@ class AccountingReadinessTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use StreamFilterTrait;
     use AccountingFixtureTrait;
+    use ChequeFixtureTrait;
     use EmployeeFixtureTrait;
+    use InstallerPasswordFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
     use DatabaseFingerprintTrait;
@@ -55,10 +63,12 @@ class AccountingReadinessTest extends CIUnitTestCase
         $this->reinstallChart();
         $this->setConfigValue('accounting_enabled', '0');
         (new LegacyPurchaseDiscount())->clearResolution();
+        $this->changeInstallerPassword();
     }
 
     protected function tearDown(): void
     {
+        $this->restoreInstallerPassword();
         $this->restoreMigrations();
 
         $db = $this->accountingDb();
@@ -137,6 +147,16 @@ class AccountingReadinessTest extends CIUnitTestCase
         $saleId = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
 
         return (int) $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->payment_id;
+    }
+
+    private function driftedPayment(): int
+    {
+        $paymentId = $this->unstampedPayment();
+        $elsewhere = $this->customAccount('1201', '120199', 'Cash moved elsewhere');
+
+        $this->accountingDb()->table('accounting_routing')->where('routing_key', 'payment.cash')->update(['account_id' => $elsewhere]);
+
+        return $paymentId;
     }
 
     private function parentCodeOf(int $treasuryId): string
@@ -233,9 +253,9 @@ class AccountingReadinessTest extends CIUnitTestCase
         $this->assertDatabaseUnchanged($before);
     }
 
-    public function testRun_ListsUnstampedPaymentsAndWritesNone(): void
+    public function testRun_ListsThePaymentsThatWouldDriftAndWritesNone(): void
     {
-        $paymentId = $this->unstampedPayment();
+        $paymentId = $this->driftedPayment();
         $before    = $this->databaseFingerprint();
 
         [$exit, $output] = $this->readiness();
@@ -246,6 +266,86 @@ class AccountingReadinessTest extends CIUnitTestCase
         $this->assertStringContainsString('accounting:stamp_payments --apply', $output);
         $this->assertNull($this->stampOf($paymentId));
         $this->assertDatabaseUnchanged($before, 'Listing an unstamped payment must write nothing.');
+    }
+
+    public function testRun_ExitsZeroWhileAPaymentNamesNoTreasuryAndStaysWhereItsRoutingPoints(): void
+    {
+        $paymentId = $this->unstampedPayment();
+        $before    = $this->databaseFingerprint();
+
+        [$exit, $output] = $this->readiness();
+
+        $this->assertSame(0, $exit);
+        $this->assertMatchesRegularExpression('/PASS\s+E41-STAMP/', $output);
+        $this->assertStringContainsString('sales_payments: 1 payment(s) name no treasury and are where their way of payment is routed', $output);
+        $this->assertNull($this->stampOf($paymentId));
+        $this->assertDatabaseUnchanged($before);
+    }
+
+    public function testRun_ExitsZeroAfterAChequeBouncesAfterItsDepositAFirstExtraTreasuryIsCreatedAndAJournalIsWrittenByHandOnATreasury(): void
+    {
+        $this->startSelling();
+        $this->startCheques();
+
+        $cheque = $this->receiveCheque('300.00', $this->databaseToday());
+        $this->chequeService->deposit($cheque, $this->databaseToday(), $this->chequeClerk);
+        $this->chequeService->reject($cheque, $this->databaseToday(), $this->chequeClerk);
+
+        $item   = $this->item('10.00');
+        $saleId = $this->save([$this->line($item, 0, '1', '100', '10.00')], [], [$this->payment(lang('Sales.cash'), '100.00')]);
+
+        $treasuries = new TreasuryService();
+        $result     = (new PostingService())->post(new JournalDraft(
+            date: $this->databaseToday(),
+            lines: [new JournalLineDraft($this->accountId('opening_balance'), debit: '7.00'), new JournalLineDraft((int) $treasuries->accountOf($treasuries->ensureMain()), credit: '7.00')],
+            sourceType: JournalDraft::SOURCE_MANUAL,
+            sourceId: null,
+            employeeId: $this->chequeClerk,
+            currencyCode: 'SAR',
+        ));
+
+        $this->assertNotNull($result);
+
+        [$exit, $output] = $this->readiness(['json' => null, 'no-header' => null]);
+        $report          = $this->decoded($output);
+
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->where('source_type', 'cheque_in_dep_rejected')->where('source_id', $cheque)->countAllResults());
+        $this->assertNull($this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->treasury_id);
+        $this->assertSame('pass', $this->checkOf($report, 'source_keys')['status']);
+        $this->assertSame('pass', $this->checkOf($report, 'payment_stamping')['status']);
+        $this->assertSame('review', $this->checkOf($report, 'treasury_ties')['status']);
+        $this->assertSame(0, $exit);
+    }
+
+    public function testRun_ExitsOneWhileAnAccountStillHasThePasswordTheInstallerGaveIt(): void
+    {
+        $this->restoreInstallerPassword();
+        $before = $this->databaseFingerprint();
+
+        [$exit, $output] = $this->readiness();
+
+        $this->assertSame(1, $exit);
+        $this->assertMatchesRegularExpression('/FAIL\s+ADMIN-DEFAULT-PASSWORD/', $output);
+        $this->assertStringContainsString('the account admin still has the installer password', $output);
+        $this->assertStringNotContainsString(DeploymentChecks::INSTALLER_PASSWORD, $output);
+        $this->assertDatabaseUnchanged($before);
+    }
+
+    public function testRun_ReviewsTheFirstRunSettingsOfAFreshInstallationWithoutFailing(): void
+    {
+        $company = (string) $this->accountingDb()->table('app_config')->where('key', 'company')->get()->getRow()->value;
+        $this->setConfigValue('company', 'Open Source Point of Sale');
+
+        try {
+            [$exit, $output] = $this->readiness();
+        } finally {
+            $this->setConfigValue('company', $company);
+        }
+
+        $this->assertSame(0, $exit);
+        $this->assertMatchesRegularExpression('/REVIEW\s+FIRST-RUN-SETTINGS/', $output);
+        $this->assertStringContainsString('the company name (company) is still "Open Source Point of Sale"', $output);
+        $this->assertMatchesRegularExpression('/PASS\s+ADMIN-DEFAULT-PASSWORD/', $output);
     }
 
     public function testRun_PrintsOneJsonDocumentWithNothingElse(): void
@@ -260,7 +360,7 @@ class AccountingReadinessTest extends CIUnitTestCase
         $this->assertSame(0, $report['exit_code']);
         $this->assertTrue($report['read_only']);
         $this->assertSame('post-migration', $report['phase']);
-        $this->assertCount(32, $report['checks']);
+        $this->assertCount(34, $report['checks']);
         $this->assertCount(8, $report['runbook']);
         $this->assertSame(array_sum($report['counts']), count($report['checks']));
     }
@@ -284,7 +384,7 @@ class AccountingReadinessTest extends CIUnitTestCase
 
     public function testRun_RefusesToApplyWhileAskedForJson(): void
     {
-        $paymentId = $this->unstampedPayment();
+        $paymentId = $this->driftedPayment();
 
         [$exit, $output] = $this->readiness(['json' => null, 'apply' => null]);
 
@@ -295,7 +395,7 @@ class AccountingReadinessTest extends CIUnitTestCase
 
     public function testRun_StampsThePaymentsOnlyWhenAskedToApplyAndChangesNoJournalOrBalance(): void
     {
-        $paymentId = $this->unstampedPayment();
+        $paymentId = $this->driftedPayment();
         $lines     = $this->accountingDb()->table('accounting_journal_lines')->select('journal_id, account_id, debit, credit')->orderBy('line_id', 'ASC')->get()->getResultArray();
         $journals  = $this->countRows('accounting_journals');
 
@@ -330,7 +430,7 @@ class AccountingReadinessTest extends CIUnitTestCase
 
     public function testRun_AppliesEveryCommandThatCanClearAFailureInTheOrderOfTheChecks(): void
     {
-        $paymentId = $this->unstampedPayment();
+        $paymentId = $this->driftedPayment();
         $bank      = $this->legacyBank('Old bank', 'Gulf Bank', '123456');
 
         $this->assertSame('1201', $this->parentCodeOf($bank));
@@ -349,7 +449,7 @@ class AccountingReadinessTest extends CIUnitTestCase
 
     public function testRun_PrintsTheReportBeforeItAppliesAndAgainAfterwards(): void
     {
-        $paymentId = $this->unstampedPayment();
+        $paymentId = $this->driftedPayment();
 
         [, $output] = $this->readiness(['apply' => null]);
 

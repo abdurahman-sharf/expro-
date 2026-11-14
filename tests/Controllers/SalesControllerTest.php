@@ -712,6 +712,35 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame($salesCountBefore, $salesCountAfter);
     }
 
+    public function testPostComplete_SavesASaleOfFractionalUnitsPaidByCardRoundedUpToTheCent(): void
+    {
+        $cashierId = $this->createCashierEmployee();
+        $itemId    = $this->createTestItem(HAS_NO_STOCK);
+        $this->loginAs($cashierId);
+        $this->seedCartLine(1, '2.67', $itemId);
+
+        $cart                  = $this->session['sales_cart'];
+        $cart[1]['quantity']   = '0.333';
+        $cart[1]['total']      = '0.88911';
+        $cart[1]['discounted_total'] = '0.88911';
+
+        $card = lang('Sales.debit');
+
+        $this->withSession(array_merge($this->session, [
+            'sale_id'        => NEW_ENTRY,
+            'sales_cart'     => $cart,
+            'sales_payments' => [$card => ['payment_type' => $card, 'payment_amount' => '0.89', 'cash_refund' => 0, 'cash_adjustment' => 0, 'reference_code' => null, 'treasury_id' => 0]],
+        ]));
+
+        $salesCountBefore = Database::connect()->table('sales')->countAllResults();
+
+        $response = $this->post('/sales/complete');
+
+        $response->assertStatus(200);
+        $this->assertSame($salesCountBefore + 1, Database::connect()->table('sales')->countAllResults());
+        $this->saleIds[] = (int) Database::connect()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+    }
+
     /**
      * @return array<string, array{string, string}>
      */

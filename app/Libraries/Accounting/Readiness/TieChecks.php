@@ -20,7 +20,9 @@ use App\Libraries\Organization\CompanyContext;
  * aging, the account of every treasury against what documents put on it, the account of every
  * stock location against its valued movements, and what the branches are owed against what they
  * owe. A difference is listed and makes the check fail: a manual journal on one of these accounts
- * shows up here too, until somebody has looked at it.
+ * shows up here too, until somebody has looked at it. A treasury is the exception: a journal
+ * written by hand on its account is allowed by the scope of the treasury and shown apart on the
+ * treasuries screen, so it is listed for review and fails nothing.
  */
 final class TieChecks extends CheckGroup
 {
@@ -163,6 +165,8 @@ final class TieChecks extends CheckGroup
     {
         $service = new TreasuryService($this->db);
         $bad     = [];
+        $byHand  = [];
+        $handSum = '0';
         $checked = 0;
 
         foreach ($service->all() as $treasury) {
@@ -172,15 +176,22 @@ final class TieChecks extends CheckGroup
             if ($position->accountId === null) {
                 $bad[] = "treasury {$treasury->treasury_id} ({$treasury->name}) has no account";
             } elseif (! $position->agrees()) {
-                $bad[] = "treasury {$treasury->treasury_id} ({$treasury->name}): its account holds {$position->balance} and {$position->manual} of it was put there by hand";
+                $byHand[] = "treasury {$treasury->treasury_id} ({$treasury->name}): its account holds {$position->balance} and {$position->manual} of it was put there by hand";
+                $handSum  = bcadd($handSum, $position->manual, SaleAmounts::SCALE);
             }
         }
 
-        if ($bad === []) {
-            return CheckResult::pass("Every treasury has an account and its balance is what documents put on it ({$checked} checked).", [], ['checked' => $checked, 'differences' => 0]);
+        $data = ['checked' => $checked, 'differences' => count($bad), 'by_hand' => count($byHand), 'by_hand_total' => bcadd($handSum, '0', SaleAmounts::SCALE)];
+
+        if ($bad !== []) {
+            return CheckResult::fail(count($bad) . " treasury account(s) do not tie to their balance ({$checked} checked).", [...$bad, ...$byHand], $data);
         }
 
-        return CheckResult::fail(count($bad) . " treasury account(s) do not tie to their balance ({$checked} checked).", $bad, ['checked' => $checked, 'differences' => count($bad)]);
+        if ($byHand !== []) {
+            return CheckResult::review(count($byHand) . " treasury account(s) hold money put there by a journal written by hand ({$checked} checked): the scope of the treasury allows it and the treasuries screen shows it apart, so the balance is the account and nothing is out of tie; the accountant confirms each against its paper.", $byHand, $data);
+        }
+
+        return CheckResult::pass("Every treasury has an account and its balance is what documents put on it ({$checked} checked).", [], $data);
     }
 
     private function stock(): CheckResult
