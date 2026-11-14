@@ -43,8 +43,10 @@ final class ReportSizeGuardTest extends CIUnitTestCase
         $before = ini_get('memory_limit');
 
         try {
-            ini_set('memory_limit', '300M');
-            $this->assertSame(300 * 1_048_576, ReportSizeGuard::memoryLimit());
+            $megabytes = intdiv(memory_get_usage(true), 1_048_576) + 128;
+
+            ini_set('memory_limit', $megabytes . 'M');
+            $this->assertSame($megabytes * 1_048_576, ReportSizeGuard::memoryLimit());
 
             ini_set('memory_limit', '-1');
             $this->assertSame(PHP_INT_MAX, ReportSizeGuard::memoryLimit());

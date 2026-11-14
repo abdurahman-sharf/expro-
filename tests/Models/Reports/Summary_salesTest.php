@@ -4,6 +4,7 @@ namespace Tests\Models\Reports;
 
 use App\Models\Appconfig;
 use App\Models\Reports\Summary_sales;
+use CodeIgniter\Config\Factories;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -134,6 +135,28 @@ class Summary_salesTest extends CIUnitTestCase
         } finally {
             $this->releaseTheMemoryTablesOfTheServer();
         }
+    }
+
+    public function testGetData_BuildsTheDaysWhenTheSettingsOfTheShopAreNotLoadedYet(): void
+    {
+        $this->reportSale($this->createTestItem(HAS_NO_STOCK), '2', '50', null, self::MONTH . '21');
+        cache()->delete('settings');
+        Factories::reset('config');
+
+        $rows = (new Summary_sales())->getData(['start_date' => self::MONTH . '21', 'end_date' => self::MONTH . '21', 'location_id' => 'all', 'sale_type' => 'complete']);
+
+        $this->assertSame(1, (int) array_sum(array_column($rows, 'sales')));
+    }
+
+    public function testGetSummaryData_AddsUpTheDaysWhenTheSettingsOfTheShopAreNotLoadedYet(): void
+    {
+        $this->reportSale($this->createTestItem(HAS_NO_STOCK), '2', '50', null, self::MONTH . '22');
+        cache()->delete('settings');
+        Factories::reset('config');
+
+        $summary = (new Summary_sales())->getSummaryData(['start_date' => self::MONTH . '22', 'end_date' => self::MONTH . '22', 'location_id' => 'all', 'sale_type' => 'complete']);
+
+        $this->assertSame('100.00', $this->amount($summary['total']));
     }
 
     public function testGetData_BuildsTheDaysWithoutWaitingForASaleThatIsBeingSaved(): void

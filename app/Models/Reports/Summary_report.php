@@ -211,6 +211,8 @@ abstract class Summary_report extends Report
      */
     public function getData(array $inputs): array
     {
+        $this->loadSettingsBeforeTheBuilder();
+
         $builder = $this->db->table('sales_items AS sales_items');
 
         $this->_select($inputs, $builder);
@@ -227,6 +229,8 @@ abstract class Summary_report extends Report
      */
     public function getSummaryData(array $inputs): array
     {
+        $this->loadSettingsBeforeTheBuilder();
+
         $builder = $this->db->table('sales_items AS sales_items');
 
         $this->__common_select($inputs, $builder);
@@ -234,5 +238,14 @@ abstract class Summary_report extends Report
         $this->_where($inputs, $builder);
 
         return $builder->get()->getRowArray();
+    }
+
+    /**
+     * The first read of the settings runs a query, and that query clears the table aliases of the
+     * builder being filled, so the settings are read before the builder is made.
+     */
+    private function loadSettingsBeforeTheBuilder(): void
+    {
+        config(OSPOS::class);
     }
 }
