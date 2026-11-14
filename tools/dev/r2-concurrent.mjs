@@ -5,7 +5,7 @@ import { formDefaults } from './r2-client.mjs';
 const rec = new Recorder(process.env.R2_OUT ?? '/tmp/r2-concurrent.json');
 const F = fixture();
 const a = await admin();
-const b = await admin('admin', 'pointofsale', true);
+const b = await admin('admin', process.env.R2_ADMIN_PASSWORD ?? 'pointofsale', true);
 const body = (html) => { const f = formDefaults(html, 0); const o = {}; for (const [n, v] of f.fields) { if (n === 'csrf_ospos_v4' || n === 'honeypot') continue; if (n.endsWith('[]')) (o[n] ??= []).push(v); else o[n] = v; } return { action: f.action.replace('http://127.0.0.1:8082', ''), body: o }; };
 
 // the same item opened in two windows

@@ -80,7 +80,7 @@ export const hasError = (res) => res.status >= 500 || /Whoops|Fatal error|Stack 
 import { existsSync } from 'node:fs';
 
 // Logs in once and keeps the session in a file, because the login screen throttles an address to five tries a minute.
-export async function admin(user = 'admin', pass = 'pointofsale', fresh = false) {
+export async function admin(user = 'admin', pass = process.env.R2_ADMIN_PASSWORD ?? 'pointofsale', fresh = false) {
     const file = `/tmp/r2-session-${user}.json`;
     const c = new Client(user);
     if (!fresh && existsSync(file)) {

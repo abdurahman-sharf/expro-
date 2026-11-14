@@ -20,6 +20,10 @@ drop = ('ospos_accounting_posting_failures', 'ospos_accounting_fiscal_years', 'R
 print(';\n'.join(st for st in s.split(';\n') if not any(d in st for d in drop)) + ';\nUPDATE ospos_item_quantities SET quantity=0;')
 PY
 $M "$DB" < /tmp/r2-seed.sql
+if [ -n "${R2_ADMIN_PASSWORD:-}" ]; then
+    hash=$(R2_ADMIN_PASSWORD="$R2_ADMIN_PASSWORD" php -r 'echo password_hash(getenv("R2_ADMIN_PASSWORD"), PASSWORD_DEFAULT);')
+    $M "$DB" -e "UPDATE ospos_employees SET password='$hash', hash_version=2 WHERE username='admin'"
+fi
 cd "$ROOT"
 spark() { CI_ENVIRONMENT=development MYSQL_DB_NAME="$DB" php spark "$@"; }
 spark accounting:enable --currency SAR --start-date 2026-01-01 || true

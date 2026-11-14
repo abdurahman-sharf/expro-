@@ -24,7 +24,7 @@ const add = (id, steps, expected, actual, pass) => { results.push({ id, steps, e
 
   await page.goto(BASE + '/login');
   await page.fill('input[name=username]', 'admin');
-  await page.fill('input[name=password]', 'pointofsale');
+  await page.fill('input[name=password]', process.env.R2_ADMIN_PASSWORD || 'pointofsale');
   await page.click('button[type=submit]');
   await page.waitForLoadState('networkidle');
 

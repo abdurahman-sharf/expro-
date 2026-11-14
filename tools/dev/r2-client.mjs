@@ -60,7 +60,7 @@ export class Client {
     get(path, opts) { return this.request('GET', path, opts); }
     post(path, form, opts = {}) { return this.request('POST', path, { form: form ?? {}, ...opts }); }
 
-    async login(user = 'admin', pass = 'pointofsale') {
+    async login(user = 'admin', pass = process.env.R2_ADMIN_PASSWORD ?? 'pointofsale') {
         await this.get('/login', { ajax: false });
         const res = await this.request('POST', '/login', { form: { username: user, password: pass }, csrf: false, ajax: false });
         if (![301, 302, 303].includes(res.status)) throw new Error(`login ${res.status}`);
