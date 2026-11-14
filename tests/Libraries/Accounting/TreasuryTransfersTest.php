@@ -20,6 +20,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityCaseTrait;
@@ -36,6 +37,7 @@ class TreasuryTransfersTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use ParityCaseTrait;
@@ -1061,5 +1063,22 @@ class TreasuryTransfersTest extends CIUnitTestCase
 
         $this->assertSame(AccountingError::TransferRateOutOfRange, $exception->error);
         $this->assertSame('100.0000', $this->treasuries->position($dollars)->foreignBalance);
+    }
+
+    public function testCancel_LetsExactlyOneOfTwoSessionsCancelTheSameTransferAndMovesTheMoneyBackOnce(): void
+    {
+        $transferId = $this->transfers->transfer($this->main, $this->drawer, '120.00', '2026-10-21', '', $this->manager);
+        $session    = ['cancel', $transferId, $this->manager];
+
+        $answers  = $this->raceSessions('transferRace', [$session, $session]);
+        $expected = ['done', AccountingError::TransferAlreadyCancelled->value];
+
+        sort($answers);
+        sort($expected);
+
+        $this->assertSame($expected, $answers);
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->whereIn('reverses_journal_id', array_column($this->accountingDb()->table('accounting_journals')->select('journal_id')->where(['source_type' => 'treasury_transfer', 'source_id' => $transferId])->get()->getResultArray(), 'journal_id'))->countAllResults(), 'The journal of the transfer is reversed once');
+        $this->assertSame(0, bccomp($this->balanceOf($this->main), '500.00', 2));
+        $this->assertSame(0, bccomp($this->balanceOf($this->drawer), '0.00', 2));
     }
 }

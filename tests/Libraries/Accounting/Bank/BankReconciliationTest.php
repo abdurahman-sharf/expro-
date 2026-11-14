@@ -29,6 +29,7 @@ use ReflectionMethod;
 use ReflectionParameter;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\BankFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ParityCaseTrait;
@@ -45,6 +46,7 @@ class BankReconciliationTest extends CIUnitTestCase
     use AccountingFixtureTrait;
     use EmployeeFixtureTrait;
     use BankFixtureTrait;
+    use ConcurrentDbRaceTrait;
     use DatabaseFingerprintTrait;
     use ParityCaseTrait;
 
@@ -1672,5 +1674,45 @@ class BankReconciliationTest extends CIUnitTestCase
         $this->assertSame($case['expected']['detail']['rows_left_after_the_delete'], $this->lineCount());
         $this->assertSame($case['expected']['detail']['the_file_can_be_imported_again'], $this->importObservedFile($case)->created());
         $this->assertSameAsFixture($case['expected'], ['delete_a_row' => $rowDeleters !== []], 'delete of a row on its own');
+    }
+
+    public function testMatch_LetsExactlyOneOfTwoSessionsMatchTheSameStatementLine(): void
+    {
+        $first  = $this->bookLine('100.00', '2026-03-10');
+        $second = $this->bookLine('100.00', '2026-03-10');
+
+        $this->importStatement($this->statementText([['2026-03-10', 'Deposit A', '100.00', '', 'A']]));
+
+        $statementLine = $this->statementLineId('Deposit A');
+
+        $answers  = $this->raceSessions('bankRace', [['match', $this->bankId, $statementLine, (string) $first, $this->bankClerk], ['match', $this->bankId, $statementLine, (string) $second, $this->bankClerk]]);
+        $expected = ['done', AccountingError::BankLineMatched->value];
+
+        sort($answers);
+        sort($expected);
+
+        $this->assertSame($expected, $answers);
+        $this->assertSame(1, $this->accountingDb()->table('bank_matches')->where('statement_line_id', $statementLine)->countAllResults());
+        $this->assertSame(1, $this->accountingDb()->table('bank_match_lines')->countAllResults());
+    }
+
+    public function testMatch_LetsExactlyOneOfTwoSessionsMatchTheSameLineOfTheBooks(): void
+    {
+        $journalLine = $this->bookLine('100.00', '2026-03-10');
+
+        $this->importStatement($this->statementText([['2026-03-10', 'Deposit A', '100.00', '', 'A'], ['2026-03-10', 'Deposit B', '100.00', '', 'B']]));
+
+        $answers  = $this->raceSessions('bankRace', [
+            ['match', $this->bankId, $this->statementLineId('Deposit A'), (string) $journalLine, $this->bankClerk],
+            ['match', $this->bankId, $this->statementLineId('Deposit B'), (string) $journalLine, $this->bankClerk],
+        ]);
+        $expected = ['done', AccountingError::BankJournalLineMatched->value];
+
+        sort($answers);
+        sort($expected);
+
+        $this->assertSame($expected, $answers);
+        $this->assertSame(1, $this->accountingDb()->table('bank_matches')->countAllResults());
+        $this->assertSame(1, $this->accountingDb()->table('bank_match_lines')->where('journal_line_id', $journalLine)->countAllResults());
     }
 }
