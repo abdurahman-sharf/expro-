@@ -5,6 +5,7 @@ namespace Tests\Libraries\Accounting;
 use App\Libraries\Accounting\AccountingError;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\CrossBranchPayments;
+use App\Libraries\Accounting\InterBranchPosition;
 use App\Libraries\Accounting\JournalChange;
 use App\Libraries\Accounting\JournalDraft;
 use App\Libraries\Accounting\JournalLineDraft;
@@ -17,6 +18,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\PurchaseAccountingFixtureTrait;
@@ -31,6 +33,7 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -528,5 +531,57 @@ class CrossBranchPaymentsTest extends CIUnitTestCase
         $this->payments->assertMayPost($drafts, $member);
 
         $this->assertSame(AccountingError::TreasuryDepositDenied, $this->refusal(fn () => $this->payments->assertMayPost($drafts, $outsider))->error);
+    }
+
+    /**
+     * @return list<string> The arguments of a session of the race that posts a payment of a sale of a branch into a treasury of another.
+     */
+    private function paymentSession(int $paymentId, string $amount, bool $receipt, int $treasuryId, int $treasuryBranch, int $ownBranch): array
+    {
+        return [(string) $paymentId, $amount, $receipt ? '1' : '0', (string) $treasuryId, (string) $treasuryBranch, (string) $ownBranch, (string) $this->customerAccount(), (string) $this->treasuries->accountOf($treasuryId)];
+    }
+
+    public function testPost_LetsFourRealSessionsPostPaymentsAcrossTheBranchesInBothDirectionsWithoutADeadlockAndTiesTheBranches(): void
+    {
+        $home = $this->treasuries->create(['name' => 'Home drawer', 'kind' => 'cash']);
+
+        $this->accountingDb()->query('SET SESSION innodb_lock_wait_timeout = 30');
+
+        $answers = $this->raceSessions('postCrossBranch', [
+            $this->paymentSession(7001, '100.00', true, $this->treasury, $this->branch, 1),
+            $this->paymentSession(7002, '40.00', true, $home, 1, $this->branch),
+            $this->paymentSession(7003, '25.00', true, $this->treasury, $this->branch, 1),
+            $this->paymentSession(7004, '10.00', false, $home, 1, $this->branch),
+        ]);
+
+        $this->assertSame(['done', 'done', 'done', 'done'], $answers);
+
+        foreach ([7001, 7002, 7003, 7004] as $paymentId) {
+            $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['sale_payment', 'sale_payment_branch'])->where(['source_id' => $paymentId, 'status' => 'posted'])->countAllResults(), 'The payment ' . $paymentId . ' is two journals');
+            $this->assertSame(2, $this->accountingDb()->table('accounting_interbranch_legs')->where(['document_type' => 'sale_payment', 'document_id' => $paymentId])->countAllResults(), 'The payment ' . $paymentId . ' is two legs');
+        }
+
+        $this->assertSame('0.0000', bcadd((new InterBranchPosition())->difference(), '0', 4), 'What one branch is owed the other owes');
+        $this->assertSame('125.00', bcadd($this->treasuries->position($this->treasury)->balance, '0', 2));
+        $this->assertSame('30.00', bcadd($this->treasuries->position($home)->balance, '0', 2));
+        $this->assertSame($this->balance($this->account), bcadd($this->treasuries->position($this->treasury)->balance, '0', 2));
+        $this->assertSame($this->balance((int) $this->treasuries->accountOf($home)), bcadd($this->treasuries->position($home)->balance, '0', 2));
+        $this->assertSame('-155.00', $this->balance($this->customerAccount()), 'The customer was credited by each receipt and debited by the payment out');
+    }
+
+    public function testPost_LetsTwoRealSessionsPostTheSamePaymentAtTheSameMomentAndWritesItOnce(): void
+    {
+        $session = $this->paymentSession(7010, '100.00', true, $this->treasury, $this->branch, 1);
+        $answers = $this->raceSessions('postCrossBranch', [$session, $session]);
+
+        foreach ($answers as $answer) {
+            $this->assertMatchesRegularExpression('/^[a-z_]+$/', $answer, 'A session ended with something that is not done or an error of the books: ' . $answer);
+        }
+
+        $this->assertContains('done', $answers);
+        $this->assertSame(2, $this->accountingDb()->table('accounting_journals')->whereIn('source_type', ['sale_payment', 'sale_payment_branch'])->where('source_id', 7010)->countAllResults(), 'The payment is written once, as two journals');
+        $this->assertSame(2, $this->countRows('accounting_interbranch_legs'));
+        $this->assertSame('0.0000', bcadd((new InterBranchPosition())->difference(), '0', 4));
+        $this->assertSame('100.00', bcadd($this->treasuries->position($this->treasury)->balance, '0', 2));
     }
 }

@@ -458,44 +458,50 @@ $result = match ($method) {
             'rejectCheque'          => (new ChequeService())->reject((int) $args[1], date('Y-m-d'), (int) $args[2]),
         };
     }, (string) $args[array_key_last($args)]),
-    'saveExpense'           => $attemptModel(static function () use ($args): bool {
+    'expenseRace' => $attemptModel(static function () use ($args): bool {
+        if ($args[0] === 'delete') {
+            return model(Expense::class)->delete_list([(int) $args[1]], (int) $args[2]);
+        }
+
         $data = [
             'date'                => '2026-10-20 10:00:00',
             'supplier_id'         => null,
             'supplier_tax_code'   => '',
-            'amount'              => (string) $args[1],
+            'amount'              => (string) $args[2],
             'tax_amount'          => '0',
             'payment_type'        => 'Cash',
-            'expense_category_id' => (int) $args[2],
+            'expense_category_id' => (int) $args[3],
             'description'         => 'Race expense',
-            'employee_id'         => (int) $args[3],
+            'employee_id'         => (int) $args[4],
             'deleted'             => 0,
         ];
 
-        return model(Expense::class)->save_value($data, (int) $args[0], (int) $args[3]);
-    }, (string) $args[4]),
-    'deleteExpense' => $attemptModel(static fn (): bool => model(Expense::class)->delete_list([(int) $args[0]], (int) $args[1]), (string) $args[2]),
-    'saveCashup'    => $attemptModel(static function () use ($args): bool {
+        return model(Expense::class)->save_value($data, (int) $args[1], (int) $args[4]);
+    }, (string) $args[array_key_last($args)]),
+    'cashupRace' => $attemptModel(static function () use ($args): bool {
+        if ($args[0] === 'delete') {
+            return model(Cashup::class)->delete_list([(int) $args[1]], (int) $args[2]);
+        }
+
         $data = [
             'open_date'            => '2026-10-20 08:00:00',
             'close_date'           => '2026-10-20 18:00:00',
             'open_amount_cash'     => '100',
             'transfer_amount_cash' => '0',
-            'closed_amount_cash'   => (string) $args[1],
+            'closed_amount_cash'   => (string) $args[2],
             'closed_amount_due'    => '0',
             'closed_amount_card'   => '0',
             'closed_amount_check'  => '0',
-            'closed_amount_total'  => bcsub((string) $args[1], '100', 2),
+            'closed_amount_total'  => bcsub((string) $args[2], '100', 2),
             'note'                 => 0,
             'description'          => 'Race cash-up',
-            'open_employee_id'     => (int) $args[2],
-            'close_employee_id'    => (int) $args[2],
+            'open_employee_id'     => (int) $args[3],
+            'close_employee_id'    => (int) $args[3],
             'deleted'              => 0,
         ];
 
-        return model(Cashup::class)->save_value($data, (int) $args[0], (int) $args[2]);
-    }, (string) $args[3]),
-    'deleteCashup'      => $attemptModel(static fn (): bool => model(Cashup::class)->delete_list([(int) $args[0]], (int) $args[1]), (string) $args[2]),
+        return model(Cashup::class)->save_value($data, (int) $args[1], (int) $args[3]);
+    }, (string) $args[array_key_last($args)]),
     'postCrossBranch'   => $attempt(static function () use ($args): void {
         $payments = new CrossBranchPayments();
         $amount   = (string) $args[1];

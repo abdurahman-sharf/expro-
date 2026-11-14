@@ -20,6 +20,7 @@ use Config\Database;
 use Config\OSPOS;
 use Tests\Support\PreviewJournalFixtureTrait;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
 
@@ -34,6 +35,7 @@ class CashupPostingTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use PreviewJournalFixtureTrait;
     use AccountingFixtureTrait;
+    use ConcurrentDbRaceTrait;
     use EmployeeFixtureTrait;
     use ExpenseAccountingFixtureTrait;
 
@@ -909,5 +911,61 @@ class CashupPostingTest extends CIUnitTestCase
 
         $this->assertEquals($before, (new CashupPosting())->journalsOf($cashupId));
         $this->assertCount(1, $before);
+    }
+
+    public function testDeleteList_LetsTwoSessionsDeleteTheSameCashupAndTakesItsJournalBackOnce(): void
+    {
+        $this->aDayOfCash();
+
+        $cashupId = $this->saveCashup($this->cashupData('485.50'));
+        $session  = ['delete', (string) $cashupId, (string) $this->clerkId];
+
+        $this->assertSame(1, $this->postedJournals($cashupId));
+        $this->assertSame(['done', 'done'], $this->raceSessions('cashupRace', [$session, $session]));
+        $this->assertSame(1, $this->accountingDb()->table('cash_up')->where(['cashup_id' => $cashupId, 'deleted' => 1])->countAllResults());
+        $this->assertSame(0, $this->postedJournals($cashupId));
+        $this->assertSame(1, $this->accountingDb()->table('accounting_journals')->where('source_type', 'reversal')->countAllResults(), 'The journal was taken back once');
+        $this->assertSame('0.00', $this->balanceOf($this->accountId('cash_difference')));
+        $this->assertSame('0.00', $this->balanceOf($this->accountId('cash')));
+    }
+
+    public function testSaveValue_LetsTwoSessionsCountTheSameCashupAndLeavesOneJournalThatSaysWhatTheRowSays(): void
+    {
+        $this->aDayOfCash();
+
+        $cashupId = $this->saveCashup($this->cashupData('485.50'));
+        $answers  = $this->raceSessions('cashupRace', [
+            ['save', (string) $cashupId, '480.00', (string) $this->clerkId],
+            ['save', (string) $cashupId, '495.00', (string) $this->clerkId],
+        ]);
+
+        $difference = bcadd($this->row($cashupId)->cash_difference, '0', 2);
+
+        $this->assertSame(['done', 'done'], $answers);
+        $this->assertContains($difference, ['-20.00', '-5.00']);
+        $this->assertSame(1, $this->postedJournals($cashupId), 'One journal stands for the cash-up');
+        $this->assertSame(bcsub('0', $difference, 2), $this->balanceOf($this->accountId('cash_difference')), 'The account of cash differences holds the shortage the row says');
+        $this->assertSame($difference, $this->balanceOf($this->accountId('cash')), 'The cash account holds what the shortage took out of it');
+    }
+
+    public function testSaveValue_LetsACountAndADeletionOfTheSameCashupRaceAndLeavesTheBooksAsTheRowSaysWhoeverWins(): void
+    {
+        $this->aDayOfCash();
+
+        $cashupId = $this->saveCashup($this->cashupData('485.50'));
+        $answers  = $this->raceSessions('cashupRace', [
+            ['save', (string) $cashupId, '480.00', (string) $this->clerkId],
+            ['delete', (string) $cashupId, (string) $this->clerkId],
+        ]);
+
+        $this->assertSame(['done', 'done'], $answers);
+
+        if ((int) $this->row($cashupId)->deleted === 1) {
+            $this->assertSame(0, $this->postedJournals($cashupId), 'The deletion went last, so nothing stands');
+            $this->assertSame('0.00', $this->balanceOf($this->accountId('cash_difference')));
+        } else {
+            $this->assertSame(1, $this->postedJournals($cashupId), 'The count went last, so the cash-up stands again');
+            $this->assertSame('20.00', $this->balanceOf($this->accountId('cash_difference')));
+        }
     }
 }
