@@ -139,7 +139,7 @@ class AccountingProfitReports extends AccountingOperationalReport
             'fields'        => $this->permittedFields([
                 ['type' => 'select', 'name' => 'item', 'labelKey' => 'Accounting_operational_reports.item', 'options' => $this->itemChoices(), 'value' => $this->query('item')],
                 ['type' => 'select', 'name' => 'category', 'labelKey' => 'Accounting_operational_reports.category', 'options' => $this->categoryChoices(), 'value' => $this->query('category')],
-                ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
+                $this->customerField(),
                 ['type' => 'select', 'name' => 'user', 'labelKey' => 'Accounting_operational_reports.user', 'options' => $this->employeeChoices(), 'value' => $this->query('user')],
             ], self::FILTERS),
             'csvUrl'   => base_url($csvRoute) . ($query === [] ? '' : '?' . http_build_query($query)),

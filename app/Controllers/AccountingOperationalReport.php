@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Accounting\AccountPicker;
 use App\Libraries\Accounting\ExportsCsv;
 use App\Libraries\Accounting\OperationalReports\DateFilter;
 use App\Libraries\Accounting\OperationalReports\ReportColumn;
@@ -183,15 +184,31 @@ abstract class AccountingOperationalReport extends AccountingController
     }
 
     /**
+     * The filter of one customer: a list of the customers that have an account in the books while there are no
+     * more than the picker threshold, and a search box above it, so that no customer is left out of the list.
+     *
+     * @return array<string, mixed>
+     */
+    protected function customerField(): array
+    {
+        $field  = ['name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'value' => $this->query('customer')];
+        $picker = (new AccountPicker())->partyScreen(AccountPicker::CUSTOMER, $this->positiveId('customer'), base_url('accounting_lookup/search'), '#f_customer_text', AccountPicker::LEDGER);
+
+        return $picker === null
+            ? $field + ['type' => 'select', 'options' => $this->customerChoices()]
+            : $field + ['type' => 'picker', 'picker' => $picker, 'allKey' => 'Accounting_operational_reports.all_customers', 'chooseKey' => 'Accounting_operational_reports.customer_choose'];
+    }
+
+    /**
      * The customers that have an account in the books, by name, for a filter.
      *
      * @return array<string, string>
      */
-    protected function customerChoices(): array
+    private function customerChoices(): array
     {
         $choices = ['' => lang('Accounting_operational_reports.all_customers')];
 
-        foreach (Database::connect()->table('accounting_accounts')->select('entity_id, name')->where('entity_type', 'customer')->orderBy('name', 'ASC')->limit(500)->get()->getResult() as $account) {
+        foreach (Database::connect()->table('accounting_accounts')->select('entity_id, name')->where('entity_type', 'customer')->orderBy('name', 'ASC')->limit((new AccountPicker())->listLimit())->get()->getResult() as $account) {
             $choices[(string) $account->entity_id] = (string) $account->name;
         }
 

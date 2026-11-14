@@ -12,6 +12,7 @@ use App\Libraries\Accounting\PairwiseReport;
 use App\Libraries\Accounting\ReportPeriod;
 use App\Libraries\Accounting\ReportScope;
 use App\Libraries\Accounting\ReportScopeKind;
+use App\Libraries\Accounting\ScopedReportRequest;
 use App\Libraries\Accounting\TreasuryScopes;
 use App\Libraries\Accounting\TreasuryService;
 use App\Libraries\Organization\BranchException;
@@ -26,6 +27,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 class AccountingInterBranch extends AccountingController
 {
     use ExportsCsv;
+    use ScopedReportRequest;
 
     private const MAX_PAGE_SIZE = 500;
 
@@ -59,7 +61,7 @@ class AccountingInterBranch extends AccountingController
 
     public function getCsv(): ResponseInterface
     {
-        $scope = $this->pairsScope();
+        $scope = $this->requestedScope();
 
         try {
             $asOf = ReportPeriod::of(null, $this->asOfOf($this->request->getGet('as_of')))->to;
@@ -177,7 +179,7 @@ class AccountingInterBranch extends AccountingController
      */
     private function pairsData(): array
     {
-        $scope = $this->pairsScope();
+        $scope = $this->requestedScope();
         $error = null;
 
         try {
@@ -212,21 +214,14 @@ class AccountingInterBranch extends AccountingController
             'difference'   => $report->difference !== null && bccomp($report->difference, '0', 4) !== 0 ? $this->formatAmount($report->difference) : null,
             'error'        => $error,
             'asOf'         => $asOf,
-            'branches'     => $scope->choosable() ? $scope->choices : [],
+            'branches'     => $this->branchChoices($scope),
             'selected'     => $scope->ids,
             'scopeLabel'   => $scope->label(),
             'scopeEmpty'   => $scope->isEmpty(),
             'scopePartial' => $scope->kind === ReportScopeKind::Partial,
             'canSettle'    => $this->can(AccountingGuard::INTERBRANCH_SETTLE),
-            'csvUrl'       => base_url('accounting_treasuries/inter_branch/csv') . '?' . http_build_query(['as_of' => $asOf] + ($this->request->getGet('branches') === null ? [] : ['branches' => $scope->isEmpty() ? [0] : $scope->ids])),
+            'csvUrl'       => base_url('accounting_treasuries/inter_branch/csv') . '?' . http_build_query(['as_of' => $asOf] + ($this->branchesToCarry($scope) === null ? [] : ['branches' => $this->branchesToCarry($scope)])),
         ];
-    }
-
-    private function pairsScope(): ReportScope
-    {
-        $requested = $this->request->getGet('branches');
-
-        return ReportScope::resolve(is_array($requested) ? array_map('intval', $requested) : null, $this->branchIds());
     }
 
     private function pairsCsv(PairwiseReport $report, ReportScope $scope, string $asOf): string

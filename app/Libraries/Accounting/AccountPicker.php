@@ -23,7 +23,8 @@ final class AccountPicker
     public const POSTABLE = 'postable';
     public const OPENING  = 'opening';
     public const EVERY    = 'every';
-    public const MODES    = [self::POSTABLE, self::OPENING, self::EVERY];
+    public const LEDGER   = 'ledger';
+    public const MODES    = [self::POSTABLE, self::OPENING, self::EVERY, self::LEDGER];
     public const LIMIT    = 20;
 
     private BaseConnection $db;
@@ -165,24 +166,34 @@ final class AccountPicker
     }
 
     /**
+     * Whether the kind answers to the mode: the customers of the ledger are a way of listing customers only.
+     */
+    public static function accepts(string $kind, string $mode): bool
+    {
+        return in_array($kind, self::KINDS, true) && in_array($mode, self::MODES, true) && ($mode !== self::LEDGER || $kind === self::CUSTOMER);
+    }
+
+    /**
      * What a screen that picks a customer or a supplier needs to render: above the threshold, the settings of the
      * search box and the name of the one already chosen, and below it nothing, so that the screen keeps its list.
      * The search is answered by an accounting screen, so while accounting is off the screen keeps its list too.
+     * The mode LEDGER offers the customers that have an account in the books, deleted ones included, which is
+     * what the filters of the reports have always listed.
      *
      * @return array{url: string, selector: string, params: array<string, string>, initial: list<array{id: int, code: string, label: string}>, text: array<string, string>}|null
      */
-    public function partyScreen(string $kind, ?int $selected, string $url, string $selector): ?array
+    public function partyScreen(string $kind, ?int $selected, string $url, string $selector, string $mode = self::EVERY): ?array
     {
-        if (! $this->settings->isEnabled() || ! $this->searching($kind, self::EVERY, null)) {
+        if (! $this->settings->isEnabled() || ! $this->searching($kind, $mode, null)) {
             return null;
         }
 
-        $entry = $selected === null ? null : $this->find($kind, self::EVERY, $selected, null);
+        $entry = $selected === null ? null : $this->find($kind, $mode, $selected, null);
 
         return [
             'url'      => $url,
             'selector' => $selector,
-            'params'   => ['kind' => $kind, 'mode' => self::EVERY],
+            'params'   => ['kind' => $kind, 'mode' => $mode],
             'initial'  => $entry === null ? [] : [$entry],
             'text'     => $this->text(),
         ];
@@ -209,9 +220,22 @@ final class AccountPicker
     {
         return match ($kind) {
             self::ACCOUNT  => $this->accounts($mode, $branchIds),
-            self::CUSTOMER => $this->db->table('customers c')->join('people p', 'p.person_id = c.person_id')->where('c.deleted', 0),
+            self::CUSTOMER => $this->customers($mode),
             default        => $this->db->table('suppliers s')->join('people p', 'p.person_id = s.person_id')->where('s.deleted', 0),
         };
+    }
+
+    private function customers(string $mode): BaseBuilder
+    {
+        $builder = $this->db->table('customers c')->join('people p', 'p.person_id = c.person_id');
+
+        if ($mode !== self::LEDGER) {
+            return $builder->where('c.deleted', 0);
+        }
+
+        $accounts = $this->db->prefixTable('accounting_accounts');
+
+        return $builder->where("EXISTS (SELECT 1 FROM {$accounts} acc WHERE acc.company_id = " . (int) CompanyContext::id() . " AND acc.entity_type = '" . EntityAccountService::CUSTOMER . "' AND acc.entity_id = c.person_id)", null, false);
     }
 
     /**

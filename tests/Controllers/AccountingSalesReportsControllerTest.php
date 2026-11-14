@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Libraries\Accounting\Currencies;
+use App\Libraries\Accounting\EntityAccountService;
 use App\Libraries\Accounting\OperationalReports\DateFilter;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -63,6 +64,149 @@ class AccountingSalesReportsControllerTest extends CIUnitTestCase
         $paid = $this->invoiceOf('115', $this->customerId, [$this->payment(lang('Sales.cash'), '100')]);
         $this->invoiceOf('230', $this->anotherCustomer());
         $this->creditNoteOf($paid, '57.50', $this->customerId);
+    }
+
+    private function pickerScript(string $body): string
+    {
+        $this->assertSame(1, preg_match('/<script type="text\/javascript">\s*\$\(function\(\) \{\s*const fields = .*?<\/script>/s', $body, $found), 'The screen carries the script of its search boxes');
+
+        return $found[0];
+    }
+
+    public function testGetRevenue_FiltersByCustomerInASearchBoxAboveThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterSearches(self::REVENUE);
+    }
+
+    public function testGetClients_FiltersByCustomerInASearchBoxAboveThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterSearches(self::CLIENTS);
+    }
+
+    public function testGetClients_OffersASearchBoxThatTheLookupAnswersToTheReaderOfTheCustomerReportsAlone(): void
+    {
+        $this->assertCustomerFilterIsAnsweredToTheReaderOf(self::CLIENTS, ['accounting_reports', 'reports_customers']);
+    }
+
+    public function testGetRevenue_OffersASearchBoxThatTheLookupAnswersToTheReaderOfTheCustomerReportsAlone(): void
+    {
+        $this->assertCustomerFilterIsAnsweredToTheReaderOf(self::REVENUE . '?group=day', ['accounting_reports', 'reports_sales', 'reports_customers']);
+    }
+
+    public function testGetRevenue_ListsTheCustomersOfTheLedgerWhileTheyAreNoMoreThanThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterLists(self::REVENUE);
+        $this->assertCustomerFilterLists(self::CLIENTS);
+    }
+
+    public function testGetRevenue_ListsEveryCustomerOfTheLedgerBelowTheThresholdAndNotOnlyTheFirstFiveHundred(): void
+    {
+        $ids = [];
+
+        for ($index = 1; $index <= 520; $index++) {
+            $ids[$index] = $this->insertCustomer('Listed', sprintf('Buyer %04d', $index));
+        }
+
+        (new EntityAccountService())->fill();
+        $this->setPickerThreshold(1000);
+        $this->reader();
+
+        try {
+            $page = $this->pageOf($this->fetch(self::REVENUE));
+
+            foreach ([1, 500, 501, 520] as $position) {
+                $this->assertSame(1, $page->query("//select[@id='f_customer']/option[@value='{$ids[$position]}']")->length, "Customer {$position} is in the list");
+            }
+        } finally {
+            $this->setPickerThreshold(null);
+        }
+    }
+
+    public function testGetRevenue_NamesTheCustomerChosenInTheSearchBoxAndKeepsItsNumber(): void
+    {
+        $this->bookedCustomer('Filter', 'Other');
+        $chosen = $this->bookedCustomer('Filter', 'Chosen Buyer');
+        $this->setPickerThreshold(1);
+        $this->reader();
+
+        try {
+            $page = $this->pageOf($this->fetch(self::REVENUE . '?show=1&group=customer&customer=' . $chosen));
+
+            $this->assertSame('Filter Chosen Buyer', $page->query("//input[@id='f_customer_text']/@value")->item(0)?->nodeValue);
+            $this->assertSame((string) $chosen, $page->query("//input[@id='f_customer']/@value")->item(0)?->nodeValue);
+
+            $none = $this->pageOf($this->fetch(self::REVENUE));
+
+            $this->assertSame('', $none->query("//input[@id='f_customer_text']/@value")->item(0)?->nodeValue, 'Nobody is chosen until someone is');
+            $this->assertSame('', $none->query("//input[@id='f_customer']/@value")->item(0)?->nodeValue);
+        } finally {
+            $this->setPickerThreshold(null);
+        }
+    }
+
+    public function testGetRevenue_EscapesTheNameOfTheChosenCustomerInTheBoxAndTheScript(): void
+    {
+        $name = 'Quote"s <b>Shop</b><script>alert(1)</script>';
+
+        $this->bookedCustomer('Filter', 'Other');
+        $chosen = $this->bookedCustomer('Filter', 'Quoted', $name);
+        $this->setPickerThreshold(1);
+        $this->reader();
+
+        try {
+            $response = $this->fetch(self::REVENUE . '?show=1&group=customer&customer=' . $chosen);
+            $body     = (string) $response->response()->getBody();
+
+            $this->assertStringNotContainsString('<script>alert', $body);
+            $this->assertStringNotContainsString('<b>Shop</b>', $body);
+            $this->assertSame($name, $this->pageOf($response)->query("//input[@id='f_customer_text']/@value")->item(0)?->nodeValue, 'The box shows the name as text');
+            $this->assertStringContainsString('"label":"Quote\\u0022s \\u003Cb\\u003EShop\\u003C\\/b\\u003E\\u003Cscript\\u003Ealert(1)\\u003C\\/script\\u003E"', $body);
+        } finally {
+            $this->setPickerThreshold(null);
+        }
+    }
+
+    public function testGetRevenue_BlocksTheFormWhileTheNameInTheSearchBoxMatchesNobody(): void
+    {
+        $this->bookedCustomer('Filter', 'First');
+        $this->bookedCustomer('Filter', 'Second');
+        $this->setPickerThreshold(1);
+        $this->reader();
+
+        try {
+            $response = $this->fetch(self::REVENUE);
+            $page     = $this->pageOf($response);
+            $script   = $this->pickerScript((string) $response->response()->getBody());
+
+            $this->assertSame(1, $page->query("//form[@id='report_filters']//input[@id='f_customer_text']")->length);
+
+            $feedback = $page->query("//form[@id='report_filters']//input[@id='f_customer_text']/following-sibling::div[@class='invalid-feedback'][@role='alert']");
+
+            $this->assertSame(1, $feedback->length, 'The box is followed by the alert that shows once it is marked invalid');
+            $this->assertSame(lang('Accounting_operational_reports.customer_choose'), trim((string) $feedback->item(0)?->textContent));
+            $this->assertMatchesRegularExpression("/\\\$\\('#report_filters'\\)\\.on\\('submit', function\\(event\\) \\{.*pickers\\[field\\.name\\]\\.sync\\(.*if \\(\\\$text\\.hasClass\\('is-invalid'\\)\\) \\{\\s*event\\.preventDefault\\(\\);/s", $script, 'The form is stopped when the box is still invalid after it has been read again');
+            $this->assertStringContainsString("\$text.attr('aria-invalid', \$text.hasClass('is-invalid') ? 'true' : 'false');", $script, 'The box says to assistive technology that it is invalid');
+            $this->assertStringContainsString("\$text.on('input change blur', function(event) {", $script);
+        } finally {
+            $this->setPickerThreshold(null);
+        }
+    }
+
+    public function testGetRevenue_OffersNoSearchBoxToSomeoneWhoMayNotFilterByCustomer(): void
+    {
+        $this->bookedCustomer('Filter', 'First');
+        $this->bookedCustomer('Filter', 'Second');
+        $this->setPickerThreshold(1);
+        $this->reader(['accounting_reports', 'reports_sales']);
+
+        try {
+            $response = $this->fetch(self::REVENUE . '?group=day');
+
+            $response->assertStatus(200);
+            $this->assertSame(0, $this->pageOf($response)->query("//*[@id='f_customer' or @id='f_customer_text']")->length);
+        } finally {
+            $this->setPickerThreshold(null);
+        }
     }
 
     public function testGetRevenue_ShowsNoTableUntilTheReportIsRun(): void

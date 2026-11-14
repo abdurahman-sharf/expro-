@@ -339,6 +339,61 @@ class ItemsControllerTest extends CIUnitTestCase
         $this->assertSame(['Import duty', '5.000', 'Levy', '2.500'], [$row->purchase_tax_1_name, $row->purchase_tax_1_percent, $row->purchase_tax_2_name, $row->purchase_tax_2_percent]);
     }
 
+    public function testGetIndex_ShowsAColumnOfPurchaseTaxesOnlyWhileAnItemHasOne(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+        $this->accountingDb()->table('items')->update(['purchase_tax_1_percent' => null, 'purchase_tax_2_percent' => null]);
+
+        $without = $this->get('/items')->getBody();
+
+        $this->assertStringNotContainsString('"field":"purchase_taxes"', $without);
+
+        $postData = $this->baseItemPostData();
+        $postData['tax_names']             = ['VAT'];
+        $postData['purchase_tax_names']    = ['Import duty', ''];
+        $postData['purchase_tax_percents'] = ['5', ''];
+
+        $this->assertTrue(json_decode($this->post('/items/save', $postData)->getJSON(), true)['success']);
+
+        $with = $this->get('/items')->getBody();
+
+        $this->assertStringContainsString('"field":"purchase_taxes"', $with);
+        $this->assertStringContainsString(lang('Items.purchase_taxes'), $with);
+
+        $this->accountingDb()->table('items')->where('purchase_tax_1_percent IS NOT NULL', null, false)->update(['deleted' => 1]);
+
+        try {
+            $this->assertStringNotContainsString('"field":"purchase_taxes"', $this->get('/items')->getBody(), 'An item that was deleted shows no column');
+        } finally {
+            $this->accountingDb()->table('items')->where('purchase_tax_1_percent IS NOT NULL', null, false)->update(['deleted' => 0]);
+        }
+
+        $itemId = (int) $this->accountingDb()->table('items')->select('item_id')->where('purchase_tax_1_percent IS NOT NULL', null, false)->get()->getRow()->item_id;
+
+        $this->accountingDb()->table('items')->update(['purchase_tax_1_percent' => null, 'purchase_tax_2_percent' => null]);
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['purchase_tax_2_percent' => '3.000']);
+
+        $this->assertStringContainsString('"field":"purchase_taxes"', $this->get('/items')->getBody(), 'The second purchase tax is enough for the column');
+    }
+
+    public function testGetSearch_ShowsThePurchaseTaxesOfEachItemInItsRowSoThatTheTableAndItsExportCarryThem(): void
+    {
+        $this->loginAsItemsEmployee($this->createItemsEmployee());
+
+        $postData = $this->baseItemPostData();
+        $postData['name']                  = 'Purchase taxed row item';
+        $postData['tax_names']             = ['VAT'];
+        $postData['purchase_tax_names']    = ['Import duty', 'Levy'];
+        $postData['purchase_tax_percents'] = ['5', '2.5'];
+
+        $this->assertTrue(json_decode($this->post('/items/save', $postData)->getJSON(), true)['success']);
+
+        $found = json_decode($this->get('/items/search', ['search' => 'Purchase taxed row item', 'limit' => '10', 'offset' => '0', 'order' => 'asc'])->getJSON(), true);
+
+        $this->assertSame(1, $found['total']);
+        $this->assertSame('Import duty 5.00%, Levy 2.50%', $found['rows'][0]['purchase_taxes']);
+    }
+
     public function testPostSave_SavesAPurchaseTaxOfZeroAsNoTaxAndAnEmptyOneAsFollowingTheSalesTax(): void
     {
         $this->loginAsItemsEmployee($this->createItemsEmployee());

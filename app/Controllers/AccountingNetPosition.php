@@ -58,7 +58,7 @@ class AccountingNetPosition extends AccountingOperationalReport
             'offersView'    => true,
             'fields'        => [
                 ['type' => 'multi', 'name' => 'status', 'labelKey' => 'Accounting_operational_reports.status', 'options' => $this->stateChoices(NetPositionReport::STATES), 'value' => $this->states(NetPositionReport::STATES)],
-                ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
+                $this->customerField(),
                 ['type' => 'check', 'name' => 'hide_credit_notes', 'labelKey' => 'Accounting_operational_reports.credit_notes', 'checkLabelKey' => 'Accounting_operational_reports.hide_credit_notes', 'value' => $this->flag('hide_credit_notes')],
             ],
             'csvUrl'   => base_url('accounting_reports/net_position/csv') . ($query === [] ? '' : '?' . http_build_query($query)),
@@ -105,7 +105,7 @@ class AccountingNetPosition extends AccountingOperationalReport
             'fields'        => [
                 ['type' => 'select', 'name' => 'type', 'labelKey' => 'Accounting_operational_reports.return_type', 'options' => ['' => lang('Accounting_operational_reports.type_all'), DocumentKind::CreditNote->value => lang(DocumentKind::CreditNote->languageKey()), DocumentKind::RefundInvoice->value => lang(DocumentKind::RefundInvoice->languageKey())], 'value' => $this->query('type')],
                 ['type' => 'multi', 'name' => 'status', 'labelKey' => 'Accounting_operational_reports.payment_state', 'options' => $this->stateChoices(['unpaid', 'partial', 'paid', 'excess']), 'value' => $this->states(['unpaid', 'partial', 'paid', 'excess'])],
-                ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
+                $this->customerField(),
                 ['type' => 'select', 'name' => 'order', 'labelKey' => 'Accounting_operational_reports.order', 'options' => $this->orderChoices(), 'value' => $this->choice('order', CrossReferenceReport::ORDERS, 'date_desc')],
             ],
             'csvUrl'   => base_url('accounting_reports/invoice_returns/csv') . ($query === [] ? '' : '?' . http_build_query($query)),

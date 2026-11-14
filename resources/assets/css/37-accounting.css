@@ -561,3 +561,7 @@
 .acc-year-notice {
     margin-bottom: 12px;
 }
+
+.table-responsive {
+    position: relative;
+}

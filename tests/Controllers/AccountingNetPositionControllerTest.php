@@ -66,6 +66,26 @@ class AccountingNetPositionControllerTest extends CIUnitTestCase
         $this->save([$this->line($this->item('0', false), 0, '-1', '253')], [], [], SALE_TYPE_RETURN, $this->anotherCustomer('Third', 'Buyer'), true, null, COMPLETED, NEW_ENTRY, null, returnOverrideReason: 'test');
     }
 
+    public function testGetIndex_FiltersByCustomerInASearchBoxAboveThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterSearches(self::NET);
+    }
+
+    public function testGetCross_FiltersByCustomerInASearchBoxAboveThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterSearches(self::CROSS);
+    }
+
+    public function testGetIndex_OffersASearchBoxThatTheLookupAnswersToTheReaderOfTheSalesReportsAlone(): void
+    {
+        $this->assertCustomerFilterIsAnsweredToTheReaderOf(self::NET, ['accounting_reports', 'reports_sales']);
+    }
+
+    public function testGetCross_OffersASearchBoxThatTheLookupAnswersToTheReaderOfTheSalesReportsAlone(): void
+    {
+        $this->assertCustomerFilterIsAnsweredToTheReaderOf(self::CROSS, ['accounting_reports', 'reports_sales']);
+    }
+
     public function testGetIndex_ShowsNoTableUntilRunAndThenTheNetAfterReturns(): void
     {
         $this->sell();

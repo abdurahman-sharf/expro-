@@ -207,17 +207,6 @@ class AccountingStatements extends AccountingController
         $this->csvRow($handle, ['', $totalLabel, $total]);
     }
 
-    /**
-     * The branches the statements carry into their links are those the request named as a list: a request
-     * that names them in any other way is read as naming none and carries nothing.
-     *
-     * @return list<int>|null
-     */
-    protected function branchesToCarry(ReportScope $scope): ?array
-    {
-        return is_array($this->request->getGet('branches')) ? ($scope->isEmpty() ? [0] : $scope->ids) : null;
-    }
-
     private function asOf(): string
     {
         $to = $this->query('to');

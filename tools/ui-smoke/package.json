@@ -11,7 +11,8 @@
     "legacy-purchase-discount": "node check-legacy-purchase-discount.mjs",
     "gates": "node gates.mjs",
     "phone-pass": "node phone-pass.mjs",
-    "picker": "node picker.mjs"
+    "picker": "node picker.mjs",
+    "customer-filter": "node check-customer-filter.mjs"
   },
   "engines": {
     "node": ">=22"

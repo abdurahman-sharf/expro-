@@ -67,7 +67,7 @@ class AccountingPaymentReports extends AccountingOperationalReport
             'details'       => $this->wantsDetails(),
             'offersView'    => true,
             'fields'        => $this->permittedFields([
-                ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
+                $this->customerField(),
                 ['type' => 'select', 'name' => 'user', 'labelKey' => 'Accounting_operational_reports.invoice_user', 'options' => $this->employeeChoices(), 'value' => $this->query('user')],
                 ['type' => 'select', 'name' => 'collector', 'labelKey' => 'Accounting_operational_reports.collector', 'options' => $this->employeeChoices(), 'value' => $this->query('collector')],
                 ['type' => 'select', 'name' => 'method', 'labelKey' => 'Accounting_operational_reports.method', 'options' => $this->methodChoices(), 'value' => $this->query('method')],
@@ -121,7 +121,7 @@ class AccountingPaymentReports extends AccountingOperationalReport
             'details'       => false,
             'offersView'    => false,
             'fields'        => $this->permittedFields([
-                ['type' => 'select', 'name' => 'customer', 'labelKey' => 'Accounting_operational_reports.customer', 'options' => $this->customerChoices(), 'value' => $this->query('customer')],
+                $this->customerField(),
                 ['type' => 'select', 'name' => 'user', 'labelKey' => 'Accounting_operational_reports.created_by', 'options' => $this->employeeChoices(), 'value' => $this->query('user')],
                 ['type' => 'select', 'name' => 'method', 'labelKey' => 'Accounting_operational_reports.method', 'options' => $this->methodChoices(), 'value' => $this->query('method')],
                 ['type' => 'select', 'name' => 'state', 'labelKey' => 'Accounting_operational_reports.advance_state', 'options' => ['' => lang('Accounting_operational_reports.state_any'), 'open' => lang('Accounting_operational_reports.state_open'), 'spent' => lang('Accounting_operational_reports.state_spent')], 'value' => $this->choice('state', AdvancePaymentsReport::STATES, '')],

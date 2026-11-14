@@ -707,4 +707,35 @@ class AccountingInterBranchControllerTest extends CIUnitTestCase
         $response->assertSee('id="inter_branch_csv_xlsx" href="' . site_url('accounting_treasuries/inter_branch/xlsx') . '?as_of=2026-10-31&amp;branches%5B0%5D=1"');
         $response->assertSee('id="inter_branch_csv_pdf" href="' . site_url('accounting_treasuries/inter_branch/pdf') . '?as_of=2026-10-31&amp;branches%5B0%5D=1"');
     }
+
+    public function testGetIndex_ReadsBranchesNamedAsOneValueAsNamingNoneAndCarriesNothingIntoTheFiles(): void
+    {
+        $this->actAsWith(['accounting_treasuries']);
+
+        $response = $this->get('/accounting_treasuries/inter_branch?as_of=2026-10-31&branches=1');
+
+        $response->assertSee('id="inter_branch_csv" href="' . site_url('accounting_treasuries/inter_branch/csv') . '?as_of=2026-10-31"');
+        $response->assertDontSee('branches%5B');
+        $response->assertDontSee(lang('Accounting_reports.no_branches'));
+    }
+
+    public function testGetIndex_ReadsAListInsideTheListOfBranchesAsNamingNoBranch(): void
+    {
+        $this->actAsWith(['accounting_treasuries']);
+
+        $response = $this->get('/accounting_treasuries/inter_branch?as_of=2026-10-31&branches[][]=1');
+
+        $response->assertSee('id="inter_branch_csv" href="' . site_url('accounting_treasuries/inter_branch/csv') . '?as_of=2026-10-31&amp;branches%5B0%5D=0"');
+    }
+
+    public function testGetCsv_CutsTheBranchesAskedDownToTheOnesTheEmployeeWorksInAndNamesThem(): void
+    {
+        $this->actAsWith(['accounting_treasuries'], [1]);
+
+        $rows     = $this->csvRows($this->get('/accounting_treasuries/inter_branch/csv?as_of=2026-10-31&branches[]=1&branches[]=' . $this->branch));
+        $branches = array_values(array_filter($rows, static fn (array $row): bool => ($row[0] ?? '') === lang('Accounting_reports.csv_branches')));
+
+        $this->assertCount(1, $branches);
+        $this->assertSame('HQ', $branches[0][1]);
+    }
 }

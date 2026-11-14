@@ -85,6 +85,7 @@ return [
     'credit_notes'          => '',
     'cross_title'           => '',
     'customer'              => '',
+    'customer_choose'       => '',
     'date_mode'             => '',
     'differs'               => '',
     'grand_total'           => '',

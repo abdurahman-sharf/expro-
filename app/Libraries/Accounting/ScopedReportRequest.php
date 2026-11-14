@@ -66,12 +66,13 @@ trait ScopedReportRequest
     }
 
     /**
-     * The branches to carry into a link, when the request named any.
+     * The branches to carry into a link, when the request named them as a list: a request that names them in
+     * any other way is read as naming none and carries nothing.
      *
      * @return list<int>|null
      */
     protected function branchesToCarry(ReportScope $scope): ?array
     {
-        return $this->request->getGet('branches') === null ? null : ($scope->isEmpty() ? [0] : $scope->ids);
+        return is_array($this->request->getGet('branches')) ? ($scope->isEmpty() ? [0] : $scope->ids) : null;
     }
 }

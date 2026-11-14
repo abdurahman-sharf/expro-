@@ -9,7 +9,8 @@ use CodeIgniter\HTTP\ResponseInterface;
 /**
  * The search a picker of accounts, customers or suppliers asks while someone types, at most twenty entries
  * for the branches the employee works in. A kind is answered only to someone who holds the permission of a
- * screen that uses it.
+ * screen that uses it, and the customers of the ledger, deleted ones included, only to someone who holds the
+ * permission of a report that filters by customer.
  */
 class AccountingLookup extends AccountingController
 {
@@ -18,6 +19,7 @@ class AccountingLookup extends AccountingController
         AccountPicker::CUSTOMER => ['accounting_receivables', 'customers', 'sales'],
         AccountPicker::SUPPLIER => ['accounting_payables', 'suppliers', 'receivings', 'recurring_expenses'],
     ];
+    private const LEDGER_SCREENS = ['reports_customers', 'reports_payments', 'reports_sales'];
 
     public function __construct()
     {
@@ -30,11 +32,11 @@ class AccountingLookup extends AccountingController
         $mode = $this->request->getGet('mode');
         $term = $this->request->getGet('term') ?? '';
 
-        if (! in_array($kind, AccountPicker::KINDS, true) || ! in_array($mode, AccountPicker::MODES, true) || ! is_string($term)) {
+        if (! is_string($kind) || ! is_string($mode) || ! is_string($term) || ! AccountPicker::accepts($kind, $mode)) {
             return $this->response->setStatusCode(400);
         }
 
-        if (! $this->mayPick($kind)) {
+        if (! $this->mayPick($kind, $mode)) {
             return $this->response->setStatusCode(403);
         }
 
@@ -59,9 +61,9 @@ class AccountingLookup extends AccountingController
         return self::SCREENS[AccountPicker::ACCOUNT][0];
     }
 
-    private function mayPick(string $kind): bool
+    private function mayPick(string $kind, string $mode): bool
     {
-        foreach (self::SCREENS[$kind] as $screen) {
+        foreach ($mode === AccountPicker::LEDGER ? self::LEDGER_SCREENS : self::SCREENS[$kind] as $screen) {
             if ($this->can($screen)) {
                 return true;
             }

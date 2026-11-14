@@ -101,6 +101,7 @@ return [
     'purchase_tax_2'                     => 'Purchase tax 2',
     'purchase_tax_hint'                  => 'Leave the rate empty to use the sales tax of the same number; 0 means no tax on purchases. A receiving line takes these rates unless the line has its own.',
     'purchase_tax_percent_invalid'       => 'A purchase tax rate is a number from 0 to 100.',
+    'purchase_taxes'                     => 'Purchase taxes',
     'qty_per_pack'                       => 'Quantity per pack',
     'quantity'                           => 'Quantity',
     'quantity_number'                    => 'Quantity must be a number.',

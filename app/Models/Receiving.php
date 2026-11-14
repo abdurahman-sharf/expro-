@@ -1469,6 +1469,33 @@ class Receiving extends Model
     }
 
     /**
+     * @param list<int|string> $locationIds
+     *
+     * @return array<int, string> The code of the branch of each location, by the number of the location.
+     */
+    public function branchCodesOfLocations(array $locationIds): array
+    {
+        $codes = [];
+
+        if ($locationIds === []) {
+            return $codes;
+        }
+
+        $rows = $this->db->table('stock_locations l')
+            ->select('l.location_id, b.code')
+            ->join('branches b', 'b.branch_id = l.branch_id')
+            ->whereIn('l.location_id', array_map('intval', $locationIds))
+            ->get()
+            ->getResult();
+
+        foreach ($rows as $row) {
+            $codes[(int) $row->location_id] = (string) $row->code;
+        }
+
+        return $codes;
+    }
+
+    /**
      * The branch a purchase belongs to, or null when there is no such purchase.
      */
     public function getBranchId(int $receivingId): ?int

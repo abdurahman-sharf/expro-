@@ -61,6 +61,11 @@ class AccountingItemReportsControllerTest extends CIUnitTestCase
         $this->save([$this->line($cream, 0, '4', '75', '40', '10')], [$this->tax($cream, 0, '40.50')], [], SALE_TYPE_INVOICE, $this->customerId);
     }
 
+    public function testGetIndex_FiltersByCustomerInASearchBoxAboveThePickerThreshold(): void
+    {
+        $this->assertCustomerFilterSearches(self::SCREEN);
+    }
+
     public function testGetIndex_ShowsNoTableUntilTheReportIsRun(): void
     {
         $this->reader();
