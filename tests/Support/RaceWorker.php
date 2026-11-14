@@ -157,6 +157,26 @@ $result = match ($method) {
         ->issueDraft((int) $args[0], (int) $args[1]) > 0,
     'cancelSale' => model(Sale::class)
         ->delete((int) $args[0], false, true, (int) $args[1]),
+    'completeSuspended' => (static function (array $args): bool {
+        $status   = COMPLETED;
+        $items    = [[
+            'item_id'       => (int) $args[1],
+            'line'          => 0,
+            'description'   => 'Race',
+            'serialnumber'  => '',
+            'quantity'      => '1',
+            'discount'      => '0',
+            'discount_type' => 0,
+            'cost_price'    => '0',
+            'price'         => '100',
+            'item_location' => 1,
+            'print_option'  => 0,
+        ]];
+        $taxes    = [[], []];
+        $payments = [['payment_type' => (string) $args[3], 'payment_amount' => (string) $args[4], 'cash_refund' => '0', 'cash_adjustment' => 0, 'reference_code' => null]];
+
+        return model(Sale::class)->save_value((int) $args[0], $status, $items, (int) $args[5] > 0 ? (int) $args[5] : NEW_ENTRY, (int) $args[2], 'race', null, null, null, SALE_TYPE_POS, $payments, null, $taxes) > 0;
+    })($args),
     'serviceInvoice' => (static function (array $args): bool {
         $status = COMPLETED;
         $items  = [[

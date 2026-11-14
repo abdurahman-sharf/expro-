@@ -6,6 +6,7 @@ use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\AccountingMessage;
 use App\Libraries\Accounting\AccountingSettings;
 use App\Libraries\Accounting\CashupPosting;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Organization\BranchException;
 use App\Libraries\Organization\BranchGuard;
@@ -166,16 +167,15 @@ class Cashups extends Secure_Controller
 
             foreach ($reportsData as $row) {
                 if ($row['trans_group'] == lang('Reports.trans_payments')) {
-                    if ($row['trans_type'] == lang('Sales.cash')) {
+                    $type = PaymentType::fromLabel((string) $row['trans_type']);
+
+                    if ($type === PaymentType::Cash) {
                         $cashUpsInfo->closed_amount_cash += $row['trans_amount'];
-                    } elseif ($row['trans_type'] == lang('Sales.due')) {
+                    } elseif ($type === PaymentType::Due) {
                         $cashUpsInfo->closed_amount_due += $row['trans_amount'];
-                    } elseif (
-                        $row['trans_type'] == lang('Sales.debit') ||
-                        $row['trans_type'] == lang('Sales.credit')
-                    ) {
+                    } elseif ($type === PaymentType::Debit || $type === PaymentType::Credit) {
                         $cashUpsInfo->closed_amount_card += $row['trans_amount'];
-                    } elseif ($row['trans_type'] == lang('Sales.check')) {
+                    } elseif ($type === PaymentType::Check) {
                         $cashUpsInfo->closed_amount_check += $row['trans_amount'];
                     }
                 }

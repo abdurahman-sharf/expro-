@@ -56,6 +56,15 @@ final class BuiltAssetsTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('/\.rt-calc > :last-child[^{]*\{[^}]*white-space: nowrap;/', $styles, 'the total of a line is cut in two on paper of 58 mm');
     }
 
+    public function testBuild_ServesTheGuardThatLetsAFormOfTheRegisterGoOnce(): void
+    {
+        $script = (string) file_get_contents(ROOTPATH . 'public/assets/js/app.js');
+
+        $this->assertStringContainsString("form[data-single-shot]", $script, 'the guard of the forms that may be submitted once is not in the served script');
+        $this->assertStringContainsString("a[data-single-shot]", $script, 'the guard of the links that may be followed once is not in the served script');
+        $this->assertStringContainsString('pageshow', $script, 'a page restored from the history keeps its buttons locked');
+    }
+
     private function bundleOf(string $directory, string $suffix, string $separator): string
     {
         $texts = [];

@@ -2,6 +2,7 @@
 
 namespace App\Models\Reports;
 
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\InvoiceDiscount;
 use Config\OSPOS;
 
@@ -29,7 +30,6 @@ class Summary_payments extends Summary_report
      */
     public function getData(array $inputs): array
     {
-        $cash_payment = lang('Sales.cash');    // TODO: This is never used.  Should it be?
         $config = config(OSPOS::class)->settings;
 
         $separator[] = [
@@ -101,26 +101,48 @@ class Summary_payments extends Summary_report
 
         $payments = $builder->get()->getResultArray();
 
-        // Consider Gift Card as only one type of payment and do not show "Gift Card: 1, Gift Card: 2, etc." in the total
-        $gift_card_count = 0;
-        $gift_card_amount = 0;
-        foreach ($payments as $key => $payment) {
-            if (str_contains($payment['trans_type'], lang('Sales.giftcard'))) {
-                $gift_card_count += $payment['trans_sales'];
-                $gift_card_amount += $payment['trans_amount'];
+        // A payment is stored under the name of its type in the language of the moment: every name of one type is one row,
+        // and a gift card is one row whatever the number after its name
+        $giftCardCount = 0;
+        $giftCardAmount = 0;
+        $byType = [];
 
-                // Remove the "Gift Card: 1", "Gift Card: 2", etc. payment string
-                unset($payments[$key]);
+        foreach ($payments as $payment) {
+            $type = PaymentType::fromLabel((string) $payment['trans_type']);
+
+            if ($type === PaymentType::Giftcard) {
+                $giftCardCount += $payment['trans_sales'];
+                $giftCardAmount += $payment['trans_amount'];
+
+                continue;
+            }
+
+            if ($type === null) {
+                $byType[] = $payment;
+
+                continue;
+            }
+
+            if (! isset($byType[$type->value])) {
+                $byType[$type->value] = [...$payment, 'trans_type' => lang($type->languageKey())];
+
+                continue;
+            }
+
+            foreach (['trans_sales', 'trans_amount', 'trans_payments', 'trans_refunded'] as $column) {
+                $byType[$type->value][$column] += $payment[$column];
             }
         }
 
-        if ($gift_card_count > 0) {
+        $payments = array_values($byType);
+
+        if ($giftCardCount > 0) {
             $payments[] = [
                 'trans_group'    => lang('Reports.trans_payments'),
                 'trans_type'     => lang('Sales.giftcard'),
-                'trans_sales'    => $gift_card_count,
-                'trans_amount'   => $gift_card_amount,
-                'trans_payments' => $gift_card_amount,
+                'trans_sales'    => $giftCardCount,
+                'trans_amount'   => $giftCardAmount,
+                'trans_payments' => $giftCardAmount,
                 'trans_refunded' => 0,
                 'trans_due'      => 0
             ];

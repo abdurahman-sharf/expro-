@@ -22,6 +22,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Config\OSPOS;
+use Tests\Support\ConcurrentDbRaceTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\FailedQueryConnectionTrait;
 use Tests\Support\ItemFixtureTrait;
@@ -34,6 +35,7 @@ use Tests\Support\RoleFixtureTrait;
  */
 class SaleTest extends CIUnitTestCase
 {
+    use ConcurrentDbRaceTrait;
     use DatabaseTestTrait;
     use EmployeeFixtureTrait;
     use FailedQueryConnectionTrait;
@@ -2499,5 +2501,312 @@ class SaleTest extends CIUnitTestCase
         $this->assertFalse($sale->outsideRecordScope($mine, $own));
         $this->assertTrue($sale->outsideRecordScope(999999, $own));
         $this->assertFalse($sale->outsideRecordScope(999999, $this->createEmployee()), 'Whoever sees everything is told nothing new');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function paymentWith(string $type, float $amount): array
+    {
+        return ['payment_type' => $type, 'payment_amount' => $amount, 'cash_refund' => 0, 'cash_adjustment' => 0, 'reference_code' => null];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $payments
+     */
+    private function holdOrComplete(int $status, array $payments, int $customerId = NEW_ENTRY, int $saleId = NEW_ENTRY): int
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $items  = $this->buildCartLine($itemId, 1, 100.00);
+        $taxes  = [[], []];
+
+        return model(Sale::class)->save_value($saleId, $status, $items, $customerId, $this->createEmployee(), 'held', null, null, null, SALE_TYPE_POS, $payments, null, $taxes);
+    }
+
+    public function testSaveValue_DeductsAGiftCardOnceWhenTheSuspendedSaleItWasHeldForIsCompleted(): void
+    {
+        $card = $this->createGiftcard(100.00);
+        $pay  = $this->paymentWith(lang('Sales.giftcard') . ':' . $card, 40.00);
+
+        $saleId = $this->holdOrComplete(SUSPENDED, [$pay]);
+
+        $this->assertGreaterThan(0, $saleId);
+        $this->assertEqualsWithDelta(60.00, $this->getGiftcardValue($card), 0.001);
+
+        $this->assertSame($saleId, $this->holdOrComplete(COMPLETED, [$pay], NEW_ENTRY, $saleId));
+        $this->assertEqualsWithDelta(60.00, $this->getGiftcardValue($card), 0.001, 'the card is debited by the sale once and not by the hold and the completion');
+    }
+
+    public function testSaveValue_KeepsTheGiftCardDebitedOnceWhileTheSaleIsHeldAgainAndAgain(): void
+    {
+        $card = $this->createGiftcard(100.00);
+        $pay  = $this->paymentWith(lang('Sales.giftcard') . ':' . $card, 40.00);
+
+        $saleId = $this->holdOrComplete(SUSPENDED, [$pay]);
+        $this->holdOrComplete(SUSPENDED, [$pay], NEW_ENTRY, $saleId);
+        $this->holdOrComplete(SUSPENDED, [$pay], NEW_ENTRY, $saleId);
+
+        $this->assertEqualsWithDelta(60.00, $this->getGiftcardValue($card), 0.001);
+    }
+
+    public function testSaveValue_GivesTheGiftCardBackWhenTheHeldSaleIsSavedAgainWithoutIt(): void
+    {
+        $card = $this->createGiftcard(100.00);
+
+        $saleId = $this->holdOrComplete(SUSPENDED, [$this->paymentWith(lang('Sales.giftcard') . ':' . $card, 40.00)]);
+        $this->holdOrComplete(SUSPENDED, [$this->cashPayment(100.00)], NEW_ENTRY, $saleId);
+
+        $this->assertEqualsWithDelta(100.00, $this->getGiftcardValue($card), 0.001);
+    }
+
+    public function testSaveValue_GivesBackTheCardOfAHeldSaleWhateverLanguageItsNameWasStoredIn(): void
+    {
+        $card = $this->createGiftcard(100.00);
+
+        $saleId = $this->holdOrComplete(SUSPENDED, [$this->paymentWith('بطاقة هدية:' . $card, 40.00)]);
+
+        $this->assertEqualsWithDelta(60.00, $this->getGiftcardValue($card), 0.001);
+
+        $this->holdOrComplete(COMPLETED, [$this->paymentWith('Gift Card:' . $card, 40.00)], NEW_ENTRY, $saleId);
+
+        $this->assertEqualsWithDelta(60.00, $this->getGiftcardValue($card), 0.001);
+    }
+
+    public function testSaveValue_DeductsRewardPointsOnceWhenTheSuspendedSaleItWasHeldForIsCompleted(): void
+    {
+        $customer = $this->createCustomerWithPoints(200);
+        $pay      = $this->paymentWith(lang('Sales.rewards'), 50.00);
+
+        $saleId = $this->holdOrComplete(SUSPENDED, [$pay], $customer);
+
+        $this->assertSame(150, $this->getCustomerPoints($customer));
+
+        $this->assertSame($saleId, $this->holdOrComplete(COMPLETED, [$pay], $customer, $saleId));
+        $this->assertSame(150, $this->getCustomerPoints($customer), 'the points are spent by the sale once');
+    }
+
+    public function testSaveValue_EarnsThePointsOfASaleWhenItIsCompletedAndNotWhenItIsHeld(): void
+    {
+        $db       = Database::connect();
+        $before   = config(OSPOS::class)->settings['customer_reward_enable'] ?? null;
+        $customer = $this->createCustomerWithPoints(200);
+
+        $db->table('customers_packages')->insert(['package_name' => 'Held', 'points_percent' => '10', 'deleted' => 0]);
+
+        $packageId = (int) $db->insertID();
+
+        $db->table('customers')->where('person_id', $customer)->update(['package_id' => $packageId]);
+        config(OSPOS::class)->settings['customer_reward_enable'] = '1';
+
+        try {
+            $saleId = $this->holdOrComplete(SUSPENDED, [$this->cashPayment(100.00), $this->paymentWith(lang('Sales.rewards'), 50.00)], $customer);
+
+            $this->assertSame(150, $this->getCustomerPoints($customer), 'nothing is earned by a sale that is only held');
+
+            $this->holdOrComplete(COMPLETED, [$this->cashPayment(100.00), $this->paymentWith(lang('Sales.rewards'), 50.00)], $customer, $saleId);
+
+            $this->assertSame(165, $this->getCustomerPoints($customer), '50 spent and 10% of the 150 paid earned, once');
+            $this->assertSame(1, $db->table('sales_reward_points')->where('sale_id', $saleId)->countAllResults());
+        } finally {
+            config(OSPOS::class)->settings['customer_reward_enable'] = $before;
+            $db->table('customers')->where('person_id', $customer)->update(['package_id' => null]);
+            $db->table('customers_packages')->where('package_id', $packageId)->delete();
+        }
+    }
+
+    public function testSaveValue_TakesBackThePointsAHeldSaleEarnedBeforeTheFixWhenItIsCompleted(): void
+    {
+        $db       = Database::connect();
+        $before   = config(OSPOS::class)->settings['customer_reward_enable'] ?? null;
+        $customer = $this->createCustomerWithPoints(200);
+
+        $db->table('customers_packages')->insert(['package_name' => 'Legacy', 'points_percent' => '10', 'deleted' => 0]);
+
+        $packageId = (int) $db->insertID();
+
+        $db->table('customers')->where('person_id', $customer)->update(['package_id' => $packageId]);
+        config(OSPOS::class)->settings['customer_reward_enable'] = '1';
+
+        try {
+            $saleId = $this->holdOrComplete(SUSPENDED, [$this->cashPayment(100.00)], $customer);
+
+            $db->table('sales_reward_points')->insert(['sale_id' => $saleId, 'earned' => 10, 'used' => 0]);
+            $db->table('customers')->where('person_id', $customer)->update(['points' => 210]);
+
+            $this->holdOrComplete(COMPLETED, [$this->cashPayment(100.00)], $customer, $saleId);
+
+            $this->assertSame(210, $this->getCustomerPoints($customer), 'the 10 points the hold earned are taken back before the completion earns them');
+            $this->assertSame(1, $db->table('sales_reward_points')->where('sale_id', $saleId)->countAllResults());
+        } finally {
+            config(OSPOS::class)->settings['customer_reward_enable'] = $before;
+            $db->table('customers')->where('person_id', $customer)->update(['package_id' => null]);
+            $db->table('customers_packages')->where('package_id', $packageId)->delete();
+        }
+    }
+
+    public function testSaveValue_LeavesTheHeldSaleAndItsCardAsTheyWereWhenTheCompletionIsRefused(): void
+    {
+        $card = $this->createGiftcard(100.00);
+
+        $saleId = $this->holdOrComplete(SUSPENDED, [$this->paymentWith(lang('Sales.giftcard') . ':' . $card, 40.00)]);
+
+        $this->assertSame(INSUFFICIENT_GIFTCARD_BALANCE, $this->holdOrComplete(COMPLETED, [$this->paymentWith(lang('Sales.giftcard') . ':' . $card, 150.00)], NEW_ENTRY, $saleId));
+        $this->assertEqualsWithDelta(60.00, $this->getGiftcardValue($card), 0.001);
+        $this->assertSame(SUSPENDED, (int) model(Sale::class)->getSaleStatus($saleId));
+        $this->assertSame(1, Database::connect()->table('sales_payments')->where('sale_id', $saleId)->countAllResults());
+    }
+
+    public function testDelete_GivesBackTheGiftCardAndThePointsOfASaleThatWasOnlyHeld(): void
+    {
+        $card     = $this->createGiftcard(100.00);
+        $customer = $this->createCustomerWithPoints(200);
+        $employee = $this->createEmployee();
+
+        $saleId = $this->holdOrComplete(SUSPENDED, [$this->paymentWith(lang('Sales.giftcard') . ':' . $card, 40.00), $this->paymentWith(lang('Sales.rewards'), 50.00), $this->cashPayment(10.00)], $customer);
+
+        $this->assertEqualsWithDelta(60.00, $this->getGiftcardValue($card), 0.001);
+        $this->assertSame(150, $this->getCustomerPoints($customer));
+
+        $this->assertTrue(model(Sale::class)->delete($saleId, false, true, $employee));
+
+        $this->assertEqualsWithDelta(100.00, $this->getGiftcardValue($card), 0.001);
+        $this->assertSame(200, $this->getCustomerPoints($customer));
+        $this->assertSame(CANCELED, (int) model(Sale::class)->getSaleStatus($saleId));
+        $this->assertSame(1, Database::connect()->table('sales_payments')->where('sale_id', $saleId)->countAllResults(), 'only the cash stays on the record of the cancelled sale');
+
+        $this->assertTrue(model(Sale::class)->delete($saleId, false, true, $employee));
+        $this->assertEqualsWithDelta(100.00, $this->getGiftcardValue($card), 0.001, 'cancelling a cancelled sale gives nothing back a second time');
+        $this->assertSame(200, $this->getCustomerPoints($customer));
+    }
+
+    public function testDeleteSuspendedSale_GivesBackWhatTheDiscardedSaleHeld(): void
+    {
+        $card     = $this->createGiftcard(100.00);
+        $customer = $this->createCustomerWithPoints(200);
+
+        $saleId = $this->holdOrComplete(SUSPENDED, [$this->paymentWith(lang('Sales.giftcard') . ':' . $card, 40.00), $this->paymentWith(lang('Sales.rewards'), 50.00)], $customer);
+
+        $this->assertTrue(model(Sale::class)->delete_suspended_sale($saleId));
+        $this->assertEqualsWithDelta(100.00, $this->getGiftcardValue($card), 0.001);
+        $this->assertSame(200, $this->getCustomerPoints($customer));
+
+        $this->assertTrue(model(Sale::class)->delete_suspended_sale($saleId));
+        $this->assertEqualsWithDelta(100.00, $this->getGiftcardValue($card), 0.001);
+        $this->assertSame(200, $this->getCustomerPoints($customer));
+    }
+
+    public function testSaveValue_DeductsTheGiftCardOnceWhenTwoRequestsCompleteTheSameSuspendedSale(): void
+    {
+        $card     = $this->createGiftcard(100.00);
+        $customer = $this->createCustomerWithPoints(0);
+        $employee = $this->createEmployee();
+        $itemId   = $this->createTestItem(HAS_NO_STOCK);
+        $saleId   = $this->holdOrComplete(SUSPENDED, [$this->paymentWith(lang('Sales.giftcard') . ':' . $card, 40.00)], $customer);
+        $label    = lang('Sales.giftcard') . ':' . $card;
+
+        [$first, $second] = $this->raceTwoProcesses(
+            'completeSuspended',
+            [$saleId, $itemId, $employee, $label, 40, $customer],
+            [$saleId, $itemId, $employee, $label, 40, $customer],
+        );
+
+        $this->assertSame(1, (int) $first + (int) $second, 'one completion wins and the other is refused');
+        $this->assertSame(COMPLETED, (int) model(Sale::class)->getSaleStatus($saleId));
+        $this->assertEqualsWithDelta(60.00, $this->getGiftcardValue($card), 0.001);
+    }
+
+    /**
+     * A sale of 10.00 paid with the cash given in full and the change handed back.
+     */
+    private function saleWithChange(string $paid = '20.00', string $change = '10.00'): int
+    {
+        $saleId = $this->saveSale(SALE_TYPE_POS, [['payment_type' => lang('Sales.cash'), 'payment_amount' => $paid, 'cash_refund' => $change, 'cash_adjustment' => 0, 'reference_code' => null]]);
+
+        $this->assertGreaterThan(0, $saleId);
+
+        return $saleId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function editedPayment(int $saleId, array $changes): array
+    {
+        $row = Database::connect()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        return ['payment_id' => (int) $row->payment_id, 'payment_type' => $row->payment_type, 'payment_amount' => $row->payment_amount, 'cash_refund' => $row->cash_refund, 'cash_adjustment' => 0, 'employee_id' => $this->createEmployee(), 'reference_code' => null, ...$changes];
+    }
+
+    private function storedPayment(int $saleId): object
+    {
+        return Database::connect()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+    }
+
+    public function testUpdate_RejectsAPaymentEditThatLeavesTheAmountBelowTheChangeAlreadyGiven(): void
+    {
+        $saleId = $this->saleWithChange();
+        $model  = model(Sale::class);
+
+        $this->assertFalse($model->update($saleId, ['comment' => 'edited', 'payments' => [$this->editedPayment($saleId, ['payment_amount' => '8.30'])]]));
+        $this->assertSame(AccountingError::SalePaymentBelowChange, $model->accountingFailure()->error);
+        $this->assertSame('20.00', bcadd((string) $this->storedPayment($saleId)->payment_amount, '0', 2));
+    }
+
+    public function testUpdate_RejectsAPaymentEditThatLeavesTheChangeLargerThanWhatWasPaidAboveTheTotal(): void
+    {
+        $saleId = $this->saleWithChange();
+        $model  = model(Sale::class);
+
+        $this->assertFalse($model->update($saleId, ['comment' => 'edited', 'payments' => [$this->editedPayment($saleId, ['payment_amount' => '15.00'])]]));
+        $this->assertSame(AccountingError::SalePaymentBelowChange, $model->accountingFailure()->error);
+        $this->assertSame('20.00', bcadd((string) $this->storedPayment($saleId)->payment_amount, '0', 2));
+    }
+
+    public function testUpdate_RejectsRemovingThePaymentThatLeftTheChangeUncoveredWhileAnotherKeepsIt(): void
+    {
+        $saleId = $this->saveSale(SALE_TYPE_POS, [
+            ['payment_type' => lang('Sales.debit'), 'payment_amount' => '10.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'reference_code' => 'ABC123'],
+            ['payment_type' => lang('Sales.cash'), 'payment_amount' => '20.00', 'cash_refund' => '20.00', 'cash_adjustment' => 0, 'reference_code' => null],
+        ]);
+        $model = model(Sale::class);
+        $card  = Database::connect()->table('sales_payments')->where('sale_id', $saleId)->like('payment_type', lang('Sales.debit'))->get()->getRow();
+
+        $this->assertFalse($model->update($saleId, ['comment' => 'edited', 'payments' => [['payment_id' => (int) $card->payment_id, 'payment_type' => $card->payment_type, 'payment_amount' => '0', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->createEmployee(), 'reference_code' => null]]]));
+        $this->assertSame(AccountingError::SalePaymentBelowChange, $model->accountingFailure()->error);
+        $this->assertSame(2, Database::connect()->table('sales_payments')->where('sale_id', $saleId)->countAllResults());
+    }
+
+    public function testUpdate_AcceptsAPaymentEditThatKeepsTheChangeCovered(): void
+    {
+        $saleId = $this->saleWithChange();
+
+        $this->assertTrue(model(Sale::class)->update($saleId, ['comment' => 'edited', 'payments' => [$this->editedPayment($saleId, ['payment_amount' => '18.00', 'cash_refund' => '8.00'])]]));
+        $this->assertSame('18.00', bcadd((string) $this->storedPayment($saleId)->payment_amount, '0', 2));
+    }
+
+    public function testUpdate_AcceptsAChangeOfTheTypeAloneWhateverTheAmountsOfAnOldSaleAre(): void
+    {
+        $saleId = $this->saleWithChange('12.00', '10.00');
+
+        $this->assertTrue(model(Sale::class)->update($saleId, ['comment' => 'edited', 'payments' => [$this->editedPayment($saleId, ['payment_type' => lang('Sales.debit')])]]));
+        $this->assertSame(lang('Sales.debit'), $this->storedPayment($saleId)->payment_type);
+    }
+
+    public function testUpdate_AcceptsANewNegativePaymentThatRefundsTheCustomerWithoutAnyChange(): void
+    {
+        $saleId = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment(10.00)]);
+
+        $this->assertTrue(model(Sale::class)->update($saleId, ['comment' => 'refund', 'payments' => [
+            ['payment_id' => NEW_ENTRY, 'payment_type' => lang('Sales.debit'), 'payment_amount' => '-3.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $this->createEmployee(), 'reference_code' => 'ABC123'],
+        ]]));
+        $this->assertSame(2, Database::connect()->table('sales_payments')->where('sale_id', $saleId)->countAllResults());
+    }
+
+    public function testUpdate_AcceptsAPaymentLoweredOnASaleThatGaveNoChange(): void
+    {
+        $saleId = $this->saveSale(SALE_TYPE_POS, [$this->cashPayment(10.00)]);
+
+        $this->assertTrue(model(Sale::class)->update($saleId, ['comment' => 'edited', 'payments' => [$this->editedPayment($saleId, ['payment_amount' => '6.00'])]]));
+        $this->assertSame('6.00', bcadd((string) $this->storedPayment($saleId)->payment_amount, '0', 2));
     }
 }

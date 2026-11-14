@@ -140,4 +140,61 @@ class Summary_paymentsTest extends CIUnitTestCase
         $this->assertSame('2', (string) $sales[0]['trans_sales']);
         $this->assertSame('120.00', bcadd((string) $sales[0]['trans_amount'], '0', 2));
     }
+
+    /**
+     * @return array<string, string>
+     */
+    private function paymentsOfTheDay(string $day): array
+    {
+        $rows = (new Summary_payments())->getData(['start_date' => $day, 'end_date' => $day, 'location_id' => 'all', 'sale_type' => 'complete']);
+        $paid = array_filter($rows, static fn (array $row): bool => $row['trans_group'] === lang('Reports.trans_payments'));
+
+        return array_column(array_values($paid), 'trans_amount', 'trans_type');
+    }
+
+    private function payTheSale(int $saleId, string $type, string $amount): void
+    {
+        Database::connect()->table('sales_payments')->insert(['sale_id' => $saleId, 'payment_type' => $type, 'payment_amount' => $amount, 'cash_refund' => '0', 'employee_id' => 1, 'reference_code' => '']);
+    }
+
+    public function testGetData_CountsCashStoredInAnotherLanguageWithTheCashStoredInTheLanguageInUse(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $day    = self::MONTH . '08';
+
+        $this->payTheSale($this->reportSale($itemId, '1', '30', null, $day), lang('Sales.cash'), '30');
+        $this->payTheSale($this->reportSale($itemId, '1', '70', null, $day), 'نقدى', '70');
+        $this->payTheSale($this->reportSale($itemId, '1', '10', null, $day), 'Cash', '10');
+        $this->payTheSale($this->reportSale($itemId, '1', '25', null, $day), 'بطاقة خصم', '25');
+
+        $paid = $this->paymentsOfTheDay($day);
+
+        $this->assertSame([lang('Sales.cash'), lang('Sales.debit')], array_keys($paid));
+        $this->assertSame('110.00', bcadd((string) $paid[lang('Sales.cash')], '0', 2));
+        $this->assertSame('25.00', bcadd((string) $paid[lang('Sales.debit')], '0', 2));
+    }
+
+    public function testGetData_CountsGiftCardsStoredInAnotherLanguageAsOneWayOfPaying(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $day    = self::MONTH . '09';
+
+        $this->payTheSale($this->reportSale($itemId, '1', '30', null, $day), 'Gift Card:1001', '30');
+        $this->payTheSale($this->reportSale($itemId, '1', '20', null, $day), 'بطاقة هدية:1002', '20');
+
+        $paid = $this->paymentsOfTheDay($day);
+
+        $this->assertSame([lang('Sales.giftcard')], array_keys($paid));
+        $this->assertSame('50.00', bcadd((string) $paid[lang('Sales.giftcard')], '0', 2));
+    }
+
+    public function testGetData_KeepsAPaymentNameNoTypeHasAsItIsStored(): void
+    {
+        $itemId = $this->createTestItem(HAS_NO_STOCK);
+        $day    = self::MONTH . '10';
+
+        $this->payTheSale($this->reportSale($itemId, '1', '30', null, $day), 'Barter', '30');
+
+        $this->assertSame(['Barter'], array_keys($this->paymentsOfTheDay($day)));
+    }
 }

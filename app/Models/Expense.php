@@ -8,6 +8,7 @@ use App\Libraries\Accounting\ExpensePosting;
 use App\Libraries\Accounting\ExpensePostingBuilder;
 use App\Libraries\Accounting\JournalStatus;
 use App\Libraries\Accounting\LockedRead;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\PostingException;
 use App\Libraries\Numbering\DocumentNumbering;
 use App\Libraries\Numbering\DocumentType;
@@ -224,7 +225,7 @@ class Expense extends Model
 
         if ($filters['only_cash']) {
             $builder->groupStart();
-            $builder->like('expenses.payment_type', lang('Expenses.cash'));
+            $builder->whereIn('expenses.payment_type', PaymentType::Cash->labels());
             $builder->orWhere('expenses.payment_type IS NULL');
             $builder->groupEnd();
         }
@@ -548,7 +549,7 @@ class Expense extends Model
         }
 
         if ($filters['only_cash']) {
-            $builder->like('payment_type', lang('Expenses.cash'));
+            $builder->whereIn('payment_type', PaymentType::Cash->labels());
         }
 
         if ($filters['only_due']) {

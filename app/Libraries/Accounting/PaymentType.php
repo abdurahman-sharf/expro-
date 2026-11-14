@@ -3,8 +3,9 @@
 namespace App\Libraries\Accounting;
 
 /**
- * The payment types a sale can carry. A sale stores the translated name of its type, so a
- * type is recognised by comparing that name with the translations of the type.
+ * The payment types a sale can carry. A sale stores the translated name of its type in the language
+ * of the moment, so a type is recognised by comparing that name with the translations of the type in
+ * every language (PaymentLabels).
  */
 enum PaymentType: string
 {
@@ -19,8 +20,7 @@ enum PaymentType: string
     case Giftcard     = 'giftcard';
     case Rewards      = 'rewards';
 
-    private const ROUTING_PREFIX   = 'payment.';
-    private const FALLBACK_LOCALES = ['en'];
+    private const ROUTING_PREFIX = 'payment.';
 
     public function routingKey(): string
     {
@@ -109,38 +109,21 @@ enum PaymentType: string
     {
         $name = trim(explode(':', $label, 2)[0]);
 
-        if ($name === '') {
-            return null;
-        }
-
-        foreach (self::cases() as $type) {
-            foreach ($type->labels() as $candidate) {
-                if (strcasecmp($candidate, $name) === 0) {
-                    return $type;
-                }
-            }
-        }
-
-        return null;
+        return $name === '' ? null : PaymentLabels::typeOf($name);
     }
 
     /**
-     * The name of this type in the language in use and in the fallback languages.
+     * The names this type is stored under, in every language, the one in use first.
      *
      * @return list<string>
      */
     public function labels(): array
     {
-        $labels = [];
+        return PaymentLabels::namesOf($this);
+    }
 
-        foreach ([null, ...self::FALLBACK_LOCALES] as $locale) {
-            $line = $locale === null ? lang($this->languageKey()) : lang($this->languageKey(), [], $locale);
-
-            if ($line !== '' && $line !== $this->languageKey()) {
-                $labels[$line] = $line;
-            }
-        }
-
-        return array_values($labels);
+    public function isCash(): bool
+    {
+        return $this === self::Cash;
     }
 }

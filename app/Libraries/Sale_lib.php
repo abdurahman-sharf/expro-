@@ -5,6 +5,8 @@ namespace app\Libraries;
 use App\Libraries\Accounting\AccountingException;
 use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\Money;
+use App\Libraries\Accounting\PaymentLabels;
+use App\Libraries\Accounting\PaymentType;
 use App\Libraries\Accounting\ReturnDocument;
 use App\Libraries\Documents\CustomFields;
 use App\Libraries\InvoiceDiscount;
@@ -129,6 +131,8 @@ class Sale_lib
 
         return $register_modes;
     }
+
+    private const REQUEST_KEYS_KEPT = 50;
 
     private const ALLOWED_INVOICE_TYPES = [
         'invoice',
@@ -515,6 +519,85 @@ class Sale_lib
     public function clear_comment(): void
     {
         $this->session->remove('sales_comment');
+    }
+
+    public function newRequestKey(): string
+    {
+        return bin2hex(random_bytes(16));
+    }
+
+    /**
+     * Takes the key a form carried so that the same submit counts once. A key already taken returns
+     * false; a form that carries no well formed key is let through. The keys outlive the sale, so a
+     * submit that arrives after the sale was completed cannot land on the next one.
+     */
+    public function claimRequestKey(?string $key): bool
+    {
+        if ($key === null || preg_match('/^[0-9a-f]{32}$/', $key) !== 1) {
+            return true;
+        }
+
+        $taken = $this->session->get('sales_request_keys');
+        $taken = is_array($taken) ? $taken : [];
+
+        if (in_array($key, $taken, true)) {
+            return false;
+        }
+
+        $taken[] = $key;
+        $this->session->set('sales_request_keys', array_slice($taken, -self::REQUEST_KEYS_KEPT));
+
+        return true;
+    }
+
+    /**
+     * The token of the sale on the register. It changes with every new sale, so that a request a page
+     * sent for the sale before sends it too late to the one after.
+     */
+    public function registerToken(): string
+    {
+        $token = $this->session->get('sales_register_token');
+
+        if (! is_string($token) || $token === '') {
+            $token = bin2hex(random_bytes(16));
+            $this->session->set('sales_register_token', $token);
+        }
+
+        return $token;
+    }
+
+    public function isRegisterToken(?string $token): bool
+    {
+        return $token === null || $token === '' || hash_equals($this->registerToken(), $token);
+    }
+
+    /**
+     * A value typed in the register is kept only when it was typed after the one kept before it, so a
+     * request that is overtaken on its way cannot put an older text back. A request without a stamp is kept.
+     */
+    public function keepsTypedValue(string $field, ?string $stamp): bool
+    {
+        if ($stamp === null || ! ctype_digit($stamp)) {
+            return true;
+        }
+
+        $stamps = $this->session->get('sales_typed_stamps');
+        $stamps = is_array($stamps) ? $stamps : [];
+
+        if (isset($stamps[$field]) && bccomp($stamp, (string) $stamps[$field], 0) < 0) {
+            return false;
+        }
+
+        $stamps[$field] = $stamp;
+        $this->session->set('sales_typed_stamps', $stamps);
+
+        return true;
+    }
+
+    public function clearRegisterToken(): void
+    {
+        $this->session->remove('sales_register_token');
+        $this->session->remove('sales_typed_stamps');
     }
 
     /**
@@ -1044,7 +1127,7 @@ class Sale_lib
         }
 
         if ($this->session->get('cash_mode')) {
-            if ($this->session->get('cash_rounding') && $paymentId != lang('Sales.cash') && $paymentId != lang('Sales.cash_adjustment')) {
+            if ($this->session->get('cash_rounding') && !$this->isCashPayment($paymentId, $cashAdjustment !== CASH_ADJUSTMENT_FALSE)) {
                 $this->session->set('cash_mode', CASH_MODE_FALSE);
             }
         }
@@ -1089,21 +1172,43 @@ class Sale_lib
     {
         $payments = $this->getPayments();
         $decoded_payment_id = urldecode($payment_id);
+        $deleted = $payments[$decoded_payment_id] ?? null;
 
         unset($payments[$decoded_payment_id]);
 
         $cash_rounding = $this->reset_cash_rounding();
 
-        if ($cash_rounding) {
-            if ($decoded_payment_id == lang('Sales.cash')) {    // TODO: === ?
-                unset($payments[lang('Sales.cash_adjustment')]);
-            }
+        if ($cash_rounding && $deleted !== null) {
+            $deletedIsAdjustment = !empty($deleted['cash_adjustment']) || PaymentLabels::isCashAdjustment($decoded_payment_id);
 
-            if ($decoded_payment_id == lang('Sales.cash_adjustment')) {    // TODO: === ?
-                unset($payments[lang('Sales.cash')]);
+            foreach ($payments as $key => $payment) {
+                $isAdjustment = !empty($payment['cash_adjustment']);
+
+                if (($deletedIsAdjustment && !$isAdjustment && $this->isCashPayment((string) $key)) || (!$deletedIsAdjustment && $this->isCashPayment($decoded_payment_id) && $isAdjustment)) {
+                    unset($payments[$key]);
+                }
             }
         }
         $this->setPayments($payments);
+    }
+
+    public function isCashPayment(string $paymentType, bool $isAdjustment = false): bool
+    {
+        return $isAdjustment || PaymentType::fromLabel($paymentType) === PaymentType::Cash || PaymentLabels::isCashAdjustment($paymentType);
+    }
+
+    /**
+     * The key of the payment of the cart that is cash, whatever language its name was stored in, or null.
+     */
+    public function cashPaymentKey(array $payments): int|string|null
+    {
+        foreach ($payments as $key => $payment) {
+            if (empty($payment['cash_adjustment']) && PaymentType::fromLabel((string) ($payment['payment_type'] ?? $key)) === PaymentType::Cash) {
+                return $key;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1127,7 +1232,7 @@ class Sale_lib
             if (!$payments['cash_adjustment']) {
                 $subtotal = bcadd($payments['payment_amount'], $subtotal);
             }
-            if (lang('Sales.cash') != $payments['payment_type'] && lang('Sales.cash_adjustment') != $payments['payment_type']) {
+            if (!$this->isCashPayment((string) $payments['payment_type'], !empty($payments['cash_adjustment']))) {
                 $cash_mode_eligible = CASH_MODE_FALSE;
             }
         }
@@ -2202,7 +2307,7 @@ class Sale_lib
         if ($this->session->get('cash_rounding')) {
             $cashTypesOnly = true;
             foreach ($this->sale->get_sale_payments($saleId)->getResult() as $row) {
-                if ($row->payment_type != lang('Sales.cash') && $row->payment_type != lang('Sales.cash_adjustment')) {
+                if (!$this->isCashPayment((string) $row->payment_type, !empty($row->cash_adjustment))) {
                     $cashTypesOnly = false;
                 }
             }
@@ -2340,6 +2445,7 @@ class Sale_lib
         $this->empty_payments();
         $this->remove_customer();
         $this->clear_cash_flags();
+        $this->clearRegisterToken();
     }
 
     /**

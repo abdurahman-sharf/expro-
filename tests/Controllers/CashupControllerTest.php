@@ -13,6 +13,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\OSPOS;
 use Config\Services;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ExpenseAccountingFixtureTrait;
@@ -635,6 +636,47 @@ class CashupControllerTest extends CIUnitTestCase
             $this->assertSame(['cash' => '0.00', 'card' => '126.00'], $second);
             $this->assertSame(['cash' => '207.00', 'card' => '126.00'], $both);
         });
+    }
+
+    /**
+     * @return array<string, array{string, string, string, string}>
+     */
+    public static function languagesOfTheSaleAndOfTheClosing(): array
+    {
+        return [
+            'sold in Arabic, closed in English' => ['ar-EG', 'en', 'نقدى', 'بطاقة خصم'],
+            'sold in English, closed in Arabic' => ['en', 'ar-EG', 'Cash', 'Debit Card'],
+        ];
+    }
+
+    #[DataProvider('languagesOfTheSaleAndOfTheClosing')]
+    public function testGetView_PrefillsTheCashTheCardAndTheExpensePaidInCashUnderTheNamesOfTheOtherLanguage(string $saleLanguage, string $closingLanguage, string $cashName, string $cardName): void
+    {
+        $cashier = $this->accountingCashier();
+        $db      = $this->accountingDb();
+
+        $db->table('employees')->where('person_id', $cashier)->update(['language_code' => $saleLanguage]);
+        $this->sellFor('400.00', $cashName, date('Y-m-d H:i:s'));
+        $this->sellFor('90.00', $cardName, date('Y-m-d H:i:s'));
+        $this->sellFor('55.00', 'Due', date('Y-m-d H:i:s'));
+        $this->assertNotNull($this->saveExpense($this->expenseData('20.00', '0', $cashName, null, date('Y-m-d H:i:s'))));
+        $db->table('employees')->where('person_id', $cashier)->update(['language_code' => $closingLanguage]);
+
+        $db->table('cash_up')->insert([
+            'open_date' => date('Y-m-d H:i:s', strtotime('-1 day')), 'close_date' => date('Y-m-d H:i:s', strtotime('-1 day')),
+            'open_amount_cash' => '0', 'transfer_amount_cash' => '0', 'closed_amount_cash' => '0', 'closed_amount_due' => '0',
+            'closed_amount_card' => '0', 'closed_amount_check' => '0', 'closed_amount_total' => '0',
+            'description' => 'language cash-up', 'open_employee_id' => $cashier, 'close_employee_id' => $cashier, 'deleted' => 0,
+        ]);
+
+        try {
+            $body = $this->get('/cashups/view/' . $db->insertID())->getBody();
+
+            $this->assertSame('380.00', $this->closedAmount($body, 'closed_amount_cash'), '400 taken in cash less the 20 an expense paid in cash');
+            $this->assertSame('90.00', $this->closedAmount($body, 'closed_amount_card'));
+        } finally {
+            $db->table('cash_up')->where('description', 'language cash-up')->delete();
+        }
     }
 
     public function testGetView_ShowsTheExpectedCashTheDifferenceAndTheNoteOnceEach(): void

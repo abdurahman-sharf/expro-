@@ -671,7 +671,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $cashierId = $this->createCashierEmployee();
         $itemId = $this->createTestItem(HAS_NO_STOCK);
         $this->loginAs($cashierId);
-        $this->seedCartLine(1, '1.00', $itemId);
+        $this->seedCartLine(1, '25.00', $itemId);
 
         $this->post('/sales/addPayment', [
             'payment_type'    => lang('Sales.debit'),
@@ -716,6 +716,439 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $payments = Services::session()->get('sales_payments');
         $this->assertNotEmpty($payments);
         $this->assertArrayHasKey(lang('Sales.cash'), $payments);
+    }
+
+    private function carryTheWholeSessionToTheNextRequest(): void
+    {
+        $this->withSession($_SESSION ?? []);
+    }
+
+    private function requestKey(string $seed = 'a'): string
+    {
+        return str_repeat($seed, 32);
+    }
+
+    public function testPostAddPayment_RecordsOnePaymentWhenTheSameRequestKeyIsSubmittedTwice(): void
+    {
+        $this->registerWithACart();
+        $form = ['payment_type' => 'Cash', 'amount_tendered' => '40.00', 'request_key' => $this->requestKey()];
+
+        $this->post('/sales/addPayment', $form);
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/addPayment', $form);
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/addPayment', $form);
+
+        $payments = Services::session()->get('sales_payments');
+
+        $this->assertSame('40.00', bcadd((string) $payments['Cash']['payment_amount'], '0', 2));
+    }
+
+    public function testPostAddPayment_RecordsTwoPaymentsWhenTheRequestKeysDiffer(): void
+    {
+        $this->registerWithACart();
+
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '40.00', 'request_key' => $this->requestKey('a')]);
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '40.00', 'request_key' => $this->requestKey('b')]);
+
+        $this->assertSame('80.00', bcadd((string) Services::session()->get('sales_payments')['Cash']['payment_amount'], '0', 2));
+    }
+
+    public function testPostAddPayment_AcceptsAPaymentThatCarriesNoRequestKey(): void
+    {
+        $this->registerWithACart();
+
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '40.00']);
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '10.00']);
+
+        $this->assertSame('50.00', bcadd((string) Services::session()->get('sales_payments')['Cash']['payment_amount'], '0', 2));
+    }
+
+    public function testPostAddPayment_RedirectsToTheRegisterOnceThePaymentIsRecorded(): void
+    {
+        $this->registerWithACart();
+
+        $response = $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '40.00', 'request_key' => $this->requestKey()]);
+
+        $response->assertRedirectTo(site_url('sales'));
+        $this->assertSame('40.00', bcadd((string) Services::session()->get('sales_payments')['Cash']['payment_amount'], '0', 2));
+    }
+
+    public function testPostAddPayment_RedirectsToTheRegisterWhenTheRequestKeyWasUsed(): void
+    {
+        $this->registerWithACart();
+        $form = ['payment_type' => 'Cash', 'amount_tendered' => '40.00', 'request_key' => $this->requestKey()];
+
+        $this->post('/sales/addPayment', $form);
+        $this->carryTheWholeSessionToTheNextRequest();
+
+        $this->post('/sales/addPayment', $form)->assertRedirectTo(site_url('sales'));
+    }
+
+    public function testPostAddPayment_ShowsTheNoticeOfTheRepeatedPaymentOnTheRegisterItRedirectsTo(): void
+    {
+        $this->registerWithACart();
+        $form = ['payment_type' => 'Cash', 'amount_tendered' => '40.00', 'request_key' => $this->requestKey()];
+
+        $this->post('/sales/addPayment', $form);
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/addPayment', $form);
+        $this->carryTheWholeSessionToTheNextRequest();
+
+        $this->get('/sales')->assertSee(lang('Sales.payment_already_recorded'));
+    }
+
+    public function testPostAddPayment_ShowsAnErrorWithoutRedirectingWhenNothingWasRecorded(): void
+    {
+        $this->registerWithACart();
+
+        $response = $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => 'abc', 'request_key' => $this->requestKey()]);
+
+        $response->assertStatus(200);
+        $response->assertSee(lang('Sales.must_enter_numeric'));
+    }
+
+    public function testPostAddPayment_RejectsANonCashPaymentAboveTheAmountDue(): void
+    {
+        $this->registerWithACart();
+
+        $response = $this->post('/sales/addPayment', ['payment_type' => 'Debit Card', 'amount_tendered' => '100.01', 'reference_code' => 'ABC123']);
+
+        $response->assertSee(lang('Sales.payment_exceeds_amount_due', [to_currency('100.00')]));
+        $this->assertEmpty(Services::session()->get('sales_payments'));
+    }
+
+    public function testPostAddPayment_AcceptsANonCashPaymentOfExactlyTheAmountDue(): void
+    {
+        $this->registerWithACart();
+
+        $this->post('/sales/addPayment', ['payment_type' => 'Debit Card', 'amount_tendered' => '100.00', 'reference_code' => 'ABC123']);
+
+        $this->assertSame('100.00', bcadd((string) Services::session()->get('sales_payments')['Debit Card']['payment_amount'], '0', 2));
+    }
+
+    public function testPostAddPayment_RejectsASecondNonCashPaymentThatTogetherWithTheFirstExceedsTheAmountDue(): void
+    {
+        $this->registerWithACart();
+
+        $this->post('/sales/addPayment', ['payment_type' => 'Debit Card', 'amount_tendered' => '60.00', 'reference_code' => 'ABC123']);
+        $this->carryTheWholeSessionToTheNextRequest();
+        $response = $this->post('/sales/addPayment', ['payment_type' => 'Credit Card', 'amount_tendered' => '60.00', 'reference_code' => 'ABC124']);
+
+        $response->assertSee(lang('Sales.payment_exceeds_amount_due', [to_currency('40.00')]));
+        $this->assertArrayNotHasKey('Credit Card', Services::session()->get('sales_payments'));
+    }
+
+    public function testPostAddPayment_RejectsADuePaymentAboveTheAmountDue(): void
+    {
+        $this->registerWithACart();
+
+        $response = $this->post('/sales/addPayment', ['payment_type' => 'Due', 'amount_tendered' => '150.00']);
+
+        $response->assertSee(lang('Sales.payment_exceeds_amount_due', [to_currency('100.00')]));
+        $this->assertEmpty(Services::session()->get('sales_payments'));
+    }
+
+    public function testPostAddPayment_AcceptsACashPaymentAboveTheAmountDueSoThatChangeCanBeGiven(): void
+    {
+        $this->registerWithACart();
+
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '150.00']);
+
+        $this->assertSame('150.00', bcadd((string) Services::session()->get('sales_payments')['Cash']['payment_amount'], '0', 2));
+    }
+
+    public function testGetIndex_PutsAFreshRequestKeyInThePaymentFormOfEveryVisit(): void
+    {
+        $this->registerWithACart();
+
+        preg_match('/name="request_key" value="([0-9a-f]{32})"/', $this->get('/sales')->getBody(), $first);
+        preg_match('/name="request_key" value="([0-9a-f]{32})"/', $this->get('/sales')->getBody(), $second);
+
+        $this->assertNotEmpty($first);
+        $this->assertNotEmpty($second);
+        $this->assertNotSame($first[1], $second[1]);
+    }
+
+    private function registerToken(string $seed = 't'): string
+    {
+        return str_repeat($seed, 32);
+    }
+
+    /**
+     * One cart line of 100.00 paid in cash (or, for an invoice, unpaid and for the customer), on a register that holds the token of its sale and the comment an earlier request kept.
+     */
+    private function registerReadyToComplete(string $keptComment = 'kept earlier', bool $invoice = false): void
+    {
+        $this->registerWithACart();
+        $this->salesFloor = (int) $this->accountingDb()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+        $this->withSession(array_merge($this->session, [
+            'sales_payments'       => $invoice ? [] : ['Cash' => ['payment_type' => 'Cash', 'payment_amount' => '100.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'reference_code' => null, 'treasury_id' => 0]],
+            'sales_comment'        => $keptComment,
+            'sales_register_token' => $this->registerToken(),
+        ], $invoice ? ['sales_mode' => 'sale_invoice', 'sales_customer' => $this->customerId] : []));
+    }
+
+    private function savedCommentOfTheLastSale(): string
+    {
+        return (string) Database::connect()->table('sales')->orderBy('sale_id', 'DESC')->get()->getRow()->comment;
+    }
+
+    public function testPostComplete_SavesTheCommentTheCompletingFormCarried(): void
+    {
+        $this->registerReadyToComplete('kept ear');
+
+        $this->post('/sales/complete', ['comment' => 'typed in full and pasted', 'register_token' => $this->registerToken()]);
+
+        $this->assertSame('typed in full and pasted', $this->savedCommentOfTheLastSale());
+    }
+
+    public function testPostComplete_KeepsTheCommentOfTheRegisterWhenTheFormCarriesNone(): void
+    {
+        $this->registerReadyToComplete('kept earlier');
+
+        $this->post('/sales/complete', ['register_token' => $this->registerToken()]);
+
+        $this->assertSame('kept earlier', $this->savedCommentOfTheLastSale());
+    }
+
+    public function testPostComplete_IgnoresTheCommentOfAFormThatCarriesTheTokenOfAnotherSale(): void
+    {
+        $this->registerReadyToComplete('kept earlier');
+
+        $this->post('/sales/complete', ['comment' => 'from a finished sale', 'register_token' => $this->registerToken('x')]);
+
+        $this->assertSame('kept earlier', $this->savedCommentOfTheLastSale());
+    }
+
+    public function testPostComplete_KeepsTheInvoiceNumberTypedByHandThatTheFormCarried(): void
+    {
+        $prefix = $this->freshPrefix();
+        $number = 'HAND/' . random_int(100000, 999999);
+        $this->switchOn(DocumentType::SalesInvoice, $prefix, 4);
+        $this->registerReadyToComplete('', true);
+
+        $this->post('/sales/complete', ['sales_invoice_number' => $number, 'register_token' => $this->registerToken()]);
+
+        $this->assertSame(1, Database::connect()->table('sales')->where('invoice_number', $number)->countAllResults());
+    }
+
+    public function testPostComplete_StartsTheNextSaleWithANewTokenSoALateRequestOfTheFinishedSaleChangesNothing(): void
+    {
+        $this->registerReadyToComplete('kept earlier');
+
+        $this->post('/sales/complete', ['comment' => 'typed in full', 'register_token' => $this->registerToken()]);
+
+        $this->assertNull(Services::session()->get('sales_register_token'));
+
+        $this->carryTheWholeSessionToTheNextRequest();
+        $late = $this->post('/sales/setComment', ['comment' => 'typed in', 'register_token' => $this->registerToken()]);
+
+        $this->assertFalse($this->jsonOf($late)['success']);
+        $this->assertEmpty(Services::session()->get('sales_comment'));
+    }
+
+    public function testPostSuspend_SavesTheCommentTheFormCarried(): void
+    {
+        $this->registerReadyToComplete('kept earlier');
+
+        $this->post('/sales/suspend', ['comment' => 'typed in full', 'register_token' => $this->registerToken()]);
+
+        $this->assertSame('typed in full', $this->savedCommentOfTheLastSale());
+    }
+
+    public function testPostSetComment_KeepsTheCommentOfARequestThatCarriesTheTokenOfTheSaleOnTheRegister(): void
+    {
+        $this->registerReadyToComplete('');
+
+        $response = $this->post('/sales/setComment', ['comment' => 'typed', 'register_token' => $this->registerToken()]);
+
+        $this->assertTrue($this->jsonOf($response)['success']);
+        $this->assertSame('typed', Services::session()->get('sales_comment'));
+    }
+
+    public function testPostSetComment_IgnoresARequestThatCarriesTheTokenOfAFinishedSale(): void
+    {
+        $this->registerReadyToComplete('kept earlier');
+
+        $response = $this->post('/sales/setComment', ['comment' => 'leaked', 'register_token' => $this->registerToken('x')]);
+
+        $this->assertFalse($this->jsonOf($response)['success']);
+        $this->assertSame('kept earlier', Services::session()->get('sales_comment'));
+    }
+
+    public function testPostSetComment_IgnoresARequestTypedBeforeTheOneKept(): void
+    {
+        $this->registerReadyToComplete('');
+
+        $this->post('/sales/setComment', ['comment' => 'typed in full', 'register_token' => $this->registerToken(), 'typed_at' => '1700000000200']);
+        $this->withSession($_SESSION);
+        $overtaken = $this->post('/sales/setComment', ['comment' => 'typed in', 'register_token' => $this->registerToken(), 'typed_at' => '1700000000100']);
+
+        $this->assertFalse($this->jsonOf($overtaken)['success']);
+        $this->assertSame('typed in full', Services::session()->get('sales_comment'));
+    }
+
+    public function testPostSetComment_KeepsARequestTypedAfterTheOneKept(): void
+    {
+        $this->registerReadyToComplete('');
+
+        $this->post('/sales/setComment', ['comment' => 'typed in', 'register_token' => $this->registerToken(), 'typed_at' => '1700000000100']);
+        $this->withSession($_SESSION);
+        $this->post('/sales/setComment', ['comment' => 'typed in full', 'register_token' => $this->registerToken(), 'typed_at' => '1700000000200']);
+
+        $this->assertSame('typed in full', Services::session()->get('sales_comment'));
+    }
+
+    public function testPostSetInvoiceNumber_IgnoresARequestThatCarriesTheTokenOfAFinishedSale(): void
+    {
+        $this->registerReadyToComplete('');
+
+        $response = $this->post('/sales/setInvoiceNumber', ['sales_invoice_number' => 'LEAK-1', 'register_token' => $this->registerToken('x')]);
+
+        $this->assertFalse($this->jsonOf($response)['success']);
+        $this->assertNull(Services::session()->get('sales_invoice_number'));
+    }
+
+    public function testGetIndex_CarriesTheCommentAndTheTokenOfTheSaleWithTheCompletingForm(): void
+    {
+        $this->registerReadyToComplete('kept earlier');
+
+        $body = $this->get('/sales')->getBody();
+        $form = $this->formOf($body, 'buttons_form');
+
+        $this->assertStringContainsString('name="register_token" value="' . $this->registerToken() . '"', $form);
+        $this->assertMatchesRegularExpression('/<textarea[^>]*name="comment"[^>]*form="buttons_form"|<textarea[^>]*form="buttons_form"[^>]*name="comment"/', $body);
+    }
+
+    public function testGetIndex_GuardsTheFormsOfThePaymentAndOfTheEndOfTheSaleAgainstASecondSubmit(): void
+    {
+        $this->registerWithACart();
+        $this->withSession(array_merge($this->session, ['sales_payments' => ['Cash' => ['payment_type' => 'Cash', 'payment_amount' => '40.00', 'cash_refund' => 0, 'cash_adjustment' => 0, 'reference_code' => null, 'treasury_id' => 0]]]));
+
+        $body = $this->get('/sales')->getBody();
+
+        foreach (['add_item_form', 'add_payment_form', 'buttons_form'] as $id) {
+            $this->assertStringContainsString('data-single-shot="1"', $this->formOf($body, $id), $id);
+        }
+
+        $this->assertMatchesRegularExpression('/<a[^>]*deletePayment[^>]*data-single-shot="1"|<a[^>]*data-single-shot="1"[^>]*deletePayment/', $body);
+    }
+
+    /**
+     * A register with a cart of 100.00 and a gift card of 150.00 paid in full by it, held with Suspend.
+     *
+     * @return array{card: int, sale: int}
+     */
+    private function saleHeldWithAGiftCard(): array
+    {
+        $this->registerWithACart();
+        $this->salesFloor = (int) $this->accountingDb()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+
+        $card = $this->createGiftcard(150.00);
+
+        $this->post('/sales/addPayment', ['payment_type' => 'Gift Card', 'amount_tendered' => (string) $card, 'request_key' => $this->requestKey('d')]);
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/suspend');
+
+        $held = (int) $this->accountingDb()->table('sales')->selectMax('sale_id', 'last')->get()->getRow()->last;
+
+        $this->assertEqualsWithDelta(50.00, $this->getGiftcardValue($card), 0.001, 'the card is debited when the sale is held');
+        $this->assertSame(SUSPENDED, (int) $this->accountingDb()->table('sales')->where('sale_id', $held)->get()->getRow()->sale_status);
+
+        return ['card' => $card, 'sale' => $held];
+    }
+
+    public function testPostComplete_DebitsTheGiftCardOnceForASaleThatWasHeldAndTakenBack(): void
+    {
+        $held = $this->saleHeldWithAGiftCard();
+
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => $held['sale']]);
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/complete');
+
+        $this->assertSame(COMPLETED, (int) $this->accountingDb()->table('sales')->where('sale_id', $held['sale'])->get()->getRow()->sale_status);
+        $this->assertEqualsWithDelta(50.00, $this->getGiftcardValue($held['card']), 0.001, 'the card is debited by the sale once');
+    }
+
+    public function testPostCancel_GivesTheGiftCardBackForASaleThatWasHeldAndTakenBack(): void
+    {
+        $held = $this->saleHeldWithAGiftCard();
+
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/unsuspend', ['suspended_sale_id' => $held['sale']]);
+        $this->carryTheWholeSessionToTheNextRequest();
+        $this->post('/sales/cancel');
+
+        $this->assertSame(CANCELED, (int) $this->accountingDb()->table('sales')->where('sale_id', $held['sale'])->get()->getRow()->sale_status);
+        $this->assertEqualsWithDelta(150.00, $this->getGiftcardValue($held['card']), 0.001);
+    }
+
+    public function testPostSave_KeepsTheAmountAndTheChangeOfAStoredPaymentWhateverTheReadOnlyFieldsCarried(): void
+    {
+        $invoice   = $this->postedInvoice();
+        $paymentId = $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $row       = $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow();
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], $this->savedPayment($row, ['payment_amount_0' => '1.00', 'refund_amount_0' => '999.00'])));
+
+        $stored = $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow();
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('300.00', bcadd((string) $stored->payment_amount, '0', 2));
+        $this->assertSame('0.00', bcadd((string) $stored->cash_refund, '0', 2));
+    }
+
+    public function testPostSave_KeepsTheChangeOfAPaymentThatGaveChangeWhateverTheFormCarried(): void
+    {
+        $this->startSelling();
+        $service = $this->item('0', false);
+        $saleId  = $this->save([$this->line($service, 0, '1', '10')], [], [$this->payment('Cash', '20.00', '10.00')], SALE_TYPE_POS, -1);
+        $row     = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, $this->savedPayment($row, ['payment_amount_0' => '8.30', 'refund_amount_0' => '10.00'])));
+
+        $stored = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        $this->assertTrue($result['success']);
+        $this->assertSame(['20.00', '10.00'], [bcadd((string) $stored->payment_amount, '0', 2), bcadd((string) $stored->cash_refund, '0', 2)]);
+    }
+
+    public function testPostSave_KeepsTheTypeOfAGiftCardPaymentWhateverTheFormCarried(): void
+    {
+        $this->startSelling();
+        $card    = $this->createGiftcard(500.00);
+        $service = $this->item('0', false);
+        $saleId  = $this->save([$this->line($service, 0, '1', '100')], [], [$this->payment('Gift Card:' . $card, '100.00')], SALE_TYPE_POS, -1);
+        $row     = $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow();
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $saleId, $this->savedPayment($row, ['payment_type_0' => 'Cash'])));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Gift Card:' . $card, $this->accountingDb()->table('sales_payments')->where('sale_id', $saleId)->get()->getRow()->payment_type);
+    }
+
+    public function testPostSave_StillChangesTheTypeOfAStoredPaymentThatIsNotAGiftCard(): void
+    {
+        $invoice   = $this->postedInvoice();
+        $paymentId = $this->addPayment($invoice['saleId'], '300.00', 'Cash');
+        $row       = $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow();
+
+        $this->loginAs($this->createBranchLimitedSupervisor(1));
+
+        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], $this->savedPayment($row, ['payment_type_0' => 'Check'])));
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('Check', $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->get()->getRow()->payment_type);
     }
 
     public function testPostCompleteRejectsSaleWithInsufficientPayments(): void
@@ -2772,12 +3205,15 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->registerWithACart();
         $drawer = $this->treasuryOfBranch('Register drawer');
 
-        $response = $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '40.00', 'treasury_id' => (string) $drawer]);
+        $this->post('/sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '40.00', 'treasury_id' => (string) $drawer]);
 
         $payments = Services::session()->get('sales_payments');
 
         $this->assertSame($drawer, (int) $payments['Cash']['treasury_id']);
-        $response->assertSee('(Register drawer)');
+
+        $this->carryTheWholeSessionToTheNextRequest();
+
+        $this->get('/sales')->assertSee('(Register drawer)');
     }
 
     public function testPostAddPayment_AddsToThePaymentOfTheSameTypeAndTreasuryButRefusesAnotherTreasury(): void
@@ -7806,6 +8242,17 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $this->assertSame(0, $this->auditEntries('credit_limit_refused'));
     }
 
+    /**
+     * The edit form cannot take a payment away: it shows the amount read only and the server keeps the stored one.
+     * Taking a payment away is the model's, and the credit limit is held there.
+     */
+    private function takePaymentAway(int $saleId, object $payment, int $employeeId): bool
+    {
+        return $this->sales->update($saleId, ['comment' => 'payment taken away', 'payments' => [
+            ['payment_id' => (int) $payment->payment_id, 'payment_type' => $payment->payment_type, 'payment_amount' => '0', 'cash_refund' => 0, 'cash_adjustment' => 0, 'employee_id' => $employeeId, 'reference_code' => null],
+        ]]);
+    }
+
     public function testPostSave_RefusesTakingAPaymentAwayThatTakesTheCustomerOverTheCreditLimitAndKeepsThePayment(): void
     {
         $invoice   = $this->postedInvoice();
@@ -7820,10 +8267,8 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->loginAs($supervisor);
 
-        $result = $this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], $this->savedPayment($row, ['payment_amount_0' => '0.00'])));
-
-        $this->assertFalse($result['success']);
-        $this->assertSame(lang('Accounting.error_credit_limit_exceeded', ['Omar Khaled', '50.00', $open]), $result['message']);
+        $this->assertFalse($this->takePaymentAway($invoice['saleId'], $row, $supervisor));
+        $this->assertSame(AccountingError::CreditLimitExceeded, $this->sales->accountingFailure()->error);
         $this->assertSame(1, $this->accountingDb()->table('sales_payments')->where('payment_id', $paymentId)->countAllResults());
         $this->assertSame($supervisor, (int) $this->lastAudit('credit_limit_refused')['employee_id']);
     }
@@ -7842,7 +8287,7 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
 
         $this->loginAs($supervisor);
 
-        $this->assertTrue($this->jsonOf($this->post('/sales/save/' . $invoice['saleId'], $this->savedPayment($row, ['payment_amount_0' => '0.00'])))['success']);
+        $this->assertTrue($this->takePaymentAway($invoice['saleId'], $row, $supervisor));
 
         $entry = $this->lastAudit('credit_limit_override');
 
@@ -8973,7 +9418,14 @@ $db->table('app_config')->whereIn('key', ['accounting_sales_adjustment', 'accoun
         $controller = new Sales();
         $controller->initController(service('request'), service('response'), service('logger'));
 
-        return (new ReflectionMethod($controller, '_load_sale_data'))->invoke($controller, $saleId);
+        $scaleBefore = bcscale();
+        bcscale(max(2, totals_decimals() + tax_decimals()));
+
+        try {
+            return (new ReflectionMethod($controller, '_load_sale_data'))->invoke($controller, $saleId);
+        } finally {
+            bcscale($scaleBefore);
+        }
     }
 
     public function testGetPrint_PrintsTheCreditNoteOfAReturnWithItsOwnTitleLabelsAndTheAmountsItTakesBack(): void

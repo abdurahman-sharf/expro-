@@ -701,6 +701,7 @@ return [
     'error_routing_type_invalid'                 => 'نوع التوجيه هذا غير متاح لهذا البند.',
     'error_sale_has_returns'                     => 'لا يُلغى بيع رُدَّت منه بضاعة ما دام مرتجعه قائمًا.',
     'error_sale_locked'                          => 'لا يتغير عميل البيع المرحَّل ولا تاريخه. يُصحَّح بمرتجع.',
+    'error_sale_payment_below_change'            => 'لا يمكن تعديل دفعة إلى أقل من الباقي الذي أُعطي للعميل منها.',
     'error_sale_payment_not_on_sale'             => 'الدفعة لا تخص هذا البيع.',
     'error_sales_order_customer_invalid'         => 'عميل أمر البيع غير موجود.',
     'error_sales_order_customer_mismatch'        => 'الفاتورة لعميل غير عميل أمر البيع {0}.',
