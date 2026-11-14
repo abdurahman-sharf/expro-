@@ -3,11 +3,18 @@
 namespace Tests\Libraries\Accounting;
 
 use App\Libraries\Accounting\AccountingError;
+use App\Libraries\Accounting\AccountingException;
+use App\Libraries\Accounting\CreditRefunds;
+use App\Libraries\Accounting\PostingException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ChequeFixtureTrait;
 use Tests\Support\CreditRefundFixtureTrait;
+use Tests\Support\CreditSourceFixtureTrait;
+use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityCaseTrait;
@@ -25,6 +32,9 @@ class SupplierSettlementTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ChequeFixtureTrait;
+    use CreditSourceFixtureTrait;
+    use DatabaseFingerprintTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use ParityCaseTrait;
@@ -52,6 +62,7 @@ class SupplierSettlementTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopCreditSources();
         $this->stopBuying();
 
         parent::tearDown();
@@ -530,6 +541,72 @@ class SupplierSettlementTest extends CIUnitTestCase
         $this->refundsFromSuppliers()->cancel($refundId, 'paid twice', $this->supplierTreasurer());
 
         $this->assertTrue($this->changePayment($purchase, $payment, ['payment_amount' => '230.00']));
+        $this->assertSupplierTies();
+    }
+
+    private function refusalOf(callable $action): AccountingException|PostingException
+    {
+        try {
+            $action();
+        } catch (AccountingException|PostingException $exception) {
+            return $exception;
+        }
+
+        $this->fail('The change was not refused.');
+    }
+
+    #[DataProvider('supplierCreditSources')]
+    public function testSettle_RefusesToTakeBackTheCreditOfEachSupplierSourceThatWasPaidBackAndChangesNothing(string $source): void
+    {
+        $id       = $this->giveSupplierCredit($source);
+        $refundId = $this->supplierRefund('100.00');
+        $before   = $this->databaseFingerprint();
+
+        $refusal = $this->refusalOf(fn () => $this->takeBackSupplierCredit($source, $id));
+
+        $this->assertSame(AccountingError::CreditRefunded, $refusal->error);
+        $this->assertSame($this->supplierId, $refusal->context['supplier_id']);
+        $this->assertRefusedChangeLeftNoTrace($before, $source, CreditRefunds::SUPPLIER);
+        $this->assertSame('0.00', $this->freeSupplierCredit());
+        $this->assertRefundsTie(CreditRefunds::SUPPLIER);
+        $this->assertSupplierTies();
+
+        $this->refundsFromSuppliers()->cancel($refundId, 'paid twice', $this->supplierTreasurer());
+        $this->takeBackSupplierCredit($source, $id);
+
+        $this->assertSame('0.00', $this->freeSupplierCredit(), 'With the refund cancelled the credit was taken back');
+        $this->assertRefundsTie(CreditRefunds::SUPPLIER);
+        $this->assertSupplierTies();
+    }
+
+    #[DataProvider('supplierCreditSources')]
+    public function testSettle_RefusesToTakeBackTheCreditOfEachSupplierSourceOfWhichOnlyAPartWasPaidBack(string $source): void
+    {
+        $id = $this->giveSupplierCredit($source);
+
+        $this->supplierRefund('30.00');
+
+        $before = $this->databaseFingerprint();
+
+        $this->assertSame(AccountingError::CreditRefunded, $this->refusalOf(fn () => $this->takeBackSupplierCredit($source, $id))->error);
+        $this->assertRefusedChangeLeftNoTrace($before, $source, CreditRefunds::SUPPLIER);
+        $this->assertSame('70.00', $this->freeSupplierCredit());
+        $this->assertRefundsTie(CreditRefunds::SUPPLIER);
+        $this->assertSupplierTies();
+    }
+
+    #[DataProvider('supplierCreditSources')]
+    public function testSettle_GivesThePurchaseBackItsDebtWhenTheCreditOfEachSupplierSourceThatPaidItIsTakenBack(string $source): void
+    {
+        $id       = $this->giveSupplierCredit($source);
+        $purchase = $this->purchaseDated('40.00', $this->daysAgo(1));
+
+        $this->assertSame('0.00', bcadd($this->supplierPosition()->purchase($purchase)->open(), '0', 2));
+
+        $this->takeBackSupplierCredit($source, $id);
+
+        $this->assertSame('40.00', bcadd($this->supplierPosition()->purchase($purchase)->open(), '0', 2));
+        $this->assertSame('0.00', $this->freeSupplierCredit());
         $this->assertSupplierTies();
     }
 }

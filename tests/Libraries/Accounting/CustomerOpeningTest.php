@@ -25,6 +25,7 @@ use Config\Database;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
 use Tests\Support\ConcurrentDbRaceTrait;
+use Tests\Support\CreditSourceFixtureTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\SaleAccountingFixtureTrait;
@@ -40,6 +41,7 @@ class CustomerOpeningTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
     use ConcurrentDbRaceTrait;
+    use CreditSourceFixtureTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use SaleAccountingFixtureTrait;
@@ -71,6 +73,7 @@ class CustomerOpeningTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopCreditSources();
         $this->stopSelling();
         $this->setConfigValue('accounting_customer_opening', '0');
 
@@ -976,5 +979,61 @@ class CustomerOpeningTest extends CIUnitTestCase
         $this->assertRefusedWith(AccountingError::CustomerOpeningReversed, fn () => $this->openings->cancel($first, 'Again', $this->clerk));
         $this->assertSame('posted', $this->journalOf(1)->status);
         $this->assertSame($counts, [$this->countRows('customer_openings'), $this->countJournals()]);
+    }
+
+    /**
+     * @return array<string, array{string, string, int, string}> The side, the amount, the days back and the amount that was paid back.
+     */
+    public static function changesOfAnOpeningCredit(): array
+    {
+        return [
+            'a lower amount'    => [CustomerOpening::WE_OWE, '50.00', 45, '100.00'],
+            'a higher amount'   => [CustomerOpening::WE_OWE, '150.00', 45, '100.00'],
+            'another day'       => [CustomerOpening::WE_OWE, '100.00', 30, '100.00'],
+            'the other side'    => [CustomerOpening::OWES_US, '100.00', 45, '100.00'],
+            'a higher amount while only a part was paid back' => [CustomerOpening::WE_OWE, '150.00', 45, '30.00'],
+        ];
+    }
+
+    #[DataProvider('changesOfAnOpeningCredit')]
+    public function testRevise_RefusesAnyChangeOfAnOpeningCreditThatWasPaidBackAndChangesNothingUntilTheRefundIsCancelled(string $side, string $amount, int $daysAgo, string $refunded): void
+    {
+        $openingId = $this->openings->create($this->customerId, CustomerOpening::WE_OWE, '100.00', $this->daysAgo(45), 'before the books', $this->clerk);
+        $refundId  = $this->refundCustomerCredit($refunded);
+        $before    = $this->snapshot();
+        $free      = $this->freeCustomerCredit();
+
+        $this->assertRefusedWith(AccountingError::CreditRefunded, fn () => $this->openings->revise($openingId, $side, $amount, $this->daysAgo($daysAgo), 'changed', 'Entered wrong', $this->clerk));
+        $this->assertSame($before, $this->snapshot(), 'The change that was refused left a trace');
+        $this->assertSame($free, $this->freeCustomerCredit());
+        $this->assertSame($openingId, (int) $this->openings->standingFor($this->customerId)->opening_id);
+        $this->assertRefundsTie();
+        $this->assertTies();
+
+        $this->cancelCustomerRefund($refundId);
+        $this->openings->revise($openingId, $side, $amount, $this->daysAgo($daysAgo), 'changed', 'Entered wrong', $this->clerk);
+
+        $this->assertSame($side === CustomerOpening::WE_OWE ? $amount : '0.00', $this->freeCustomerCredit(), 'With the refund cancelled the opening is revised');
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    public function testCancel_RefusesAnOpeningCreditThatWasPaidBackAndChangesNothingUntilTheRefundIsCancelled(): void
+    {
+        $openingId = $this->openings->create($this->customerId, CustomerOpening::WE_OWE, '100.00', $this->daysAgo(45), 'before the books', $this->clerk);
+        $refundId  = $this->refundCustomerCredit('100.00');
+        $before    = $this->snapshot();
+
+        $this->assertRefusedWith(AccountingError::CreditRefunded, fn () => $this->openings->cancel($openingId, 'Entered twice', $this->clerk));
+        $this->assertSame($before, $this->snapshot());
+        $this->assertSame('posted', $this->openingRow($openingId)->status);
+        $this->assertRefundsTie();
+
+        $this->cancelCustomerRefund($refundId);
+        $this->openings->cancel($openingId, 'Entered twice', $this->clerk);
+
+        $this->assertNull($this->openings->standingFor($this->customerId));
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertTies();
     }
 }

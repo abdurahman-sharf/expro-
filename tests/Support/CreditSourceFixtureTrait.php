@@ -36,6 +36,13 @@ trait CreditSourceFixtureTrait
         return $this->creditClerk ??= $this->employeeWithGrants([AccountingGuard::RECEIVABLES_MANAGE, AccountingGuard::RECEIVABLES_REFUND, AccountingGuard::TREASURIES_MANAGE, AccountingGuard::OPENING_MANAGE]);
     }
 
+    private int $creditTreasurer;
+
+    private function treasurerOfSuppliers(): int
+    {
+        return $this->creditTreasurer ??= $this->supplierTreasurer();
+    }
+
     private function creditCheques(): void
     {
         if (! isset($this->chequeService)) {
@@ -66,6 +73,14 @@ trait CreditSourceFixtureTrait
             'an opening credit'    => [CreditSource::OPENING],
             'a received cheque'    => [CreditSource::CHEQUE],
         ];
+    }
+
+    /**
+     * @return array<string, array{string}> The sources of a customer that are not an opening balance.
+     */
+    public static function customerCreditSourcesBesidesTheOpening(): array
+    {
+        return array_filter(self::customerCreditSources(), static fn (array $source): bool => $source[0] !== CreditSource::OPENING);
     }
 
     /**
@@ -189,9 +204,10 @@ trait CreditSourceFixtureTrait
         $day          = $this->daysAgo(3);
 
         $this->creditCheques();
+        $this->treasurerOfSuppliers();
 
         return match ($source) {
-            CreditSource::ADVANCE        => (new SupplierAdvances())->pay($supplierId, $amount, $day, 'Cash', null, '', '', $this->supplierTreasurer()),
+            CreditSource::ADVANCE        => (new SupplierAdvances())->pay($supplierId, $amount, $day, 'Cash', null, '', '', $this->treasurerOfSuppliers()),
             CreditSource::CHEQUE         => $this->issueCheque($amount, $day, $day, $supplierId),
             CreditSource::DEBIT_NOTE     => $this->debitNoteOf($this->purchaseOf('100.00', $supplierId, 'Cash'), $amount, $supplierId),
             CreditSource::INVOICE_EXCESS => $this->giveSupplierExcess($amount, $supplierId),
@@ -215,9 +231,10 @@ trait CreditSourceFixtureTrait
     protected function takeBackSupplierCredit(string $source, int $id): void
     {
         $this->creditCheques();
+        $this->treasurerOfSuppliers();
 
         match ($source) {
-            CreditSource::ADVANCE        => (new SupplierAdvances())->cancel($id, 'mistake', $this->supplierTreasurer()),
+            CreditSource::ADVANCE        => (new SupplierAdvances())->cancel($id, 'mistake', $this->treasurerOfSuppliers()),
             CreditSource::CHEQUE         => $this->chequeService->reject($id, date('Y-m-d'), $this->chequeClerk),
             CreditSource::DEBIT_NOTE     => $this->expectPurchaseSaved($this->purchases->delete_value($id, $this->employeeId)),
             CreditSource::INVOICE_EXCESS => $this->expectPurchaseSaved($this->changePayment($id, $this->supplierExcessPayments[$id], ['payment_amount' => '60.00'])),
@@ -234,6 +251,32 @@ trait CreditSourceFixtureTrait
     protected function freeSupplierCredit(?int $supplierId = null): string
     {
         return bcadd($this->supplierPosition($supplierId)->credit(), '0', 2);
+    }
+
+    /**
+     * A change of a source that the books refused wrote nothing, but for the note a refused edit of a sale
+     * leaves in the list of failures of the books, so that someone sees that the edit did not go through: the
+     * refused change of a credit note, of the excess of a customer's payment and of a debit note does so, and
+     * the refused cut of the excess of a payment to a supplier does not.
+     *
+     * @param array<string, array{rows: int, checksum: string|null}> $before
+     */
+    protected function assertRefusedChangeLeftNoTrace(array $before, string $source, string $party = CreditRefunds::CUSTOMER): void
+    {
+        $failures = $this->accountingDb()->prefixTable('accounting_posting_failures');
+        $changed  = [];
+
+        foreach ($this->databaseFingerprint() as $table => $print) {
+            if (($before[$table] ?? null) !== $print) {
+                $changed[] = $table;
+            }
+        }
+
+        $this->assertSame(
+            in_array($party . ':' . $source, [CreditRefunds::CUSTOMER . ':' . CreditSource::CREDIT_NOTE, CreditRefunds::CUSTOMER . ':' . CreditSource::INVOICE_EXCESS, CreditRefunds::SUPPLIER . ':' . CreditSource::DEBIT_NOTE], true) ? [$failures] : [],
+            $changed,
+            'The change that was refused left a trace in these tables',
+        );
     }
 
     /**

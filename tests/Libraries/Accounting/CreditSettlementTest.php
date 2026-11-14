@@ -11,10 +11,16 @@ use App\Libraries\Accounting\Currencies;
 use App\Libraries\Accounting\CustomerAdvances;
 use App\Libraries\Accounting\CustomerLedger;
 use App\Libraries\Accounting\CustomerOpening;
+use App\Libraries\Accounting\PostingException;
+use App\Libraries\Accounting\SalesDebitNotes;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\AccountingFixtureTrait;
+use Tests\Support\ChequeFixtureTrait;
+use Tests\Support\CreditSourceFixtureTrait;
+use Tests\Support\DatabaseFingerprintTrait;
 use Tests\Support\EmployeeFixtureTrait;
 use Tests\Support\ItemFixtureTrait;
 use Tests\Support\ParityCaseTrait;
@@ -31,6 +37,9 @@ class CreditSettlementTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
     use AccountingFixtureTrait;
+    use ChequeFixtureTrait;
+    use CreditSourceFixtureTrait;
+    use DatabaseFingerprintTrait;
     use EmployeeFixtureTrait;
     use ItemFixtureTrait;
     use ParityCaseTrait;
@@ -56,6 +65,9 @@ class CreditSettlementTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->stopCreditSources();
+        $this->setConfigValue('accounting_debit_note', '0');
+        $this->accountingDb()->table('accounting_audit_log')->where('entity_type', 'sales_debit_note')->delete();
         $this->stopSelling();
 
         parent::tearDown();
@@ -895,6 +907,224 @@ class CreditSettlementTest extends CIUnitTestCase
 
         $this->assertSame('230.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
         $this->assertSame('0.00', $this->freeCredit());
+        $this->assertTies();
+    }
+
+    private function refusalOf(callable $action): AccountingException|PostingException
+    {
+        try {
+            $action();
+        } catch (AccountingException|PostingException $exception) {
+            return $exception;
+        }
+
+        $this->fail('The change was not refused.');
+    }
+
+    /**
+     * @return list<string> "source:id->target:amount" of what stands in the applications of the customer, the target being sale, opening or note.
+     */
+    private function standingApplications(): array
+    {
+        return array_map(
+            static fn (object $row): string => $row->source_type . ':' . $row->source_id . '->' . ($row->invoice_sale_id !== null ? 'sale' . $row->invoice_sale_id : ($row->debit_note_id !== null ? 'note' . $row->debit_note_id : 'opening' . $row->opening_id)) . ':' . bcadd($row->amount, '0', 2),
+            (new CustomerLedger())->applications($this->customerId),
+        );
+    }
+
+    private function debitNote(string $amount, int $daysAgo): int
+    {
+        $this->setConfigValue('accounting_debit_note', '1');
+
+        $clerk = $this->employeeWithGrants([AccountingGuard::DEBIT_NOTES_MANAGE]);
+
+        return (new SalesDebitNotes())->create(['customer_id' => $this->customerId, 'date' => $this->daysAgo($daysAgo), 'amount' => $amount, 'tax_percent' => '0', 'note' => 'freight'], $clerk);
+    }
+
+    private function ownedOpening(string $amount, int $daysAgo): int
+    {
+        $this->setConfigValue('accounting_customer_opening', '1');
+
+        return (new CustomerOpening())->create($this->customerId, CustomerOpening::OWES_US, $amount, $this->daysAgo($daysAgo), '', $this->employeeWithGrants([AccountingGuard::OPENING_MANAGE]));
+    }
+
+    #[DataProvider('customerCreditSources')]
+    public function testSettle_RefusesToTakeBackTheCreditOfEachSourceThatWasPaidBackAndChangesNothing(string $source): void
+    {
+        $id       = $this->giveCustomerCredit($source);
+        $refundId = $this->refundCustomerCredit('100.00');
+        $before   = $this->databaseFingerprint();
+
+        $refusal = $this->refusalOf(fn () => $this->takeBackCustomerCredit($source, $id));
+
+        $this->assertSame(AccountingError::CreditRefunded, $refusal->error);
+        $this->assertSame($this->customerId, $refusal->context['customer_id']);
+        $this->assertRefusedChangeLeftNoTrace($before, $source);
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+        $this->assertTies();
+
+        $this->cancelCustomerRefund($refundId);
+        $this->takeBackCustomerCredit($source, $id);
+
+        $this->assertSame('0.00', $this->freeCustomerCredit(), 'With the refund cancelled the credit was taken back');
+        $this->assertSame('0.00', bcadd($this->position()->open(), '0', 2));
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    #[DataProvider('customerCreditSources')]
+    public function testSettle_RefusesToTakeBackTheCreditOfEachSourceOfWhichOnlyAPartWasPaidBack(string $source): void
+    {
+        $id = $this->giveCustomerCredit($source);
+
+        $this->refundCustomerCredit('30.00');
+
+        $before = $this->databaseFingerprint();
+
+        $this->assertSame(AccountingError::CreditRefunded, $this->refusalOf(fn () => $this->takeBackCustomerCredit($source, $id))->error);
+        $this->assertRefusedChangeLeftNoTrace($before, $source);
+        $this->assertSame('70.00', $this->freeCustomerCredit());
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    #[DataProvider('customerCreditSources')]
+    public function testSettle_RefusesToTakeBackACreditOfEachSourceThatAnInvoiceSpentPartOfAndARefundTookTheRest(string $source): void
+    {
+        $id      = $this->giveCustomerCredit($source);
+        $invoice = $this->invoiceDated('40.00', $this->daysAgo(1));
+
+        $this->refundCustomerCredit('60.00');
+
+        $before = $this->databaseFingerprint();
+
+        $this->assertSame(AccountingError::CreditRefunded, $this->refusalOf(fn () => $this->takeBackCustomerCredit($source, $id))->error);
+        $this->assertRefusedChangeLeftNoTrace($before, $source);
+        $this->assertSame('0.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2), 'What the invoice was paid with stands');
+        $this->assertRefundsTie();
+        $this->assertTies();
+    }
+
+    #[DataProvider('customerCreditSources')]
+    public function testSettle_GivesTheInvoiceBackItsDebtWhenTheCreditOfEachSourceThatPaidItIsTakenBack(string $source): void
+    {
+        $id      = $this->giveCustomerCredit($source);
+        $invoice = $this->invoiceDated('40.00', $this->daysAgo(1));
+
+        $this->assertSame('0.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+
+        $this->takeBackCustomerCredit($source, $id);
+
+        $this->assertSame('40.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertTies();
+    }
+
+    #[DataProvider('customerCreditSourcesBesidesTheOpening')]
+    public function testSettle_SpendsTheCreditOfEachSourceOnACustomerOpeningBalanceBeforeALaterInvoice(string $source): void
+    {
+        $opening = $this->ownedOpening('300.00', 60);
+        $invoice = $this->invoiceDated('50.00', $this->daysAgo(2));
+        $id      = $this->giveCustomerCredit($source);
+
+        $this->assertSame([$source . ':' . $id . '->opening' . $opening . ':100.00'], $this->standingApplications());
+
+        $position = $this->position();
+
+        $this->assertSame('200.00', bcadd($position->invoice(-$opening)->open(), '0', 2));
+        $this->assertSame('50.00', bcadd($position->invoice($invoice)->open(), '0', 2), 'The invoice waits behind the oldest item');
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertTies();
+
+        $this->takeBackCustomerCredit($source, $id);
+
+        $this->assertSame([], $this->standingApplications());
+        $this->assertSame('300.00', bcadd($this->position()->invoice(-$opening)->open(), '0', 2));
+        $this->assertSame('50.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    public function testSettle_SpendsAnAdvancePaymentOnACustomerOpeningBalanceAndThenOnTheInvoicesThatFollow(): void
+    {
+        $opening = $this->ownedOpening('300.00', 60);
+        $invoice = $this->invoiceDated('50.00', $this->daysAgo(2));
+        $advance = $this->giveCustomerCredit(CreditSource::CUSTOMER_ADVANCE, '450.00');
+
+        $this->assertSame([
+            CreditSource::CUSTOMER_ADVANCE . ':' . $advance . '->opening' . $opening . ':300.00',
+            CreditSource::CUSTOMER_ADVANCE . ':' . $advance . '->sale' . $invoice . ':50.00',
+        ], $this->standingApplications());
+        $this->assertSame('0.00', bcadd($this->position()->invoice(-$opening)->open(), '0', 2));
+        $this->assertSame('0.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('100.00', $this->freeCustomerCredit());
+        $this->assertSame('-100.00', $this->balance($this->customerAccount()));
+        $this->assertTies();
+
+        $this->assertSame('100.00', bcadd($this->position()->credit(), '0', 2));
+    }
+
+    public function testSettle_GivesTheOpeningBalanceAndTheInvoiceBackTheirDebtWhenTheAdvancePaymentThatPaidThemIsCancelled(): void
+    {
+        $opening = $this->ownedOpening('300.00', 60);
+        $invoice = $this->invoiceDated('50.00', $this->daysAgo(2));
+        $advance = $this->giveCustomerCredit(CreditSource::CUSTOMER_ADVANCE, '450.00');
+
+        $this->takeBackCustomerCredit(CreditSource::CUSTOMER_ADVANCE, $advance);
+
+        $this->assertSame([], $this->standingApplications());
+        $this->assertSame('300.00', bcadd($this->position()->invoice(-$opening)->open(), '0', 2));
+        $this->assertSame('50.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('350.00', $this->balance($this->customerAccount()));
+        $this->assertCount(2, (new CustomerLedger())->applications($this->customerId, true), 'The release stays in the history');
+        $this->assertTies();
+    }
+
+    public function testSettle_FreesTheAdvancePaymentWhenTheOpeningBalanceItWasSpentOnIsCancelled(): void
+    {
+        $opening = $this->ownedOpening('300.00', 60);
+        $advance = $this->giveCustomerCredit(CreditSource::CUSTOMER_ADVANCE, '120.00');
+
+        $this->assertSame([CreditSource::CUSTOMER_ADVANCE . ':' . $advance . '->opening' . $opening . ':120.00'], $this->standingApplications());
+
+        (new CustomerOpening())->cancel($opening, 'entered twice', $this->employeeWithGrants([AccountingGuard::OPENING_MANAGE]));
+
+        $this->assertSame([], $this->standingApplications());
+        $this->assertSame('120.00', $this->freeCustomerCredit());
+        $this->assertTies();
+    }
+
+    public function testSettle_SpendsTheOpeningCreditOnTheOldestInvoiceAndGivesItBackWhenTheOpeningIsCancelled(): void
+    {
+        $opening = $this->giveCustomerCredit(CreditSource::OPENING, '100.00');
+        $invoice = $this->invoiceDated('60.00', $this->daysAgo(1));
+
+        $this->assertSame([CreditSource::OPENING . ':' . $opening . '->sale' . $invoice . ':60.00'], $this->standingApplications());
+        $this->assertSame('40.00', $this->freeCustomerCredit());
+
+        $this->takeBackCustomerCredit(CreditSource::OPENING, $opening);
+
+        $this->assertSame([], $this->standingApplications());
+        $this->assertSame('60.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertTies();
+    }
+
+    #[DataProvider('customerCreditSources')]
+    public function testSettle_SpendsTheCreditOfEachSourceOnASalesDebitNoteBeforeALaterInvoiceAndGivesItBackWhenTheSourceIsTakenBack(string $source): void
+    {
+        $note    = $this->debitNote('300.00', 30);
+        $invoice = $this->invoiceDated('50.00', $this->daysAgo(2));
+        $id      = $this->giveCustomerCredit($source);
+
+        $this->assertSame([$source . ':' . $id . '->note' . $note . ':100.00'], $this->standingApplications());
+        $this->assertSame('50.00', bcadd($this->position()->invoice($invoice)->open(), '0', 2));
+        $this->assertSame('0.00', $this->freeCustomerCredit());
+        $this->assertTies();
+
+        $this->takeBackCustomerCredit($source, $id);
+
+        $this->assertSame([], $this->standingApplications());
+        $this->assertSame('350.00', bcadd($this->position()->open(), '0', 2));
         $this->assertTies();
     }
 }
