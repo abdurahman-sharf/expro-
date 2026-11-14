@@ -479,7 +479,7 @@ final class AccountingAiControllerTest extends CIUnitTestCase
         $this->assertArrayHasKey('csrf', $globals['before']);
 
         foreach (['approve/5', 'reject/5', 'propose', 'scan', 'decide/5', 'settings', 'disable'] as $uri) {
-            $this->assertSame(0, preg_match('#^(' . $globals['before']['csrf']['except'] . ')#', 'accounting_ai/' . $uri), "{$uri} is not excepted");
+            $this->assertSame(0, preg_match('#\A(' . implode('|', array_map(static fn (string $path): string => preg_quote($path, '#'), (array) $globals['before']['csrf']['except'])) . ')\z#', 'accounting_ai/' . $uri), "{$uri} is not excepted");
         }
     }
 

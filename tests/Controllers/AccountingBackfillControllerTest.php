@@ -366,7 +366,7 @@ final class AccountingBackfillControllerTest extends CIUnitTestCase
         $this->assertArrayHasKey('csrf', $globals['before']);
 
         foreach (['accounting_periods/backfill/create', 'accounting_periods/backfill/preview/5', 'accounting_periods/backfill/approve/5', 'accounting_periods/backfill/cancel/5'] as $uri) {
-            $this->assertSame(0, preg_match('#^(' . $globals['before']['csrf']['except'] . ')#', $uri), "{$uri} is not excepted");
+            $this->assertSame(0, preg_match('#\A(' . implode('|', array_map(static fn (string $path): string => preg_quote($path, '#'), (array) $globals['before']['csrf']['except'])) . ')\z#', $uri), "{$uri} is not excepted");
         }
     }
 

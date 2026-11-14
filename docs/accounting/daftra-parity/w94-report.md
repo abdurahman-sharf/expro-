@@ -23,12 +23,12 @@
 
 ## 2. الأدلة
 
-- **الاختبارات الجديدة والمعدّلة:** 47 دالة اختبار جديدة (و19 مجموعة بيانات)، 29 ملف اختبار مُعدَّل أو جديد. **اختبار واحد لكل صنف يُختبر** (`FiltersTest` للإعداد، و`IsLoggedInTest` للمرشح بطلب حقيقي، و`EmployeeTest`، و`AccountingSetupControllerTest`، و`SalesDebitNotesTest` و`AccountingDebitNotesControllerTest`، و`ReceivingsControllerTest` و`StockRequestsControllerTest`، و`ItemTest` و`ItemOpenDocumentsTest` و`ItemsControllerTest`)؛ والملف الجديد الوحيد `tests/EscapingAssertionsTest.php` (لا صنف تحته: يقرأ مصدر الاختبارات).
-- **كل اختبار جديد أُثبت فشله على الكود القديم** (بإرجاع ملف التطبيق وحده وتشغيله): `G-250`: 18 فشلًا في `FiltersTest` و4 أخطاء في `IsLoggedInTest` (طلبات حقيقية بلا جلسة)؛ `G-251`: 6؛ `G-238`: 10 أخطاء + 4 إخفاقات؛ `G-243`: 9؛ `G-220`: 4 (ج، د) و3 (هـ) و4 (أ).
+- **الاختبارات الجديدة والمعدّلة:** 53 دالة اختبار جديدة (و40 مجموعة بيانات)، و30 ملف اختبار مُعدَّل أو جديد. **اختبار واحد لكل صنف يُختبر** (`FiltersTest` للإعداد، و`IsLoggedInTest` للمرشح بطلب حقيقي، و`EmployeeTest`، و`AccountingSetupControllerTest`، و`SalesDebitNotesTest` و`AccountingDebitNotesControllerTest`، و`ReceivingsControllerTest` و`StockRequestsControllerTest`، و`ItemTest` و`ItemOpenDocumentsTest` و`ItemsControllerTest`)؛ والملف الجديد الوحيد `tests/EscapingAssertionsTest.php` (لا صنف تحته: يقرأ مصدر الاختبارات).
+- **كل اختبار جديد أُثبت فشله على الكود القديم** (بإرجاع ملف التطبيق وحده وتشغيله): `G-250`: 20 فشلًا و4 أخطاء من 59 اختبارًا في `FiltersTest` و`IsLoggedInTest` (الأخطاء طلبات حقيقية بلا جلسة وصلت إلى المتحكم)؛ `G-251`: 6؛ `G-238`: 10 أخطاء و4 إخفاقات؛ `G-243`: 9؛ `G-220`: 4 (ج، د) و3 (هـ في الدوال الثلاث) و14 من 18 اختبارًا (أ: القفل، وبحث الخصائص).
 - **الطلب الحقيقي لـ`G-250`:** `IsLoggedInTest` يطلب `GET /branches/view/migrate` و`GET /roles/view/xmigrate` و`POST /branches/save/xmigrate` و`GET /accounting_chart/view/migrate` بلا جلسة ويتوقع تحويلًا إلى `login`، ويطلب `GET /login` ويتوقع 200؛ و`FiltersTest` يسأل الإطار عن مرشحات 14 مسارًا (ما يُعفى وما لا يُعفى بالإعداد الإنتاجي).
 - **اختبارات الكتالوج لـ`G-251`** في `EmployeeTest`: (1) لا صلاحية يبدأ معرّفها بمعرّف وحدة أخرى إلا `expenses_categories` المسمّاة استثناءً قديمًا؛ (2) كل وحدة لها صلاحية تبدأ بمعرّفها وشرطة سفلية وتنتمي إليها **يجب أن تكون في قائمة «تحتاج منحة ثانية»** (`items` و`receivings` و`recurring_expenses` و`recurring_invoices` و`reports` و`sales`) والعكس (قائمة لا تبلى)؛ (3) **سلوكيًا** لكل وحدة من الـ51: حامل منحتها وحدها يفتحها إلا الوحدات الست، وحامل صلاحية وحدة أخرى لا يفتح أي وحدة. **إضافة صلاحية جديدة تكسر القاعدة تُفشل (2) أو (1) باسم الصلاحية والوحدة ورسالة تقول: غيّر الاسم (`so_*` أو `stk_*` أو `acc_*`) أو ضعها في القائمة عن قصد.**
 - **إثبات `G-247` (تجربة):** `app/Views/people/contacts_panel.php` بلا `esc()` على `value`: **الاختباران القديمان (جسم محلَّل) `OK`، والجديدان (جسم خام) `FAILURES`**؛ والحارس `G19` في القسم 3 يعيد التجربة آليًا، ومعه `G20` و`G21` (قالبا الوصف في الإعدادات) و`G22` (اسم الحقل المخصص) و`G23` (رسالة الإشعار في نص).
-- **2.1 جرد `G-247`:** 68 ملف اختبار فيها 671 استعمالًا لـ`getBody()`: **561 على الجسم المحلَّل و110 على الخام**. مسحٌ أول (طرق فيها `getBody()` محلَّل وأي مؤشر هروب: كيانات `&lt;` و`&quot;` و`&#039;` و`&amp;` أو `<script` و`<img` و`onerror` أو `esc(` أو `htmlspecialchars`) رشّح **67 طريقة**؛ ومسح ثانٍ (حروف وسم في نصوص ثابتة) **لم يزد شيئًا**. صنّفتُ كلًّا: **41 طريقة تتحقق من الهروب فنُقلت** (`AccountingAiControllerTest` 4 منها المساعد `assertEscaped`، و`SalesControllerTest` 8، و`CustomersControllerTest` 3، و`ReceivingsControllerTest` 4، و`ExpensesControllerTest` 3، و`ItemsControllerTest` 2، و`AccountingSetupControllerTest` 2، و`AccountingJournalsControllerTest` 2، وملف واحد لكل من: التقارير الأربعة (العائلة والمخزون والضريبة والمدفوعات للموردين/العملاء) و`ConfigTest` و`Custom_fieldsControllerTest` و`ExpensesCategoriesControllerTest` و`IntegrationsControllerTest` و`ItemKitsControllerTest` و`NotificationsControllerTest` و`Receipt_vouchersControllerTest` و`SuppliersControllerTest`)، و**26 طريقة بقيت على الجسم المحلَّل عن قصد** لأنها تتحقق من بنية أو روابط أو سلاسل ترجمة لا من الهروب (ثوابت `esc(lang())` و`esc(..., 'js')` في سياق نص برمجي). **ملاحظة:** بعد النقل **ظهرت ثلاثة تأكيدات كانت تنجح بالتحليل لا بالتطبيق** (`value="1000 - "` و`value="&lt;script&gt;…"` بدل ما يكتبه `esc(…, 'attr')` فعلًا: `&#x20;` و`&#x28;`)، فصحّحتُها لتقارن بـ`esc($نص, 'attr')`.
+- **2.1 جرد `G-247`:** 68 ملف اختبار فيها 671 استعمالًا لـ`getBody()`: **561 على الجسم المحلَّل و110 على الخام**. مسحٌ أول (طرق فيها `getBody()` محلَّل وأي مؤشر هروب: كيانات `&lt;` و`&quot;` و`&#039;` و`&amp;` أو `<script` و`<img` و`onerror` أو `esc(` أو `htmlspecialchars`) رشّح **67 طريقة**؛ ومسح ثانٍ (حروف وسم في نصوص ثابتة) **لم يزد شيئًا**. صنّفتُ كلًّا: **41 طريقة تتحقق من الهروب فنُقلت** (في 21 ملفًا: `AccountingAiControllerTest` 4 منها المساعد `assertEscaped`، و`SalesControllerTest` 8، و`CustomersControllerTest` 3، و`ReceivingsControllerTest` 4، و`ExpensesControllerTest` 3، و`ItemsControllerTest` 2، و`AccountingSetupControllerTest` 2، و`AccountingJournalsControllerTest` 2، وطريقة واحدة في كلٍّ من ثلاثة عشر ملفًا: `AccountingFamilyReports` و`AccountingInventoryReports` و`AccountingPayables` و`AccountingReceivables` و`AccountingTaxReports` و`Config` و`Custom_fields` و`ExpensesCategories` و`Integrations` و`ItemKits` و`Notifications` و`Receipt_vouchers` و`Suppliers`)، و**26 طريقة بقيت على الجسم المحلَّل عن قصد** لأنها تتحقق من بنية أو روابط أو سلاسل ترجمة لا من الهروب (ثوابت `esc(lang())` و`esc(..., 'js')` في سياق نص برمجي). **ملاحظة:** بعد النقل **ظهرت ثلاثة تأكيدات كانت تنجح بالتحليل لا بالتطبيق** (`value="1000 - "` و`value="&lt;script&gt;…"` بدل ما يكتبه `esc(…, 'attr')` فعلًا: `&#x20;` و`&#x28;`)، فصحّحتُها لتقارن بـ`esc($نص, 'attr')`.
 - **الملفات التي شُغّلت:** انظر القسم 2.2.
 - **لم تُشغَّل المجموعة الكاملة** (نحو ساعة، وأربعة معالجات تتشاركها وكلاء آخرون): يشغّلها المُدمِج.
 
@@ -40,7 +40,46 @@
 
 كل حارس عُطِّل وحده في نسخة الملف ثم استُعيد الملف (`tools/dev/guard_mutations.py` ← [`w94-guards.json`](w94-guards.json))؛ كشفه = فشل اختبار من المسمّاة. ولقد تحققتُ بسكربت أن نص `find` لكل حارس موجود **مرة واحدة** في ملفه.
 
-@@GUARDS@@
+**النتيجة: 36 حارسًا كُشفت كلها (DETECTED)، ولا UNDETECTED ولا INVALID.** مرّت القائمة بمرحلتين: التشغيل الأول (37 حارسًا) كشف 31 وأبقى ستة بلا كشف (قالبا الوصف في الإعدادات، وقفل المستندات في `ItemOpenDocuments`، والتراجع عند الرفض تحت القفل، وقفل حفظ الصنف من النموذج، و`distinct()` في بحث الخصائص)؛ **قوّيتُ الاختبارات** فكُشفت الخمسة الأولى، و**حذفتُ `distinct()`** لأن المستدعين الثلاثة يزيلون المكرّر بـ`array_unique` أصلًا فلا يُرى أثره (حارس بلا أثر ظاهر)، ثم أعدتُ تشغيل الاثني عشر حارسًا التي تغيّر ملفها أو اختبارها (`G20` و`G21` و`G27` إلى `G36`) فكُشفت كلها.
+
+| # | الحارس | الملف الذي يحرسه | الاختبار الذي يكشفه | النتيجة |
+|---|---|---|---|---|
+| G01 | الدخول يُعفى من مرشح الموظف بمساره الكامل لا ببادئة أو لاحقة | `Filters.php` | `FiltersTest`, `IsLoggedInTest` | كُشف |
+| G02 | الدخول يُعفى من مرشح الرمز بمساره الكامل لا ببادئة أو لاحقة | `Filters.php` | `FiltersTest`, `IsLoggedInTest` | كُشف |
+| G03 | الوحدة تعدّ صلاحياتها الفرعية لا كل صلاحية تبدأ بمعرّفها | `Employee.php` | `EmployeeTest` | كُشف |
+| G04 | منح الأدوار تُعدّ بالقاعدة نفسها | `Employee.php` | `EmployeeTest` | كُشف |
+| G05 | الصلاحية الفرعية تنتمي إلى الوحدة في الكتالوج لا بمعرّفها وحده | `Employee.php` | `EmployeeTest` | كُشف |
+| G06 | المعرّف الفارغ يطلب منحتين من أي نوع | `Employee.php` | `EmployeeTest` | كُشف |
+| G07 | وحدة تحتاج منحة ثانية فقط إن قالت قائمتها ذلك (قاعدة الكتالوج) | `EmployeeTest.php` | `EmployeeTest` | كُشف |
+| G08 | لا صلاحية يبدأ معرّفها بمعرّف وحدة أخرى إلا المسمّاة استثناءً (قاعدة الكتالوج) | `EmployeeTest.php` | `EmployeeTest` | كُشف |
+| G09 | نموذج الإعدادات يرفض حقلًا نصيًا يصل مصفوفة | `AccountingSetup.php` | `AccountingSetupControllerTest` | كُشف |
+| G10 | نموذج التحكم يرفض حقلًا نصيًا يصل مصفوفة | `AccountingSetup.php` | `AccountingSetupControllerTest` | كُشف |
+| G11 | نموذج شركة الشحن يرفض حقلًا نصيًا يصل مصفوفة | `AccountingSetup.php` | `AccountingSetupControllerTest` | كُشف |
+| G12 | نموذج السنة المالية الأولى يرفض حقلًا نصيًا يصل مصفوفة | `AccountingSetup.php` | `AccountingSetupControllerTest` | كُشف |
+| G13 | القيمة التي ليست نصًا هي سبب الرفض | `AccountingSetup.php` | `AccountingSetupControllerTest` | كُشف |
+| G14 | رفض الطلب المشوّه جوابه 400 | `AccountingSetup.php` | `AccountingSetupControllerTest` | كُشف |
+| G15 | قائمة إشعارات الخصم تقتصر على إشعارات من يرى سجلاته وحدها | `SalesDebitNotes.php` | `SalesDebitNotesTest` | كُشف |
+| G16 | عكس إشعار الخصم يقتصر على إشعارات من يرى سجلاته وحدها | `SalesDebitNotes.php` | `SalesDebitNotesTest` | كُشف |
+| G17 | قراءة إشعار خصم واحد تقتصر على إشعارات من يرى سجلاته وحدها | `SalesDebitNotes.php` | `SalesDebitNotesTest` | كُشف |
+| G18 | نموذج العكس يسأل عن الإشعار كما يراه الموظف | `AccountingDebitNotes.php` | `AccountingDebitNotesControllerTest` | كُشف |
+| G19 | لوحة جهات الاتصال تهرب قيمة الحقل في الخاصية (العملاء والموردون) | `contacts_panel.php` | `CustomersControllerTest`, `SuppliersControllerTest` | كُشف |
+| G20 | شاشة الإعدادات تهرب قالب وصف المبيعات في الخاصية | `manage.php` | `AccountingSetupControllerTest` | كُشف بعد تقوية الاختبار (يقارن الخاصية الخام) |
+| G21 | شاشة الإعدادات تهرب قالب وصف المشتريات في الخاصية | `manage.php` | `AccountingSetupControllerTest` | كُشف بعد تقوية الاختبار (يقارن الخاصية الخام) |
+| G22 | نموذج الحقل المخصص يهرب الاسم في الخاصية | `form.php` | `Custom_fieldsControllerTest` | كُشف |
+| G23 | قائمة الإشعارات تهرب ما يقوله الإشعار | `manage.php` | `NotificationsControllerTest` | كُشف |
+| G24 | طلب التحويل ينظر في سلته قبل أن يغيّرها | `Receivings.php` | `ReceivingsControllerTest` | كُشف |
+| G25 | صنف لا يمكن للسجل إضافته يرفض الطلب كله | `Receivings.php` | `ReceivingsControllerTest` | كُشف |
+| G26 | طلب المخزون يسأل من المواقع النشطة وحدها | `StockDocumentController.php` | `StockRequestsControllerTest` | كُشف |
+| G27 | المستندات المفتوحة للصنف تُعدّ تحت قفل حين يُطلب القفل | `ItemOpenDocuments.php` | `ItemOpenDocumentsTest` | كُشف بعد إضافة اختبارات القفل لـ`ItemOpenDocuments` |
+| G28 | تُقفل الأصناف قبل قراءة مستنداتها | `Item.php` | `ItemTest` | كُشف |
+| G29 | حذف الصنف يسأل ثانيةً تحت القفل داخل معاملته | `Item.php` | `ItemTest` | كُشف |
+| G30 | حذف قائمة أصناف يسأل ثانيةً تحت القفل داخل معاملته | `Item.php` | `ItemTest` | كُشف |
+| G31 | الرفض تحت القفل يتراجع بمعاملة الحذف | `Item.php` | `ItemTest` | كُشف بعد إضافة تأكيد «لا معاملة مفتوحة» |
+| G32 | نموذج الصنف يسأل ثانيةً تحت القفل داخل معاملته | `Items.php` | `ItemsControllerTest` | كُشف بعد اختبار «مستند بعد اللقطة» |
+| G33 | بحث الخصائص يقرأ جدول الأصناف الذي يعرضه | `Item.php` | `ItemTest` | كُشف |
+| G34 | بحث الخصائص يستبعد غير النشط إن طُلب | `Item.php` | `ItemTest` | كُشف |
+| G35 | بحث الأصناف بالخاصية يستبعد الأطقم | `Item.php` | `ItemTest` | كُشف |
+| G36 | بحث المخزون بالخاصية يستبعد الأصناف بلا مخزون | `Item.php` | `ItemTest` | كُشف |
 
 ## 4. ما افترضتُه
 
@@ -83,7 +122,7 @@
 
 ## 8. حدود هذا العمل
 
-نُفِّذ على بيانات التطوير وقاعدة اختبار خاصة (`ospos_test_w94`)، ولم يُشغَّل شيء على قاعدة حقيقية، ولم تُشغَّل المجموعة الكاملة. **لم يُدمج في `master` ولم يُفتح طلب دمج**؛ دُفع الفرع `wp/W94` وحده إنقاذًا بإذن المالك. لم يُعدَّل `decisions.md` ولا مصفوفة التطابق ولا تقرير الفجوات ولا `backlog.md` ولا أي `README` ولا قائمة النشر. لم أشغّل `php-cs-fixer` على الملفات القائمة (لا ملف تطبيق جديد، وملفات الحزمة الستة القائمة كانت تحتاجه قبلها: محاذاة مصفوفات سابقة لعملي، ولسطوري التي أضفتُها تُراعي PSR-12)؛ وتمرّره حزمة التنظيف في آخر الموجة (W9-6).
+نُفِّذ على بيانات التطوير وقاعدة اختبار خاصة (`ospos_test_w94`)، ولم يُشغَّل شيء على قاعدة حقيقية، ولم تُشغَّل المجموعة الكاملة. **لم يُدمج في `master` ولم يُفتح طلب دمج**؛ دُفع الفرع `wp/W94` وحده إنقاذًا بإذن المالك. لم يُعدَّل `decisions.md` ولا مصفوفة التطابق ولا تقرير الفجوات ولا `backlog.md` ولا أي `README` ولا قائمة النشر. لم أشغّل `php-cs-fixer fix` على الملفات القائمة (لا ملف تطبيق جديد ولا ملف لغة جديد): جرّبتُ `--dry-run` على العشرة التي لمستُها، فأربعة نظيفة (`AccountingDebitNotes` و`StockDocumentController` و`SalesDebitNotes` و`ItemOpenDocuments`) وستة تحتاج المصلح **قبل عملي** (`Filters` و`AccountingSetup` و`Items` و`Receivings` و`Employee` و`Item`: محاذاة مصفوفات قديمة) **وعدد الفروق فيها وأسطرها متساوٍ قبل التعديل وبعده**، أي لم أُضف مخالفة؛ وتمرّره حزمة التنظيف في آخر الموجة (W9-6).
 
 ## 9. تحديثات الوثائق المشتركة للمُدمِج
 

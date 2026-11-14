@@ -635,6 +635,26 @@ class ReceivingsControllerTest extends CIUnitTestCase
         $this->assertSame('10.000', $this->onHand($second));
     }
 
+    public function testPostRequisitionComplete_RefusesTheWholeRequisitionWithAccountingOffToo(): void
+    {
+        $buyerId = $this->buyer();
+        ['item' => $itemId, 'other' => $other] = $this->transferSetup($buyerId);
+        $before = $this->countRows('receivings');
+
+        $this->setConfigValue('accounting_enabled', '0');
+        $this->loginAs($buyerId, $this->cart([$this->cartLine($itemId, 1, '4', '0')], 'requisition', null) + ['recv_stock_destination' => $other]);
+        $this->accountingDb()->table('items')->where('item_id', $itemId)->update(['status' => 1]);
+
+        try {
+            $this->post('/receivings/requisitionComplete', $this->completeForm())->assertSee(lang('Receivings.unable_to_add_item'));
+        } finally {
+            $this->setConfigValue('accounting_enabled', '1');
+        }
+
+        $this->assertSame($before, $this->countRows('receivings'));
+        $this->assertSame('10.000', $this->onHand($itemId));
+    }
+
     public function testPostRequisitionComplete_CompletesTheRequisitionWhenEveryItemOfTheCartCanBeAdded(): void
     {
         $buyerId = $this->buyer();
