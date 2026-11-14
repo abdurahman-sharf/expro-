@@ -106,6 +106,77 @@ class FiltersTest extends CIUnitTestCase
         }
     }
 
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function sharedSignInRoutes(): array
+    {
+        return [
+            'the sign-in'                       => ['login'],
+            'the sign-in in capitals'           => ['Login'],
+            'the migration of a new database'   => ['migrate'],
+            'the sign-in with a closing slash'  => ['login/'],
+        ];
+    }
+
+    #[DataProvider('sharedSignInRoutes')]
+    public function testInitialize_LeavesTheEmployeeFilterAndTheTokenFilterOutOfTheTwoRoutesOfTheSignIn(string $route): void
+    {
+        $filters = new Filters($this->productionConfig(), $this->postRequest(), service('response'));
+        $filters->initialize($route);
+
+        $this->assertNotContains('isLoggedIn', $filters->getFilters()['before'], $route);
+        $this->assertNotContains('csrf', $filters->getFilters()['before'], $route);
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function pathsThatOnlyLookLikeTheSignIn(): array
+    {
+        return [
+            'a route that ends with migrate'           => ['accounting_setup/migrate'],
+            'a save of a record named migrate'         => ['branches/save/migrate'],
+            'a save whose key ends with migrate'       => ['accounting_chart/save/xmigrate'],
+            'a view whose key ends with migrate'       => ['roles/view/xmigrate'],
+            'a controller whose name ends with it'     => ['datamigrate'],
+            'the migration below another controller'   => ['reports/migrate'],
+            'the migration below the sign-in'          => ['login/migrate'],
+            'a route that starts with login'           => ['loginhelp'],
+            'a method below the sign-in'               => ['login/index'],
+            'a controller named like the sign-in'      => ['login_log/search'],
+            'a route that starts with migrate'         => ['migrate/status'],
+        ];
+    }
+
+    #[DataProvider('pathsThatOnlyLookLikeTheSignIn')]
+    public function testInitialize_KeepsTheEmployeeFilterOnAPathThatOnlyStartsWithLoginOrEndsWithMigrate(string $route): void
+    {
+        $filters = new Filters($this->productionConfig(), $this->postRequest(), service('response'));
+        $filters->initialize($route);
+
+        $this->assertContains('isLoggedIn', $filters->getFilters()['before'], $route);
+    }
+
+    #[DataProvider('pathsThatOnlyLookLikeTheSignIn')]
+    public function testInitialize_KeepsTheTokenFilterOnAPathThatOnlyStartsWithLoginOrEndsWithMigrate(string $route): void
+    {
+        $filters = new Filters($this->productionConfig(), $this->postRequest(), service('response'));
+        $filters->initialize($route);
+
+        $this->assertContains('csrf', $filters->getFilters()['before'], $route);
+    }
+
+    public function testInitialize_KeepsTheThrottleOnTheTwoRoutesOfTheSignInOnly(): void
+    {
+        foreach (['login', 'migrate'] as $route) {
+            $filters = new Filters($this->productionConfig(), $this->postRequest(), service('response'));
+            $filters->initialize($route);
+
+            $this->assertContains('throttle', $filters->getFilters()['before'], $route);
+        }
+    }
+
     public function testInitialize_LeavesTheTokenFilterOutOfTheRoutesItIsMeantToSpare(): void
     {
         $filters = new Filters($this->productionConfig(), $this->postRequest(), service('response'));
