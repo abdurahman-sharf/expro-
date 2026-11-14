@@ -123,4 +123,26 @@ final class SupplierBalancesReportTest extends FamilyReportTestCase
 
         $this->built($this->report, ['from' => '2026-05-02', 'to' => '2026-05-01']);
     }
+
+    public function testBuild_ShowsAPurchaseInDollarsAndItsPaymentInTheBaseAndTiesBothChecks(): void
+    {
+        $this->enableDollars();
+        $purchase = $this->foreignPurchase();
+
+        $this->payPurchase($purchase, '100.00');
+
+        $table = $this->built($this->report, ['from' => $this->ago(30), 'to' => date('Y-m-d', strtotime('+1 day'))]);
+        $row   = $this->rowsOf($table)[0];
+
+        $this->assertAmount('750.00', $row->cell('purchases'));
+        $this->assertAmount('375.00', $row->cell('payments'), 'the payment of 360 and the exchange difference of 15');
+        $this->assertAmount('375.00', $row->cell('balance'));
+        $this->assertCount(2, $table->ties);
+
+        foreach ($table->ties as $tie) {
+            $this->assertFalse($tie->isRefused());
+        }
+
+        $this->assertReportTies($table);
+    }
 }

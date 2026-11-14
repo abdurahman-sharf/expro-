@@ -117,4 +117,21 @@ final class SupplierAgedLedgerReportTest extends FamilyReportTestCase
 
         $this->built($this->report, ['to' => '2026-02-31']);
     }
+
+    public function testBuild_AgesAPurchaseInDollarsByWhatItsJournalHoldsInTheBaseAndTiesItToTheAccount(): void
+    {
+        $this->enableDollars();
+        $purchase = $this->foreignPurchase();
+
+        $this->payPurchase($purchase, '100.00');
+
+        $table = $this->built($this->report, ['to' => date('Y-m-d', strtotime('+1 day'))]);
+        $row   = $this->rowsOf($table)[0];
+
+        $this->assertAmount('375.00', $row->cell('total'), 'two hundred dollars at 3.75 less a hundred paid at 3.60 with the exchange difference');
+        $this->assertAmount('375.00', $row->cell('balance'));
+        $this->assertCount(1, $table->ties);
+        $this->assertFalse($table->ties[0]->isRefused(), 'the aged ledger is read from the journals, which are in the base');
+        $this->assertReportTies($table);
+    }
 }

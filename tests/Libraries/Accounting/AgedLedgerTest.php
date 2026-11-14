@@ -414,4 +414,43 @@ class AgedLedgerTest extends CIUnitTestCase
         $this->assertSame('40.0000', $row->credit);
         $this->assertSame('-40.0000', $row->balance());
     }
+
+    public function testBuild_AgesAnInvoiceInDollarsByWhatItsJournalHoldsInTheBase(): void
+    {
+        $this->enableDollars();
+        $until   = date('Y-m-d', strtotime('+1 day'));
+        $invoice = $this->foreignInvoice('100');
+
+        $row = $this->rowOf($this->customers($until), $this->customerId);
+
+        $this->assertSame('375.0000', $row->total(), 'a hundred dollars at the 3.75 of the day of the invoice');
+        $this->assertSame('375.0000', $row->balance());
+        $this->assertSame($row->balance(), bcadd($this->position()->accountBalance, '0', 4));
+
+        $this->addPayment($invoice, '50.00');
+
+        $row = $this->rowOf($this->customers($until), $this->customerId);
+
+        $this->assertSame('187.5000', $row->balance(), 'fifty dollars paid at 3.60 settle 187.50 with their exchange difference');
+        $this->assertSame($row->balance(), bcadd($this->position()->accountBalance, '0', 4));
+        $this->assertSame($row->total(), array_reduce($row->buckets, static fn (string $sum, string $amount): string => bcadd($sum, $amount, 4), '0.0000'));
+    }
+
+    public function testBuild_AgesAPurchaseInDollarsByWhatItsJournalHoldsInTheBase(): void
+    {
+        $this->enableDollars();
+        $until    = date('Y-m-d', strtotime('+1 day'));
+        $purchase = $this->foreignPurchase();
+
+        $row = $this->rowOf($this->suppliers($until), $this->supplierId);
+
+        $this->assertSame('750.0000', $row->total(), 'two hundred dollars at the 3.75 of the day of the purchase');
+
+        $this->payPurchase($purchase, '100.00');
+
+        $row = $this->rowOf($this->suppliers($until), $this->supplierId);
+
+        $this->assertSame('375.0000', $row->balance(), 'a hundred dollars paid at 3.60 settle 375 with their exchange difference');
+        $this->assertSame($row->balance(), bcadd($this->supplierPosition()->accountBalance, '0', 4));
+    }
 }
